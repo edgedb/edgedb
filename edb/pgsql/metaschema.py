@@ -179,6 +179,24 @@ class DateDomain(dbops.Domain):
         )
 
 
+class IntervalDomain(dbops.Domain):
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'duration_t'),
+            base='interval',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'duration_t'),
+                    expr=r'''
+                        EXTRACT(months from VALUE) = 0 AND
+                        EXTRACT(years from VALUE) = 0 AND
+                        EXTRACT(days from VALUE) = 0
+                    ''',
+                ),
+            ),
+        )
+
+
 class AlterCurrentDatabaseSetString(dbops.Function):
     """Alter a PostgreSQL configuration parameter of the current database."""
     text = '''
@@ -1916,7 +1934,7 @@ class DurationInFunction(dbops.Function):
                 EXTRACT(DAY FROM v.column1) != 0
             THEN
                 edgedb.raise(
-                    NULL::interval,
+                    NULL::edgedb.duration_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type std::duration: '
@@ -1927,7 +1945,7 @@ class DurationInFunction(dbops.Function):
                         || 'for std::duration."}'
                     )
                 )
-            ELSE v.column1
+            ELSE v.column1::edgedb.duration_t
             END
         FROM
             (VALUES (
@@ -1939,7 +1957,7 @@ class DurationInFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'duration_in'),
             args=[('val', ('text',))],
-            returns=('interval',),
+            returns=('edgedb', 'duration_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text,
@@ -3215,6 +3233,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateDomain(TimestampTzDomain()),
         dbops.CreateDomain(TimestampDomain()),
         dbops.CreateDomain(DateDomain()),
+        dbops.CreateDomain(IntervalDomain()),
         dbops.CreateFunction(StrToBigint()),
         dbops.CreateFunction(StrToDecimal()),
         dbops.CreateFunction(StrToInt64NoInline()),

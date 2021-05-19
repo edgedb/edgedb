@@ -49,7 +49,7 @@ base_type_name_map = {
     s_obj.get_known_type_id('std::float32'): ('float4',),
     s_obj.get_known_type_id('std::uuid'): ('uuid',),
     s_obj.get_known_type_id('std::datetime'): ('edgedb', 'timestamptz_t'),
-    s_obj.get_known_type_id('std::duration'): ('interval',),
+    s_obj.get_known_type_id('std::duration'): ('edgedb', 'duration_t',),
     s_obj.get_known_type_id('std::bytes'): ('bytea',),
     s_obj.get_known_type_id('std::json'): ('jsonb',),
 
@@ -82,6 +82,7 @@ base_type_name_map_r = {
     'edgedb.timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz_t': sn.QualName('std', 'datetime'),
     'timestamptz': sn.QualName('std', 'datetime'),
+    'edgedb.duration_t': sn.QualName('std', 'duration'),
     'interval': sn.QualName('std', 'duration'),
     'bytea': sn.QualName('std', 'bytes'),
     'jsonb': sn.QualName('std', 'json'),

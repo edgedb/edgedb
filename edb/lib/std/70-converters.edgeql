@@ -362,15 +362,18 @@ std::to_duration(
     CREATE ANNOTATION std::description := 'Create a `duration` value.';
     SET volatility := 'Immutable';
     USING SQL $$
-    SELECT make_interval(
-        0,
-        0,
-        0,
-        0,
-        "hours"::int,
-        "minutes"::int,
-        "seconds"
-    ) + (microseconds::text || ' microseconds')::interval
+    SELECT (
+        make_interval(
+            0,
+            0,
+            0,
+            0,
+            "hours"::int,
+            "minutes"::int,
+            "seconds"
+        ) +
+        (microseconds::text || ' microseconds')::interval
+    )::edgedb.duration_t
     $$;
 };
 

@@ -129,10 +129,10 @@ std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
     USING SQL $$
     SELECT CASE WHEN "unit" in ('microseconds', 'milliseconds',
                                 'seconds', 'minutes', 'hours')
-        THEN date_trunc("unit", "dt")
+        THEN date_trunc("unit", "dt")::edgedb.duration_t
         ELSE
             edgedb.raise(
-                NULL::interval,
+                NULL::edgedb.duration_t,
                 'invalid_datetime_format',
                 msg => (
                     'invalid unit for std::duration_truncate: '
@@ -270,7 +270,7 @@ CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT EXTRACT(epoch FROM "l" - "r")::text::interval
+        SELECT EXTRACT(epoch FROM "l" - "r")::text::edgedb.duration_t
     $$
 };
 
@@ -282,7 +282,7 @@ std::`=` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
-    USING SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=(interval,interval)';
 };
 
 
@@ -298,7 +298,7 @@ std::`!=` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
-    USING SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>(interval,interval)';
 };
 
 
@@ -317,7 +317,7 @@ std::`>` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
-    USING SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>(interval,interval)';
 };
 
 
@@ -326,7 +326,7 @@ std::`>=` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
-    USING SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=(interval,interval)';
 };
 
 
@@ -335,7 +335,7 @@ std::`<` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
-    USING SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<(interval,interval)';
 };
 
 
@@ -344,7 +344,7 @@ std::`<=` (l: std::duration, r: std::duration) -> std::bool {
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
-    USING SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=(interval,interval)';
 };
 
 
@@ -352,21 +352,21 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::duration) -> std::duration {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL OPERATOR r'+(interval,interval)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::duration, r: std::duration) -> std::duration {
     SET volatility := 'Immutable';
-    USING SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-(interval,interval)';
 };
 
 
 CREATE PREFIX OPERATOR
 std::`-` (v: std::duration) -> std::duration {
     SET volatility := 'Immutable';
-    USING SQL OPERATOR r'-';
+    USING SQL OPERATOR r'-(NONE, interval)';
 };
 
 
