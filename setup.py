@@ -62,7 +62,7 @@ RUNTIME_DEPS = [
     'edgedb>=0.13.0',
 ]
 
-CYTHON_DEPENDENCY = 'Cython==0.29.21'
+CYTHON_DEPENDENCY = 'Cython==0.29.23'
 
 DOCS_DEPS = [
     'lxml~=4.6.2',
