@@ -178,6 +178,12 @@ class TestProtocol(ProtocolTestCase):
         )
 
     async def test_proto_connection_lost_cancel_query(self):
+        # This test is occasionally hanging - adding a timeout to find out why
+        await asyncio.wait_for(
+            self._test_proto_connection_lost_cancel_query(), 30
+        )
+
+    async def _test_proto_connection_lost_cancel_query(self):
         # Prepare the test data
         con2 = await edgedb.async_connect(**self.get_connect_args())
         try:
