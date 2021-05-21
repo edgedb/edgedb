@@ -811,6 +811,8 @@ def _get_rel_path_output(
             raise ValueError(
                 f'could not resolve trailing pointer class for {path_id}')
 
+        assert not ptrref.is_computable
+
         if ptr_info is None:
             ptr_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=False, link_bias=False)

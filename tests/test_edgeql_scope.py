@@ -119,7 +119,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_scope_tuple_04(self):
+    async def test_edgeql_scope_tuple_04a(self):
         await self.assert_query_result(
             r'''
                 WITH MODULE test
@@ -174,6 +174,67 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     },
                     {
                         'name': 'Bob',
+                    },
+                ],
+            ]
+        )
+
+    async def test_edgeql_scope_tuple_04b(self):
+        # N.B: for reproducing, I needed \set limit 0
+        await self.assert_query_result(
+            r'''
+                WITH MODULE test
+                SELECT _ := (
+                    User.friends {name},
+                    # User.friends is a common path, so it refers to the
+                    # SAME object in both tuple elements. In particular
+                    # that means that in the User shape there will always
+                    # be a single object appearing in friends link
+                    # (although it's a ** link).
+                    User {
+                        name,
+                        friends: {
+                            @nickname
+                        }
+                    },
+                )
+                ORDER BY _.1.name THEN _.0.name;
+            ''',
+            [
+                [
+                    {
+                        'name': 'Bob',
+                    },
+                    {
+                        'name': 'Alice',
+                        'friends': [{'@nickname': 'Swampy'}],
+                    },
+                ],
+                [
+                    {
+                        'name': 'Carol',
+                    },
+                    {
+                        'name': 'Alice',
+                        'friends': [{'@nickname': 'Firefighter'}],
+                    },
+                ],
+                [
+                    {
+                        'name': 'Dave',
+                    },
+                    {
+                        'name': 'Alice',
+                        'friends': [{'@nickname': 'Grumpy'}],
+                    },
+                ],
+                [
+                    {
+                        'name': 'Bob',
+                    },
+                    {
+                        'name': 'Dave',
+                        'friends': [{'@nickname': None}],
                     },
                 ],
             ]
@@ -733,7 +794,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_scope_binding_02(self):
+    async def test_edgeql_scope_binding_02a(self):
         await self.assert_query_result(
             r"""
             WITH
@@ -744,6 +805,27 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     FILTER .name = name
                 )),
             SELECT _ := ((SELECT L.1.name), (SELECT L.1.name))
+            ORDER BY _;
+            """,
+            [
+                ['Alice', 'Alice'],
+                ['Alice', 'Bob'],
+                ['Bob', 'Alice'],
+                ['Bob', 'Bob'],
+            ]
+        )
+
+    async def test_edgeql_scope_binding_02b(self):
+        await self.assert_query_result(
+            r"""
+            WITH
+                MODULE test,
+                name := {'Alice', 'Bob'},
+                L := ((
+                    SELECT User
+                    FILTER .name = name
+                ), name),
+            SELECT _ := ((SELECT L.0.name), (SELECT L.0.name))
             ORDER BY _;
             """,
             [

@@ -657,10 +657,13 @@ def apply_volatility_ref(
     for ref in ctx.volatility_ref:
         # Apply the volatility reference.
         # See the comment in process_set_as_subquery().
+        arg = ref(ctx)
+        if not arg:
+            continue
         stmt.where_clause = astutils.extend_binop(
             stmt.where_clause,
             pgast.NullTest(
-                arg=ref(),
+                arg=arg,
                 negated=True,
             )
         )
