@@ -522,8 +522,10 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     for ir_set in computables:
         scope = ctx.path_scope.find_descendant(ir_set.path_id)
         if scope is None:
-            # The path is already in the scope, no point
-            # in recompiling the computable expression.
+            scope = ctx.path_scope.find_visible(ir_set.path_id)
+        # We skip recompiling if we can't find a scope for it.
+        # This whole mechanism seems a little sketchy, unfortunately.
+        if scope is None:
             continue
 
         with ctx.new() as subctx:

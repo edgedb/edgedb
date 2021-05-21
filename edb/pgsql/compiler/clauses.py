@@ -82,7 +82,7 @@ def fini_stmt(
 
 def get_volatility_ref(
         path_id: irast.PathId, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+        ctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
     """Produce an appropriate volatility_ref from a path_id."""
 
     ref: Optional[pgast.BaseExpr] = relctx.maybe_get_path_var(
@@ -105,7 +105,7 @@ def get_volatility_ref(
             )
             ref = pgast.ColumnRef(name=[rvar.alias.aliasname, name])
         else:
-            ref = relctx.get_path_var(
+            ref = relctx.maybe_get_path_var(
                 ctx.rel, path_id, aspect='value', ctx=ctx)
 
     return ref
@@ -126,10 +126,11 @@ def setup_iterator_volatility(
     # We use a callback scheme here to avoid inserting volatility ref
     # columns unless there is actually a volatile operation that
     # requires it.
-    def get_ref() -> pgast.BaseExpr:
+    def get_ref(
+            xctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
         nonlocal ref
         if ref is None:
-            ref = get_volatility_ref(path_id, ctx=ctx)
+            ref = get_volatility_ref(path_id, ctx=xctx)
         return ref
 
     ctx.volatility_ref = old + (get_ref,)

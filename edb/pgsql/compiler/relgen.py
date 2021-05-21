@@ -1180,9 +1180,9 @@ def process_set_as_subquery(
                 # skip it based on the current_insert_path_id check.
                 path_id = ir_source.path_id
                 newctx.volatility_ref += (
-                    lambda: relctx.maybe_get_path_var(
+                    lambda xctx: relctx.maybe_get_path_var(
                         stmt, path_id=path_id, aspect='identity',
-                        ctx=ctx),)
+                        ctx=xctx),)
 
             if is_objtype_path and not source_is_visible:
                 path_scope = relctx.get_scope(ir_set, ctx=newctx)

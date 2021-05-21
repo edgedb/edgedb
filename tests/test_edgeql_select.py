@@ -713,6 +713,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1';
             """)
 
+    async def test_edgeql_select_computable_30(self):
+        await self.assert_query_result(
+            r"""
+                WITH O := (SELECT stdgraphql::Query {m := 10}),
+                SELECT (O {m}, O.m);
+            """,
+            [
+                [{'m': 10}, 10],
+            ]
+        )
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(
             r"""
