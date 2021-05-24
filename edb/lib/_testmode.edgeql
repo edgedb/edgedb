@@ -155,7 +155,7 @@ CREATE FUNCTION
 sys::_sleep(duration: std::float64) -> std::bool
 {
     CREATE ANNOTATION std::description :=
-        'Make the current session sleep for *duration* time.';
+        'Make the current session sleep for *duration* seconds.';
     # This function has side-effect.
     SET volatility := 'Volatile';
     USING SQL $$

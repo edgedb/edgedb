@@ -1504,7 +1504,7 @@ cdef class PGConnection:
         buf.write_bytestring(b'repeatable read')
 
         buf.write_bytestring(b'intervalstyle')
-        buf.write_bytestring(b'sql_standard')
+        buf.write_bytestring(b'iso_8601')
 
         buf.write_bytestring(b'jit')
         buf.write_bytestring(b'off')

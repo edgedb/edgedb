@@ -56,6 +56,8 @@ base_type_name_map = {
     s_obj.get_known_type_id('cal::local_datetime'): ('edgedb', 'timestamp_t'),
     s_obj.get_known_type_id('cal::local_date'): ('edgedb', 'date_t'),
     s_obj.get_known_type_id('cal::local_time'): ('time',),
+    s_obj.get_known_type_id('cal::relative_duration'):
+        ('edgedb', 'relative_duration_t'),
 }
 
 base_type_name_map_r = {
@@ -94,6 +96,7 @@ base_type_name_map_r = {
     'date_t': sn.QualName('cal', 'local_date'),
     'edgedb.date_t': sn.QualName('cal', 'local_date'),
     'time': sn.QualName('cal', 'local_time'),
+    'edgedb.relative_duration_t': sn.QualName('cal', 'relative_duration'),
 }
 
 

@@ -1436,7 +1436,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'hours');
             ''',
-            {'15:00:00'},
+            {'PT15H'},
         )
 
         await self.assert_query_result(
@@ -1444,7 +1444,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'minutes');
             ''',
-            {'15:01:00'},
+            {'PT15H1M'},
         )
 
         await self.assert_query_result(
@@ -1452,7 +1452,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'seconds');
             ''',
-            {'15:01:22'},
+            {'PT15H1M22S'},
         )
 
         await self.assert_query_result(
@@ -1460,7 +1460,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'milliseconds');
             ''',
-            {'15:01:22.306'},
+            {'PT15H1M22.306S'},
         )
 
         # Currently no-op but may be useful if precision is improved
@@ -1469,7 +1469,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'microseconds');
             ''',
-            {'15:01:22.306916'},
+            {'PT15H1M22.306916S'},
         )
 
     async def test_edgeql_functions_duration_trunc_02(self):
@@ -1834,27 +1834,27 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_to_duration_01(self):
         await self.assert_query_result(
             r'''SELECT <str>to_duration(hours:=20);''',
-            ['20:00:00'],
+            ['PT20H'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(minutes:=20);''',
-            ['0:20:00'],
+            ['PT20M'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(seconds:=20);''',
-            ['0:00:20'],
+            ['PT20S'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(seconds:=20.15);''',
-            ['0:00:20.15'],
+            ['PT20.15S'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(microseconds:=100);''',
-            ['0:00:00.0001'],
+            ['PT0.0001S'],
         )
 
     async def test_edgeql_functions_to_duration_02(self):
@@ -2831,7 +2831,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     '11:12:22',
                 });
             ''',
-            ['11:01:22'],
+            ['PT11H1M22S'],
         )
 
     async def test_edgeql_functions_min_02(self):
@@ -2977,7 +2977,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     '11:12:22',
                 });
             ''',
-            ['16:01:22'],
+            ['PT16H1M22S'],
         )
 
     async def test_edgeql_functions_max_02(self):

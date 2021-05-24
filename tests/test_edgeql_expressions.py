@@ -144,6 +144,11 @@ VALUES = {
         value(typename='decimal',
               anyreal=True, anyint=False, anyfloat=False,
               datetime=False, signed=True, anynumeric=True),
+
+    '<cal::relative_duration>"P1Y2M3DT20H1M22.306916S"':
+        value(typename='cal::relative_duration',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=True, signed=True, anynumeric=False),
 }
 
 
@@ -1357,8 +1362,8 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT A ORDER BY A;
             ''',
             [
-                "19:01:22.306916",
-                "20:01:22.306916",
+                "PT19H1M22.306916S",
+                "PT20H1M22.306916S",
             ]
         )
 
@@ -1470,9 +1475,13 @@ class TestExpressions(tb.QueryTestCase):
                 query = f"""SELECT count({left} + {right});"""
                 restype = None
 
-                if ldesc.signed:  # duration
+                if 'cal::relative_duration' in [
+                        ldesc.typename, rdesc.typename] \
+                        and 'duration' in [ldesc.typename, rdesc.typename]:
+                    restype = 'cal::relative_duration'
+                elif ldesc.signed:  # duration/cal::relative_duration
                     restype = rdesc.typename
-                elif rdesc.signed:  # duration
+                elif rdesc.signed:  # duration/cal::relative_duration
                     restype = ldesc.typename
 
                 if restype:
@@ -1496,11 +1505,15 @@ class TestExpressions(tb.QueryTestCase):
             for right, rdesc in get_test_items(datetime=True):
                 query = f"""SELECT count({left} - {right});"""
 
-                if rdesc.signed:  # duration
+                if 'cal::relative_duration' in [
+                        ldesc.typename, rdesc.typename] \
+                        and 'duration' in [ldesc.typename, rdesc.typename]:
+                    restype = 'cal::relative_duration'
+                elif rdesc.signed:  # duration/cal::relative_duration
                     restype = ldesc.typename
                 elif rdesc.typename == ldesc.typename:
                     if rdesc.typename.startswith('cal::local_'):
-                        # TODO(tailhook) restype = 'cal::relativedelta'
+                        # TODO(tailhook) restype = 'cal::relative_duration'
                         restype = None
                     else:
                         restype = 'duration'

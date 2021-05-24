@@ -816,10 +816,10 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 'SELECT <cal::local_time>"20:01:22.306916+01:00"')
 
     async def test_edgeql_casts_str_09(self):
-        # Canonical duration is a bit weird.
+        # Canonical duration
         await self.assert_query_result(
             r'''
-                WITH x := '20:01:22.306916'
+                WITH x := 'PT20H1M22.306916S'
                 SELECT <str><duration>x = x;
             ''',
             [True],
@@ -829,6 +829,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             # non-canonical
             r'''
                 WITH x := {
+                    '20:01:22.306916',
                     '20h 1m 22.306916s',
                     '20 hours 1 minute 22.306916 seconds',
                     '72082.306916',  # the duration in seconds
@@ -836,21 +837,22 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 }
                 SELECT <str><duration>x = x;
             ''',
-            [False, False, False, False],
+            [False, False, False, False, False],
         )
 
         await self.assert_query_result(
             # validating that these are all in fact the same duration
             r'''
                 WITH x := {
+                    '20:01:22.306916',
                     '20h 1m 22.306916s',
                     '20 hours 1 minute 22.306916 seconds',
                     '72082.306916',  # the duration in seconds
                     '0.834285959675926 days',
                 }
-                SELECT <duration>x = <duration>'20:01:22.306916';
+                SELECT <duration>x = <duration>'PT20H1M22.306916S';
             ''',
-            [True, True, True, True],
+            [True, True, True, True, True],
         )
 
     async def test_edgeql_casts_str_10(self):

@@ -216,7 +216,7 @@ class BaseCluster:
             'client_encoding': 'utf-8',
             'search_path': 'edgedb',
             'timezone': 'UTC',
-            'intervalstyle': 'sql_standard',
+            'intervalstyle': 'iso_8601',
             'jit': 'off',
         }
 
