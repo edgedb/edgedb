@@ -38,6 +38,7 @@ import click
 import setproctitle
 
 from edb.common import devmode
+from edb.common import signalctl
 from edb.common import exceptions
 
 from . import args as srvargs
@@ -172,61 +173,55 @@ def _init_parsers():
     ql_parser.preload()
 
 
-def _run_server(
+async def _run_server(
     cluster,
     args: srvargs.ServerConfig,
     runstate_dir,
     internal_runstate_dir,
+    loop,
     *,
     do_setproctitle: bool
 ):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
+        ss = server.Server(
+            loop=loop,
+            cluster=cluster,
+            runstate_dir=runstate_dir,
+            internal_runstate_dir=internal_runstate_dir,
+            max_backend_connections=args.max_backend_connections,
+            compiler_pool_size=args.compiler_pool_size,
+            nethost=args.bind_address,
+            netport=args.port,
+            auto_shutdown=args.auto_shutdown,
+            echo_runtime_info=args.echo_runtime_info,
+            status_sink=args.status_sink,
+            startup_script=args.startup_script,
+        )
+        await sc.wait_for(ss.init())
 
-    ss = server.Server(
-        loop=loop,
-        cluster=cluster,
-        runstate_dir=runstate_dir,
-        internal_runstate_dir=internal_runstate_dir,
-        max_backend_connections=args.max_backend_connections,
-        compiler_pool_size=args.compiler_pool_size,
-        nethost=args.bind_address,
-        netport=args.port,
-        auto_shutdown=args.auto_shutdown,
-        echo_runtime_info=args.echo_runtime_info,
-        status_sink=args.status_sink,
-        startup_script=args.startup_script,
-    )
-
-    loop.run_until_complete(ss.init())
-
-    if args.bootstrap_only:
-        loop.run_until_complete(ss.run_startup_script_and_exit())
-    else:
-        try:
-            loop.run_until_complete(ss.start())
-        except Exception:
-            loop.run_until_complete(ss.stop())
-            raise
-
-        if do_setproctitle:
-            setproctitle.setproctitle(
-                f"edgedb-server-{ss.get_listen_port()}"
-            )
-
-        loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
-
-        # Notify systemd that we've started up.
-        _sd_notify('READY=1')
+        if args.bootstrap_only:
+            await sc.wait_for(ss.run_startup_script_and_exit())
+            return
 
         try:
-            loop.run_forever()
-        finally:
+            await sc.wait_for(ss.start())
+
+            if do_setproctitle:
+                setproctitle.setproctitle(
+                    f"edgedb-server-{ss.get_listen_port()}"
+                )
+
+            # Notify systemd that we've started up.
+            _sd_notify('READY=1')
+
             try:
-                logger.info('Shutting down.')
-                loop.run_until_complete(ss.stop())
-            finally:
-                _sd_notify('STOPPING=1')
+                await sc.wait_for(ss.serve_forever())
+            except signalctl.SignalError as e:
+                logger.info('Received signal: %s.', e.signo)
+        finally:
+            _sd_notify('STOPPING=1')
+            logger.info('Shutting down.')
+            await sc.wait_for(ss.stop())
 
 
 def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
@@ -363,9 +358,17 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                         ),
                     )
 
-                _run_server(
-                    cluster, args, runstate_dir, internal_runstate_dir,
-                    do_setproctitle=do_setproctitle,
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    _run_server(
+                        cluster,
+                        args,
+                        runstate_dir,
+                        internal_runstate_dir,
+                        loop,
+                        do_setproctitle=do_setproctitle,
+                    )
                 )
 
     except BaseException:

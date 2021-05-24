@@ -78,7 +78,7 @@ TEST_DEPS = [
     'flake8~=3.8.1',
     'flake8-bugbear~=20.1.4',
     'mypy==0.812',
-    'coverage~=5.2.1',
+    'coverage~=5.5',
     'requests-xml~=0.2.3',
     # For rebuilding GHA workflows
     'Jinja2',

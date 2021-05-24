@@ -79,6 +79,10 @@ DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
 cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
+cdef object POSTGRES_SHUTDOWN_ERR_CODES = {
+    '57P01': 'admin_shutdown',
+    '57P02': 'crash_shutdown',
+}
 
 
 cdef bytes INIT_CON_SCRIPT = None
@@ -1635,6 +1639,14 @@ cdef class PGConnection:
         while self.buffer.take_message():
             if not self.parse_notification():
                 mtype = self.buffer.get_message_type()
+                if mtype == b'E':  # ErrorResponse
+                    er_cls, fields = self.parse_error_message()
+                    msg = POSTGRES_SHUTDOWN_ERR_CODES.get(fields['C'])
+                    if msg:
+                        msg = fields.get('M', msg)
+                        # TODO: handle PostgreSQL shutdown here
+                        # For now, we just silently skip this message
+                        continue
                 raise RuntimeError(
                     f'unexpected message type {chr(mtype)!r} in IDLE state')
 
