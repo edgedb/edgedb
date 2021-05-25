@@ -3689,6 +3689,48 @@ class TestInsert(tb.QueryTestCase):
             [2],
         )
 
+    async def test_edgeql_insert_dependent_27(self):
+        # test with two nested single links
+        await self.con.execute('''
+            SET MODULE test;
+            CREATE ABSTRACT TYPE Named {
+                CREATE REQUIRED PROPERTY name -> str {
+                    CREATE DELEGATED CONSTRAINT exclusive;
+                };
+            };
+
+            CREATE TYPE Foo EXTENDING Named;
+            CREATE TYPE Bar EXTENDING Named;
+
+            CREATE TYPE Obj extending Named {
+                CREATE LINK foo -> Foo;
+                CREATE LINK bar -> Bar;
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                INSERT Obj {
+                    name := "obj",
+                    foo := (
+                        INSERT Foo {name := "foo"}
+                        UNLESS CONFLICT ON .name ELSE (SELECT Foo)
+                    ),
+                    bar := (
+                        INSERT Bar {name := "bar"}
+                        UNLESS CONFLICT ON .name ELSE (SELECT Bar)
+                    ),
+                }
+                UNLESS CONFLICT ON .name ELSE (SELECT Obj);
+            ''',
+            [{"id": {}}]
+        )
+
+        await self.assert_query_result(
+            "SELECT test::Obj {name, foo: {name}, bar: {name}}",
+            [{"name": "obj", "foo": {"name": "foo"}, "bar": {"name": "bar"}}],
+        )
+
     async def test_edgeql_insert_unless_conflict_self_01(self):
         # It would also be a reasonable semantics for this test to
         # return two objects
