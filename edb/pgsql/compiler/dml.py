@@ -34,10 +34,11 @@ from __future__ import annotations
 
 from typing import *
 
+from edb.common import uuidgen
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
-from edb.schema import objects as s_obj
 from edb.schema import name as sn
 
 from edb.ir import ast as irast
@@ -845,7 +846,7 @@ def compile_insert_else_body(
             # that *aren't* being filtered out
             dummy_pathid = irast.PathId.from_typeref(
                 typeref=irast.TypeRef(
-                    id=s_obj.get_known_type_id('std::uuid'),
+                    id=uuidgen.uuid1mc(),
                     name_hint=sn.QualName(
                         module='__derived__',
                         name=ctx.env.aliases.get('dummy'))))
