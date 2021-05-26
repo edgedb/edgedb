@@ -6317,6 +6317,30 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_select_expr_objects_08(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test,
+            SELECT DISTINCT
+                [(SELECT Issue {number, name} FILTER .number = "1")];
+            ''',
+            [
+                [{'number': '1', 'name': 'Release EdgeDB'}],
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            WITH MODULE test,
+            SELECT DISTINCT
+                ((SELECT Issue {number, name} FILTER .number = "1"),
+                 Issue.status.name);
+            ''',
+            [
+                [{'number': '1', 'name': 'Release EdgeDB'}, "Open"],
+            ]
+        )
+
     @test.xfail("We produce results that don't decode properly")
     async def test_edgeql_select_array_common_type_01(self):
         res = await self.con._fetchall("""

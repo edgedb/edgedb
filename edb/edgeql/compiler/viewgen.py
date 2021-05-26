@@ -1308,9 +1308,9 @@ def _compile_view_shapes_in_select(
         stmt.result, rptr=rptr, parent_view_type=parent_view_type, ctx=ctx)
 
 
-@compile_view_shapes.register(irast.FunctionCall)
-def _compile_view_shapes_in_fcall(
-        expr: irast.FunctionCall, *,
+@compile_view_shapes.register(irast.Call)
+def _compile_view_shapes_in_call(
+        expr: irast.Call, *,
         rptr: Optional[irast.Pointer]=None,
         parent_view_type: Optional[s_types.ExprType]=None,
         ctx: context.ContextLevel) -> None:
