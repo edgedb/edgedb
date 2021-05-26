@@ -509,11 +509,12 @@ def compile_operator(
 
     matched_params = oper.get_params(env.schema)
     rtype = matched_call.return_type
+    matched_rtype = oper.get_return_type(env.schema)
 
     is_polymorphic = (
         any(p.get_type(env.schema).is_polymorphic(env.schema)
             for p in matched_params.objects(env.schema)) and
-        rtype.is_polymorphic(env.schema)
+        matched_rtype.is_polymorphic(env.schema)
     )
 
     final_args, params_typemods = finalize_args(
