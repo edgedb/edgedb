@@ -4928,7 +4928,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             "'test::OrgUniquelyNamedResource'?",
 
             "did you alter object type 'test::OrgUniquelyNamedResource'?",
-            "did you alter object type 'test::OrgUniquelyNamedResource'?",
         ])
 
     async def test_edgeql_migration_rename_01(self):
@@ -8240,6 +8239,39 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             },
         })
 
+    async def test_edgeql_migration_confidence_03(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1;
+                };
+            };
+        ''')
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1 {
+                        property x -> str;
+                    }
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'ALTER TYPE test::Obj1 {\n    '
+                        'CREATE PROPERTY x -> std::str;\n};'
+                }],
+                'confidence': 1.0,
+            },
+        })
+
     async def test_edgeql_migration_data_safety_01(self):
         await self.start_migration('''
             type Obj1;
@@ -8576,7 +8608,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.assert_describe_migration({
             'proposed': {
-                'prompt_id': 'CreateObjectType TYPE test::Bar',
+                'prompt_id': 'CreateLink LINK test::`__|spam@test|Bar`',
                 'statements': [{
                     'text': """
                         ALTER TYPE test::Bar {

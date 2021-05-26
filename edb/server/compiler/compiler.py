@@ -1026,12 +1026,27 @@ class Compiler:
                         mstate.target_schema,
                         guided_diff,
                     )
-
                     proposed_steps = []
 
                     if proposed_ddl:
-                        for ddl_text, top_op in proposed_ddl:
-                            prompt_id, prompt_text = top_op.get_user_prompt()
+                        for ddl_text, ast, top_op in proposed_ddl:
+                            # get_ast has a lot of logic for figuring
+                            # out when an op is implicit in a parent
+                            # op. get_user_prompt does not have any of
+                            # that sort of logic, which makes it
+                            # susceptible to producing overly broad
+                            # messages. To avoid duplicating that sort
+                            # of logic, we recreate the delta from the
+                            # AST, and extract a user prompt from
+                            # *that*.
+                            # This is stupid, and it is slow.
+                            top_op2 = s_ddl.cmd_from_ddl(
+                                ast,
+                                schema=schema,
+                                modaliases=current_tx.get_modaliases(),
+                            )
+
+                            prompt_id, prompt_text = top_op2.get_user_prompt()
                             confidence = top_op.get_annotation('confidence')
                             assert confidence is not None
 

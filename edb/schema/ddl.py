@@ -699,7 +699,7 @@ def statements_from_delta(
     sdlmode: bool = False,
     descriptive_mode: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
-) -> Tuple[Tuple[str, sd.Command], ...]:
+) -> Tuple[Tuple[str, qlast.DDLOperation, sd.Command], ...]:
 
     stmts = ddlast_from_delta(
         schema_a,
@@ -759,7 +759,7 @@ def statements_from_delta(
             descmode=descriptive_mode,
             limit_ref_classes=ql_classes,
         )
-        text.append((stmt_text + ';', cmd))
+        text.append((stmt_text + ';', stmt_ast, cmd))
 
     return tuple(text)
 
@@ -781,7 +781,7 @@ def text_from_delta(
         descriptive_mode=descriptive_mode,
         limit_ref_classes=limit_ref_classes,
     )
-    return '\n'.join(text for text, _ in stmts)
+    return '\n'.join(text for text, _, _ in stmts)
 
 
 def ddl_text_from_delta(

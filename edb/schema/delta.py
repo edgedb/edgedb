@@ -195,6 +195,8 @@ def delta_objects(
             s, y = comparison_map[x]
             x_name = x.get_name(new_schema)
             y_name = y.get_name(old_schema)
+
+            already_has = x_name == y_name and x_name not in renames_x
             if (
                 0.6 < s < 1.0
                 or (
@@ -204,7 +206,8 @@ def delta_objects(
                 or x_name in renames_x
             ):
                 if (
-                    (x_alter_variants[x] > 1 or can_create(x_name))
+                    (x_alter_variants[x] > 1 or (
+                        not already_has and can_create(x_name)))
                     and parent_confidence != 1.0
                 ):
                     confidence = s
@@ -1638,9 +1641,11 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 )
             )
         ):
+            from . import referencing as s_referencing
+
             subcommands = self.get_subcommands(
                 type=ObjectCommand,
-                exclude=AlterObjectProperty,
+                exclude=(AlterObjectProperty, s_referencing.AlterOwned),
             )
             if len(subcommands) == 1:
                 subcommand = subcommands[0]

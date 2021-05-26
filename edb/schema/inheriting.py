@@ -1123,10 +1123,14 @@ class RebaseInheritingObject(
                 continue
 
             if isinstance(pos, tuple):
+                typ = utils.typeref_to_ast(schema, pos[1])
+                assert isinstance(typ, qlast.TypeName)
+
                 pos_node = qlast.Position(
                     position=pos[0],
-                    ref=utils.typeref_to_ast(schema, pos[1]),
+                    ref=typ.maintype,
                 )
+
             else:
                 pos_node = qlast.Position(position=pos)
 
