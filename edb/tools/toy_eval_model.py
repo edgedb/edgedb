@@ -916,11 +916,17 @@ type Person {
     optional multi property multi_prop -> str;
     multi link notes -> Note;
     optional single property tag -> str;
+}
+type Foo {
+    required single property val -> str;
+    optional single property opt -> int64;
+}
 '''
 
 
 PersonT = "Person"
 NoteT = "Note"
+FooT = "Foo"
 DB1 = mk_db([
     # Person
     {"id": bsid(0x10), "__type__": PersonT,
@@ -933,6 +939,10 @@ DB1 = mk_db([
     {"id": bsid(0x20), "__type__": NoteT, "name": "boxing"},
     {"id": bsid(0x21), "__type__": NoteT, "name": "unboxing", "note": "lolol"},
     {"id": bsid(0x22), "__type__": NoteT, "name": "dynamic", "note": "blarg"},
+
+    # Foo
+    {"id": bsid(0x30), "__type__": FooT, "val": "a"},
+    {"id": bsid(0x31), "__type__": FooT, "val": "b", "opt": 111},
 ])
 
 
