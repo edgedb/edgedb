@@ -82,12 +82,17 @@ DB = Dict[uuid.UUID, Dict[str, Data]]
 
 
 class Obj:
-    def __init__(self, id: uuid.UUID,
-                 shape: Optional[Dict[str, Data]]=None) -> None:
+    def __init__(
+        self,
+        id: uuid.UUID,
+        shape: Optional[Dict[str, Data]]=None,
+        lprops: Optional[Dict[str, Data]]=None,
+    ) -> None:
         self.id = id
         if shape is None:
             shape = {"id": id}
         self.shape = shape
+        self.lprops = lprops
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, Obj) and other.id == self.id
@@ -100,8 +105,8 @@ def mk_db(data: Iterable[Dict[str, Data]]) -> DB:
     return {x["id"]: x for x in data}
 
 
-def bslink(n: int) -> Data:
-    return Obj(bsid(n))
+def bslink(n: int, **kwargs: Data) -> Data:
+    return Obj(bsid(n), lprops=kwargs)
 
 
 # # Toy basis stuff
@@ -152,6 +157,7 @@ class ITypeIntersection(NamedTuple):
 class IPtr(NamedTuple):
     ptr: str
     direction: Optional[str]
+    is_link_property: bool
 
 
 IPathElement = Union[IPartial, IExpr, IORef, ITypeIntersection, IPtr]
@@ -576,7 +582,10 @@ def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
     if isinstance(base, tuple):
         return [base[int(ptr.ptr)]]
     elif isinstance(base, Obj):
-        obj = ctx.db[base.id]
+        if ptr.is_link_property:
+            obj = base.lprops or {}
+        else:
+            obj = ctx.db[base.id]
         return get_links(obj, ptr.ptr)
     else:
         return [base[ptr.ptr]]
@@ -775,6 +784,14 @@ def make_query_input_list(
         old: List[IPath]) -> List[IPath]:
     direct_refs = [x for x in direct_refs if isinstance(x[0], IORef)]
     qil = find_common_prefixes(direct_refs, subquery_refs)
+    # For any link property reference in our input list, strip off the
+    # link and the link prop, and add that. So for Person.notes@name,
+    # add Person to our input set too. This prevents us from
+    # deduplicating the link before we access the prop.
+    for x in list(qil):
+        if isinstance(x[-1], IPtr) and x[-1].is_link_property:
+            qil.add(x[:-2])
+
     return sorted(x for x in qil if x not in old)
 
 
@@ -790,7 +807,8 @@ def simplify_path(path: qlast.Path) -> IPath:
             assert not spath
             spath.append(IORef(step.name))
         elif isinstance(step, qlast.Ptr):
-            spath.append(IPtr(step.ptr.name, step.direction))
+            is_property = step.type == 'property'
+            spath.append(IPtr(step.ptr.name, step.direction, is_property))
         elif isinstance(step, qlast.TypeIntersection):
             spath.append(ITypeIntersection(
                 step.type.maintype.name))  # type: ignore
@@ -801,10 +819,11 @@ def simplify_path(path: qlast.Path) -> IPath:
     return tuple(spath)
 
 
-def parse(querystr: str) -> qlast.Statement:
+def parse(querystr: str) -> qlast.Expr:
     source = edgeql.Source.from_string(querystr)
     statements = edgeql.parse_block(source)
     assert len(statements) == 1
+    assert isinstance(statements[0], qlast.Expr)
     return statements[0]
 
 
@@ -914,7 +933,9 @@ type Note {
 type Person {
     required single property name -> str;
     optional multi property multi_prop -> str;
-    multi link notes -> Note;
+    multi link notes -> Note {
+        property metanote -> str;
+    }
     optional single property tag -> str;
 }
 type Foo {
@@ -930,9 +951,10 @@ FooT = "Foo"
 DB1 = mk_db([
     # Person
     {"id": bsid(0x10), "__type__": PersonT,
-     "name": "Phil Emarg", "notes": [bslink(0x20), bslink(0x21)]},
+     "name": "Phil Emarg",
+     "notes": [bslink(0x20), bslink(0x21, metanote="arg!")]},
     {"id": bsid(0x11), "__type__": PersonT,
-     "name": "Madeline Hatch", "notes": [bslink(0x21)]},
+     "name": "Madeline Hatch", "notes": [bslink(0x21, metanote="sigh")]},
     {"id": bsid(0x12), "__type__": PersonT,
      "name": "Emmanuel Villip"},
     # Note

@@ -249,3 +249,11 @@ class TestModelSmokeTests(unittest.TestCase):
             ''',
             [['Emmanuel Villip', 'Madeline Hatch', 'Phil Emarg']]
         )
+
+    def test_edgeql_lprop_01(self):
+        self.assert_test_query(
+            r'''
+            SELECT (Person.notes.name, Person.notes@metanote ?? '<n/a>')
+            ''',
+            [('boxing', '<n/a>'), ('unboxing', 'arg!'), ('unboxing', 'sigh')],
+        )
