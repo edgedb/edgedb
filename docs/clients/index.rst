@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: cable
+.. eql:section-intro-page:: clients
 
 =======
 Clients
@@ -8,7 +8,7 @@ Clients currently available:
 
 * `Python Client <00_python/index>`_
 * `Javascript Client <01_js/index>`_
-* `Go Client <https://pkg.go.dev/github.com/edgedb/edgedb-go>`_
+* `Go Client <02_go/index>`_
 
 
 Other ways to query EdgeDB:

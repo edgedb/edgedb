@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: terminal
+.. eql:section-intro-page:: cli
 
 .. _ref_cli_overview:
 

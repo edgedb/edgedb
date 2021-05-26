@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: origami
+.. eql:section-intro-page:: edgeql
 
 ======
 EdgeQL
