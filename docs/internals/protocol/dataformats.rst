@@ -431,6 +431,37 @@ encoded as:
     0x00 0x00 0x00 0x00
 
 
+.. _ref_protocol_fmt_relative_duration:
+
+cal::relative_duration
+======================
+
+The :eql:type:`cal::relative_duration` values are represented as the following
+structure:
+
+.. code-block:: c
+
+    struct Duration {
+        int64   microseconds;
+        int32   days;
+        int32   months;
+    };
+
+For example, the ``cal::relative_duration`` value
+``'2 years 7 months 16 days 48 hours 45 minutes 7.6 seconds'`` is encoded as:
+
+.. code-block:: c
+
+    // microseconds
+    0x00 0x00 0x00 0x28 0xdd 0x11 0x72 0x80
+
+    // days
+    0x00 0x00 0x00 0x10
+
+    // months
+    0x00 0x00 0x00 0x1f
+
+
 .. _ref_protocol_fmt_json:
 
 std::json

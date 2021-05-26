@@ -38,6 +38,9 @@ Date and Time
     * - :eql:func:`to_duration`
       - :eql:func-desc:`to_duration`
 
+    * - :eql:func:`cal::to_relative_duration`
+      - :eql:func-desc:`cal::to_relative_duration`
+
     * - :eql:func:`datetime_get`
       - :eql:func-desc:`datetime_get`
 
@@ -67,10 +70,22 @@ Date and Time
 
 
 .. eql:operator:: DTPLUS: datetime + duration -> datetime
+                          datetime + cal::relative_duration \
+                              -> cal::relative_duration
                           cal::local_datetime + duration -> cal::local_datetime
+                          cal::local_dateiime + cal::relative_duration \
+                              -> cal::relative_duration
                           cal::local_date + duration -> cal::local_date
+                          cal::local_date + cal::relative_duration \
+                              -> cal::relative_duration
                           cal::local_time + duration -> cal::local_time
+                          cal::local_time + cal::relative_duration \
+                              -> cal::relative_duration
                           duration + duration -> duration
+                          duration + cal::relative_duration \
+                              -> cal::relative_duration
+                          cal::relative_duration + cal::relative_duration \
+                              -> cal::relative_duration
 
     Time interval addition.
 
@@ -90,16 +105,27 @@ Date and Time
 
 
 .. eql:operator:: DTMINUS: duration - duration -> duration
+                           duration - cal::relative_duration \
+                                -> cal::relative_duration
+                           cal::relative_duration - duration\
+                                -> cal::relative_duration
+                           cal::relative_duration - cal::relative_duration \
+                                -> cal::relative_duration
                            datetime - datetime -> duration
                            cal::local_datetime - cal::local_datetime \
                                 -> duration
                            local_time - local_time -> duration
                            local_date - local_date -> duration
                            datetime - duration -> datetime
+                           datetime - cal::relative_duration -> datetime
                            cal::local_datetime - duration \
                                 -> cal::local_datetime
+                           cal::local_datetime - cal::relative_duration \
+                                -> cal::local_datetime
                            local_time - duration -> local_time
+                           local_time - cal::relative_duration -> local_time
                            local_date - duration -> local_date
+                           local_date - cal::relative_duration -> local_date
 
     Time interval and date/time subtraction.
 
@@ -575,7 +601,7 @@ Date and Time
 
     Create a :eql:type:`duration` value.
 
-    This function uses ``NAMED ONLY`` arguments  to create a
+    This function uses ``NAMED ONLY`` arguments to create a
     :eql:type:`duration` value. The available duration fields are:
     *hours*, *minutes*, *seconds*, *microseconds*.
 
@@ -599,3 +625,33 @@ Date and Time
         {3600.000000n}
         db> SELECT duration_to_seconds(<duration>'10 second 123 ms');
         {10.123000n}
+
+
+------------
+
+
+.. eql:function:: cal::to_relative_duration( \
+                    NAMED ONLY years: int64=0, \
+                    NAMED ONLY months: int64=0, \
+                    NAMED ONLY days: int64=0, \
+                    NAMED ONLY hours: int64=0, \
+                    NAMED ONLY minutes: int64=0, \
+                    NAMED ONLY seconds: float64=0, \
+                    NAMED ONLY microseconds: int64=0 \
+                  ) -> cal::relative_duration
+
+    :index: parse relative_duration
+
+    Create a :eql:type:`cal::relative_duration` value.
+
+    This function uses ``NAMED ONLY`` arguments to create a
+    :eql:type:`cal::relative_duration` value. The available duration fields
+    are: *years*, *months*, *days*, *hours*, *minutes*, *seconds*,
+    *microseconds*.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT cal::to_relative_duration(years := 5, minutes := 1);
+        {P5YT1S}
+        db> SELECT cal::to_relative_duration(months := 3, days := 27);
+        {P3M27D}

@@ -182,6 +182,66 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     :eql:type:`duration`.
 
 
+----------
+
+
+.. eql:type:: cal::relative_duration
+
+    A type representing a span of time.
+
+    Unlike :eql:type:`std::duration` a relative_duration is not an precise
+    measurment. For example:
+
+    .. code-block:: edgeql-repl
+
+        db> select (
+        ...     <datetime>'2020-01-01T00:00:00Z' +
+        ...     <cal::relative_duration>'1 year'
+        ... ) - <datetime>'2020-01-01T00:00:00Z';
+        {<duration>'8784:00:00'}
+        db> select (
+        ...     <datetime>'2019-01-01T00:00:00Z' +
+        ...     <cal::relative_duration>'1 year'
+        ... ) - <datetime>'2019-01-01T00:00:00Z';
+        {<duration>'8760:00:00'}
+
+    Valid units when converting from a string (and combinations of them):
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'seconds'``
+    - ``'minutes'``
+    - ``'hours'``
+    - ``'days'``
+    - ``'weeks'``
+    - ``'months'``
+    - ``'years'``
+    - ``'decades'``
+    - ``'centuries'``
+    - ``'millennium'``
+
+    .. code-block:: edgeql
+
+        SELECT <duration>'45.6 seconds';
+        SELECT <duration>'15 milliseconds';
+        SELECT <duration>'3 weeks 45 minutes';
+        SELECT <duration>'-7 millennium';
+
+    All date/time types support the ``+`` and ``-`` arithmetic operations
+    with relative_durations:
+
+    .. code-block:: edgeql-repl
+
+        db> select <datetime>'2019-01-01T00:00:00Z' -
+        ...        <cal::relative_duration>'3 years';
+        {<datetime>'2016-01-01T00:00:00+00:00'}
+        db> select <cal::local_time>'22:00' + <cal::relative_duration>'1 hour';
+        {<cal::local_time>'23:00:00'}
+
+    See functions :eql:func:`cal::to_relative_duration`, and :eql:func:`to_str`
+    and date/time :eql:op:`operators <DTMINUS>` for more ways of working with
+    :eql:type:`cal::relative_duration`.
+
+
 See Also
 --------
 
