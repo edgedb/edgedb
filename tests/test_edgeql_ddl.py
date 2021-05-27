@@ -8551,19 +8551,22 @@ type test::Foo {
             CREATE SCALAR TYPE test::Color
                 EXTENDING enum<Red, Green, Blue>;
 
-             CREATE TYPE test::Entry {
-                 CREATE PROPERTY num -> int64;
-                 CREATE PROPERTY color -> test::Color;
-                 CREATE PROPERTY colors -> array<test::Color>;
-             };
-             INSERT test::Entry { num := 1, color := "Red" };
-             INSERT test::Entry {
-                 num := 2, color := "Green", colors := ["Red", "Green"] };
-
              CREATE FUNCTION test::asdf(x: test::Color) -> str USING (
                  <str>(x));
              CREATE FUNCTION test::asdf2() -> str USING (
                  test::asdf(<test::Color>'Red'));
+
+             CREATE TYPE test::Entry {
+                 CREATE PROPERTY num -> int64;
+                 CREATE PROPERTY color -> test::Color;
+                 CREATE PROPERTY colors -> array<test::Color>;
+                 CREATE CONSTRAINT expression ON (
+                     <str>.num != test::asdf2()
+                 );
+             };
+             INSERT test::Entry { num := 1, color := "Red" };
+             INSERT test::Entry {
+                 num := 2, color := "Green", colors := ["Red", "Green"] };
         ''')
 
         await self.con.execute('''

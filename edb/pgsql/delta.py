@@ -1676,7 +1676,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         *,
         composite_only: bool,
     ) -> Optional[Tuple[
-        Tuple[s_funcs.Function, ...],
+        Tuple[Union[s_funcs.Function, s_constr.Constraint], ...],
         List[Tuple[s_props.Property, s_types.TypeShell]],
     ]]:
         """Find problematic references to this scalar type that need handled.
@@ -1740,6 +1740,9 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_funcs.Parameter) and not composite_only:
                 wl.extend(schema.get_referrers(obj))
             elif isinstance(obj, s_funcs.Function) and not composite_only:
+                wl.extend(schema.get_referrers(obj))
+                seen_funcs.add(obj)
+            elif isinstance(obj, s_constr.Constraint) and not composite_only:
                 seen_funcs.add(obj)
 
         if not seen_props and not seen_funcs:
@@ -1800,17 +1803,21 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         self.pgops.add(acmd)
 
         for func in funcs:
-            # Force function deletions at the SQL level without ever
-            # bothering to remove them from our schema.
-            fc = FunctionCommand()
-            variadic = func.get_params(schema).find_variadic(schema)
-            self.pgops.add(
-                dbops.DropFunction(
-                    name=fc.get_pgname(func, schema),
-                    args=fc.compile_args(func, schema),
-                    has_variadic=variadic is not None,
+            if isinstance(func, s_funcs.Function):
+                # Force function deletions at the SQL level without ever
+                # bothering to remove them from our schema.
+                fc = FunctionCommand()
+                variadic = func.get_params(schema).find_variadic(schema)
+                self.pgops.add(
+                    dbops.DropFunction(
+                        name=fc.get_pgname(func, schema),
+                        args=fc.compile_args(func, schema),
+                        has_variadic=variadic is not None,
+                    )
                 )
-            )
+            else:
+                self.pgops.add(
+                    ConstraintCommand.delete_constraint(func, schema, context))
 
         return acmd.apply(schema, context)
 
@@ -1848,12 +1855,16 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         self.pgops.add(acmd)
 
         for func in reversed(funcs):
-            # Super hackily recreate the functions
-            fc = CreateFunction(classname=func.get_name(schema))
-            for f in ('language', 'params', 'return_type'):
-                fc.set_attribute_value(f, func.get_field_value(schema, f))
-            _, op = fc.make_op(func, schema, context)
-            self.pgops.add(op)
+            if isinstance(func, s_funcs.Function):
+                # Super hackily recreate the functions
+                fc = CreateFunction(classname=func.get_name(schema))
+                for f in ('language', 'params', 'return_type'):
+                    fc.set_attribute_value(f, func.get_field_value(schema, f))
+                _, op = fc.make_op(func, schema, context)
+                self.pgops.add(op)
+            else:
+                self.pgops.add(
+                    ConstraintCommand.create_constraint(func, schema, context))
 
         return acmd.apply(schema, context)
 
@@ -1892,9 +1903,8 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 schema, new_scalar, catenate=False)
 
             if needs_recreate:
-                cond = dbops.EnumExists(type_name)
                 self.pgops.add(
-                    dbops.DropEnum(name=type_name, conditions=[cond]))
+                    dbops.DropEnum(name=type_name))
                 self.pgops.add(dbops.CreateEnum(
                     dbops.Enum(name=type_name, values=new_enum_values)))
 
