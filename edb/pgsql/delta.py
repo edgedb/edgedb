@@ -1669,22 +1669,31 @@ class RebaseScalarType(ScalarTypeMetaCommand,
 
 class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
-    def _get_composite_refs(
+    def _get_problematic_refs(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> List[Tuple[s_props.Property, s_types.TypeShell]]:
+        *,
+        composite_only: bool,
+    ) -> Optional[Tuple[
+        Set[s_funcs.Function],
+        List[Tuple[s_props.Property, s_types.TypeShell]],
+    ]]:
         """Find problematic references to this scalar type that need handled.
 
-        Postgres has an irritating limitation that a constraint may
-        not be added to a domain type if that domain type appears in a
-        *composite* type that is used in a column somewhere.
+        This is used to work around two irritating limitations of Postgres:
+          1. That elements of enum types may not be removed or reordered
+          2. That a constraint may not be added to a domain type if that
+             domain type appears in a *composite* type that is used in a
+             column somewhere.
 
-        We don't want to have that limitation, and we need to do a decent
-        amount of work to work around this.
+        We don't want to have these limitations, and we need to do a decent
+        amount of work to work around them.
 
-        1. Find all of the properties whose type is a container type
-           that contains this scalar. (Possibly transitively.)
+        1. Find all of the affected properties. For case 2, this is any
+           property whose type is a container type that contains this
+           scalar. (Possibly transitively.) For case 1, the container type
+           restriction is dropped.
         2. Change the type of all offending properties to an equivalent type
            that does not reference this scalar. This may require creating
            new types. (See _undo_everything.)
@@ -1705,35 +1714,51 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
         This function finds all of the relevant properties and returns
         a list of them along with the appropriate replacement type.
+
+        In case 1, it also finds all referencing *functions*, which need
+        to be deleted and then recreated.
         """
 
         seen_props = set()
+        seen_funcs = set()
 
         typ = self.scls
         # Do a worklist driven search for properties that refer to this scalar
         # through a collection type. We search backwards starting from
-        # referring collection types.
-        wl = list(schema.get_referrers(typ, scls_type=s_types.Collection))
+        # referring collection types or from all refs, depending on
+        # composite_only.
+        scls_type = s_types.Collection if composite_only else None
+        wl = list(schema.get_referrers(typ, scls_type=scls_type))
         while wl:
             obj = wl.pop()
             if isinstance(obj, s_props.Property):
                 seen_props.add(obj)
             elif isinstance(obj, s_scalars.ScalarType):
-                assert obj == typ, (
-                    "nested uses of scalar types unsupported for now")
+                pass
             elif isinstance(obj, s_types.Collection):
                 wl.extend(schema.get_referrers(obj))
+            elif isinstance(obj, s_funcs.Parameter) and not composite_only:
+                wl.extend(schema.get_referrers(obj))
+            elif isinstance(obj, s_funcs.Function) and not composite_only:
+                seen_funcs.add(obj)
 
+        if not seen_props and not seen_funcs:
+            return None
+
+        props = []
         if seen_props:
             # Find a concrete ancestor to substitute in.
-            for ancestor in typ.get_ancestors(schema).objects(schema):
-                if not ancestor.get_abstract(schema):
-                    break
+            if typ.is_enum(schema):
+                ancestor = schema.get(sn.QualName('std', 'str'))
             else:
-                return []
+                for ancestor in typ.get_ancestors(schema).objects(schema):
+                    if not ancestor.get_abstract(schema):
+                        break
+                else:
+                    raise AssertionError("can't find concrete base for scalar")
             replacement_shell = ancestor.as_shell(schema)
 
-            return [
+            props = [
                 (
                     prop,
                     s_utils.type_shell_substitute(
@@ -1743,26 +1768,27 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 )
                 for prop in seen_props
             ]
-        else:
-            return []
+
+        return seen_funcs, props
 
     def _undo_everything(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
+        funcs: Set[s_funcs.Function],
         props: List[Tuple[s_props.Property, s_types.TypeShell]],
     ) -> s_schema.Schema:
-        """Rewrite the type of every property that uses this in a composite.
+        """Rewrite the type of everything that uses this scalar dangerously.
 
-        See _get_composite_refs above for details.
+        See _get_problematic_refs above for details.
         """
-        if not props:
-            return schema
-
         cmd = sd.DeltaRoot()
 
         for prop, new_typ in props:
-            cmd.add(new_typ.as_create_delta(schema))
+            try:
+                cmd.add(new_typ.as_create_delta(schema))
+            except NotImplementedError:
+                pass
 
             delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
                 schema, context, cmdtype=sd.AlterObject)
@@ -1771,6 +1797,20 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
         acmd = CommandMeta.adapt(cmd)
         self.pgops.add(acmd)
+
+        for func in funcs:
+            # Force function deletions at the SQL level without ever
+            # bothering to remove them from our schema.
+            fc = FunctionCommand()
+            variadic = func.get_params(schema).find_variadic(schema)
+            self.pgops.add(
+                dbops.DropFunction(
+                    name=fc.get_pgname(func, schema),
+                    args=fc.compile_args(func, schema),
+                    has_variadic=variadic is not None,
+                )
+            )
+
         return acmd.apply(schema, context)
 
     def _redo_everything(
@@ -1778,11 +1818,12 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         schema: s_schema.Schema,
         orig_schema: s_schema.Schema,
         context: sd.CommandContext,
+        funcs: Set[s_funcs.Function],
         props: List[Tuple[s_props.Property, s_types.TypeShell]],
     ) -> s_schema.Schema:
-        """Restore the type of every property that uses this in a composite.
+        """Restore the type of everything that uses this scalar dangerously.
 
-        See _get_composite_refs above for details.
+        See _get_problematic_refs above for details.
         """
 
         cmd = sd.DeltaRoot()
@@ -1804,6 +1845,15 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
         acmd = CommandMeta.adapt(cmd)
         self.pgops.add(acmd)
+
+        for func in funcs:
+            # Super hackily recreate the functions
+            fc = CreateFunction(classname=func.get_name(schema))
+            for f in ('language', 'params', 'return_type'):
+                fc.set_attribute_value(f, func.get_field_value(schema, f))
+            _, op = fc.make_op(func, schema, context)
+            self.pgops.add(op)
+
         return acmd.apply(schema, context)
 
     def apply(
@@ -1815,26 +1865,39 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         schema = s_scalars.AlterScalarType.apply(self, schema, context)
         new_scalar = self.scls
 
-        used_props = None
-        if list(self.get_subcommands(type=s_constr.CreateConstraint)):
-            used_props = self._get_composite_refs(schema, context)
-            if used_props:
-                schema = self._undo_everything(schema, context, used_props)
-
-        schema = ScalarTypeMetaCommand.apply(self, schema, context)
-
-        if used_props:
-            schema = self._redo_everything(
-                schema, orig_schema, context, used_props)
-
         old_enum_values = new_scalar.get_enum_values(orig_schema)
         new_enum_values = new_scalar.get_enum_values(schema)
+
+        # If values were deleted or reordered, we need to drop the enum
+        # and recreate it.
+        needs_recreate = (
+            old_enum_values != new_enum_values
+            and old_enum_values != new_enum_values[:len(old_enum_values)])
+        has_create_constraint = bool(
+            list(self.get_subcommands(type=s_constr.CreateConstraint)))
+
+        problematic_refs = None
+        if needs_recreate or has_create_constraint:
+            problematic_refs = self._get_problematic_refs(
+                schema, context, composite_only=not needs_recreate)
+            if problematic_refs:
+                funcs, props = problematic_refs
+                schema = self._undo_everything(schema, context, funcs, props)
+
+        schema = ScalarTypeMetaCommand.apply(self, schema, context)
 
         if new_enum_values:
             type_name = common.get_backend_name(
                 schema, new_scalar, catenate=False)
 
-            if old_enum_values != new_enum_values:
+            if needs_recreate:
+                cond = dbops.EnumExists(type_name)
+                self.pgops.add(
+                    dbops.DropEnum(name=type_name, conditions=[cond]))
+                self.pgops.add(dbops.CreateEnum(
+                    dbops.Enum(name=type_name, values=new_enum_values)))
+
+            elif old_enum_values != new_enum_values:
                 old_idx = 0
                 old_enum_values = list(old_enum_values)
                 for v in new_enum_values:
@@ -1853,6 +1916,11 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                         old_enum_values.insert(old_idx, v)
                     else:
                         old_idx += 1
+
+        if problematic_refs:
+            funcs, props = problematic_refs
+            schema = self._redo_everything(
+                schema, orig_schema, context, funcs, props)
 
         default_delta = self.get_resolved_attribute_value(
             'default',
