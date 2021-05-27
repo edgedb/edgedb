@@ -1676,7 +1676,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         *,
         composite_only: bool,
     ) -> Optional[Tuple[
-        Set[s_funcs.Function],
+        Tuple[s_funcs.Function, ...],
         List[Tuple[s_props.Property, s_types.TypeShell]],
     ]]:
         """Find problematic references to this scalar type that need handled.
@@ -1769,7 +1769,8 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 for prop in seen_props
             ]
 
-        return seen_funcs, props
+        funcs = sd.sort_by_cross_refs(schema, seen_funcs)
+        return funcs, props
 
     def _undo_everything(
         self,
@@ -1846,7 +1847,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         acmd = CommandMeta.adapt(cmd)
         self.pgops.add(acmd)
 
-        for func in funcs:
+        for func in reversed(funcs):
             # Super hackily recreate the functions
             fc = CreateFunction(classname=func.get_name(schema))
             for f in ('language', 'params', 'return_type'):

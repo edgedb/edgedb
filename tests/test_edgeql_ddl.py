@@ -8544,6 +8544,7 @@ type test::Foo {
         await self.con.execute('''
             DROP SCALAR TYPE test::Color;
         ''')
+        await self.con.query("COMMIT")
 
     async def test_edgeql_ddl_enum_05(self):
         await self.con.execute('''
