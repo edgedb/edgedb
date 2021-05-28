@@ -8563,6 +8563,10 @@ type test::Foo {
                  CREATE CONSTRAINT expression ON (
                      <str>.num != test::asdf2()
                  );
+                 CREATE INDEX ON (test::asdf(.color));
+                 CREATE PROPERTY lol -> str {
+                     SET default := test::asdf2();
+                 }
              };
              INSERT test::Entry { num := 1, color := "Red" };
              INSERT test::Entry {
@@ -10332,9 +10336,11 @@ type test::Foo {
         await self.con.execute(r"""
             SET MODULE test;
 
+            CREATE FUNCTION foo() -> str USING ("test");
+
             CREATE TYPE Foo {
                 CREATE REQUIRED PROPERTY a -> str {
-                    SET default := "test";
+                    SET default := foo();
                 }
             };
         """)
@@ -10359,6 +10365,10 @@ type test::Foo {
             await self.con.execute(r"""
                 INSERT Foo;
             """)
+
+        await self.con.execute(r"""
+            DROP FUNCTION foo();
+        """)
 
     async def test_edgeql_ddl_drop_field_02(self):
         await self.con.execute(r"""
