@@ -18,8 +18,6 @@
 
 
 from __future__ import annotations
-
-import collections
 from typing import *  # NoQA
 
 import argparse
@@ -60,7 +58,13 @@ LAST_STATE: Optional[compiler.dbstate.CompilerConnectionState] = None
 STD_SCHEMA: s_schema.FlatSchema
 GLOBAL_SCHEMA: s_schema.FlatSchema
 SYSTEM_CONFIG: immutables.Map[str, config.SettingValue]
-MAX_WORKER_SPAWNS_PER_SEC = defines.BACKEND_COMPILER_POOL_SIZE_DEFAULT * 2
+
+# Abort the template process if more than MAX_WORKER_SPANWS new workers are
+# created continuously - it probably means the worker cannot start correctly
+MAX_WORKER_SPAWNS = defines.BACKEND_COMPILER_POOL_SIZE_DEFAULT * 2
+# "created continuously" means the interval between two consecutive spawns
+# is less than NUM_SPAWNS_RESET_INTERVAL seconds.
+NUM_SPAWNS_RESET_INTERVAL = 1
 
 
 def __init_worker__(
@@ -372,20 +376,21 @@ def main():
     gc.freeze()
 
     children = set()
-    timestamps = collections.deque()
+    continuous_num_spawns = 0
 
     for _ in range(int(args.numproc)):
         # spawn initial workers
         if pid := os.fork():
             # main process
             children.add(pid)
-            timestamps.append(time.monotonic())
+            continuous_num_spawns += 1
         else:
             # child process
             break
     else:
         # main process - redirect SIGTERM to SystemExit and wait for children
         signal.signal(signal.SIGTERM, lambda *_: exit(os.EX_OK))
+        last_spawn_timestamp = time.monotonic()
 
         try:
             while children:
@@ -394,11 +399,13 @@ def main():
                 ec = os.waitstatus_to_exitcode(status)
                 if ec > 0 or -ec not in {0, signal.SIGINT}:
                     # restart the child process if killed or ending abnormally,
-                    # unless we tried too many times in the past second
-                    past_second = time.monotonic() - 1
-                    while timestamps and timestamps[0] < past_second:
-                        timestamps.popleft()
-                    if len(timestamps) > MAX_WORKER_SPAWNS_PER_SEC:
+                    # unless we tried too many times continuously
+                    now = time.monotonic()
+                    if now - last_spawn_timestamp > NUM_SPAWNS_RESET_INTERVAL:
+                        continuous_num_spawns = 0
+                    last_spawn_timestamp = now
+                    continuous_num_spawns += 1
+                    if continuous_num_spawns > MAX_WORKER_SPAWNS:
                         # GOTCHA: we shouldn't return here because we need the
                         # exception handler below to clean up the workers
                         exit(os.EX_UNAVAILABLE)
@@ -406,7 +413,6 @@ def main():
                     if pid := os.fork():
                         # main process
                         children.add(pid)
-                        timestamps.append(time.monotonic())
                     else:
                         # child process
                         break
