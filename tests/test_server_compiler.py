@@ -217,10 +217,14 @@ class TestCompilerPool(tbs.TestCase):
             await self.check_pid(pid1, server)
             await self.check_pid(pid2, server)
 
+            # Destroy the UNIX domain socket file
             os.unlink(sn)
+            # Kill one worker, the template process will try to restart it
             os.kill(pid1, signal.SIGTERM)
-
-            await asyncio.wait_for(proc.wait(), 1)
+            # But the new worker won't be able to connect to the UNIX socket,
+            # the template process should abort in a reasonable time with
+            # enough retries, depending on the number of CPU cores.
+            await asyncio.wait_for(proc.wait(), 30)
 
             pids = []
             while not proto.disconnected.empty():
