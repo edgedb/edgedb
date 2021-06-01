@@ -1199,7 +1199,8 @@ def process_set_as_subquery(
                 # path inside the computable.
                 # (See test_edgeql_scope_computables_09 for an example.)
                 with newctx.subrel() as _, _.newscope() as subctx:
-                    subrvar = get_set_rvar(ir_source, ctx=subctx)
+                    get_set_rvar(ir_source, ctx=subctx)
+                    subrvar = relctx.rvar_for_rel(subctx.rel, ctx=subctx)
 
                 relctx.include_rvar(
                     stmt, subrvar, ir_source.path_id, ctx=ctx)
