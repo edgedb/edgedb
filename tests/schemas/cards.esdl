@@ -55,6 +55,8 @@ type Card extending Named {
     multi link owners := __source__.<deck[IS User];
     # computable property
     property elemental_cost := <str>.cost ++ ' ' ++ .element;
+    multi link awards -> Award;
+    multi link good_awards := (SELECT .awards FILTER .name != '3rd');
 }
 
 type SpecialCard extending Card;

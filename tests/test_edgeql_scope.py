@@ -2490,3 +2490,47 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     SELECT foo
                 )
             """)
+
+    async def test_edgeql_scope_nested_computable_01(self):
+        # This is a test for a bug where the outside filter would get
+        # messed up when there was a clause on a nested shape element
+        # but not one on the enclosing shape element.
+        #
+        # So we only test that the top-level filter does the right thing,
+        # since adding an ORDER BY on the todo would fail to test the
+        # bug that inspired this.
+        await self.assert_query_result(
+            """
+                WITH MODULE test
+                SELECT User {
+                    name,
+                    deck: {
+                        name,
+                        awards: { name } ORDER BY .name
+                    }
+                }
+                FILTER EXISTS (User.deck.awards)
+                ORDER BY .name;
+            """,
+            [
+                {'name': 'Alice'},
+                {'name': 'Carol'},
+                {'name': 'Dave'},
+            ],
+        )
+
+    async def test_edgeql_scope_nested_computable_02(self):
+        await self.assert_query_result(
+            """
+                WITH MODULE test
+                SELECT User {
+                    name,
+                }
+                FILTER EXISTS (User.deck.good_awards)
+                ORDER BY .name;
+            """,
+            [
+                {'name': 'Alice'},
+                {'name': 'Dave'},
+            ],
+        )

@@ -16,19 +16,25 @@
 # limitations under the License.
 #
 
+WITH MODULE test
+FOR award in {'1st', '2nd', '3rd'} UNION (
+    INSERT Award { name := award }
+);
 
 WITH MODULE test
 INSERT Card {
     name := 'Imp',
     element := 'Fire',
-    cost := 1
+    cost := 1,
+    awards := (SELECT Award FILTER .name = '2nd'),
 };
 
 WITH MODULE test
 INSERT Card {
     name := 'Dragon',
     element := 'Fire',
-    cost := 5
+    cost := 5,
+    awards := (SELECT Award FILTER .name = '1st'),
 };
 
 WITH MODULE test
@@ -77,19 +83,8 @@ WITH MODULE test
 INSERT SpecialCard {
     name := 'Djinn',
     element := 'Air',
-    cost := 4
-};
-
-
-WITH MODULE test
-INSERT Award {
-    name := '1st'
-};
-
-
-WITH MODULE test
-INSERT Award {
-    name := '2nd'
+    cost := 4,
+    awards := (SELECT Award FILTER .name = '3rd'),
 };
 
 
@@ -101,7 +96,7 @@ INSERT User {
         SELECT Card {@count := len(Card.element) - 2}
         FILTER .element IN {'Fire', 'Water'}
     ),
-    awards := Award,
+    awards := (SELECT Award FILTER .name IN {'1st', '2nd'}),
     avatar := (
         SELECT Card {@text := 'Best'} FILTER .name = 'Dragon'
     ),
@@ -113,9 +108,7 @@ INSERT User {
     deck := (
         SELECT Card {@count := 3} FILTER .element IN {'Earth', 'Water'}
     ),
-    awards := (INSERT Award {
-        name := '3rd'
-    })
+    awards := (SELECT Award FILTER .name = '3rd'),
 };
 
 WITH MODULE test
