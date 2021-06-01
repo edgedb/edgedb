@@ -273,6 +273,9 @@ class WithDeclList(ListNonterm, element=WithDecl,
 
 
 class Shape(Nonterm):
+    def reduce_LBRACE_RBRACE(self, *kids):
+        self.val = None
+
     def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
         self.val = kids[1].val
 
