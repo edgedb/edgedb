@@ -221,10 +221,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     .. code-block:: edgeql
 
-        SELECT <duration>'45.6 seconds';
-        SELECT <duration>'15 milliseconds';
-        SELECT <duration>'3 weeks 45 minutes';
-        SELECT <duration>'-7 millennium';
+        SELECT <cal::relative_duration>'45.6 seconds';
+        SELECT <cal::relative_duration>'15 milliseconds';
+        SELECT <cal::relative_duration>'3 weeks 45 minutes';
+        SELECT <cal::relative_duration>'-7 millennium';
 
     All date/time types support the ``+`` and ``-`` arithmetic operations
     with relative_durations:
