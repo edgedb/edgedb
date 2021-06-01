@@ -1689,6 +1689,15 @@ aa';
         SELECT [Foo{id} bar];
         """
 
+    def test_edgeql_syntax_shape_64(self):
+        """
+        SELECT sys::Database{};
+
+% OK %
+
+        SELECT sys::Database;
+        """
+
     def test_edgeql_syntax_struct_01(self):
         """
         SELECT (
