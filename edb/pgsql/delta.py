@@ -50,6 +50,7 @@ from edb.schema import lproperties as s_props
 from edb.schema import migrations as s_migrations
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
+from edb.schema import objects as so
 from edb.schema import operators as s_opers
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
@@ -1669,22 +1670,31 @@ class RebaseScalarType(ScalarTypeMetaCommand,
 
 class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
-    def _get_composite_refs(
+    def _get_problematic_refs(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> List[Tuple[s_props.Property, s_types.TypeShell]]:
+        *,
+        composite_only: bool,
+    ) -> Optional[Tuple[
+        Tuple[so.Object, ...],
+        List[Tuple[s_props.Property, s_types.TypeShell]],
+    ]]:
         """Find problematic references to this scalar type that need handled.
 
-        Postgres has an irritating limitation that a constraint may
-        not be added to a domain type if that domain type appears in a
-        *composite* type that is used in a column somewhere.
+        This is used to work around two irritating limitations of Postgres:
+          1. That elements of enum types may not be removed or reordered
+          2. That a constraint may not be added to a domain type if that
+             domain type appears in a *composite* type that is used in a
+             column somewhere.
 
-        We don't want to have that limitation, and we need to do a decent
-        amount of work to work around this.
+        We don't want to have these limitations, and we need to do a decent
+        amount of work to work around them.
 
-        1. Find all of the properties whose type is a container type
-           that contains this scalar. (Possibly transitively.)
+        1. Find all of the affected properties. For case 2, this is any
+           property whose type is a container type that contains this
+           scalar. (Possibly transitively.) For case 1, the container type
+           restriction is dropped.
         2. Change the type of all offending properties to an equivalent type
            that does not reference this scalar. This may require creating
            new types. (See _undo_everything.)
@@ -1705,35 +1715,56 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
         This function finds all of the relevant properties and returns
         a list of them along with the appropriate replacement type.
+
+        In case 1, it also finds other referencing objects which need
+        to be deleted and then recreated.
         """
 
         seen_props = set()
+        seen_other = set()
 
         typ = self.scls
         # Do a worklist driven search for properties that refer to this scalar
         # through a collection type. We search backwards starting from
-        # referring collection types.
-        wl = list(schema.get_referrers(typ, scls_type=s_types.Collection))
+        # referring collection types or from all refs, depending on
+        # composite_only.
+        scls_type = s_types.Collection if composite_only else None
+        wl = list(schema.get_referrers(typ, scls_type=scls_type))
         while wl:
             obj = wl.pop()
             if isinstance(obj, s_props.Property):
                 seen_props.add(obj)
             elif isinstance(obj, s_scalars.ScalarType):
-                assert obj == typ, (
-                    "nested uses of scalar types unsupported for now")
+                pass
             elif isinstance(obj, s_types.Collection):
                 wl.extend(schema.get_referrers(obj))
+            elif isinstance(obj, s_funcs.Parameter) and not composite_only:
+                wl.extend(schema.get_referrers(obj))
+            elif isinstance(obj, s_funcs.Function) and not composite_only:
+                wl.extend(schema.get_referrers(obj))
+                seen_other.add(obj)
+            elif isinstance(obj, s_constr.Constraint) and not composite_only:
+                seen_other.add(obj)
+            elif isinstance(obj, s_indexes.Index) and not composite_only:
+                seen_other.add(obj)
 
+        if not seen_props and not seen_other:
+            return None
+
+        props = []
         if seen_props:
             # Find a concrete ancestor to substitute in.
-            for ancestor in typ.get_ancestors(schema).objects(schema):
-                if not ancestor.get_abstract(schema):
-                    break
+            if typ.is_enum(schema):
+                ancestor = schema.get(sn.QualName('std', 'str'))
             else:
-                return []
+                for ancestor in typ.get_ancestors(schema).objects(schema):
+                    if not ancestor.get_abstract(schema):
+                        break
+                else:
+                    raise AssertionError("can't find concrete base for scalar")
             replacement_shell = ancestor.as_shell(schema)
 
-            return [
+            props = [
                 (
                     prop,
                     s_utils.type_shell_substitute(
@@ -1743,47 +1774,106 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 )
                 for prop in seen_props
             ]
-        else:
-            return []
+
+        other = sd.sort_by_cross_refs(schema, seen_other)
+        return other, props
 
     def _undo_everything(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
+        other: Tuple[so.Object, ...],
         props: List[Tuple[s_props.Property, s_types.TypeShell]],
     ) -> s_schema.Schema:
-        """Rewrite the type of every property that uses this in a composite.
+        """Rewrite the type of everything that uses this scalar dangerously.
 
-        See _get_composite_refs above for details.
+        See _get_problematic_refs above for details.
         """
-        if not props:
-            return schema
+
+        # First we need to strip out any default value that might reference
+        # one of the functions we are going to delete.
+        cmd = sd.CommandGroup()
+        for prop, _ in props:
+            if prop.get_default(schema):
+                delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
+                    schema, context, cmdtype=sd.AlterObject)
+                cmd_alter.set_attribute_value('default', None)
+                cmd.add(delta_alter)
+
+        acmd = CommandMeta.adapt(cmd)
+        schema = acmd.apply(schema, context)
+        self.pgops.update(acmd.get_subcommands())
+
+        for obj in other:
+            if isinstance(obj, s_funcs.Function):
+                # Force function deletions at the SQL level without ever
+                # bothering to remove them from our schema.
+                fc = FunctionCommand()
+                variadic = obj.get_params(schema).find_variadic(schema)
+                self.pgops.add(
+                    dbops.DropFunction(
+                        name=fc.get_pgname(obj, schema),
+                        args=fc.compile_args(obj, schema),
+                        has_variadic=variadic is not None,
+                    )
+                )
+            elif isinstance(obj, s_constr.Constraint):
+                self.pgops.add(
+                    ConstraintCommand.delete_constraint(obj, schema, context))
+            elif isinstance(obj, s_indexes.Index):
+                self.pgops.add(
+                    DeleteIndex.delete_index(
+                        obj, schema, context, priority=0))
 
         cmd = sd.DeltaRoot()
-
         for prop, new_typ in props:
-            cmd.add(new_typ.as_create_delta(schema))
+            try:
+                cmd.add(new_typ.as_create_delta(schema))
+            except NotImplementedError:
+                pass
 
             delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
                 schema, context, cmdtype=sd.AlterObject)
             cmd_alter.set_attribute_value('target', new_typ)
+            cmd_alter.set_attribute_value('default', None)
             cmd.add(delta_alter)
 
-        acmd = CommandMeta.adapt(cmd)
-        self.pgops.add(acmd)
-        return acmd.apply(schema, context)
+        cmd.apply(schema, context)
+
+        for sub in cmd.get_subcommands():
+            acmd = CommandMeta.adapt(sub)
+            schema = acmd.apply(schema, context)
+            self.pgops.add(acmd)
+
+        return schema
 
     def _redo_everything(
         self,
         schema: s_schema.Schema,
         orig_schema: s_schema.Schema,
         context: sd.CommandContext,
+        other: Tuple[so.Object, ...],
         props: List[Tuple[s_props.Property, s_types.TypeShell]],
     ) -> s_schema.Schema:
-        """Restore the type of every property that uses this in a composite.
+        """Restore the type of everything that uses this scalar dangerously.
 
-        See _get_composite_refs above for details.
+        See _get_problematic_refs above for details.
         """
+
+        for obj in reversed(other):
+            if isinstance(obj, s_funcs.Function):
+                # Super hackily recreate the functions
+                fc = CreateFunction(classname=obj.get_name(schema))
+                for f in ('language', 'params', 'return_type'):
+                    fc.set_attribute_value(f, obj.get_field_value(schema, f))
+                _, op = fc.make_op(obj, schema, context)
+                self.pgops.add(op)
+            elif isinstance(obj, s_constr.Constraint):
+                self.pgops.add(
+                    ConstraintCommand.create_constraint(obj, schema, context))
+            elif isinstance(obj, s_indexes.Index):
+                self.pgops.add(
+                    CreateIndex.create_index(obj, orig_schema, context))
 
         cmd = sd.DeltaRoot()
 
@@ -1792,7 +1882,9 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 schema, context, cmdtype=sd.AlterObject)
             cmd_alter.set_attribute_value(
                 'target', prop.get_target(orig_schema))
-            cmd.add(delta_alter)
+            cmd_alter.set_attribute_value(
+                'default', prop.get_default(orig_schema))
+            cmd.add_prerequisite(delta_alter)
 
             rnew_typ = new_typ.resolve(schema)
             if delete := rnew_typ.as_type_delete_if_dead(schema):
@@ -1802,9 +1894,12 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         # which prunes out duplicate deletions
         cmd.apply(schema, context)
 
-        acmd = CommandMeta.adapt(cmd)
-        self.pgops.add(acmd)
-        return acmd.apply(schema, context)
+        for sub in cmd.get_subcommands():
+            acmd = CommandMeta.adapt(sub)
+            schema = acmd.apply(schema, context)
+            self.pgops.add(acmd)
+
+        return schema
 
     def apply(
         self,
@@ -1815,26 +1910,38 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         schema = s_scalars.AlterScalarType.apply(self, schema, context)
         new_scalar = self.scls
 
-        used_props = None
-        if list(self.get_subcommands(type=s_constr.CreateConstraint)):
-            used_props = self._get_composite_refs(schema, context)
-            if used_props:
-                schema = self._undo_everything(schema, context, used_props)
-
-        schema = ScalarTypeMetaCommand.apply(self, schema, context)
-
-        if used_props:
-            schema = self._redo_everything(
-                schema, orig_schema, context, used_props)
-
         old_enum_values = new_scalar.get_enum_values(orig_schema)
         new_enum_values = new_scalar.get_enum_values(schema)
+
+        # If values were deleted or reordered, we need to drop the enum
+        # and recreate it.
+        needs_recreate = (
+            old_enum_values != new_enum_values
+            and old_enum_values != new_enum_values[:len(old_enum_values)])
+        has_create_constraint = bool(
+            list(self.get_subcommands(type=s_constr.CreateConstraint)))
+
+        problematic_refs = None
+        if needs_recreate or has_create_constraint:
+            problematic_refs = self._get_problematic_refs(
+                schema, context, composite_only=not needs_recreate)
+            if problematic_refs:
+                other, props = problematic_refs
+                schema = self._undo_everything(schema, context, other, props)
+
+        schema = ScalarTypeMetaCommand.apply(self, schema, context)
 
         if new_enum_values:
             type_name = common.get_backend_name(
                 schema, new_scalar, catenate=False)
 
-            if old_enum_values != new_enum_values:
+            if needs_recreate:
+                self.pgops.add(
+                    dbops.DropEnum(name=type_name))
+                self.pgops.add(dbops.CreateEnum(
+                    dbops.Enum(name=type_name, values=new_enum_values)))
+
+            elif old_enum_values != new_enum_values:
                 old_idx = 0
                 old_enum_values = list(old_enum_values)
                 for v in new_enum_values:
@@ -1853,6 +1960,11 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                         old_enum_values.insert(old_idx, v)
                     else:
                         old_idx += 1
+
+        if problematic_refs:
+            other, props = problematic_refs
+            schema = self._redo_everything(
+                schema, orig_schema, context, other, props)
 
         default_delta = self.get_resolved_attribute_value(
             'default',
@@ -2106,18 +2218,10 @@ class IndexCommand(sd.ObjectCommand, metaclass=CommandMeta):
 
 class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
 
-    def apply(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = CreateObject.apply(self, schema, context)
-        index = self.scls
+    @classmethod
+    def create_index(cls, index, schema, context):
+        subject = index.get_subject(schema)
 
-        parent_ctx = context.get_ancestor(
-            s_indexes.IndexSourceCommandContext, self)
-        subject_name = parent_ctx.op.classname
-        subject = schema.get(subject_name, default=None)
         if not isinstance(subject, s_pointers.Pointer):
             singletons = [subject]
             path_prefix_anchor = ql_ast.Subject().name
@@ -2133,7 +2237,7 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     modaliases=context.modaliases,
-                    schema_object_context=self.get_schema_metaclass(),
+                    schema_object_context=cls.get_schema_metaclass(),
                     anchors={ql_ast.Subject().name: subject},
                     path_prefix_anchor=path_prefix_anchor,
                     singletons=singletons,
@@ -2162,7 +2266,17 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
             name=index_name[1], table_name=table_name, expr=sql_expr,
             unique=False, inherit=True,
             metadata={'schemaname': str(index.get_name(schema))})
-        self.pgops.add(dbops.CreateIndex(pg_index, priority=3))
+        return dbops.CreateIndex(pg_index, priority=3)
+
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = CreateObject.apply(self, schema, context)
+        index = self.scls
+
+        self.pgops.add(self.create_index(index, schema, context))
 
         return schema
 
@@ -2184,6 +2298,21 @@ class AlterIndex(IndexCommand, AlterObject, adapts=s_indexes.AlterIndex):
 
 
 class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
+    @classmethod
+    def delete_index(cls, index, schema, context, priority=3):
+        subject = index.get_subject(schema)
+        table_name = common.get_backend_name(
+            schema, subject, catenate=False)
+        module_name = index.get_name(schema).module
+        orig_idx_name = common.get_index_backend_name(
+            index.id, module_name, catenate=False)
+        index = dbops.Index(
+            name=orig_idx_name[1], table_name=table_name, inherit=True)
+        index_exists = dbops.IndexExists(
+            (table_name[0], index.name_in_catalog))
+        conditions = (index_exists, ) if priority else ()
+        return dbops.DropIndex(
+            index, priority=priority, conditions=conditions)
 
     def apply(
         self,
@@ -2202,18 +2331,7 @@ class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
             # We should not drop indexes when the host is being dropped since
             # the indexes are dropped automatically in this case.
             #
-            table_name = common.get_backend_name(
-                schema, source.scls, catenate=False)
-            module_name = index.get_name(orig_schema).module
-            orig_idx_name = common.get_index_backend_name(
-                index.id, module_name, catenate=False)
-            index = dbops.Index(
-                name=orig_idx_name[1], table_name=table_name, inherit=True)
-            index_exists = dbops.IndexExists(
-                (table_name[0], index.name_in_catalog))
-            self.pgops.add(
-                dbops.DropIndex(
-                    index, priority=3, conditions=(index_exists, )))
+            self.pgops.add(self.delete_index(index, orig_schema, context))
 
         return schema
 
@@ -2452,20 +2570,27 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
         return default_value
 
-    def alter_pointer_default(self, pointer, schema, context):
+    def alter_pointer_default(self, pointer, orig_schema, schema, context):
         default_value = self.get_pointer_default(pointer, schema, context)
-        if default_value:
-            source_ctx = context.get_ancestor(
-                s_sources.SourceCommandContext, self)
-            alter_table = source_ctx.op.get_alter_table(
-                schema, context, contained=True, priority=3)
+        if default_value is None and not (
+            not orig_schema
+            or pointer.get_default(orig_schema)
+            or (tgt := pointer.get_target(orig_schema)) and tgt.issubclass(
+                schema, schema.get('std::sequence'))
+        ):
+            return
 
-            ptr_stor_info = types.get_pointer_storage_info(
-                pointer, schema=schema)
-            alter_table.add_operation(
-                dbops.AlterTableAlterColumnDefault(
-                    column_name=ptr_stor_info.column_name,
-                    default=default_value))
+        source_ctx = context.get_ancestor(
+            s_sources.SourceCommandContext, self)
+        alter_table = source_ctx.op.get_alter_table(
+            schema, context, contained=True, priority=0)
+
+        ptr_stor_info = types.get_pointer_storage_info(
+            pointer, schema=schema)
+        alter_table.add_operation(
+            dbops.AlterTableAlterColumnDefault(
+                column_name=ptr_stor_info.column_name,
+                default=default_value))
 
     @classmethod
     def get_columns(cls, pointer, schema, default=None, sets_required=False):
@@ -3458,7 +3583,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                         )
 
                 if default_value is not None:
-                    self.alter_pointer_default(link, schema, context)
+                    self.alter_pointer_default(link, None, schema, context)
 
                 index_name = common.get_backend_name(
                     schema, link, catenate=False, aspect='index'
@@ -4019,7 +4144,7 @@ class AlterProperty(
                 s_props.PropertyCommandContext(schema, self, prop)) as ctx:
             ctx.original_schema = orig_schema
             self.provide_table(prop, schema, context)
-            self.alter_pointer_default(prop, schema, context)
+            self.alter_pointer_default(prop, orig_schema, schema, context)
 
         return schema
 

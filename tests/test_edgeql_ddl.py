@@ -8526,39 +8526,6 @@ type test::Foo {
         # Recover.
         await self.con.query('ROLLBACK TO SAVEPOINT t0;')
 
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'cannot remove labels from an enumeration type'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE test::Color
-                    EXTENDING enum<Red, Green>;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'only appending new labels is allowed'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE test::Color
-                    EXTENDING enum<Blue, Red, Green>;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
-        with self.assertRaisesRegex(
-                edgedb.SchemaError,
-                'only appending new labels is allowed'):
-            await self.con.execute('''
-                ALTER SCALAR TYPE test::Color
-                    EXTENDING enum<Red, Green, Bad, Blue>;
-            ''')
-
-        # Recover.
-        await self.con.query('ROLLBACK TO SAVEPOINT t0;')
-
         await self.con.execute(r'''
             ALTER SCALAR TYPE test::Color
                 EXTENDING enum<Red, Green, Blue, Magic>;
@@ -8577,6 +8544,62 @@ type test::Foo {
         await self.con.execute('''
             DROP SCALAR TYPE test::Color;
         ''')
+        await self.con.query("COMMIT")
+
+    async def test_edgeql_ddl_enum_05(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE test::Color
+                EXTENDING enum<Red, Green, Blue>;
+
+             CREATE FUNCTION test::asdf(x: test::Color) -> str USING (
+                 <str>(x));
+             CREATE FUNCTION test::asdf2() -> str USING (
+                 test::asdf(<test::Color>'Red'));
+
+             CREATE TYPE test::Entry {
+                 CREATE PROPERTY num -> int64;
+                 CREATE PROPERTY color -> test::Color;
+                 CREATE PROPERTY colors -> array<test::Color>;
+                 CREATE CONSTRAINT expression ON (
+                     <str>.num != test::asdf2()
+                 );
+                 CREATE INDEX ON (test::asdf(.color));
+                 CREATE PROPERTY lol -> str {
+                     SET default := test::asdf2();
+                 }
+             };
+             INSERT test::Entry { num := 1, color := "Red" };
+             INSERT test::Entry {
+                 num := 2, color := "Green", colors := ["Red", "Green"] };
+        ''')
+
+        await self.con.execute('''
+            ALTER SCALAR TYPE test::Color
+                EXTENDING enum<Red, Green>;
+        ''')
+
+        await self.con.execute('''
+            ALTER SCALAR TYPE test::Color
+                EXTENDING enum<Green, Red>;
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::Entry { num, color } ORDER BY .color;
+            """,
+            [
+                {'num': 2, 'color': 'Green'},
+                {'num': 1, 'color': 'Red'},
+            ],
+        )
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                'invalid input value for enum'):
+            await self.con.execute('''
+                ALTER SCALAR TYPE test::Color
+                    EXTENDING enum<Green>;
+            ''')
 
     async def test_edgeql_ddl_explicit_id(self):
         await self.con.execute('''
@@ -10313,9 +10336,11 @@ type test::Foo {
         await self.con.execute(r"""
             SET MODULE test;
 
+            CREATE FUNCTION foo() -> str USING ("test");
+
             CREATE TYPE Foo {
                 CREATE REQUIRED PROPERTY a -> str {
-                    SET default := "test";
+                    SET default := foo();
                 }
             };
         """)
@@ -10340,6 +10365,10 @@ type test::Foo {
             await self.con.execute(r"""
                 INSERT Foo;
             """)
+
+        await self.con.execute(r"""
+            DROP FUNCTION foo();
+        """)
 
     async def test_edgeql_ddl_drop_field_02(self):
         await self.con.execute(r"""

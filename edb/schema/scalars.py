@@ -555,17 +555,6 @@ class RebaseScalarType(
             raise errors.SchemaError(
                 f'enums cannot contain duplicate values')
 
-        cur_set = set(cur_labels)
-        if cur_set - new_set:
-            raise errors.SchemaError(
-                f'cannot remove labels from an enumeration type')
-
-        for cur_label, new_label in zip(cur_labels, new_labels):
-            if cur_label != new_label:
-                raise errors.SchemaError(
-                    f'cannot change the existing labels in an enumeration '
-                    f'type, only appending new labels is allowed')
-
         self.set_attribute_value('enum_values', new_labels)
         schema = stype.set_field_value(schema, 'enum_values', new_labels)
         return schema
