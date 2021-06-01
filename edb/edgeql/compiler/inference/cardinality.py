@@ -642,6 +642,18 @@ def _infer_set_inner(
                     rptr_spec_card = _union_cardinality(
                         s.dir_cardinality for s in rptr_spec)
 
+                    # If the intersection has an rptr_specialization,
+                    # then we take a step back and start with
+                    # the source of *that*, which lets us take
+                    # advantage of std::exclusive on links when using
+                    # reverse pointers with multiple possibilities.
+                    if rptr_spec:
+                        # Already inferred, should just be hitting cache.
+                        source_card = infer_cardinality(
+                            ind_prefix.rptr.source,
+                            scope_tree=new_scope, ctx=ctx,
+                        )
+
                     # The resulting cardinality is the cartesian
                     # product of the base to which the type
                     # intersection is applied and the cardinality due

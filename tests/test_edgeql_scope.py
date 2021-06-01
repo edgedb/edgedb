@@ -2534,3 +2534,20 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 {'name': 'Dave'},
             ],
         )
+
+    async def test_edgeql_scope_link_narrow_card_01(self):
+        await self.assert_query_result(
+            """
+                WITH MODULE test
+                SELECT User {
+                    name,
+                    specials := .deck[IS SpecialCard].name
+                } ORDER BY .name;
+            """,
+            [
+                {"name": "Alice", "specials": []},
+                {"name": "Bob", "specials": []},
+                {"name": "Carol", "specials": ["Djinn"]},
+                {"name": "Dave", "specials": ["Djinn"]}
+            ],
+        )
