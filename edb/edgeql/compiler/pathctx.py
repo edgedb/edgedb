@@ -91,7 +91,6 @@ def register_set_in_scope(
         ir_set: irast.Set, *,
         path_scope: Optional[irast.ScopeTreeNode]=None,
         optional: bool=False,
-        fence_points: FrozenSet[irast.PathId]=frozenset(),
         ctx: context.ContextLevel) -> List[irast.ScopeTreeNode]:
     if path_scope is None:
         path_scope = ctx.path_scope
@@ -102,7 +101,6 @@ def register_set_in_scope(
     return path_scope.attach_path(
         ir_set.path_id,
         optional=optional,
-        fence_points=fence_points,
         context=ir_set.context,
     )
 

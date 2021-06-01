@@ -83,6 +83,9 @@ class ScopeTreeNode:
     implement "semi-detached" semantics used by
     aliases declared in a WITH block."""
 
+    _gravestone: Optional[ScopeTreeNode]
+    """A pointer to the scope tree node that this was merged into."""
+
     def __init__(
         self,
         *,
@@ -102,6 +105,7 @@ class ScopeTreeNode:
         self.children = []
         self.namespaces = set()
         self._parent: Optional[weakref.ReferenceType[ScopeTreeNode]] = None
+        self._gravestone = None
 
     def __repr__(self) -> str:
         name = 'ScopeFenceNode' if self.fenced else 'ScopeTreeNode'
@@ -124,6 +128,13 @@ class ScopeTreeNode:
             child._copy(parent=cp)
 
         return cp
+
+    @property
+    def forwarded(self) -> ScopeTreeNode:
+        node = self
+        while node._gravestone:
+            node = node._gravestone
+        return node
 
     def find_dupe_unique_ids(self) -> Set[int]:
         seen = set()
@@ -242,7 +253,8 @@ class ScopeTreeNode:
         """An iterator of node's descendants not including self top-first."""
         for child in tuple(self.children):
             yield child
-            yield from child.strict_descendants
+            if child.parent is self:
+                yield from child.strict_descendants
 
     @property
     def strict_descendants_and_namespaces(
@@ -374,7 +386,6 @@ class ScopeTreeNode:
         *,
         optional: bool=False,
         context: Optional[pctx.ParserContext],
-        fence_points: FrozenSet[pathid.PathId] = frozenset(),
     ) -> List[ScopeTreeNode]:
         """Attach a scope subtree representing *path_id*."""
 
@@ -426,14 +437,16 @@ class ScopeTreeNode:
             if not prefix.is_type_intersection_path():
                 is_lprop = False
 
-            if prefix in fence_points:
+            # Fence heads of computable paths. See discussion in
+            # compile_path.
+            if (rptr := prefix.rptr()) and rptr.is_computable:
                 fence = ScopeTreeNode()
                 fences.append(fence)
                 parent.attach_child(fence)
                 parent = fence
 
         self.attach_subtree(subtree, context=context)
-        return fences
+        return [fence.forwarded for fence in fences]
 
     def attach_subtree(self, node: ScopeTreeNode,
                        was_fenced: bool=False,
@@ -459,6 +472,24 @@ class ScopeTreeNode:
             path_id = descendant.path_id.strip_namespace(dns)
             visible, visible_finfo = self.find_visible_ex(path_id)
             desc_optional = descendant.is_optional_upto(node.parent)
+
+            # If descendant is covered up by one BRANCH, it is because it
+            # was put there by a fence_pointer in attach_path. If the path
+            # exists in a similarly BRANCH-covered way under self, we want
+            # to merge the nodes under the BRANCH, rather than lifting it out,
+            # so as to preserve longest-prefixes on computable paths.
+            # (See test_edgeql_scope_computables_07* for an example.)
+            if (
+                visible is None
+                and (p := descendant.parent)
+                and p.path_id is None and not p.fenced and p.parent is node
+            ):
+                visible = self.find_child(
+                    path_id, in_branches=True, in_fences=True)
+                visible_finfo = None
+                if visible is not None:
+                    p._gravestone = visible.parent
+
             if visible is not None:
                 if visible_finfo is not None and visible_finfo.factoring_fence:
                     # This node is already present in the surrounding
@@ -475,12 +506,11 @@ class ScopeTreeNode:
                 # but merge its OPTIONAL status, if any.
                 desc_fenced = descendant.fence is not node.fence or was_fenced
                 descendant.remove()
+                descendant._gravestone = visible
                 keep_optional = desc_optional or desc_fenced
-                if (
-                    visible.optional_count is not None
-                    and not keep_optional
-                ):
-                    visible.optional_count += 1
+                if keep_optional:
+                    descendant.mark_as_optional()
+                visible.fuse_subtree(descendant, self_fenced=False)
 
             elif descendant.parent_fence is node:
                 # Unfenced path.
@@ -559,8 +589,8 @@ class ScopeTreeNode:
                                 context=context,
                             )
 
-                        parent_fence.remove_descendants(path_id)
-                        node.remove_descendants(path_id)
+                        parent_fence.remove_descendants(path_id, new=existing)
+                        node.remove_descendants(path_id, new=existing)
                         existing.path_id = existing.path_id.strip_namespace(
                             existing_ns)
                         parent_fence.attach_child(existing)
@@ -610,7 +640,8 @@ class ScopeTreeNode:
 
         node._set_parent(None)
 
-    def remove_descendants(self, path_id: pathid.PathId) -> None:
+    def remove_descendants(
+            self, path_id: pathid.PathId, new: ScopeTreeNode) -> None:
         """Remove all descendant nodes matching *path_id*."""
 
         matching = set()
@@ -622,6 +653,7 @@ class ScopeTreeNode:
 
         for node in matching:
             node.remove()
+            node._gravestone = new
 
     def mark_as_optional(self) -> None:
         """Indicate that this scope is used as an OPTIONAL argument."""
@@ -779,13 +811,15 @@ class ScopeTreeNode:
         path_id: pathid.PathId,
         *,
         in_branches: bool = False,
+        in_fences: bool = False,
         pfx_with_invariant_card: bool = False,
     ) -> Optional[ScopeTreeNode]:
         for child in self.children:
             if child.path_id == path_id:
                 return child
             if (
-                in_branches and child.path_id is None and not child.fenced
+                in_branches and child.path_id is None
+                and (not child.fenced or in_fences)
                 or (
                     pfx_with_invariant_card
                     and child.path_id is not None

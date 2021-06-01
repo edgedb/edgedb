@@ -507,12 +507,12 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     # }
     #
     # Note that we use an unfenced BRANCH node to isolate the path head,
-    # to make sure it is still properly factorable.  We temporarily flip
-    # the branch to be a full fence for the compilation of the computable.
-    fence_points = frozenset(c.path_id for c in computables)
+    # to make sure it is still properly factorable.
+    # The branch insertion is handled automatically by attach_path, and
+    # we temporarily flip the branch to be a full fence for the compilation
+    # of the computable.
     fences = pathctx.register_set_in_scope(
         path_tip,
-        fence_points=fence_points,
         ctx=ctx,
     )
 

@@ -968,7 +968,12 @@ def process_set_as_path(
     semi_join = (
         not source_is_visible and
         ir_set.path_id not in ctx.disable_semi_join and
-        not (is_linkprop or is_primitive_ref)
+        not (is_linkprop or is_primitive_ref) and
+        # This is an optimization for when we are inside of a semi-join on
+        # a computable: process_set_as_subquery will have included an
+        # rvar for the computable source, and we want to join on it
+        # instead of semi-joining.
+        not relctx.find_rvar(stmt, path_id=ir_source.path_id, ctx=ctx)
     )
 
     source_rptr = ir_source.rptr
@@ -1185,18 +1190,20 @@ def process_set_as_subquery(
                         ctx=xctx),)
 
             if is_objtype_path and not source_is_visible:
-                path_scope = relctx.get_scope(ir_set, ctx=newctx)
-                if (path_scope is None or
-                        path_scope.find_descendant(ir_source.path_id) is None):
-                    # Non-scalar computable semi-join.
-                    semi_join = True
+                # Non-scalar computable semi-join.
+                semi_join = True
 
-                    with newctx.subrel() as _, _.newscope() as subctx:
-                        get_set_rvar(ir_source, ctx=subctx)
-                        subrel = subctx.rel
+                # We need to compile the source and include it in,
+                # since we need to do the semi-join deduplication here
+                # on the outside, and not when the source is used in a
+                # path inside the computable.
+                # (See test_edgeql_scope_computables_09 for an example.)
+                with newctx.subrel() as _, _.newscope() as subctx:
+                    get_set_rvar(ir_source, ctx=subctx)
+                    subrvar = relctx.rvar_for_rel(subctx.rel, ctx=subctx)
 
-                    pathctx.get_path_identity_output(
-                        subrel, path_id=ir_source.path_id, env=ctx.env)
+                relctx.include_rvar(
+                    stmt, subrvar, ir_source.path_id, ctx=ctx)
 
         if (isinstance(ir_set.expr, irast.MutatingStmt)
                 and ir_set.expr in ctx.dml_stmts):
@@ -1211,21 +1218,18 @@ def process_set_as_subquery(
             dispatch.visit(ir_set.expr, ctx=newctx)
 
         if semi_join:
-            assert ir_source is not None
-            src_ref = pathctx.maybe_get_path_identity_var(
-                stmt, path_id=ir_source.path_id, env=ctx.env)
+            set_rvar = relctx.new_root_rvar(ir_set, ctx=newctx)
+            tgt_ref = pathctx.get_rvar_path_identity_var(
+                set_rvar, ir_set.path_id, env=ctx.env)
 
-            cond_expr: pgast.BaseExpr
-            if src_ref is not None:
-                cond_expr = astutils.new_binop(src_ref, subrel, 'IN')
-            else:
-                # The link expression does not refer to the source,
-                # so simply check it's not empty.
-                cond_expr = pgast.SubLink(
-                    type=pgast.SubLinkType.EXISTS,
-                    expr=subrel
-                )
+            pathctx.get_path_identity_output(
+                stmt, ir_set.path_id, env=ctx.env)
+            cond_expr = astutils.new_binop(tgt_ref, stmt, 'IN')
 
+            # Make a new stmt, join in the new root, and semi join on
+            # the original statement.
+            stmt = pgast.SelectStmt()
+            relctx.include_rvar(stmt, set_rvar, ir_set.path_id, ctx=ctx)
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause, cond_expr)
 
