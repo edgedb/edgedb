@@ -622,7 +622,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
         material_ptr is None
         and isinstance(ptrcls, s_pointers.Pointer)
     ):
-        descendants = frozenset(
+        children = frozenset(
             ptrref_from_ptrcls(
                 ptrcls=child,
                 direction=direction,
@@ -634,7 +634,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
             if not child.get_is_derived(schema)
         )
     else:
-        descendants = frozenset()
+        children = frozenset()
 
     kwargs.update(dict(
         out_source=out_source,
@@ -647,7 +647,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
         source_ptr=source_ptr,
         base_ptr=base_ptr,
         material_ptr=material_ptr,
-        descendants=descendants,
+        children=children,
         is_derived=ptrcls.get_is_derived(schema),
         is_computable=ptrcls.get_computable(schema),
         union_components=union_components,
@@ -853,7 +853,7 @@ def find_actual_ptrref(
         if link_ptr.dir_source.id != source_typeref.id:
             # We are updating a subtype, find the
             # correct descendant ptrref.
-            for dp in ptrref.descendants:
+            for dp in ptrref.children:
                 assert dp.source_ptr is not None
                 if dp.source_ptr.dir_source.id == source_typeref.id:
                     actual_ptrref = dp
@@ -877,7 +877,7 @@ def find_actual_ptrref(
                 actual_ptrref = candidate
                 break
         else:
-            for dp in ptrref.descendants:
+            for dp in ptrref.children:
                 if dp.dir_source.id == source_typeref.id:
                     actual_ptrref = dp
                     break

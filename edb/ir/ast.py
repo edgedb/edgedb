@@ -178,8 +178,8 @@ class AnyTupleRef(TypeRef):
 class BasePointerRef(ImmutableBase):
     __abstract_node__ = True
 
-    # Hide descendants to reduce noise
-    __ast_hidden__ = {'descendants'}
+    # Hide children to reduce noise
+    __ast_hidden__ = {'children'}
 
     # cardinality fields need to be mutable for lazy cardinality inference.
     __ast_mutable_fields__ = frozenset(('dir_cardinality', 'out_cardinality'))
@@ -196,7 +196,7 @@ class BasePointerRef(ImmutableBase):
     source_ptr: typing.Optional[PointerRef]
     base_ptr: typing.Optional[BasePointerRef]
     material_ptr: typing.Optional[BasePointerRef]
-    descendants: typing.FrozenSet[BasePointerRef]
+    children: typing.FrozenSet[BasePointerRef]
     union_components: typing.Set[BasePointerRef]
     intersection_components: typing.Set[BasePointerRef]
     union_is_concrete: bool = False
@@ -230,6 +230,12 @@ class BasePointerRef(ImmutableBase):
     @property
     def is_inbound(self) -> bool:
         return self.direction is self.direction.Inbound
+
+    def descendants(self) -> typing.Set[BasePointerRef]:
+        res = set(self.children)
+        for child in self.children:
+            res.update(child.descendants())
+        return res
 
     def __repr__(self) -> str:
         return f'<ir.{type(self).__name__} \'{self.name}\' at 0x{id(self):x}>'
