@@ -437,6 +437,9 @@ class Set(Base):
     anchor: typing.Optional[str]
     show_as_anchor: typing.Optional[str]
     shape: typing.List[typing.Tuple[Set, qlast.ShapeOp]]
+    # A pointer to a set nested within this one has a shape and the same
+    # typeref, if such a set exists.
+    shape_source: typing.Optional[Set]
     is_binding: bool
 
     def __repr__(self) -> str:
