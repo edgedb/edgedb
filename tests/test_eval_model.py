@@ -257,3 +257,38 @@ class TestModelSmokeTests(unittest.TestCase):
             ''',
             [('boxing', '<n/a>'), ('unboxing', 'arg!'), ('unboxing', 'sigh')],
         )
+
+    def test_edgeql_lprop_02(self):
+        self.assert_test_query(
+            r'''
+            SELECT (User.name,
+                    (SELECT (User.friends.name, User.friends@nickname)));
+            ''',
+            [
+                ("Alice", ("Bob", "Swampy")),
+                ("Alice", ("Carol", "Firefighter")),
+                ("Alice", ("Dave", "Grumpy"))
+            ]
+        )
+
+    def test_edgeql_lprop_03(self):
+        self.assert_test_query(
+            r'''
+                SELECT (
+                    User.name,
+                    array_agg(
+                        (SELECT (User.friends.name, User.friends@nickname))));
+            ''',
+            [
+                (
+                    'Alice',
+                    [
+                        ('Bob', 'Swampy'),
+                        ('Carol', 'Firefighter'),
+                        ('Dave', 'Grumpy')
+                    ],
+                ),
+                ('Bob', []),
+                ('Carol', []),
+                ('Dave', [])]
+        )

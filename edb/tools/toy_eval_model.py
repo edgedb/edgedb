@@ -609,7 +609,7 @@ def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
 def eval_intersect(
         base: Data, ptr: ITypeIntersection, ctx: EvalContext) -> List[Data]:
     # TODO: we want actual types but for now we just match directly
-    typ = ctx.db[base["id"]]["__type__"]
+    typ = ctx.db[base.id]["__type__"]
     return [base] if typ == ptr.typ else []
 
 
@@ -945,6 +945,207 @@ type Foo {
 '''
 
 
+def load_json_obj(obj):
+    new_obj = {}
+    for k, v in obj.items():
+        if k == 'id':
+            v = uuid.UUID(v)
+        elif k == 'typ':
+            k = '__type__'
+            v = v.replace('test::', '')
+
+        vs = v if isinstance(v, list) else [v]
+        nvs = []
+        for v1 in vs:
+            if isinstance(v1, dict):
+                lprops = {lk[1:]: lv for lk, lv in v1.items() if lk[0] == '@'}
+                v1 = Obj(uuid.UUID(v1['id']), lprops=lprops)
+            nvs.append(v1)
+        nv = nvs if isinstance(v, list) else nvs[0]
+
+        new_obj[k] = nv
+    return new_obj
+
+
+def load_json_db(data):
+    return [load_json_obj(obj) for obj in data]
+
+
+null: None = None
+CARDS_DB = [
+    {
+        "avatar": {
+            "@text": "Best",
+            "id": "81537667-c308-11eb-98b8-e7ee6a203949"
+        },
+        "awards": [
+            {"id": "81537661-c308-11eb-98b8-d7ab026ed715"},
+            {"id": "81537663-c308-11eb-98b8-47f340f064e1"}
+        ],
+        "deck": [
+            {"@count": 2, "id": "81537666-c308-11eb-98b8-67d1235c4527"},
+            {"@count": 2, "id": "81537667-c308-11eb-98b8-e7ee6a203949"},
+            {"@count": 3, "id": "81537668-c308-11eb-98b8-2b363efb8a80"},
+            {"@count": 3, "id": "81537669-c308-11eb-98b8-c37076e778d2"}
+        ],
+        "friends": [
+            {
+                "@nickname": "Swampy",
+                "id": "81537670-c308-11eb-98b8-d3d2e939fbfc"
+            },
+            {
+                "@nickname": "Firefighter",
+                "id": "81537671-c308-11eb-98b8-6b6a92e0be3e"
+            },
+            {
+                "@nickname": "Grumpy",
+                "id": "81537672-c308-11eb-98b8-53b70c263a56"
+            }
+        ],
+        "id": "8153766f-c308-11eb-98b8-af7e8ffd99f3",
+        "name": "Alice",
+        "typ": "test::User"
+    },
+    {
+        "avatar": null,
+        "awards": [{"id": "81537665-c308-11eb-98b8-a7fee63c63ca"}],
+        "deck": [
+            {"@count": 3, "id": "81537668-c308-11eb-98b8-2b363efb8a80"},
+            {"@count": 3, "id": "81537669-c308-11eb-98b8-c37076e778d2"},
+            {"@count": 3, "id": "8153766a-c308-11eb-98b8-330dce42eb46"},
+            {"@count": 3, "id": "8153766b-c308-11eb-98b8-430d489d7125"}
+        ],
+        "friends": [],
+        "id": "81537670-c308-11eb-98b8-d3d2e939fbfc",
+        "name": "Bob",
+        "typ": "test::User"
+    },
+    {
+        "avatar": null,
+        "awards": [],
+        "deck": [
+            {"@count": 3, "id": "81537668-c308-11eb-98b8-2b363efb8a80"},
+            {"@count": 2, "id": "81537669-c308-11eb-98b8-c37076e778d2"},
+            {"@count": 4, "id": "8153766a-c308-11eb-98b8-330dce42eb46"},
+            {"@count": 2, "id": "8153766b-c308-11eb-98b8-430d489d7125"},
+            {"@count": 4, "id": "8153766c-c308-11eb-98b8-5bd98eec95bd"},
+            {"@count": 3, "id": "8153766d-c308-11eb-98b8-8b072b1a5f69"},
+            {"@count": 1, "id": "8153766e-c308-11eb-98b8-1b59432eef87"}
+        ],
+        "friends": [],
+        "id": "81537671-c308-11eb-98b8-6b6a92e0be3e",
+        "name": "Carol",
+        "typ": "test::User"
+    },
+    {
+        "avatar": null,
+        "awards": [],
+        "deck": [
+            {"@count": 1, "id": "81537667-c308-11eb-98b8-e7ee6a203949"},
+            {"@count": 1, "id": "81537668-c308-11eb-98b8-2b363efb8a80"},
+            {"@count": 1, "id": "81537669-c308-11eb-98b8-c37076e778d2"},
+            {"@count": 1, "id": "8153766b-c308-11eb-98b8-430d489d7125"},
+            {"@count": 4, "id": "8153766c-c308-11eb-98b8-5bd98eec95bd"},
+            {"@count": 1, "id": "8153766d-c308-11eb-98b8-8b072b1a5f69"},
+            {"@count": 1, "id": "8153766e-c308-11eb-98b8-1b59432eef87"}
+        ],
+        "friends": [
+            {"@nickname": null, "id": "81537670-c308-11eb-98b8-d3d2e939fbfc"}
+        ],
+        "id": "81537672-c308-11eb-98b8-53b70c263a56",
+        "name": "Dave",
+        "typ": "test::User"
+    },
+    {
+        "awards": [{"id": "81537663-c308-11eb-98b8-47f340f064e1"}],
+        "cost": 1,
+        "element": "Fire",
+        "id": "81537666-c308-11eb-98b8-67d1235c4527",
+        "name": "Imp",
+        "typ": "test::Card"
+    },
+    {
+        "awards": [{"id": "81537661-c308-11eb-98b8-d7ab026ed715"}],
+        "cost": 5,
+        "element": "Fire",
+        "id": "81537667-c308-11eb-98b8-e7ee6a203949",
+        "name": "Dragon",
+        "typ": "test::Card"
+    },
+    {
+        "awards": [],
+        "cost": 2,
+        "element": "Water",
+        "id": "81537668-c308-11eb-98b8-2b363efb8a80",
+        "name": "Bog monster",
+        "typ": "test::Card"
+    },
+    {
+        "awards": [],
+        "cost": 3,
+        "element": "Water",
+        "id": "81537669-c308-11eb-98b8-c37076e778d2",
+        "name": "Giant turtle",
+        "typ": "test::Card"
+    },
+    {
+        "awards": [],
+        "cost": 1,
+        "element": "Earth",
+        "id": "8153766a-c308-11eb-98b8-330dce42eb46",
+        "name": "Dwarf",
+        "typ": "test::Card"
+    },
+    {
+        "awards": [],
+        "cost": 3,
+        "element": "Earth",
+        "id": "8153766b-c308-11eb-98b8-430d489d7125",
+        "name": "Golem",
+        "typ": "test::Card"
+    },
+    {
+        "awards": [],
+        "cost": 1,
+        "element": "Air",
+        "id": "8153766c-c308-11eb-98b8-5bd98eec95bd",
+        "name": "Sprite",
+        "typ": "test::Card"
+    },
+    {
+        "awards": [],
+        "cost": 2,
+        "element": "Air",
+        "id": "8153766d-c308-11eb-98b8-8b072b1a5f69",
+        "name": "Giant eagle",
+        "typ": "test::Card"
+    },
+    {
+        "awards": [{"id": "81537665-c308-11eb-98b8-a7fee63c63ca"}],
+        "cost": 4,
+        "element": "Air",
+        "id": "8153766e-c308-11eb-98b8-1b59432eef87",
+        "name": "Djinn",
+        "typ": "test::SpecialCard"
+    },
+    {
+        "id": "81537661-c308-11eb-98b8-d7ab026ed715",
+        "name": "1st",
+        "typ": "test::Award"
+    },
+    {
+        "id": "81537663-c308-11eb-98b8-47f340f064e1",
+        "name": "2nd",
+        "typ": "test::Award"
+    },
+    {
+        "id": "81537665-c308-11eb-98b8-a7fee63c63ca",
+        "name": "3rd",
+        "typ": "test::Award"
+    }
+]
+
+
 PersonT = "Person"
 NoteT = "Note"
 FooT = "Foo"
@@ -965,7 +1166,7 @@ DB1 = mk_db([
     # Foo
     {"id": bsid(0x30), "__type__": FooT, "val": "a"},
     {"id": bsid(0x31), "__type__": FooT, "val": "b", "opt": 111},
-])
+] + load_json_db(CARDS_DB))
 
 
 def main() -> None:
