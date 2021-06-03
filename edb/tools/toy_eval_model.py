@@ -317,6 +317,7 @@ class EvalContext:
     query_input_list: List[IPath]
     input_tuple: Tuple[Data, ...]
     aliases: Dict[str, List[Data]]
+    cur_path: qlast.Path
     db: DB
 
 
@@ -327,6 +328,25 @@ def _eval(
 ) -> List[Data]:
     raise NotImplementedError(
         f'no EdgeQL eval handler for {node.__class__}')
+
+
+def graft(prefix: qlast.Path, new: qlast.Path) -> qlast.Path:
+    if new.partial:
+        return qlast.Path(
+            steps=prefix.steps + new.steps, partial=prefix.partial)
+    else:
+        return new
+
+
+def update_path(prefix: qlast.Path, query: qlast.ReturningMixin) -> qlast.Path:
+    if query.result_alias is not None:
+        return qlast.Path(steps=[
+            qlast.ObjectRef(name=query.result_alias)
+        ])
+    elif isinstance(query.result, qlast.Path):
+        return graft(prefix, query.result)
+    else:
+        return prefix
 
 
 def eval_filter(
@@ -421,6 +441,9 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
     if node.result_alias:
         out = [row + (row[-1],) for row in out]
         new_qil += [(IORef(node.result_alias),)]
+
+    cur_path = update_path(ctx.cur_path, node)
+    ctx = replace(ctx, cur_path=cur_path)
 
     out = eval_filter(node.where, new_qil, out, ctx=ctx)
     out = eval_orderby(orderby, new_qil, out, ctx=ctx)
@@ -562,7 +585,7 @@ def eval_TypeCast(node: qlast.TypeCast, ctx: EvalContext) -> List[Data]:
 
 @_eval.register
 def eval_Path(node: qlast.Path, ctx: EvalContext) -> List[Data]:
-    return eval_path(simplify_path(node), ctx)
+    return eval_path(simplify_path(graft(ctx.cur_path, node)), ctx)
 
 
 def eval(node: qlast.Base, ctx: EvalContext) -> List[Data]:
@@ -677,14 +700,19 @@ def build_input_tuples(
 
 
 class PathFinder(NodeVisitor):
-    def __init__(self) -> None:
+    def __init__(self, cur_path: qlast.Path) -> None:
         super().__init__()
         self.in_optional = False
         self.in_subquery = False
         self.paths: List[Tuple[qlast.Path, bool, bool]] = []
+        self.current_path = cur_path
 
     def visit_Path(self, path: qlast.Path) -> None:
-        self.paths.append((path, self.in_optional, self.in_subquery))
+        self.paths.append((
+            graft(self.current_path, path),
+            self.in_optional,
+            self.in_subquery,
+        ))
         self.generic_visit(path)
 
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
@@ -692,7 +720,17 @@ class PathFinder(NodeVisitor):
         # and we need to care about them
         old = self.in_subquery
         self.in_subquery = True
-        self.generic_visit(query)
+        self.visit(query.result)
+
+        old_path = self.current_path
+        self.current_path = update_path(self.current_path, query)
+
+        self.visit(query.orderby)
+        for q in [query.where, query.limit, query.offset]:
+            if q:
+                self.visit(q)
+
+        self.current_path = old_path
         self.in_subquery = old
 
     def visit_ForQuery(self, query: qlast.ForQuery) -> None:
@@ -702,7 +740,7 @@ class PathFinder(NodeVisitor):
         self.in_subquery = old
 
     def visit_func_or_op(self, op: str, args: List[qlast.Expr]) -> None:
-        # Totally ignoring that polymorpic whatever is needed
+        # Totally ignoring that polymorphic whatever is needed
         arg_specs = BASIS.get(op)
         old = self.in_optional, self.in_subquery
         for i, arg in enumerate(args):
@@ -734,9 +772,10 @@ class PathFinder(NodeVisitor):
 
 def find_paths(
     e: qlast.Expr,
+    cur_path: qlast.Path,
     extra_subqs: Iterable[Optional[qlast.Base]] = (),
 ) -> List[Tuple[qlast.Path, bool, bool]]:
-    pf = PathFinder()
+    pf = PathFinder(cur_path)
     pf.visit(e)
     pf.in_subquery = True
     pf.visit(extra_subqs)
@@ -797,9 +836,8 @@ def make_query_input_list(
 
 def simplify_path(path: qlast.Path) -> IPath:
     spath: List[IPathElement] = []
-    # XXX: I think there might be issues with IPartial and common
-    # prefixes, since it can have different meanings in different
-    # places.
+    # XXX: Could there still be some scoping issues with partial?
+    # Probably yes? Maybe we need to make up fake path ids...
     if path.partial:
         spath.append(IPartial())
     for step in path.steps:
@@ -830,9 +868,10 @@ def parse(querystr: str) -> qlast.Expr:
 def analyze_paths(
     q: qlast.Expr,
     extra_subqs: Iterable[Optional[qlast.Base]],
+    cur_path: qlast.Path,
 ) -> Tuple[List[IPath], List[IPath], Dict[IPath, bool]]:
     paths_opt = [(simplify_path(p), optional, subq)
-                 for p, optional, subq in find_paths(q, extra_subqs)]
+                 for p, optional, subq in find_paths(q, cur_path, extra_subqs)]
     always_optional = defaultdict(lambda: True)
 
     direct_paths = []
@@ -857,7 +896,7 @@ def subquery_full(
     ctx: EvalContext
 ) -> Tuple[List[IPath], List[Row]]:
     direct_paths, subquery_paths, always_optional = analyze_paths(
-        q, extra_subqs)
+        q, extra_subqs, ctx.cur_path)
 
     qil = make_query_input_list(
         direct_paths, subquery_paths, ctx.query_input_list)
@@ -897,6 +936,7 @@ def go(q: qlast.Expr, db: DB) -> Data:
         query_input_list=[],
         input_tuple=(),
         aliases={},
+        cur_path=qlast.Path(partial=True, steps=[]),
         db=db,
     )
     out = subquery(q, ctx=ctx)

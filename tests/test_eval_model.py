@@ -292,3 +292,27 @@ class TestModelSmokeTests(unittest.TestCase):
                 ('Carol', []),
                 ('Dave', [])]
         )
+
+    def test_edgeql_partial_path_01(self):
+        self.assert_test_query(
+            r'''
+            SELECT (SELECT User FILTER User.deck != .deck).name;
+            ''',
+            []
+        )
+
+    def test_edgeql_partial_path_02(self):
+        self.assert_test_query(
+            r'''
+            SELECT count((SELECT X := User FILTER User.deck != .deck));
+            ''',
+            [4]
+        )
+
+    def test_edgeql_partial_path_03(self):
+        self.assert_test_query(
+            r'''
+            SELECT count((SELECT X := User FILTER X.deck != .deck));
+            ''',
+            [0]
+        )
