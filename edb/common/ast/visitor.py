@@ -136,7 +136,7 @@ class NodeVisitor:
                 result.append(self.visit(elem))
             else:
                 result.append(elem)
-        return node.__class__(result)
+        return result
 
     def repeated_node_visit(self, node):
         result = self.memo[node]
@@ -165,7 +165,7 @@ class NodeVisitor:
     def visit(self, node):
         if typeutils.is_container(node):
             return self.container_visit(node)
-        else:
+        elif base.is_ast_node(node):
             return self.node_visit(node)
 
     def generic_visit(self, node, *, combine_results=None):
@@ -176,16 +176,9 @@ class NodeVisitor:
             if self.skip_hidden and field_spec.hidden:
                 continue
 
-            if typeutils.is_container(value):
-                for item in value:
-                    if base.is_ast_node(item) or typeutils.is_container(item):
-                        res = self.visit(item)
-                        if res is not None:
-                            field_results.append(res)
-            elif base.is_ast_node(value):
-                res = self.visit(value)
-                if res is not None:
-                    field_results.append(res)
+            res = self.visit(value)
+            if res is not None:
+                field_results.append(res)
 
         if combine_results is not None:
             return combine_results(field_results)
