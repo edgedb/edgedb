@@ -59,6 +59,7 @@ from edb.edgeql import qltypes as ft
 from dataclasses import dataclass, replace
 from collections import defaultdict
 
+import contextlib
 import random
 import uuid
 import itertools
@@ -317,7 +318,7 @@ class EvalContext:
     query_input_list: List[IPath]
     input_tuple: Tuple[Data, ...]
     aliases: Dict[str, List[Data]]
-    cur_path: qlast.Path
+    cur_path: Optional[qlast.Path]
     db: DB
 
 
@@ -330,23 +331,29 @@ def _eval(
         f'no EdgeQL eval handler for {node.__class__}')
 
 
-def graft(prefix: qlast.Path, new: qlast.Path) -> qlast.Path:
+def graft(prefix: Optional[qlast.Path], new: qlast.Path) -> qlast.Path:
     if new.partial:
+        assert prefix is not None
         return qlast.Path(
             steps=prefix.steps + new.steps, partial=prefix.partial)
     else:
         return new
 
 
-def update_path(prefix: qlast.Path, query: qlast.ReturningMixin) -> qlast.Path:
-    if query.result_alias is not None:
+def update_path(
+    prefix: Optional[qlast.Path], query: Optional[qlast.ReturningMixin]
+) -> Optional[qlast.Path]:
+    if query is None:
+        return None
+    elif query.result_alias is not None:
         return qlast.Path(steps=[
             qlast.ObjectRef(name=query.result_alias)
         ])
     elif isinstance(query.result, qlast.Path):
         return graft(prefix, query.result)
     else:
-        return prefix
+        # XXX: synthesize a real prefix name?
+        return qlast.Path(partial=True, steps=[])
 
 
 def eval_filter(
@@ -358,7 +365,6 @@ def eval_filter(
     if not where:
         return out
 
-    # XXX: prefix
     new = []
     for row in out:
         subctx = replace(ctx, query_input_list=qil, input_tuple=row)
@@ -434,21 +440,25 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
     # XXX: I believe this is right, but:
     # WHERE and ORDER BY are treated as subqueries of the result query,
     # and LIMIT and OFFSET are not.
+    subq_path = update_path(ctx.cur_path, node)
+
     orderby = node.orderby or []
     subqs = [node.where] + [x.path for x in orderby]
-    new_qil, out = subquery_full(node.result, extra_subqs=subqs, ctx=ctx)
+    # subqs need to come with their paths
+    extra_subqs = [(subq_path, subq) for subq in subqs]
+    new_qil, out = subquery_full(node.result, extra_subqs=extra_subqs, ctx=ctx)
     new_qil += [(IPartial(),)]
     if node.result_alias:
         out = [row + (row[-1],) for row in out]
         new_qil += [(IORef(node.result_alias),)]
 
-    cur_path = update_path(ctx.cur_path, node)
-    ctx = replace(ctx, cur_path=cur_path)
+    subq_ctx = replace(ctx, cur_path=subq_path)
+    out = eval_filter(node.where, new_qil, out, ctx=subq_ctx)
+    out = eval_orderby(orderby, new_qil, out, ctx=subq_ctx)
 
-    out = eval_filter(node.where, new_qil, out, ctx=ctx)
-    out = eval_orderby(orderby, new_qil, out, ctx=ctx)
-    out = eval_offset(node.offset, out, ctx=ctx)
-    out = eval_limit(node.limit, out, ctx=ctx)
+    limoff_ctx = replace(ctx, cur_path=None)
+    out = eval_offset(node.offset, out, ctx=limoff_ctx)
+    out = eval_limit(node.limit, out, ctx=limoff_ctx)
 
     return [row[-1] for row in out]
 
@@ -700,12 +710,32 @@ def build_input_tuples(
 
 
 class PathFinder(NodeVisitor):
-    def __init__(self, cur_path: qlast.Path) -> None:
+    def __init__(self, cur_path: Optional[qlast.Path]) -> None:
         super().__init__()
         self.in_optional = False
         self.in_subquery = False
         self.paths: List[Tuple[qlast.Path, bool, bool]] = []
         self.current_path = cur_path
+
+    def _update(self, **kwargs: Any) -> Iterator[None]:
+        old = {k: getattr(self, k) for k in kwargs}
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+        try:
+            yield
+        finally:
+            for k, v in old.items():
+                setattr(self, k, v)
+
+    @contextlib.contextmanager
+    def subquery(self) -> Iterator[None]:
+        yield from self._update(in_subquery=True)
+
+    @contextlib.contextmanager
+    def update_path(
+            self, query: Optional[qlast.SelectQuery]) -> Iterator[None]:
+        yield from self._update(
+            current_path=update_path(self.current_path, query))
 
     def visit_Path(self, path: qlast.Path) -> None:
         self.paths.append((
@@ -716,28 +746,20 @@ class PathFinder(NodeVisitor):
         self.generic_visit(path)
 
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
-        # TODO: there are lots of implicit subqueries (clauses)
-        # and we need to care about them
-        old = self.in_subquery
-        self.in_subquery = True
-        self.visit(query.result)
+        with self.subquery():
+            self.visit(query.result)
 
-        old_path = self.current_path
-        self.current_path = update_path(self.current_path, query)
+            with self.update_path(query):
+                self.visit(query.orderby)
+                self.visit(query.where)
 
-        self.visit(query.orderby)
-        for q in [query.where, query.limit, query.offset]:
-            if q:
-                self.visit(q)
-
-        self.current_path = old_path
-        self.in_subquery = old
+            with self.update_path(None):
+                self.visit(query.limit)
+                self.visit(query.offset)
 
     def visit_ForQuery(self, query: qlast.ForQuery) -> None:
-        old = self.in_subquery
-        self.in_subquery = True
-        self.generic_visit(query)
-        self.in_subquery = old
+        with self.subquery():
+            self.generic_visit(query)
 
     def visit_func_or_op(self, op: str, args: List[qlast.Expr]) -> None:
         # Totally ignoring that polymorphic whatever is needed
@@ -772,13 +794,16 @@ class PathFinder(NodeVisitor):
 
 def find_paths(
     e: qlast.Expr,
-    cur_path: qlast.Path,
-    extra_subqs: Iterable[Optional[qlast.Base]] = (),
+    cur_path: Optional[qlast.Path],
+    extra_subqs: Iterable[
+        Tuple[Optional[qlast.Path], Optional[qlast.Base]]] = (),
 ) -> List[Tuple[qlast.Path, bool, bool]]:
     pf = PathFinder(cur_path)
     pf.visit(e)
     pf.in_subquery = True
-    pf.visit(extra_subqs)
+    for path, subq in extra_subqs:
+        pf.current_path = path
+        pf.visit(subq)
     return pf.paths
 
 
@@ -867,8 +892,9 @@ def parse(querystr: str) -> qlast.Expr:
 
 def analyze_paths(
     q: qlast.Expr,
-    extra_subqs: Iterable[Optional[qlast.Base]],
-    cur_path: qlast.Path,
+    extra_subqs: Iterable[
+        Tuple[Optional[qlast.Path], Optional[qlast.Base]]],
+    cur_path: Optional[qlast.Path],
 ) -> Tuple[List[IPath], List[IPath], Dict[IPath, bool]]:
     paths_opt = [(simplify_path(p), optional, subq)
                  for p, optional, subq in find_paths(q, cur_path, extra_subqs)]
@@ -892,7 +918,8 @@ def analyze_paths(
 def subquery_full(
     q: qlast.Expr,
     *,
-    extra_subqs: Iterable[Optional[qlast.Base]] = (),
+    extra_subqs: Iterable[
+        Tuple[Optional[qlast.Path], Optional[qlast.Base]]] = (),
     ctx: EvalContext
 ) -> Tuple[List[IPath], List[Row]]:
     direct_paths, subquery_paths, always_optional = analyze_paths(
@@ -936,7 +963,7 @@ def go(q: qlast.Expr, db: DB) -> Data:
         query_input_list=[],
         input_tuple=(),
         aliases={},
-        cur_path=qlast.Path(partial=True, steps=[]),
+        cur_path=None,
         db=db,
     )
     out = subquery(q, ctx=ctx)
