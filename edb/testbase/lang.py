@@ -441,7 +441,8 @@ class BaseSchemaTest(BaseDocTest):
         return current_schema
 
     @classmethod
-    def load_schema(cls, source: str, modname: str='test') -> s_schema.Schema:
+    def load_schema(
+            cls, source: str, modname: str='default') -> s_schema.Schema:
         sdl_schema = qlparser.parse_sdl(f'module {modname} {{ {source} }}')
         schema = _load_std_schema()
         return s_ddl.apply_sdl(
@@ -459,7 +460,8 @@ class BaseSchemaTest(BaseDocTest):
         for name, val in cls.__dict__.items():
             m = re.match(r'^SCHEMA(?:_(\w+))?', name)
             if m:
-                module_name = (m.group(1) or 'test').lower().replace('__', '.')
+                module_name = (m.group(1)
+                               or 'default').lower().replace('__', '.')
 
                 if '\n' in val:
                     # Inline schema source
