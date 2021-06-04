@@ -17,7 +17,6 @@
 #
 
 
-WITH MODULE test
 INSERT Item {
     name := 'table',
 
@@ -26,7 +25,6 @@ INSERT Item {
     tag_array := ['wood', 'rectangle'],
 };
 
-WITH MODULE test
 INSERT Item {
     name := 'floor lamp',
 
@@ -36,7 +34,6 @@ INSERT Item {
 };
 
 # some items with incomplete data
-WITH MODULE test
 INSERT Item {
     name := 'chair',
 
@@ -45,7 +42,6 @@ INSERT Item {
 };
 
 
-WITH MODULE test
 INSERT Item {
     name := 'tv',
 
@@ -54,7 +50,6 @@ INSERT Item {
 };
 
 
-WITH MODULE test
 INSERT Item {
     name := 'ball',
 
@@ -63,20 +58,17 @@ INSERT Item {
 };
 
 
-WITH MODULE test
 INSERT Item {
     name := 'teapot',
 
     tag_array := ['ceramic', 'round'],
 };
 
-WITH MODULE test
 INSERT Item {
     name := 'mystery toy',
 };
 
 # no known properties
-WITH MODULE test
 INSERT Item {
     name := 'ectoplasm',
 };

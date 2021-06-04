@@ -17,35 +17,34 @@
 #
 
 
-INSERT test::Status {
+INSERT Status {
     name := 'Open'
 };
 
-INSERT test::Status {
+INSERT Status {
     name := 'Closed'
 };
 
-INSERT test::MajorLifeEvent {
+INSERT MajorLifeEvent {
     name := 'Broke a Type System'
 };
 
-INSERT test::MajorLifeEvent {
+INSERT MajorLifeEvent {
     name := 'Downloaded a Car'
 };
 
-INSERT test::Tag {
+INSERT Tag {
     name := 'fun'
 };
 
-INSERT test::Tag {
+INSERT Tag {
     name := 'boring'
 };
 
-INSERT test::Tag {
+INSERT Tag {
     name := 'wow'
 };
 
-WITH MODULE test
 INSERT UpdateTest {
     name := 'update-test1',
     status := (SELECT Status FILTER Status.name = 'Open'),
@@ -53,21 +52,18 @@ INSERT UpdateTest {
     readonly_note := 'this is read-only',
 };
 
-WITH MODULE test
 INSERT UpdateTest {
     name := 'update-test2',
     comment := 'second',
     status := (SELECT Status FILTER Status.name = 'Open')
 };
 
-WITH MODULE test
 INSERT UpdateTest {
     name := 'update-test3',
     comment := 'third',
     status := (SELECT Status FILTER Status.name = 'Closed')
 };
 
-WITH MODULE test
 INSERT CollectionTest {
     name := 'collection-test1'
 };
