@@ -63,7 +63,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             (10 ** 7, 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'c_length')
+        await self._run_link_tests(data, 'default::Object', 'c_length')
 
         data = {
             (10 ** 10,
@@ -75,7 +75,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             (10 ** 8, 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'c_length_2')
+        await self._run_link_tests(data, 'default::Object', 'c_length_2')
 
         data = {
             (10 ** 10,
@@ -84,7 +84,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             (10 ** 9 - 1, 'c_length_3 must be no shorter than 10 characters'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'c_length_3')
+        await self._run_link_tests(data, 'default::Object', 'c_length_3')
 
     async def test_constraints_scalar_minmax(self):
         data = {
@@ -98,7 +98,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             (10 ** 8 - 21, 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'c_minmax')
+        await self._run_link_tests(data, 'default::Object', 'c_minmax')
 
     async def test_constraints_scalar_strvalue(self):
         data = {
@@ -116,7 +116,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             ('9999000009', 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'c_strvalue')
+        await self._run_link_tests(data, 'default::Object', 'c_strvalue')
 
     async def test_constraints_scalar_enum_01(self):
         data = {
@@ -125,7 +125,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             ('foo', 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'c_enum')
+        await self._run_link_tests(data, 'default::Object', 'c_enum')
 
     async def test_constraints_scalar_enum_02(self):
         data = {
@@ -134,7 +134,7 @@ class TestConstraintsSchema(tb.QueryTestCase):
             ('buz', 'good'),
         }
 
-        await self._run_link_tests(data, 'test::Object', 'c_my_enum')
+        await self._run_link_tests(data, 'default::Object', 'c_my_enum')
 
     async def test_constraints_exclusive_simple(self):
         async with self._run_and_rollback():
@@ -142,11 +142,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 await self.con.execute("""
-                    INSERT test::UniqueName {
+                    INSERT UniqueName {
                         name := 'Test'
                     };
 
-                    INSERT test::UniqueName {
+                    INSERT UniqueName {
                         name := 'Test'
                     };
                 """)
@@ -157,11 +157,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 await self.con.execute("""
-                    INSERT test::UniqueNameInherited {
+                    INSERT UniqueNameInherited {
                         name := 'Test'
                     };
 
-                    INSERT test::UniqueNameInherited {
+                    INSERT UniqueNameInherited {
                         name := 'Test'
                     };
                 """)
@@ -173,11 +173,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
 
                 await self.con.execute("""
-                    INSERT test::UniqueName {
+                    INSERT UniqueName {
                         name := 'exclusive_name_across'
                     };
 
-                    INSERT test::UniqueNameInherited {
+                    INSERT UniqueNameInherited {
                         name := 'exclusive_name_across'
                     };
                 """)
@@ -188,22 +188,22 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
 
                 await self.con.execute("""
-                    INSERT test::UniqueNameInherited {
+                    INSERT UniqueNameInherited {
                         name := 'exclusive_name_across'
                     };
 
-                    INSERT test::UniqueName {
+                    INSERT UniqueName {
                         name := 'exclusive_name_across'
                     };
                 """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
-                INSERT test::UniqueName {
+                INSERT UniqueName {
                     name := 'exclusive_name_ok'
                 };
 
-                INSERT test::UniqueNameInherited {
+                INSERT UniqueNameInherited {
                     name := 'exclusive_name_inherited_ok'
                 };
             """)
@@ -213,9 +213,9 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 await self.con.execute("""
                     UPDATE
-                        test::UniqueNameInherited
+                        UniqueNameInherited
                     FILTER
-                        test::UniqueNameInherited.name =
+                        UniqueNameInherited.name =
                             'exclusive_name_inherited_ok'
                     SET {
                         name := 'exclusive_name_ok'
@@ -228,11 +228,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 await self.con.execute("""
-                    INSERT test::UniqueName_3 {
+                    INSERT UniqueName_3 {
                         name := 'TeSt'
                     };
 
-                    INSERT test::UniqueName_3 {
+                    INSERT UniqueName_3 {
                         name := 'tEsT'
                     };
                 """)
@@ -241,22 +241,22 @@ class TestConstraintsSchema(tb.QueryTestCase):
         async with self._run_and_rollback():
             # This is OK, the name exclusivity constraint is delegating
             await self.con.execute("""
-                INSERT test::AbstractConstraintParent {
+                INSERT AbstractConstraintParent {
                     name := 'exclusive_name_ap'
                 };
 
-                INSERT test::AbstractConstraintParent {
+                INSERT AbstractConstraintParent {
                     name := 'exclusive_name_ap'
                 };
             """)
 
             # This is OK too
             await self.con.execute("""
-                INSERT test::AbstractConstraintParent {
+                INSERT AbstractConstraintParent {
                     name := 'exclusive_name_ap1'
                 };
 
-                INSERT test::AbstractConstraintPureChild {
+                INSERT AbstractConstraintPureChild {
                     name := 'exclusive_name_ap1'
                 };
             """)
@@ -267,11 +267,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
-                    INSERT test::AbstractConstraintPureChild {
+                    INSERT AbstractConstraintPureChild {
                         name := 'exclusive_name_ap2'
                     };
 
-                    INSERT test::AbstractConstraintPureChild {
+                    INSERT AbstractConstraintPureChild {
                         name := 'exclusive_name_ap2'
                     };
                 """)
@@ -282,11 +282,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
-                    INSERT test::AbstractConstraintMixedChild {
+                    INSERT AbstractConstraintMixedChild {
                         name := 'exclusive_name_ap2'
                     };
 
-                    INSERT test::AbstractConstraintMixedChild {
+                    INSERT AbstractConstraintMixedChild {
                         name := 'exclusive_name_AP2'
                     };
                 """)
@@ -294,22 +294,22 @@ class TestConstraintsSchema(tb.QueryTestCase):
         async with self._run_and_rollback():
             # This is OK, duplication is in different children
             await self.con.execute("""
-                INSERT test::AbstractConstraintPureChild {
+                INSERT AbstractConstraintPureChild {
                     name := 'exclusive_name_ap3'
                 };
 
-                INSERT test::AbstractConstraintMixedChild {
+                INSERT AbstractConstraintMixedChild {
                     name := 'exclusive_name_ap3'
                 };
             """)
 
             # This is OK, the name exclusivity constraint is abstract again
             await self.con.execute("""
-                INSERT test::AbstractConstraintPropagated {
+                INSERT AbstractConstraintPropagated {
                     name := 'exclusive_name_ap4'
                 };
 
-                INSERT test::AbstractConstraintPropagated {
+                INSERT AbstractConstraintPropagated {
                     name := 'exclusive_name_ap4'
                 };
             """)
@@ -320,22 +320,22 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 # Not OK, yet
                 await self.con.execute("""
-                    INSERT test::BecomingAbstractConstraint {
+                    INSERT BecomingAbstractConstraint {
                         name := 'exclusive_name_ap5'
                     };
 
-                    INSERT test::BecomingAbstractConstraintChild {
+                    INSERT BecomingAbstractConstraintChild {
                         name := 'exclusive_name_ap5'
                     };
                 """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
-                INSERT test::BecomingConcreteConstraint {
+                INSERT BecomingConcreteConstraint {
                     name := 'exclusive_name_ap6'
                 };
 
-                INSERT test::BecomingConcreteConstraintChild {
+                INSERT BecomingConcreteConstraintChild {
                     name := 'exclusive_name_ap6'
                 };
             """)
@@ -345,11 +345,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 await self.con.execute("""
-                    INSERT test::LosingAbstractConstraintParent {
+                    INSERT LosingAbstractConstraintParent {
                         name := 'exclusive_name_ap7'
                     };
 
-                    INSERT test::LosingAbstractConstraintParent {
+                    INSERT LosingAbstractConstraintParent {
                         name := 'exclusive_name_ap7'
                     };
                 """)
@@ -359,11 +359,11 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     'name violates exclusivity constraint'):
                 await self.con.execute("""
-                    INSERT test::AbstractConstraintMultipleParentsFlattening{
+                    INSERT AbstractConstraintMultipleParentsFlattening{
                         name := 'exclusive_name_ap8'
                     };
 
-                    INSERT test::AbstractConstraintMultipleParentsFlattening{
+                    INSERT AbstractConstraintMultipleParentsFlattening{
                         name := 'exclusive_name_ap8'
                     };
                 """)
@@ -374,18 +374,18 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     "ObjCnstr violates exclusivity constraint"):
                 await self.con.execute("""
-                    INSERT test::ObjCnstr {
+                    INSERT ObjCnstr {
                         first_name := "foo", last_name := "bar" };
 
-                    INSERT test::ObjCnstr {
+                    INSERT ObjCnstr {
                         first_name := "foo", last_name := "baz" }
             """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
-                INSERT test::ObjCnstr {
+                INSERT ObjCnstr {
                     first_name := "foo", last_name := "bar",
-                    label := (INSERT test::Label {text := "obj_test" })
+                    label := (INSERT Label {text := "obj_test" })
                 };
             """)
 
@@ -393,9 +393,9 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     "ObjCnstr violates exclusivity constraint"):
                 await self.con.execute("""
-                    INSERT test::ObjCnstr {
+                    INSERT ObjCnstr {
                         first_name := "emarg", last_name := "hatch",
-                        label := (SELECT test::Label
+                        label := (SELECT Label
                                   FILTER .text = "obj_test" LIMIT 1) };
                 """)
 
@@ -419,22 +419,22 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
         async with self._run_and_rollback():
             # This is OK, the name exclusivity constraint is abstract
             await self.con.execute("""
-                INSERT test::AbstractConstraintParent {
+                INSERT AbstractConstraintParent {
                     name := 'exclusive_name_ap'
                 };
 
-                INSERT test::AbstractConstraintParent {
+                INSERT AbstractConstraintParent {
                     name := 'exclusive_name_ap'
                 };
             """)
 
             # This is OK too
             await self.con.execute("""
-                INSERT test::AbstractConstraintParent {
+                INSERT AbstractConstraintParent {
                     name := 'exclusive_name_ap1'
                 };
 
-                INSERT test::AbstractConstraintPureChild {
+                INSERT AbstractConstraintPureChild {
                     name := 'exclusive_name_ap1'
                 };
             """)
@@ -445,11 +445,11 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
-                    INSERT test::AbstractConstraintPureChild {
+                    INSERT AbstractConstraintPureChild {
                         name := 'exclusive_name_ap2'
                     };
 
-                    INSERT test::AbstractConstraintPureChild {
+                    INSERT AbstractConstraintPureChild {
                         name := 'exclusive_name_ap2'
                     };
                 """)
@@ -460,11 +460,11 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 # Not OK, abstract constraint materializes into a real one
                 await self.con.execute("""
-                    INSERT test::AbstractConstraintMixedChild {
+                    INSERT AbstractConstraintMixedChild {
                         name := 'exclusive_name_ap2'
                     };
 
-                    INSERT test::AbstractConstraintMixedChild {
+                    INSERT AbstractConstraintMixedChild {
                         name := 'exclusive_name_AP2'
                     };
                 """)
@@ -472,11 +472,11 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
         async with self._run_and_rollback():
             # This is OK, duplication is in different children
             await self.con.execute("""
-                INSERT test::AbstractConstraintMixedChild {
+                INSERT AbstractConstraintMixedChild {
                     name := 'exclusive_name_ap3'
                 };
 
-                INSERT test::AbstractConstraintPureChild {
+                INSERT AbstractConstraintPureChild {
                     name := 'exclusive_name_ap3'
                 };
             """)
@@ -484,11 +484,11 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
         async with self._run_and_rollback():
             # This is OK, the name exclusivity constraint is abstract again
             await self.con.execute("""
-                INSERT test::AbstractConstraintPropagated {
+                INSERT AbstractConstraintPropagated {
                     name := 'exclusive_name_ap4'
                 };
 
-                INSERT test::AbstractConstraintPropagated {
+                INSERT AbstractConstraintPropagated {
                     name := 'exclusive_name_ap4'
                 };
             """)
@@ -496,11 +496,11 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
         async with self._run_and_rollback():
             # OK, former constraint was turned into an abstract constraint
             await self.con.execute("""
-                INSERT test::BecomingAbstractConstraint {
+                INSERT BecomingAbstractConstraint {
                     name := 'exclusive_name_ap5'
                 };
 
-                INSERT test::BecomingAbstractConstraintChild {
+                INSERT BecomingAbstractConstraintChild {
                     name := 'exclusive_name_ap5'
                 };
             """)
@@ -511,11 +511,11 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 # Constraint is no longer abstract
                 await self.con.execute("""
-                    INSERT test::BecomingConcreteConstraint {
+                    INSERT BecomingConcreteConstraint {
                         name := 'exclusive_name_ap6'
                     };
 
-                    INSERT test::BecomingConcreteConstraintChild {
+                    INSERT BecomingConcreteConstraintChild {
                         name := 'exclusive_name_ap6'
                     };
                 """)
@@ -526,22 +526,22 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 # Constraint is no longer abstract
                 await self.con.execute("""
-                    INSERT test::LosingAbstractConstraintParent {
+                    INSERT LosingAbstractConstraintParent {
                         name := 'exclusive_name_ap6'
                     };
 
-                    INSERT test::LosingAbstractConstraintParent {
+                    INSERT LosingAbstractConstraintParent {
                         name := 'exclusive_name_ap6'
                     };
                 """)
 
         async with self._run_and_rollback():
             await self.con.execute("""
-                INSERT test::LosingAbstractConstraintParent2 {
+                INSERT LosingAbstractConstraintParent2 {
                     name := 'exclusive_name_ap7'
                 };
 
-                INSERT test::LosingAbstractConstraintParent2 {
+                INSERT LosingAbstractConstraintParent2 {
                     name := 'exclusive_name_ap7'
                 };
             """)
@@ -552,11 +552,11 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     'name violates exclusivity constraint'):
                 # Constraint is no longer abstract
                 await self.con.execute("""
-                    INSERT test::AbstractConstraintMultipleParentsFlattening{
+                    INSERT AbstractConstraintMultipleParentsFlattening{
                         name := 'exclusive_name_ap8'
                     };
 
-                    INSERT test::AbstractConstraintMultipleParentsFlattening{
+                    INSERT AbstractConstraintMultipleParentsFlattening{
                         name := 'exclusive_name_AP8'
                     };
                 """)
@@ -566,10 +566,10 @@ class TestConstraintsSchemaMigration(tb.QueryTestCase):
                     edgedb.ConstraintViolationError,
                     "nope!"):
                 await self.con.execute("""
-                    INSERT test::ObjCnstr {
+                    INSERT ObjCnstr {
                         first_name := "foo", last_name := "bar" };
 
-                    INSERT test::ObjCnstr {
+                    INSERT ObjCnstr {
                         first_name := "foo", last_name := "baz" }
             """)
 
@@ -578,21 +578,21 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
     async def test_constraints_ddl_01(self):
         qry = """
-            CREATE ABSTRACT LINK test::translated_label {
+            CREATE ABSTRACT LINK translated_label {
                 CREATE PROPERTY lang -> std::str;
                 CREATE PROPERTY prop1 -> std::str;
             };
 
-            CREATE ABSTRACT LINK test::link_with_exclusive_property {
+            CREATE ABSTRACT LINK link_with_exclusive_property {
                 CREATE PROPERTY exclusive_property -> std::str {
                     CREATE CONSTRAINT std::exclusive;
                 };
             };
 
-            CREATE ABSTRACT LINK test::link_with_exclusive_property_inherited
-                EXTENDING test::link_with_exclusive_property;
+            CREATE ABSTRACT LINK link_with_exclusive_property_inherited
+                EXTENDING link_with_exclusive_property;
 
-            CREATE TYPE test::UniqueName {
+            CREATE TYPE UniqueName {
                 CREATE PROPERTY name -> std::str {
                     CREATE CONSTRAINT std::exclusive;
                 };
@@ -609,46 +609,46 @@ class TestConstraintsDDL(tb.DDLTestCase):
             'name violates exclusivity constraint',
         ):
             await self.con.execute("""
-                INSERT test::UniqueName {
+                INSERT UniqueName {
                     name := 'Test'
                 };
 
-                INSERT test::UniqueName {
+                INSERT UniqueName {
                     name := 'Test'
                 };
             """)
 
         qry = """
-            CREATE TYPE test::AbstractConstraintParent {
+            CREATE TYPE AbstractConstraintParent {
                 CREATE PROPERTY name -> std::str {
                     CREATE DELEGATED CONSTRAINT std::exclusive;
                 };
             };
 
-            CREATE TYPE test::AbstractConstraintPureChild
-                EXTENDING test::AbstractConstraintParent;
+            CREATE TYPE AbstractConstraintPureChild
+                EXTENDING AbstractConstraintParent;
         """
 
         await self.con.execute(qry)
 
         # This is OK, the name exclusivity constraint is abstract
         await self.con.execute("""
-            INSERT test::AbstractConstraintParent {
+            INSERT AbstractConstraintParent {
                 name := 'exclusive_name_ap'
             };
 
-            INSERT test::AbstractConstraintParent {
+            INSERT AbstractConstraintParent {
                 name := 'exclusive_name_ap'
             };
         """)
 
         # This is OK too
         await self.con.execute("""
-            INSERT test::AbstractConstraintParent {
+            INSERT AbstractConstraintParent {
                 name := 'exclusive_name_ap1'
             };
 
-            INSERT test::AbstractConstraintPureChild {
+            INSERT AbstractConstraintPureChild {
                 name := 'exclusive_name_ap1'
             };
         """)
@@ -656,7 +656,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_02(self):
         # testing the generalized constraint with 'ON (...)' clause
         qry = r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax1(max: std::int64)
+            CREATE ABSTRACT CONSTRAINT mymax1(max: std::int64)
                     ON (len(__subject__))
             {
                 SET errmessage :=
@@ -664,20 +664,20 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 USING (__subject__ <= max);
             };
 
-            CREATE ABSTRACT CONSTRAINT test::mymax_ext1(max: std::int64)
+            CREATE ABSTRACT CONSTRAINT mymax_ext1(max: std::int64)
                     ON (len(__subject__)) EXTENDING std::max_value
             {
                 SET errmessage :=
                     '{__subject__} must be no longer than {max} characters.';
             };
 
-            CREATE TYPE test::ConstraintOnTest1 {
+            CREATE TYPE ConstraintOnTest1 {
                 CREATE PROPERTY foo -> std::str {
-                    CREATE CONSTRAINT test::mymax1(3);
+                    CREATE CONSTRAINT mymax1(3);
                 };
 
                 CREATE PROPERTY bar -> std::str {
-                    CREATE CONSTRAINT test::mymax_ext1(3);
+                    CREATE CONSTRAINT mymax_ext1(3);
                 };
             };
         """
@@ -701,12 +701,12 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     FILTER .num > 0
                     ORDER BY .num ASC
                 } FILTER
-                    .name = 'test::mymax_ext1'
+                    .name = 'default::mymax_ext1'
                     AND exists(.subject);
             ''',
             [
                 {
-                    "name": 'test::mymax_ext1',
+                    "name": 'default::mymax_ext1',
                     "params": [
                         {
                             "num": 1,
@@ -737,12 +737,12 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     FILTER .num > 0
                     ORDER BY .num ASC
                 } FILTER
-                    .name = 'test::mymax_ext1'
+                    .name = 'default::mymax_ext1'
                     AND NOT exists(.subject);
             ''',
             [
                 {
-                    "name": 'test::mymax_ext1',
+                    "name": 'default::mymax_ext1',
                     "params": [
                         {
                             "num": 1,
@@ -762,7 +762,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             'foo must be no longer than 3 characters.',
         ):
             await self.con.execute("""
-                INSERT test::ConstraintOnTest1 {
+                INSERT ConstraintOnTest1 {
                     foo := 'Test'
                 };
             """)
@@ -772,35 +772,35 @@ class TestConstraintsDDL(tb.DDLTestCase):
             'bar must be no longer than 3 characters.',
         ):
             await self.con.execute("""
-                INSERT test::ConstraintOnTest1 {
+                INSERT ConstraintOnTest1 {
                     bar := 'Test'
                 };
             """)
 
         # constraint should not fail
         await self.con.execute("""
-            INSERT test::ConstraintOnTest1 {
+            INSERT ConstraintOnTest1 {
                 foo := '',
                 bar := ''
             };
 
-            INSERT test::ConstraintOnTest1 {
+            INSERT ConstraintOnTest1 {
                 foo := 'a',
                 bar := 'q'
             };
 
-            INSERT test::ConstraintOnTest1 {
+            INSERT ConstraintOnTest1 {
                 foo := 'ab',
                 bar := 'qw'
             };
 
-            INSERT test::ConstraintOnTest1 {
+            INSERT ConstraintOnTest1 {
                 foo := 'abc',
                 bar := 'qwe'
             };
 
             # a duplicate 'foo' and 'bar' just for good measure
-            INSERT test::ConstraintOnTest1 {
+            INSERT ConstraintOnTest1 {
                 foo := 'ab',
                 bar := 'qw'
             };
@@ -809,15 +809,15 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_03(self):
         # testing the specialized constraint with 'ON (...)' clause
         qry = r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax2(max: std::int64) {
+            CREATE ABSTRACT CONSTRAINT mymax2(max: std::int64) {
                 SET errmessage :=
                     '{__subject__} must be no longer than {max} characters.';
                 USING (__subject__ <= max);
             };
 
-            CREATE TYPE test::ConstraintOnTest2 {
+            CREATE TYPE ConstraintOnTest2 {
                 CREATE PROPERTY foo -> std::str {
-                    CREATE CONSTRAINT test::mymax2(3) ON (len(__subject__));
+                    CREATE CONSTRAINT mymax2(3) ON (len(__subject__));
                 };
 
                 CREATE PROPERTY bar -> std::str {
@@ -839,7 +839,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             'foo must be no longer than 3 characters.',
         ):
             await self.con.execute("""
-                INSERT test::ConstraintOnTest2 {
+                INSERT ConstraintOnTest2 {
                     foo := 'Test'
                 };
             """)
@@ -849,35 +849,35 @@ class TestConstraintsDDL(tb.DDLTestCase):
             'bar must be no longer than 3 characters.',
         ):
             await self.con.execute("""
-                INSERT test::ConstraintOnTest2 {
+                INSERT ConstraintOnTest2 {
                     bar := 'Test'
                 };
             """)
 
         # constraint should not fail
         await self.con.execute("""
-            INSERT test::ConstraintOnTest2 {
+            INSERT ConstraintOnTest2 {
                 foo := '',
                 bar := ''
             };
 
-            INSERT test::ConstraintOnTest2 {
+            INSERT ConstraintOnTest2 {
                 foo := 'a',
                 bar := 'q'
             };
 
-            INSERT test::ConstraintOnTest2 {
+            INSERT ConstraintOnTest2 {
                 foo := 'ab',
                 bar := 'qw'
             };
 
-            INSERT test::ConstraintOnTest2 {
+            INSERT ConstraintOnTest2 {
                 foo := 'abc',
                 bar := 'qwe'
             };
 
             # a duplicate 'foo' and 'bar' just for good measure
-            INSERT test::ConstraintOnTest2 {
+            INSERT ConstraintOnTest2 {
                 foo := 'ab',
                 bar := 'qw'
             };
@@ -886,16 +886,16 @@ class TestConstraintsDDL(tb.DDLTestCase):
     async def test_constraints_ddl_04(self):
         # testing an issue with expressions used for 'errmessage'
         qry = r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax3(max: std::int64) {
+            CREATE ABSTRACT CONSTRAINT mymax3(max: std::int64) {
                 SET errmessage :=
                     '{__subject__} must be no longer ' ++
                     'than {max} characters.';
                 USING (__subject__ <= max);
             };
 
-            CREATE TYPE test::ConstraintOnTest3 {
+            CREATE TYPE ConstraintOnTest3 {
                 CREATE PROPERTY foo -> std::str {
-                    CREATE CONSTRAINT test::mymax3(3) ON (len(__subject__));
+                    CREATE CONSTRAINT mymax3(3) ON (len(__subject__));
                 };
             };
         """
@@ -908,7 +908,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             'foo must be no longer than 3 characters.',
         ):
             await self.con.execute("""
-                INSERT test::ConstraintOnTest3 {
+                INSERT ConstraintOnTest3 {
                     foo := 'Test'
                 };
             """)
@@ -925,7 +925,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         # create a type with a constraint
         await self.con.execute(r"""
-            CREATE TYPE test::ConstraintOnTest5 {
+            CREATE TYPE ConstraintOnTest5 {
                 CREATE REQUIRED PROPERTY foo -> int64 {
                     # Use the function in a constraint expression,
                     # s.t. it will effectively fail for any int
@@ -941,14 +941,14 @@ class TestConstraintsDDL(tb.DDLTestCase):
             r'invalid foo',
         ):
             await self.con.execute("""
-                INSERT test::ConstraintOnTest5 {
+                INSERT ConstraintOnTest5 {
                     foo := 42
                 };
             """)
 
         # constraint should not fail
         await self.con.execute("""
-            INSERT test::ConstraintOnTest5 {
+            INSERT ConstraintOnTest5 {
                 foo := 2
             };
         """)
@@ -965,7 +965,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         # create a type with a constraint
         await self.con.execute(r"""
-            CREATE TYPE test::ConstraintOnTest6 {
+            CREATE TYPE ConstraintOnTest6 {
                 CREATE REQUIRED PROPERTY foo -> int64 {
                     # Use the function in a constraint expression,
                     # s.t. it will never fail.
@@ -977,20 +977,20 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         # constraint should not fail
         await self.con.execute("""
-            INSERT test::ConstraintOnTest6 {
+            INSERT ConstraintOnTest6 {
                 foo := 42
             };
         """)
 
         await self.con.execute("""
-            INSERT test::ConstraintOnTest6 {
+            INSERT ConstraintOnTest6 {
                 foo := 2
             };
         """)
 
     async def test_constraints_ddl_07(self):
         await self.con.execute("""
-            CREATE TYPE test::ObjCnstr {
+            CREATE TYPE ObjCnstr {
                 CREATE PROPERTY first_name -> str;
                 CREATE PROPERTY last_name -> str;
                 CREATE CONSTRAINT exclusive on (__subject__.first_name);
@@ -998,7 +998,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
         """)
 
         await self.con.execute("""
-            INSERT test::ObjCnstr { first_name := "foo", last_name := "bar" }
+            INSERT ObjCnstr { first_name := "foo", last_name := "bar" }
         """)
 
         async with self.assertRaisesRegexTx(
@@ -1006,25 +1006,25 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "ObjCnstr violates exclusivity constraint",
         ):
             await self.con.execute("""
-                INSERT test::ObjCnstr {
+                INSERT ObjCnstr {
                     first_name := "foo", last_name := "baz" }
             """)
 
         await self.con.execute("""
-            ALTER TYPE test::ObjCnstr {
+            ALTER TYPE ObjCnstr {
                 DROP CONSTRAINT exclusive on (__subject__.first_name);
             }
         """)
 
         await self.con.execute("""
-            ALTER TYPE test::ObjCnstr {
+            ALTER TYPE ObjCnstr {
                 CREATE CONSTRAINT exclusive
                 on ((__subject__.first_name, __subject__.last_name));
             }
         """)
 
         await self.con.execute("""
-            ALTER TYPE test::ObjCnstr {
+            ALTER TYPE ObjCnstr {
                 ALTER CONSTRAINT exclusive
                 on ((__subject__.first_name, __subject__.last_name)) {
                     SET errmessage := "nope!";
@@ -1034,7 +1034,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         # This one should work now
         await self.con.execute("""
-            INSERT test::ObjCnstr { first_name := "foo", last_name := "baz" }
+            INSERT ObjCnstr { first_name := "foo", last_name := "baz" }
         """)
 
         async with self.assertRaisesRegexTx(
@@ -1042,13 +1042,13 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "nope!",
         ):
             await self.con.execute("""
-                INSERT test::ObjCnstr {
+                INSERT ObjCnstr {
                     first_name := "foo", last_name := "bar" }
             """)
 
     async def test_constraints_ddl_08(self):
         await self.con.execute("""
-            CREATE TYPE test::ObjCnstr2 {
+            CREATE TYPE ObjCnstr2 {
                 CREATE MULTI PROPERTY first_name -> str;
                 CREATE MULTI PROPERTY last_name -> str;
                 CREATE LINK foo -> Object {
@@ -1064,7 +1064,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "constraint where at least one link or property is MULTI",
         ):
             await self.con.execute("""
-                ALTER TYPE test::ObjCnstr2 {
+                ALTER TYPE ObjCnstr2 {
                     CREATE CONSTRAINT exclusive
                     on ((__subject__.first_name, __subject__.last_name));
                 };
@@ -1076,7 +1076,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "non-aggregating constraint",
         ):
             await self.con.execute("""
-                ALTER TYPE test::ObjCnstr2 {
+                ALTER TYPE ObjCnstr2 {
                     CREATE CONSTRAINT expression on (EXISTS .first_name);
                 };
             """)
@@ -1087,7 +1087,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "non-aggregating constraint",
         ):
             await self.con.execute("""
-                ALTER TYPE test::ObjCnstr2 {
+                ALTER TYPE ObjCnstr2 {
                     ALTER PROPERTY first_name {
                         CREATE CONSTRAINT expression on (EXISTS __subject__);
                     }
@@ -1099,7 +1099,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "constraints cannot contain paths with more than one hop",
         ):
             await self.con.execute("""
-                ALTER TYPE test::ObjCnstr2 {
+                ALTER TYPE ObjCnstr2 {
                     CREATE CONSTRAINT expression on (<str>.foo.id != 'lol');
                 };
             """)
@@ -1109,7 +1109,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "constraints cannot contain paths with more than one hop",
         ):
             await self.con.execute("""
-                ALTER TYPE test::ObjCnstr2 {
+                ALTER TYPE ObjCnstr2 {
                     ALTER LINK foo {
                         CREATE CONSTRAINT expression on (
                             <str>__subject__.id != 'lol');
@@ -1122,22 +1122,22 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "not supported because it would depend on multiple objects",
         ):
             await self.con.execute("""
-                ALTER TYPE test::ObjCnstr2 {
+                ALTER TYPE ObjCnstr2 {
                     CREATE CONSTRAINT expression on (<str>.id != .foo@p);
                 };
             """)
 
     async def test_constraints_ddl_09(self):
         await self.con.execute("""
-            CREATE TYPE test::Label {
+            CREATE TYPE Label {
                 CREATE PROPERTY text -> str;
             };
-            CREATE TYPE test::ObjCnstr3 {
-                CREATE LINK label -> test::Label;
+            CREATE TYPE ObjCnstr3 {
+                CREATE LINK label -> Label;
                 CREATE CONSTRAINT exclusive on (__subject__.label);
             };
-            INSERT test::ObjCnstr3 {
-                label := (INSERT test::Label {text := "obj_test" })
+            INSERT ObjCnstr3 {
+                label := (INSERT Label {text := "obj_test" })
             };
         """)
 
@@ -1146,43 +1146,43 @@ class TestConstraintsDDL(tb.DDLTestCase):
             "ObjCnstr3 violates exclusivity constraint",
         ):
             await self.con.execute("""
-                INSERT test::ObjCnstr3 {
-                    label := (SELECT test::Label
+                INSERT ObjCnstr3 {
+                    label := (SELECT Label
                                 FILTER .text = "obj_test" LIMIT 1) };
             """)
 
     async def test_constraints_ddl_10(self):
         await self.con.execute(r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax5(max: std::int64) {
+            CREATE ABSTRACT CONSTRAINT mymax5(max: std::int64) {
                 USING (__subject__ <= max);
             };
 
-            CREATE TYPE test::ConstraintTest10 {
+            CREATE TYPE ConstraintTest10 {
                 CREATE PROPERTY foo -> std::int64 {
-                    CREATE CONSTRAINT test::mymax5(3);
+                    CREATE CONSTRAINT mymax5(3);
                 };
             };
         """)
 
         await self.con.execute(r"""
-            ALTER ABSTRACT CONSTRAINT test::mymax5
-            RENAME TO test::mymax6;
+            ALTER ABSTRACT CONSTRAINT mymax5
+            RENAME TO mymax6;
         """)
 
         async with self._run_and_rollback():
             with self.assertRaises(edgedb.ConstraintViolationError):
                 await self.con.execute(r"""
-                    INSERT test::ConstraintTest10 { foo := 4 }
+                    INSERT ConstraintTest10 { foo := 4 }
                 """)
 
         await self.con.execute(r"""
             CREATE MODULE foo IF NOT EXISTS;
-            ALTER ABSTRACT CONSTRAINT test::mymax6
+            ALTER ABSTRACT CONSTRAINT mymax6
             RENAME TO foo::mymax2;
         """)
 
         await self.con.execute(r"""
-            ALTER TYPE test::ConstraintTest10 {
+            ALTER TYPE ConstraintTest10 {
                 ALTER PROPERTY foo {
                     DROP CONSTRAINT foo::mymax2(3);
                 }
@@ -1194,7 +1194,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
     async def test_constraints_ddl_11(self):
         qry = r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax7(max: std::int64) {
+            CREATE ABSTRACT CONSTRAINT mymax7(max: std::int64) {
                 USING (__subject__ <= max);
             };
         """
@@ -1202,13 +1202,13 @@ class TestConstraintsDDL(tb.DDLTestCase):
         # Check that renaming and then recreating works
         await self.con.execute(qry)
         await self.con.execute("""
-            ALTER ABSTRACT CONSTRAINT test::mymax7 RENAME TO test::mymax8;
+            ALTER ABSTRACT CONSTRAINT mymax7 RENAME TO mymax8;
         """)
         await self.con.execute(qry)
 
     async def test_constraints_ddl_12(self):
         qry = r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax9(max: std::int64) {
+            CREATE ABSTRACT CONSTRAINT mymax9(max: std::int64) {
                 USING (__subject__ <= max);
             };
         """
@@ -1216,78 +1216,78 @@ class TestConstraintsDDL(tb.DDLTestCase):
         # Check that deleting and then recreating works
         await self.con.execute(qry)
         await self.con.execute("""
-            DROP ABSTRACT CONSTRAINT test::mymax9;
+            DROP ABSTRACT CONSTRAINT mymax9;
         """)
         await self.con.execute(qry)
 
     async def test_constraints_ddl_13(self):
         await self.con.execute(r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax13(max: std::int64) {
+            CREATE ABSTRACT CONSTRAINT mymax13(max: std::int64) {
                 USING (__subject__ <= max);
             };
 
-            CREATE TYPE test::ConstraintTest13 {
+            CREATE TYPE ConstraintTest13 {
                 CREATE PROPERTY foo -> std::int64 {
-                    CREATE CONSTRAINT test::mymax13(3);
+                    CREATE CONSTRAINT mymax13(3);
                 };
             };
         """)
 
         await self.con.execute(r"""
-            ALTER ABSTRACT CONSTRAINT test::mymax13
-            RENAME TO test::mymax13b;
+            ALTER ABSTRACT CONSTRAINT mymax13
+            RENAME TO mymax13b;
         """)
 
         res = await self.con.query_one("""
-            DESCRIBE MODULE test
+            DESCRIBE MODULE default
         """)
 
         self.assertEqual(res.count("mymax13b"), 2)
 
     async def test_constraints_ddl_14(self):
         await self.con.execute(r"""
-            CREATE ABSTRACT CONSTRAINT test::mymax14(max: std::int64) {
+            CREATE ABSTRACT CONSTRAINT mymax14(max: std::int64) {
                 USING (__subject__ <= max);
             };
 
-            CREATE TYPE test::ConstraintTest14 {
+            CREATE TYPE ConstraintTest14 {
                 CREATE PROPERTY foo -> std::int64 {
-                    CREATE CONSTRAINT test::mymax14(3);
+                    CREATE CONSTRAINT mymax14(3);
                 };
             };
         """)
 
         await self.con.execute(r"""
-            ALTER TYPE test::ConstraintTest14 {
+            ALTER TYPE ConstraintTest14 {
                 ALTER PROPERTY foo {
-                    DROP CONSTRAINT test::mymax14(3);
+                    DROP CONSTRAINT mymax14(3);
                 }
             }
         """)
 
         await self.con.execute(r"""
-            ALTER TYPE test::ConstraintTest14 {
+            ALTER TYPE ConstraintTest14 {
                 ALTER PROPERTY foo {
-                    CREATE CONSTRAINT test::mymax14(5);
+                    CREATE CONSTRAINT mymax14(5);
                 }
             }
         """)
 
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
-            CREATE FUNCTION test::comp_func(s: str) -> str {
+            CREATE FUNCTION comp_func(s: str) -> str {
                 USING (
                     SELECT str_lower(s)
                 );
                 SET volatility := 'Immutable';
             };
 
-            CREATE TYPE test::CompPropFunction {
+            CREATE TYPE CompPropFunction {
                 CREATE PROPERTY title -> str {
                     CREATE CONSTRAINT exclusive ON
-                        (test::comp_func(__subject__));
+                        (comp_func(__subject__));
                 };
-                CREATE PROPERTY comp_prop := test::comp_func(.title);
+                CREATE PROPERTY comp_prop := comp_func(.title);
             };
         ''')
 
@@ -1299,7 +1299,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             r"subjectexpr is already defined for .+max_int",
         ):
             await self.con.execute(r"""
-                CREATE ABSTRACT CONSTRAINT test::max_int(m: std::int64)
+                CREATE ABSTRACT CONSTRAINT max_int(m: std::int64)
                     ON (<int64>__subject__)
                 {
                     SET errmessage :=
@@ -1309,9 +1309,9 @@ class TestConstraintsDDL(tb.DDLTestCase):
                     USING (__subject__ <= m);
                 };
 
-                CREATE TYPE test::InvalidConstraintTest2 {
+                CREATE TYPE InvalidConstraintTest2 {
                     CREATE PROPERTY foo -> std::str {
-                        CREATE CONSTRAINT test::max_int(3)
+                        CREATE CONSTRAINT max_int(3)
                             ON (len(__subject__));
                     };
                 };
@@ -1388,14 +1388,14 @@ class TestConstraintsDDL(tb.DDLTestCase):
         ):
             await self.con.execute(r"""
                 CREATE ABSTRACT CONSTRAINT
-                test::mymax_er_06(max: std::int64) ON (len(__subject__))
+                mymax_er_06(max: std::int64) ON (len(__subject__))
                 {
                     USING (__subject__ <= $max);
                 };
 
-                CREATE TYPE test::ConstraintOnTest_err_06 {
+                CREATE TYPE ConstraintOnTest_err_06 {
                     CREATE PROPERTY foo -> std::str {
-                        CREATE CONSTRAINT test::mymax_er_06(3);
+                        CREATE CONSTRAINT mymax_er_06(3);
                     };
                 };
             """)
