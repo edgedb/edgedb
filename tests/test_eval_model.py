@@ -433,3 +433,11 @@ class TestModelSmokeTests(unittest.TestCase):
             ],
             sort=False,
         )
+
+    def test_edgeql_detached_01(self):
+        self.assert_test_query(
+            r"""
+            SELECT count((User.deck.name, DETACHED User.name));
+            """,
+            [36],
+        )

@@ -26,7 +26,6 @@ Also a non-goal: performance.
 Right now we support a lot of the core SELECT fragment of the language,
 but are missing:
  * Any DML at all
- * DETACHED
  * Most casts (we support int and str casts)
  * Most of the standard library, except for some basic functions
  * Any understanding of modules
@@ -567,6 +566,12 @@ def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> List[Data]:
     return out
 
 
+@_eval.register
+def eval_DetachedExpr(
+        node: qlast.DetachedExpr, ctx: EvalContext) -> List[Data]:
+    return toplevel_query(node.expr, db=ctx.db)
+
+
 def eval_func_or_op(op: str, args: List[qlast.Expr], typ: str,
                     ctx: EvalContext) -> List[Data]:
     arg_specs = BASIS.get(op)
@@ -902,6 +907,9 @@ class PathFinder(NodeVisitor):
         self.visit_func_or_op(
             'IF', [query.if_expr, query.condition, query.else_expr])
 
+    def visit_DetachedExpr(self, query: qlast.DetachedExpr) -> None:
+        pass
+
 
 def find_paths(
     e: qlast.Expr,
@@ -1056,6 +1064,17 @@ def subquery(q: qlast.Expr, *, ctx: EvalContext) -> List[Data]:
     return [row[-1] for row in subquery_full(q, ctx=ctx)[1]]
 
 
+def toplevel_query(q: qlast.Expr, db: DB) -> Data:
+    ctx = EvalContext(
+        query_input_list=[],
+        input_tuple=(),
+        aliases={},
+        cur_path=None,
+        db=db,
+    )
+    return subquery(q, ctx=ctx)
+
+
 def strip_shapes(x: Data) -> Data:
     if isinstance(x, Obj):
         return Obj(x.id, data=x.data, shape=None)
@@ -1083,15 +1102,7 @@ def clean_data(x: Data) -> Data:
 
 
 def go(q: qlast.Expr, db: DB) -> Data:
-    ctx = EvalContext(
-        query_input_list=[],
-        input_tuple=(),
-        aliases={},
-        cur_path=None,
-        db=db,
-    )
-    out = subquery(q, ctx=ctx)
-    return clean_data(out)
+    return clean_data(toplevel_query(q, db))
 
 
 def run(db: DB, s: str, print_asts: bool, use_pprint: bool) -> None:
