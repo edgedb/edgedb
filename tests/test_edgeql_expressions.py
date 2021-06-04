@@ -2948,7 +2948,8 @@ class TestExpressions(tb.QueryTestCase):
             '''
                 WITH
                     MODULE schema,
-                    A := (SELECT ScalarType FILTER .name = 'default::issue_num_t')
+                    A := (SELECT ScalarType
+                          FILTER .name = 'default::issue_num_t')
                 SELECT [A.name, A.default];
             ''',
             [],

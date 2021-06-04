@@ -1923,8 +1923,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_tvariant_bad_03(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
-            "cannot redefine link 'related_to' of object type 'default::Issue' "
-            "as scalar type 'std::int64'",
+            "cannot redefine link 'related_to' of object type "
+            "'default::Issue' as scalar type 'std::int64'",
             _position=66,
         ):
             await self.con.execute("""
@@ -1936,8 +1936,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_tvariant_bad_04(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
-            "cannot redefine link 'related_to' of object type 'default::Issue' "
-            "as object type 'default::Text'",
+            "cannot redefine link 'related_to' of object type "
+            "'default::Issue' as object type 'default::Text'",
             _position=66,
         ):
             await self.con.execute("""

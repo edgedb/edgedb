@@ -1956,8 +1956,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.SchemaError,
-                "cannot RESET TYPE of property 'b' of object type 'default::Foo' "
-                "because it is not inherited"):
+                "cannot RESET TYPE of property 'b' of object type "
+                "'default::Foo' because it is not inherited"):
             await self.con.execute('''
                 ALTER TYPE Foo ALTER PROPERTY b RESET TYPE;
             ''')
@@ -2013,7 +2013,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r"""
                 WITH
                     C := (SELECT schema::ObjectType
-                          FILTER .name IN {'default::Child', 'default::Parent01'})
+                          FILTER .name IN
+                          {'default::Child', 'default::Parent01'})
                 SELECT
                     C.pointers { target: { name } }
                 FILTER
@@ -7325,8 +7326,8 @@ type default::Foo {
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidLinkTargetError,
-            "invalid link type: 'default::CreateAlias09' is an expression alias,"
-            " not a proper object type",
+            "invalid link type: 'default::CreateAlias09' is an"
+            " expression alias, not a proper object type",
         ):
             await self.con.execute(r"""
                 CREATE TYPE AliasType09 {
@@ -9375,7 +9376,8 @@ type default::Foo {
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                 edgedb.errors.InvalidReferenceError,
-                r"index on \(.zz\) does not exist on object type 'default::Err1'",
+                r"index on \(.zz\) does not exist on object type "
+                r"'default::Err1'",
             ):
                 await self.con.execute('''
                     ALTER TYPE Err1
@@ -9385,7 +9387,8 @@ type default::Foo {
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.errors.InvalidReferenceError,
-                    "object type 'default::Err1' has no link or property 'zz'"):
+                    "object type 'default::Err1' has no link or "
+                    "property 'zz'"):
                 await self.con.execute('''
                     ALTER TYPE Err1
                     CREATE INDEX ON (.zz)
@@ -9394,7 +9397,8 @@ type default::Foo {
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
                     edgedb.errors.InvalidReferenceError,
-                    "object type 'default::Err1' has no link or property 'zz'"):
+                    "object type 'default::Err1' has no link or "
+                    "property 'zz'"):
                 await self.con.execute('''
                     ALTER TYPE Err1
                     CREATE INDEX ON ((.foo, .zz))
