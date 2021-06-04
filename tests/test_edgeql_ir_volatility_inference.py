@@ -35,7 +35,13 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def run_test(self, *, source, spec, expected):
         qltree = qlparser.parse(source)
-        ir = compiler.compile_ast_to_ir(qltree, self.schema)
+        ir = compiler.compile_ast_to_ir(
+            qltree,
+            self.schema,
+            options=compiler.CompilerOptions(
+                modaliases={None: 'default'},
+            ),
+        )
 
         expected_volatility = qltypes.Volatility(
             textwrap.dedent(expected).strip(' \n'))

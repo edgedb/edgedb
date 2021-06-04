@@ -42,6 +42,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             self.schema,
             options=compiler.CompilerOptions(
                 apply_query_rewrites=False,
+                modaliases={None: 'default'},
             )
         )
 

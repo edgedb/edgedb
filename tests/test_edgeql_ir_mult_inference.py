@@ -42,6 +42,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
             self.schema,
             options=compiler.CompilerOptions(
                 validate_multiplicity=True
+                modaliases={None: 'default'},
             )
         )
 
