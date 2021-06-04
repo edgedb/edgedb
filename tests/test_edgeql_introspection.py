@@ -52,25 +52,25 @@ class TestIntrospection(tb.QueryTestCase):
                     name
                 }
                 FILTER
-                    .name LIKE 'test::%'
+                    .name LIKE 'default::%'
                     AND NOT .compound_type
                 ORDER BY
                     .name;
             """,
             [
-                {'name': 'test::Comment'},
-                {'name': 'test::Dictionary'},
-                {'name': 'test::File'},
-                {'name': 'test::Issue'},
-                {'name': 'test::LogEntry'},
-                {'name': 'test::Named'},
-                {'name': 'test::Owned'},
-                {'name': 'test::Priority'},
-                {'name': 'test::Publication'},
-                {'name': 'test::Status'},
-                {'name': 'test::Text'},
-                {'name': 'test::URL'},
-                {'name': 'test::User'}
+                {'name': 'default::Comment'},
+                {'name': 'default::Dictionary'},
+                {'name': 'default::File'},
+                {'name': 'default::Issue'},
+                {'name': 'default::LogEntry'},
+                {'name': 'default::Named'},
+                {'name': 'default::Owned'},
+                {'name': 'default::Priority'},
+                {'name': 'default::Publication'},
+                {'name': 'default::Status'},
+                {'name': 'default::Text'},
+                {'name': 'default::URL'},
+                {'name': 'default::User'}
             ]
         )
 
@@ -85,10 +85,10 @@ class TestIntrospection(tb.QueryTestCase):
                         name,
                     } ORDER BY .name
                 }
-                FILTER ObjectType.name = 'test::User';
+                FILTER ObjectType.name = 'default::User';
             """,
             [{
-                'name': 'test::User',
+                'name': 'default::User',
                 'abstract': False,
                 'pointers': [{
                     'name': '__type__',
@@ -113,10 +113,10 @@ class TestIntrospection(tb.QueryTestCase):
                         name,
                     } ORDER BY .name
                 }
-                FILTER ObjectType.name = 'test::Owned';
+                FILTER ObjectType.name = 'default::Owned';
             """,
             [{
-                'name': 'test::Owned',
+                'name': 'default::Owned',
                 'abstract': True,
                 'pointers': [{
                     'name': '__type__',
@@ -139,10 +139,10 @@ class TestIntrospection(tb.QueryTestCase):
                         name
                     } ORDER BY .name
                 }
-                FILTER ObjectType.name = 'test::User';
+                FILTER ObjectType.name = 'default::User';
             """,
             [{
-                'name': 'test::User',
+                'name': 'default::User',
                 'abstract': False,
                 'pointers': [{
                     'name': '__type__',
@@ -169,10 +169,10 @@ class TestIntrospection(tb.QueryTestCase):
                     } FILTER @owned
                       ORDER BY .name
                 }
-                FILTER ObjectType.name = 'test::User';
+                FILTER ObjectType.name = 'default::User';
             """,
             [{
-                'name': 'test::User',
+                'name': 'default::User',
                 'abstract': False,
                 'pointers': [{
                     'name': 'todo',
@@ -199,22 +199,22 @@ class TestIntrospection(tb.QueryTestCase):
                 FILTER .name LIKE '%Comment';
             """,
             [{
-                'name': 'test::Comment',
+                'name': 'default::Comment',
                 'links': [{
                     'name': '__type__',
                     'target': {'name': 'schema::Type'},
                     'cardinality': 'One',
                 }, {
                     'name': 'issue',
-                    'target': {'name': 'test::Issue'},
+                    'target': {'name': 'default::Issue'},
                     'cardinality': 'One',
                 }, {
                     'name': 'owner',
-                    'target': {'name': 'test::User'},
+                    'target': {'name': 'default::User'},
                     'cardinality': 'One',
                 }, {
                     'name': 'parent',
-                    'target': {'name': 'test::Comment'},
+                    'target': {'name': 'default::Comment'},
                     'cardinality': 'One',
                 }]
             }]
@@ -229,20 +229,20 @@ class TestIntrospection(tb.QueryTestCase):
                     name,
                 }
                 FILTER
-                    ObjectType.name LIKE 'test::%'
+                    ObjectType.name LIKE 'default::%'
                     AND
                     ObjectType.links.cardinality = <Cardinality>'Many'
                 ORDER BY ObjectType.name;
             """,
             [
                 {
-                    'name': 'test::Issue',
+                    'name': 'default::Issue',
                 },
                 {
-                    'name': 'test::Publication',
+                    'name': 'default::Publication',
                 },
                 {
-                    'name': 'test::User',
+                    'name': 'default::User',
                 }
             ]
         )
@@ -257,20 +257,20 @@ class TestIntrospection(tb.QueryTestCase):
                     name,
                 }
                 FILTER
-                    `ObjectType`.name LIKE 'test::%'
+                    `ObjectType`.name LIKE 'default::%'
                     AND
                     ObjectType.links.cardinality = <Cardinality>'Many'
                 ORDER BY `ObjectType`.name;
             """,
             [
                 {
-                    'name': 'test::Issue',
+                    'name': 'default::Issue',
                 },
                 {
-                    'name': 'test::Publication',
+                    'name': 'default::Publication',
                 },
                 {
-                    'name': 'test::User',
+                    'name': 'default::User',
                 }
             ]
         )
@@ -291,7 +291,7 @@ class TestIntrospection(tb.QueryTestCase):
                     } FILTER .name = 'tags'
                 }
                 FILTER
-                    .name = 'test::Issue';
+                    .name = 'default::Issue';
             """,
             [{
                 'properties': [
@@ -319,23 +319,23 @@ class TestIntrospection(tb.QueryTestCase):
                     } ORDER BY @index
                 }
                 FILTER
-                    .name = 'test::Issue';
+                    .name = 'default::Issue';
             """,
             [{
                 'bases': [{
-                    'name': 'test::Named',
+                    'name': 'default::Named',
                 }, {
-                    'name': 'test::Owned',
+                    'name': 'default::Owned',
                 }, {
-                    'name': 'test::Text',
+                    'name': 'default::Text',
                 }],
 
                 'ancestors': [{
-                    'name': 'test::Named',
+                    'name': 'default::Named',
                 }, {
-                    'name': 'test::Owned',
+                    'name': 'default::Owned',
                 }, {
-                    'name': 'test::Text',
+                    'name': 'default::Text',
                 }, {
                     'name': 'std::Object',
                 }, {
@@ -382,7 +382,7 @@ class TestIntrospection(tb.QueryTestCase):
                     } ORDER BY .name
                 }
                 FILTER
-                    .name = 'test::URL'
+                    .name = 'default::URL'
             """,
             [{
                 'properties': [{
@@ -430,7 +430,7 @@ class TestIntrospection(tb.QueryTestCase):
                     NOT EXISTS .<constraints;
             """,
             [{
-                'name': 'test::my_one_of',
+                'name': 'default::my_one_of',
                 'params': [
                     {
                         'num': 1,
@@ -463,7 +463,7 @@ class TestIntrospection(tb.QueryTestCase):
                     NOT EXISTS .<constraints;
             """,
             [{
-                'name': 'test::my_one_of',
+                'name': 'default::my_one_of',
                 'params': [
                     {
                         'num': 1,
@@ -537,7 +537,7 @@ class TestIntrospection(tb.QueryTestCase):
                 FILTER
                     .subject.name = 'body'
                     AND .subject[IS schema::Property].source.name
-                        = 'test::Text';
+                        = 'default::Text';
             """,
             [{
                 'name': 'std::max_len_value',
@@ -575,10 +575,10 @@ class TestIntrospection(tb.QueryTestCase):
                         },
                     } ORDER BY .name,
                 }
-                FILTER .name = 'test::Text';
+                FILTER .name = 'default::Text';
             """,
             [{
-                'name': 'test::Text',
+                'name': 'default::Text',
                 'properties': [
                     {
                         'name': 'body',
@@ -647,17 +647,17 @@ class TestIntrospection(tb.QueryTestCase):
                         errmessage,
                     },
                 }
-                FILTER .name = 'test::EmulatedEnum';
+                FILTER .name = 'default::EmulatedEnum';
             """,
             [{
 
-                'name': 'test::EmulatedEnum',
+                'name': 'default::EmulatedEnum',
                 'constraints': [
                     {
                         'name': 'std::one_of',
                         'expr': 'std::contains(vals, __subject__)',
                         'annotations': {},
-                        'subject': {'name': 'test::EmulatedEnum'},
+                        'subject': {'name': 'default::EmulatedEnum'},
                         'params': [
                             {
                                 'name': 'vals',
@@ -1080,17 +1080,17 @@ class TestIntrospection(tb.QueryTestCase):
                     name
                 }
                 FILTER
-                    re_test(r'^test::\w+$', InheritingObject.name)
+                    re_test(r'^default::\w+$', InheritingObject.name)
                     AND InheritingObject.name NOT LIKE '%:Virtual_%'
                     AND InheritingObject.abstract
                 ORDER BY InheritingObject.name;
             """,
             [
-                {'name': 'test::Dictionary'},
-                {'name': 'test::Named'},
-                {'name': 'test::Owned'},
-                {'name': 'test::Text'},
-                {'name': 'test::my_one_of'},
+                {'name': 'default::Dictionary'},
+                {'name': 'default::Named'},
+                {'name': 'default::Owned'},
+                {'name': 'default::Text'},
+                {'name': 'default::my_one_of'},
             ]
         )
 
@@ -1172,12 +1172,12 @@ class TestIntrospection(tb.QueryTestCase):
                     name,
                     abstract
                 }
-                FILTER .name IN {'test::Comment', 'test::Text'}
+                FILTER .name IN {'default::Comment', 'default::Text'}
                 ORDER BY .name;
             ''',
             [
-                {'name': 'test::Comment', 'abstract': False},
-                {'name': 'test::Text', 'abstract': True},
+                {'name': 'default::Comment', 'abstract': False},
+                {'name': 'default::Text', 'abstract': True},
             ],
         )
 
@@ -1210,11 +1210,11 @@ class TestIntrospection(tb.QueryTestCase):
                         readonly
                     } ORDER BY .name
                 }
-                FILTER .name = 'test::Comment';
+                FILTER .name = 'default::Comment';
             ''',
             [
                 {
-                    'name': 'test::Comment',
+                    'name': 'default::Comment',
                     'links': [
                         {
                             'name': '__type__',
@@ -1279,37 +1279,30 @@ class TestIntrospection(tb.QueryTestCase):
 
     async def test_edgeql_introspection_count_01(self):
         await self.con.execute(r"""
-            WITH MODULE test
             INSERT Priority {
                 name := 'High'
             };
 
-            WITH MODULE test
             INSERT Priority {
                 name := 'Low'
             };
 
-            WITH MODULE test
             INSERT Status {
                 name := 'Open'
             };
 
-            WITH MODULE test
             INSERT Status {
                 name := 'Closed'
             };
 
-            WITH MODULE test
             INSERT Status {
                 name := 'Flagged'
             };
 
-            WITH MODULE test
             INSERT User {
                 name := 'Elvis'
             };
 
-            WITH MODULE test
             INSERT User {
                 name := 'Yury'
             };
@@ -1328,32 +1321,32 @@ class TestIntrospection(tb.QueryTestCase):
                     )
                 }
                 FILTER
-                    .name LIKE 'test::%'
+                    .name LIKE 'default::%'
                     AND NOT .compound_type
                 ORDER BY
                     .name;
             """,
             [
-                {'name': 'test::Comment', 'count': 0},
-                {'name': 'test::Dictionary', 'count': 0},
-                {'name': 'test::File', 'count': 0},
-                {'name': 'test::Issue', 'count': 0},
-                {'name': 'test::LogEntry', 'count': 0},
-                {'name': 'test::Named', 'count': 0},
-                {'name': 'test::Owned', 'count': 0},
-                {'name': 'test::Priority', 'count': 2},
-                {'name': 'test::Publication', 'count': 0},
-                {'name': 'test::Status', 'count': 3},
-                {'name': 'test::Text', 'count': 0},
-                {'name': 'test::URL', 'count': 0},
-                {'name': 'test::User', 'count': 2},
+                {'name': 'default::Comment', 'count': 0},
+                {'name': 'default::Dictionary', 'count': 0},
+                {'name': 'default::File', 'count': 0},
+                {'name': 'default::Issue', 'count': 0},
+                {'name': 'default::LogEntry', 'count': 0},
+                {'name': 'default::Named', 'count': 0},
+                {'name': 'default::Owned', 'count': 0},
+                {'name': 'default::Priority', 'count': 2},
+                {'name': 'default::Publication', 'count': 0},
+                {'name': 'default::Status', 'count': 3},
+                {'name': 'default::Text', 'count': 0},
+                {'name': 'default::URL', 'count': 0},
+                {'name': 'default::User', 'count': 2},
             ]
         )
 
         await self.con.execute(r"""
-            DELETE test::Priority;
-            DELETE test::Status;
-            DELETE test::User;
+            DELETE Priority;
+            DELETE Status;
+            DELETE User;
         """)
 
     async def test_edgeql_introspection_database_01(self):
