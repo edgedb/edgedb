@@ -59,13 +59,15 @@ from edb.edgeql import qltypes as ft
 from dataclasses import dataclass, replace
 from collections import defaultdict
 
+import argparse
 import contextlib
-import random
-import uuid
+import functools
 import itertools
 import operator
-import functools
+import pprint
+import random
 import traceback
+import uuid
 
 
 T = TypeVar('T')
@@ -1063,7 +1065,18 @@ def go(q: qlast.Expr, db: DB) -> Data:
     return clean_data(out)
 
 
-def repl(db: DB, print_asts: bool=False) -> None:
+def run(db: DB, s: str, print_asts: bool, use_pprint: bool) -> None:
+    q = parse(s)
+    if print_asts:
+        debug.dump(q)
+    res = go(q, db)
+    if use_pprint:
+        pprint.pprint(res)
+    else:
+        debug.dump(res)
+
+
+def repl(db: DB, print_asts: bool=False, use_pprint: bool=False) -> None:
     # for now users should just invoke this script with rlwrap since I
     # don't want to fiddle with history or anything
     while True:
@@ -1074,10 +1087,7 @@ def repl(db: DB, print_asts: bool=False) -> None:
             if not s:
                 return
         try:
-            q = parse(s)
-            if print_asts:
-                debug.dump(q)
-            debug.dump(go(q, db))
+            run(db, s, print_asts, use_pprint)
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
@@ -1331,16 +1341,26 @@ DB1 = mk_db([
     {"id": bsid(0x31), "__type__": FooT, "val": "b", "opt": 111},
 ] + load_json_db(CARDS_DB))
 
+parser = argparse.ArgumentParser(description='Toy EdgeQL eval model')
+parser.add_argument('--debug', '-d', action='store_true',
+                    help='Dump ASTs after parsing')
+parser.add_argument('--pprint', '-p', action='store_true',
+                    help='Use pprint instead of dump')
+
+parser.add_argument('commands', metavar='cmd', type=str, nargs='*',
+                    help='commands to run')
+
 
 def main() -> None:
     db = DB1
 
-    if sys.argv[1:2] == ['-c']:
-        for arg in sys.argv[2:]:
-            q = parse(arg)
-            debug.dump(go(q, db))
+    args = parser.parse_args()
+
+    if args.commands:
+        for arg in args.commands:
+            run(db, arg, args.debug, args.pprint)
     else:
-        return repl(db, sys.argv[1:2] == ['-d'])
+        return repl(db, args.debug, args.pprint)
 
 
 if __name__ == '__main__':
