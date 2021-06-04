@@ -190,6 +190,9 @@ async def _run_server(
             echo_runtime_info=args.echo_runtime_info,
             status_sink=args.status_sink,
             startup_script=args.startup_script,
+            tls_certfile=args.tls_certfile,
+            tls_keyfile=args.tls_keyfile,
+            tls_compat=args.allow_no_tls,
         )
         await sc.wait_for(ss.init())
 

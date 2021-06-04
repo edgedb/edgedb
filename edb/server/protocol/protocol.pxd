@@ -26,6 +26,7 @@ cdef class HttpRequest:
         public bytes content_type
         public bytes method
         public bytes body
+        public bytes host
 
 
 cdef class HttpResponse:
@@ -49,6 +50,7 @@ cdef class HttpProtocol:
         bint in_response
         bint first_data_call
         bint external_auth
+        bint response_hsts
 
         HttpRequest current_request
 

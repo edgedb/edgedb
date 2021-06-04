@@ -20,12 +20,15 @@
 include "./consts.pxi"
 
 
+import asyncio
 import collections
 import http
+import ssl
 import urllib.parse
 
 import httptools
 
+from edb import errors
 from edb.common import debug
 from edb.common import markup
 
@@ -67,6 +70,7 @@ cdef class HttpProtocol:
         self.in_response = False
         self.unprocessed = None
         self.first_data_call = True
+        self.response_hsts = False
 
     def connection_made(self, transport):
         self.transport = transport
@@ -75,25 +79,50 @@ cdef class HttpProtocol:
         self.transport = None
         self.unprocessed = None
 
+    def eof_received(self):
+        pass
+
     def data_received(self, data):
         if self.first_data_call:
             self.first_data_call = False
+
+            is_ssl = True
+            is_binary = False
+            try:
+                outgoing = ssl.MemoryBIO()
+                incoming = ssl.MemoryBIO()
+                incoming.write(data)
+                sslobj = self.server._sslctx.wrap_bio(
+                    incoming, outgoing, server_side=True
+                )
+                sslobj.do_handshake()
+            except ssl.SSLWantReadError:
+                pass
+            except Exception:
+                is_ssl = False
+                if not self.server._tls_compat:
+                    if data[0:2] == b'V\x00':
+                        # This is, most likely, our binary protocol,
+                        # as its first message kind is `V`.
+                        self.loop.create_task(self._return_binary_error())
+                    else:
+                        self.response_hsts = True
+
+            if is_ssl:
+                self.loop.create_task(self._forward_first_data(data))
+                self.loop.create_task(self._start_tls())
+                return
 
             if data[0:2] == b'V\x00':
                 # This is, most likely, our binary protocol,
                 # as its first message kind is `V`.
                 #
                 # Switch protocols now (for compatibility).
-                binproto = binary.EdgeConnection(
-                    self.server, self.external_auth)
-                self.transport.set_protocol(binproto)
-                binproto.connection_made(self.transport)
-                binproto.data_received(data)
+                self._switch_to_binary_protocol(data)
                 return
             else:
                 # HTTP.
-                self.parser = httptools.HttpRequestParser(self)
-                self.current_request = HttpRequest()
+                self._init_http_parser()
 
         try:
             self.parser.feed_data(data)
@@ -107,6 +136,8 @@ cdef class HttpProtocol:
         name = name.lower()
         if name == b'content-type':
             self.current_request.content_type = value
+        elif name == b'host':
+            self.current_request.host = value
 
     def on_body(self, body: bytes):
         self.current_request.body = body
@@ -189,11 +220,80 @@ cdef class HttpProtocol:
             response.body,
             response.close_connection)
 
+    def _switch_to_binary_protocol(self, data=None):
+        binproto = binary.EdgeConnection(self.server, self.external_auth)
+        self.transport.set_protocol(binproto)
+        binproto.connection_made(self.transport)
+        if data:
+            binproto.data_received(data)
+
+    def _init_http_parser(self):
+        self.parser = httptools.HttpRequestParser(self)
+        self.current_request = HttpRequest()
+
+    async def _forward_first_data(self, data):
+        # As we stole the "first data", we need to manually send it back to
+        # the SSLProtocol
+        transport = self.transport  # The TCP transport
+        for i in range(3):
+            await asyncio.sleep(0)
+            ssl_proto = self.transport.get_protocol()
+            if ssl_proto is not self:
+                break
+        else:
+            raise RuntimeError("start_tls() hasn't run in 3 loop iterations")
+
+        await asyncio.sleep(0)
+        data_len = len(data)
+        buf = ssl_proto.get_buffer(data_len)
+        buf[:data_len] = data
+        ssl_proto.buffer_updated(data_len)
+
+    async def _start_tls(self):
+        self.transport = await self.loop.start_tls(
+            self.transport, self, self.server._sslctx, server_side=True
+        )
+        sslobj = self.transport.get_extra_info('ssl_object')
+        if sslobj.selected_alpn_protocol() == 'edgedb-binary':
+            self._switch_to_binary_protocol()
+        else:
+            self._init_http_parser()
+
+    async def _return_binary_error(self):
+        binary_proto = self.transport.get_protocol()
+        await binary_proto.write_error(errors.BinaryProtocolError(
+            'TLS Required',
+            details='The server requires Transport Layer Security (TLS)',
+            hint='Upgrade the client to a newer version that supports TLS'
+        ))
+        binary_proto.close()
+
     async def _handle_request(self, HttpRequest request):
         cdef:
             HttpResponse response = HttpResponse()
 
         if self.transport is None:
+            return
+
+        if self.response_hsts:
+            if request.host:
+                path = request.url.path.lstrip(b'/')
+                loc = b'https://' + request.host + b'/' + path
+                self.transport.write(
+                    b'HTTP/1.1 301 Moved Permanently\r\n'
+                    b'Strict-Transport-Security: max-age=31536000\r\n'
+                    b'Location: ' + loc + b'\r\n'
+                    b'\r\n'
+                )
+            else:
+                msg = b'Request is missing header: Host\r\n'
+                self.transport.write(
+                    b'HTTP/1.1 400 Bad Request\r\n'
+                    b'Content-Length: ' + str(len(msg)).encode() + b'\r\n'
+                    b'\r\n' + msg
+                )
+
+            self.close()
             return
 
         try:

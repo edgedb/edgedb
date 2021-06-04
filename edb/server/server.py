@@ -28,6 +28,7 @@ import logging
 import os
 import pickle
 import socket
+import ssl
 import stat
 import sys
 import uuid
@@ -104,6 +105,9 @@ class Server:
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
         startup_script: Optional[srvargs.StartupScript] = None,
+        tls_certfile=None,
+        tls_keyfile=None,
+        tls_compat: bool = False,
     ):
 
         self._loop = asyncio.get_running_loop()
@@ -176,6 +180,16 @@ class Server:
 
         self._task_group = None
         self._stop_evt = asyncio.Event()
+        self._tls_certfile = tls_certfile
+        self._tls_keyfile = tls_keyfile
+        self._sslctx = ssl.SSLContext()
+        self._sslctx.load_cert_chain(
+            tls_certfile,
+            tls_keyfile,
+            lambda: os.environ.get('EDGEDB_TLS_PRIVATE_KEY_PASSWORD', '')
+        )
+        self._sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
+        self._tls_compat = tls_compat
 
     async def _request_stats_logger(self):
         last_seen = -1

@@ -89,6 +89,10 @@ class ServerConfig(NamedTuple):
     startup_script: Optional[StartupScript]
     status_sink: Optional[Callable[[str], None]]
 
+    tls_certfile: Optional[pathlib.Path]
+    tls_keyfile: Optional[pathlib.Path]
+    allow_no_tls: bool
+
 
 class PathPath(click.Path):
     name = 'path'
@@ -317,6 +321,23 @@ _server_options = [
         '--auto-shutdown-after', type=float, default=-1.0,
         help='shutdown the server after the last connection has been closed '
              'for N seconds. N < 0 is treated as infinite.'),
+    click.option(
+        '--tls-certfile', type=PathPath(),
+        help='Specify a path to a single file in PEM format containing the TLS'
+             'certificate as well as any number of CA certificates needed to '
+             'establish the certificate’s authenticity. If not present, a self-'
+             'signed certificate will be generated and used instead (for '
+             'development only!).'),
+    click.option(
+        '--tls-keyfile', type=PathPath(),
+        help='Specify a path to a file containing the private key. If not '
+             'present, the private key will be taken from --tls-certfile as '
+             'well. If the private key is protected by a password, specify '
+             'with an environment variable EDGEDB_TLS_PRIVATE_KEY_PASSWORD.'),
+    click.option(  # TODO: make the default False
+        '--allow-no-tls', type=bool, default=True, is_flag=True, hidden=True,
+        help='Run the server in TLS-compatible mode, supporting clients that '
+             'use both TLS and cleartext transports.'),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
