@@ -316,3 +316,100 @@ class TestModelSmokeTests(unittest.TestCase):
             ''',
             [0]
         )
+
+    def test_edgeql_shape_01(self):
+        self.assert_test_query(
+            r"""
+            SELECT User {
+                name,
+                deck: {
+                    name, tag := <str>.cost ++ ' ' ++ .element, @count
+               } ORDER BY .cost
+            } ORDER BY .name DESC;
+            """,
+            [
+                {
+                    "deck": [
+                        {"@count": [4], "name": ["Sprite"], "tag": ["1 Air"]},
+                        {
+                            "@count": [1],
+                            "name": ["Bog monster"],
+                            "tag": ["2 Water"],
+                        },
+                        {
+                            "@count": [1],
+                            "name": ["Giant eagle"],
+                            "tag": ["2 Air"],
+                        },
+                        {
+                            "@count": [1],
+                            "name": ["Giant turtle"],
+                            "tag": ["3 Water"],
+                        },
+                        {"@count": [1], "name": ["Golem"], "tag": ["3 Earth"]},
+                        {"@count": [1], "name": ["Djinn"], "tag": ["4 Air"]},
+                        {"@count": [1], "name": ["Dragon"], "tag": ["5 Fire"]},
+                    ],
+                    "name": ["Dave"],
+                },
+                {
+                    "deck": [
+                        {"@count": [4], "name": ["Dwarf"], "tag": ["1 Earth"]},
+                        {"@count": [4], "name": ["Sprite"], "tag": ["1 Air"]},
+                        {
+                            "@count": [3],
+                            "name": ["Bog monster"],
+                            "tag": ["2 Water"],
+                        },
+                        {
+                            "@count": [3],
+                            "name": ["Giant eagle"],
+                            "tag": ["2 Air"],
+                        },
+                        {
+                            "@count": [2],
+                            "name": ["Giant turtle"],
+                            "tag": ["3 Water"],
+                        },
+                        {"@count": [2], "name": ["Golem"], "tag": ["3 Earth"]},
+                        {"@count": [1], "name": ["Djinn"], "tag": ["4 Air"]},
+                    ],
+                    "name": ["Carol"],
+                },
+                {
+                    "deck": [
+                        {"@count": [3], "name": ["Dwarf"], "tag": ["1 Earth"]},
+                        {
+                            "@count": [3],
+                            "name": ["Bog monster"],
+                            "tag": ["2 Water"],
+                        },
+                        {
+                            "@count": [3],
+                            "name": ["Giant turtle"],
+                            "tag": ["3 Water"],
+                        },
+                        {"@count": [3], "name": ["Golem"], "tag": ["3 Earth"]},
+                    ],
+                    "name": ["Bob"],
+                },
+                {
+                    "deck": [
+                        {"@count": [2], "name": ["Imp"], "tag": ["1 Fire"]},
+                        {
+                            "@count": [3],
+                            "name": ["Bog monster"],
+                            "tag": ["2 Water"],
+                        },
+                        {
+                            "@count": [3],
+                            "name": ["Giant turtle"],
+                            "tag": ["3 Water"],
+                        },
+                        {"@count": [2], "name": ["Dragon"], "tag": ["5 Fire"]},
+                    ],
+                    "name": ["Alice"],
+                },
+            ],
+            sort=False,
+        )
