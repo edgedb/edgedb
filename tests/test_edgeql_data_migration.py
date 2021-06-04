@@ -8953,8 +8953,6 @@ class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
         """)
 
     async def test_edgeql_ddl_collection_cleanup_06(self):
-        await self.con.execute("SET MODULE test;")
-
         for _ in range(2):
             await self.con.execute(r"""
                 CREATE FUNCTION cleanup_06(
