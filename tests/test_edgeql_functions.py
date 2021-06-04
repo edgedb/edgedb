@@ -37,7 +37,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := (
                         # User is simply employed as an object to be augmented
                         SELECT User {
@@ -54,7 +53,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := (
                         # User is simply employed as an object to be augmented
                         SELECT User {
@@ -71,7 +69,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := (
                         # User is simply employed as an object to be augmented
                         SELECT User {
@@ -253,7 +250,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
             await self.con.query(r"""
-                WITH MODULE test
                 SELECT array_agg(
                     [<str>Issue.number, Issue.status.name]
                     ORDER BY Issue.number);
@@ -262,7 +258,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_11(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT array_agg(
                     (<str>Issue.number, Issue.status.name)
                     ORDER BY Issue.number
@@ -274,8 +269,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_12(self):
         await self.assert_query_result(
             r'''
-                WITH
-                    MODULE test
                 SELECT
                     array_agg(User{name} ORDER BY User.name);
             ''',
@@ -283,8 +276,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
         result = await self.con.query(r'''
-            WITH
-                MODULE test
             SELECT
                 array_agg(User{name} ORDER BY User.name);
         ''')
@@ -295,8 +286,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_13(self):
         await self.assert_query_result(
             r'''
-                WITH
-                    MODULE test
                 SELECT
                     Issue {
                         number,
@@ -319,14 +308,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
             await self.con.query(r'''
-                WITH MODULE test
                 SELECT array_agg(array_agg(User.name));
             ''')
 
     async def test_edgeql_functions_array_agg_15(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT array_agg(
                     ([([User.name],)],) ORDER BY User.name
                 );
@@ -341,7 +328,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_16(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT array_agg(   # outer array
                     (               # tuple
                         array_agg(  # array
@@ -424,7 +410,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # array_agg and array_unpack are inverses of each other
-                WITH MODULE test
                 SELECT array_unpack(array_agg(Issue.number));
             ''',
             {'1', '2', '3', '4'},
@@ -434,7 +419,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # array_agg and array_unpack are inverses of each other
-                WITH MODULE test
                 SELECT array_unpack(array_agg(Issue)){number};
             ''',
             [
@@ -549,8 +533,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
     async def test_edgeql_functions_enumerate_03(self):
-        await self.con.execute('SET MODULE test')
-
         await self.assert_query_result(
             r'''SELECT enumerate((SELECT User.name ORDER BY User.name));''',
             [[0, 'Elvis'], [1, 'Yury']],
@@ -584,13 +566,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_enumerate_05(self):
         await self.assert_query_result(
-            r'''SELECT enumerate(test::User { name } ORDER BY .name);''',
+            r'''SELECT enumerate(User { name } ORDER BY .name);''',
             [[0, {"name": "Elvis"}],
              [1, {"name": "Yury"}]],
         )
 
         await self.assert_query_result(
-            r'''SELECT enumerate(test::User ORDER BY .name).1.name;''',
+            r'''SELECT enumerate(User ORDER BY .name).1.name;''',
             ["Elvis", "Yury"],
         )
 
@@ -622,8 +604,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
     async def test_edgeql_functions_array_get_02(self):
-        await self.con.execute('SET MODULE test')
-
         await self.assert_query_result(
             r'''
                 SELECT array_get(array_agg(
@@ -956,13 +936,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_re_replace_02(self):
         await self.assert_query_result(
-            r'''SELECT re_replace('[aeiou]', '~', test::User.name);''',
+            r'''SELECT re_replace('[aeiou]', '~', User.name);''',
             {'Elv~s', 'Y~ry'},
         )
 
         await self.assert_query_result(
             r'''
-                SELECT re_replace('[aeiou]', '~', test::User.name,
+                SELECT re_replace('[aeiou]', '~', User.name,
                                   flags := 'g');
             ''',
             {'Elv~s', 'Y~ry'},
@@ -970,7 +950,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT re_replace('[aeiou]', '~', test::User.name,
+                SELECT re_replace('[aeiou]', '~', User.name,
                                   flags := 'i');
             ''',
             {'~lvis', 'Y~ry'},
@@ -978,7 +958,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT re_replace('[aeiou]', '~', test::User.name,
+                SELECT re_replace('[aeiou]', '~', User.name,
                                   flags := 'gi');
             ''',
             {'~lv~s', 'Y~ry'},
@@ -2837,7 +2817,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_min_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT min(User.name);
             ''',
             ['Elvis'],
@@ -2845,7 +2824,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT min(Issue.time_estimate);
             ''',
             [3000],
@@ -2853,7 +2831,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT min(<int64>Issue.number);
             ''',
             [{}],
@@ -2863,7 +2840,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         # Objects are valid inputs to "min" and are ordered by their .id.
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT min(User).id = min(User.id);
             ''',
             [True],
@@ -2983,7 +2959,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_max_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT max(User.name);
             ''',
             ['Yury'],
@@ -2991,7 +2966,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT max(Issue.time_estimate);
             ''',
             [3000],
@@ -2999,7 +2973,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT max(<int64>Issue.number);
             ''',
             [4],
@@ -3009,7 +2982,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         # Objects are valid inputs to "max" and are ordered by their .id.
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT max(User).id = max(User.id);
             ''',
             [True],
@@ -3074,7 +3046,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_all_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT all(len(User.name) = 4);
             ''',
             [False],
@@ -3082,7 +3053,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT all(
                     (
                         FOR I IN {Issue}
@@ -3095,7 +3065,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT all(Issue.number != '');
                 ''',
             [True],
@@ -3160,7 +3129,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_any_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(len(User.name) = 4);
             ''',
             [True],
@@ -3168,7 +3136,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(
                     (
                         FOR I IN {Issue}
@@ -3181,7 +3148,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(Issue.number != '');
             ''',
             [True],
@@ -3190,7 +3156,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_any_03(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(len(User.name) = 4) =
                     NOT all(NOT (len(User.name) = 4));
             ''',
@@ -3199,7 +3164,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(
                     (
                         FOR I IN {Issue}
@@ -3217,7 +3181,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(Issue.number != '') = NOT all(Issue.number = '');
             ''',
             [True],
@@ -3401,7 +3364,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_round_04(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT _ := round(<int64>Issue.number / 2)
                 ORDER BY _;
             ''',
@@ -3410,7 +3372,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT _ := round(<decimal>Issue.number / 2)
                 ORDER BY _;
             ''',
@@ -4196,7 +4157,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 WITH
                     MODULE math,
-                    A := len(test::Named.name)
+                    A := len(default::Named.name)
                 # the difference between sum and mean * count is due to
                 # rounding errors, but it should be small
                 SELECT abs(sum(A) - count(A) * mean(A)) < 1e-10;
@@ -4209,7 +4170,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 WITH
                     MODULE math,
-                    A := <float64>len(test::Named.name)
+                    A := <float64>len(default::Named.name)
                 # the difference between sum and mean * count is due to
                 # rounding errors, but it should be small
                 SELECT abs(sum(A) - count(A) * mean(A)) < 1e-10;
@@ -4645,37 +4606,37 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_sequence_next_reset(self):
         await self.con.execute('''
-            CREATE SCALAR TYPE test::my_seq_01 EXTENDING std::sequence;
+            CREATE SCALAR TYPE my_seq_01 EXTENDING std::sequence;
         ''')
 
         result = await self.con.query_one('''
-            SELECT sequence_next(INTROSPECT test::my_seq_01)
+            SELECT sequence_next(INTROSPECT my_seq_01)
         ''')
 
         self.assertEqual(result, 1)
 
         result = await self.con.query_one('''
-            SELECT sequence_next(INTROSPECT test::my_seq_01)
+            SELECT sequence_next(INTROSPECT my_seq_01)
         ''')
 
         self.assertEqual(result, 2)
 
         await self.con.execute('''
-            SELECT sequence_reset(INTROSPECT test::my_seq_01)
+            SELECT sequence_reset(INTROSPECT my_seq_01)
         ''')
 
         result = await self.con.query_one('''
-            SELECT sequence_next(INTROSPECT test::my_seq_01)
+            SELECT sequence_next(INTROSPECT my_seq_01)
         ''')
 
         self.assertEqual(result, 1)
 
         await self.con.execute('''
-            SELECT sequence_reset(INTROSPECT test::my_seq_01, 20)
+            SELECT sequence_reset(INTROSPECT my_seq_01, 20)
         ''')
 
         result = await self.con.query_one('''
-            SELECT sequence_next(INTROSPECT test::my_seq_01)
+            SELECT sequence_next(INTROSPECT my_seq_01)
         ''')
 
         self.assertEqual(result, 21)
