@@ -1203,34 +1203,34 @@ aa';
     def test_edgeql_syntax_shape_19(self):
         """
             SELECT
-                test::Issue {
+                Issue {
                     number
                 }
             FILTER
-                (((test::Issue)).number) = '1';
+                (((Issue)).number) = '1';
 
             SELECT
-                (test::Issue) {
+                (Issue) {
                     number
                 }
             FILTER
-                (((test::Issue)).number) = '1';
+                (((Issue)).number) = '1';
 
 % OK %
 
             SELECT
-                test::Issue {
+                Issue {
                     number
                 }
             FILTER
-                (test::Issue.number = '1');
+                (Issue.number = '1');
 
             SELECT
-                test::Issue {
+                Issue {
                     number
                 }
             FILTER
-                (test::Issue.number = '1');
+                (Issue.number = '1');
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -2336,7 +2336,6 @@ aa';
     def test_edgeql_syntax_with_01(self):
         """
         WITH
-            MODULE test,
             extra AS MODULE lib.extra,
             foo := Bar.foo,
             baz := (SELECT extra::Foo.baz)
@@ -2346,29 +2345,26 @@ aa';
         } FILTER (foo = 'special');
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=9)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=5, col=9)
     def test_edgeql_syntax_with_02(self):
         """
         WITH
-            MODULE test,
             foo := Bar.foo,
             baz := (SELECT Foo.baz)
         COMMIT;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=16)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=16)
     def test_edgeql_syntax_with_03(self):
         """
-        WITH
-            MODULE test
+        WITH MODULE welp
         CREATE DATABASE sample;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=14)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=14)
     def test_edgeql_syntax_with_04(self):
         """
-        WITH
-            MODULE test
+        WITH MODULE welp
         DROP DATABASE sample;
         """
 
@@ -2529,30 +2525,22 @@ aa';
 
     def test_edgeql_syntax_select_05(self):
         """
-        WITH MODULE test
         SELECT 42;
-        WITH MODULE test
         SELECT User{name};
-        WITH MODULE test
         SELECT User{name}
             FILTER (User.age > 42);
-        WITH MODULE test
         SELECT User{name}
             ORDER BY User.name ASC;
-        WITH MODULE test
         SELECT User{name}
             OFFSET 2;
-        WITH MODULE test
         SELECT User{name}
             LIMIT 5;
-        WITH MODULE test
         SELECT User{name}
             OFFSET 2 LIMIT 5;
         """
 
     def test_edgeql_syntax_select_06(self):
         """
-        WITH MODULE test
         SELECT
             User.name
         FILTER
@@ -2570,7 +2558,6 @@ aa';
 
     def test_edgeql_syntax_select_08(self):
         """
-        WITH MODULE test
         SELECT User{name} ORDER BY User.name ASC;
         SELECT User{name} ORDER BY User.name ASC;
         SELECT User{name} OFFSET 2;
@@ -2729,13 +2716,11 @@ aa';
 
     def test_edgeql_syntax_insert_03(self):
         """
-        WITH MODULE test
         INSERT Foo;
         """
 
     def test_edgeql_syntax_insert_04(self):
         """
-        WITH MODULE test
         INSERT Foo{bar := 42};
         """
 
@@ -2871,7 +2856,6 @@ aa';
 
     def test_edgeql_syntax_delete_02(self):
         """
-        WITH MODULE test
         DELETE Foo;
         """
 
@@ -2889,7 +2873,6 @@ aa';
 
     def test_edgeql_syntax_delete_05(self):
         """
-        WITH MODULE test
         DELETE
             User.name
         FILTER
@@ -2916,9 +2899,7 @@ aa';
 
     def test_edgeql_syntax_update_02(self):
         """
-        WITH MODULE test
         UPDATE Foo SET {bar := 42};
-        WITH MODULE test
         UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42};
         """
 
@@ -3687,7 +3668,7 @@ aa';
 
     def test_edgeql_syntax_ddl_delta_02(self):
         """
-        START MIGRATION TO {type test::Foo;};
+        START MIGRATION TO {type default::Foo;};
         ALTER MIGRATION m1231231231fd
             SET message := 'foo';
         COMMIT MIGRATION;
@@ -3706,7 +3687,7 @@ aa';
                   "Unexpected 'BadLang'", line=2, col=28)
     def test_edgeql_syntax_ddl_delta_04(self):
         """
-        START MIGRATION TO BadLang $$type test::Foo$$;
+        START MIGRATION TO BadLang $$type Foo$$;
         """
 
     def test_edgeql_syntax_ddl_delta_05(self):
@@ -4043,14 +4024,14 @@ aa';
 
     def test_edgeql_syntax_ddl_constraint_08(self):
         """
-        CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
+        CREATE ABSTRACT CONSTRAINT len_fail(f: std::str) {
             USING (__subject__ <= f);
             SET subjectexpr := len(__subject__);
         };
 
 % OK %
 
-        CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
+        CREATE ABSTRACT CONSTRAINT len_fail(f: std::str) {
             USING ((__subject__ <= f));
             SET subjectexpr := (len(__subject__));
         };
