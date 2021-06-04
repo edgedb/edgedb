@@ -288,9 +288,6 @@ def _maybe_get_path_rvar(
                 pathctx.put_path_rvar(stmt, path_id, rvar, aspect=aspect,
                                       env=ctx.env)
             return rvar, path_id
-        if qry.view_path_id_map:
-            path_id = pathctx.reverse_map_path_id(
-                path_id, qry.view_path_id_map)
         qry = ctx.rel_hierarchy.get(qry)
 
     return None

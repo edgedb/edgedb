@@ -251,8 +251,10 @@ def gen_dml_cte(
         dml_stmt, target_path_id, dml_stmt.relation, env=ctx.env)
     pathctx.put_path_source_rvar(
         dml_stmt, target_path_id, dml_stmt.relation, env=ctx.env)
-    pathctx.put_path_bond(
-        dml_stmt, target_path_id)
+    # Skip the path bond for inserts, since it doesn't help and
+    # interferes when inserting in an UNLESS CONFLICT ELSE
+    if not isinstance(ir_stmt, irast.InsertStmt):
+        pathctx.put_path_bond(dml_stmt, target_path_id)
 
     dml_cte = pgast.CommonTableExpr(
         query=dml_stmt,
