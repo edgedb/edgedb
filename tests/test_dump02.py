@@ -226,6 +226,7 @@ class DumpTestCaseMixin:
 
 
 class TestDump02(tb.StableDumpTestCase, DumpTestCaseMixin):
+    DEFAULT_MODULE = 'test'
 
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
                                   'dump02_default.esdl')
