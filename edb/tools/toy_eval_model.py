@@ -24,7 +24,7 @@ in throwing it away.
 Also a non-goal: performance.
 
 Right now we support some really basic queries:
- * SELECT with no shapes
+ * SELECT, including shapes (but computables can't be reused)
  * WITH, FOR
  * A smattering of basic functions, including OPTIONAL and SET OF ones
  * Tuples, int, bool, float str literals, set literals, str and int casts
@@ -341,16 +341,23 @@ def graft(prefix: Optional[qlast.Path], new: qlast.Path) -> qlast.Path:
 
 
 def update_path(
-    prefix: Optional[qlast.Path], query: Optional[qlast.ReturningMixin]
+    prefix: Optional[qlast.Path], query: Optional[qlast.Expr]
 ) -> Optional[qlast.Path]:
     if query is None:
         return None
-    elif query.result_alias is not None:
-        return qlast.Path(steps=[
-            qlast.ObjectRef(name=query.result_alias)
-        ])
-    elif isinstance(query.result, qlast.Path):
-        return graft(prefix, query.result)
+    elif isinstance(query, qlast.ReturningMixin):
+        if query.result_alias is not None:
+            return qlast.Path(steps=[
+                qlast.ObjectRef(name=query.result_alias)
+            ])
+        else:
+            query = query.result
+
+    while isinstance(query, qlast.Shape):
+        query = query.expr
+
+    if isinstance(query, qlast.Path):
+        return graft(prefix, query)
     else:
         # XXX: synthesize a real prefix name?
         return qlast.Path(partial=True, steps=[])
@@ -443,8 +450,11 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
     subq_path = update_path(ctx.cur_path, node)
 
     orderby = node.orderby or []
+    # XXX: wait, why do we need extra_subqs? All the queries I've
+    # thought of where it has an effect
+    # (SELECT (User.name, User.deck.cost) FILTER User.deck.name != "Dragon")
+    # get rejected by the real compiler for "changing the interpretation".
     subqs = [node.where] + [x.path for x in orderby]
-    # subqs need to come with their paths
     extra_subqs = [(subq_path, subq) for subq in subqs]
     new_qil, out = subquery_full(node.result, extra_subqs=extra_subqs, ctx=ctx)
     new_qil += [(IPartial(),)]
@@ -461,6 +471,70 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
     out = eval_limit(node.limit, out, ctx=limoff_ctx)
 
     return [row[-1] for row in out]
+
+
+@_eval.register
+def eval_ShapeElement(el: qlast.ShapeElement, ctx: EvalContext) -> List[Data]:
+    if el.compexpr:
+        result = el.compexpr
+    else:
+        result = qlast.Path(partial=True, steps=el.expr.steps)
+
+    if el.elements:
+        result = qlast.Shape(expr=result, elements=el.elements)
+
+    fake_select = qlast.SelectQuery(
+        result=result,
+        orderby=el.orderby,
+        where=el.where,
+        limit=el.limit,
+        offset=el.offset,
+    )
+
+    return eval(fake_select, ctx=ctx)
+
+
+ANONYMOUS_SHAPE_EXPR = qlast.DetachedExpr(
+    expr=qlast.Path(
+        steps=[qlast.ObjectRef(name='VirtualObject')],
+    ),
+)
+
+@_eval.register
+def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> List[Data]:
+
+    subq_path = update_path(ctx.cur_path, node.expr)
+    assert subq_path
+    subq_ipath = simplify_path(subq_path)
+    qil = ctx.query_input_list + [subq_ipath]
+
+    # XXX: do we need to do extra_subqs??
+    expr = node.expr or ANONYMOUS_SHAPE_EXPR
+    shape_vals = eval(expr, ctx=ctx)
+
+    out = []
+    for val in shape_vals:
+        subctx = replace(ctx, query_input_list=qil,
+                         cur_path=subq_path,
+                         input_tuple=ctx.input_tuple + (val,))
+
+        vals = {}
+        for el in node.elements:
+            ptr = el.expr.steps[0]
+            assert isinstance(ptr, qlast.Ptr)
+            name = ptr.ptr.name
+            if ptr.type == 'property':
+                name = '@' + name
+
+            el_val = eval(el, ctx=subctx)
+            vals[name] = el_val
+
+        # XXX: do a better job tracking data in the objects!!
+        # should *merge*
+        val = Obj(val.id, shape=vals)
+        out.append(val)
+
+    return out
 
 
 @_eval.register
@@ -635,8 +709,8 @@ def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
 
 def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
     return (
-        eval_fwd_ptr(base, ptr, ctx) if ptr.direction == '>'
-        else eval_bwd_ptr(base, ptr, ctx))
+        eval_bwd_ptr(base, ptr, ctx) if ptr.direction == '<'
+        else eval_fwd_ptr(base, ptr, ctx))
 
 
 def eval_intersect(
@@ -657,10 +731,18 @@ def eval_objref(name: str, ctx: EvalContext) -> List[Data]:
     ]
 
 
+def last_index(vs: Sequence[T], x: T) -> int:
+    for i in range(len(vs) - 1, -1, -1):
+        if vs[i] == x:
+            return i
+    raise ValueError(f"{x} not in list")
+
+
 def eval_path(path: IPath, ctx: EvalContext) -> List[Data]:
     # Base case for stuff in the input list
     if path in ctx.query_input_list:
-        i = ctx.query_input_list.index(path)
+        # need last index, since there could be multiple IPrefixes or the like
+        i = last_index(ctx.query_input_list, path)
         obj = ctx.input_tuple[i]
         return [obj] if obj is not None else []
 
@@ -733,7 +815,7 @@ class PathFinder(NodeVisitor):
 
     @contextlib.contextmanager
     def update_path(
-            self, query: Optional[qlast.SelectQuery]) -> Iterator[None]:
+            self, query: Optional[qlast.Expr]) -> Iterator[None]:
         yield from self._update(
             current_path=update_path(self.current_path, query))
 
@@ -756,6 +838,17 @@ class PathFinder(NodeVisitor):
             with self.update_path(None):
                 self.visit(query.limit)
                 self.visit(query.offset)
+
+    def visit_Shape(self, shape: qlast.Shape) -> None:
+        self.visit(shape.expr)
+        with self.subquery(), self.update_path(shape.expr):
+            self.visit(shape.elements)
+
+    def visit_ShapeElement(self, el: qlast.ShapeElement) -> None:
+        self.visit(el.expr)
+        self.visit(el.compexpr)
+        with self.subquery(), self.update_path(el.expr):
+            self.visit(el.elements)
 
     def visit_ForQuery(self, query: qlast.ForQuery) -> None:
         with self.subquery():
@@ -1217,6 +1310,9 @@ PersonT = "Person"
 NoteT = "Note"
 FooT = "Foo"
 DB1 = mk_db([
+    # VirtualObject
+    {"id": bsid(0x01), "__type__": "VirtualObject"},
+
     # Person
     {"id": bsid(0x10), "__type__": PersonT,
      "name": "Phil Emarg",
