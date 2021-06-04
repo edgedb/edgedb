@@ -26,8 +26,10 @@ import functools
 @functools.lru_cache(1024)
 def _is_container_type(cls):
     return (
-        issubclass(cls, (collections.abc.Container)) and
-        not issubclass(cls, (str, bytes, bytearray, memoryview))
+        issubclass(cls, (collections.abc.Container))
+        and not issubclass(cls, (str, bytes, bytearray, memoryview))
+        # not namedtuple, either
+        and not (issubclass(cls, tuple) and hasattr(cls, '_fields'))
     )
 
 

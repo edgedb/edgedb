@@ -297,7 +297,11 @@ class ContainsDMLVisitor(ast.NodeVisitor):
         self.skip_bindings = skip_bindings
 
     def combine_field_results(self, xs: List[Optional[bool]]) -> bool:
-        return any(x is True for x in xs)
+        return any(
+            x is True
+            or (isinstance(x, list) and self.combine_field_results(x))
+            for x in xs
+        )
 
     def visit_MutatingStmt(self, stmt: irast.MutatingStmt) -> bool:
         return True
