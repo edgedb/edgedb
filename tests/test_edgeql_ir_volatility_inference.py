@@ -50,7 +50,6 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_volatility_inference_00(self):
         """
-        WITH MODULE test
         SELECT Card
 % OK %
         Stable
@@ -59,7 +58,6 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_volatility_inference_01(self):
         """
         WITH
-            MODULE test,
             foo := random()
         SELECT
             foo
@@ -69,8 +67,6 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_volatility_inference_02(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card
         FILTER
@@ -81,8 +77,6 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_volatility_inference_03(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card
         ORDER BY
@@ -93,8 +87,6 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_volatility_inference_04(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card
         LIMIT
@@ -105,8 +97,6 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_volatility_inference_05(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card
         OFFSET
@@ -117,8 +107,6 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_volatility_inference_06(self):
         """
-        WITH
-            MODULE test
         INSERT
             Card {
                 name := 'foo',
@@ -131,8 +119,6 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_volatility_inference_07(self):
         """
-        WITH
-            MODULE test
         UPDATE
             Card
         SET {
@@ -144,8 +130,6 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_volatility_inference_08(self):
         """
-        WITH
-            MODULE test
         DELETE
             Card
 % OK %

@@ -17,72 +17,63 @@
 #
 
 
-CREATE ALIAS test::AirCard := (
-    WITH MODULE test
+CREATE ALIAS AirCard := (
     SELECT Card
     FILTER Card.element = 'Air'
 );
 
 
-CREATE ALIAS test::WaterCard := (
-    WITH MODULE test
+CREATE ALIAS WaterCard := (
     SELECT Card
     FILTER Card.element = 'Water'
 );
 
 
-CREATE ALIAS test::EarthCard := (
-    WITH MODULE test
+CREATE ALIAS EarthCard := (
     SELECT Card
     FILTER Card.element = 'Earth'
 );
 
 
-CREATE ALIAS test::FireCard := (
-    WITH MODULE test
+CREATE ALIAS FireCard := (
     SELECT Card
     FILTER Card.element = 'Fire'
 );
 
 
-CREATE ALIAS test::AliceCard := (
-    WITH MODULE test
+CREATE ALIAS AliceCard := (
     SELECT Card
     FILTER Card.<deck[IS User].name = 'Alice'
 );
 
 
-CREATE ALIAS test::BobCard := (
-    WITH MODULE test
+CREATE ALIAS BobCard := (
     SELECT Card
     FILTER Card.<deck[IS User].name = 'Bob'
 );
 
 
-CREATE ALIAS test::CarolCard := (
-    WITH MODULE test
+CREATE ALIAS CarolCard := (
     SELECT Card
     FILTER Card.<deck[IS User].name = 'Carol'
 );
 
 
-CREATE ALIAS test::DaveCard := (
-    WITH MODULE test
+CREATE ALIAS DaveCard := (
     SELECT Card
     FILTER Card.<deck[IS User].name = 'Dave'
 );
 
 
-CREATE ALIAS test::AliasedFriends := (
-    WITH MODULE test
+CREATE ALIAS AliasedFriends := (
     SELECT User { my_friends := User.friends, my_name := User.name }
 );
 
 
-CREATE ALIAS test::AwardAlias := (
-    test::Award {
+CREATE ALIAS AwardAlias := (
+    Award {
         # this should be a single link, because awards are exclusive
-        winner := test::Award.<awards[IS test::User] {
+        winner := Award.<awards[IS User] {
             name_upper := str_upper(.name)
         }
     }
@@ -90,10 +81,9 @@ CREATE ALIAS test::AwardAlias := (
 
 # This expression is unnecessarily deep, but that shouldn't have
 # any impact as compared to AwardAlias.
-CREATE ALIAS test::AwardAlias2 := (
-    WITH MODULE test
+CREATE ALIAS AwardAlias2 := (
     SELECT Award {
-        winner := Award.<awards[IS test::User] {
+        winner := Award.<awards[IS User] {
             deck: {
                 id
             }
@@ -102,8 +92,7 @@ CREATE ALIAS test::AwardAlias2 := (
 );
 
 # This alias includes ordering
-CREATE ALIAS test::UserAlias := (
-    WITH MODULE test
+CREATE ALIAS UserAlias := (
     SELECT User {
         deck: {
             id
