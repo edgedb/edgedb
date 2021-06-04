@@ -78,7 +78,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_00(self):
         """
-        WITH MODULE test
         SELECT Card
 % OK %
         MANY
@@ -86,7 +85,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_01(self):
         """
-        WITH MODULE test
         SELECT Card FILTER Card.name = 'Djinn'
 % OK %
         AT_MOST_ONE
@@ -94,7 +92,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_02(self):
         """
-        WITH MODULE test
         SELECT Card FILTER 'Djinn' = Card.name
 % OK %
         AT_MOST_ONE
@@ -102,7 +99,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_03(self):
         """
-        WITH MODULE test
         SELECT Card FILTER 'foo' = 'foo' AND 'Djinn' = Card.name
 % OK %
         AT_MOST_ONE
@@ -110,7 +106,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_04(self):
         """
-        WITH MODULE test
         SELECT Card FILTER 'foo' = 'foo' OR 'Djinn' = Card.name
 % OK %
         MANY
@@ -118,7 +113,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_05(self):
         """
-        WITH MODULE test
         SELECT Card FILTER Card.id = <uuid>'...'
 % OK %
         AT_MOST_ONE
@@ -126,7 +120,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_06(self):
         """
-        WITH MODULE test, C2 := Card
+        WITH C2 := Card
         SELECT Card FILTER Card = (SELECT C2 FILTER C2.name = 'Djinn')
 % OK %
         AT_MOST_ONE
@@ -134,7 +128,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_07(self):
         """
-        WITH MODULE test, C2 := DETACHED Card
+        WITH C2 := DETACHED Card
         SELECT Card FILTER Card = (SELECT C2 FILTER C2.name = 'Djinn')
 % OK %
         AT_MOST_ONE
@@ -142,7 +136,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_08(self):
         """
-        WITH MODULE test
         SELECT Card LIMIT 1
 % OK %
         AT_MOST_ONE
@@ -150,7 +143,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_09(self):
         """
-        WITH MODULE test
         SELECT Card FILTER Card.<deck[IS User].name = 'Bob'
 % OK %
         MANY
@@ -172,7 +164,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_12(self):
         """
-        WITH MODULE test
         SELECT {1, 2, 3, Card.cost}
 % OK %
         AT_LEAST_ONE
@@ -187,7 +178,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_14(self):
         """
-        WITH MODULE test
         SELECT array_agg(Card.cost)
 % OK %
         ONE
@@ -195,7 +185,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_15(self):
         """
-        WITH MODULE test
         SELECT to_str(Card.cost)
 % OK %
         MANY
@@ -203,7 +192,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_16(self):
         """
-        WITH MODULE test
         SELECT to_str((SELECT Card.cost LIMIT 1))
 % OK %
         AT_MOST_ONE
@@ -211,7 +199,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_17(self):
         """
-        WITH MODULE test
         SELECT to_str({1, (SELECT Card.cost LIMIT 1)})
 % OK %
         AT_LEAST_ONE
@@ -240,7 +227,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_21(self):
         """
-        WITH MODULE test
         SELECT 1 + Card.cost
 % OK %
         MANY
@@ -248,7 +234,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_22(self):
         """
-        WITH MODULE test
         SELECT (SELECT Card LIMIT 1).cost ?? 99
 % OK %
         ONE
@@ -256,7 +241,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_23(self):
         """
-        WITH MODULE test
         SELECT (SELECT Card LIMIT 1).element ?? (SELECT User LIMIT 1).name
 % OK %
         AT_MOST_ONE
@@ -264,7 +248,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_24(self):
         """
-        WITH MODULE test
         SELECT (SELECT Card LIMIT 1).element ?= 'fire'
 % OK %
         ONE
@@ -272,7 +255,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_25(self):
         """
-        WITH MODULE test
         SELECT Named {
             name
         }
@@ -282,7 +264,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_26(self):
         """
-        WITH MODULE test
         SELECT User {
             foo := .name
         }
@@ -292,7 +273,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_27(self):
         """
-        WITH MODULE test
         SELECT User {
             foo := 'prefix_' ++ .name
         }
@@ -302,7 +282,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_28(self):
         """
-        WITH MODULE test
         SELECT User {
             deck_cost
         }
@@ -312,7 +291,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_29(self):
         """
-        WITH MODULE test
         SELECT User {
             dc := sum(.deck.cost)
         }
@@ -322,7 +300,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_30(self):
         """
-        WITH MODULE test
         SELECT User {
             deck
         }
@@ -332,7 +309,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_31(self):
         """
-        WITH MODULE test
         SELECT Card {
             owners
         }
@@ -343,7 +319,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_card_inference_32(self):
         """
         WITH
-            MODULE test,
             A := (SELECT Award LIMIT 1)
         # the "awards" are exclusive
         SELECT A.<awards[IS User]
@@ -353,7 +328,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_33(self):
         """
-        WITH MODULE test
         SELECT Award {
             # the "awards" are exclusive
             recipient := .<awards[IS User]
@@ -364,7 +338,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_34(self):
         """
-        WITH MODULE test
         SELECT Award {
             rec
         }
@@ -374,7 +347,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_35(self):
         """
-        WITH MODULE test
         SELECT AwardAlias {
             recipient
         }
@@ -384,7 +356,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_36(self):
         """
-        WITH MODULE test
         SELECT Eert {
             parent
         }
@@ -394,7 +365,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_37(self):
         """
-        WITH MODULE test
         SELECT Report {
             user_name := .user.name
         }
@@ -404,7 +374,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_38(self):
         """
-        WITH MODULE test
         SELECT Report {
             name := .user.name
         }
@@ -413,20 +382,18 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         """
 
     @tb.must_fail(errors.QueryError,
-                  "possibly an empty set", line=4, col=13)
+                  "possibly an empty set", line=3, col=13)
     def test_edgeql_ir_card_inference_39(self):
         """
-        WITH MODULE test
         SELECT Report {
             name := <str>{}
         }
         """
 
     @tb.must_fail(errors.QueryError,
-                  "possibly more than one element", line=4, col=13)
+                  "possibly more than one element", line=3, col=13)
     def test_edgeql_ir_card_inference_40(self):
         """
-        WITH MODULE test
         SELECT Report {
             single foo := User.name
         }
@@ -434,7 +401,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_41(self):
         """
-        WITH MODULE test
         SELECT User.deck@count
 % OK %
         MANY
@@ -442,7 +408,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_42(self):
         """
-        WITH MODULE test
         SELECT Report.user@note
 % OK %
         MANY
@@ -450,7 +415,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_43(self):
         """
-        WITH MODULE test
         SELECT User {
             foo := .deck@count
         }
@@ -460,7 +424,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_44(self):
         """
-        WITH MODULE test
         SELECT Report {
             foo := .user@note
         }
@@ -470,7 +433,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_45(self):
         """
-        WITH MODULE test
         SELECT Report {
             subtitle := 'aaa'
         }
@@ -480,7 +442,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_46(self):
         """
-        WITH MODULE test
         SELECT Named {
             as_card := Named[IS Card]
         }
@@ -490,7 +451,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_47(self):
         """
-        WITH MODULE test
         SELECT User {
             foo := EXISTS(.friends)
         }
@@ -500,8 +460,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_48(self):
         """
-        WITH
-            MODULE test
         SELECT Card {
             o_name := .owners.name,
         }
@@ -511,7 +469,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_49(self):
         """
-        WITH MODULE test
         SELECT User {
             name,
             fire_deck := (
@@ -526,7 +483,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_50(self):
         """
-        WITH MODULE test
         INSERT User {name := "Timmy"}
         UNLESS CONFLICT
 % OK %
@@ -535,7 +491,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_51(self):
         """
-        WITH MODULE test
         INSERT User {name := "Johnny"}
         UNLESS CONFLICT ON (.name)
         ELSE User
@@ -545,7 +500,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_52(self):
         """
-        WITH MODULE test
         INSERT User {name := "Spike"}
         UNLESS CONFLICT ON (.name)
         ELSE Card
@@ -555,7 +509,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_53(self):
         """
-        WITH MODULE test
         INSERT User {name := "Madz"}
         UNLESS CONFLICT ON (.name)
         ELSE (INSERT User {name := "Madz2"})
@@ -566,7 +519,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
     # some tests of object constraints
     def test_edgeql_ir_card_inference_54(self):
         """
-        WITH MODULE test
         SELECT Person FILTER .first = "Phil" AND .last = "Emarg"
 % OK %
         AT_MOST_ONE
@@ -574,7 +526,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_55(self):
         """
-        WITH MODULE test
         SELECT Person FILTER .first = "Phil"
 % OK %
         MANY
@@ -582,7 +533,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_56(self):
         """
-        WITH MODULE test
         SELECT Person FILTER .email = "test@example.com"
 % OK %
         AT_MOST_ONE
@@ -590,7 +540,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_57(self):
         """
-        WITH MODULE test
         SELECT Person FILTER .p = 7 AND .q = 3
 % OK %
         AT_MOST_ONE
@@ -598,7 +547,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_58(self):
         """
-        WITH MODULE test
         SELECT Person FILTER .last = "Hatch" AND .first = "Madeline"
 % OK %
         AT_MOST_ONE
@@ -606,7 +554,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_59(self):
         """
-        WITH MODULE test
         SELECT Person FILTER .p = 7 AND .q = 3 AND .first = "???"
 % OK %
         AT_MOST_ONE
@@ -614,7 +561,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_60(self):
         """
-        WITH MODULE test
         SELECT Person
         FILTER .p = 12 AND .card = (SELECT Card FILTER .name = 'Imp')
 % OK %
@@ -623,7 +569,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_61(self):
         """
-        WITH MODULE test
         SELECT Person FILTER .first = "Phil" OR .last = "Emarg"
 % OK %
         MANY
@@ -631,7 +576,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_62(self):
         """
-        WITH MODULE test
         SELECT Person FILTER .p = 7 AND .q = 3 AND .last = "Whatever"
 % OK %
         AT_MOST_ONE
