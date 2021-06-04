@@ -1882,7 +1882,7 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot update link 'readonly_tag': "
             "it is declared as read-only",
-            _position=180,
+            _position=147,
         ):
             await self.con.execute(r'''
                 UPDATE UpdateTest
@@ -1897,7 +1897,7 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot update property 'readonly_note': "
             "it is declared as read-only",
-            _position=181,
+            _position=148,
         ):
             await self.con.execute(r'''
                 UPDATE UpdateTest
@@ -1912,7 +1912,7 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot update property 'readonly_note': "
             "it is declared as read-only",
-            _position=223,
+            _position=190,
         ):
             await self.con.execute(r'''
                 UPDATE UpdateTest
@@ -2014,7 +2014,7 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "possibly more than one element returned by an expression"
             " for a computable link 'annotated_status' declared as 'single'",
-            _position=147,
+            _position=114,
         ):
             await self.con.execute("""
                 UPDATE UpdateTest
@@ -2030,7 +2030,7 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"unexpected '\+='",
-            _position=123,
+            _position=90,
         ):
             await self.con.execute("""
                 INSERT UpdateTest
@@ -2045,7 +2045,7 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"unexpected '\+='",
-            _position=123,
+            _position=90,
         ):
             await self.con.execute("""
                 SELECT UpdateTest
@@ -2383,7 +2383,7 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"unexpected '-='",
-            _position=123,
+            _position=90,
         ):
             await self.con.execute("""
                 INSERT UpdateTest

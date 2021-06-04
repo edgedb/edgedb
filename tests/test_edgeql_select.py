@@ -4630,7 +4630,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1'
             ).__type__.name[:2];
             """,
-            ['te'],
+            ['de'],
         )
 
         await self.assert_query_result(
@@ -4640,7 +4640,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 FILTER Issue.number = '1'
             ).__type__.name[2:-1];
             """,
-            ['st::Issu'],
+            ['fault::Issu'],
         )
 
         await self.assert_query_result(
