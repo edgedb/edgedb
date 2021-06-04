@@ -101,6 +101,7 @@ class Server:
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
         startup_script: Optional[srvargs.StartupScript] = None,
+        testmode: bool = False,
     ):
 
         self._loop = loop
@@ -155,6 +156,7 @@ class Server:
         self._sys_queries = immutables.Map()
 
         self._devmode = devmode.is_in_dev_mode()
+        self._testmode = testmode
 
         self._binary_proto_id_counter = 0
         self._binary_proto_num_connections = 0
@@ -189,6 +191,9 @@ class Server:
 
     def in_dev_mode(self):
         return self._devmode
+
+    def in_test_mode(self):
+        return self._testmode
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)

@@ -22,6 +22,7 @@ include "./consts.pxi"
 
 import collections
 import http
+import os
 import urllib.parse
 
 import httptools
@@ -208,9 +209,12 @@ cdef class HttpProtocol:
         if self.transport is None:
             return
 
-        if request.should_upgrade and request.upgrade == b'edgedb-binary':
-            self.handle_upgrade(request)
-            return
+        if not self.server.in_test_mode() or not os.environ.get(
+            'EDGEDB_DISABLE_HTTP_UPGRADE'
+        ):
+            if request.should_upgrade and request.upgrade == b'edgedb-binary':
+                self.handle_upgrade(request)
+                return
 
         try:
             await self.handle_request(request, response)

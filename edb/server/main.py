@@ -196,6 +196,7 @@ def _run_server(
         echo_runtime_info=args.echo_runtime_info,
         status_sink=args.status_sink,
         startup_script=args.startup_script,
+        testmode=args.testmode,
     )
 
     loop.run_until_complete(ss.init())
