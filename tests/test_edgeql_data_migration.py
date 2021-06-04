@@ -42,6 +42,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     should match for easy reference, even if it means skipping some.
     """
 
+    DEFAULT_MODULE = 'test'
+
     def normalize_statement(self, s: str) -> str:
         re_filter = re.compile(r'[\s]+|(#.*?(\n|$))|(,(?=\s*[})]))')
         stripped = textwrap.dedent(s.lstrip('\n')).rstrip('\n')

@@ -43,6 +43,8 @@ if TYPE_CHECKING:
 
 
 class TestSchema(tb.BaseSchemaLoadTest):
+    DEFAULT_MODULE = 'test'
+
     def test_schema_overloaded_01(self):
         """
             type UniqueName {
@@ -5667,6 +5669,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
 
+    DEFAULT_MODULE = 'test'
+
     re_filter = re.compile(r'[\s]+|(,(?=\s*[})]))')
     maxDiff = 10000
 
@@ -5690,7 +5694,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                 current_schema=schema,
             )
         else:
-            schema = self.load_schema(schema_text)
+            schema = self.load_schema(schema_text, modname=default_module)
 
         tests = [iter(tests)] * 2
 

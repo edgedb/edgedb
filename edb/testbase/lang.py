@@ -304,6 +304,7 @@ def new_compiler():
 
 
 class BaseSchemaTest(BaseDocTest):
+    DEFAULT_MODULE = 'default'
     SCHEMA: Optional[str] = None
 
     schema: s_schema.Schema
@@ -442,7 +443,9 @@ class BaseSchemaTest(BaseDocTest):
 
     @classmethod
     def load_schema(
-            cls, source: str, modname: str='default') -> s_schema.Schema:
+            cls, source: str, modname: Optional[str]=None) -> s_schema.Schema:
+        if not modname:
+            modname = cls.DEFAULT_MODULE
         sdl_schema = qlparser.parse_sdl(f'module {modname} {{ {source} }}')
         schema = _load_std_schema()
         return s_ddl.apply_sdl(
