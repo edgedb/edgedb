@@ -23,12 +23,20 @@ in throwing it away.
 
 Also a non-goal: performance.
 
-Right now we support some really basic queries:
- * SELECT, including shapes (but computables can't be reused)
- * WITH, FOR
- * A smattering of basic functions, including OPTIONAL and SET OF ones
- * Tuples, int, bool, float str literals, set literals, str and int casts
- * Properties, links, type intersections
+Right now we support a lot of the core SELECT fragment of the language,
+but are missing:
+ * Any DML at all
+ * DETACHED
+ * Losing shape information from non-visible queries
+ * Most casts (we support int and str casts)
+ * Most of the standard library, except for some basic functions
+ * Any understanding of modules
+ * Any understanding of the schema or the type hierarchy
+ * Cardinality inference for shape elements; everything is reported as as list
+
+Cardinality inference is one of the big open design questions that I have:
+is there a reasonable way that we could implement it as a mostly-dynamic
+analysis, without needing a full separate cardinality checker?
 
 There is no type or error checking.
 
