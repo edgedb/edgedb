@@ -413,3 +413,23 @@ class TestModelSmokeTests(unittest.TestCase):
             ],
             sort=False,
         )
+
+    def test_edgeql_shape_for_01(self):
+        # we have a lot of trouble with this one in the real compiler.
+        self.assert_test_query(
+            r"""
+            SELECT (FOR x IN {1,2} UNION (SELECT User { m := x })) { name, m }
+            ORDER BY .name THEN .m;
+            """,
+            [
+                {'m': [1], 'name': ['Alice']},
+                {'m': [2], 'name': ['Alice']},
+                {'m': [1], 'name': ['Bob']},
+                {'m': [2], 'name': ['Bob']},
+                {'m': [1], 'name': ['Carol']},
+                {'m': [2], 'name': ['Carol']},
+                {'m': [1], 'name': ['Dave']},
+                {'m': [2], 'name': ['Dave']},
+            ],
+            sort=False,
+        )

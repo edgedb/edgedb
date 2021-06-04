@@ -89,13 +89,13 @@ class Obj:
         self,
         id: uuid.UUID,
         shape: Optional[Dict[str, Data]]=None,
-        lprops: Optional[Dict[str, Data]]=None,
+        data: Optional[Dict[str, Data]]=None,
     ) -> None:
         self.id = id
         if shape is None:
             shape = {"id": id}
         self.shape = shape
-        self.lprops = lprops
+        self.data = data or {}
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, Obj) and other.id == self.id
@@ -109,7 +109,8 @@ def mk_db(data: Iterable[Dict[str, Data]]) -> DB:
 
 
 def bslink(n: int, **kwargs: Data) -> Data:
-    return Obj(bsid(n), lprops=kwargs)
+    lprops = {'@' + k: v for k, v in kwargs.items()}
+    return Obj(bsid(n), data=lprops)
 
 
 # # Toy basis stuff
@@ -365,6 +366,13 @@ def update_path(
         return qlast.Path(partial=True, steps=[])
 
 
+def ptr_name(ptr: qlast.Ptr) -> str:
+    name = ptr.ptr.name
+    if ptr.type == 'property':
+        name = '@' + name
+    return name
+
+
 def eval_filter(
     where: Optional[qlast.Expr],
     qil: List[IPath],
@@ -524,16 +532,15 @@ def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> List[Data]:
         for el in node.elements:
             ptr = el.expr.steps[0]
             assert isinstance(ptr, qlast.Ptr)
-            name = ptr.ptr.name
-            if ptr.type == 'property':
-                name = '@' + name
+            name = ptr_name(ptr)
 
             el_val = eval(el, ctx=subctx)
             vals[name] = el_val
 
-        # XXX: do a better job tracking data in the objects!!
-        # should *merge*
-        val = Obj(val.id, shape=vals)
+        # Merge any data already on the object with any new shape info
+        data = {**val.data, **vals}
+
+        val = Obj(val.id, shape=vals, data=data)
         out.append(val)
 
     return out
@@ -691,11 +698,12 @@ def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
     if isinstance(base, tuple):
         return [base[int(ptr.ptr)]]
     elif isinstance(base, Obj):
-        if ptr.is_link_property:
-            obj = base.lprops or {}
+        name = '@' + ptr.ptr if ptr.is_link_property else ptr.ptr
+        if name in base.data:
+            obj = base.data
         else:
             obj = ctx.db[base.id]
-        return get_links(obj, ptr.ptr)
+        return get_links(obj, name)
     else:
         return [base[ptr.ptr]]
 
@@ -1115,7 +1123,7 @@ type Foo {
 '''
 
 
-def load_json_obj(obj):
+def load_json_obj(obj: Any) -> Any:
     new_obj = {}
     for k, v in obj.items():
         if k == 'id':
@@ -1128,8 +1136,8 @@ def load_json_obj(obj):
         nvs = []
         for v1 in vs:
             if isinstance(v1, dict):
-                lprops = {lk[1:]: lv for lk, lv in v1.items() if lk[0] == '@'}
-                v1 = Obj(uuid.UUID(v1['id']), lprops=lprops)
+                lprops = {lk: lv for lk, lv in v1.items() if lk[0] == '@'}
+                v1 = Obj(uuid.UUID(v1['id']), data=lprops)
             nvs.append(v1)
         nv = nvs if isinstance(v, list) else nvs[0]
 
@@ -1137,7 +1145,7 @@ def load_json_obj(obj):
     return new_obj
 
 
-def load_json_db(data):
+def load_json_db(data: Any) -> Any:
     return [load_json_obj(obj) for obj in data]
 
 
@@ -1296,7 +1304,8 @@ CARDS_DB = [
         "element": "Air",
         "id": "8153766e-c308-11eb-98b8-1b59432eef87",
         "name": "Djinn",
-        "typ": "test::SpecialCard"
+        "typ": "test::Card"
+        # "typ": "test::SpecialCard"
     },
     {
         "id": "81537661-c308-11eb-98b8-d7ab026ed715",
