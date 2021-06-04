@@ -29,11 +29,11 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         # testing anytype polymorphism
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::func_01.*'
+                r'cannot create.*func_01.*'
                 r'generic types are not supported in '
                 r'user-defined functions'):
             await self.con.execute('''
-                CREATE FUNCTION test::func_01(
+                CREATE FUNCTION func_01(
                     a: anytype
                 ) -> bool
                     USING EdgeQL $$
@@ -45,11 +45,11 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         # testing anyreal polymorphism, which is an actual abstract
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::func_02.*'
+                r'cannot create.*func_02.*'
                 r'generic types are not supported in '
                 r'user-defined functions'):
             await self.con.execute('''
-                CREATE FUNCTION test::func_02(
+                CREATE FUNCTION func_02(
                     a: anyreal
                 ) -> bool
                     USING EdgeQL $$
@@ -61,11 +61,11 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         # testing anytype as return type
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::func_03.*'
+                r'cannot create.*func_03.*'
                 r'generic types are not supported in '
                 r'user-defined functions'):
             await self.con.execute('''
-                CREATE FUNCTION test::func_03(
+                CREATE FUNCTION func_03(
                     a: str
                 ) -> anytype
                     USING EdgeQL $$
@@ -77,11 +77,11 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
         # testing anyreal as return type
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::func_04.*'
+                r'cannot create.*func_04.*'
                 r'generic types are not supported in '
                 r'user-defined functions'):
             await self.con.execute('''
-                CREATE FUNCTION test::func_04(
+                CREATE FUNCTION func_04(
                     a: str
                 ) -> anyscalar
                     USING EdgeQL $$
@@ -92,11 +92,11 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
     async def test_edgeql_userddl_05(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::func_05.*'
+                r'cannot create.*func_05.*'
                 r'USING SQL FUNCTION.*not supported in '
                 r'user-defined functions'):
             await self.con.execute('''
-                CREATE FUNCTION test::func_05(
+                CREATE FUNCTION func_05(
                     a: str
                 ) -> str
                     USING SQL FUNCTION 'lower';
@@ -105,11 +105,11 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
     async def test_edgeql_userddl_06(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,
-                r'cannot create.*test::func_06.*'
+                r'cannot create.*func_06.*'
                 r'USING SQL.*not supported in '
                 r'user-defined functions'):
             await self.con.execute('''
-                CREATE FUNCTION test::func_06(
+                CREATE FUNCTION func_06(
                     a: str
                 ) -> str
                     USING SQL $$ SELECT "a" $$;
@@ -233,11 +233,11 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
     async def test_edgeql_userddl_19(self):
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
-                r'cannot create.*test::func_19.*'
+                r'cannot create.*func_19.*'
                 r'SET OF parameters in user-defined EdgeQL '
                 r'functions are not supported'):
             await self.con.execute('''
-                CREATE FUNCTION test::func_19(
+                CREATE FUNCTION func_19(
                     a: SET OF str
                 ) -> bool
                     USING EdgeQL $$
@@ -247,7 +247,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
 
     async def test_edgeql_userddl_20(self):
         await self.con.execute('''
-            CREATE FUNCTION test::func_20(
+            CREATE FUNCTION func_20(
                 a: str
             ) -> SET OF str
                 USING EdgeQL $$
@@ -257,14 +257,14 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT test::func_20('q');
+                SELECT func_20('q');
             ''',
             {'q', 'a'},
         )
 
         await self.assert_query_result(
             r'''
-            SELECT count(test::func_20({'q', 'w'}));
+            SELECT count(func_20({'q', 'w'}));
             ''',
             {4},
         )
@@ -274,7 +274,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 edgedb.SchemaDefinitionError,
                 r"'force_return_cast' is not a valid field"):
             await self.con.execute('''
-                CREATE FUNCTION test::func(
+                CREATE FUNCTION func(
                     a: str
                 ) -> bool
                 {
@@ -287,20 +287,20 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
 
     async def test_edgeql_userddl_22(self):
         await self.con.execute('''
-            CREATE ABSTRACT CONSTRAINT test::uppercase {
+            CREATE ABSTRACT CONSTRAINT uppercase {
                 CREATE ANNOTATION title := "Upper case constraint";
                 USING (str_upper(__subject__) = __subject__);
                 SET errmessage := "{__subject__} is not in upper case";
             };
 
-            CREATE SCALAR TYPE test::upper_str EXTENDING str {
-                CREATE CONSTRAINT test::uppercase
+            CREATE SCALAR TYPE upper_str EXTENDING str {
+                CREATE CONSTRAINT uppercase
             };
         ''')
 
         await self.assert_query_result(
             r'''
-                SELECT <test::upper_str>'123_HELLO';
+                SELECT <upper_str>'123_HELLO';
             ''',
             {'123_HELLO'},
         )
@@ -335,7 +335,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 edgedb.SchemaDefinitionError,
                 r"'fallback' is not a valid field"):
             await self.con.execute(r'''
-                CREATE FUNCTION test::func_25(
+                CREATE FUNCTION func_25(
                     a: bool
                 ) -> bool {
                     SET fallback := true;
@@ -348,7 +348,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
     async def test_edgeql_userddl_26(self):
         # testing fallback
         await self.con.execute(r'''
-            CREATE FUNCTION test::func_26(
+            CREATE FUNCTION func_26(
                 a: bool
             ) -> bool {
                 USING (
@@ -361,7 +361,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 edgedb.SchemaDefinitionError,
                 r"'fallback' is not a valid field"):
             await self.con.execute(r'''
-                ALTER FUNCTION test::func_26(
+                ALTER FUNCTION func_26(
                     a: bool
                 ) {
                     SET fallback := true;
@@ -371,7 +371,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
     async def test_edgeql_userddl_27(self):
         # testing fallback
         await self.con.execute(r'''
-            CREATE FUNCTION test::func_27(
+            CREATE FUNCTION func_27(
                 a: bool
             ) -> bool {
                 USING (
@@ -384,7 +384,7 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 edgedb.SchemaDefinitionError,
                 r"'fallback' is not a valid field"):
             await self.con.execute(r'''
-                ALTER FUNCTION test::func_27(
+                ALTER FUNCTION func_27(
                     a: bool
                 ) {
                     # Even altering to set fallback to False should not be
