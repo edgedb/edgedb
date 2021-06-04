@@ -27,7 +27,6 @@ Right now we support a lot of the core SELECT fragment of the language,
 but are missing:
  * Any DML at all
  * DETACHED
- * Losing shape information from non-visible queries
  * Most casts (we support int and str casts)
  * Most of the standard library, except for some basic functions
  * Any understanding of modules
@@ -223,7 +222,7 @@ def not_contains(es: List[Data], s: List[Data]) -> List[Data]:
 
 
 def coalesce(x: List[Data], y: List[Data]) -> List[Data]:
-    return x or y
+    return strip_shapes(x or y)
 
 
 def distinct(x: List[Data]) -> List[Data]:
@@ -231,7 +230,7 @@ def distinct(x: List[Data]) -> List[Data]:
 
 
 def union(x: List[Data], y: List[Data]) -> List[Data]:
-    return x + y
+    return strip_shapes(x + y)
 
 
 def enumerate_(x: List[Data]) -> List[Data]:
@@ -460,7 +459,8 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
         ctx = replace(ctx, aliases=ctx.aliases.copy())
         for alias in node.aliases:
             assert isinstance(alias, qlast.AliasedExpr)
-            ctx.aliases[alias.alias] = subquery(alias.expr, ctx=ctx)
+            ctx.aliases[alias.alias] = (
+                strip_shapes(subquery(alias.expr, ctx=ctx)))
 
     # XXX: I believe this is right, but:
     # WHERE and ORDER BY are treated as subqueries of the result query,
@@ -556,7 +556,7 @@ def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> List[Data]:
 
 @_eval.register
 def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> List[Data]:
-    iter_vals = subquery(node.iterator, ctx=ctx)
+    iter_vals = strip_shapes(subquery(node.iterator, ctx=ctx))
     qil = ctx.query_input_list + [(IORef(node.iterator_alias),)]
     out = []
     for val in iter_vals:
@@ -1054,6 +1054,19 @@ def subquery_full(
 
 def subquery(q: qlast.Expr, *, ctx: EvalContext) -> List[Data]:
     return [row[-1] for row in subquery_full(q, ctx=ctx)[1]]
+
+
+def strip_shapes(x: Data) -> Data:
+    if isinstance(x, Obj):
+        return Obj(x.id, data=x.data, shape=None)
+    elif isinstance(x, dict):
+        return {k: strip_shapes(v) for k, v in x.items()}
+    elif isinstance(x, tuple):
+        return tuple(strip_shapes(v) for v in x)
+    elif isinstance(x, list):
+        return [strip_shapes(v) for v in x]
+    else:
+        return x
 
 
 def clean_data(x: Data) -> Data:
