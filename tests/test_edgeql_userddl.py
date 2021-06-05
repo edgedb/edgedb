@@ -24,6 +24,9 @@ from edb.testbase import server as tb
 
 class TestEdgeQLUserDDL(tb.DDLTestCase):
     INTERNAL_TESTMODE = False
+    # This is a hack but INTERNAL_TESTMODE breaks somehow without the
+    # test module.
+    DEFAULT_MODULE = 'test'
 
     async def test_edgeql_userddl_01(self):
         # testing anytype polymorphism
