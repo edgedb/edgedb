@@ -16,12 +16,10 @@
 # limitations under the License.
 #
 
-WITH MODULE test
 FOR award in {'1st', '2nd', '3rd'} UNION (
     INSERT Award { name := award }
 );
 
-WITH MODULE test
 INSERT Card {
     name := 'Imp',
     element := 'Fire',
@@ -29,7 +27,6 @@ INSERT Card {
     awards := (SELECT Award FILTER .name = '2nd'),
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Dragon',
     element := 'Fire',
@@ -37,49 +34,42 @@ INSERT Card {
     awards := (SELECT Award FILTER .name = '1st'),
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Bog monster',
     element := 'Water',
     cost := 2
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Giant turtle',
     element := 'Water',
     cost := 3
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Dwarf',
     element := 'Earth',
     cost := 1
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Golem',
     element := 'Earth',
     cost := 3
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Sprite',
     element := 'Air',
     cost := 1
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Giant eagle',
     element := 'Air',
     cost := 2
 };
 
-WITH MODULE test
 INSERT SpecialCard {
     name := 'Djinn',
     element := 'Air',
@@ -89,7 +79,6 @@ INSERT SpecialCard {
 
 
 # create players & decks
-WITH MODULE test
 INSERT User {
     name := 'Alice',
     deck := (
@@ -102,7 +91,6 @@ INSERT User {
     ),
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Bob',
     deck := (
@@ -111,7 +99,6 @@ INSERT User {
     awards := (SELECT Award FILTER .name = '3rd'),
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Carol',
     deck := (
@@ -119,7 +106,6 @@ INSERT User {
     )
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Dave',
     deck := (
@@ -130,7 +116,6 @@ INSERT User {
 
 # update friends list
 WITH
-    MODULE test,
     U2 := DETACHED User
 UPDATE User
 FILTER User.name = 'Alice'
@@ -146,7 +131,6 @@ SET {
 };
 
 WITH
-    MODULE test,
     U2 := DETACHED User
 UPDATE User
 FILTER User.name = 'Dave'

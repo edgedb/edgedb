@@ -44,7 +44,7 @@ class TestIndexes(tb.DDLTestCase):
                             expr
                         }
                     }
-                FILTER schema::ObjectType.name = 'test::Person';
+                FILTER schema::ObjectType.name = 'default::Person';
             """,
             [{
                 'indexes': [{
@@ -54,7 +54,7 @@ class TestIndexes(tb.DDLTestCase):
         )
 
         await self.con.execute(r"""
-            INSERT test::Person {
+            INSERT Person {
                 first_name := 'Elon',
                 last_name := 'Musk'
             };
@@ -62,7 +62,6 @@ class TestIndexes(tb.DDLTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     Person {
                         first_name
@@ -77,7 +76,7 @@ class TestIndexes(tb.DDLTestCase):
 
         await self.con.execute(
             """
-                ALTER TYPE test::Person
+                ALTER TYPE Person
                 DROP INDEX ON ((.first_name, .last_name));
             """
         )
@@ -90,7 +89,7 @@ class TestIndexes(tb.DDLTestCase):
                             expr
                         }
                     }
-                FILTER schema::ObjectType.name = 'test::Person';
+                FILTER schema::ObjectType.name = 'default::Person';
             """,
             [{
                 'indexes': []
@@ -100,7 +99,7 @@ class TestIndexes(tb.DDLTestCase):
     async def test_index_02(self):
         await self.con.execute(r"""
             # setup delta
-            CREATE TYPE test::User {
+            CREATE TYPE User {
                 CREATE PROPERTY title -> str;
                 CREATE INDEX ON (.title);
             };
@@ -114,7 +113,7 @@ class TestIndexes(tb.DDLTestCase):
                             expr
                         }
                     }
-                FILTER .name = 'test::User';
+                FILTER .name = 'default::User';
             """,
             [{
                 'indexes': [{
@@ -125,12 +124,12 @@ class TestIndexes(tb.DDLTestCase):
 
         # simply test that the type can be dropped
         await self.con.execute(r"""
-            DROP TYPE test::User;
+            DROP TYPE User;
         """)
 
     async def test_index_03(self):
         await self.con.execute(r"""
-            CREATE TYPE test::User {
+            CREATE TYPE User {
                 CREATE PROPERTY name -> str;
                 CREATE PROPERTY title -> str;
                 CREATE INDEX ON (.title);
@@ -139,8 +138,9 @@ class TestIndexes(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
             edgedb.InvalidReferenceError,
-            r"index on \(.name\) does not exist on object type 'test::User'",
+            r"index on \(.name\) does not exist on object type "
+            r"'default::User'",
         ):
             await self.con.execute("""
-                ALTER TYPE test::User DROP INDEX ON (.name)
+                ALTER TYPE User DROP INDEX ON (.name)
             """)

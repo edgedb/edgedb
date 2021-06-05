@@ -41,7 +41,8 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
             qltree,
             self.schema,
             options=compiler.CompilerOptions(
-                validate_multiplicity=True
+                validate_multiplicity=True,
+                modaliases={None: 'default'},
             )
         )
 
@@ -53,7 +54,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_00(self):
         """
-        WITH MODULE test
         SELECT Card
 % OK %
         ONE
@@ -61,7 +61,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_01(self):
         """
-        WITH MODULE test
         SELECT Card.id
 % OK %
         ONE
@@ -69,7 +68,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_02(self):
         """
-        WITH MODULE test
         SELECT User.name
 % OK %
         ONE
@@ -78,7 +76,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_mult_inference_03(self):
         # Unconstrained property
         """
-        WITH MODULE test
         SELECT User.deck_cost
 % OK %
         MANY
@@ -86,7 +83,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_04(self):
         """
-        WITH MODULE test
         SELECT Card FILTER Card.name = 'Djinn'
 % OK %
         ONE
@@ -94,7 +90,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_05(self):
         """
-        WITH MODULE test
         SELECT Card LIMIT 1
 % OK %
         ONE
@@ -123,7 +118,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_09(self):
         """
-        WITH MODULE test
         SELECT User.deck
 % OK %
         ONE
@@ -131,7 +125,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_10(self):
         """
-        WITH MODULE test
         SELECT Card.cost
 % OK %
         MANY
@@ -139,7 +132,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_11(self):
         """
-        WITH MODULE test
         SELECT Card.owners
 % OK %
         ONE
@@ -154,7 +146,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
     ''')
     def test_edgeql_ir_mult_inference_12(self):
         """
-        WITH MODULE test
         SELECT {Card, User}
 % OK %
         ONE
@@ -183,7 +174,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_16(self):
         """
-        WITH MODULE test
         SELECT 'pre_' ++ Card.name
 % OK %
         ONE
@@ -191,7 +181,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_17(self):
         """
-        WITH MODULE test
         SELECT User.name ++ Card.name
 % OK %
         MANY
@@ -206,7 +195,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_19(self):
         """
-        WITH MODULE test
         SELECT (1, Card.name)
 % OK %
         ONE
@@ -221,7 +209,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_21(self):
         """
-        WITH MODULE test
         SELECT ['card', Card.name]
 % OK %
         ONE
@@ -229,7 +216,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_22(self):
         """
-        WITH MODULE test
         SELECT User.name ++ Card.name
 % OK %
         MANY
@@ -245,7 +231,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_mult_inference_24(self):
         """
         WITH
-            MODULE test,
             C := (SELECT Card FILTER .name = 'Imp')
         SELECT str_split(<str>C.id, '')
 % OK %
@@ -261,7 +246,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         # We also don't know that an element-wise function doesn't end
         # up with collisions.
         """
-        WITH MODULE test
         SELECT str_split(<str>Card.id, '')
 % OK %
         MANY
@@ -276,7 +260,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         # We also don't know that an element-wise function doesn't end
         # up with collisions.
         """
-        WITH MODULE test
         SELECT array_unpack(str_split(<str>Card.id, ''))
 % OK %
         MANY
@@ -284,7 +267,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_27(self):
         """
-        WITH MODULE test
         SELECT count(Card)
 % OK %
         ONE
@@ -292,7 +274,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_28(self):
         """
-        WITH MODULE test
         SELECT 1 IN {1, 2, 3}
 % OK %
         ONE
@@ -300,7 +281,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_29(self):
         """
-        WITH MODULE test
         SELECT 1 IN {1, 1, 3}
 % OK %
         ONE
@@ -308,7 +288,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_30(self):
         """
-        WITH MODULE test
         SELECT {1, 2} IN {1, 2, 3}
 % OK %
         MANY
@@ -316,7 +295,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_31(self):
         """
-        WITH MODULE test
         SELECT Card.name IN {'Imp', 'Dragon'}
 % OK %
         MANY
@@ -338,7 +316,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_34(self):
         """
-        WITH MODULE test
         SELECT <str>Card.id
 % OK %
         ONE
@@ -346,7 +323,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_35(self):
         """
-        WITH MODULE test
         SELECT <json>User.name
 % OK %
         ONE
@@ -354,7 +330,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_36(self):
         """
-        WITH MODULE test
         SELECT <str>Card.cost
 % OK %
         MANY
@@ -362,7 +337,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_37(self):
         """
-        WITH MODULE test
         SELECT User.deck[IS SpecialCard]
 % OK %
         ONE
@@ -370,7 +344,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_38(self):
         """
-        WITH MODULE test
         SELECT Award.<awards[IS User]
 % OK %
         ONE
@@ -378,7 +351,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_39(self):
         """
-        WITH MODULE test
         SELECT (1, Card.name).0
 % OK %
         MANY
@@ -390,7 +362,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
     ''')
     def test_edgeql_ir_mult_inference_40(self):
         """
-        WITH MODULE test
         SELECT (1, Card.name).1
 % OK %
         ONE
@@ -398,7 +369,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_41(self):
         """
-        WITH MODULE test
         SELECT ['card', Card.name][0]
 % OK %
         MANY
@@ -408,7 +378,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         # It's probably impractical to even try to infer that we're
         # only fetching a unique array element here.
         """
-        WITH MODULE test
         SELECT ['card', Card.name][1]
 % OK %
         MANY
@@ -416,7 +385,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_43(self):
         """
-        WITH MODULE test
         SELECT DISTINCT Card.element
 % OK %
         ONE
@@ -424,7 +392,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_44(self):
         """
-        WITH MODULE test
         SELECT User {
             friends_of_friends := .friends.friends,
             others := (
@@ -437,7 +404,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_45(self):
         """
-        WITH MODULE test
         SELECT Award {
             owner := .<awards[IS User]
         }
@@ -447,7 +413,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_46(self):
         """
-        WITH MODULE test
         SELECT User {
             card_names := .deck.name,
             card_elements := DISTINCT .deck.element,
@@ -468,7 +433,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_48(self):
         """
-        WITH MODULE test
         SELECT Award IS Named
 % OK %
         MANY
@@ -477,7 +441,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_mult_inference_49(self):
         """
         WITH
-            MODULE test,
             A := (
                 SELECT Award FILTER .name = 'Wow'
             )
@@ -488,7 +451,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_50(self):
         """
-        WITH MODULE test
         SELECT Award.name IS str
 % OK %
         MANY
@@ -496,7 +458,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_51(self):
         """
-        WITH MODULE test
         SELECT INTROSPECT TYPEOF User.deck
 % OK %
         ONE
@@ -504,7 +465,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_52(self):
         """
-        WITH MODULE test
         SELECT (INTROSPECT TYPEOF User.deck).name
 % OK %
         ONE
@@ -512,7 +472,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_53(self):
         """
-        WITH MODULE test
         SELECT User {
             card_elements := .deck.element
         }
@@ -522,7 +481,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_54(self):
         """
-        WITH MODULE test
         SELECT User {
             foo := {1, 1, 2}
         }
@@ -532,7 +490,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_55(self):
         """
-        WITH MODULE test
         FOR x IN {'fire', 'water'}
         UNION (
             SELECT Card
@@ -544,7 +501,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_56(self):
         """
-        WITH MODULE test
         SELECT User {
             wishlist := (
                 FOR x IN {'fire', 'water'}
@@ -567,7 +523,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_58(self):
         """
-        WITH MODULE test
         SELECT enumerate(Card)
 % OK %
         ONE
@@ -575,7 +530,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_59(self):
         """
-        WITH MODULE test
         FOR x IN {enumerate({'fire', 'water'})}
         UNION (
             SELECT Card
@@ -587,7 +541,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_60(self):
         """
-        WITH MODULE test
         FOR x IN {
             enumerate(
                 DISTINCT array_unpack(['fire', 'water']))
@@ -602,7 +555,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_mult_inference_61(self):
         """
-        WITH MODULE test
         FOR x IN {
             enumerate(
                 array_unpack(['A', 'B']))
@@ -620,10 +572,9 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     @tb.must_fail(errors.QueryError,
                   r"possibly not a strict set.+computable bad_link",
-                  line=4, col=13)
+                  line=3, col=13)
     def test_edgeql_ir_mult_inference_error_01(self):
         """
-        WITH MODULE test
         SELECT User {
             bad_link := {Card, Card},
             name,
@@ -632,11 +583,10 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 
     @tb.must_fail(errors.QueryError,
                   r"possibly not a strict set.+computable bad_link",
-                  line=6, col=13)
+                  line=5, col=13)
     def test_edgeql_ir_mult_inference_error_02(self):
         """
         WITH
-            MODULE test,
             A := {Card, Card}
         SELECT User {
             bad_link := A,

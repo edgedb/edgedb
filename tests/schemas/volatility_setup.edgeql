@@ -17,57 +17,57 @@
 #
 
 
-CREATE FUNCTION test::vol_immutable() -> float64 {
+CREATE FUNCTION vol_immutable() -> float64 {
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT random();
     $$;
 };
 
-CREATE FUNCTION test::vol_stable() -> float64 {
+CREATE FUNCTION vol_stable() -> float64 {
     SET volatility := 'Stable';
     USING SQL $$
         SELECT random();
     $$;
 };
 
-CREATE FUNCTION test::vol_volatile() -> float64 {
+CREATE FUNCTION vol_volatile() -> float64 {
     SET volatility := 'Volatile';
     USING SQL $$
         SELECT random();
     $$;
 };
 
-CREATE FUNCTION test::err_immutable() -> float64 {
+CREATE FUNCTION err_immutable() -> float64 {
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT random()/0;
     $$;
 };
 
-CREATE FUNCTION test::err_stable() -> float64 {
+CREATE FUNCTION err_stable() -> float64 {
     SET volatility := 'Stable';
     USING SQL $$
         SELECT random()/0;
     $$;
 };
 
-CREATE FUNCTION test::err_volatile() -> float64 {
+CREATE FUNCTION err_volatile() -> float64 {
     SET volatility := 'Volatile';
     USING SQL $$
         SELECT random()/0;
     $$;
 };
 
-CREATE FUNCTION test::rand_int(top: int64) -> int64 {
+CREATE FUNCTION rand_int(top: int64) -> int64 {
     USING (<int64>(random() * top))
 };
 
 
-INSERT test::Obj { n := 1 };
-INSERT test::Obj { n := 2 };
-INSERT test::Obj { n := 3 };
-INSERT test::Tgt { n := 1 };
-INSERT test::Tgt { n := 2 };
-INSERT test::Tgt { n := 3 };
-INSERT test::Tgt { n := 4 };
+INSERT Obj { n := 1 };
+INSERT Obj { n := 2 };
+INSERT Obj { n := 3 };
+INSERT Tgt { n := 1 };
+INSERT Tgt { n := 2 };
+INSERT Tgt { n := 3 };
+INSERT Tgt { n := 4 };

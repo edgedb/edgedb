@@ -826,7 +826,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SETUP: Optional[Union[str, List[str]]] = None
     TEARDOWN: Optional[str] = None
     SCHEMA: Optional[Union[str, pathlib.Path]] = None
-    DEFAULT_MODULE: str = 'test'
+    DEFAULT_MODULE: str = 'default'
 
     SETUP_METHOD: Optional[str] = None
     TEARDOWN_METHOD: Optional[str] = None
@@ -1131,7 +1131,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             finally:
                 await tx.rollback()
 
-    async def migrate(self, migration, *, module: str = 'test'):
+    async def migrate(self, migration, *, module: str = 'default'):
         async with self.con.transaction():
             await self.con.execute(f"""
                 START MIGRATION TO {{

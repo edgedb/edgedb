@@ -45,15 +45,20 @@ class TestServerProto(tb.QueryTestCase):
     TRANSACTION_ISOLATION = False
 
     SETUP = '''
-        CREATE TYPE test::Tmp {
+        CREATE TYPE Tmp {
             CREATE REQUIRED PROPERTY tmp -> std::str;
         };
 
-        CREATE TYPE test::TransactionTest EXTENDING std::Object {
+        CREATE MODULE test;
+        CREATE TYPE test::Tmp2 {
+            CREATE REQUIRED PROPERTY tmp -> std::str;
+        };
+
+        CREATE TYPE TransactionTest EXTENDING std::Object {
             CREATE PROPERTY name -> std::str;
         };
 
-        CREATE SCALAR TYPE test::RGB
+        CREATE SCALAR TYPE RGB
             EXTENDING enum<'RED', 'BLUE', 'GREEN'>;
 
         # Used by is_testmode_on() to ensure that config modifications
@@ -64,7 +69,7 @@ class TestServerProto(tb.QueryTestCase):
     '''
 
     TEARDOWN = '''
-        DROP TYPE test::Tmp;
+        DROP TYPE Tmp;
     '''
 
     async def is_testmode_on(self):
@@ -72,9 +77,9 @@ class TestServerProto(tb.QueryTestCase):
         # (no longer "true") then this script fails.
         try:
             await self.con.execute('''
-                CREATE FUNCTION test::testconf() -> bool
+                CREATE FUNCTION testconf() -> bool
                     USING SQL $$ SELECT true; $$;
-                DROP FUNCTION test::testconf();
+                DROP FUNCTION testconf();
             ''')
         except edgedb.InvalidFunctionDefinitionError:
             return False
@@ -183,7 +188,7 @@ class TestServerProto(tb.QueryTestCase):
 
     async def test_server_proto_fetch_single_command_01(self):
         r = await self.con.query('''
-            CREATE TYPE test::server_fetch_single_command_01 {
+            CREATE TYPE server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
             };
@@ -192,13 +197,13 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(self.con._get_last_status(), 'CREATE TYPE')
 
         r = await self.con.query('''
-            DROP TYPE test::server_fetch_single_command_01;
+            DROP TYPE server_fetch_single_command_01;
         ''')
         self.assertEqual(r, [])
         self.assertEqual(self.con._get_last_status(), 'DROP TYPE')
 
         r = await self.con.query('''
-            CREATE TYPE test::server_fetch_single_command_01 {
+            CREATE TYPE server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
             };
@@ -206,12 +211,12 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(len(r), 0)
 
         r = await self.con.query('''
-            DROP TYPE test::server_fetch_single_command_01;
+            DROP TYPE server_fetch_single_command_01;
         ''')
         self.assertEqual(len(r), 0)
 
         r = await self.con.query_json('''
-            CREATE TYPE test::server_fetch_single_command_01 {
+            CREATE TYPE server_fetch_single_command_01 {
                 CREATE REQUIRED PROPERTY server_fetch_single_command_01 ->
                     std::str;
             };
@@ -219,7 +224,7 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(r, '[]')
 
         r = await self.con.query_json('''
-            DROP TYPE test::server_fetch_single_command_01;
+            DROP TYPE server_fetch_single_command_01;
         ''')
         self.assertEqual(r, '[]')
 
@@ -323,7 +328,7 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(
             await self.con.query('''
                 SELECT count(
-                    Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
+                    Tmp2 FILTER Tmp2.tmp = "test_server_set_reset_alias_01");
             '''),
             [0])
 
@@ -355,10 +360,10 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                "object type or alias 'default::Tmp' does not exist"):
+                "object type or alias 'default::Tmp2' does not exist"):
             await self.con.query('''
                 SELECT count(
-                    Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
+                    Tmp2 FILTER Tmp2.tmp = "test_server_set_reset_alias_01");
             ''')
 
     async def test_server_proto_set_reset_alias_02(self):
@@ -371,7 +376,7 @@ class TestServerProto(tb.QueryTestCase):
         self.assertEqual(
             await self.con.query('''
                 SELECT count(
-                    Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
+                    Tmp2 FILTER Tmp2.tmp = "test_server_set_reset_alias_01");
             '''),
             [0])
 
@@ -381,10 +386,10 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
-                "object type or alias 'default::Tmp' does not exist"):
+                "object type or alias 'default::Tmp2' does not exist"):
             await self.con.query('''
                 SELECT count(
-                    Tmp FILTER Tmp.tmp = "test_server_set_reset_alias_01");
+                    Tmp2 FILTER Tmp2.tmp = "test_server_set_reset_alias_01");
             ''')
 
     async def test_server_proto_set_reset_alias_03(self):
@@ -402,7 +407,7 @@ class TestServerProto(tb.QueryTestCase):
 
         # Test error recovery now
         await self.con.execute('''
-            SET MODULE test;
+            SET MODULE default;
         ''')
 
         self.assertEqual(
@@ -563,7 +568,6 @@ class TestServerProto(tb.QueryTestCase):
         # A regression test for enum typedescs being improperly
         # serialized and screwing up client's decoder.
         d = await self.con.query_one('''
-            WITH MODULE test
             SELECT (<RGB>"RED", <RGB>"GREEN", [1], [<RGB>"GREEN"], [2])
         ''')
         self.assertEqual(d[2], [1])
@@ -585,10 +589,10 @@ class TestServerProto(tb.QueryTestCase):
                             @foo := 1
                         } ORDER BY .name LIMIT 1,
                     }
-                    FILTER .name = 'test::Tmp';
+                    FILTER .name = 'default::Tmp';
                 """,
                 [{
-                    'name': 'test::Tmp',
+                    'name': 'default::Tmp',
                     'properties': [{
                         'name': 'id',
                         '@foo': 1
@@ -607,10 +611,10 @@ class TestServerProto(tb.QueryTestCase):
                             foo := 1
                         } ORDER BY .name LIMIT 1,
                     }
-                    FILTER .name = 'test::Tmp';
+                    FILTER .name = 'default::Tmp';
                 """,
                 [{
-                    'name': 'test::Tmp',
+                    'name': 'default::Tmp',
                     'properties': [{
                         'name': 'id',
                         'foo': 1
@@ -632,10 +636,10 @@ class TestServerProto(tb.QueryTestCase):
                             foo1 := 1
                         } ORDER BY .name LIMIT 1,
                     }
-                    FILTER .name = 'test::Tmp';
+                    FILTER .name = 'default::Tmp';
                 """,
                 [{
-                    'name': 'test::Tmp',
+                    'name': 'default::Tmp',
                     'properties': [{
                         'name': 'id',
                         'foo1': 1
@@ -654,10 +658,10 @@ class TestServerProto(tb.QueryTestCase):
                             foo2 := 1
                         } ORDER BY .name LIMIT 1,
                     }
-                    FILTER .name = 'test::Tmp';
+                    FILTER .name = 'default::Tmp';
                 """,
                 [{
-                    'name': 'test::Tmp',
+                    'name': 'default::Tmp',
                     'properties': [{
                         'name': 'id',
                         'foo2': 1
@@ -802,7 +806,7 @@ class TestServerProto(tb.QueryTestCase):
         # Basic test that SAVEPOINTS actually work; test with DML.
 
         typename = 'Savepoint_01'
-        query = f'SELECT test::{typename}.prop1'
+        query = f'SELECT {typename}.prop1'
         con = self.con
 
         # __internal_testmode should be ON
@@ -814,7 +818,7 @@ class TestServerProto(tb.QueryTestCase):
         ''')
         await con.query('DECLARE SAVEPOINT t1')
         await con.execute(f'''
-            CREATE TYPE test::{typename} {{
+            CREATE TYPE {typename} {{
                 CREATE REQUIRED PROPERTY prop1 -> std::str;
             }};
         ''')
@@ -829,14 +833,14 @@ class TestServerProto(tb.QueryTestCase):
 
         try:
             await con.execute(f'''
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 'aaa'
                 }};
             ''')
             await self.con.query('DECLARE SAVEPOINT t1')
 
             await con.execute(f'''
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 'bbb'
                 }};
             ''')
@@ -844,7 +848,7 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.query('DECLARE SAVEPOINT t2')
 
             await con.execute(f'''
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 'ccc'
                 }};
             ''')
@@ -852,7 +856,7 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.query('DECLARE SAVEPOINT t1')
 
             await con.execute(f'''
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 'ddd'
                 }};
             ''')
@@ -1410,7 +1414,7 @@ class TestServerProto(tb.QueryTestCase):
                     'read-only transaction'):
 
                 await self.con.query('''
-                    INSERT test::Tmp {
+                    INSERT Tmp {
                         tmp := 'aaa'
                     };
                 ''')
@@ -1488,13 +1492,13 @@ class TestServerProto(tb.QueryTestCase):
 
             actual_count = await self.con.query_one(
                 '''SELECT count(
-                    test::Tmp11
-                    FILTER test::Tmp11.tmp = "test_server_proto_tx_11")
+                    Tmp11
+                    FILTER Tmp11.tmp = "test_server_proto_tx_11")
                 ''')
             self.assertEqual(actual_count, count)
 
         await self.con.execute('''
-            CREATE TYPE test::Tmp11 {
+            CREATE TYPE Tmp11 {
                 CREATE REQUIRED PROPERTY tmp -> std::str;
             };
         ''')
@@ -1503,7 +1507,7 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.query('DECLARE SAVEPOINT c0')
         await self.con.query('SET ALIAS f1 AS MODULE std')
         await self.con.execute('''
-            INSERT test::Tmp11 {
+            INSERT Tmp11 {
                 tmp := 'test_server_proto_tx_11'
             };
         ''')
@@ -1513,7 +1517,7 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.query('START TRANSACTION')
         await self.con.query('SET ALIAS f2 AS MODULE std')
         await self.con.execute('''
-            INSERT test::Tmp11 {
+            INSERT Tmp11 {
                 tmp := 'test_server_proto_tx_11'
             };
         ''')
@@ -1521,7 +1525,7 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.query('DECLARE SAVEPOINT a0')
         await self.con.query('SET ALIAS f3 AS MODULE std')
         await self.con.execute('''
-            INSERT test::Tmp11 {
+            INSERT Tmp11 {
                 tmp := 'test_server_proto_tx_11'
             };
         ''')
@@ -1529,7 +1533,7 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.query('DECLARE SAVEPOINT a1')
         await self.con.query('SET ALIAS f4 AS MODULE std')
         await self.con.execute('''
-            INSERT test::Tmp11 {
+            INSERT Tmp11 {
                 tmp := 'test_server_proto_tx_11'
             };
         ''')
@@ -1612,25 +1616,25 @@ class TestServerProto(tb.QueryTestCase):
 
         try:
             await self.con.execute('''
-                CREATE TYPE test::Tmp_tx_13 {
+                CREATE TYPE Tmp_tx_13 {
                     CREATE PROPERTY tmp_tx_13_1 -> int64;
                 };
 
-                ALTER TYPE test::Tmp_tx_13 {
-                    CREATE LINK tmp_tx_13_2 -> test::Tmp_tx_13 {
+                ALTER TYPE Tmp_tx_13 {
+                    CREATE LINK tmp_tx_13_2 -> Tmp_tx_13 {
                         ON TARGET DELETE DEFERRED RESTRICT;
                     };
                 };
 
-                INSERT test::Tmp_tx_13 {
+                INSERT Tmp_tx_13 {
                     tmp_tx_13_1 := 1
                 };
 
-                INSERT test::Tmp_tx_13 {
+                INSERT Tmp_tx_13 {
                     tmp_tx_13_1 := 2,
                     tmp_tx_13_2 := DETACHED (
-                        SELECT test::Tmp_tx_13
-                        FILTER test::Tmp_tx_13.tmp_tx_13_1 = 1
+                        SELECT Tmp_tx_13
+                        FILTER Tmp_tx_13.tmp_tx_13_1 = 1
                         LIMIT 1
                     )
                 };
@@ -1645,8 +1649,8 @@ class TestServerProto(tb.QueryTestCase):
             ''')
             await self.con.query('SET ALIAS f3 AS MODULE std')
             await self.con.execute('''
-                DELETE (SELECT test::Tmp_tx_13
-                        FILTER test::Tmp_tx_13.tmp_tx_13_1 = 1);
+                DELETE (SELECT Tmp_tx_13
+                        FILTER Tmp_tx_13.tmp_tx_13_1 = 1);
                 SET ALIAS f4 AS MODULE std;
             ''')
 
@@ -1664,7 +1668,7 @@ class TestServerProto(tb.QueryTestCase):
 
         finally:
             await self.con.execute('''
-                DROP TYPE test::Tmp_tx_13;
+                DROP TYPE Tmp_tx_13;
             ''')
 
         self.assertTrue(await self.is_testmode_on())
@@ -1732,14 +1736,12 @@ class TestServerProto(tb.QueryTestCase):
         try:
             async def worker(con, tx, n):
                 await con.query_one(f'''
-                    WITH MODULE test
                     SELECT count(TransactionTest FILTER .name LIKE 'tx_17_{n}')
                 ''')
 
                 n2 = 1 if n == 2 else 2
 
                 await con.query(f'''
-                    WITH MODULE test
                     INSERT TransactionTest {{
                         name := 'tx_17_{n2}'
                     }}
@@ -1769,7 +1771,6 @@ class TestServerProto(tb.QueryTestCase):
                                     'upper_str is not in upper case'):
             async with self.con.transaction():
                 await self.con.execute(r"""
-                    SET MODULE test;
 
                     CREATE ABSTRACT CONSTRAINT uppercase {
                         CREATE ANNOTATION title := "Upper case constraint";
@@ -1781,7 +1782,7 @@ class TestServerProto(tb.QueryTestCase):
                         CREATE CONSTRAINT uppercase
                     };
 
-                    SELECT <test::upper_str>'123_hello';
+                    SELECT <upper_str>'123_hello';
                 """)
 
     async def test_server_proto_tx_19(self):
@@ -2021,16 +2022,16 @@ class TestServerProtoDDL(tb.DDLTestCase):
         con2 = await self.connect(database=con1.dbname)
         try:
             await con2.execute(f'''
-                CREATE TYPE test::{typename} {{
+                CREATE TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::str;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 'aaa'
                 }};
             ''')
 
-            query = f'SELECT test::{typename}.prop1'
+            query = f'SELECT {typename}.prop1'
 
             for _ in range(5):
                 self.assertEqual(
@@ -2038,17 +2039,17 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     edgedb.Set(['aaa']))
 
             await con2.execute(f'''
-                DELETE (SELECT test::{typename});
+                DELETE (SELECT {typename});
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     DROP PROPERTY prop1;
                 }};
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::int64;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 123
                 }};
             ''')
@@ -2068,18 +2069,18 @@ class TestServerProtoDDL(tb.DDLTestCase):
         con2 = await self.connect(database=con1.dbname)
         try:
             await con2.query(f'''
-                CREATE TYPE test::{typename} {{
+                CREATE TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::str;
                 }};
             ''')
 
             await con2.query(f'''
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 'aaa'
                 }};
             ''')
 
-            query = f'SELECT test::{typename}.prop1'
+            query = f'SELECT {typename}.prop1'
 
             for _ in range(5):
                 self.assertEqual(
@@ -2087,23 +2088,23 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     edgedb.Set(['aaa']))
 
             await con2.query(f'''
-                DELETE (SELECT test::{typename});
+                DELETE (SELECT {typename});
             ''')
 
             await con2.query(f'''
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     DROP PROPERTY prop1;
                 }};
             ''')
 
             await con2.query(f'''
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::int64;
                 }};
             ''')
 
             await con2.query(f'''
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 123
                 }};
             ''')
@@ -2123,16 +2124,16 @@ class TestServerProtoDDL(tb.DDLTestCase):
         con2 = await self.connect(database=con1.dbname)
         try:
             await con2.execute(f'''
-                CREATE TYPE test::{typename} {{
+                CREATE TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> array<std::str>;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := ['a', 'aa']
                 }};
             ''')
 
-            query = f'SELECT test::{typename}.prop1'
+            query = f'SELECT {typename}.prop1'
 
             for _ in range(5):
                 self.assertEqual(
@@ -2140,17 +2141,17 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     edgedb.Set([['a', 'aa']]))
 
             await con2.execute(f'''
-                DELETE (SELECT test::{typename});
+                DELETE (SELECT {typename});
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     DROP PROPERTY prop1;
                 }};
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> array<std::int64>;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := [1, 23]
                 }};
             ''')
@@ -2170,16 +2171,16 @@ class TestServerProtoDDL(tb.DDLTestCase):
         con2 = await self.connect(database=con1.dbname)
         try:
             await con2.execute(f'''
-                CREATE TYPE test::{typename} {{
+                CREATE TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::str;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 'aaa'
                 }};
             ''')
 
-            query = f'SELECT test::{typename}.prop1'
+            query = f'SELECT {typename}.prop1'
 
             for _ in range(5):
                 self.assertEqual(
@@ -2187,17 +2188,17 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     edgedb.Set(['aaa']))
 
             await con2.execute(f'''
-                DELETE (SELECT test::{typename});
+                DELETE (SELECT {typename});
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     DROP PROPERTY prop1;
                 }};
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     CREATE REQUIRED MULTI PROPERTY prop1 -> std::str;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := {{'bbb', 'ccc'}}
                 }};
             ''')
@@ -2217,24 +2218,24 @@ class TestServerProtoDDL(tb.DDLTestCase):
         con2 = await self.connect(database=con1.dbname)
         try:
             await con2.execute(f'''
-                CREATE TYPE test::{typename} {{
+                CREATE TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::str;
                 }};
 
-                CREATE TYPE test::Other{typename} {{
+                CREATE TYPE Other{typename} {{
                     CREATE REQUIRED PROPERTY prop2 -> std::str;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 'aaa'
                 }};
 
-                INSERT test::Other{typename} {{
+                INSERT Other{typename} {{
                     prop2 := 'bbb'
                 }};
             ''')
 
-            query = f'SELECT test::{typename}.prop1'
+            query = f'SELECT {typename}.prop1'
 
             for _ in range(5):
                 self.assertEqual(
@@ -2242,22 +2243,22 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     edgedb.Set(['aaa']))
 
             await con2.execute(f'''
-                DELETE (SELECT test::{typename});
+                DELETE (SELECT {typename});
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     DROP PROPERTY prop1;
                 }};
 
-                ALTER TYPE test::{typename} {{
-                    CREATE REQUIRED LINK prop1 -> test::Other{typename};
+                ALTER TYPE {typename} {{
+                    CREATE REQUIRED LINK prop1 -> Other{typename};
                 }};
 
-                INSERT test::{typename} {{
-                    prop1 := (SELECT test::Other{typename} LIMIT 1)
+                INSERT {typename} {{
+                    prop1 := (SELECT Other{typename} LIMIT 1)
                 }};
             ''')
 
-            other = await con1.query(f'SELECT test::Other{typename}')
+            other = await con1.query(f'SELECT Other{typename}')
 
             for _ in range(5):
                 self.assertEqual(
@@ -2274,26 +2275,26 @@ class TestServerProtoDDL(tb.DDLTestCase):
         con2 = await self.connect(database=con1.dbname)
         try:
             await con2.execute(f'''
-                CREATE TYPE test::Foo{typename};
+                CREATE TYPE Foo{typename};
 
-                CREATE TYPE test::Bar{typename};
+                CREATE TYPE Bar{typename};
 
-                CREATE TYPE test::{typename} {{
-                    CREATE REQUIRED LINK link1 -> test::Foo{typename};
+                CREATE TYPE {typename} {{
+                    CREATE REQUIRED LINK link1 -> Foo{typename};
                 }};
 
-                INSERT test::Foo{typename};
-                INSERT test::Bar{typename};
+                INSERT Foo{typename};
+                INSERT Bar{typename};
 
-                INSERT test::{typename} {{
-                    link1 := (SELECT test::Foo{typename} LIMIT 1)
+                INSERT {typename} {{
+                    link1 := (SELECT Foo{typename} LIMIT 1)
                 }};
             ''')
 
-            foo = await con1.query(f'SELECT test::Foo{typename}')
-            bar = await con1.query(f'SELECT test::Bar{typename}')
+            foo = await con1.query(f'SELECT Foo{typename}')
+            bar = await con1.query(f'SELECT Bar{typename}')
 
-            query = f'SELECT test::{typename}.link1'
+            query = f'SELECT {typename}.link1'
 
             for _ in range(5):
                 self.assertEqual(
@@ -2301,18 +2302,18 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     foo)
 
             await con2.execute(f'''
-                DELETE (SELECT test::{typename});
+                DELETE (SELECT {typename});
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     DROP LINK link1;
                 }};
 
-                ALTER TYPE test::{typename} {{
-                    CREATE REQUIRED LINK link1 -> test::Bar{typename};
+                ALTER TYPE {typename} {{
+                    CREATE REQUIRED LINK link1 -> Bar{typename};
                 }};
 
-                INSERT test::{typename} {{
-                    link1 := (SELECT test::Bar{typename} LIMIT 1)
+                INSERT {typename} {{
+                    link1 := (SELECT Bar{typename} LIMIT 1)
                 }};
             ''')
 
@@ -2331,27 +2332,27 @@ class TestServerProtoDDL(tb.DDLTestCase):
         con2 = await self.connect(database=con1.dbname)
         try:
             await con2.execute(f'''
-                CREATE TYPE test::Foo{typename};
+                CREATE TYPE Foo{typename};
 
-                CREATE ABSTRACT LINK test::link1 {{
+                CREATE ABSTRACT LINK link1 {{
                     CREATE PROPERTY prop1 -> std::str;
                 }};
 
-                CREATE TYPE test::{typename} {{
-                    CREATE REQUIRED LINK link1 EXTENDING test::link1
-                        -> test::Foo{typename};
+                CREATE TYPE {typename} {{
+                    CREATE REQUIRED LINK link1 EXTENDING link1
+                        -> Foo{typename};
                 }};
 
-                INSERT test::Foo{typename};
+                INSERT Foo{typename};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     link1 := (
-                        SELECT test::Foo{typename} {{@prop1 := 'aaa'}}
+                        SELECT Foo{typename} {{@prop1 := 'aaa'}}
                     )
                 }};
             ''')
 
-            query = f'SELECT test::{typename}.link1@prop1'
+            query = f'SELECT {typename}.link1@prop1'
 
             for _ in range(5):
                 self.assertEqual(
@@ -2359,19 +2360,19 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     edgedb.Set(['aaa']))
 
             await con2.execute(f'''
-                DELETE (SELECT test::{typename});
+                DELETE (SELECT {typename});
 
-                ALTER ABSTRACT LINK test::link1 {{
+                ALTER ABSTRACT LINK link1 {{
                     DROP PROPERTY prop1;
                 }};
 
-                ALTER ABSTRACT LINK test::link1 {{
+                ALTER ABSTRACT LINK link1 {{
                     CREATE PROPERTY prop1 -> std::int64;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     link1 := (
-                        (SELECT test::Foo{typename} LIMIT 1)
+                        (SELECT Foo{typename} LIMIT 1)
                         {{@prop1 := 123}}
                     )
                 }};
@@ -2391,16 +2392,16 @@ class TestServerProtoDDL(tb.DDLTestCase):
         await self.con.query('START TRANSACTION')
         try:
             await self.con.execute(f'''
-                CREATE TYPE test::{typename} {{
+                CREATE TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::str;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 'aaa'
                 }};
             ''')
 
-            query = f'SELECT test::{typename}.prop1'
+            query = f'SELECT {typename}.prop1'
 
             for _ in range(5):
                 self.assertEqual(
@@ -2408,17 +2409,17 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     edgedb.Set(['aaa']))
 
             await self.con.execute(f'''
-                DELETE (SELECT test::{typename});
+                DELETE (SELECT {typename});
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     DROP PROPERTY prop1;
                 }};
 
-                ALTER TYPE test::{typename} {{
+                ALTER TYPE {typename} {{
                     CREATE REQUIRED PROPERTY prop1 -> std::int64;
                 }};
 
-                INSERT test::{typename} {{
+                INSERT {typename} {{
                     prop1 := 123
                 }};
             ''')
@@ -2463,7 +2464,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
         try:
             await self.con.execute('''
                 START MIGRATION TO {
-                    module test {
+                    module default {
                         scalar type tid_prop_03 extending str;
                     }
                 };
@@ -2472,14 +2473,14 @@ class TestServerProtoDDL(tb.DDLTestCase):
             ''')
 
             result = await self.con.query_one('''
-                SELECT (<array<test::tid_prop_03>>$input)[1]
+                SELECT (<array<tid_prop_03>>$input)[1]
             ''', input=['A', 'B'])
 
             self.assertEqual(result, 'B')
 
         finally:
             await self.con.execute('''
-                DROP SCALAR TYPE test::tid_prop_03;
+                DROP SCALAR TYPE tid_prop_03;
             ''')
 
     async def test_server_proto_backend_tid_propagation_04(self):
@@ -2628,15 +2629,14 @@ class TestServerProtoDDL(tb.DDLTestCase):
     async def test_server_proto_fetch_limit_01(self):
         try:
             await self.con.execute('''
-                CREATE TYPE test::FL_A {
+                CREATE TYPE FL_A {
                     CREATE PROPERTY n -> int64;
                 };
-                CREATE TYPE test::FL_B {
+                CREATE TYPE FL_B {
                     CREATE PROPERTY n -> int64;
-                    CREATE MULTI LINK a -> test::FL_A;
+                    CREATE MULTI LINK a -> FL_A;
                 };
 
-                WITH MODULE test
                 FOR i IN {1, 2, 3, 4, 5}
                 UNION (
                     INSERT FL_A {
@@ -2644,7 +2644,6 @@ class TestServerProtoDDL(tb.DDLTestCase):
                     }
                 );
 
-                WITH MODULE test
                 FOR i IN {1, 2, 3, 4, 5}
                 UNION (
                     INSERT FL_B {
@@ -2656,7 +2655,6 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             result = await self.con._fetchall(
                 r"""
-                    WITH MODULE test
                     SELECT FL_B {
                         id,
                         __type__,
@@ -2671,7 +2669,6 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             result = await self.con._fetchall(
                 r"""
-                    WITH MODULE test
                     SELECT FL_B {
                         a ORDER BY .n,
                         a_arr := array_agg(.a)
@@ -2687,7 +2684,6 @@ class TestServerProtoDDL(tb.DDLTestCase):
             # Check that things are not cached improperly.
             result = await self.con._fetchall(
                 r"""
-                    WITH MODULE test
                     SELECT FL_B {
                         a ORDER BY .n,
                         a_arr := array_agg(.a)
@@ -2703,7 +2699,6 @@ class TestServerProtoDDL(tb.DDLTestCase):
             # Check that explicit LIMIT is not overridden
             result = await self.con._fetchall(
                 r"""
-                    WITH MODULE test
                     SELECT FL_B {
                         a ORDER BY .n LIMIT 3,
                         a_arr := array_agg((SELECT .a LIMIT 3)),
@@ -2758,8 +2753,8 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
         finally:
             await self.con.execute('''
-                DROP TYPE test::FL_B;
-                DROP TYPE test::FL_A;
+                DROP TYPE FL_B;
+                DROP TYPE FL_A;
             ''')
 
     async def test_server_proto_fetch_limit_02(self):
@@ -2808,11 +2803,11 @@ class TestServerProtoConcurrentDDL(tb.DDLTestCase):
             async with tg.TaskGroup() as g:
                 for i, con in enumerate(cons):
                     g.create_task(con.execute(f'''
-                        CREATE TYPE test::{typename_prefix}{i} {{
+                        CREATE TYPE {typename_prefix}{i} {{
                             CREATE REQUIRED PROPERTY prop1 -> std::int64;
                         }};
 
-                        INSERT test::{typename_prefix}{i} {{
+                        INSERT {typename_prefix}{i} {{
                             prop1 := {i}
                         }};
                     '''))
@@ -2868,13 +2863,13 @@ class TestServerCapabilities(tb.QueryTestCase):
     TRANSACTION_ISOLATION = False
 
     SETUP = '''
-        CREATE TYPE test::Modify {
+        CREATE TYPE Modify {
             CREATE REQUIRED PROPERTY prop1 -> std::str;
         };
     '''
 
     TEARDOWN = '''
-        DROP TYPE test::Modify;
+        DROP TYPE Modify;
     '''
 
     async def test_server_capabilities_01(self):
@@ -2899,7 +2894,7 @@ class TestServerCapabilities(tb.QueryTestCase):
 
     async def test_server_capabilities_02(self):
         _, attrs = await self.con._fetchall_with_headers(
-            'INSERT test::Modify { prop1 := "xx" }',
+            'INSERT Modify { prop1 := "xx" }',
         )
         self.assertEqual(
             _capabilities(attrs),
@@ -2907,23 +2902,23 @@ class TestServerCapabilities(tb.QueryTestCase):
         )
         with self.assertRaises(edgedb.ProtocolError):
             await self.con._fetchall(
-                'INSERT test::Modify { prop1 := "xx" }',
+                'INSERT Modify { prop1 := "xx" }',
                 __allow_capabilities__=0,
             )
         await self.con._fetchall(
-            'INSERT test::Modify { prop1 := "xx" }',
+            'INSERT Modify { prop1 := "xx" }',
             __allow_capabilities__=enums.Capability.MODIFICATIONS,
         )
 
     async def test_server_capabilities_03(self):
         with self.assertRaises(edgedb.ProtocolError):
             await self.con._fetchall(
-                'CREATE TYPE test::Type1',
+                'CREATE TYPE Type1',
                 __allow_capabilities__=0,
             )
         try:
             _, attrs = await self.con._fetchall_with_headers(
-                'CREATE TYPE test::Type1',
+                'CREATE TYPE Type1',
                 __allow_capabilities__=enums.Capability.DDL,
             )
             self.assertEqual(
@@ -2932,7 +2927,7 @@ class TestServerCapabilities(tb.QueryTestCase):
             )
         finally:
             _, attrs = await self.con._fetchall_with_headers(
-                'DROP TYPE test::Type1',
+                'DROP TYPE Type1',
             )
             self.assertEqual(
                 _capabilities(attrs),

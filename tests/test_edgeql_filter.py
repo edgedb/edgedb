@@ -37,7 +37,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             r'''
                 # Find Users who own at least one Issue with simultaneously
                 # time_estimate > 9000 and due_date on 2020/01/15.
-                WITH MODULE test
                 SELECT User{name}
                 FILTER
                     User.<owner[IS Issue].time_estimate > 9000
@@ -56,7 +55,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 # NOTE: semantically same as and01, but using OR
                 # Find Users who own at least one Issue with simultaneously
                 # time_estimate > 9000 and due_date on 2020/01/15.
-                WITH MODULE test
                 SELECT User{name}
                 FILTER
                     EXISTS (
@@ -87,7 +85,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 # NOTE: same as above, but more human-like
                 # Find Users who own at least one Issue with simultaneously
                 # time_estimate > 9000 and due_date on 2020/01/15.
-                WITH MODULE test
                 SELECT User{name}
                 FILTER
                     EXISTS (
@@ -117,7 +114,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 # Find Users who own at least one Issue with simultaneously
                 # time_estimate > 9000 and due_date on 2020/01/15.
                 WITH
-                    MODULE test,
                     U2 := User
                 SELECT User{name}
                 FILTER
@@ -140,7 +136,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # Find Users who do not have any Issues with time_estimate
-                WITH MODULE test
                 SELECT User{name}
                 FILTER
                     NOT EXISTS User.<owner[IS Issue].time_estimate
@@ -154,7 +149,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # Find Users who have at least one Issue without time_estimates
-                WITH MODULE test
                 SELECT (
                     SELECT Issue
                     FILTER
@@ -172,7 +166,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 # NOTE: same as above, but starting with User
                 #
                 # Find Users who have at least one Issue without time_estimates
-                WITH MODULE test
                 SELECT User{name}
                 FILTER
                     EXISTS (
@@ -193,7 +186,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 #
                 # Find Users who have at least one Issue without time_estimates
                 WITH
-                    MODULE test,
                     U2 := User
                 SELECT User{name}
                 FILTER
@@ -216,7 +208,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 #
                 # Find Users who own at least one Issue with simultaneously
                 # having a time_estimate and a due_date.
-                WITH MODULE test
                 SELECT User{name}
                 FILTER
                     EXISTS (
@@ -238,7 +229,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 #
                 # Find Users who own at least one Issue with simultaneously
                 # time_estimate > 9000 and due_date on 2020/01/15.
-                WITH MODULE test
                 SELECT User{name}
                 FILTER
                     EXISTS (
@@ -265,7 +255,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 # Find Users who own at least one Issue with simultaneously
                 # time_estimate > 9000 and due_date on 2020/01/15.
                 WITH
-                    MODULE test,
                     U2 := User
                 SELECT User{name}
                 FILTER
@@ -292,7 +281,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                 # Find Users who own at least one Issue with simultaneously
                 # time_estimate > 9000 and due_date on 2020/01/15.
                 WITH
-                    MODULE test,
                     U2 := User
                 SELECT User{name}
                 FILTER
@@ -317,7 +305,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_short_form01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Status{name}
                 FILTER .name = 'Open';
             ''',
@@ -329,7 +316,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             r'''
                 # test that shape spec is not necessary to use short form
                 # in the filter
-                WITH MODULE test
                 SELECT Status
                 FILTER .name = 'Open';
             ''',
@@ -339,7 +325,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_flow01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Issue.number
                 FILTER TRUE
                 ORDER BY Issue.number;
@@ -349,7 +334,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Issue.number
                 # obviously irrelevant filter, simply equivalent to TRUE
                 FILTER Status.name = 'Closed'
@@ -361,7 +345,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_flow02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Issue.number
                 FILTER FALSE
                 ORDER BY Issue.number;
@@ -371,7 +354,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Issue.number
                 # obviously irrelevant filter, simply equivalent to FALSE
                 FILTER Status.name = 'XXX'
@@ -384,7 +366,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # base line for a cross product
-                WITH MODULE test
                 SELECT _ := Issue.number ++ Status.name
                 ORDER BY _;
             ''',
@@ -399,7 +380,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # interaction of filter and cross product
-                WITH MODULE test
                 SELECT _ := (
                         SELECT Issue
                         FILTER Issue.owner.name = 'Elvis'
@@ -411,7 +391,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT _ := (
                         SELECT Issue
                         FILTER Issue.owner.name = 'Elvis'
@@ -430,7 +409,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # the FILTER clause is always empty, so it can never be true
-                WITH MODULE test
                 SELECT Issue{number}
                 FILTER {};
             """,
@@ -441,7 +419,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # the FILTER clause evaluates to empty, so it can never be true
-                WITH MODULE test
                 SELECT Issue{number}
                 FILTER Issue.number = <str>{};
             """,
@@ -450,7 +427,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Issue{number}
                 FILTER Issue.priority = <Object>{};
             """,
@@ -459,7 +435,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Issue{number}
                 FILTER Issue.priority.name = <str>{};
             """,
@@ -469,7 +444,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_aggregate01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT count(Issue);
             ''',
             [4],
@@ -478,7 +452,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
     async def test_edgeql_filter_aggregate04(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT count(Issue)
                 # this filter is not related to the aggregate and is allowed
                 #
@@ -489,7 +462,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT count(Issue)
                 # this filter is conceptually equivalent to the above
                 FILTER TRUE;
@@ -501,7 +473,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     I := (SELECT Issue FILTER Issue.status.name = 'Open')
                 SELECT count(I);
             ''',
@@ -513,7 +484,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
             r'''
                 # regardless of what count evaluates to, FILTER clause is
                 # impossible to fulfill, so the result is empty
-                WITH MODULE test
                 SELECT count(Issue)
                 FILTER FALSE;
             ''',
@@ -522,7 +492,6 @@ class TestEdgeQLFilter(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT count(Issue)
                 FILTER {};
             ''',

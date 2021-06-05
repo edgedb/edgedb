@@ -2233,7 +2233,6 @@ class TestExpressions(tb.QueryTestCase):
 
         for case in cases:
             await self.con.execute('''
-                WITH MODULE test
                 SELECT
                     Issue {
                         number
@@ -2269,7 +2268,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 SELECT Issue.owner
                 FILTER Issue.number > '2';
             """)
@@ -2282,7 +2280,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 SELECT Issue.id
                 FILTER Issue.number > '2';
             """)
@@ -2295,7 +2292,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 SELECT Issue.owner {
                     foo := Issue.number
                 };
@@ -2309,7 +2305,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 UPDATE Issue.owner
                 FILTER Issue.number > '2'
                 SET {
@@ -2324,7 +2319,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 UPDATE Issue.related_to
                 SET {
                     related_to := Issue
@@ -2333,19 +2327,17 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_polymorphic_01(self):
         await self.con.execute(r"""
-            WITH MODULE test
             SELECT Text {
                 [IS Issue].number,
                 [IS Issue].related_to,
                 [IS Issue].`priority`,
-                [IS test::Comment].owner: {
+                [IS Comment].owner: {
                     name
                 }
             };
         """)
 
         await self.con.execute(r"""
-            WITH MODULE test
             SELECT Owned {
                 [IS Named].name
             };
@@ -2956,7 +2948,8 @@ class TestExpressions(tb.QueryTestCase):
             '''
                 WITH
                     MODULE schema,
-                    A := (SELECT ScalarType FILTER .name = 'test::issue_num_t')
+                    A := (SELECT ScalarType
+                          FILTER .name = 'default::issue_num_t')
                 SELECT [A.name, A.default];
             ''',
             [],
@@ -3816,9 +3809,9 @@ aa \
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to __type__'):
             await self.con.query(r"""
-                SELECT test::Text {
+                SELECT Text {
                     __type__ := (SELECT schema::ObjectType
-                                 FILTER .name = 'test::Named')
+                                 FILTER .name = 'default::Named')
                 };
             """)
 
@@ -3826,7 +3819,7 @@ aa \
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to id'):
             await self.con.execute(r"""
-                SELECT test::Text {
+                SELECT Text {
                     id := <uuid>'77841036-8e35-49ce-b509-2cafa0c25c4f'
                 };
             """)
@@ -4256,10 +4249,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=71):
+                _position=38):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT Issue ORDER BY Issue.watchers.name;
             ''')
 
@@ -4268,10 +4260,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=62):
+                _position=29):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT Issue LIMIT LogEntry.spent_time;
             ''')
 
@@ -4280,10 +4271,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=62):
+                _position=29):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT Issue OFFSET LogEntry.spent_time;
             ''')
 
@@ -4292,10 +4282,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=78):
+                _position=45):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT EXISTS Issue ORDER BY Issue.name;
             ''')
 
@@ -4304,10 +4293,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=85):
+                _position=52):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT 'foo' IN Issue.name ORDER BY Issue.name;
             ''')
 
@@ -4316,10 +4304,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=82):
+                _position=49):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT Issue UNION Text ORDER BY Issue.name;
             ''')
 
@@ -4328,10 +4315,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=80):
+                _position=47):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT DISTINCT Issue ORDER BY Issue.name;
             ''')
 

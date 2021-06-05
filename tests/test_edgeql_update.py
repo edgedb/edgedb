@@ -41,7 +41,6 @@ class TestUpdate(tb.QueryTestCase):
     @classmethod
     async def _setup_objects(cls):
         cls.original = await cls.con.query_json(r"""
-            WITH MODULE test
             SELECT UpdateTest {
                 id,
                 name,
@@ -57,7 +56,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_simple_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 # bad name doesn't exist, so no update is expected
                 FILTER .name = 'bad name'
@@ -70,7 +68,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     id,
                     name,
@@ -88,7 +85,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -101,7 +97,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     id,
                     name,
@@ -129,7 +124,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test2'
                 SET {
@@ -141,7 +135,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     id,
                     name,
@@ -170,7 +163,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 SET {
                     comment := UpdateTest.comment ++ "!",
@@ -182,7 +174,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     id,
                     name,
@@ -223,7 +214,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     UPDATE UpdateTest
                     FILTER UpdateTest.name = 'update-test2'
@@ -248,7 +238,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     UPDATE UpdateTest
                     SET {
@@ -297,7 +286,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     U := (
                         UPDATE UpdateTest
                         FILTER UpdateTest.name = 'update-test2'
@@ -318,7 +306,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     Q := (
                         UPDATE UpdateTest
                         SET {
@@ -370,12 +357,12 @@ class TestUpdate(tb.QueryTestCase):
         try:
             data = []
             data.append(await self.con.query_one(r"""
-                INSERT test::UpdateTest {
+                INSERT UpdateTest {
                     name := 'ret5.1'
                 };
             """))
             data.append(await self.con.query_one(r"""
-                INSERT test::UpdateTest {
+                INSERT UpdateTest {
                     name := 'ret5.2'
                 };
             """))
@@ -383,7 +370,6 @@ class TestUpdate(tb.QueryTestCase):
 
             await self.assert_query_result(
                 r"""
-                    WITH MODULE test
                     SELECT UpdateTest {
                         id,
                         name
@@ -405,7 +391,6 @@ class TestUpdate(tb.QueryTestCase):
 
             await self.assert_query_result(
                 r"""
-                    WITH MODULE test
                     UPDATE UpdateTest
                     FILTER UpdateTest.name LIKE '%ret5._'
                     SET {
@@ -418,7 +403,6 @@ class TestUpdate(tb.QueryTestCase):
 
             await self.assert_query_result(
                 r"""
-                    WITH MODULE test
                     SELECT UpdateTest {
                         id,
                         name
@@ -440,7 +424,6 @@ class TestUpdate(tb.QueryTestCase):
 
             objs = await self.con._fetchall(
                 r"""
-                    WITH MODULE test
                     UPDATE UpdateTest
                     FILTER UpdateTest.name LIKE '%ret5._'
                     SET {
@@ -451,19 +434,18 @@ class TestUpdate(tb.QueryTestCase):
                 __typeids__=True
             )
             self.assertTrue(hasattr(objs[0], '__tid__'))
-            self.assertEqual(objs[0].__tname__, 'test::UpdateTest')
+            self.assertEqual(objs[0].__tname__, 'default::UpdateTest')
 
         finally:
             await self.con.execute(r"""
                 DELETE (
-                    SELECT test::UpdateTest
+                    SELECT UpdateTest
                     FILTER .name LIKE '%ret5._'
                 );
             """)
 
     async def test_edgeql_update_generic_01(self):
         status = await self.con.query_one(r"""
-            WITH MODULE test
             SELECT Status{id}
             FILTER Status.name = 'Open'
             LIMIT 1;
@@ -472,7 +454,6 @@ class TestUpdate(tb.QueryTestCase):
 
         updated = await self.con.query(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test3'
                 SET {
@@ -488,7 +469,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     status: {
@@ -509,7 +489,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_filter_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE (SELECT UpdateTest)
                 # this FILTER is trivial because UpdateTest is wrapped
                 # into a SET OF by SELECT
@@ -523,7 +502,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest.comment;
             """,
             ['bad test'] * 3,
@@ -532,7 +510,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_filter_02(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE (<UpdateTest>{} ?? UpdateTest)
                 # this FILTER is trivial because UpdateTest is wrapped
                 # into a SET OF by ??
@@ -546,7 +523,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest.comment;
             """,
             ['bad test'] * 3,
@@ -555,7 +531,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_multiple_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -567,7 +542,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     tags: {
@@ -592,7 +566,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_multiple_02(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -604,7 +577,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     tags: {
@@ -625,7 +597,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_multiple_03(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -637,7 +608,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     tags: {
@@ -661,7 +631,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # first add a tag to UpdateTest
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -676,7 +645,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     tags: {
@@ -695,7 +663,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # now add another tag, but keep the existing one, too
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -710,7 +677,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     tags: {
@@ -732,7 +698,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     U2 := UpdateTest
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
@@ -745,7 +710,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     related: {
@@ -769,7 +733,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     U2 := UpdateTest
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
@@ -784,7 +747,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_tests: {
@@ -811,7 +773,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     U2 := UpdateTest
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
@@ -828,7 +789,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_tests: {
@@ -853,17 +813,14 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_multiple_08(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-8-1',
             };
 
-            WITH MODULE test
             INSERT UpdateTestSubType {
                 name := 'update-test-8-2',
             };
 
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'update-test-8-3',
             };
@@ -873,7 +830,6 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 # make tests related to the other 2
                 WITH
-                    MODULE test,
                     UT := (SELECT UpdateTest
                            FILTER .name LIKE 'update-test-8-%')
                 UPDATE UpdateTest
@@ -891,7 +847,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
@@ -928,7 +883,6 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 # now update related tests based on existing related tests
                 WITH
-                    MODULE test,
                     UT := (SELECT UpdateTest
                            FILTER .name LIKE 'update-test-8-%')
                 UPDATE UpdateTest
@@ -948,7 +902,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
@@ -986,17 +939,14 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_multiple_09(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-9-1',
             };
 
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-9-2',
             };
 
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-9-3',
             };
@@ -1006,7 +956,6 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 # make tests related to the other 2
                 WITH
-                    MODULE test,
                     UT := (SELECT UpdateTest
                            FILTER .name LIKE 'update-test-9-%')
                 UPDATE UpdateTest
@@ -1024,7 +973,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
@@ -1061,7 +1009,6 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 # now update related tests based on existing related tests
                 WITH
-                    MODULE test,
                     UT := (SELECT UpdateTest
                            FILTER .name LIKE 'update-test-9-%')
                 UPDATE UpdateTest
@@ -1080,7 +1027,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
@@ -1112,17 +1058,14 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_multiple_10(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-10-1',
             };
 
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-10-2',
             };
 
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-10-3',
             };
@@ -1132,7 +1075,6 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 # make each test related to 'update-test-10-1'
                 WITH
-                    MODULE test,
                     UT := (
                         SELECT UpdateTest FILTER .name = 'update-test-10-1'
                     )
@@ -1151,7 +1093,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
@@ -1184,7 +1125,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # now update related tests
-                WITH MODULE test
                 # there's only one item in the UPDATE set
                 UPDATE UpdateTest.related
                 FILTER .name LIKE 'update-test-10-%'
@@ -1198,7 +1138,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest{
                     name,
                     related: {name} ORDER BY .name
@@ -1233,7 +1172,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_props_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -1252,7 +1190,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     weighted_tags: {
@@ -1281,7 +1218,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_props_02(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -1294,7 +1230,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     weighted_tags: {
@@ -1317,7 +1252,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_props_03(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -1333,7 +1267,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     weighted_tags: {
@@ -1359,7 +1292,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_props_05(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -1375,7 +1307,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_status: {
@@ -1398,7 +1329,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_props_06(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -1414,7 +1344,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_status: {
@@ -1437,7 +1366,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_props_07(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -1451,7 +1379,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_status: {
@@ -1474,7 +1401,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_props_08(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -1491,7 +1417,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # update again, erasing the 'note' value
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
@@ -1505,7 +1430,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_status: {
@@ -1528,7 +1452,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_for_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 FOR x IN {
                         (name := 'update-test1', comment := 'foo'),
                         (name := 'update-test2', comment := 'bar')
@@ -1546,7 +1469,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     comment
@@ -1571,7 +1493,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_for_02(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 FOR x IN {
                         'update-test1',
                         'update-test2',
@@ -1589,7 +1510,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     comment
@@ -1614,7 +1534,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_for_03(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 FOR x IN {
                         'update-test1',
                         'update-test2',
@@ -1632,7 +1551,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     str_tags,
@@ -1658,7 +1576,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # just clear all the comments
-                WITH MODULE test
                 UPDATE UpdateTest
                 SET {
                     comment := {}
@@ -1669,7 +1586,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest.comment;
             """,
             {},
@@ -1681,7 +1597,6 @@ class TestUpdate(tb.QueryTestCase):
                 r"invalid target for property.*std::int64.*expecting .*str'"):
             await self.con.execute(r"""
                 # just clear all the comments
-                WITH MODULE test
                 UPDATE UpdateTest
                 SET {
                     comment := <int64>{}
@@ -1694,7 +1609,6 @@ class TestUpdate(tb.QueryTestCase):
                 r"missing value for required property"):
             await self.con.execute(r"""
                 # just clear all the comments
-                WITH MODULE test
                 UPDATE UpdateTest
                 SET {
                     name := {}
@@ -1705,7 +1619,6 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # just clear all the statuses
-                WITH MODULE test
                 UPDATE UpdateTest
                 SET {
                     status := {}
@@ -1716,7 +1629,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest.status;
             """,
             {},
@@ -1726,10 +1638,9 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link.*std::Object.*"
-                r"expecting 'test::Status'"):
+                r"expecting 'default::Status'"):
             await self.con.execute(r"""
                 # just clear all the statuses
-                WITH MODULE test
                 UPDATE UpdateTest
                 SET {
                     status := <Object>{}
@@ -1741,7 +1652,6 @@ class TestUpdate(tb.QueryTestCase):
                 edgedb.QueryError,
                 'single'):
             await self.con.execute(r'''
-                SET MODULE test;
 
                 UPDATE UpdateTest
                 SET {
@@ -1752,7 +1662,6 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_cardinality_02(self):
         await self.assert_query_result(r'''
             WITH
-                MODULE test,
                 x1 := (
                     UPDATE UpdateTest
                     FILTER .name = 'update-test1'
@@ -1783,7 +1692,6 @@ class TestUpdate(tb.QueryTestCase):
         # test and UPDATE with a new object
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER .name = 'update-test1'
                 SET {
@@ -1799,7 +1707,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     tags: {
@@ -1821,7 +1728,6 @@ class TestUpdate(tb.QueryTestCase):
         # test and UPDATE with a new object
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER .name = 'update-test1'
                 SET {
@@ -1837,7 +1743,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     status: {
@@ -1859,7 +1764,6 @@ class TestUpdate(tb.QueryTestCase):
         # test and UPDATE with a collection
         await self.con.execute(
             r"""
-                WITH MODULE test
                 UPDATE CollectionTest
                 FILTER .name = 'collection-test1'
                 SET {
@@ -1870,7 +1774,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT CollectionTest {
                     name,
                     some_tuple,
@@ -1888,7 +1791,6 @@ class TestUpdate(tb.QueryTestCase):
         # test and UPDATE with a collection
         await self.con.execute(
             r"""
-                WITH MODULE test
                 UPDATE CollectionTest
                 FILTER .name = 'collection-test1'
                 SET {
@@ -1899,7 +1801,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT CollectionTest {
                     name,
                     str_array,
@@ -1918,7 +1819,6 @@ class TestUpdate(tb.QueryTestCase):
                 edgedb.QueryError,
                 'UPDATE statements cannot be used'):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT
                     (SELECT UpdateTest)
                     ??
@@ -1930,7 +1830,6 @@ class TestUpdate(tb.QueryTestCase):
                 edgedb.QueryError,
                 'UPDATE statements cannot be used'):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT
                     (SELECT UpdateTest FILTER .name = 'foo')
                     IF EXISTS UpdateTest
@@ -1946,7 +1845,6 @@ class TestUpdate(tb.QueryTestCase):
                 edgedb.QueryError,
                 "cannot reference correlated set 'Status' here"):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT (
                     Status,
                     (UPDATE UpdateTest SET {
@@ -1960,7 +1858,6 @@ class TestUpdate(tb.QueryTestCase):
                 edgedb.QueryError,
                 "cannot reference correlated set 'Status' here"):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT (
                     (UPDATE UpdateTest SET {
                         status := Status
@@ -1974,7 +1871,6 @@ class TestUpdate(tb.QueryTestCase):
                 edgedb.QueryError,
                 "cannot reference correlated set 'UpdateTest' here"):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT (
                     UpdateTest,
                     (UPDATE UpdateTest SET {name := 'update bad'}),
@@ -1986,10 +1882,9 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot update link 'readonly_tag': "
             "it is declared as read-only",
-            _position=180,
+            _position=147,
         ):
             await self.con.execute(r'''
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER .name = 'update-test-readonly'
                 SET {
@@ -2002,10 +1897,9 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot update property 'readonly_note': "
             "it is declared as read-only",
-            _position=181,
+            _position=148,
         ):
             await self.con.execute(r'''
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER .name = 'update-test-readonly'
                 SET {
@@ -2018,10 +1912,9 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "cannot update property 'readonly_note': "
             "it is declared as read-only",
-            _position=223,
+            _position=190,
         ):
             await self.con.execute(r'''
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER .name = 'update-test-readonly'
                 SET {
@@ -2033,17 +1926,14 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_append_01(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-append-1',
             };
 
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-append-2',
             };
 
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-append-3',
             };
@@ -2051,7 +1941,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.con.execute("""
             WITH
-                MODULE test,
                 U2 := UpdateTest
             UPDATE UpdateTest
             FILTER .name = 'update-test-append-1'
@@ -2064,7 +1953,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_tests: {
@@ -2086,7 +1974,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.con.execute("""
             WITH
-                MODULE test,
                 U2 := UpdateTest
             UPDATE UpdateTest
             FILTER .name = 'update-test-append-1'
@@ -2100,7 +1987,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_tests: {
@@ -2128,10 +2014,9 @@ class TestUpdate(tb.QueryTestCase):
             edgedb.QueryError,
             "possibly more than one element returned by an expression"
             " for a computable link 'annotated_status' declared as 'single'",
-            _position=147,
+            _position=114,
         ):
             await self.con.execute("""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER .name = 'foo'
                 SET {
@@ -2145,10 +2030,9 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"unexpected '\+='",
-            _position=123,
+            _position=90,
         ):
             await self.con.execute("""
-                WITH MODULE test
                 INSERT UpdateTest
                 {
                     annotated_status += (
@@ -2161,10 +2045,9 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"unexpected '\+='",
-            _position=123,
+            _position=90,
         ):
             await self.con.execute("""
-                WITH MODULE test
                 SELECT UpdateTest
                 {
                     annotated_status += (
@@ -2175,17 +2058,14 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_subtract_01(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-subtract-1',
             };
 
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-subtract-2',
             };
 
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-subtract-3',
             };
@@ -2193,7 +2073,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.con.execute("""
             WITH
-                MODULE test,
                 U2 := UpdateTest
             UPDATE UpdateTest
             FILTER .name = 'update-test-subtract-1'
@@ -2214,7 +2093,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.con.execute("""
             WITH
-                MODULE test,
                 U2 := UpdateTest
             UPDATE UpdateTest
             FILTER .name = 'update-test-subtract-3'
@@ -2234,7 +2112,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_tests: {
@@ -2271,7 +2148,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.con.execute("""
             WITH
-                MODULE test,
                 U2 := UpdateTest
             UPDATE UpdateTest
             FILTER .name = 'update-test-subtract-1'
@@ -2285,7 +2161,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     annotated_tests: {
@@ -2319,7 +2194,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_subtract_02(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-subtract-various',
                 annotated_status := (
@@ -2334,7 +2208,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     annotated_status: {
                         name,
@@ -2359,8 +2232,6 @@ class TestUpdate(tb.QueryTestCase):
 
         # Check that singleton links work.
         await self.con.execute("""
-            WITH
-                MODULE test
             UPDATE UpdateTest
             FILTER .name = 'update-test-subtract-various'
             SET {
@@ -2370,7 +2241,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     annotated_status: {
                         name,
@@ -2388,8 +2258,6 @@ class TestUpdate(tb.QueryTestCase):
 
         # And singleton properties too.
         await self.con.execute("""
-            WITH
-                MODULE test
             UPDATE UpdateTest
             FILTER .name = 'update-test-subtract-various'
             SET {
@@ -2399,7 +2267,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     comment,
                 } FILTER
@@ -2414,8 +2281,6 @@ class TestUpdate(tb.QueryTestCase):
 
         # And multi properties as well.
         await self.con.execute("""
-            WITH
-                MODULE test
             UPDATE UpdateTest
             FILTER .name = 'update-test-subtract-various'
             SET {
@@ -2425,7 +2290,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     str_tags,
                 } FILTER
@@ -2440,7 +2304,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_subtract_required(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT MultiRequiredTest {
                 name := 'update-test-subtract-required',
                 prop := {'one', 'two'},
@@ -2449,7 +2312,6 @@ class TestUpdate(tb.QueryTestCase):
         """)
 
         await self.con.execute("""
-            WITH MODULE test
             UPDATE MultiRequiredTest
             FILTER .name = 'update-test-subtract-required'
             SET {
@@ -2459,7 +2321,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT MultiRequiredTest {
                     prop,
                 } FILTER
@@ -2477,7 +2338,6 @@ class TestUpdate(tb.QueryTestCase):
             r"missing value for required property 'prop'",
         ):
             await self.con.execute("""
-                WITH MODULE test
                 UPDATE MultiRequiredTest
                 FILTER .name = 'update-test-subtract-required'
                 SET {
@@ -2486,7 +2346,6 @@ class TestUpdate(tb.QueryTestCase):
             """)
 
         await self.con.execute("""
-            WITH MODULE test
             UPDATE MultiRequiredTest
             FILTER .name = 'update-test-subtract-required'
             SET {
@@ -2496,7 +2355,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT MultiRequiredTest {
                     tags: {name}
                 } FILTER
@@ -2514,7 +2372,6 @@ class TestUpdate(tb.QueryTestCase):
             r"missing value for required link 'tags'",
         ):
             await self.con.execute("""
-                WITH MODULE test
                 UPDATE MultiRequiredTest
                 FILTER .name = 'update-test-subtract-required'
                 SET {
@@ -2526,10 +2383,9 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             r"unexpected '-='",
-            _position=123,
+            _position=90,
         ):
             await self.con.execute("""
-                WITH MODULE test
                 INSERT UpdateTest
                 {
                     annotated_status -= (
@@ -2540,7 +2396,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_insert_01(self):
         await self.con.execute('''
-            WITH MODULE test
             UPDATE UpdateTest SET {
                 tags := (INSERT Tag { name := <str>random() })
             };
@@ -2548,7 +2403,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT count(UpdateTest.tags);
             """,
             [3],
@@ -2556,7 +2410,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_insert_02(self):
         await self.con.execute('''
-            WITH MODULE test
             UPDATE UpdateTest SET {
                 status := (INSERT Status { name := <str>random() })
             };
@@ -2564,7 +2417,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT count(UpdateTest.status);
             """,
             [3],
@@ -2572,7 +2424,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_inheritance_01(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-inh-supertype-1',
                 related := (
@@ -2581,7 +2432,6 @@ class TestUpdate(tb.QueryTestCase):
                 )
             };
 
-            WITH MODULE test
             INSERT UpdateTestSubType {
                 name := 'update-test-inh-subtype-1',
                 related := (
@@ -2593,7 +2443,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER .name = 'update-test-inh-subtype-1'
                 SET {
@@ -2609,7 +2458,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     comment,
@@ -2640,7 +2488,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_inheritance_02(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT UpdateTest {
                 name := 'update-test-inh-supertype-1',
                 related := (
@@ -2649,7 +2496,6 @@ class TestUpdate(tb.QueryTestCase):
                 )
             };
 
-            WITH MODULE test
             INSERT UpdateTestSubType {
                 name := 'update-test-inh-subtype-1',
                 related := (
@@ -2658,7 +2504,6 @@ class TestUpdate(tb.QueryTestCase):
                 )
             };
 
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'update-test-inh-subtype-1',
                 related := (
@@ -2670,7 +2515,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTest
                 FILTER .name = 'update-test-inh-subtype-1'
                 SET {
@@ -2686,7 +2530,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     name,
                     comment,
@@ -2724,7 +2567,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_inheritance_03(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'update-test-w-insert',
             };
@@ -2732,7 +2574,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 UPDATE UpdateTestSubType
                 FILTER .name = 'update-test-w-insert'
                 SET {
@@ -2744,7 +2585,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UpdateTest {
                     tags: {name},
                 }
@@ -2761,7 +2601,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_add_dupes_01a(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'add-dupes-scalar',
                 str_tags := {'foo', 'bar'},
@@ -2770,7 +2609,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     UPDATE UpdateTestSubSubType
                     FILTER .name = 'add-dupes-scalar'
@@ -2787,12 +2625,10 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_add_dupes_01b(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'add-dupes-scalar-foo',
                 str_tags := {'foo', 'baz'},
             };
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'add-dupes-scalar-bar',
                 str_tags := {'bar', 'baz'},
@@ -2801,7 +2637,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     FOR x in {'foo', 'bar'} UNION (
                         UPDATE UpdateTestSubSubType
@@ -2826,7 +2661,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     FOR x in {'foo', 'bar'} UNION (
                         UPDATE UpdateTestSubSubType
@@ -2851,7 +2685,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     FOR x in {'foo', 'bar'} UNION (
                         UPDATE UpdateTestSubSubType
@@ -2876,7 +2709,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_add_dupes_02(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'add-dupes',
                 tags := (SELECT Tag FILTER .name IN {'fun', 'wow'})
@@ -2885,7 +2717,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     UPDATE UpdateTestSubSubType
                     FILTER .name = 'add-dupes'
@@ -2910,7 +2741,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_add_dupes_03(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'add-dupes',
                 tags := (SELECT Tag FILTER .name IN {'fun', 'wow'})
@@ -2919,7 +2749,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     UPDATE UpdateTestSubSubType
                     FILTER .name = 'add-dupes'
@@ -2945,7 +2774,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_add_dupes_04(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'add-dupes-lprop',
                 weighted_tags := (
@@ -2956,7 +2784,6 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     UPDATE UpdateTestSubSubType
                     FILTER .name = 'add-dupes-lprop'
@@ -2980,7 +2807,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_covariant_01(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'update-covariant',
             };
@@ -2989,7 +2815,6 @@ class TestUpdate(tb.QueryTestCase):
         # Covariant updates should work if the types actually work at
         # runtime
         await self.con.execute("""
-            WITH MODULE test
             UPDATE UpdateTestSubType
             FILTER .name = "update-covariant"
             SET {
@@ -3001,10 +2826,9 @@ class TestUpdate(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link 'status' of object type "
-                r"'test::UpdateTestSubSubType': 'test::Status' "
-                r"\(expecting 'test::MajorLifeEvent'\)"):
+                r"'default::UpdateTestSubSubType': 'default::Status' "
+                r"\(expecting 'default::MajorLifeEvent'\)"):
             await self.con.execute("""
-                WITH MODULE test
                 UPDATE UpdateTestSubType
                 FILTER .name = "update-covariant"
                 SET {
@@ -3015,10 +2839,9 @@ class TestUpdate(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link 'status' of object type "
-                r"'test::UpdateTestSubSubType': 'test::Status' "
-                r"\(expecting 'test::MajorLifeEvent'\)"):
+                r"'default::UpdateTestSubSubType': 'default::Status' "
+                r"\(expecting 'default::MajorLifeEvent'\)"):
             await self.con.execute("""
-                WITH MODULE test
                 UPDATE UpdateTestSubType
                 FILTER .name = "update-covariant"
                 SET {
@@ -3028,7 +2851,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_covariant_02(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'update-covariant',
             };
@@ -3037,7 +2859,6 @@ class TestUpdate(tb.QueryTestCase):
         # Covariant updates should work if the types actually work at
         # runtime
         await self.con.execute("""
-            WITH MODULE test
             UPDATE UpdateTestSubType
             FILTER .name = "update-covariant"
             SET {
@@ -3050,10 +2871,9 @@ class TestUpdate(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link 'statuses' of object type "
-                r"'test::UpdateTestSubSubType': 'test::Status' "
-                r"\(expecting 'test::MajorLifeEvent'\)"):
+                r"'default::UpdateTestSubSubType': 'default::Status' "
+                r"\(expecting 'default::MajorLifeEvent'\)"):
             await self.con.execute("""
-                WITH MODULE test
                 UPDATE UpdateTestSubType
                 FILTER .name = "update-covariant"
                 SET {
@@ -3064,10 +2884,9 @@ class TestUpdate(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link 'statuses' of object type "
-                r"'test::UpdateTestSubSubType': 'test::Status' "
-                r"\(expecting 'test::MajorLifeEvent'\)"):
+                r"'default::UpdateTestSubSubType': 'default::Status' "
+                r"\(expecting 'default::MajorLifeEvent'\)"):
             await self.con.execute("""
-                WITH MODULE test
                 UPDATE UpdateTestSubType
                 FILTER .name = "update-covariant"
                 SET {
@@ -3077,7 +2896,6 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_covariant_03(self):
         await self.con.execute("""
-            WITH MODULE test
             INSERT UpdateTestSubSubType {
                 name := 'update-covariant',
             };
@@ -3088,7 +2906,6 @@ class TestUpdate(tb.QueryTestCase):
         # Covariant updates should work if the types actually work at
         # runtime
         await self.con.execute("""
-            WITH MODULE test
             UPDATE UpdateTestSubType
             FILTER .name = "update-covariant"
             SET {
@@ -3102,10 +2919,9 @@ class TestUpdate(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link 'statuses' of object type "
-                r"'test::UpdateTestSubSubType': 'test::Status' "
-                r"\(expecting 'test::MajorLifeEvent'\)"):
+                r"'default::UpdateTestSubSubType': 'default::Status' "
+                r"\(expecting 'default::MajorLifeEvent'\)"):
             await self.con.execute("""
-                WITH MODULE test
                 UPDATE UpdateTestSubType
                 FILTER .name = "update-covariant"
                 SET {
@@ -3120,10 +2936,9 @@ class TestUpdate(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link 'statuses' of object type "
-                r"'test::UpdateTestSubSubType': 'test::Status' "
-                r"\(expecting 'test::MajorLifeEvent'\)"):
+                r"'default::UpdateTestSubSubType': 'default::Status' "
+                r"\(expecting 'default::MajorLifeEvent'\)"):
             await self.con.execute("""
-                WITH MODULE test
                 UPDATE UpdateTestSubType
                 FILTER .name = "update-covariant"
                 SET {

@@ -36,32 +36,32 @@ class TestInsert(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.MissingRequiredError,
             r"missing value for required property"
-            r" 'l2' of object type 'test::InsertTest'",
+            r" 'l2' of object type 'default::InsertTest'",
         ):
             await self.con.execute('''
-                INSERT test::InsertTest;
+                INSERT InsertTest;
             ''')
 
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
-            INSERT test::InsertTest {
+            INSERT InsertTest {
                 name := 'insert simple 01',
                 l2 := 0,
             };
 
-            INSERT test::InsertTest {
+            INSERT InsertTest {
                 name := 'insert simple 01',
                 l3 := "Test\"1\"",
                 l2 := 1
             };
 
-            INSERT test::InsertTest {
+            INSERT InsertTest {
                 name := 'insert simple 01',
                 l3 := 'Test\'2\'',
                 l2 := 2
             };
 
-            INSERT test::InsertTest {
+            INSERT InsertTest {
                 name := 'insert simple 01',
                 l3 := '\"Test\'3\'\"',
                 l2 := 3
@@ -71,13 +71,13 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 SELECT
-                    test::InsertTest {
+                    InsertTest {
                         l2, l3
                     }
                 FILTER
-                    test::InsertTest.name = 'insert simple 01'
+                    InsertTest.name = 'insert simple 01'
                 ORDER BY
-                    test::InsertTest.l2;
+                    InsertTest.l2;
             """,
             [
                 {
@@ -101,17 +101,15 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_simple_02(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT DefaultTest1 { foo := '02' };
 
-            INSERT test::DefaultTest1 { foo := '02' };
+            INSERT DefaultTest1 { foo := '02' };
 
-            INSERT test::DefaultTest1 { foo := '02' };
+            INSERT DefaultTest1 { foo := '02' };
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT DefaultTest1 { num } FILTER DefaultTest1.foo = '02';
             ''',
             [{'num': 42}, {'num': 42}, {'num': 42}],
@@ -119,23 +117,21 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_simple_03(self):
         await self.con.execute('''
-            INSERT test::DefaultTest1 { num := 100 };
+            INSERT DefaultTest1 { num := 100 };
 
-            WITH MODULE test
             INSERT DefaultTest2;
 
-            INSERT test::DefaultTest1 { num := 101 };
+            INSERT DefaultTest1 { num := 101 };
 
-            INSERT test::DefaultTest2;
+            INSERT DefaultTest2;
 
-            INSERT test::DefaultTest1 { num := 102 };
+            INSERT DefaultTest1 { num := 102 };
 
-            INSERT test::DefaultTest2;
+            INSERT DefaultTest2;
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT DefaultTest2 { num }
                 ORDER BY DefaultTest2.num;
             ''',
@@ -144,34 +140,34 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_nested_01(self):
         await self.con.execute('''
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'subtest 1'
             };
 
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'subtest 2'
             };
 
-            INSERT test::InsertTest {
+            INSERT InsertTest {
                 name := 'insert nested',
                 l2 := 0,
                 subordinates := (
-                    SELECT test::Subordinate
-                    FILTER test::Subordinate.name LIKE 'subtest%'
+                    SELECT Subordinate
+                    FILTER Subordinate.name LIKE 'subtest%'
                 )
             };
         ''')
 
         await self.assert_query_result(
             r'''
-                SELECT test::InsertTest {
+                SELECT InsertTest {
                     subordinates: {
                         name,
                         @comment,
-                    } ORDER BY test::InsertTest.subordinates.name
+                    } ORDER BY InsertTest.subordinates.name
                 }
                 FILTER
-                    test::InsertTest.name = 'insert nested';
+                    InsertTest.name = 'insert nested';
             ''',
             [{
                 'subordinates': [{
@@ -186,17 +182,14 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_nested_02(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT Subordinate {
                 name := 'subtest 3'
             };
 
-            WITH MODULE test
             INSERT Subordinate {
                 name := 'subtest 4'
             };
 
-            WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 2',
                 l2 := 0,
@@ -211,7 +204,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT InsertTest {
                     subordinates: {
                         name,
@@ -234,7 +226,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_nested_03(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 3',
                 l2 := 0,
@@ -246,7 +237,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT InsertTest {
                     subordinates: {
                         name
@@ -264,7 +254,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_nested_04(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 4',
                 l2 := 0,
@@ -277,7 +266,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT InsertTest {
                     subordinates: {
                         name,
@@ -297,15 +285,14 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_nested_05(self):
         await self.con.execute('''
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'only subordinate'
             };
 
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'never subordinate'
             };
 
-            WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 5',
                 l2 := 0,
@@ -318,7 +305,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT InsertTest {
                     name,
                     l2,
@@ -344,12 +330,10 @@ class TestInsert(tb.QueryTestCase):
     ''')
     async def test_edgeql_insert_nested_06(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT Subordinate {
                 name := 'linkprop test target 6'
             };
 
-            WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 6',
                 l2 := 0,
@@ -364,7 +348,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT InsertTest {
                     subordinates: {
                         name,
@@ -387,7 +370,6 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.EdgeQLSyntaxError,
                 "Unexpected 'Subordinate'"):
             await self.con.execute('''
-                WITH MODULE test
                 INSERT InsertTest {
                     subordinates: Subordinate {
                         name := 'nested sub 7.1',
@@ -399,7 +381,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_nested_08(self):
         await self.assert_query_result(r'''
             WITH
-                MODULE test,
                 x1 := (
                     INSERT InsertTest {
                         name := 'insert nested 8',
@@ -425,7 +406,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_nested_09(self):
         # test a single link with a link property
         await self.con.execute(r'''
-            WITH MODULE test
             INSERT InsertTest {
                 name := 'insert nested 9',
                 l2 := 0,
@@ -439,7 +419,6 @@ class TestInsert(tb.QueryTestCase):
         ''')
 
         await self.assert_query_result(r'''
-            WITH MODULE test
             SELECT InsertTest {
                 name,
                 sub: {
@@ -463,7 +442,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_nested_10(self):
         # test a single link with a link property
         await self.con.execute(r'''
-            SET MODULE test;
 
             INSERT Subordinate {
                 name := 'nested sub 10',
@@ -483,7 +461,6 @@ class TestInsert(tb.QueryTestCase):
         ''')
 
         await self.assert_query_result(r'''
-            WITH MODULE test
             SELECT InsertTest {
                 name,
                 sub: {
@@ -502,7 +479,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_nested_11(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT Subordinate {
                 name := 'linkprop test target 6'
             };
@@ -510,7 +486,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
-                WITH MODULE test
                 SELECT (
                     INSERT InsertTest {
                         name := 'insert nested 6',
@@ -535,7 +510,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_returning_01(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT DefaultTest1 {
                 foo := 'ret1',
                 num := 1,
@@ -544,7 +518,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (INSERT DefaultTest1 {
                     foo := 'ret2',
                     num := 2,
@@ -557,7 +530,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (INSERT DefaultTest1 {
                     foo := 'ret3',
                     num := 3,
@@ -569,7 +541,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_returning_02(self):
         await self.assert_query_result(
             '''
-                WITH MODULE test
                 INSERT DefaultTest1 {
                     foo := 'ret1',
                     num := 1,
@@ -582,7 +553,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
-                WITH MODULE test
                 SELECT (INSERT DefaultTest1 {
                     foo := 'ret2',
                     num := 2,
@@ -595,7 +565,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             '''
-                WITH MODULE test
                 SELECT (INSERT DefaultTest1 {
                     foo := 'ret3',
                     num := 3,
@@ -606,7 +575,6 @@ class TestInsert(tb.QueryTestCase):
 
         obj = await self.con._fetchall(
             '''
-                WITH MODULE test
                 INSERT DefaultTest1 {
                     foo := 'ret1',
                     num := 1,
@@ -618,11 +586,11 @@ class TestInsert(tb.QueryTestCase):
 
         self.assertTrue(hasattr(obj[0], 'id'))
         self.assertTrue(hasattr(obj[0], '__tid__'))
-        self.assertEqual(obj[0].__tname__, 'test::DefaultTest1')
+        self.assertEqual(obj[0].__tname__, 'default::DefaultTest1')
 
     async def test_edgeql_insert_returning_03(self):
         await self.con.execute('''
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'sub returning 3'
             };
         ''')
@@ -630,7 +598,6 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     I := (INSERT InsertTest {
                         name := 'insert nested returning 3',
                         l2 := 0,
@@ -659,7 +626,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_returning_04(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (INSERT DefaultTest1 {
                     foo := 'DT returning 4',
                     num := 33,
@@ -674,7 +640,6 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     I := (INSERT _ := InsertTest {
                         name := 'IT returning 4',
                         l2 := 9999,
@@ -689,7 +654,6 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     I := (INSERT _ := InsertTest {
                         name := 'IT returning 4',
                         l2 := 9,
@@ -707,7 +671,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_returning_05(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (INSERT DefaultTest1 {
                     foo := 'DT returning 5',
                 }) {
@@ -724,14 +687,13 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_returning_06(self):
         await self.con.execute('''
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'DefaultTest5/Sub'
             };
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (INSERT DefaultTest5 {
                     name := 'ret6/DT5',
                 }) {
@@ -752,14 +714,13 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_returning_07(self):
         await self.con.execute('''
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'DefaultTest5/Sub'
             };
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (INSERT DefaultTest6 {
                     name := 'ret7/DT6',
                 }) {
@@ -786,14 +747,13 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_returning_08(self):
         await self.con.execute('''
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'DefaultTest5/Sub'
             };
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (INSERT DefaultTest7 {
                     name := 'ret8/DT7',
                 }) {
@@ -828,8 +788,7 @@ class TestInsert(tb.QueryTestCase):
         # make sure a WITH bound insert makes it into the returned data
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
-                     N := (INSERT Note {name := "!" }),
+                WITH N := (INSERT Note {name := "!" }),
                 SELECT ((
                     INSERT Person {
                         name := "Phil Emarg",
@@ -847,8 +806,7 @@ class TestInsert(tb.QueryTestCase):
         # make sure it works when *doubly* nested!
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
-                     S := (INSERT Subordinate { name := "sub" }),
+                WITH S := (INSERT Subordinate { name := "sub" }),
                      N := (INSERT Note {name := "!", subject := S }),
                 SELECT ((
                     INSERT Person {
@@ -867,8 +825,7 @@ class TestInsert(tb.QueryTestCase):
         # ... *doubly* nested, but the inner insert is a multi link
         await self.assert_query_result(
             r'''
-            WITH MODULE test,
-                 N := (INSERT Note {name := "!" }),
+            WITH N := (INSERT Note {name := "!" }),
                  P := (INSERT Person {
                     name := "Emmanuel Villip",
                     notes := N,
@@ -889,7 +846,6 @@ class TestInsert(tb.QueryTestCase):
         # test that subtypes get returned by a nested insert
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
                 SELECT
                 (INSERT Note {
                      name := "test",
@@ -904,14 +860,12 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_returning_11(self):
         await self.con.execute(r'''
-            WITH MODULE test
             INSERT Note { name := "note", note := "a" };
         ''')
 
         # test that subtypes get returned by a nested update
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
                 SELECT
                 (INSERT Person {
                      name := "test",
@@ -930,14 +884,12 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_returning_12(self):
         await self.con.execute(r'''
-            WITH MODULE test
             INSERT DerivedNote { name := "note", note := "a" };
         ''')
 
         # test that subtypes get returned by a nested update
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
                 SELECT
                 (INSERT Person {
                      name := "test",
@@ -956,19 +908,16 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_returning_13(self):
         await self.con.execute(r'''
-            WITH MODULE test
             INSERT DerivedNote { name := "dnote", note := "a" };
         ''')
 
         await self.con.execute(r'''
-            WITH MODULE test
             INSERT DerivedNote { name := "anote", note := "some note" };
         ''')
 
         # test that subtypes get returned by a nested update
         await self.assert_query_result(
             r'''
-            WITH MODULE test,
             SELECT
             (INSERT Person {
                 name := "test",
@@ -994,14 +943,12 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_01(self):
         await self.con.execute(r'''
-            WITH MODULE test
             FOR x IN {3, 5, 7, 2}
             UNION (INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := x,
             });
 
-            WITH MODULE test
             FOR Q IN {(SELECT InsertTest{foo := 'foo' ++ <str> InsertTest.l2}
                        FILTER .name = 'insert for 1')}
             UNION (INSERT InsertTest {
@@ -1013,7 +960,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT InsertTest{name, l2, l3}
                 FILTER .name = 'insert for 1'
                 ORDER BY .l2 THEN .l3;
@@ -1068,7 +1014,6 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
-            WITH MODULE test
             FOR x IN {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
             UNION (INSERT DefaultTest3);
         ''')
@@ -1078,7 +1023,6 @@ class TestInsert(tb.QueryTestCase):
                 # statistically, randomly generated value for 'foo'
                 # should not be identical for all 10 records
                 WITH
-                    MODULE test,
                     DT3 := DefaultTest3
                 SELECT count(
                     DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
@@ -1092,14 +1036,12 @@ class TestInsert(tb.QueryTestCase):
             # 'bar' is technically evaluated for each object, but
             # because it is deterministic it will be same for all 5
             # new objects.
-            WITH MODULE test
             FOR x IN {1, 2, 3, 4, 5}
             UNION (INSERT DefaultTest4);
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT DefaultTest4.bar
                 ORDER BY DefaultTest4.bar;
             ''',
@@ -1108,7 +1050,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_04(self):
         await self.con.execute(r'''
-            WITH MODULE test
             INSERT InsertTest {
                 name := 'nested-insert-for',
                 l2 := 999,
@@ -1126,7 +1067,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT InsertTest {
                     subordinates: {
                         name,
@@ -1148,7 +1088,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_06(self):
         res = await self.con.query(r'''
-            WITH MODULE test
             FOR a in {"a", "b"} UNION (
                 FOR b in {"c", "d"} UNION (
                     INSERT Note {name := b}));
@@ -1157,7 +1096,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Note.name
                 ORDER BY Note.name;
             ''',
@@ -1166,7 +1104,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_07(self):
         res = await self.con.query(r'''
-            WITH MODULE test
             FOR a in {"a", "b"} UNION (
                 FOR b in {a++"c", a++"d"} UNION (
                     INSERT Note {name := b}));
@@ -1175,7 +1112,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Note.name
                 ORDER BY Note.name;
             ''',
@@ -1184,7 +1120,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_08(self):
         res = await self.con.query(r'''
-            WITH MODULE test
             FOR a in {"a", "b"} UNION (
                 FOR b in {"a", "b"} UNION (
                     FOR c in {a++b++"a", a++b++"b"} UNION (
@@ -1194,7 +1129,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Note.name
                 ORDER BY Note.name;
             ''',
@@ -1203,7 +1137,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_09(self):
         res = await self.con.query(r'''
-            WITH MODULE test
             FOR a in {"a", "b"} UNION (
                 FOR b in {"a", "b"} UNION (
                     FOR c in {"a", "b"} UNION (
@@ -1213,7 +1146,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Note.name
                 ORDER BY Note.name;
             ''',
@@ -1223,7 +1155,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_for_10(self):
         # Nested FOR where the inner-most one isn't referenced
         res = await self.con.query(r'''
-            WITH MODULE test
             FOR a in {"a", "b"} UNION (
                 FOR b in {"a", "b"} UNION (
                     FOR c in {"a", "b"} UNION (
@@ -1233,7 +1164,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Note.name
                 ORDER BY Note.name;
             ''',
@@ -1243,7 +1173,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_for_11(self):
         # Nested FOR where the inner-most two aren't referenced
         res = await self.con.query(r'''
-            WITH MODULE test
             FOR a in {"a", "b"} UNION (
                 FOR b in {"a", "b"} UNION (
                     FOR c in {"a", "b"} UNION (
@@ -1253,7 +1182,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Note.name
                 ORDER BY Note.name;
             ''',
@@ -1264,7 +1192,6 @@ class TestInsert(tb.QueryTestCase):
         # FOR that has a correlated SELECT and INSERT
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR a in {"foo", "bar"} UNION (
                     (a,(INSERT Note {name:=a}))
                 )
@@ -1275,7 +1202,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Note.name
                 ORDER BY Note.name;
             ''',
@@ -1285,7 +1211,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_for_13(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR a in {"foo", "bar"} UNION (
                     SELECT (INSERT Note {name:=a}) {name}
                 )
@@ -1296,7 +1221,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Note.name
                 ORDER BY Note.name;
             ''',
@@ -1307,7 +1231,6 @@ class TestInsert(tb.QueryTestCase):
         # Nested FOR that has a correlated SELECT and INSERT
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR a in {"a", "b"} UNION (
                     FOR b in {"c", "d"} UNION (
                         (a, b, (INSERT Note {name:=a++b}).name)
@@ -1325,7 +1248,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Note.name
                 ORDER BY Note.name;
             ''',
@@ -1334,7 +1256,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_15(self):
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 INSERT Person {name := noob ++ "!",
@@ -1342,7 +1263,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} } ORDER BY .name DESC",
+            "SELECT Person { name, notes: {name} } ORDER BY .name DESC",
             [{"name": "Phil Emarg!",
               "notes": [{"name": "Phil Emarg"}]},
              {"name": "Madeline Hatch!",
@@ -1351,7 +1272,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_16(self):
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 INSERT Person {name := noob,
@@ -1361,7 +1281,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            """SELECT test::Person {
+            """SELECT Person {
                name, notes: {name} ORDER BY .name DESC} ORDER BY .name DESC""",
             [
                 {"name": "Phil Emarg",
@@ -1377,7 +1297,6 @@ class TestInsert(tb.QueryTestCase):
         # same as above, but with a SELECT wrapping the inner FOR,
         # which exposed some issues
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 INSERT Person {name := noob,
@@ -1387,7 +1306,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            """SELECT test::Person {
+            """SELECT Person {
                name, notes: {name} ORDER BY .name DESC} ORDER BY .name DESC""",
             [
                 {"name": "Phil Emarg",
@@ -1401,7 +1320,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_18(self):
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 INSERT Person {name := noob ++ "!",
@@ -1409,7 +1327,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, note: {name} } ORDER BY .name DESC",
+            "SELECT Person { name, note: {name} } ORDER BY .name DESC",
             [{"name": "Phil Emarg!",
               "note": {"name": "Phil Emarg"}},
              {"name": "Madeline Hatch!",
@@ -1422,7 +1340,6 @@ class TestInsert(tb.QueryTestCase):
             "cannot reference correlated set",
         ):
             await self.con.execute("""
-                WITH MODULE test
                 SELECT (Person,
                         (FOR x in {Person} UNION (
                              INSERT Note {name := x.name})));
@@ -1434,7 +1351,6 @@ class TestInsert(tb.QueryTestCase):
             "cannot reference correlated set",
         ):
             await self.con.execute("""
-                WITH MODULE test
                 SELECT (Person,
                         (FOR x in {Person} UNION (
                              SELECT (INSERT Note {name := x.name}))));
@@ -1446,7 +1362,6 @@ class TestInsert(tb.QueryTestCase):
             "cannot reference correlated set",
         ):
             await self.con.execute("""
-                WITH MODULE test
                 SELECT ((FOR x in {Person} UNION (
                              INSERT Note {name := x.name})),
                         Person);
@@ -1458,7 +1373,6 @@ class TestInsert(tb.QueryTestCase):
             "cannot reference correlated set",
         ):
             await self.con.execute("""
-                WITH MODULE test
                 SELECT (Person,
                         (FOR x in {Person} UNION (
                              SELECT (
@@ -1471,17 +1385,17 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(r'''
             # create 10 DefaultTest3 objects, each object is defined
             # as having a randomly generated value for 'foo'
-            INSERT test::DefaultTest3;
-            INSERT test::DefaultTest3;
-            INSERT test::DefaultTest3;
-            INSERT test::DefaultTest3;
-            INSERT test::DefaultTest3;
+            INSERT DefaultTest3;
+            INSERT DefaultTest3;
+            INSERT DefaultTest3;
+            INSERT DefaultTest3;
+            INSERT DefaultTest3;
 
-            INSERT test::DefaultTest3;
-            INSERT test::DefaultTest3;
-            INSERT test::DefaultTest3;
-            INSERT test::DefaultTest3;
-            INSERT test::DefaultTest3;
+            INSERT DefaultTest3;
+            INSERT DefaultTest3;
+            INSERT DefaultTest3;
+            INSERT DefaultTest3;
+            INSERT DefaultTest3;
         ''')
 
         await self.assert_query_result(
@@ -1489,7 +1403,6 @@ class TestInsert(tb.QueryTestCase):
                 # statistically, randomly generated value for 'foo'
                 # should not be identical for all 10 records
                 WITH
-                    MODULE test,
                     DT3 := DefaultTest3
                 SELECT count(
                     DefaultTest3 FILTER DefaultTest3.foo != DT3.foo) > 0;
@@ -1501,16 +1414,15 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
-            INSERT test::DefaultTest4;
-            INSERT test::DefaultTest4;
-            INSERT test::DefaultTest4;
-            INSERT test::DefaultTest4;
-            INSERT test::DefaultTest4;
+            INSERT DefaultTest4;
+            INSERT DefaultTest4;
+            INSERT DefaultTest4;
+            INSERT DefaultTest4;
+            INSERT DefaultTest4;
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT DefaultTest4 { bar }
                 ORDER BY DefaultTest4.bar;
             ''',
@@ -1537,14 +1449,13 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
-            INSERT test::DefaultTest4 { bar:= 10 };
-            INSERT test::DefaultTest4;
-            INSERT test::DefaultTest4;
+            INSERT DefaultTest4 { bar:= 10 };
+            INSERT DefaultTest4;
+            INSERT DefaultTest4;
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT DefaultTest4 { bar }
                 ORDER BY DefaultTest4.bar;
             ''',
@@ -1565,16 +1476,15 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(r'''
             # by default the 'bar' value is simply going to be "indexing" the
             # created objects
-            INSERT test::DefaultTest4;
-            INSERT test::DefaultTest4;
-            INSERT test::DefaultTest4 { bar:= 0 };
-            INSERT test::DefaultTest4;
-            INSERT test::DefaultTest4;
+            INSERT DefaultTest4;
+            INSERT DefaultTest4;
+            INSERT DefaultTest4 { bar:= 0 };
+            INSERT DefaultTest4;
+            INSERT DefaultTest4;
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT DefaultTest4 { bar }
                 ORDER BY DefaultTest4.bar;
             ''',
@@ -1602,14 +1512,13 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(r'''
             # The 'number' property is supposed to be
             # self-incrementing and read-only.
-            INSERT test::DefaultTest8;
-            INSERT test::DefaultTest8;
-            INSERT test::DefaultTest8;
+            INSERT DefaultTest8;
+            INSERT DefaultTest8;
+            INSERT DefaultTest8;
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT DefaultTest8.number;
             ''',
             {1, 2, 3}
@@ -1617,7 +1526,7 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_default_06(self):
         res = await self.con.query(r'''
-            INSERT test::DefaultTest1;
+            INSERT DefaultTest1;
         ''')
         assert len(res) == 1
         obj = res[0]
@@ -1627,7 +1536,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_as_expr_01(self):
         await self.con.execute(r'''
             # insert several objects, then annotate one of the inserted batch
-            WITH MODULE test
             FOR x IN {(
                     SELECT _i := (
                         FOR y IN {3, 5, 7, 2}
@@ -1646,7 +1554,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT
                     InsertTest {
                         name,
@@ -1694,7 +1601,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_polymorphic_01(self):
         await self.con.execute(r'''
-            WITH MODULE test
             INSERT Directive {
                 args := (INSERT InputValue {
                     val := "something"
@@ -1704,7 +1610,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Callable {
                     args: {
                         val
@@ -1718,7 +1623,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Field {
                     args: {
                         val
@@ -1730,7 +1634,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Directive {
                     args: {
                         val
@@ -1744,7 +1647,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT InputValue {
                     val
                 };
@@ -1756,14 +1658,12 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_linkprops_with_for_01(self):
         await self.con.execute(r"""
-            WITH MODULE test
             FOR i IN {'1', '2', '3'} UNION (
                 INSERT Subordinate {
                     name := 'linkproptest ' ++ i
                 }
             );
 
-            WITH MODULE test
             INSERT InsertTest {
                 l2 := 99,
                 subordinates := (
@@ -1777,7 +1677,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT InsertTest {
                     l2,
                     subordinates: {
@@ -1807,7 +1706,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_empty_01(self):
         await self.con.execute(r"""
-            WITH MODULE test
             INSERT InsertTest {
                 l1 := {},
                 l2 := 99,
@@ -1818,7 +1716,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT InsertTest {
                     l1,
                     l2,
@@ -1837,7 +1734,6 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.InvalidPropertyTargetError,
                 r"invalid target.*std::datetime.*expecting 'std::int64'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 INSERT InsertTest {
                     l1 := <datetime>{},
                     l2 := 99,
@@ -1850,7 +1746,6 @@ class TestInsert(tb.QueryTestCase):
                 r"missing value for required property"):
             await self.con.execute(
                 r"""
-                    WITH MODULE test
                     INSERT InsertTest {
                         l2 := {},
                     };
@@ -1859,7 +1754,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_empty_04(self):
         await self.con.execute(r"""
-            WITH MODULE test
             INSERT InsertTest {
                 l2 := 99,
                 subordinates := {}
@@ -1868,7 +1762,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT InsertTest {
                     l2,
                     subordinates
@@ -1884,9 +1777,8 @@ class TestInsert(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidLinkTargetError,
                 r"invalid target for link.*std::Object.*"
-                r"expecting 'test::Subordinate'"):
+                r"expecting 'default::Subordinate'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 INSERT InsertTest {
                     l2 := 99,
                     subordinates := <Object>{}
@@ -1904,15 +1796,15 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_alias(self):
         await self.con.execute('''
-            CREATE ALIAS test::Foo := (SELECT test::InsertTest);
+            CREATE ALIAS Foo := (SELECT InsertTest);
         ''')
 
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r"cannot insert into expression alias 'test::Foo'",
+                r"cannot insert into expression alias 'default::Foo'",
                 _position=23):
             await self.con.execute("""\
-                INSERT test::Foo;
+                INSERT Foo;
             """)
 
     async def test_edgeql_insert_selfref_01(self):
@@ -1920,7 +1812,6 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.QueryError,
                 'self-referencing INSERTs are not allowed'):
             await self.con.execute(r"""
-                WITH MODULE test
                 INSERT SelfRef {
                     name := 'myself',
                     ref := SelfRef
@@ -1932,12 +1823,10 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.QueryError,
                 'self-referencing INSERTs are not allowed'):
             await self.con.execute(r"""
-                WITH MODULE test
                 INSERT SelfRef {
                     name := 'other'
                 };
 
-                WITH MODULE test
                 INSERT SelfRef {
                     name := 'myself',
                     ref := (
@@ -1952,12 +1841,10 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.QueryError,
                 'self-referencing INSERTs are not allowed'):
             await self.con.execute(r"""
-                WITH MODULE test
                 INSERT SelfRef {
                     name := 'other'
                 };
 
-                WITH MODULE test
                 INSERT SelfRef {
                     name := 'myself',
                     ref := (
@@ -1970,12 +1857,10 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_selfref_04(self):
         await self.con.execute(r"""
-            WITH MODULE test
             INSERT SelfRef {
                 name := 'ok other'
             };
 
-            WITH MODULE test
             INSERT SelfRef {
                 name := 'ok myself',
                 ref := (
@@ -1987,7 +1872,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT SelfRef {
                     name,
                     ref: {
@@ -2009,7 +1893,6 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.QueryError,
                 'single'):
             await self.con.execute(r'''
-                SET MODULE test;
 
                 INSERT Subordinate { name := 'sub1_cardinality_01'};
                 INSERT Subordinate { name := 'sub2_cardinality_01'};
@@ -2024,24 +1907,24 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_derived_01(self):
         await self.con.execute(r"""
-            INSERT test::DerivedTest {
+            INSERT DerivedTest {
                 name := 'insert derived 01',
                 l2 := 0,
             };
 
-            INSERT test::DerivedTest {
+            INSERT DerivedTest {
                 name := 'insert derived 01',
                 l3 := "Test\"1\"",
                 l2 := 1
             };
 
-            INSERT test::DerivedTest {
+            INSERT DerivedTest {
                 name := 'insert derived 01',
                 l3 := 'Test\'2\'',
                 l2 := 2
             };
 
-            INSERT test::DerivedTest {
+            INSERT DerivedTest {
                 name := 'insert derived 01',
                 l3 := '\"Test\'3\'\"',
                 l2 := 3
@@ -2051,13 +1934,13 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 SELECT
-                    test::DerivedTest {
+                    DerivedTest {
                         l2, l3
                     }
                 FILTER
-                    test::DerivedTest.name = 'insert derived 01'
+                    DerivedTest.name = 'insert derived 01'
                 ORDER BY
-                    test::DerivedTest.l2;
+                    DerivedTest.l2;
             """,
             [
                 {
@@ -2081,7 +1964,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_derived_02(self):
         await self.con.execute(r"""
-            WITH MODULE test
             INSERT DerivedTest {
                 name := 'insert derived 02',
                 l2 := 0,
@@ -2095,7 +1977,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     DerivedTest {
                         name,
@@ -2122,14 +2003,13 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_collection_01(self):
         await self.con.execute(r"""
-            INSERT test::CollectionTest {
+            INSERT CollectionTest {
                 some_tuple := ('collection_01', 99),
             };
         """)
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     CollectionTest {
                         some_tuple
@@ -2146,14 +2026,13 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_collection_02(self):
         await self.con.execute(r"""
-            INSERT test::CollectionTest {
+            INSERT CollectionTest {
                 str_array := ['collection_02', '99'],
             };
         """)
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     CollectionTest {
                         str_array
@@ -2170,14 +2049,13 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_collection_03(self):
         await self.con.execute(r"""
-            INSERT test::CollectionTest {
+            INSERT CollectionTest {
                 float_array := [3, 1234.5],
             };
         """)
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     CollectionTest {
                         float_array
@@ -2194,12 +2072,12 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_collection_04(self):
         await self.con.execute(r"""
-            INSERT test::CollectionTest {
+            INSERT CollectionTest {
                 some_tuple := ('huh', -1),
                 some_multi_tuple := ('foo', 0),
             };
 
-            INSERT test::CollectionTest {
+            INSERT CollectionTest {
                 some_tuple := ('foo', 0),
                 some_multi_tuple := {('foo', 0), ('bar', 1)},
             };
@@ -2207,7 +2085,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT count(
                     CollectionTest FILTER ('bar', 1) IN .some_multi_tuple
                 );
@@ -2217,7 +2094,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT count(
                     CollectionTest FILTER .some_tuple IN .some_multi_tuple
                 );
@@ -2227,7 +2103,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT count(
                     CollectionTest FILTER ('foo', '0') IN
                     <tuple<str, str>>.some_multi_tuple
@@ -2242,7 +2117,6 @@ class TestInsert(tb.QueryTestCase):
                 'INSERT statements cannot be used inside '
                 'conditional expressions'):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT
                     (SELECT Subordinate FILTER .name = 'foo')
                     ??
@@ -2255,7 +2129,6 @@ class TestInsert(tb.QueryTestCase):
                 'INSERT statements cannot be used inside '
                 'conditional expressions'):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT
                     (SELECT Subordinate FILTER .name = 'foo')
                     IF EXISTS Subordinate
@@ -2271,7 +2144,6 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.QueryError,
                 "cannot reference correlated set 'Subordinate' here"):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT (
                     Subordinate,
                     (INSERT InsertTest {
@@ -2287,7 +2159,6 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.QueryError,
                 "cannot reference correlated set 'Subordinate' here"):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT (
                     (INSERT InsertTest {
                         name := 'insert bad',
@@ -2303,7 +2174,6 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.QueryError,
                 "cannot reference correlated set 'Person' here"):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT (
                     Person,
                     (INSERT Person {name := 'insert bad'}),
@@ -2313,8 +2183,8 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_unless_conflict_01(self):
         query = r'''
             SELECT
-             ((INSERT test::Person {name := "test"} UNLESS CONFLICT)
-              ?? (SELECT test::Person FILTER .name = "test")) {name};
+             ((INSERT Person {name := "test"} UNLESS CONFLICT)
+              ?? (SELECT Person FILTER .name = "test")) {name};
         '''
 
         await self.assert_query_result(
@@ -2329,8 +2199,8 @@ class TestInsert(tb.QueryTestCase):
 
         query2 = r'''
             SELECT
-             ((INSERT test::Person {name := <str>$0} UNLESS CONFLICT ON .name)
-              ?? (SELECT test::Person FILTER .name = <str>$0));
+             ((INSERT Person {name := <str>$0} UNLESS CONFLICT ON .name)
+              ?? (SELECT Person FILTER .name = <str>$0));
         '''
 
         res = await self.con.query(query2, "test2")
@@ -2345,7 +2215,7 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.QueryError,
                 "UNLESS CONFLICT argument must be a property"):
             await self.con.query(r'''
-                INSERT test::Person {name := "hello"}
+                INSERT Person {name := "hello"}
                 UNLESS CONFLICT ON 20;
             ''')
 
@@ -2354,8 +2224,8 @@ class TestInsert(tb.QueryTestCase):
                 "UNLESS CONFLICT argument must be a property of "
                 "the type being inserted"):
             await self.con.query(r'''
-                INSERT test::Person {name := "hello"}
-                UNLESS CONFLICT ON test::Note.name;
+                INSERT Person {name := "hello"}
+                UNLESS CONFLICT ON Note.name;
             ''')
 
         async with self.assertRaisesRegexTx(
@@ -2363,7 +2233,7 @@ class TestInsert(tb.QueryTestCase):
                 "UNLESS CONFLICT property must have a "
                 "single exclusive constraint"):
             await self.con.query(r'''
-                INSERT test::Note {name := "hello"}
+                INSERT Note {name := "hello"}
                 UNLESS CONFLICT ON .name;
             ''')
 
@@ -2371,7 +2241,7 @@ class TestInsert(tb.QueryTestCase):
                 edgedb.QueryError,
                 "UNLESS CONFLICT property must be a SINGLE property"):
             await self.con.query(r'''
-                INSERT test::Person {name := "hello", multi_prop := "lol"}
+                INSERT Person {name := "hello", multi_prop := "lol"}
                 UNLESS CONFLICT ON .multi_prop;
             ''')
 
@@ -2380,9 +2250,9 @@ class TestInsert(tb.QueryTestCase):
                 "object type 'std::Object' has no link or property 'name'"):
             await self.con.query(r'''
                 SELECT (
-                    INSERT test::Person {name := "hello"}
+                    INSERT Person {name := "hello"}
                     UNLESS CONFLICT ON .name
-                    ELSE test::DefaultTest1
+                    ELSE DefaultTest1
                 ) {name};
             ''')
 
@@ -2391,8 +2261,7 @@ class TestInsert(tb.QueryTestCase):
                 "possibly more than one element returned by an expression "
                 "for a computable link 'foo' declared as 'single'"):
             await self.con.query(r'''
-                WITH MODULE test,
-                     X := (
+                WITH X := (
                         INSERT Person {name := "hello"}
                         UNLESS CONFLICT ON .name
                         ELSE (DETACHED Person)
@@ -2407,8 +2276,7 @@ class TestInsert(tb.QueryTestCase):
                 "possibly more than one element returned by an expression "
                 "for a computable link 'foo' declared as 'single'"):
             await self.con.query(r'''
-                WITH MODULE test,
-                     X := (
+                WITH X := (
                         INSERT Person {name := "hello"}
                         UNLESS CONFLICT ON .name
                         ELSE Note
@@ -2423,8 +2291,7 @@ class TestInsert(tb.QueryTestCase):
                 "possibly an empty set returned by an expression for a "
                 "computable link 'foo' declared as 'required'"):
             await self.con.query(r'''
-                WITH MODULE test,
-                     X := (
+                WITH X := (
                         INSERT Person {name := "hello"}
                         UNLESS CONFLICT ON .name
                     )
@@ -2436,7 +2303,7 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_unless_conflict_03(self):
         query = r'''
             SELECT (
-                INSERT test::Person {name := "test"} UNLESS CONFLICT) {name};
+                INSERT Person {name := "test"} UNLESS CONFLICT) {name};
         '''
 
         await self.assert_query_result(
@@ -2451,7 +2318,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_unless_conflict_04(self):
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {name := "test"} UNLESS CONFLICT
                 ON .name ELSE (SELECT Person)
@@ -2469,12 +2335,11 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''SELECT test::Person {name}''',
+            r'''SELECT Person {name}''',
             [{"name": "test"}],
         )
 
         query2 = r'''
-            WITH MODULE test
             INSERT Person {name := <str>$0} UNLESS CONFLICT
             ON .name ELSE (SELECT Person)
         '''
@@ -2488,11 +2353,10 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_unless_conflict_05(self):
         await self.con.execute(r'''
-            INSERT test::Person { name := "Phil Emarg" }
+            INSERT Person { name := "Phil Emarg" }
         ''')
 
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT
                 ON .name ELSE (UPDATE Person SET { tag := "redo" })
@@ -2505,7 +2369,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            "SELECT test::Person {name, tag} ORDER BY .name",
+            "SELECT Person {name, tag} ORDER BY .name",
             [{"name": "Emmanuel Villip", "tag": None},
              {"name": "Phil Emarg", "tag": None}],
         )
@@ -2517,7 +2381,7 @@ class TestInsert(tb.QueryTestCase):
 
         # Only the correct record should be updated
         await self.assert_query_result(
-            "SELECT test::Person {name, tag} ORDER BY .name",
+            "SELECT Person {name, tag} ORDER BY .name",
             [{"name": "Emmanuel Villip", "tag": "redo"},
              {"name": "Phil Emarg", "tag": None}],
             sort=lambda x: x['name']
@@ -2525,12 +2389,11 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_unless_conflict_06(self):
         await self.con.execute(r'''
-            INSERT test::Person { name := "Phil Emarg" };
-            INSERT test::Person { name := "Madeline Hatch" };
+            INSERT Person { name := "Phil Emarg" };
+            INSERT Person { name := "Madeline Hatch" };
         ''')
 
         query = r'''
-            WITH MODULE test
             SELECT (
                 FOR noob in {"Emmanuel Villip", "Madeline Hatch"} UNION (
                     INSERT Person {name := noob} UNLESS CONFLICT
@@ -2546,7 +2409,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            "SELECT test::Person {name, tag} ORDER BY .name",
+            "SELECT Person {name, tag} ORDER BY .name",
             [
                 {"name": "Emmanuel Villip", "tag": None},
                 {"name": "Madeline Hatch", "tag": "redo"},
@@ -2561,7 +2424,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            "SELECT test::Person {name, tag} ORDER BY .name",
+            "SELECT Person {name, tag} ORDER BY .name",
             [
                 {"name": "Emmanuel Villip", "tag": "redo"},
                 {"name": "Madeline Hatch", "tag": "redo"},
@@ -2572,7 +2435,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_unless_conflict_07(self):
         # Test it using default values
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person UNLESS CONFLICT
                 ON .name ELSE (UPDATE Person SET { tag := "redo" })
@@ -2585,7 +2447,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            "SELECT test::Person {name, tag}",
+            "SELECT Person {name, tag}",
             [{"name": "Nemo", "tag": None}]
         )
 
@@ -2595,19 +2457,18 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.con.execute(r'''
-            INSERT test::Person { name := "Phil Emarg" }
+            INSERT Person { name := "Phil Emarg" }
         ''')
 
         # Only the correct record should be updated
         await self.assert_query_result(
-            "SELECT test::Person {name, tag} ORDER BY .name",
+            "SELECT Person {name, tag} ORDER BY .name",
             [{"name": "Nemo", "tag": "redo"},
              {"name": "Phil Emarg", "tag": None}],
         )
 
     async def test_edgeql_insert_unless_conflict_08(self):
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT PersonWrapper {
                     person := (
@@ -2626,7 +2487,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_unless_conflict_09(self):
         query = r'''
-            WITH MODULE test
             INSERT Person {
                 name := 'Cap',
                 tag := 'hero',
@@ -2640,7 +2500,7 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(query)
 
         await self.assert_query_result(
-            "SELECT test::Person { tag } FILTER .name = 'Cap'",
+            "SELECT Person { tag } FILTER .name = 'Cap'",
             [{
                 'tag': 'hero'
             }]
@@ -2649,7 +2509,7 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(query)
 
         await self.assert_query_result(
-            "SELECT test::Person { tag } FILTER .name = 'Cap'",
+            "SELECT Person { tag } FILTER .name = 'Cap'",
             [{
                 'tag': 'super hero'
             }]
@@ -2658,7 +2518,7 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(query)
 
         await self.assert_query_result(
-            "SELECT test::Person { tag } FILTER .name = 'Cap'",
+            "SELECT Person { tag } FILTER .name = 'Cap'",
             [{
                 'tag': 'super super hero'
             }]
@@ -2666,7 +2526,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_unless_conflict_10(self):
         await self.con.execute(r'''
-            WITH MODULE test
             INSERT Person {
                 name := "Foo",
                 case_name := "Foo",
@@ -2675,7 +2534,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {
                     name := "Bar",
@@ -2693,7 +2551,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_unless_conflict_11(self):
         # ELSE without ON, using object constraint
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {name := "Madz"}
                 UNLESS CONFLICT ON (.name)
@@ -2714,7 +2571,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_unless_conflict_12(self):
         # An upsert where we don't wrap it in another shape
         query = r'''
-            WITH MODULE test
             INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT
             ON .name ELSE (UPDATE Person SET { tag := "redo" })
         '''
@@ -2731,7 +2587,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_unless_conflict_13(self):
         # An insert-or-select where we don't wrap it in another shape
         query = r'''
-            WITH MODULE test
             INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT
             ON .name ELSE (SELECT Person)
         '''
@@ -2747,7 +2602,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_unless_conflict_14(self):
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person2a {first := "Phil", last := "Emarg"}
                 UNLESS CONFLICT ON (.first, .last) ELSE (SELECT Person2a)
@@ -2765,26 +2619,23 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''SELECT test::Person2a {first, last}''',
+            r'''SELECT Person2a {first, last}''',
             [{"first": "Phil", "last": "Emarg"}],
         )
 
     async def test_edgeql_insert_unless_conflict_15(self):
         # test using a tuple object constraint with a link in it
         await self.con.execute(r'''
-            WITH MODULE test
             INSERT Person {
                 name := "Phil Emarg",
             };
 
-            WITH MODULE test
             INSERT Person {
                 name := "Madeline Hatch",
             };
         ''')
 
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person2a {
                     first := "Emmanuel",
@@ -2811,7 +2662,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''SELECT test::Person2a {first, last, friend := .bff.name}''',
+            r'''SELECT Person2a {first, last, friend := .bff.name}''',
             [{"first": "Emmanuel", "last": "Villip", "friend": "Phil Emarg"}],
         )
 
@@ -2823,7 +2674,7 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT test::Person2a {first, last, friend := .bff.name}
+                SELECT Person2a {first, last, friend := .bff.name}
                 ORDER BY .last
             ''',
             [
@@ -2836,7 +2687,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {
                     name :=  "Test",
@@ -2857,13 +2707,12 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_02(self):
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 INSERT Person {name := noob,
@@ -2871,20 +2720,19 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} } ORDER BY .name",
+            "SELECT Person { name, notes: {name} } ORDER BY .name",
             [{"name": "Madeline Hatch", "notes": [{"name": "tag"}]},
              {"name": "Phil Emarg", "notes": [{"name": "tag"}]}]
         )
 
         # Make sure the notes are distinct
         await self.assert_query_result(
-            r'''SELECT count(DISTINCT test::Person.notes)''',
+            r'''SELECT count(DISTINCT Person.notes)''',
             [2],
         )
 
     async def test_edgeql_insert_dependent_03(self):
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 INSERT Person {
@@ -2894,7 +2742,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} } ORDER BY .name",
+            "SELECT Person { name, notes: {name} } ORDER BY .name",
             [{"name": "Madeline Hatch",
               "notes": [{"name": "hello"}, {"name": "world"}]},
              {"name": "Phil Emarg",
@@ -2903,13 +2751,12 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure the notes are distinct
         await self.assert_query_result(
-            r'''SELECT count(DISTINCT test::Person.notes)''',
+            r'''SELECT count(DISTINCT Person.notes)''',
             [4],
         )
 
     async def test_edgeql_insert_dependent_04(self):
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {
                     name :=  "Zendaya",
@@ -2933,13 +2780,12 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only the 2 inserts into Note happened
         await self.assert_query_result(
-            r'''SELECT DISTINCT count(test::Person.notes)''',
+            r'''SELECT DISTINCT count(Person.notes)''',
             [2],
         )
 
     async def test_edgeql_insert_dependent_05(self):
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 INSERT Person {name := noob}
@@ -2947,7 +2793,6 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 UPDATE Person FILTER .name = noob
@@ -2956,20 +2801,19 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} } ORDER BY .name DESC",
+            "SELECT Person { name, notes: {name} } ORDER BY .name DESC",
             [{"name": "Phil Emarg", "notes": [{"name": "tag"}]},
              {"name": "Madeline Hatch", "notes": [{"name": "tag"}]}],
         )
 
         # Make sure the notes are distinct
         await self.assert_query_result(
-            r'''SELECT count(DISTINCT test::Person.notes)''',
+            r'''SELECT count(DISTINCT Person.notes)''',
             [2],
         )
 
     async def test_edgeql_insert_dependent_06(self):
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 INSERT Person {name := noob}
@@ -2977,7 +2821,6 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.con.execute(r"""
-            WITH MODULE test
             FOR noob in {"Phil Emarg", "Madeline Hatch"}
             UNION (
                 UPDATE Person FILTER .name = noob
@@ -2989,7 +2832,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} } ORDER BY .name DESC",
+            "SELECT Person { name, notes: {name} } ORDER BY .name DESC",
             [{"name": "Phil Emarg",
               "notes": [{"name": "hello"}, {"name": "world"}]},
              {"name": "Madeline Hatch",
@@ -2998,7 +2841,7 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure the notes are distinct
         await self.assert_query_result(
-            r'''SELECT count(DISTINCT test::Person.notes)''',
+            r'''SELECT count(DISTINCT Person.notes)''',
             [4],
         )
 
@@ -3008,7 +2851,6 @@ class TestInsert(tb.QueryTestCase):
                 "mutations are invalid in a shape computable"):
             await self.con.execute(
                 r"""
-                    WITH MODULE test
                     SELECT Person {
                         name,
                         foo := (
@@ -3022,7 +2864,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_dependent_08(self):
         await self.con.execute(r"""
-            WITH MODULE test
             INSERT Person {
                 name := 'PersonDep08'
             };
@@ -3031,7 +2872,6 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     foo := (
                         INSERT Note {name := 'NoteDep08'}
                     )
@@ -3054,7 +2894,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Person {
                     name,
                     notes: {
@@ -3072,7 +2911,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Note {
                     name,
                 };
@@ -3086,7 +2924,6 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_dependent_09(self):
         await self.con.execute(r"""
-            WITH MODULE test
             INSERT Person {
                 name := 'PersonDep09'
             };
@@ -3095,7 +2932,6 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     foo := (
                         INSERT Note {name := 'NoteDep09'}
                     )
@@ -3119,7 +2955,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Person {
                     name,
                     notes: {
@@ -3137,7 +2972,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Note {
                     name,
                 };
@@ -3150,10 +2984,9 @@ class TestInsert(tb.QueryTestCase):
         )
 
     async def test_edgeql_insert_dependent_10(self):
-        await self.con.execute(r"""INSERT test::Note { name := "foo" };""")
+        await self.con.execute(r"""INSERT Note { name := "foo" };""")
 
         query = r"""
-            WITH MODULE test
             FOR noob in {"foo", "bar"} UNION (
                 INSERT Person { name := noob,
                                 notes := (UPDATE Note FILTER .name = noob
@@ -3166,19 +2999,19 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(query)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} } ORDER BY .name DESC",
+            "SELECT Person { name, notes: {name} } ORDER BY .name DESC",
             [{"name": "foo",
               "notes": [{"name": "foo!"}]},
              {"name": "bar",
               "notes": []}],
         )
 
-        await self.con.execute(r"""INSERT test::Note { name := "bar" };""")
+        await self.con.execute(r"""INSERT Note { name := "bar" };""")
 
         await self.con.execute(query)
 
         await self.assert_query_result(
-            "SELECT test::Person { name, notes: {name} } ORDER BY .name",
+            "SELECT Person { name, notes: {name} } ORDER BY .name",
             [{"name": "bar",
               "notes": []},
              {"name": "foo",
@@ -3186,7 +3019,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            "SELECT test::Note.name",
+            "SELECT Note.name",
             ["foo!", "bar"]
         )
 
@@ -3194,8 +3027,7 @@ class TestInsert(tb.QueryTestCase):
         # A with-bound insert used in a FOR should only execute once
         await self.con.execute(
             r'''
-                WITH MODULE test,
-                     N := (INSERT Note {name := "tag!" }),
+                WITH N := (INSERT Note {name := "tag!" }),
                 FOR name in {"Phil", "Madz"} UNION (
                     INSERT Person {
                         name := name,
@@ -3207,7 +3039,7 @@ class TestInsert(tb.QueryTestCase):
 
         # Should only be one note
         await self.assert_query_result(
-            r'''SELECT test::Note { name }''',
+            r'''SELECT Note { name }''',
             [{"name": "tag!"}],
         )
 
@@ -3216,8 +3048,7 @@ class TestInsert(tb.QueryTestCase):
         # Same as above, but using a single link
         await self.con.execute(
             r'''
-                WITH MODULE test,
-                     N := (INSERT Note {name := "tag!" }),
+                WITH N := (INSERT Note {name := "tag!" }),
                 FOR name in {"Phil", "Madz"} UNION (
                     INSERT Person {
                         name := name,
@@ -3229,7 +3060,7 @@ class TestInsert(tb.QueryTestCase):
 
         # Should only be one note
         await self.assert_query_result(
-            r'''SELECT test::Note { name }''',
+            r'''SELECT Note { name }''',
             [{"name": "tag!"}],
         )
 
@@ -3237,8 +3068,7 @@ class TestInsert(tb.QueryTestCase):
         # A WITH bound INSERT used in an INSERT UNLESS CONFLICT
         # should execute unconditionally
         query = r'''
-        WITH MODULE test,
-             N := (INSERT Note {name := "tag!" }),
+        WITH N := (INSERT Note {name := "tag!" }),
         SELECT (
             INSERT Person {
                 name := "Test",
@@ -3259,7 +3089,7 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure that two inserts happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [2],
         )
 
@@ -3268,8 +3098,7 @@ class TestInsert(tb.QueryTestCase):
         # FOR loop, and a shape query that references both
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
-                    N := (INSERT Note {name := "tag!" }),
+                WITH N := (INSERT Note {name := "tag!" }),
                     X := (FOR name in {"Phil", "Madz"} UNION (
                         INSERT Person {
                             name := name,
@@ -3288,13 +3117,12 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_15(self):
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {
                     name := "Test",
@@ -3315,14 +3143,13 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_16(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (
                     INSERT Person {
                         name := "Test",
@@ -3335,7 +3162,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (
                     INSERT Person {
                         name := "Test",
@@ -3350,13 +3176,12 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure the update did not happen
         await self.assert_query_result(
-            r'''SELECT test::Note { name }''',
+            r'''SELECT Note { name }''',
             [{"name": "tag!"}],
         )
 
     async def test_edgeql_insert_dependent_17(self):
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {
                     name := "Test",
@@ -3377,18 +3202,16 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_18(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT Person { name := "foo" }
         ''')
 
         query = r'''
-            WITH MODULE test
             SELECT (
             FOR name in {"foo", "bar"} UNION (
                 SELECT (
@@ -3408,19 +3231,17 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_19(self):
         # same as above but without ELSE
         await self.con.execute('''
-            WITH MODULE test
             INSERT Person { name := "foo" }
         ''')
 
         query = r'''
-            WITH MODULE test
             SELECT (
             FOR name in {"foo", "bar"} UNION (
                 SELECT (
@@ -3439,7 +3260,7 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
@@ -3448,12 +3269,10 @@ class TestInsert(tb.QueryTestCase):
         # nested in a dumb way instead of directly being put in a
         # pointer
         await self.con.execute('''
-            WITH MODULE test
             INSERT Person { name := "foo" }
         ''')
 
         query = r'''
-            WITH MODULE test
             SELECT (
             FOR name in {"foo", "bar"} UNION (
                 SELECT (
@@ -3472,14 +3291,13 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_21(self):
         # test with an empty set as one of the values
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {
                     name := "Test",
@@ -3501,7 +3319,7 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
@@ -3509,7 +3327,6 @@ class TestInsert(tb.QueryTestCase):
         # test with a constraint that has a nontrivial subjectexpr
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {
                     name := "Test",
@@ -3523,7 +3340,6 @@ class TestInsert(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person {
                     name := "Test2",
@@ -3537,13 +3353,12 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_23(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT Person2a {
                 first := "Madeline",
                 last := "Hatch1",
@@ -3552,7 +3367,6 @@ class TestInsert(tb.QueryTestCase):
 
         # test with something that has an object constraint
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person2a {
                     first := "Phil",
@@ -3574,14 +3388,13 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_24(self):
         # test with something that has a computed constraint
         await self.con.execute('''
-            WITH MODULE test
             INSERT Person2b {
                 first := "Madeline",
                 last := "Hatch2",
@@ -3589,7 +3402,6 @@ class TestInsert(tb.QueryTestCase):
         ''')
 
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person2b {
                     first := "Phil",
@@ -3611,13 +3423,12 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_25(self):
         await self.con.execute('''
-            WITH MODULE test
             INSERT Person2b {
                 first := "Madeline",
                 last := "Hatch3",
@@ -3625,7 +3436,6 @@ class TestInsert(tb.QueryTestCase):
         ''')
         # test with something that has a computed constraint using ON
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person2b {
                     first := "Phil",
@@ -3649,14 +3459,13 @@ class TestInsert(tb.QueryTestCase):
 
         # Make sure only 1 insert into Note happened
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [1],
         )
 
     async def test_edgeql_insert_dependent_26(self):
         # test that it works with an empty value in a computed prop
         await self.con.execute('''
-            WITH MODULE test
             INSERT Person2b {
                 first := "Madeline",
                 last := "Hatch4",
@@ -3664,7 +3473,6 @@ class TestInsert(tb.QueryTestCase):
         ''')
 
         query = r'''
-            WITH MODULE test
             SELECT (
                 INSERT Person2b {
                     first := "Phil",
@@ -3685,14 +3493,13 @@ class TestInsert(tb.QueryTestCase):
 
         # No conflict (because last was empty), so two inserts
         await self.assert_query_result(
-            r'''SELECT count(test::Note)''',
+            r'''SELECT count(Note)''',
             [2],
         )
 
     async def test_edgeql_insert_dependent_27(self):
         # test with two nested single links
         await self.con.execute('''
-            SET MODULE test;
             CREATE ABSTRACT TYPE Named {
                 CREATE REQUIRED PROPERTY name -> str {
                     CREATE DELEGATED CONSTRAINT exclusive;
@@ -3727,7 +3534,7 @@ class TestInsert(tb.QueryTestCase):
         )
 
         await self.assert_query_result(
-            "SELECT test::Obj {name, foo: {name}, bar: {name}}",
+            "SELECT Obj {name, foo: {name}, bar: {name}}",
             [{"name": "obj", "foo": {"name": "foo"}, "bar": {"name": "bar"}}],
         )
 
@@ -3735,7 +3542,6 @@ class TestInsert(tb.QueryTestCase):
         # It would also be a reasonable semantics for this test to
         # return two objects
         query = r'''
-            WITH MODULE test
             SELECT (
               FOR x in {"Phil Emarg", "Phil Emarg"} UNION (
                 INSERT Person {name := x}
@@ -3754,7 +3560,6 @@ class TestInsert(tb.QueryTestCase):
         # It would also be a reasonable semantics for this test to
         # not fail
         query = r'''
-            WITH MODULE test
             SELECT (
               (INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT),
               (INSERT Person {name := "Emmanuel Villip"} UNLESS CONFLICT),
@@ -3769,7 +3574,6 @@ class TestInsert(tb.QueryTestCase):
         # It would also be a reasonable semantics for this test to
         # not fail
         query = r'''
-            WITH MODULE test
             INSERT Person {
                 name := "Madeline Hatch",
                 note := (
@@ -3791,19 +3595,19 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_nested_volatile_01(self):
         await self.con.execute('''
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'subtest 1'
             };
 
-            INSERT test::Subordinate {
+            INSERT Subordinate {
                 name := 'subtest 2'
             };
 
-            INSERT test::InsertTest {
+            INSERT InsertTest {
                 name := 'insert nested',
                 l2 := 0,
                 subordinates := (
-                    SELECT test::Subordinate {
+                    SELECT Subordinate {
                         @comment := <str>uuid_generate_v1mc()
                     }
                 )
@@ -3813,7 +3617,7 @@ class TestInsert(tb.QueryTestCase):
         # Each object should get a distinct @comment
         await self.assert_query_result(
             r'''
-                SELECT count(DISTINCT test::InsertTest.subordinates@comment);
+                SELECT count(DISTINCT InsertTest.subordinates@comment);
             ''',
             [2]
         )
@@ -3822,16 +3626,16 @@ class TestInsert(tb.QueryTestCase):
         # INSERTing something that would violate a constraint while
         # fixing the violation is still supposed to be an error.
         await self.con.execute('''
-            INSERT test::Person { name := 'foo' };
+            INSERT Person { name := 'foo' };
         ''')
 
         with self.assertRaisesRegex(edgedb.ConstraintViolationError,
                                     "violates exclusivity constraint"):
             await self.con.execute('''
                 SELECT (
-                    (UPDATE test::Person FILTER .name = 'foo'
+                    (UPDATE Person FILTER .name = 'foo'
                         SET { name := 'foo' }),
-                    (INSERT test::Person { name := 'foo' })
+                    (INSERT Person { name := 'foo' })
                 )
             ''')
 
@@ -3839,14 +3643,14 @@ class TestInsert(tb.QueryTestCase):
         # INSERTing something that would violate a constraint while
         # fixing the violation is still supposed to be an error.
         await self.con.execute('''
-            INSERT test::Person { name := 'foo' };
+            INSERT Person { name := 'foo' };
         ''')
 
         with self.assertRaisesRegex(edgedb.ConstraintViolationError,
                                     "violates exclusivity constraint"):
             await self.con.execute('''
                 SELECT (
-                    (DELETE test::Person FILTER .name = 'foo'),
-                    (INSERT test::Person { name := 'foo' })
+                    (DELETE Person FILTER .name = 'foo'),
+                    (INSERT Person { name := 'foo' })
                 )
             ''')

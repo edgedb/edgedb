@@ -1876,8 +1876,8 @@ class DumpTestCaseMixin:
 
 class TestDump01(tb.StableDumpTestCase, DumpTestCaseMixin):
 
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'dump01_test.esdl')
+    SCHEMA_TEST = os.path.join(os.path.dirname(__file__), 'schemas',
+                               'dump01_test.esdl')
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
                                   'dump01_default.esdl')
 

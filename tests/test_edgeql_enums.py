@@ -31,7 +31,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
     async def test_edgeql_enums_cast_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT <color_enum_t>{'RED', 'GREEN', 'BLUE'};
             ''',
             {'RED', 'GREEN', 'BLUE'},
@@ -42,7 +41,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r'invalid input value for enum .+color_enum_t.+YELLOW'):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT <color_enum_t>'YELLOW';
             ''')
 
@@ -51,7 +49,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
                 edgedb.InvalidValueError,
                 r'invalid input value for enum .+color_enum_t.+red'):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT <color_enum_t>'red';
             ''')
 
@@ -59,21 +56,18 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator '\+\+' cannot be applied to operands of type "
-                r"'std::str' and 'test::color_enum_t'"):
+                r"'std::str' and 'default::color_enum_t'"):
             await self.con.execute(r'''
-                WITH MODULE test
                 INSERT Foo {
                     color := 'BLUE'
                 };
 
-                WITH MODULE test
                 SELECT 'The test color is: ' ++ Foo.color;
             ''')
 
     async def test_edgeql_enums_cast_05(self):
         await self.con.execute(
             r'''
-                WITH MODULE test
                 INSERT Foo {
                     color := 'BLUE'
                 };
@@ -81,7 +75,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT 'The test color is: ' ++ <str>Foo.color;
             ''',
             ['The test color is: BLUE'],
@@ -91,7 +84,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
         # testing the INSERT assignment cast
         await self.con.execute(
             r'''
-                WITH MODULE test
                 INSERT Foo {
                     color := 'RED'
                 };
@@ -99,7 +91,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Foo {
                     color
                 };
@@ -112,7 +103,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
     async def test_edgeql_enums_assignment_02(self):
         await self.con.execute(
             r'''
-                WITH MODULE test
                 INSERT Foo {
                     color := 'RED'
                 };
@@ -121,7 +111,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
         # testing the UPDATE assignment cast
         await self.con.execute(
             r'''
-                WITH MODULE test
                 UPDATE Foo
                 SET {
                     color := 'GREEN'
@@ -130,7 +119,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Foo {
                     color
                 };
@@ -144,13 +132,11 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
         # testing the INSERT assignment cast
         await self.con.execute(
             r'''
-                WITH MODULE test
                 INSERT Bar;
             ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Bar {
                     color
                 };
@@ -163,14 +149,12 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
     async def test_edgeql_enums_assignment_04(self):
         await self.con.execute(
             r'''
-                WITH MODULE test
                 INSERT Bar;
             ''')
 
         # testing the UPDATE assignment cast
         await self.con.execute(
             r'''
-                WITH MODULE test
                 UPDATE Bar
                 SET {
                     color := 'GREEN'
@@ -179,7 +163,6 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Bar {
                     color
                 };
@@ -192,26 +175,26 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
     async def test_edgeql_enums_json_cast_01(self):
         self.assertEqual(
             await self.con.query(
-                "SELECT <json><test::color_enum_t>'RED'"
+                "SELECT <json><color_enum_t>'RED'"
             ),
             ['"RED"'])
 
         await self.assert_query_result(
-            "SELECT <test::color_enum_t><json>'RED'",
+            "SELECT <color_enum_t><json>'RED'",
             ['RED'])
 
         await self.assert_query_result(
-            "SELECT <test::color_enum_t>'RED'",
+            "SELECT <color_enum_t>'RED'",
             ['RED'])
 
     async def test_edgeql_enums_json_cast_02(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'invalid input value for enum .+color_enum_t.+: "BANANA"'):
-            await self.con.execute("SELECT <test::color_enum_t><json>'BANANA'")
+            await self.con.execute("SELECT <color_enum_t><json>'BANANA'")
 
     async def test_edgeql_enums_json_cast_03(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
                 r'expected json string or null; got json number'):
-            await self.con.execute("SELECT <test::color_enum_t><json>12")
+            await self.con.execute("SELECT <color_enum_t><json>12")

@@ -42,6 +42,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
     should match for easy reference, even if it means skipping some.
     """
 
+    DEFAULT_MODULE = 'test'
+
     def normalize_statement(self, s: str) -> str:
         re_filter = re.compile(r'[\s]+|(#.*?(\n|$))|(,(?=\s*[})]))')
         stripped = textwrap.dedent(s.lstrip('\n')).rstrip('\n')
@@ -8951,8 +8953,6 @@ class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
         """)
 
     async def test_edgeql_ddl_collection_cleanup_06(self):
-        await self.con.execute("SET MODULE test;")
-
         for _ in range(2):
             await self.con.execute(r"""
                 CREATE FUNCTION cleanup_06(

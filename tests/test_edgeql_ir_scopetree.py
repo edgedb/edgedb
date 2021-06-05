@@ -42,6 +42,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             self.schema,
             options=compiler.CompilerOptions(
                 apply_query_rewrites=False,
+                modaliases={None: 'default'},
             )
         )
 
@@ -70,28 +71,25 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_01(self):
         """
-        WITH MODULE test
         SELECT (Card, Card.id)
 % OK %
         "FENCE": {
-            "(test::Card)",
-            "(test::Card).>id[IS std::uuid]"
+            "(default::Card)",
+            "(default::Card).>id[IS std::uuid]"
         }
         """
 
     def test_edgeql_ir_scope_tree_02(self):
         """
-        WITH MODULE test
         SELECT Card{name, cost}
 % OK %
         "FENCE": {
-            "(test::Card)"
+            "(default::Card)"
         }
         """
 
     def test_edgeql_ir_scope_tree_03(self):
         """
-        WITH MODULE test
         SELECT (
             Card {
                 owner := (SELECT Card.<deck[IS User])
@@ -101,22 +99,22 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::Card)",
-            "(test::Card).<deck[IS __derived__::(opaque: test:User)]\
-.>indirection[IS test::User]": {
-                "(test::Card).<deck[IS __derived__::(opaque: test:User)]",
-                "[ns~1]@[ns~2]@@(test::Card).<deck[IS __derived__::\
-(opaque: test:User)]"
+            "(default::Card)",
+            "(default::Card).<deck[IS __derived__::(opaque: default:User)]\
+.>indirection[IS default::User]": {
+                "(default::Card)\
+.<deck[IS __derived__::(opaque: default:User)]",
+                "[ns~1]@[ns~2]@@(default::Card)\
+.<deck[IS __derived__::(opaque: default:User)]"
             },
             "FENCE": {
-                "(test::Card).>owner[IS test::User]"
+                "(default::Card).>owner[IS default::User]"
             }
         }
         """
 
     def test_edgeql_ir_scope_tree_04(self):
         """
-        WITH MODULE test
         SELECT (
             Card.<deck[IS User],
             Card {
@@ -126,15 +124,16 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::Card).<deck[IS __derived__::(opaque: test:User)]\
-.>indirection[IS test::User]": {
-                "(test::Card).<deck[IS __derived__::(opaque: test:User)]",
-                "[ns~1]@[ns~2]@@(test::Card).<deck[IS __derived__::\
-(opaque: test:User)]"
+            "(default::Card).<deck[IS __derived__::(opaque: default:User)]\
+.>indirection[IS default::User]": {
+                "(default::Card)\
+.<deck[IS __derived__::(opaque: default:User)]",
+                "[ns~1]@[ns~2]@@(default::Card)\
+.<deck[IS __derived__::(opaque: default:User)]"
             },
-            "(test::Card)",
+            "(default::Card)",
             "FENCE": {
-                "(test::Card).>owner[IS test::User]"
+                "(default::Card).>owner[IS default::User]"
             }
         }
         """
@@ -142,7 +141,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_scope_tree_05(self):
         """
         WITH
-            MODULE test,
             U := User
         SELECT (
             Card {
@@ -155,76 +153,72 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "FENCE": {
                 "FENCE": {
-                    "[ns~1]@@(test::User)"
+                    "[ns~1]@@(default::User)"
                 }
             },
-            "(test::Card)",
-            "(test::User)",
+            "(default::Card)",
+            "(default::User)",
             "FENCE": {
                 "[ns~2]@[ns~3]@@(__derived__::__derived__|U@w~1)",
-                "(test::Card).>users[IS test::User]"
+                "(default::Card).>users[IS default::User]"
             }
         }
         """
 
     def test_edgeql_ir_scope_tree_06(self):
         """
-        WITH MODULE test
         SELECT count(User) + count(User)
 
 % OK %
         "FENCE": {
             "FENCE": {
-                "(test::User)"
+                "(default::User)"
             },
             "FENCE": {
-                "(test::User)"
+                "(default::User)"
             }
         }
         """
 
     def test_edgeql_ir_scope_tree_07(self):
         """
-        WITH MODULE test
         SELECT User.deck
 
 % OK %
         "FENCE": {
-            "(test::User).>deck[IS test::Card]": {
-                "(test::User)"
+            "(default::User).>deck[IS default::Card]": {
+                "(default::User)"
             }
         }
         """
 
     def test_edgeql_ir_scope_tree_08(self):
         """
-        WITH MODULE test
         SELECT (User.friends, User.friends@nickname)
 
 % OK %
         "FENCE": {
-            "(test::User).>friends[IS test::User]",
-            "(test::User)",
-            "(test::User).>friends[IS test::User]@nickname[IS std::str]"
+            "(default::User).>friends[IS default::User]",
+            "(default::User)",
+            "(default::User).>friends[IS default::User]@nickname[IS std::str]"
         }
         """
 
     def test_edgeql_ir_scope_tree_09(self):
         """
-        WITH MODULE test
         SELECT (SELECT User FILTER User.name = 'Bob').friends
 
 % OK %
         "FENCE": {
             "FENCE": {
                 "FENCE": {
-                    "(test::User)",
+                    "(default::User)",
                     "FENCE": {
-                        "(test::User).>name[IS std::str]"
+                        "(default::User).>name[IS std::str]"
                     }
                 }
             },
-            "(__derived__::expr~6).>friends[IS test::User]": {
+            "(__derived__::expr~6).>friends[IS default::User]": {
                 "(__derived__::expr~6)"
             }
         }
@@ -232,16 +226,15 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_10(self):
         """
-        WITH MODULE test
         SELECT (Card.element ?? <str>Card.cost, count(Card))
 
 % OK %
         "FENCE": {
             "FENCE": {
-                "(test::Card).>cost[IS std::int64]"
+                "(default::Card).>cost[IS std::int64]"
             },
-            "(test::Card) [OPT]",
-            "(test::Card).>element[IS std::str] [OPT]"
+            "(default::Card) [OPT]",
+            "(default::Card).>element[IS std::str] [OPT]"
         }
         """
 
@@ -288,7 +281,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_13(self):
         """
-        WITH MODULE test
         SELECT User {
             friends := (User.friends
                         IF EXISTS User.friends
@@ -298,49 +290,51 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::User)",
+            "(default::User)",
             "FENCE": {
                 "FENCE": {
-                    "[ns~1]@[ns~2]@@(test::User).>friends[IS test::User]"
+                    "[ns~1]@[ns~2]@@(default::User).>friends[IS default::User]"
                 },
                 "FENCE": {
-                    "[ns~1]@[ns~2]@@(test::User).>deck[IS test::Card]\
-.<deck[IS __derived__::(opaque: test:User)].>indirection[IS test::User]": {
-                        "[ns~1]@[ns~2]@@(test::User).>deck[IS test::Card]\
-.<deck[IS __derived__::(opaque: test:User)]": {
-                            "[ns~1]@[ns~2]@@(test::User).>deck[IS test::Card]"
+                    "[ns~1]@[ns~2]@@(default::User).>deck[IS default::Card]\
+.<deck[IS __derived__::(opaque: default:User)]\
+.>indirection[IS default::User]": {
+                        "[ns~1]@[ns~2]@@(default::User)\
+.>deck[IS default::Card].<deck[IS __derived__::(opaque: default:User)]": {
+                            "[ns~1]@[ns~2]@@(default::User)\
+.>deck[IS default::Card]"
                         }
                     }
                 },
                 "FENCE": {
-                    "[ns~1]@[ns~2]@@(test::User).>friends[IS test::User]"
+                    "[ns~1]@[ns~2]@@(default::User).>friends[IS default::User]"
                 },
-                "(test::User).>friends[IS test::User]",
+                "(default::User).>friends[IS default::User]",
                 "[ns~1]@[ns~2]@@(__derived__::expr~13)"
             },
             "FENCE": {
-                "(test::User).>name[IS std::str]"
+                "(default::User).>name[IS std::str]"
             }
         }
         """
 
     def test_edgeql_ir_scope_tree_14(self):
         """
-        WITH MODULE test
         SELECT Card.owners
 
 % OK %
         "FENCE": {
-            "(test::Card).>owners[IS test::User]": {
+            "(default::Card).>owners[IS default::User]": {
                 "BRANCH": {
-                    "(test::Card)"
+                    "(default::Card)"
                 },
                 "FENCE": {
-                    "ns~1@@(test::Card).<deck[IS __derived__::\
-(opaque: test:User)].>indirection[IS test::User]": {
-                        "ns~1@@(test::Card).<deck[IS __derived__::\
-(opaque: test:User)]": {
-                            "(test::Card)"
+                    "ns~1@@(default::Card)\
+.<deck[IS __derived__::(opaque: default:User)]\
+.>indirection[IS default::User]": {
+                        "ns~1@@(default::Card)\
+.<deck[IS __derived__::(opaque: default:User)]": {
+                            "(default::Card)"
                         }
                     }
                 }
@@ -350,7 +344,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_15(self):
         """
-        WITH MODULE test
         SELECT (
             (SELECT Card FILTER Card.element = 'Air'),
             (SELECT Card FILTER Card.element = 'Earth')
@@ -359,15 +352,15 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 % OK %
         "FENCE": {
             "FENCE": {
-                "(test::Card)",
+                "(default::Card)",
                 "FENCE": {
-                    "(test::Card).>element[IS std::str]"
+                    "(default::Card).>element[IS std::str]"
                 }
             },
             "FENCE": {
-                "(test::Card)",
+                "(default::Card)",
                 "FENCE": {
-                    "(test::Card).>element[IS std::str]"
+                    "(default::Card).>element[IS std::str]"
                 }
             },
             "(__derived__::expr~5)",
@@ -379,8 +372,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         # Apparent misplaced "(__derived__::__derived__|U@w~1)" in the FILTER
         # fence is due to a alias_map replacement artifact.
         """
-        WITH MODULE test,
-            U := (
+        WITH U := (
                 SELECT User {
                     cards := (
                         SELECT Card {
@@ -396,24 +388,25 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "FENCE": {
                 "FENCE": {
-                    "[ns~1]@@(test::User)",
+                    "[ns~1]@@(default::User)",
                     "FENCE": {
-                        "[ns~1]@@(test::User).>name[IS std::str]"
+                        "[ns~1]@@(default::User).>name[IS std::str]"
                     }
                 }
             },
-            "(__derived__::__derived__|U@w~1).>cards[IS test::Card]\
+            "(__derived__::__derived__|U@w~1).>cards[IS default::Card]\
 .>foo[IS std::float64]": {
                 "BRANCH": {
-                    "(__derived__::__derived__|U@w~1).>cards[IS test::Card]": {
+                    "(__derived__::__derived__|U@w~1)\
+.>cards[IS default::Card]": {
                         "BRANCH": {
                             "(__derived__::__derived__|U@w~1)"
                         },
                         "FENCE": {
-                            "[ns~2]@@(test::Card)",
+                            "[ns~2]@@(default::Card)",
                             "FENCE": {
                                 "[ns~2]@@(__derived__::__derived__|U@w~1)\
-.>deck[IS test::Card]": {
+.>deck[IS default::Card]": {
                                     "(__derived__::__derived__|U@w~1)"
                                 }
                             }
@@ -426,7 +419,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_17(self):
         """
-        WITH MODULE test
         SELECT
             Card
         ORDER BY
@@ -434,10 +426,10 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::Card)",
+            "(default::Card)",
             "FENCE": {
                 "FENCE": {
-                    "(test::Card).>name[IS std::str]"
+                    "(default::Card).>name[IS std::str]"
                 }
             }
         }
@@ -445,7 +437,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_18(self):
         """
-        WITH MODULE test
         SELECT User
         ORDER BY (
             (SELECT User.friends
@@ -455,15 +446,15 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::User)",
+            "(default::User)",
             "FENCE": {
                 "FENCE": {
                     "FENCE": {
                         "FENCE": {
-                            "(test::User).>friends[IS test::User]",
+                            "(default::User).>friends[IS default::User]",
                             "FENCE": {
-                                "(test::User)\
-.>friends[IS test::User]@nickname[IS std::str]"
+                                "(default::User)\
+.>friends[IS default::User]@nickname[IS std::str]"
                             }
                         }
                     }
@@ -477,7 +468,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_19(self):
         """
-        WITH MODULE test
         SELECT
             x := (
                 User.friends.deck_cost / count(User.friends.deck),
@@ -489,26 +479,26 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "FENCE": {
                 "FENCE": {
-                    "[ns~1]@@(test::User).>friends[IS test::User]": {
-                        "[ns~1]@@(test::User)"
+                    "[ns~1]@@(default::User).>friends[IS default::User]": {
+                        "[ns~1]@@(default::User)"
                     },
-                    "[ns~1]@@(test::User).>friends[IS test::User]\
+                    "[ns~1]@@(default::User).>friends[IS default::User]\
 .>deck_cost[IS std::int64]": {
                         "FENCE": {
                             "FENCE": {
                                 "FENCE": {
-                                    "[ns~1]@ns~2@@(test::User)\
-.>friends[IS test::User].>deck[IS test::Card].>cost[IS std::int64]": {
-                                        "[ns~1]@ns~2@@(test::User)\
-.>friends[IS test::User].>deck[IS test::Card]"
+                                    "[ns~1]@ns~2@@(default::User)\
+.>friends[IS default::User].>deck[IS default::Card].>cost[IS std::int64]": {
+                                        "[ns~1]@ns~2@@(default::User)\
+.>friends[IS default::User].>deck[IS default::Card]"
                                     }
                                 }
                             }
                         }
                     },
                     "FENCE": {
-                        "[ns~1]@@(test::User).>friends[IS test::User]\
-.>deck[IS test::Card]"
+                        "[ns~1]@@(default::User).>friends[IS default::User]\
+.>deck[IS default::Card]"
                     }
                 }
             },
@@ -521,22 +511,21 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_20(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card.name ++ <str>count(Card.owners)
 
 % OK %
         "FENCE": {
-            "(test::Card)",
-            "(test::Card).>name[IS std::str]",
+            "(default::Card)",
+            "(default::Card).>name[IS std::str]",
             "FENCE": {
-                "(test::Card).>owners[IS test::User]": {
+                "(default::Card).>owners[IS default::User]": {
                     "FENCE": {
-                        "ns~1@@(test::Card).<deck\
-[IS __derived__::(opaque: test:User)].>indirection[IS test::User]": {
-                            "ns~1@@(test::Card).<deck\
-[IS __derived__::(opaque: test:User)]"
+                        "ns~1@@(default::Card)\
+.<deck[IS __derived__::(opaque: default:User)]\
+.>indirection[IS default::User]": {
+                            "ns~1@@(default::Card)\
+.<deck[IS __derived__::(opaque: default:User)]"
                         }
                     }
                 }
@@ -546,15 +535,13 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_21(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card.element ++ ' ' ++ (SELECT Card).name
 
 % OK %
         "FENCE": {
-            "(test::Card)",
-            "(test::Card).>element[IS std::str]",
+            "(default::Card)",
+            "(default::Card).>element[IS std::str]",
             "(__derived__::expr~7).>name[IS std::str]": {
                 "(__derived__::expr~7)"
             }
@@ -563,7 +550,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_22(self):
         """
-        WITH MODULE test
         SELECT User {
             name,
             deck: {
@@ -573,41 +559,42 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::User)",
+            "(default::User)",
             "FENCE": {
-                "[ns~1]@[ns~2]@@(test::User).>deck[IS test::Card]",
+                "[ns~1]@[ns~2]@@(default::User).>deck[IS default::Card]",
                 "FENCE": {
-                    "[ns~1]@[ns~2]@@(test::User)\
-.>deck[IS test::Card]@count[IS std::int64]"
+                    "[ns~1]@[ns~2]@@(default::User)\
+.>deck[IS default::Card]@count[IS std::int64]"
                 },
-                "(test::User).>deck[IS test::Card]"
+                "(default::User).>deck[IS default::Card]"
             },
             "FENCE": {
-                "(test::User).>deck[IS test::Card]": {
+                "(default::User).>deck[IS default::Card]": {
                     "FENCE": {
-                        "[ns~1]@[ns~4]@@(test::User).>deck[IS test::Card]",
+                        "[ns~1]@[ns~4]@@(default::User)\
+.>deck[IS default::Card]",
                         "FENCE": {
-                            "[ns~1]@[ns~4]@@(test::User)\
-.>deck[IS test::Card]@count[IS std::int64]"
+                            "[ns~1]@[ns~4]@@(default::User)\
+.>deck[IS default::Card]@count[IS std::int64]"
                         }
                     },
                     "FENCE": {
-                        "[ns~1]@[ns~3]@@(test::User).>deck[IS test::Card]",
+                        "[ns~1]@[ns~3]@@(default::User)\
+.>deck[IS default::Card]",
                         "FENCE": {
-                            "[ns~1]@[ns~3]@@(test::User)\
-.>deck[IS test::Card]@count[IS std::int64]"
+                            "[ns~1]@[ns~3]@@(default::User)\
+.>deck[IS default::Card]@count[IS std::int64]"
                         }
                     }
                 },
-                "(test::User).>deck[IS test::Card].>cost[IS std::int64]",
-                "(test::User).>deck[IS test::Card]@count[IS std::int64]"
+                "(default::User).>deck[IS default::Card].>cost[IS std::int64]",
+                "(default::User).>deck[IS default::Card]@count[IS std::int64]"
             }
         }
         """
 
     def test_edgeql_ir_scope_tree_23(self):
         """
-        WITH MODULE test
         SELECT User {
             name,
             deck := (SELECT x := User.deck ORDER BY x.name)
@@ -615,12 +602,12 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::User)",
+            "(default::User)",
             "FENCE": {
                 "FENCE": {
                     "FENCE": {
-                        "[ns~1]@[ns~3]@[ns~4]@@(test::User)\
-.>deck[IS test::Card]"
+                        "[ns~1]@[ns~3]@[ns~4]@@(default::User)\
+.>deck[IS default::Card]"
                     }
                 },
                 "[ns~1]@[ns~3]@@(__derived__::__derived__|x@w~2)",
@@ -628,7 +615,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                     "[ns~1]@[ns~3]@@(__derived__::__derived__|x@w~2)\
 .>name[IS std::str]"
                 },
-                "(test::User).>deck[IS test::Card]"
+                "(default::User).>deck[IS default::Card]"
             }
         }
         """
@@ -636,7 +623,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_scope_tree_24(self):
         """
         WITH
-            MODULE test,
             A := {1, 2}
         SELECT _ := (User{name, a := A}, A)
 
@@ -644,7 +630,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "FENCE": {
                 "FENCE": {
-                    "[ns~2]@@(test::User)",
+                    "[ns~2]@@(default::User)",
                     "[ns~2]@@(__derived__::__derived__|A@w~1)"
                 }
             },
@@ -654,7 +640,6 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_25(self):
         """
-        WITH MODULE test
         SELECT User {
             select_deck := (
                 FOR letter IN {'I', 'B'}
@@ -670,30 +655,30 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::User)",
+            "(default::User)",
             "FENCE": {
                 "[ns~1]@[ns~4]@@(__derived__::__derived__|letter@w~1)",
                 "FENCE": {
                     "FENCE": {
-                        "[ns~1]@[ns~4]@@(test::User).>deck[IS test::Card]",
+                        "[ns~1]@[ns~4]@@(default::User)\
+.>deck[IS default::Card]",
                         "FENCE": {
-                            "[ns~1]@[ns~4]@@(test::User).>deck[IS test::Card]\
-.>name[IS std::str]"
+                            "[ns~1]@[ns~4]@@(default::User)\
+.>deck[IS default::Card].>name[IS std::str]"
                         }
                     }
                 },
-                "(test::User).>select_deck[IS test::Card]",
+                "(default::User).>select_deck[IS default::Card]",
                 "[ns~1]@[ns~4]@@(__derived__::expr~26)"
             },
             "FENCE": {
-                "(test::User).>name[IS std::str]"
+                "(default::User).>name[IS std::str]"
             }
         }
         """
 
     def test_edgeql_ir_scope_tree_26(self):
         """
-        WITH MODULE test
         SELECT User {
             select_deck := (
                 FOR letter IN {'I', 'B'}
@@ -709,33 +694,32 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::User)",
+            "(default::User)",
             "FENCE": {
                 "[ns~1]@[ns~5]@@(__derived__::__derived__|letter@w~1)",
                 "FENCE": {
                     "FENCE": {
                         "FENCE": {
-                            "[ns~1]@[ns~5]@[ns~7]@@(test::User)\
-.>deck[IS test::Card]",
+                            "[ns~1]@[ns~5]@[ns~7]@@(default::User)\
+.>deck[IS default::Card]",
                             "FENCE": {
-                                "[ns~1]@[ns~5]@[ns~7]@@(test::User)\
-.>deck[IS test::Card].>name[IS std::str]"
+                                "[ns~1]@[ns~5]@[ns~7]@@(default::User)\
+.>deck[IS default::Card].>name[IS std::str]"
                             }
                         }
                     }
                 },
-                "(test::User).>select_deck[IS test::Card]",
+                "(default::User).>select_deck[IS default::Card]",
                 "[ns~1]@[ns~5]@@(__derived__::__derived__|foo@w~2)"
             },
             "FENCE": {
-                "(test::User).>name[IS std::str]"
+                "(default::User).>name[IS std::str]"
             }
         }
         """
 
     def test_edgeql_ir_scope_tree_27(self):
         """
-        WITH MODULE test
         INSERT User {
             name := 'Carol',
             deck := (
@@ -745,15 +729,15 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::User)",
+            "(default::User)",
             "FENCE": {
-                "[ns~1]@[ns~5]@@(test::Card)",
+                "[ns~1]@[ns~5]@@(default::Card)",
                 "FENCE": {
-                    "[ns~1]@[ns~5]@@(test::Card).>element[IS std::str]"
+                    "[ns~1]@[ns~5]@@(default::Card).>element[IS std::str]"
                 },
-                "(test::User).>deck[IS test::Card]",
+                "(default::User).>deck[IS default::Card]",
                 "FENCE": {
-                    "[ns~1]@[ns~2]@[ns~5]@[ns~6]@@(test::Card)\
+                    "[ns~1]@[ns~2]@[ns~5]@[ns~6]@@(default::Card)\
 .>cost[IS std::int64]"
                 }
             }
@@ -762,36 +746,34 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_scope_tree_28(self):
         """
-        WITH MODULE test
         SELECT <str>count((WITH A := Card SELECT A.owners)) ++ Card.name
 
 % OK %
         "FENCE": {
             "FENCE": {
-                "(__derived__::__derived__|A@w~1).>owners[IS test::User]": {
+                "(__derived__::__derived__|A@w~1).>owners[IS default::User]": {
                     "BRANCH": {
                         "(__derived__::__derived__|A@w~1)"
                     },
                     "FENCE": {
                         "ns~2@@(__derived__::__derived__|A@w~1)\
-.<deck[IS __derived__::(opaque: test:User)].>indirection[IS test::User]": {
+.<deck[IS __derived__::(opaque: default:User)]\
+.>indirection[IS default::User]": {
                             "ns~2@@(__derived__::__derived__|A@w~1)\
-.<deck[IS __derived__::(opaque: test:User)]": {
+.<deck[IS __derived__::(opaque: default:User)]": {
                                 "(__derived__::__derived__|A@w~1)"
                             }
                         }
                     }
                 }
             },
-            "(test::Card)",
-            "(test::Card).>name[IS std::str]"
+            "(default::Card)",
+            "(default::Card).>name[IS std::str]"
         }
         """
 
     def test_edgeql_ir_scope_tree_29(self):
         """
-        WITH
-            MODULE test
         SELECT Card {
             name,
             alice := (SELECT User FILTER User.name = 'Alice')
@@ -799,74 +781,69 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 
 % OK %
         "FENCE": {
-            "(test::Card)",
+            "(default::Card)",
             "FENCE": {
-                "[ns~1]@[ns~2]@@(test::User)",
+                "[ns~1]@[ns~2]@@(default::User)",
                 "FENCE": {
-                    "[ns~1]@[ns~2]@@(test::User).>name[IS std::str]"
+                    "[ns~1]@[ns~2]@@(default::User).>name[IS std::str]"
                 },
-                "(test::Card).>alice[IS test::User]"
+                "(default::Card).>alice[IS default::User]"
             },
             "FENCE": {
-                "(test::Card).>alice[IS test::User]": {
+                "(default::Card).>alice[IS default::User]": {
                     "FENCE": {
-                        "[ns~1]@[ns~3]@@(test::User)",
+                        "[ns~1]@[ns~3]@@(default::User)",
                         "FENCE": {
-                            "[ns~1]@[ns~3]@@(test::User).>name[IS std::str]"
+                            "[ns~1]@[ns~3]@@(default::User).>name[IS std::str]"
                         }
                     }
                 },
-                "(test::User)",
-                "(test::Card).>name[IS std::str]"
+                "(default::User)",
+                "(default::Card).>name[IS std::str]"
             }
         }
         """
 
     @tb.must_fail(errors.QueryError,
                   "reference to 'User.name' changes the interpretation",
-                  line=4, col=9)
+                  line=3, col=9)
     def test_edgeql_ir_scope_tree_bad_01(self):
         """
-        WITH MODULE test
         SELECT User.deck
         FILTER User.name
         """
 
     @tb.must_fail(errors.QueryError,
                   "reference to 'User' changes the interpretation",
-                  line=4, col=9)
+                  line=3, col=9)
     def test_edgeql_ir_scope_tree_bad_02(self):
         """
-        WITH MODULE test
         SELECT User.deck
         FILTER User.deck@count
         """
 
     @tb.must_fail(errors.QueryError,
                   "reference to 'User' changes the interpretation",
-                  line=3, col=35)
+                  line=2, col=35)
     def test_edgeql_ir_scope_tree_bad_03(self):
         """
-        WITH MODULE test
         SELECT User.deck { foo := User }
         """
 
     @tb.must_fail(errors.QueryError,
                   "reference to 'User.name' changes the interpretation",
-                  line=3, col=40)
+                  line=2, col=40)
     def test_edgeql_ir_scope_tree_bad_04(self):
         """
-        WITH MODULE test
         UPDATE User.deck SET { name := User.name }
         """
 
     @tb.must_fail(errors.QueryError,
                   "reference to 'U.r' changes the interpretation",
-                  line=7, col=58)
+                  line=6, col=58)
     def test_edgeql_ir_scope_tree_bad_05(self):
         """
         WITH
-            MODULE test,
             U := User {id, r := random()}
         SELECT
             (

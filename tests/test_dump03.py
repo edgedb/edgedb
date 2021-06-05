@@ -69,6 +69,7 @@ class DumpTestCaseMixin:
 
 
 class TestDump03(tb.StableDumpTestCase, DumpTestCaseMixin):
+    DEFAULT_MODULE = 'test'
 
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
                                   'dump03_default.esdl')

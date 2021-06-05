@@ -35,7 +35,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_function_01(self):
         result = await self.con.query(
             r"""
-                WITH MODULE test
                 SELECT Obj {
                     # immutable function should only be called once,
                     # generating the same value for all Objs
@@ -52,7 +51,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_function_02(self):
         result = await self.con.query(
             r"""
-                WITH MODULE test
                 SELECT Obj {
                     # stable function should only be called once,
                     # generating the same value for all Objs
@@ -69,7 +67,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_function_03a(self):
         result = await self.con.query(
             r"""
-                WITH MODULE test
                 SELECT Obj {
                     # volatile function should be called once for each
                     # Obj, generating different values
@@ -86,7 +83,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_function_03b(self):
         result = await self.con.query(
             r"""
-                WITH MODULE test
                 SELECT Obj {
                     # volatile function should be called once for each
                     # Obj, generating different values
@@ -103,7 +99,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_function_04(self):
         with self.assertRaises(edgedb.DivisionByZeroError):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT Obj {
                     # this condition is true for all of the Objs, but
                     # a constant immutable function call can be
@@ -114,7 +109,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_function_05(self):
         await self.assert_query_result(r'''
-            WITH MODULE test
             SELECT Obj {
                 # this condition is true for all of the Objs and the
                 # stable function call cannot be factored out
@@ -128,7 +122,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_function_06(self):
         await self.assert_query_result(r'''
-            WITH MODULE test
             SELECT Obj {
                 # this condition is true for all of the Objs and the
                 # volatile function call cannot be factored out
@@ -143,7 +136,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_operator_01(self):
         with self.assertRaises(edgedb.DivisionByZeroError):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT Obj {
                     # this condition is true for all of the Objs, but
                     # a constant immutable operation can be factored out
@@ -155,7 +147,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_cast_01(self):
         with self.assertRaises(edgedb.DivisionByZeroError):
             await self.con.execute(r'''
-                WITH MODULE test
                 SELECT Obj {
                     # this condition is true for all of the Objs, but
                     # a constant immutable cast can be factored out
@@ -166,7 +157,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_cast_02(self):
         await self.assert_query_result(r'''
-            WITH MODULE test
             SELECT Obj {
                 # this condition is true for all of the Objs and the
                 # stable cast (<json>) cannot be factored out
@@ -221,8 +211,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_for_05(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
-                     X := (FOR y in {1, 2} UNION (
+                WITH X := (FOR y in {1, 2} UNION (
                                (uuid_generate_v1mc(),
                                 (INSERT Obj { n := y }))))
                 SELECT count(DISTINCT X.0);
@@ -260,7 +249,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_for_09(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT count(
                     DISTINCT (FOR x in {(Obj { x := random() }).x} UNION (
                         uuid_generate_v1mc())));
@@ -411,14 +399,12 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_update_clause_01(self):
         # Spurious failure probability: 1/2^99
         await self.con.execute(r'''
-            WITH MODULE test
             FOR x in {_gen_series(4,100)} UNION (
             INSERT Obj { n := x })
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT count(Obj)
             ''',
             [100],
@@ -426,8 +412,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
-                     X := (UPDATE Obj FILTER random() > 0.5
+                WITH X := (UPDATE Obj FILTER random() > 0.5
                            SET { n := -1 })
                 SELECT count(X) NOT IN {0, 100}
             ''',
@@ -436,8 +421,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
-                     X := (SELECT Obj FILTER .n < 0)
+                WITH X := (SELECT Obj FILTER .n < 0)
                 SELECT count(X) != 0 AND count(X) != 100
             ''',
             [True],
@@ -446,15 +430,13 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
     async def test_edgeql_volatility_delete_clause_01(self):
         # Spurious failure probability: 1/2^99
         await self.con.execute(r'''
-            WITH MODULE test
             FOR x in {_gen_series(4,100)} UNION (
             INSERT Obj { n := x })
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test,
-                     X := (DELETE Obj FILTER random() > 0.5)
+                WITH X := (DELETE Obj FILTER random() > 0.5)
                 SELECT count(X) NOT IN {0, 100}
             ''',
             [True],
@@ -462,7 +444,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT count(Obj) != 0 AND count(Obj) != 100
             ''',
             [True],
@@ -472,7 +453,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         # random() should get called once for each Obj/Tgt pair
         result = await self.con.query(
             r"""
-                WITH MODULE test
                 SELECT Obj {
                     l := (SELECT Tgt { m := random() }),
                 };
@@ -487,10 +467,10 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     "can not take cross product of volatile operation",
-                    _position=42):
+                    _position=36):
                 await self.con.execute(
                     r"""
-                    SELECT test::Obj.n + random()
+                    SELECT Obj.n + random()
                     """
                 )
 
@@ -498,10 +478,10 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             with self.assertRaisesRegex(
                     edgedb.QueryError,
                     "can not take cross product of volatile operation",
-                    _position=42):
+                    _position=36):
                 await self.con.execute(
                     r"""
-                    SELECT (test::Obj.n, random())
+                    SELECT (Obj.n, random())
                     """
                 )
 
@@ -522,7 +502,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     _position=28):
                 await self.con.execute(
                     r"""
-                    SELECT random() + test::Obj.n
+                    SELECT random() + Obj.n
                     """
                 )
 
@@ -544,7 +524,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     _position=36):
                 await self.con.execute(
                     r"""
-                    SELECT ({1,2}, (INSERT test::Obj { n := 100 }))
+                    SELECT ({1,2}, (INSERT Obj { n := 100 }))
                     """
                 )
 
@@ -557,6 +537,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     r"""
                     SELECT ({1,2},
                             (FOR i in {1,2,3} UNION (
-                                 INSERT test::Obj { n := i })))
+                                 INSERT Obj { n := i })))
                     """
                 )
