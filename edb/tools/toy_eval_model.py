@@ -86,6 +86,7 @@ def bsid(n: int) -> uuid.UUID:
 # ############# Data model
 
 Data = Any
+Result = List[Data]
 Row = Tuple[Data, ...]
 DB = Dict[uuid.UUID, Dict[str, Data]]
 
@@ -177,15 +178,15 @@ IPath = Tuple[IPathElement, ...]
 
 
 class LiftedFunc(Protocol):
-    def __call__(self, *args: List[Data]) -> List[Data]:
+    def __call__(self, *args: Result) -> Result:
         pass
 
 
-def lift(f: Callable[..., Union[Data, List[Data]]]) -> LiftedFunc:
+def lift(f: Callable[..., Data]) -> LiftedFunc:
     """Lifts a function operating on base data to operator on sets.
 
     The result is the usual cartesian product."""
-    def inner(*args: List[Data]) -> List[Data]:
+    def inner(*args: Result) -> Result:
         out = []
         for args1 in itertools.product(*args):
             val = f(*args1)
@@ -195,56 +196,56 @@ def lift(f: Callable[..., Union[Data, List[Data]]]) -> LiftedFunc:
 
 
 def lift_set_of(f: Callable[..., Union[Data]]) -> LiftedFunc:
-    def inner(*args: List[Data]) -> List[Data]:
+    def inner(*args: Result) -> Result:
         return [f(*args)]
     return inner
 
 
-def opt_eq(x: List[Data], y: List[Data]) -> List[Data]:
+def opt_eq(x: Result, y: Result) -> Result:
     if not x or not y:
         return [len(x) == len(y)]
     return lift(operator.eq)(x, y)
 
 
-def opt_ne(x: List[Data], y: List[Data]) -> List[Data]:
+def opt_ne(x: Result, y: Result) -> Result:
     if not x or not y:
         return [len(x) != len(y)]
     return lift(operator.ne)(x, y)
 
 
-def contains(es: List[Data], s: List[Data]) -> List[Data]:
+def contains(es: Result, s: Result) -> Result:
     return [e in s for e in es]
 
 
-def not_contains(es: List[Data], s: List[Data]) -> List[Data]:
+def not_contains(es: Result, s: Result) -> Result:
     return [e not in s for e in es]
 
 
-def coalesce(x: List[Data], y: List[Data]) -> List[Data]:
+def coalesce(x: Result, y: Result) -> Result:
     return strip_shapes(x or y)
 
 
-def distinct(x: List[Data]) -> List[Data]:
+def distinct(x: Result) -> Result:
     return dedup(x)
 
 
-def union(x: List[Data], y: List[Data]) -> List[Data]:
+def union(x: Result, y: Result) -> Result:
     return strip_shapes(x + y)
 
 
-def enumerate_(x: List[Data]) -> List[Data]:
+def enumerate_(x: Result) -> Result:
     return list(enumerate(x))
 
 
-def array_agg(x: List[Data]) -> List[Data]:
+def array_agg(x: Result) -> Result:
     return [x]
 
 
-def array_unpack(x: List[Data]) -> List[Data]:
+def array_unpack(x: Result) -> Result:
     return [y for array in x for y in array]
 
 
-def if_(x: List[Data], bs: List[Data], y: List[Data]) -> List[Data]:
+def if_(x: Result, bs: Result, y: Result) -> Result:
     out = []
     for b in bs:
         if b:
@@ -326,7 +327,7 @@ BASIS_IMPLS: Dict[Tuple[str, str], LiftedFunc] = {
 class EvalContext:
     query_input_list: List[IPath]
     input_tuple: Tuple[Data, ...]
-    aliases: Dict[str, List[Data]]
+    aliases: Dict[str, Result]
     cur_path: Optional[qlast.Path]
     db: DB
 
@@ -335,7 +336,7 @@ class EvalContext:
 def _eval(
     node: qlast.Base,
     ctx: EvalContext,
-) -> List[Data]:
+) -> Result:
     raise NotImplementedError(
         f'no EdgeQL eval handler for {node.__class__}')
 
@@ -453,7 +454,7 @@ def eval_limit(limit: Optional[qlast.Expr], out: List[Row],
 
 
 @_eval.register
-def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
+def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> Result:
     if node.aliases:
         ctx = replace(ctx, aliases=ctx.aliases.copy())
         for alias in node.aliases:
@@ -491,7 +492,7 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> List[Data]:
 
 
 @_eval.register
-def eval_ShapeElement(el: qlast.ShapeElement, ctx: EvalContext) -> List[Data]:
+def eval_ShapeElement(el: qlast.ShapeElement, ctx: EvalContext) -> Result:
     if el.compexpr:
         result = el.compexpr
     else:
@@ -518,7 +519,7 @@ ANONYMOUS_SHAPE_EXPR = qlast.DetachedExpr(
 )
 
 @_eval.register
-def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> List[Data]:
+def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> Result:
 
     subq_path = update_path(ctx.cur_path, node.expr)
     assert subq_path
@@ -554,7 +555,7 @@ def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> List[Data]:
 
 
 @_eval.register
-def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> List[Data]:
+def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> Result:
     iter_vals = strip_shapes(subquery(node.iterator, ctx=ctx))
     qil = ctx.query_input_list + [(IORef(node.iterator_alias),)]
     out = []
@@ -568,12 +569,12 @@ def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> List[Data]:
 
 @_eval.register
 def eval_DetachedExpr(
-        node: qlast.DetachedExpr, ctx: EvalContext) -> List[Data]:
+        node: qlast.DetachedExpr, ctx: EvalContext) -> Result:
     return toplevel_query(node.expr, db=ctx.db)
 
 
 def eval_func_or_op(op: str, args: List[qlast.Expr], typ: str,
-                    ctx: EvalContext) -> List[Data]:
+                    ctx: EvalContext) -> Result:
     arg_specs = BASIS.get(op)
 
     results = []
@@ -589,32 +590,32 @@ def eval_func_or_op(op: str, args: List[qlast.Expr], typ: str,
 
 
 @_eval.register
-def eval_BinOp(node: qlast.BinOp, ctx: EvalContext) -> List[Data]:
+def eval_BinOp(node: qlast.BinOp, ctx: EvalContext) -> Result:
     return eval_func_or_op(
         node.op.upper(), [node.left, node.right], 'binop', ctx)
 
 
 @_eval.register
-def eval_UnaryOp(node: qlast.UnaryOp, ctx: EvalContext) -> List[Data]:
+def eval_UnaryOp(node: qlast.UnaryOp, ctx: EvalContext) -> Result:
     return eval_func_or_op(
         node.op.upper(), [node.operand], 'unop', ctx)
 
 
 @_eval.register
-def eval_Call(node: qlast.FunctionCall, ctx: EvalContext) -> List[Data]:
+def eval_Call(node: qlast.FunctionCall, ctx: EvalContext) -> Result:
     assert isinstance(node.func, str)
     return eval_func_or_op(node.func, node.args, 'func', ctx)
 
 
 @_eval.register
-def visit_IfElse(query: qlast.IfElse, ctx: EvalContext) -> List[Data]:
+def visit_IfElse(query: qlast.IfElse, ctx: EvalContext) -> Result:
     return eval_func_or_op(
         'IF', [query.if_expr, query.condition, query.else_expr], 'binop', ctx)
 
 
 @_eval.register
 def eval_Indirection(
-        node: qlast.Indirection, ctx: EvalContext) -> List[Data]:
+        node: qlast.Indirection, ctx: EvalContext) -> Result:
     base = eval(node.arg, ctx)
     for index in node.indirection:
         index_out = (
@@ -629,31 +630,31 @@ def eval_Indirection(
 
 @_eval.register
 def eval_StringConstant(
-        node: qlast.StringConstant, ctx: EvalContext) -> List[Data]:
+        node: qlast.StringConstant, ctx: EvalContext) -> Result:
     return [node.value]
 
 
 @_eval.register
 def eval_IntegerConstant(
-        node: qlast.IntegerConstant, ctx: EvalContext) -> List[Data]:
+        node: qlast.IntegerConstant, ctx: EvalContext) -> Result:
     return [int(node.value) * (-1 if node.is_negative else 1)]
 
 
 @_eval.register
 def eval_BooleanConstant(
-        node: qlast.BooleanConstant, ctx: EvalContext) -> List[Data]:
+        node: qlast.BooleanConstant, ctx: EvalContext) -> Result:
     return [node.value == 'true']
 
 
 @_eval.register
 def eval_FloatConstant(
-        node: qlast.FloatConstant, ctx: EvalContext) -> List[Data]:
+        node: qlast.FloatConstant, ctx: EvalContext) -> Result:
     return [float(node.value) * (-1 if node.is_negative else 1)]
 
 
 @_eval.register
 def eval_Set(
-        node: qlast.Set, ctx: EvalContext) -> List[Data]:
+        node: qlast.Set, ctx: EvalContext) -> Result:
     out = []
     for elem in node.elements:
         out.extend(eval(elem, ctx))
@@ -662,52 +663,52 @@ def eval_Set(
 
 @_eval.register
 def eval_Tuple(
-        node: qlast.Tuple, ctx: EvalContext) -> List[Data]:
+        node: qlast.Tuple, ctx: EvalContext) -> Result:
     args = [eval(arg, ctx) for arg in node.elements]
     return lift(lambda *va: va)(*args)
 
 
 @_eval.register
 def eval_Array(
-        node: qlast.Array, ctx: EvalContext) -> List[Data]:
+        node: qlast.Array, ctx: EvalContext) -> Result:
     args = [eval(arg, ctx) for arg in node.elements]
     return lift(lambda *va: list(va))(*args)
 
 
 @_eval.register
 def eval_NamedTuple(
-        node: qlast.NamedTuple, ctx: EvalContext) -> List[Data]:
+        node: qlast.NamedTuple, ctx: EvalContext) -> Result:
     names = [elem.name.name for elem in node.elements]
     args = [eval(arg.val, ctx) for arg in node.elements]
     return lift(lambda *va: dict(zip(names, va)))(*args)
 
 
 @_eval.register
-def eval_TypeCast(node: qlast.TypeCast, ctx: EvalContext) -> List[Data]:
+def eval_TypeCast(node: qlast.TypeCast, ctx: EvalContext) -> Result:
     typ = node.type.maintype.name  # type: ignore  # our types are hinky.
     f = BASIS_IMPLS['cast', typ]
     return f(eval(node.expr, ctx))
 
 
 @_eval.register
-def eval_Path(node: qlast.Path, ctx: EvalContext) -> List[Data]:
+def eval_Path(node: qlast.Path, ctx: EvalContext) -> Result:
     return eval_path(simplify_path(graft(ctx.cur_path, node)), ctx)
 
 
-def eval(node: qlast.Base, ctx: EvalContext) -> List[Data]:
+def eval(node: qlast.Base, ctx: EvalContext) -> Result:
     return _eval(node, ctx)
 
 # Query setup
 
 
-def get_links(obj: Data, key: str) -> List[Data]:
+def get_links(obj: Data, key: str) -> Result:
     out = obj.get(key, [])
     if not isinstance(out, list):
         out = [out]
     return out
 
 
-def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
+def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
     if isinstance(base, tuple):
         return [base[int(ptr.ptr)]]
     elif isinstance(base, Obj):
@@ -721,7 +722,7 @@ def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
         return [base[ptr.ptr]]
 
 
-def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
+def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
     # XXX: This is slow even by the standards of this terribly slow model
     return [
         Obj(obj["id"])
@@ -730,21 +731,21 @@ def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
     ]
 
 
-def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> List[Data]:
+def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
     return (
         eval_bwd_ptr(base, ptr, ctx) if ptr.direction == '<'
         else eval_fwd_ptr(base, ptr, ctx))
 
 
 def eval_intersect(
-        base: Data, ptr: ITypeIntersection, ctx: EvalContext) -> List[Data]:
+        base: Data, ptr: ITypeIntersection, ctx: EvalContext) -> Result:
     # TODO: we want actual types but for now we just match directly
     typ = ctx.db[base.id]["__type__"]
     return [base] if typ == ptr.typ else []
 
 
 # This should only get called during input tuple building
-def eval_objref(name: str, ctx: EvalContext) -> List[Data]:
+def eval_objref(name: str, ctx: EvalContext) -> Result:
     if name in ctx.aliases:
         return ctx.aliases[name]
 
@@ -761,7 +762,7 @@ def last_index(vs: Sequence[T], x: T) -> int:
     raise ValueError(f"{x} not in list")
 
 
-def eval_path(path: IPath, ctx: EvalContext) -> List[Data]:
+def eval_path(path: IPath, ctx: EvalContext) -> Result:
     # Base case for stuff in the input list
     if path in ctx.query_input_list:
         # need last index, since there could be multiple IPrefixes or the like
@@ -1060,7 +1061,7 @@ def subquery_full(
     return new_qil, out
 
 
-def subquery(q: qlast.Expr, *, ctx: EvalContext) -> List[Data]:
+def subquery(q: qlast.Expr, *, ctx: EvalContext) -> Result:
     return [row[-1] for row in subquery_full(q, ctx=ctx)[1]]
 
 
