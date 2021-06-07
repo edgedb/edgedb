@@ -78,8 +78,10 @@ def process_view(
     if view_scls is not None:
         return view_scls
 
-    with ctx.newscope(fenced=True, temporary=True) as scopectx:
+    with ctx.newscope(fenced=True) as scopectx:
         scopectx.path_scope.attach_path(path_id, context=parser_context)
+        if ctx.path_log is not None:
+            ctx.path_log.append(path_id)
         view_path_id_ns = None
         if ctx.expr_exposed or is_insert or is_update:
             view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
@@ -524,8 +526,10 @@ def _normalize_view_ptr_expr(
                 ns=ctx.path_id_namespace,
                 ctx=ctx)
 
-            ctx.path_scope.attach_path(sub_path_id,
-                                       context=shape_el.context)
+            if ctx.path_log is not None:
+                ctx.path_log.append(sub_path_id)
+            ctx.path_scope.attach_path(
+                sub_path_id, context=shape_el.context)
 
             if not isinstance(ptr_target, s_objtypes.ObjectType):
                 raise errors.QueryError(
