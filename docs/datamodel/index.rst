@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: dna
+.. eql:section-intro-page:: datamodel
 
 ==========
 Data Model

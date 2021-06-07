@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: hourglass
+.. eql:section-intro-page:: changelog
 
 =========
 Changelog
