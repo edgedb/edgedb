@@ -41,6 +41,7 @@ from edb.common import uuidgen
 
 from edb.server import buildmeta
 from edb.server import defines
+from edb.server.ha import base as ha_base
 from edb.pgsql import common as pgcommon
 
 from . import pgconnparams
@@ -195,6 +196,14 @@ class BaseCluster:
             )
 
         return conn
+
+    async def start_watching(
+        self, cluster_protocol: Optional[ha_base.ClusterProtocol] = None
+    ) -> None:
+        pass
+
+    def stop_watching(self) -> None:
+        pass
 
     def get_runtime_params(self) -> BackendRuntimeParams:
         params = self.get_connection_params()
@@ -786,6 +795,7 @@ class RemoteCluster(BaseCluster):
         *,
         pg_config_path: str,
         instance_params: Optional[BackendInstanceParams] = None,
+        ha_backend: Optional[ha_base.HABackend] = None,
     ):
         super().__init__(
             pg_config_path=pg_config_path,
@@ -793,6 +803,12 @@ class RemoteCluster(BaseCluster):
         )
         self._connection_addr = addr
         self._connection_params = params
+        self._ha_backend = ha_backend
+
+    def _get_connection_addr(self) -> Optional[Tuple[str, int]]:
+        if self._ha_backend is not None:
+            return self._ha_backend.get_master_addr()
+        return self._connection_addr
 
     async def ensure_initialized(self, **settings: Any) -> bool:
         return False
@@ -836,6 +852,16 @@ class RemoteCluster(BaseCluster):
     ) -> None:
         raise ClusterError('cannot modify HBA records of unmanaged cluster')
 
+    async def start_watching(
+        self, cluster_protocol: Optional[ha_base.ClusterProtocol] = None
+    ) -> None:
+        if self._ha_backend is not None:
+            await self._ha_backend.start_watching(cluster_protocol)
+
+    def stop_watching(self) -> None:
+        if self._ha_backend is not None:
+            self._ha_backend.stop_watching()
+
 
 async def get_local_pg_cluster(
     data_dir: pathlib.Path,
@@ -869,8 +895,11 @@ async def get_remote_pg_cluster(
     dsn: str,
     *,
     tenant_id: Optional[str] = None,
+    ha_backend: Optional[ha_base.HABackend] = None,
 ) -> RemoteCluster:
     addrs, params = pgconnparams.parse_dsn(dsn)
+    if ha_backend:
+        addrs = (await ha_backend.get_cluster_consensus(),)
     if len(addrs) > 1:
         raise ValueError('multiple hosts in Postgres DSN are not supported')
     pg_config = buildmeta.get_pg_config_path()
@@ -991,6 +1020,7 @@ async def get_remote_pg_cluster(
         params,
         pg_config_path=str(pg_config),
         instance_params=instance_params,
+        ha_backend=ha_backend,
     )
 
 
