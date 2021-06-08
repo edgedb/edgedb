@@ -119,9 +119,10 @@ def fini_expression(
     # The inference context object will be shared between
     # cardinality and multiplicity inferrers.
     inf_ctx = inference.make_ctx(env=ctx.env)
-    cardinality = inference.infer_cardinality(
+    cardinality = inference.infer_toplevel_cardinality(
         ir,
         scope_tree=ctx.path_scope,
+        source_map=ctx.source_map,
         ctx=inf_ctx,
     )
     multiplicity: Optional[qltypes.Multiplicity] = None

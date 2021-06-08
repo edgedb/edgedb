@@ -266,7 +266,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "(schema::Type)",
             "FENCE": {
                 "FENCE": {
-                    "[ns~1]@@(schema::Type).>element_type[IS schema::Type]"
+                    "(schema::Type).>element_type[IS schema::Type]"
                 }
             },
             "FENCE": {
@@ -620,7 +620,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "(default::User)",
             "FENCE": {
                 "FENCE": {
-                    "[ns~1]@@(default::User).>deck[IS default::Card]"
+                    "(default::User).>deck[IS default::Card]"
                 }
             },
             "FENCE": {
@@ -744,7 +744,10 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                             "[ns~1]@@(__derived__::__derived__|letter@w~1)",
                             "FENCE": {
                                 "FENCE": {
-                                    "(default::User).>deck[IS default::Card]",
+                                    "(default::User)\
+.>deck[IS default::Card]": {
+                                        "[ns~1]@[ns~3]@@(default::User)"
+                                    },
                                     "FENCE": {
                                         "(default::User)\
 .>deck[IS default::Card].>name[IS std::str]"
@@ -803,7 +806,9 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                                 "FENCE": {
                                     "FENCE": {
                                         "(default::User)\
-.>deck[IS default::Card]",
+.>deck[IS default::Card]": {
+                                            "[ns~1]@[ns~3]@[ns~4]@@(default::User)"
+                                        },
                                         "FENCE": {
                                             "(default::User)\
 .>deck[IS default::Card].>name[IS std::str]"
