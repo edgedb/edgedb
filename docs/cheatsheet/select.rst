@@ -157,3 +157,18 @@ Perform a set intersection of all actors with all directors:
         Director := Movie.director,
     # set intersection is done via the FILTER clause
     SELECT Actor FILTER Actor IN Director;
+
+
+----------
+
+
+To order a set of scalars first assign the set to a variable and use the
+variable in the ORDER BY clause.
+
+.. code-block:: edgeql
+
+    SELECT numbers := {3, 1, 2} ORDER BY numbers;
+
+    # alternativly
+    WITH numbers := {3, 1, 2}
+    SELECT numbers ORDER BY numbers;

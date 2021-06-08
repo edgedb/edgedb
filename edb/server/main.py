@@ -186,7 +186,7 @@ async def _run_server(
             compiler_pool_size=args.compiler_pool_size,
             nethost=args.bind_address,
             netport=args.port,
-            auto_shutdown=args.auto_shutdown,
+            auto_shutdown_after=args.auto_shutdown_after,
             echo_runtime_info=args.echo_runtime_info,
             status_sink=args.status_sink,
             startup_script=args.startup_script,
