@@ -70,10 +70,6 @@ def abort(msg, *args) -> NoReturn:
     sys.exit(1)
 
 
-def terminate_server(server, loop):
-    loop.stop()
-
-
 @contextlib.contextmanager
 def _ensure_runstate_dir(
     default_runstate_dir: pathlib.Path,
@@ -178,13 +174,11 @@ async def _run_server(
     args: srvargs.ServerConfig,
     runstate_dir,
     internal_runstate_dir,
-    loop,
     *,
     do_setproctitle: bool
 ):
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
         ss = server.Server(
-            loop=loop,
             cluster=cluster,
             runstate_dir=runstate_dir,
             internal_runstate_dir=internal_runstate_dir,
@@ -358,15 +352,12 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                         ),
                     )
 
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(
+                asyncio.run(
                     _run_server(
                         cluster,
                         args,
                         runstate_dir,
                         internal_runstate_dir,
-                        loop,
                         do_setproctitle=do_setproctitle,
                     )
                 )

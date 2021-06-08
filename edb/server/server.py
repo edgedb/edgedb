@@ -93,7 +93,6 @@ class Server:
     def __init__(
         self,
         *,
-        loop,
         cluster,
         runstate_dir,
         internal_runstate_dir,
@@ -107,7 +106,7 @@ class Server:
         startup_script: Optional[srvargs.StartupScript] = None,
     ):
 
-        self._loop = loop
+        self._loop = asyncio.get_running_loop()
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
