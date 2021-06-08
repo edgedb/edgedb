@@ -62,7 +62,7 @@ class ServerConfig(NamedTuple):
 
     insecure: bool
     data_dir: pathlib.Path
-    postgres_dsn: str
+    backend_dsn: str
     tenant_id: Optional[str]
     ignore_other_tenants: bool
     log_level: str
@@ -233,8 +233,13 @@ _server_options = [
         '-D', '--data-dir', type=PathPath(),
         help='database cluster directory'),
     click.option(
-        '--postgres-dsn', type=str,
-        help='DSN of a remote Postgres cluster, if using one'),
+        '--postgres-dsn', type=str, hidden=True,
+        help='[DEPRECATED] DSN of a remote Postgres cluster, if using one'),
+    click.option(
+        '--backend-dsn', type=str,
+        help='DSN of a remote backend cluster, if using one. '
+             'Also supports HA clusters, for example: stolon+consul+http://'
+             'localhost:8500/test_cluster'),
     click.option(
         '--tenant-id',
         type=str,
@@ -466,18 +471,29 @@ def parse_args(**kwargs: Any):
 
     del kwargs['auto_shutdown']
 
+    if kwargs['postgres_dsn']:
+        warnings.warn(
+            "The `--postgres-dsn` option is deprecated, use "
+            "`--backend-dsn` instead.",
+            DeprecationWarning,
+        )
+        if not kwargs['backend_dsn']:
+            kwargs['backend_dsn'] = kwargs['postgres_dsn']
+
+    del kwargs['postgres_dsn']
+
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
             abort('--temp-dir is incompatible with --data-dir/-D')
         if kwargs['runstate_dir']:
             abort('--temp-dir is incompatible with --runstate-dir')
-        if kwargs['postgres_dsn']:
-            abort('--temp-dir is incompatible with --postgres-dsn')
+        if kwargs['backend_dsn']:
+            abort('--temp-dir is incompatible with --backend-dsn')
         kwargs['data_dir'] = kwargs['runstate_dir'] = pathlib.Path(
             tempfile.mkdtemp())
     else:
         if not kwargs['data_dir']:
-            if kwargs['postgres_dsn']:
+            if kwargs['backend_dsn']:
                 pass
             elif devmode.is_in_dev_mode():
                 data_dir = devmode.get_dev_mode_data_dir()
@@ -488,9 +504,9 @@ def parse_args(**kwargs: Any):
             else:
                 abort('Please specify the instance data directory '
                       'using the -D argument or the address of a remote '
-                      'PostgreSQL cluster using the --postgres-dsn argument')
-        elif kwargs['postgres_dsn']:
-            abort('The -D and --postgres-dsn options are mutually exclusive.')
+                      'backend cluster using the --backend-dsn argument')
+        elif kwargs['backend_dsn']:
+            abort('The -D and --backend-dsn options are mutually exclusive.')
 
     if kwargs['tls_cert_file'] or kwargs['tls_key_file']:
         if tls_cert_file := kwargs['tls_cert_file']:

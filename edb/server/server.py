@@ -51,6 +51,7 @@ from edb.server import connpool
 from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
+from edb.server.ha import base as ha_base
 from edb.server.protocol import binary  # type: ignore
 from edb.server import pgcon
 from edb.server.pgcon import errors as pgcon_errors
@@ -73,7 +74,7 @@ class StartupError(Exception):
     pass
 
 
-class Server:
+class Server(ha_base.ClusterProtocol):
 
     _sys_pgcon: Optional[pgcon.PGConnection]
 
@@ -115,6 +116,9 @@ class Server:
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
+
+        # Increase-only counter to reject outdated connects
+        self._ha_master_serial = 0
 
         self._serving = False
         self._initing = False
@@ -251,9 +255,15 @@ class Server:
         )
 
     async def _pg_connect(self, dbname):
+        ha_serial = self._ha_master_serial
         pg_dbname = self.get_pg_dbname(dbname)
-        return await pgcon.connect(
+        rv = await pgcon.connect(
             self._get_pgaddr(), pg_dbname, self._tenant_id)
+        if ha_serial == self._ha_master_serial:
+            return rv
+        else:
+            rv.terminate()
+            raise ConnectionError("connected to outdated Postgres master")
 
     async def _pg_disconnect(self, conn):
         conn.terminate()
@@ -908,8 +918,13 @@ class Server:
                     #   2. We still cannot connect to the Postgres cluster, or
                     pass
                 except pgcon_errors.BackendError as e:
-                    #   3. The Postgres cluster is still starting up
-                    if not e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW):
+                    #   3. The Postgres cluster is still starting up, or the
+                    #      HA failover is still in progress
+                    if not (
+                        e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED) or
+                        e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW) or
+                        e.code_is(pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION)
+                    ):
                         raise
 
                 if self._serving:
@@ -1096,6 +1111,7 @@ class Server:
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
 
+        await self._cluster.start_watching(self)
         await self._create_compiler_pool()
 
         if self._startup_script:
@@ -1139,6 +1155,7 @@ class Server:
             self._serving = False
             self._accept_new_tasks = False
 
+            self._cluster.stop_watching()
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
 
@@ -1195,6 +1212,22 @@ class Server:
     def set_pg_unavailable_msg(self, msg):
         if msg is None or self._pg_unavailable_msg is None:
             self._pg_unavailable_msg = msg
+
+    def on_switch_over(self, old_master, new_master):
+        # Bumping this serial counter will "cancel" all pending connections
+        # to the old master.
+        self._ha_master_serial += 1
+
+        self._loop.create_task(self._pg_pool.prune_all_connections())
+
+        if self.__sys_pgcon is None:
+            # Assume a reconnect task is already running, now that we know the
+            # new master is likely ready, let's just give the task a push.
+            self._sys_pgcon_reconnect_evt.set()
+        else:
+            # Brutally close the sys_pgcon to the old master - this should
+            # trigger a reconnect task.
+            self.__sys_pgcon.abort()
 
 
 async def _resolve_localhost() -> List[str]:

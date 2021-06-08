@@ -91,12 +91,12 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='Maintain a running time log file at FILEPATH')
 @click.option('--list', 'list_tests', is_flag=True,
               help='list all the tests and exit')
-@click.option('--postgres-dsn', type=str,
-              help='Use the specified Postgres cluster instead of starting a '
+@click.option('--backend-dsn', type=str,
+              help='Use the specified backend cluster instead of starting a '
                    'temporary local one.')
 def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
          output_format, warnings, failfast, shuffle, cov, repeat,
-         running_times_log_file, list_tests, postgres_dsn):
+         running_times_log_file, list_tests, backend_dsn):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -172,7 +172,7 @@ def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
         total_shards=total_shards,
         running_times_log_file=running_times_log_file,
         list_tests=list_tests,
-        postgres_dsn=postgres_dsn,
+        backend_dsn=backend_dsn,
     )
 
     if cov:
@@ -248,7 +248,7 @@ def _coverage_wrapper(paths):
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
          warnings, failfast, shuffle, repeat, selected_shard, total_shards,
-         running_times_log_file, list_tests, postgres_dsn):
+         running_times_log_file, list_tests, backend_dsn):
     suite = unittest.TestSuite()
 
     total = 0
@@ -307,7 +307,7 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
         test_runner = runner.ParallelTextTestRunner(
             verbosity=verbosity, output_format=output_format,
             warnings=warnings, num_workers=jobs,
-            failfast=failfast, shuffle=shuffle, postgres_dsn=postgres_dsn)
+            failfast=failfast, shuffle=shuffle, backend_dsn=backend_dsn)
 
         result = test_runner.run(
             suite, selected_shard, total_shards, running_times_log_file,

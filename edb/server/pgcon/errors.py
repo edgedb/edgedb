@@ -19,6 +19,7 @@
 
 from __future__ import annotations
 
+ERROR_FEATURE_NOT_SUPPORTED = '0A000'
 
 ERROR_CARDINALITY_VIOLATION = '21000'
 

@@ -93,6 +93,7 @@ TEST_DEPS = [
     'types-MarkupSafe~=1.1',
     'types-pkg-resources~=0.1.3',
     'types-typed-ast~=1.4.2',
+    'types-requests~=2.25.6',
 ] + DOCS_DEPS
 
 BUILD_DEPS = [
