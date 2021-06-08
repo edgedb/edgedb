@@ -573,8 +573,7 @@ def declare_view_from_schema(
 
         vc = subctx.aliased_views[viewcls_name]
         assert vc is not None
-        if not ctx.in_temp_scope:
-            ctx.env.schema_view_cache[viewcls] = vc
+        ctx.env.schema_view_cache[viewcls] = vc
         ctx.source_map.update(subctx.source_map)
         ctx.aliased_views[viewcls_name] = subctx.aliased_views[viewcls_name]
         ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc

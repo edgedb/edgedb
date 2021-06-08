@@ -55,9 +55,7 @@ class ContextSwitchMode(enum.Enum):
     NEW = enum.auto()
     SUBQUERY = enum.auto()
     NEWSCOPE = enum.auto()
-    NEWSCOPE_TEMP = enum.auto()
     NEWFENCE = enum.auto()
-    NEWFENCE_TEMP = enum.auto()
     DETACHED = enum.auto()
 
 
@@ -484,9 +482,6 @@ class ContextLevel(compiler.ContextLevel):
     in_conditional: Optional[parsing.ParserContext]
     """Whether currently in a conditional branch."""
 
-    in_temp_scope: bool
-    """Whether currently in a temporary scope."""
-
     disable_shadowing: Set[Union[s_obj.Object, s_pointers.PseudoPointer]]
     """A set of schema objects for which the shadowing rewrite should be
        disabled."""
@@ -552,7 +547,6 @@ class ContextLevel(compiler.ContextLevel):
             self.defining_view = None
             self.compiling_update_shape = False
             self.in_conditional = None
-            self.in_temp_scope = False
             self.disable_shadowing = set()
             self.path_log = None
             self.recompiling_schema_alias = False
@@ -600,7 +594,6 @@ class ContextLevel(compiler.ContextLevel):
             self.defining_view = prevlevel.defining_view
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.in_conditional = prevlevel.in_conditional
-            self.in_temp_scope = prevlevel.in_temp_scope
             self.disable_shadowing = prevlevel.disable_shadowing
             self.path_log = prevlevel.path_log
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
@@ -661,22 +654,10 @@ class ContextLevel(compiler.ContextLevel):
                 self.toplevel_result_view_name = \
                     prevlevel.toplevel_result_view_name
 
-            if mode in {ContextSwitchMode.NEWFENCE_TEMP,
-                        ContextSwitchMode.NEWSCOPE_TEMP}:
-                # Make a copy of the entire tree and set path_scope to
-                # be the copy of the current node. Stash the root in
-                # an attribute to keep it from being freed, since
-                # scope tree parent pointers are weak pointers.
-                self._stash, self.path_scope = self.path_scope.copy_all()
-                self.in_temp_scope = True
-                self.view_sets = self.view_sets.copy()
-
-            if mode in {ContextSwitchMode.NEWFENCE,
-                        ContextSwitchMode.NEWFENCE_TEMP}:
+            if mode == ContextSwitchMode.NEWFENCE:
                 self.path_scope = self.path_scope.attach_fence()
 
-            if mode in {ContextSwitchMode.NEWSCOPE,
-                        ContextSwitchMode.NEWSCOPE_TEMP}:
+            if mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = self.path_scope.attach_branch()
 
     def subquery(self) -> compiler.CompilerContextManager[ContextLevel]:
@@ -685,14 +666,9 @@ class ContextLevel(compiler.ContextLevel):
     def newscope(
         self,
         *,
-        temporary: bool = False,
         fenced: bool = False,
     ) -> compiler.CompilerContextManager[ContextLevel]:
-        if temporary and fenced:
-            mode = ContextSwitchMode.NEWFENCE_TEMP
-        elif temporary:
-            mode = ContextSwitchMode.NEWSCOPE_TEMP
-        elif fenced:
+        if fenced:
             mode = ContextSwitchMode.NEWFENCE
         else:
             mode = ContextSwitchMode.NEWSCOPE
