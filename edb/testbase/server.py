@@ -1547,7 +1547,7 @@ class _EdgeDBServer:
             cmd += ['--bootstrap-command', bootstrap_command]
 
         if self.auto_shutdown:
-            cmd += ['--auto-shutdown']
+            cmd += ['--auto-shutdown-after', '0']
 
         if self.runstate_dir:
             cmd += ['--runstate-dir', self.runstate_dir]

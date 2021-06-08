@@ -100,7 +100,7 @@ class Server:
         compiler_pool_size,
         nethost,
         netport,
-        auto_shutdown: bool=False,
+        auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
         startup_script: Optional[srvargs.StartupScript] = None,
@@ -143,7 +143,9 @@ class Server:
 
         # Shutdown the server after the last management
         # connection has disconnected
-        self._auto_shutdown = auto_shutdown
+        # and there have been no new connections for n seconds
+        self._auto_shutdown_after = auto_shutdown_after
+        self._auto_shutdown_handler = None
 
         self._echo_runtime_info = echo_runtime_info
         self._status_sink = status_sink
@@ -202,6 +204,11 @@ class Server:
 
     def on_binary_client_connected(self) -> str:
         self._binary_proto_id_counter += 1
+
+        if self._auto_shutdown_handler:
+            self._auto_shutdown_handler.cancel()
+            self._auto_shutdown_handler = None
+
         return str(self._binary_proto_id_counter)
 
     def on_binary_client_authed(self, conn):
@@ -211,9 +218,15 @@ class Server:
     def on_binary_client_disconnected(self, conn):
         self._binary_conns.discard(conn)
         self._report_connections(event="closed")
-        if not self._binary_conns and self._auto_shutdown:
-            self._accepting_connections = False
-            self._stop_evt.set()
+
+        if not self._binary_conns and self._auto_shutdown_after >= 0:
+
+            def shutdown():
+                self._accepting_connections = False
+                self._stop_evt.set()
+
+            self._auto_shutdown_handler = self._loop.call_later(
+                self._auto_shutdown_after, shutdown)
 
     def _report_connections(self, *, event: str) -> None:
         log_metrics.info(

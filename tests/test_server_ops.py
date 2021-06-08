@@ -52,7 +52,7 @@ class TestServerOps(tb.TestCase):
         #
         # * "--port=auto"
         # * "--temp-dir"
-        # * "--auto-shutdown"
+        # * "--auto-shutdown-after=0"
         # * "--emit-server-status"
 
         async with tb.start_edgedb_server(
@@ -73,7 +73,7 @@ class TestServerOps(tb.TestCase):
             with self.assertRaises(
                     (ConnectionError, edgedb.ClientConnectionError)):
                 # Since both con1 and con2 are now disconnected and
-                # the cluster was started with an "--auto-shutdown"
+                # the cluster was started with an "--auto-shutdown-after=0"
                 # option, we expect this connection to be rejected
                 # and the cluster to be shutdown soon.
                 await edgedb.async_connect(

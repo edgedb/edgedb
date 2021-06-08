@@ -84,7 +84,7 @@ class ServerConfig(NamedTuple):
     echo_runtime_info: bool
     emit_server_status: str
     temp_dir: bool
-    auto_shutdown: bool
+    auto_shutdown_after: float
 
     startup_script: Optional[StartupScript]
     status_sink: Optional[Callable[[str], None]]
@@ -310,9 +310,13 @@ _server_options = [
         help='create a temporary database cluster directory '
              'that will be automatically purged on server shutdown'),
     click.option(
-        '--auto-shutdown', type=bool, default=False, is_flag=True,
+        '--auto-shutdown', type=bool, default=False, is_flag=True, hidden=True,
         help='shutdown the server after the last ' +
              'connection is closed'),
+    click.option(
+        '--auto-shutdown-after', type=float, default=-1.0,
+        help='shutdown the server after the last connection has been closed '
+             'for N seconds. N < 0 is treated as infinite.'),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
@@ -371,6 +375,17 @@ def parse_args(**kwargs: Any):
                 " Please create the database explicitly.",
                 DeprecationWarning,
             )
+
+    if kwargs['auto_shutdown']:
+        warnings.warn(
+            "The `--auto-shutdown` option is deprecated, use "
+            "`--auto-shutdown-after` instead.",
+            DeprecationWarning,
+        )
+        if kwargs['auto_shutdown_after'] < 0:
+            kwargs['auto_shutdown_after'] = 0
+
+    del kwargs['auto_shutdown']
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
