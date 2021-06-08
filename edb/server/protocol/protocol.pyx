@@ -128,7 +128,7 @@ cdef class HttpProtocol:
             self.unprocessed.append(req)
         else:
             self.in_response = True
-            self.loop.create_task(self._handle_request(req))
+            self.server.create_task(self._handle_request(req))
 
         self.server._http_last_minute_requests += 1
 
@@ -156,7 +156,7 @@ cdef class HttpProtocol:
 
         if self.unprocessed:
             req = self.unprocessed.popleft()
-            self.loop.create_task(self._handle_request(req))
+            self.server.create_task(self._handle_request(req))
         else:
             self.transport.resume_reading()
 

@@ -85,7 +85,7 @@ class TaskGroup:
 
     async def __aexit__(self, et, exc, tb):
         self._exiting = True
-        propagate_cancelation = False
+        propagate_cancellation_error = None
 
         if (exc is not None and
                 self._is_base_error(exc) and
@@ -98,7 +98,7 @@ class TaskGroup:
                 # we mark it as no longer cancelled.
                 self._parent_task.__cancel_requested__ = False
             else:
-                propagate_cancelation = True
+                propagate_cancellation_error = et
 
         if et is not None and not self._aborting:
             # Our parent task is being cancelled:
@@ -108,7 +108,7 @@ class TaskGroup:
             #        await ...  # <- CancelledError
             #
             if et is asyncio.CancelledError:
-                propagate_cancelation = True
+                propagate_cancellation_error = et
 
             # or there's an exception in "async with":
             #
@@ -128,7 +128,7 @@ class TaskGroup:
 
             try:
                 await self._on_completed_fut
-            except asyncio.CancelledError:
+            except asyncio.CancelledError as ex:
                 if not self._aborting:
                     # Our parent task is being cancelled:
                     #
@@ -138,7 +138,7 @@ class TaskGroup:
                     #
                     # "wrapper" is being cancelled while "foo" is
                     # still running.
-                    propagate_cancelation = True
+                    propagate_cancellation_error = ex
                     self._abort()
 
             self._on_completed_fut = None
@@ -149,11 +149,11 @@ class TaskGroup:
         if self._base_error is not None:
             raise self._base_error
 
-        if propagate_cancelation:
+        if propagate_cancellation_error is not None:
             # The wrapping task was cancelled; since we're done with
             # closing all child tasks, just propagate the cancellation
             # request now.
-            raise asyncio.CancelledError()
+            raise propagate_cancellation_error
 
         if et is not None and et is not asyncio.CancelledError:
             self._errors.append(exc)

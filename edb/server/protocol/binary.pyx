@@ -214,6 +214,7 @@ cdef class EdgeConnection:
         self.buffer = ReadBuffer()
 
         self._cancelled = False
+        self._stop_requested = False
         self._pgcon_released = False
 
         self._main_task = None
@@ -325,6 +326,15 @@ cdef class EdgeConnection:
             self.flush()
             self._transport.close()
             self._transport = None
+
+    def stop(self):
+        # Actively stop a binary connection - this is used by the server
+        # when it's stopping.
+
+        self._stop_requested = True
+        if self._msg_take_waiter is not None:
+            if not self._msg_take_waiter.done():
+                self._msg_take_waiter.cancel()
 
     cdef flush(self):
         if self._transport is None:
@@ -1055,27 +1065,27 @@ cdef class EdgeConnection:
 
     async def signal_side_effects(self, side_effects):
         if side_effects & dbview.SideEffects.SchemaChanges:
-            self.loop.create_task(
+            self.server.create_task(
                 self.server._signal_sysevent(
                     'schema-changes',
                     dbname=self.dbview.dbname,
                 ),
             )
         if side_effects & dbview.SideEffects.GlobalSchemaChanges:
-            self.loop.create_task(
+            self.server.create_task(
                 self.server._signal_sysevent(
                     'global-schema-changes',
                 ),
             )
         if side_effects & dbview.SideEffects.DatabaseConfigChanges:
-            self.loop.create_task(
+            self.server.create_task(
                 self.server._signal_sysevent(
                     'database-config-changes',
                     dbname=self.dbview.dbname,
                 ),
             )
         if side_effects & dbview.SideEffects.SystemConfigChanges:
-            self.loop.create_task(
+            self.server.create_task(
                 self.server._signal_sysevent(
                     'system-config-changes',
                 ),
@@ -1662,13 +1672,16 @@ cdef class EdgeConnection:
             return
 
         self.authed = True
-        self.server.on_binary_client_authed()
+        self.server.on_binary_client_authed(self)
 
         try:
             while True:
                 if self._cancelled:
                     self.abort()
                     return
+
+                if self._stop_requested:
+                    break
 
                 if not self.buffer.take_message():
                     await self.wait_for_message()
@@ -1784,10 +1797,17 @@ cdef class EdgeConnection:
             })
 
         finally:
-            # Abort the connection.
-            # It might have already been cleaned up, but abort() is
-            # safe to be called on a closed connection.
-            self.abort()
+            if self._stop_requested:
+                self.write_log(
+                    EdgeSeverity.EDGE_SEVERITY_NOTICE,
+                    errors.LogMessage.get_code(),
+                    'server is stopped; disconnecting now')
+                self.close()
+            else:
+                # Abort the connection.
+                # It might have already been cleaned up, but abort() is
+                # safe to be called on a closed connection.
+                self.abort()
 
     async def recover_from_error(self):
         # Consume all messages until sync.
@@ -2037,11 +2057,11 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 'invalid connection status while establishing the connection')
         self._transport = transport
-        self._main_task = self.loop.create_task(self.main())
+        self._main_task = self.server.create_task(self.main())
 
     def connection_lost(self, exc):
         if self.authed:
-            self.server.on_binary_client_disconnected()
+            self.server.on_binary_client_disconnected(self)
 
         # Let's talk about cancellation.
         #
@@ -2103,7 +2123,7 @@ cdef class EdgeConnection:
                     # reaches the backend, we'll be setting a trap for the
                     # _next_ query that is unlucky enough to pick up this
                     # Postgres backend from the connection pool.
-                    self.loop.create_task(
+                    self.server.create_task(
                         self.server._cancel_and_discard_pgcon(
                             self._pinned_pgcon,
                             self.dbview.dbname,

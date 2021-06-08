@@ -224,16 +224,16 @@ def _coverage_wrapper(paths):
             main_cov.stop()
             main_cov.save()
 
-            data = coverage.CoverageData()
+            covfile = str(pathlib.Path(td) / '.coverage')
+            data = coverage.CoverageData(covfile)
 
             with os.scandir(td) as it:
                 for entry in it:
-                    new_data = coverage.CoverageData()
-                    new_data.read_file(entry.path)
+                    new_data = coverage.CoverageData(entry.path)
+                    new_data.read()
                     data.update(new_data)
 
-            covfile = str(pathlib.Path(td) / '.coverage')
-            data.write_file(covfile)
+            data.write()
             report_cov = cov_config.new_custom_coverage_object(
                 config_file=str(cov_rc),
                 data_file=covfile,

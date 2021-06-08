@@ -29,6 +29,7 @@ import os
 import pickle
 import socket
 import stat
+import sys
 import uuid
 
 import immutables
@@ -86,10 +87,12 @@ class Server:
     _sys_pgcon_waiter: asyncio.Lock
     _servers: List[asyncio.AbstractServer]
 
+    _task_group: Optional[taskgroup.TaskGroup]
+    _binary_conns: Set[binary.EdgeConnection]
+
     def __init__(
         self,
         *,
-        loop,
         cluster,
         runstate_dir,
         internal_runstate_dir,
@@ -103,7 +106,7 @@ class Server:
         startup_script: Optional[srvargs.StartupScript] = None,
     ):
 
-        self._loop = loop
+        self._loop = asyncio.get_running_loop()
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
@@ -130,6 +133,7 @@ class Server:
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
         self._max_backend_connections = max_backend_connections
+        self._compiler_pool = None
         self._compiler_pool_size = compiler_pool_size
 
         self._listen_host = nethost
@@ -157,7 +161,7 @@ class Server:
         self._devmode = devmode.is_in_dev_mode()
 
         self._binary_proto_id_counter = 0
-        self._binary_proto_num_connections = 0
+        self._binary_conns = set()
         self._accepting_connections = False
 
         self._servers = []
@@ -167,6 +171,9 @@ class Server:
 
         self._http_last_minute_requests = windowedsum.WindowedSum()
         self._http_request_logger = None
+
+        self._task_group = None
+        self._stop_evt = asyncio.Event()
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -197,22 +204,22 @@ class Server:
         self._binary_proto_id_counter += 1
         return str(self._binary_proto_id_counter)
 
-    def on_binary_client_authed(self):
-        self._binary_proto_num_connections += 1
+    def on_binary_client_authed(self, conn):
+        self._binary_conns.add(conn)
         self._report_connections(event='opened')
 
-    def on_binary_client_disconnected(self):
-        self._binary_proto_num_connections -= 1
+    def on_binary_client_disconnected(self, conn):
+        self._binary_conns.discard(conn)
         self._report_connections(event="closed")
-        if not self._binary_proto_num_connections and self._auto_shutdown:
+        if not self._binary_conns and self._auto_shutdown:
             self._accepting_connections = False
-            raise SystemExit
+            self._stop_evt.set()
 
     def _report_connections(self, *, event: str) -> None:
         log_metrics.info(
             "%s a connection; open_count=%d",
             event,
-            self._binary_proto_num_connections,
+            len(self._binary_conns),
         )
 
     async def _pg_connect(self, dbname):
@@ -248,16 +255,6 @@ class Server:
             # any notifications about schema/roles/etc changes.
             await self.__sys_pgcon.set_server(self)
 
-            self._compiler_pool = await compiler_pool.create_compiler_pool(
-                pool_size=self._compiler_pool_size,
-                dbindex=self._dbindex,
-                runstate_dir=self._internal_runstate_dir,
-                backend_runtime_params=self.get_backend_runtime_params(),
-                std_schema=self._std_schema,
-                refl_schema=self._refl_schema,
-                schema_class_layout=self._schema_class_layout,
-            )
-
             self._populate_sys_auth()
 
             if not self._listen_host:
@@ -278,6 +275,22 @@ class Server:
 
         finally:
             self._initing = False
+
+    async def _create_compiler_pool(self):
+        self._compiler_pool = await compiler_pool.create_compiler_pool(
+            pool_size=self._compiler_pool_size,
+            dbindex=self._dbindex,
+            runstate_dir=self._internal_runstate_dir,
+            backend_runtime_params=self.get_backend_runtime_params(),
+            std_schema=self._std_schema,
+            refl_schema=self._refl_schema,
+            schema_class_layout=self._schema_class_layout,
+        )
+
+    async def _destroy_compiler_pool(self):
+        if self._compiler_pool is not None:
+            await self._compiler_pool.stop()
+            self._compiler_pool = None
 
     def _populate_sys_auth(self):
         cfg = self._dbindex.get_sys_config()
@@ -770,15 +783,17 @@ class Server:
         """Run the script specified in *startup_script* and exit immediately"""
         if self._startup_script is None:
             raise AssertionError('startup script is not defined')
-
-        ql_parser.preload()
-        await binary.EdgeConnection.run_script(
-            server=self,
-            database=self._startup_script.database,
-            user=self._startup_script.user,
-            script=self._startup_script.text,
-        )
-        return
+        await self._create_compiler_pool()
+        try:
+            ql_parser.preload()
+            await binary.EdgeConnection.run_script(
+                server=self,
+                database=self._startup_script.database,
+                user=self._startup_script.user,
+                script=self._startup_script.text,
+            )
+        finally:
+            await self._destroy_compiler_pool()
 
     async def _start_servers(self, host, port):
         nethost = await _fix_localhost(host)
@@ -838,6 +853,13 @@ class Server:
                 g.create_task(srv.wait_closed())
 
     async def start(self):
+        self._stop_evt.clear()
+        assert self._task_group is None
+        self._task_group = taskgroup.TaskGroup()
+        await self._task_group.__aenter__()
+
+        await self._create_compiler_pool()
+
         # Make sure that EdgeQL parser is preloaded; edgecon might use
         # it to restore config values.
         ql_parser.preload()
@@ -884,14 +906,29 @@ class Server:
             await self._stop_servers(self._servers)
             self._servers = []
 
-            await self._compiler_pool.stop()
-            self._compiler_pool = None
+            for conn in self._binary_conns:
+                conn.stop()
+            self._binary_conns = set()
+
+            if self._task_group is not None:
+                tg = self._task_group
+                self._task_group = None
+                await tg.__aexit__(*sys.exc_info())
+
+            await self._destroy_compiler_pool()
 
         finally:
             if self.__sys_pgcon is not None:
                 self.__sys_pgcon.terminate()
                 self.__sys_pgcon = None
             self._sys_pgcon_waiter = None
+
+    def create_task(self, coro):
+        if self._serving:
+            return self._task_group.create_task(coro)
+
+    async def serve_forever(self):
+        await self._stop_evt.wait()
 
     async def get_auth_method(self, user):
         authlist = self._sys_auth
