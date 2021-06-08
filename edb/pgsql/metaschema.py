@@ -2387,10 +2387,10 @@ class DescribeRolesAsDDLFunction(dbops.Function):
                             WHERE member.source = role.id
                         ), ' EXTENDING '),
                         CASE WHEN role.{qi(pass_col)} IS NOT NULL THEN
-                            concat(' {{ SET password_hash := ',
+                            concat(' IF NOT EXISTS {{ SET password_hash := ',
                                    quote_literal(role.{qi(pass_col)}),
                                    '}};')
-                        ELSE ';' END
+                        ELSE ' IF NOT EXISTS;' END
                     )
                 END,
                 '\n'

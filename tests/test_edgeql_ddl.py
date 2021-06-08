@@ -6629,8 +6629,8 @@ type default::Foo {
             };
         """)
         roles = next(iter(await self.con.query("DESCRIBE ROLES")))
-        base1 = roles.index('CREATE SUPERUSER ROLE `base1`;')
-        base2 = roles.index('CREATE SUPERUSER ROLE `base 2`;')
+        base1 = roles.index('CREATE SUPERUSER ROLE `base1` IF NOT EXISTS;')
+        base2 = roles.index('CREATE SUPERUSER ROLE `base 2` IF NOT EXISTS;')
         child1 = roles.index('CREATE SUPERUSER ROLE `child1`')
         child2 = roles.index('CREATE SUPERUSER ROLE `child2`')
         child3 = roles.index('CREATE SUPERUSER ROLE `child3`')
