@@ -585,17 +585,19 @@ def compile_InsertQuery(
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        # If we have an ELSE clause, we need to compile_query_subject
-        # *again* on the outer query, in order to produce a view for
-        # the joined output, which we need to have to generate the
-        # proper type descriptor.
-        # This feels like somewhat of a hack; I think it might be
-        # possible to do something more general elsewhere.
-        if expr.unless_conflict and expr.unless_conflict[1]:
+        # If we have an ELSE clause, and this is a toplevel statement,
+        # we need to compile_query_subject *again* on the outer query,
+        # in order to produce a view for the joined output, which we
+        # need to have to generate the proper type descriptor.  This
+        # feels like somewhat of a hack; I think it might be possible
+        # to do something more general elsewhere.
+        if (
+            expr.unless_conflict
+            and expr.unless_conflict[1]
+            and ictx.stmt is ctx.toplevel_stmt
+        ):
             with ictx.new() as resultctx:
-                if ictx.stmt is ctx.toplevel_stmt:
-                    resultctx.expr_exposed = True
-
+                resultctx.expr_exposed = True
                 result = compile_query_subject(
                     result,
                     view_name=ctx.toplevel_result_view_name,

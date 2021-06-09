@@ -91,11 +91,7 @@ def new_set(
 
         with ctx.detached() as subctx:
             subctx.expr_exposed = False
-            # This is a global rewrite operation that is done once
-            # per type, and so we don't really care if we're in a
-            # temporary scope or not.
             subctx.path_scope = subctx.env.path_scope.root
-            subctx.in_temp_scope = False
             # Put a placeholder to prevent recursion.
             subctx.type_rewrites[stype] = irast.Set()
             filtered_set = dispatch.compile(qry, ctx=subctx)

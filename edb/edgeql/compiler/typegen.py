@@ -82,7 +82,9 @@ def _ql_typeexpr_to_type(
         ctx: context.ContextLevel) -> List[s_types.Type]:
 
     if isinstance(ql_t, qlast.TypeOf):
-        with ctx.newscope(fenced=True, temporary=True) as subctx:
+        with ctx.new() as subctx:
+            # Use an empty scope tree, to avoid polluting things pointlessly
+            subctx.path_scope = irast.ScopeTreeNode()
             ir_set = setgen.ensure_set(dispatch.compile(ql_t.expr, ctx=subctx),
                                        ctx=subctx)
             stype = setgen.get_set_type(ir_set, ctx=subctx)

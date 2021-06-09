@@ -111,24 +111,6 @@ class ScopeTreeNode:
         name = 'ScopeFenceNode' if self.fenced else 'ScopeTreeNode'
         return (f'<{name} {self.path_id!r} at {id(self):0x}>')
 
-    def _copy(self, parent: Optional[ScopeTreeNode]) -> ScopeTreeNode:
-        cp = self.__class__(
-            path_id=self.path_id,
-            fenced=self.fenced)
-        cp.optional_count = self.optional_count
-        cp.unnest_fence = self.unnest_fence
-        cp.factoring_fence = self.factoring_fence
-        cp.namespaces = set(self.namespaces)
-        cp.unique_id = self.unique_id
-        cp.factoring_allowlist = set(self.factoring_allowlist)
-        cp.protect_parent = self.protect_parent
-        cp._set_parent(parent)
-
-        for child in self.children:
-            child._copy(parent=cp)
-
-        return cp
-
     @property
     def forwarded(self) -> ScopeTreeNode:
         node = self
@@ -908,21 +890,6 @@ class ScopeTreeNode:
                 return node
 
         return None
-
-    def copy(self) -> ScopeTreeNode:
-        """Return a complete copy of this subtree."""
-        return self._copy(parent=None)
-
-    def copy_all(self) -> Tuple[ScopeTreeNode, ScopeTreeNode]:
-        """Make a copy the entire tree and return the copy of this node."""
-        if self.unique_id is None:
-            self.unique_id = -1
-        new = self.root.copy()
-        me = new.find_by_unique_id(self.unique_id)
-        assert me
-        if self.unique_id == -1:
-            self.unique_id = None
-        return new, me
 
     def pformat(self) -> str:
         if self.children:
