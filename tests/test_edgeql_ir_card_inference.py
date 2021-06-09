@@ -605,3 +605,17 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         m: MANY
         """
+
+    def test_edgeql_ir_card_inference_66(self):
+        """
+        WITH Z := (SELECT (SELECT User) ORDER BY .name), SELECT Z
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_67(self):
+        """
+        SELECT stdgraphql::Query { o := (SELECT (SELECT User) ORDER BY .name) }
+% OK %
+        MANY
+        """
