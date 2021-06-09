@@ -470,6 +470,7 @@ class Param:
 class ComputableInfo(typing.NamedTuple):
 
     qlexpr: qlast.Expr
+    irexpr: typing.Optional[typing.Union[Set, Expr]]
     context: compiler.ContextLevel
     path_id: PathId
     path_id_ns: typing.Optional[WeakNamespace]

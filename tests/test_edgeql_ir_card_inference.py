@@ -44,6 +44,9 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
             ),
         )
 
+        if not expected:
+            return
+
         # The expected cardinality is either given for the whole query
         # (by default) or for a specific element of the top-level
         # shape. In case of the specific element the name of the shape
@@ -579,4 +582,26 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         SELECT Person FILTER .p = 7 AND .q = 3 AND .last = "Whatever"
 % OK %
         AT_MOST_ONE
+        """
+
+    @tb.must_fail(errors.QueryError,
+                  "possibly more than one element")
+    def test_edgeql_ir_card_inference_63(self):
+        """
+        WITH X := User { busted := (SELECT 1 ORDER BY {1,2}) },
+        SELECT X
+        """
+
+    def test_edgeql_ir_card_inference_64(self):
+        """
+        SELECT (FOR x IN {1,2} UNION (SELECT User { m := x })) { m }
+% OK %
+        m: ONE
+        """
+
+    def test_edgeql_ir_card_inference_65(self):
+        """
+        SELECT (SELECT User { multi m := 1 }) { m }
+% OK %
+        m: MANY
         """

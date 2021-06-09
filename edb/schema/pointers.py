@@ -350,14 +350,18 @@ def _merge_types(
         return schema, current_target
 
 
+def get_root_source(
+    obj: Optional[so.Object], schema: s_schema.Schema
+) -> Optional[so.Object]:
+    while isinstance(obj, Pointer):
+        obj = obj.get_source(schema)
+    return obj
+
+
 def _is_view_source(
         source: Optional[so.Object], schema: s_schema.Schema) -> bool:
-    if isinstance(source, Pointer):
-        return _is_view_source(source.get_source(schema), schema)
-    elif isinstance(source, s_types.Type):
-        return source.is_view(schema)
-    else:
-        return False
+    source = get_root_source(source, schema)
+    return isinstance(source, s_types.Type) and source.is_view(schema)
 
 
 Pointer_T = TypeVar("Pointer_T", bound="Pointer")

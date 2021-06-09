@@ -692,6 +692,17 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_select_computable_31(self):
+        await self.assert_query_result(
+            r"""
+                WITH O := (SELECT stdgraphql::Query {multi m := 10}),
+                SELECT (O {m});
+            """,
+            [
+                {'m': [10]},
+            ]
+        )
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(
             r"""

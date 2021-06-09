@@ -389,7 +389,7 @@ def _find_visible(
 def _infer_pointer_cardinality(
     *,
     ptrcls: s_pointers.Pointer,
-    ptrref: irast.BasePointerRef,
+    ptrref: Optional[irast.BasePointerRef],
     irexpr: irast.Base,
     specified_required: bool = False,
     specified_card: Optional[qltypes.SchemaCardinality] = None,
@@ -415,6 +415,8 @@ def _infer_pointer_cardinality(
     expr_card = infer_cardinality(
         irexpr, scope_tree=scope_tree, ctx=ctx)
 
+    ptrcls_schema_card = ptrcls.get_cardinality(env.schema)
+
     # Infer cardinality and convert it back to schema values of "ONE/MANY".
     if shape_op is qlast.ShapeOp.APPEND:
         # += in shape always means MANY
@@ -424,7 +426,15 @@ def _infer_pointer_cardinality(
         # hence AT_MOST_ONE.
         inferred_card = qltypes.Cardinality.AT_MOST_ONE
     else:
-        inferred_card = expr_card
+        # Pull cardinality from the ptrcls, if it exists.
+        # (This generally will have been populated by the source_map
+        # handling in infer_toplevel_cardinality().)
+        if ptrcls_schema_card.is_known():
+            inferred_card = qltypes.Cardinality.from_schema_value(
+                not expr_card.can_be_zero(), ptrcls_schema_card
+            )
+        else:
+            inferred_card = expr_card
 
     if ir_specified_card is None:
         ptr_card = inferred_card
@@ -467,7 +477,6 @@ def _infer_pointer_cardinality(
                     context=source_ctx
                 )
 
-    ptrcls_schema_card = ptrcls.get_cardinality(env.schema)
     if (
         not ptrcls_schema_card.is_known()
         or ptrcls in ctx.env.pointer_specified_info
@@ -490,12 +499,13 @@ def _infer_pointer_cardinality(
         env.schema = ptrcls.set_field_value(env.schema, 'required', required)
         _update_cardinality_in_derived(ptrcls, env=ctx.env)
 
-    out_card, dir_card = typeutils.cardinality_from_ptrcls(
-        env.schema, ptrcls, direction=ptrref.direction)
-    assert dir_card is not None
-    assert out_card is not None
-    ptrref.dir_cardinality = dir_card
-    ptrref.out_cardinality = out_card
+    if ptrref:
+        out_card, dir_card = typeutils.cardinality_from_ptrcls(
+            env.schema, ptrcls, direction=ptrref.direction)
+        assert dir_card is not None
+        assert out_card is not None
+        ptrref.dir_cardinality = dir_card
+        ptrref.out_cardinality = out_card
 
 
 def _update_cardinality_in_derived(
@@ -1240,6 +1250,49 @@ def infer_cardinality(
     ctx.inferred_cardinality[ir, scope_tree] = result
 
     return result
+
+
+def infer_toplevel_cardinality(
+    ir: irast.Base,
+    *,
+    source_map: Dict[s_pointers.PointerLike, irast.ComputableInfo],
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    env = ctx.env
+
+    # We need to infer the pointer cardinality of everything in our
+    # source_map of computable pointers so we can check their
+    # cardinality against their specified cardinality and in order to
+    # populate the ptrcls with the correctly computed cardinality.
+    for ptrcls, cmp_info in source_map.items():
+        if (
+            cmp_info.irexpr is None
+            or not isinstance(ptrcls, s_pointers.Pointer)
+        ):
+            continue
+        specified_card, specified_required, source_ctx = (
+            ctx.env.pointer_specified_info.get(
+                ptrcls, (None, False, None)))
+        root = s_pointers.get_root_source(ptrcls, env.schema)
+        assert isinstance(root, s_objtypes.ObjectType)
+        view_type = root.get_expr_type(env.schema)
+        is_mut_assignment = view_type in (
+            s_types.ExprType.Insert, s_types.ExprType.Update)
+
+        _infer_pointer_cardinality(
+            ptrcls=ptrcls,
+            ptrref=None,
+            irexpr=cmp_info.irexpr,
+            specified_card=specified_card,
+            specified_required=specified_required,
+            is_mut_assignment=is_mut_assignment,
+            scope_tree=scope_tree,
+            source_ctx=source_ctx,
+            ctx=ctx,
+        )
+
+    return infer_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
 
 def is_subset_cardinality(
