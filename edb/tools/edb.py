@@ -36,7 +36,8 @@ from edb.server import buildmeta
 @click.option('--devmode/--no-devmode',
               help='enable or disable the development mode',
               default=True)
-def edbcommands(devmode: bool):
+@click.pass_context
+def edbcommands(ctx, devmode: bool):
     if devmode:
         dm.enable_dev_mode()
 
@@ -55,6 +56,7 @@ def server(version=False, **kwargs):
 
 # Import at the end of the file so that "edb.tools.edb.edbcommands"
 # is defined for all of the below modules when they try to import it.
+from . import cli  # noqa
 from . import dflags  # noqa
 from . import gen_errors  # noqa
 from . import gen_types  # noqa
@@ -64,4 +66,4 @@ from . import inittestdb  # noqa
 from . import test  # noqa
 from . import wipe  # noqa
 from . import gen_test_dumps  # noqa
-from .profiling import cli  # noqa
+from .profiling import cli as prof_cli  # noqa

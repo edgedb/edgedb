@@ -25,6 +25,10 @@ import pathlib
 import sys
 
 
-def rustcli() -> NoReturn:
+def rustcli(*, args: Optional[List[str]]=None) -> NoReturn:
     thisdir = pathlib.Path(__file__).parent
-    os.execve(str(thisdir / 'edgedb'), sys.argv, os.environ)
+
+    if args is None:
+        args = [*sys.argv]
+
+    os.execve(str(thisdir / 'edgedb'), args, os.environ)
