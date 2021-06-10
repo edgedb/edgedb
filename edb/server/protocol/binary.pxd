@@ -84,7 +84,7 @@ cdef class EdgeConnection:
         object server
 
         object loop
-        readonly dbview.DatabaseConnectionView dbview
+        readonly dbview.DatabaseConnectionView _dbview
         str dbname
 
         ReadBuffer buffer
@@ -116,6 +116,8 @@ cdef class EdgeConnection:
         bint _cancelled
         bint _stop_requested
         bint _pgcon_released
+
+    cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
     cdef parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
