@@ -1045,8 +1045,12 @@ class Compiler:
                                 schema=schema,
                                 modaliases=current_tx.get_modaliases(),
                             )
+                            _, prompt_text = top_op2.get_user_prompt()
 
-                            prompt_id, prompt_text = top_op2.get_user_prompt()
+                            # The prompt_id still needs to come from
+                            # the original op, though, since
+                            # orig_cmd_class is lost in ddl.
+                            prompt_id, _ = top_op.get_user_prompt()
                             confidence = top_op.get_annotation('confidence')
                             assert confidence is not None
 
