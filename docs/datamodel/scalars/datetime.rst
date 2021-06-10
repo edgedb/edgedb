@@ -190,19 +190,25 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     A type representing a span of time.
 
     Unlike :eql:type:`std::duration` a ``relative_duration`` is not a precise
-    measurment. For example:
+    measurment because it uses 3 different units under the hood: months, days
+    and seconds. However not all months have the same number of days and not
+    all days have the same number of seconds. For example 2019 was a leap year
+    and had 366 days. Notice how the number of hours in each year below is
+    different.
 
     .. code-block:: edgeql-repl
 
-        db> select (
-        ...     <datetime>'2020-01-01T00:00:00Z' +
-        ...     <cal::relative_duration>'1 year'
-        ... ) - <datetime>'2020-01-01T00:00:00Z';
+        db> WITH
+        ...     first_day_of_2020 := <datetime>'2020-01-01T00:00:00Z',
+        ...     one_year := <cal::relative_duration>'1 year',
+        ...     first_day_of_next_year := first_day_of_2020 + one_year
+        ... SELECT first_day_of_next_year - first_day_of_2020;
         {<duration>'8784:00:00'}
-        db> select (
-        ...     <datetime>'2019-01-01T00:00:00Z' +
-        ...     <cal::relative_duration>'1 year'
-        ... ) - <datetime>'2019-01-01T00:00:00Z';
+        db> WITH
+        ...     first_day_of_2019 := <datetime>'2019-01-01T00:00:00Z',
+        ...     one_year := <cal::relative_duration>'1 year',
+        ...     first_day_of_next_year := first_day_of_2019 + one_year
+        ... SELECT first_day_of_next_year - first_day_of_2019;
         {<duration>'8760:00:00'}
 
     Valid units when converting from a string (and combinations of them):

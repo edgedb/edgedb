@@ -70,18 +70,18 @@ Date and Time
 
 
 .. eql:operator:: DTPLUS: datetime + duration -> datetime
+                          cal::local_datetime + duration -> cal::local_datetime
+                          cal::local_date + duration -> cal::local_date
+                          cal::local_time + duration -> cal::local_time
+                          duration + duration -> duration
                           datetime + cal::relative_duration \
                               -> cal::relative_duration
-                          cal::local_datetime + duration -> cal::local_datetime
                           cal::local_dateiime + cal::relative_duration \
                               -> cal::relative_duration
-                          cal::local_date + duration -> cal::local_date
                           cal::local_date + cal::relative_duration \
                               -> cal::relative_duration
-                          cal::local_time + duration -> cal::local_time
                           cal::local_time + cal::relative_duration \
                               -> cal::relative_duration
-                          duration + duration -> duration
                           duration + cal::relative_duration \
                               -> cal::relative_duration
                           cal::relative_duration + cal::relative_duration \
@@ -105,26 +105,26 @@ Date and Time
 
 
 .. eql:operator:: DTMINUS: duration - duration -> duration
-                           duration - cal::relative_duration \
-                                -> cal::relative_duration
-                           cal::relative_duration - duration\
-                                -> cal::relative_duration
-                           cal::relative_duration - cal::relative_duration \
-                                -> cal::relative_duration
                            datetime - datetime -> duration
                            cal::local_datetime - cal::local_datetime \
                                 -> duration
                            local_time - local_time -> duration
                            local_date - local_date -> duration
                            datetime - duration -> datetime
-                           datetime - cal::relative_duration -> datetime
                            cal::local_datetime - duration \
                                 -> cal::local_datetime
+                           local_time - duration -> local_time
+                           local_date - duration -> local_date
+                           duration - cal::relative_duration \
+                                -> cal::relative_duration
+                           cal::relative_duration - duration\
+                                -> cal::relative_duration
+                           cal::relative_duration - cal::relative_duration \
+                                -> cal::relative_duration
+                           datetime - cal::relative_duration -> datetime
                            cal::local_datetime - cal::relative_duration \
                                 -> cal::local_datetime
-                           local_time - duration -> local_time
                            local_time - cal::relative_duration -> local_time
-                           local_date - duration -> local_date
                            local_date - cal::relative_duration -> local_date
 
     Time interval and date/time subtraction.
