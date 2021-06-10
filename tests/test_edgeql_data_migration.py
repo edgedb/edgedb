@@ -8608,9 +8608,13 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.fast_forward_describe_migration(limit=1)
 
+        # N.B: It is important that the prompt_id here match the
+        # prompt_id in the first migration, so that the migration tool
+        # will automatically apply this proposal as part of the
+        # earlier action.
         await self.assert_describe_migration({
             'proposed': {
-                'prompt_id': 'CreateLink LINK test::`__|spam@test|Bar`',
+                'prompt_id': 'CreateObjectType TYPE test::Bar',
                 'statements': [{
                     'text': """
                         ALTER TYPE test::Bar {
