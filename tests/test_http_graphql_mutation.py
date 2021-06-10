@@ -46,7 +46,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             'p_local_datetime': '2019-05-01T01:02:35.196811',
             'p_local_date': '2019-05-01',
             'p_local_time': '01:02:35.196811',
-            'p_duration': '21:30:00',
+            'p_duration': 'PT21H30M',
             'p_int16': 12345,
             'p_int32': 1234567890,
             # Some GraphQL implementations seem to have a limitation
@@ -1417,7 +1417,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             'p_local_datetime': '2018-05-07T20:01:22.306916',
             'p_local_date': '2018-05-07',
             'p_local_time': '20:01:22.306916',
-            'p_duration': '20:00:00',
+            'p_duration': 'PT20H',
             'p_int16': 12345,
             'p_int32': 1234567890,
             'p_int64': 1234567890123,
@@ -1434,7 +1434,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             'p_local_datetime': '2019-05-01T01:02:35.196811',
             'p_local_date': '2019-05-01',
             'p_local_time': '01:02:35.196811',
-            'p_duration': '21:30:00',
+            'p_duration': 'PT21H30M',
             'p_int16': 4321,
             'p_int32': 876543210,
             # Some GraphQL implementations seem to have a limitation
@@ -1491,7 +1491,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                         p_local_datetime: {set: "2019-05-01T01:02:35.196811"},
                         p_local_date: {set: "2019-05-01"},
                         p_local_time: {set: "01:02:35.196811"},
-                        p_duration: {set: "21:30:00"},
+                        p_duration: {set: "PT21H30M"},
                         p_int16: {set: 4321},
                         p_int32: {set: 876543210},
                         # Some GraphQL implementations seem to have a

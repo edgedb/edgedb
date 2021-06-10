@@ -160,6 +160,9 @@ The following table lists all EdgeDB base types descriptor IDs:
    * - ``00000000-0000-0000-0000-000000000110``
      - :ref:`std::bigint <ref_protocol_fmt_bigint>`
 
+   * - ``00000000-0000-0000-0000-000000000111``
+     - :ref:`cal::relative_duration <ref_protocol_fmt_relative_duration>`
+
 
 Scalar Type Descriptor
 ======================

@@ -248,6 +248,7 @@ EDB_TO_GQL_SCALARS_MAP = {
     'cal::local_datetime': GraphQLString,
     'cal::local_date': GraphQLString,
     'cal::local_time': GraphQLString,
+    'cal::relative_duration': GraphQLString,
 }
 
 

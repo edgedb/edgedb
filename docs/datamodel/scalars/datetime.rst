@@ -182,6 +182,72 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     :eql:type:`duration`.
 
 
+----------
+
+
+.. eql:type:: cal::relative_duration
+
+    A type representing a span of time.
+
+    Unlike :eql:type:`std::duration` a ``relative_duration`` is not a precise
+    measurment because it uses 3 different units under the hood: months, days
+    and seconds. However not all months have the same number of days and not
+    all days have the same number of seconds. For example 2019 was a leap year
+    and had 366 days. Notice how the number of hours in each year below is
+    different.
+
+    .. code-block:: edgeql-repl
+
+        db> WITH
+        ...     first_day_of_2020 := <datetime>'2020-01-01T00:00:00Z',
+        ...     one_year := <cal::relative_duration>'1 year',
+        ...     first_day_of_next_year := first_day_of_2020 + one_year
+        ... SELECT first_day_of_next_year - first_day_of_2020;
+        {<duration>'8784:00:00'}
+        db> WITH
+        ...     first_day_of_2019 := <datetime>'2019-01-01T00:00:00Z',
+        ...     one_year := <cal::relative_duration>'1 year',
+        ...     first_day_of_next_year := first_day_of_2019 + one_year
+        ... SELECT first_day_of_next_year - first_day_of_2019;
+        {<duration>'8760:00:00'}
+
+    Valid units when converting from a string (and combinations of them):
+    - ``'microseconds'``
+    - ``'milliseconds'``
+    - ``'seconds'``
+    - ``'minutes'``
+    - ``'hours'``
+    - ``'days'``
+    - ``'weeks'``
+    - ``'months'``
+    - ``'years'``
+    - ``'decades'``
+    - ``'centuries'``
+    - ``'millennium'``
+
+    .. code-block:: edgeql
+
+        SELECT <cal::relative_duration>'45.6 seconds';
+        SELECT <cal::relative_duration>'15 milliseconds';
+        SELECT <cal::relative_duration>'3 weeks 45 minutes';
+        SELECT <cal::relative_duration>'-7 millennium';
+
+    All date/time types support the ``+`` and ``-`` arithmetic operations
+    with relative_durations:
+
+    .. code-block:: edgeql-repl
+
+        db> select <datetime>'2019-01-01T00:00:00Z' -
+        ...        <cal::relative_duration>'3 years';
+        {<datetime>'2016-01-01T00:00:00+00:00'}
+        db> select <cal::local_time>'22:00' + <cal::relative_duration>'1 hour';
+        {<cal::local_time>'23:00:00'}
+
+    See functions :eql:func:`cal::to_relative_duration`, and :eql:func:`to_str`
+    and date/time :eql:op:`operators <DTMINUS>` for more ways of working with
+    :eql:type:`cal::relative_duration`.
+
+
 See Also
 --------
 

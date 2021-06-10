@@ -352,21 +352,27 @@ CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::duration) -> std::duration {
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+(interval,interval)';
+    USING SQL $$
+    SELECT ("l"::interval + "r"::interval)::edgedb.duration_t;
+    $$;
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::duration, r: std::duration) -> std::duration {
     SET volatility := 'Immutable';
-    USING SQL OPERATOR r'-(interval,interval)';
+    USING SQL $$
+    SELECT ("l"::interval - "r"::interval)::edgedb.duration_t;
+    $$;
 };
 
 
 CREATE PREFIX OPERATOR
 std::`-` (v: std::duration) -> std::duration {
     SET volatility := 'Immutable';
-    USING SQL OPERATOR r'-(NONE, interval)';
+    USING SQL $$
+    SELECT (-"v"::interval)::edgedb.duration_t;
+    $$;
 };
 
 

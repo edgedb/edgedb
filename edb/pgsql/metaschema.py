@@ -179,7 +179,7 @@ class DateDomain(dbops.Domain):
         )
 
 
-class IntervalDomain(dbops.Domain):
+class DurationDomain(dbops.Domain):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'duration_t'),
@@ -192,6 +192,20 @@ class IntervalDomain(dbops.Domain):
                         EXTRACT(years from VALUE) = 0 AND
                         EXTRACT(days from VALUE) = 0
                     ''',
+                ),
+            ),
+        )
+
+
+class RelativeDurationDomain(dbops.Domain):
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'relative_duration_t'),
+            base='interval',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'relative_duration_t'),
+                    expr="true",
                 ),
             ),
         )
@@ -3233,7 +3247,8 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateDomain(TimestampTzDomain()),
         dbops.CreateDomain(TimestampDomain()),
         dbops.CreateDomain(DateDomain()),
-        dbops.CreateDomain(IntervalDomain()),
+        dbops.CreateDomain(DurationDomain()),
+        dbops.CreateDomain(RelativeDurationDomain()),
         dbops.CreateFunction(StrToBigint()),
         dbops.CreateFunction(StrToDecimal()),
         dbops.CreateFunction(StrToInt64NoInline()),

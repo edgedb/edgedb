@@ -2129,7 +2129,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 'p_local_datetime': '2018-05-07T20:01:22.306916',
                 'p_local_date': '2018-05-07',
                 'p_local_time': '20:01:22.306916',
-                'p_duration': '20:00:00',
+                'p_duration': 'PT20H',
                 'p_int16': 12345,
                 'p_int32': 1234567890,
                 'p_int64': 1234567890123,

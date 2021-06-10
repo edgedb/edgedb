@@ -59,7 +59,7 @@ RUNTIME_DEPS = [
     'graphql-core~=3.1.5',
     'promise~=2.2.0',
 
-    'edgedb>=0.13.0',
+    'edgedb>=0.15.0',
 ]
 
 CYTHON_DEPENDENCY = 'Cython==0.29.23'
@@ -179,9 +179,8 @@ def _compile_postgres(build_base, *,
         stdout=subprocess.PIPE, universal_newlines=True, check=True)
     status = proc.stdout
     if status[0] == '-':
-        print(
-            'postgres submodule not initialized, '
-            'run `git submodule init; git submodule update`')
+        print('postgres submodule not initialized, '
+              'run `git submodule init; git submodule update`')
         exit(1)
 
     source_stamp = _get_pg_source_stamp()
