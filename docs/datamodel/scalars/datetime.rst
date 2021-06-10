@@ -189,7 +189,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     A type representing a span of time.
 
-    Unlike :eql:type:`std::duration` a relative_duration is not an precise
+    Unlike :eql:type:`std::duration` a ``relative_duration`` is not a precise
     measurment. For example:
 
     .. code-block:: edgeql-repl
