@@ -31,7 +31,10 @@ Define a type extending from the abstract:
 .. code-block:: sdl
 
     type User extending HasImage {
-        required property name -> str;
+        required property name -> str {
+            # Ensure unique name for each User.
+            constraint exclusive;
+        }
     }
 
 
