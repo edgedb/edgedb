@@ -1674,7 +1674,7 @@ class TestUpdate(tb.QueryTestCase):
                         )
                     }
                 )
-            SELECT stdgraphql::Query {
+            SELECT {
                 multi x0 := (
                     SELECT x1 {
                         name,

@@ -495,10 +495,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_Shape(self, node: qlast.Shape) -> None:
         if node.expr is not None:
-            # shape.expr may be None in Function RETURNING declaration,
-            # when the shape is used to described a returned struct.
             self.visit(node.expr)
-        self.write(' ')
+            self.write(' ')
         self._visit_shape(node.elements)
 
     def _visit_shape(self, shape: Sequence[qlast.ShapeElement]) -> None:

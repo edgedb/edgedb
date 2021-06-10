@@ -44,6 +44,11 @@ CREATE ABSTRACT TYPE std::Object EXTENDING std::BaseObject {
         'Root object type for user-defined types';
 };
 
+CREATE TYPE std::VirtualObject EXTENDING std::BaseObject {
+    CREATE ANNOTATION std::description :=
+        'Object type for anonymous shapes';
+};
+
 # 'USING SQL EXPRESSION' creates an EdgeDB Operator for purposes of
 # introspection and validation by the EdgeQL compiler. However, no
 # object is created in Postgres and the EdgeQL->SQL compiler is expected

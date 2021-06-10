@@ -488,7 +488,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
             SELECT User {
                 select_deck := (
                     WITH ps := (FOR x IN {"!", "?"} UNION (
-                        SELECT stdgraphql::Query { z := x }).z),
+                        SELECT { z := x }).z),
                     FOR letter IN {'I', 'B'}
                     UNION (
                         SELECT .deck {

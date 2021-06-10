@@ -517,7 +517,7 @@ class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
 
 
 class Shape(Expr):
-    expr: Expr
+    expr: typing.Optional[Expr]
     elements: typing.List[ShapeElement]
 
 

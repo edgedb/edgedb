@@ -684,7 +684,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_computable_30(self):
         await self.assert_query_result(
             r"""
-                WITH O := (SELECT stdgraphql::Query {m := 10}),
+                WITH O := (SELECT {m := 10}),
                 SELECT (O {m}, O.m);
             """,
             [
@@ -695,7 +695,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_computable_31(self):
         await self.assert_query_result(
             r"""
-                WITH O := (SELECT stdgraphql::Query {multi m := 10}),
+                WITH O := (SELECT {multi m := 10}),
                 SELECT (O {m});
             """,
             [
