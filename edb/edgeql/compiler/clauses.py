@@ -36,6 +36,7 @@ from . import inference
 from . import polyres
 from . import schemactx
 from . import setgen
+from . import pathctx
 
 
 def compile_where_clause(
@@ -45,6 +46,9 @@ def compile_where_clause(
 
     if where is None:
         return
+
+    if ctx.partial_path_prefix:
+        pathctx.register_set_in_scope(ctx.partial_path_prefix, ctx=ctx)
 
     with ctx.newscope(fenced=True) as subctx:
         subctx.path_scope.unnest_fence = True
@@ -62,6 +66,9 @@ def compile_orderby_clause(
     result: List[irast.SortExpr] = []
     if not sortexprs:
         return result
+
+    if ctx.partial_path_prefix:
+        pathctx.register_set_in_scope(ctx.partial_path_prefix, ctx=ctx)
 
     with ctx.new() as subctx:
         for sortexpr in sortexprs:
