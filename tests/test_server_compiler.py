@@ -30,6 +30,7 @@ from edb.testbase import server as tbs
 from edb.server import compiler as edbcompiler
 from edb.server.compiler_pool import amsg
 from edb.server.compiler_pool import pool
+from edb.server.dbview import dbview
 
 
 class TestServerCompiler(tb.BaseSchemaLoadTest):
@@ -78,7 +79,7 @@ class ServerProtocol(amsg.ServerProtocol):
         self.pids.remove(pid)
 
 
-class TestCompilerPool(tbs.TestCase):
+class TestAmsg(tbs.TestCase):
     @contextlib.asynccontextmanager
     async def compiler_pool(self, num_proc):
         proto = ServerProtocol()
@@ -234,3 +235,56 @@ class TestCompilerPool(tbs.TestCase):
             for pid in pids:
                 with self.assertRaises(OSError):
                     os.kill(pid, 0)
+
+
+class TestCompilerPool(tbs.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls._std_schema = tb._load_std_schema()
+        result = tb._load_reflection_schema()
+        cls._refl_schema, cls._schema_class_layout = result
+
+    async def test_server_compiler_pool_disconnect_queue(self):
+        with tempfile.TemporaryDirectory() as td:
+            pool_ = await pool.create_compiler_pool(
+                runstate_dir=td,
+                pool_size=2,
+                dbindex=dbview.DatabaseIndex(
+                    None,
+                    std_schema=self._std_schema,
+                    global_schema=None,
+                    sys_config={},
+                ),
+                backend_runtime_params=None,
+                std_schema=self._std_schema,
+                refl_schema=self._refl_schema,
+                schema_class_layout=self._schema_class_layout,
+            )
+            try:
+                w1 = await pool_._acquire_worker()
+                w2 = await pool_._acquire_worker()
+                with self.assertRaises(AttributeError):
+                    await w1.call('nonexist')
+                with self.assertRaises(AttributeError):
+                    await w2.call('nonexist')
+                pool_._release_worker(w1)
+                pool_._release_worker(w2)
+
+                pool_._ready_evt.clear()
+                os.kill(w1.get_pid(), signal.SIGTERM)
+                os.kill(w2.get_pid(), signal.SIGTERM)
+                await asyncio.wait_for(pool_._ready_evt.wait(), 10)
+
+                w1 = await pool_._acquire_worker()
+                w2 = await pool_._acquire_worker()
+                with self.assertRaises(AttributeError):
+                    await w1.call('nonexist')
+                with self.assertRaises(AttributeError):
+                    await w2.call('nonexist')
+                with self.assertRaises(asyncio.TimeoutError):
+                    await asyncio.wait_for(pool_._acquire_worker(), 0.1)
+                pool_._release_worker(w1)
+                pool_._release_worker(w2)
+            finally:
+                await pool_.stop()
