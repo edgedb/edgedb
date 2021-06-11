@@ -452,6 +452,19 @@ class Pool(amsg.ServerProtocol):
 
         return preargs, callback
 
+    async def _acquire_worker(self):
+        while (
+            worker := await self._workers_queue.acquire()
+        ).get_pid() not in self._workers:
+            # The worker was disconnected; skip to the next one.
+            pass
+        return worker
+
+    def _release_worker(self, worker):
+        # Skip disconnected workers
+        if worker.get_pid() in self._workers:
+            self._workers_queue.release(worker)
+
     async def compile(
         self,
         dbname,
@@ -462,7 +475,7 @@ class Pool(amsg.ServerProtocol):
         system_config,
         *compile_args
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             preargs, sync_state = self._compute_compile_preargs(
                 worker,
@@ -484,7 +497,7 @@ class Pool(amsg.ServerProtocol):
             return units, state
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def compile_in_tx(self, txid, pickled_state, *compile_args):
         # When we compile a query, the compiler returns a tuple:
@@ -546,7 +559,7 @@ class Pool(amsg.ServerProtocol):
         system_config,
         *compile_args
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             preargs, sync_state = self._compute_compile_preargs(
                 worker,
@@ -566,17 +579,17 @@ class Pool(amsg.ServerProtocol):
             )
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def try_compile_rollback(self, eql: bytes):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             return await worker.call(
                 'try_compile_rollback',
                 eql
             )
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def compile_graphql(
         self,
@@ -588,7 +601,7 @@ class Pool(amsg.ServerProtocol):
         system_config,
         *compile_args
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             preargs, sync_state = self._compute_compile_preargs(
                 worker,
@@ -608,14 +621,14 @@ class Pool(amsg.ServerProtocol):
             )
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def describe_database_dump(
         self,
         *args,
         **kwargs
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             return await worker.call(
                 'describe_database_dump',
@@ -624,14 +637,14 @@ class Pool(amsg.ServerProtocol):
             )
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def describe_database_restore(
         self,
         *args,
         **kwargs
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             return await worker.call(
                 'describe_database_restore',
@@ -640,7 +653,7 @@ class Pool(amsg.ServerProtocol):
             )
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
 
 async def create_compiler_pool(
