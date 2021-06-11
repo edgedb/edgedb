@@ -57,3 +57,4 @@ and :ref:`functions and operators <ref_eql_funcops>`.
     enum
     bytes
     uuid
+    casts

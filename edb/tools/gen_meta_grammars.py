@@ -144,7 +144,8 @@ def gen_meta_grammars(names):
     con = None
     try:
         con = edgedb.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
-                             database=edgedb_defines.EDGEDB_SUPERUSER_DB)
+                             database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+                             port=5656)
         main(names, con)
     except Exception as ex:
         die(str(ex))
