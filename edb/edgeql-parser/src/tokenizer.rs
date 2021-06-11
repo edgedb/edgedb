@@ -296,6 +296,11 @@ impl<'a> TokenStream<'a> {
                                 "backtick-quoted name cannot \
                                     start with char `@`"));
                         }
+                        if val.starts_with("`$") {
+                            return Err(Error::unexpected_static_message(
+                                "backtick-quoted name cannot \
+                                    start with char `$`"));
+                        }
                         if val.contains("::") {
                             return Err(Error::unexpected_static_message(
                                 "backtick-quoted name cannot \

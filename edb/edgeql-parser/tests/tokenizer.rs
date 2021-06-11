@@ -696,6 +696,8 @@ fn strings() {
         allowed: `b`, `r``");
     assert_eq!(tok_err(r#"`@x`"#),
         "Unexpected `backtick-quoted name cannot start with char `@``");
+    assert_eq!(tok_err(r#"`$x`"#),
+        "Unexpected `backtick-quoted name cannot start with char `$``");
     assert_eq!(tok_err(r#"`a::b`"#),
         "Unexpected `backtick-quoted name cannot contain `::``");
     assert_eq!(tok_err(r#"`__x__`"#),
