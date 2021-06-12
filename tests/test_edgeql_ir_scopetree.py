@@ -258,9 +258,10 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 }
             },
             "FENCE": {
-                "(schema::Type).>indirection[IS schema::Array]",
                 "[ns~1]@[ns~2]@@(schema::Type).>indirection[IS schema::Array]\
-.>element_type[IS schema::Type]",
+.>element_type[IS schema::Type]": {
+                    "(schema::Type).>indirection[IS schema::Array]"
+                },
                 "(schema::Type).>element_type[IS schema::Type]"
             }
         }
@@ -608,6 +609,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "(default::User)",
             "FENCE": {
                 "FENCE": {
+                    "FENCE": {
+                        "FENCE": {
+                            "FENCE": {
+                                "(default::User)\
+.>deck[IS default::Card]@count[IS std::int64]"
+                            }
+                        }
+                    },
                     "(default::User).>deck[IS default::Card]"
                 }
             },
