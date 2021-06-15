@@ -1397,6 +1397,19 @@ DB1 = mk_db([
     # Foo
     {"id": bsid(0x30), "__type__": FooT, "val": "a"},
     {"id": bsid(0x31), "__type__": FooT, "val": "b", "opt": 111},
+
+    # volatility
+    {"id": bsid(0x81), "__type__": "Tgt", "n": 1},
+    {"id": bsid(0x82), "__type__": "Tgt", "n": 2},
+    {"id": bsid(0x83), "__type__": "Tgt", "n": 3},
+    {"id": bsid(0x84), "__type__": "Tgt", "n": 4},
+
+    {"id": bsid(0x91), "__type__": "Obj", "n": 1,
+     "tgt": [bslink(0x81), bslink(0x82)]},
+    {"id": bsid(0x92), "__type__": "Obj", "n": 2,
+     "tgt": [bslink(0x82), bslink(0x83)]},
+    {"id": bsid(0x93), "__type__": "Obj", "n": 3,
+     "tgt": [bslink(0x83), bslink(0x84)]},
 ] + load_json_db(CARDS_DB))
 
 parser = argparse.ArgumentParser(description='Toy EdgeQL eval model')
