@@ -208,6 +208,9 @@ class Environment:
     #: A list of bindings that should be assumed to be singletons.
     singletons: List[irast.PathId]
 
+    scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
+    """Map from unique_id to nodes."""
+
     def __init__(
         self,
         *,
@@ -244,6 +247,7 @@ class Environment:
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
         self.singletons = []
+        self.scope_tree_nodes = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:

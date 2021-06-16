@@ -69,6 +69,11 @@ def compile_ir_to_sql_tree(
         else:
             scope_tree = irast.new_scope_tree()
 
+        scope_tree_nodes = {
+            node.unique_id: node for node in scope_tree.descendants
+            if node.unique_id is not None
+        }
+
         env = context.Environment(
             output_format=output_format,
             expected_cardinality_one=expected_cardinality_one,
@@ -78,6 +83,7 @@ def compile_ir_to_sql_tree(
             ignore_object_shapes=ignore_shapes,
             explicit_top_cast=explicit_top_cast,
             singleton_mode=singleton_mode,
+            scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
         )
 

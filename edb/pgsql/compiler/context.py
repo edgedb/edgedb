@@ -368,6 +368,7 @@ class Environment:
     singleton_mode: bool
     query_params: List[irast.Param]
     type_rewrites: Dict[uuid.UUID, irast.Set]
+    scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
 
     def __init__(
@@ -381,6 +382,7 @@ class Environment:
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
         type_rewrites: Dict[uuid.UUID, irast.Set],
+        scope_tree_nodes: Dict[int, irast.ScopeTreeNode],
         external_rvars: Optional[
             Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
         ] = None,
@@ -395,6 +397,7 @@ class Environment:
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
         self.type_rewrites = type_rewrites
+        self.scope_tree_nodes = scope_tree_nodes
         self.external_rvars = external_rvars or {}
 
 

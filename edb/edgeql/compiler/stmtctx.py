@@ -332,7 +332,7 @@ def _rewrite_weak_namespaces(
         if path_scope_id is not None:
             # Some entries in set_types are from compiling views
             # in temporary scopes, so we need to just skip those.
-            if scope := tree.find_by_unique_id(path_scope_id):
+            if scope := ctx.env.scope_tree_nodes.get(path_scope_id):
                 _try_namespace_fix(scope, ir_set)
 
 
