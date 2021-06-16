@@ -703,6 +703,38 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_select_computable_32(self):
+        await self.assert_query_result(
+            r"""
+            SELECT _ := (User {x := .name}.x, (SELECT User.name)) ORDER BY _;
+            """,
+            [
+                ['Elvis', 'Elvis'],
+                ['Yury', 'Yury'],
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT _ := ((SELECT User.name), User {x := .name}.x) ORDER BY _;
+            """,
+            [
+                ['Elvis', 'Elvis'],
+                ['Yury', 'Yury'],
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT _ := ((SELECT User.name), (User {x := .name},).0.x)
+            ORDER BY _;
+            """,
+            [
+                ['Elvis', 'Elvis'],
+                ['Yury', 'Yury'],
+            ]
+        )
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(
             r"""

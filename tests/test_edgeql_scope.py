@@ -2437,3 +2437,33 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 {"name": "Dave", "specials": ["Djinn"]}
             ],
         )
+
+    async def test_edgeql_scope_branch_01(self):
+        await self.assert_query_result(
+            """
+                SELECT count(((SELECT User), ((User),).0));
+            """,
+            [4],
+        )
+
+    async def test_edgeql_scope_branch_02(self):
+        await self.assert_query_result(
+            """
+                SELECT count((
+                    (SELECT User.name),
+                    ((SELECT User.name) ++ (User.name),).0,
+                 ));
+            """,
+            [4],
+        )
+
+    async def test_edgeql_scope_branch_03(self):
+        await self.assert_query_result(
+            """
+                SELECT count((
+                    (SELECT User.name),
+                    ((SELECT User.name) ++ (User.name)) ?? "uhoh",
+                 ));
+            """,
+            [4],
+        )
