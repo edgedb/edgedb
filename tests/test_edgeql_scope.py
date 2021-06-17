@@ -2467,3 +2467,59 @@ class TestEdgeQLScope(tb.QueryTestCase):
             """,
             [4],
         )
+
+    async def test_edgeql_scope_computable_factoring_01(self):
+        await self.assert_query_result(
+            """
+                WITH U := (
+                        SELECT User {
+                            cards := (
+                                SELECT .deck {
+                                    foo := .name
+                                }
+                            )
+                        } FILTER .name = 'Dave'
+                    )
+                SELECT
+                    count(((SELECT U.cards.foo), (SELECT U.cards.foo)));
+            """,
+            [49],
+        )
+
+    async def test_edgeql_scope_computable_factoring_02(self):
+        await self.assert_query_result(
+            """
+                WITH U := (
+                        SELECT User {
+                            cards := (
+                                SELECT .deck {
+                                    foo := .name
+                                }
+                            )
+                        } FILTER .name = 'Dave'
+                    )
+                SELECT
+                    count(((SELECT U.cards.foo),
+                          ((SELECT U.cards.foo), (U.cards.foo))))
+            """,
+            [7],
+        )
+
+    async def test_edgeql_scope_computable_factoring_03(self):
+        await self.assert_query_result(
+            """
+                WITH U := (
+                        SELECT User {
+                            cards := (
+                                SELECT .deck {
+                                    foo := .name
+                                }
+                            )
+                        } FILTER .name = 'Dave'
+                    )
+                SELECT
+                    count(((SELECT U.cards.foo),
+                          (((SELECT U.cards.foo), (U.cards.foo)),).0))
+            """,
+            [7],
+        )

@@ -223,14 +223,7 @@ class ScopeTreeNode:
         )
 
     def get_all_paths(self) -> Set[pathid.PathId]:
-        paths = set()
-
-        if self.path_id:
-            paths.add(self.path_id)
-        else:
-            paths.update(p.path_id for p in self.path_children)
-
-        return paths
+        return {pd.path_id for pd in self.path_descendants}
 
     @property
     def descendants(self) -> Iterator[ScopeTreeNode]:
@@ -537,19 +530,29 @@ class ScopeTreeNode:
 
             elif descendant.parent_fence is node:
                 # Unfenced path.
-                # Search for an occurence elsewhere in the tree that
+                # Search for occurences elsewhere in the tree that
                 # can be factored with this one.
-                # If found, attach that node directly to the factoring point,
-                # remove all other occurrences, and fuse our node onto it.
-                (
-                    factor_point,
-                    existing,
-                    existing_ns,
-                    existing_finfo,
-                    unnest_fence,
-                ) = self.find_factoring_point(path_id)
+                # If found, attach that node directly to the factoring point
+                # and fuse our node onto it.
+                # If there are multiple factorable occurences, we do
+                # this iteratively, from closest to furthest away.
+                factorable_nodes = self.find_factorable_nodes(path_id)
 
-                if existing is not None:
+                current = descendant
+                if factorable_nodes:
+                    descendant.strip_path_namespace(dns)
+                    if desc_optional:
+                        descendant.mark_as_optional()
+
+                for factorable in factorable_nodes:
+                    (
+                        existing,
+                        factor_point,
+                        existing_ns,
+                        existing_finfo,
+                        unnest_fence,
+                    ) = factorable
+
                     self._check_factoring_errors(
                         path_id, descendant, factor_point, existing,
                         unnest_fence, existing_finfo, context,
@@ -558,22 +561,23 @@ class ScopeTreeNode:
                     existing_fenced = existing.parent_fence is not self
                     if existing.is_optional_upto(factor_point):
                         existing.mark_as_optional()
-                    if desc_optional:
-                        descendant.mark_as_optional()
 
-                    factor_point.remove_descendants(path_id, new=existing)
-                    node.remove_descendants(path_id, new=existing)
+                    existing.remove()
+                    current.remove()
 
                     # Strip the namespaces of everything in the lifted nodes
                     # based on what they have been lifted through.
                     existing.strip_path_namespace(existing_ns)
-                    descendant.strip_path_namespace(dns | existing_ns)
+                    current.strip_path_namespace(existing_ns)
 
                     factor_point.attach_child(existing)
 
                     # Discard the node from the subtree being attached.
+                    current._gravestone = existing
                     existing.fuse_subtree(
-                        descendant, self_fenced=existing_fenced)
+                        current, self_fenced=existing_fenced)
+
+                    current = existing
 
         for child in tuple(node.children):
             # Attach whatever is remaining in the subtree.
@@ -591,10 +595,10 @@ class ScopeTreeNode:
         factor_point: ScopeTreeNode,
         existing: ScopeTreeNodeWithPathId,
         unnest_fence: bool,
-        existing_finfo: Optional[FenceInfo],
+        existing_finfo: FenceInfo,
         context: Optional[pctx.ParserContext],
     ) -> None:
-        if existing_finfo is not None and existing_finfo.factoring_fence:
+        if existing_finfo.factoring_fence:
             # This node is already present in the surrounding
             # scope and cannot be factored out, such as
             # a reference to a correlated set inside a DML
@@ -921,36 +925,38 @@ class ScopeTreeNode:
             node = node.parent
         return False
 
-    def find_factoring_point(
+    def find_factorable_nodes(
         self,
         path_id: pathid.PathId,
-    ) -> Tuple[
-        ScopeTreeNode,
-        Optional[ScopeTreeNodeWithPathId],
-        AbstractSet[pathid.AnyNamespace],
-        Optional[FenceInfo],
-        bool,
+    ) -> List[
+        Tuple[
+            ScopeTreeNodeWithPathId,
+            ScopeTreeNode,
+            AbstractSet[pathid.AnyNamespace],
+            FenceInfo,
+            bool,
+        ]
     ]:
-        """Find a location to factor path_id to (if attaching path_id to self)
+        """Find nodes factorable with path_id (if attaching path_id to self)
 
         This is done by searching up the tree looking for an ancestor
         node that has path_id as a descendant such that *at most one*
         of self and the path_id descendant are fenced.
 
+        That descendant, then, is a factorable node, and the ancestor
+        is its factoring point.
+
         We do this by tracking whether we have passed a fence on our
         way up the tree, and only looking for unfenced descendants if
         so.
 
-        We pick the highest such location in the tree we find.
+        We find all such factorable nodes and return them sorted by
+        factoring point, from closest to furthest up.
         """
         namespaces: Set[str] = set()
         unnest_fence_seen = False
         fence_seen = False
-
-        best = (
-            self, cast(Optional[ScopeTreeNodeWithPathId], None),
-            set(namespaces), cast(Optional[FenceInfo], None), unnest_fence_seen
-        )
+        points = []
 
         # Track the last seen node so that we can skip it while looking
         # for descendants, to avoid performance pathologies, but also
@@ -968,12 +974,13 @@ class ScopeTreeNode:
                 node.descendants_and_namespaces_ex(
                     unfenced_only=fence_seen, skip=last)
             ):
-                cns = namespaces | dns
+                cns: AbstractSet[str] = namespaces | dns
                 if (descendant.path_id is not None
                         and _paths_equal(descendant.path_id, path_id, cns)):
                     descendant = cast(ScopeTreeNodeWithPathId, descendant)
-                    best = node, descendant, cns, finfo, unnest_fence_seen
-                    break
+                    points.append((
+                        descendant, node, cns, finfo, unnest_fence_seen
+                    ))
 
             namespaces |= ans
             unnest_fence_seen |= node.unnest_fence
@@ -981,7 +988,7 @@ class ScopeTreeNode:
 
             last = node
 
-        return best
+        return points
 
     def find_by_unique_id(self, unique_id: int) -> Optional[ScopeTreeNode]:
         for node in self.descendants:
