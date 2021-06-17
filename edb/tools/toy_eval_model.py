@@ -518,6 +518,7 @@ ANONYMOUS_SHAPE_EXPR = qlast.DetachedExpr(
     ),
 )
 
+
 @_eval.register
 def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> Result:
 
@@ -579,7 +580,7 @@ def eval_func_or_op(op: str, args: List[qlast.Expr], typ: str,
 
     results = []
     for i, arg in enumerate(args):
-        if arg_specs and arg_specs[i] == SET_OF:
+        if arg_specs and arg_specs[i] in (SET_OF, OPTIONAL):
             # SET OF is a subquery
             results.append(subquery(arg, ctx=ctx))
         else:
@@ -821,8 +822,9 @@ class PathFinder(NodeVisitor):
     def __init__(self, cur_path: Optional[qlast.Path]) -> None:
         super().__init__()
         self.in_optional = False
+        self.optional_counter = 0
         self.in_subquery = False
-        self.paths: List[Tuple[qlast.Path, bool, bool]] = []
+        self.paths: List[Tuple[qlast.Path, Optional[int], bool]] = []
         self.current_path = cur_path
 
     def _update(self, **kwargs: Any) -> Iterator[None]:
@@ -848,7 +850,7 @@ class PathFinder(NodeVisitor):
     def visit_Path(self, path: qlast.Path) -> None:
         self.paths.append((
             graft(self.current_path, path),
-            self.in_optional,
+            self.optional_counter if self.in_optional else None,
             self.in_subquery,
         ))
         self.generic_visit(path)
@@ -890,7 +892,10 @@ class PathFinder(NodeVisitor):
                 if arg_specs[i] == SET_OF:
                     self.in_subquery = True
                 elif arg_specs[i] == OPTIONAL:
+                    if not self.in_subquery and not self.in_optional:
+                        self.optional_counter += 1
                     self.in_optional = True
+
             self.visit(arg)
             self.in_optional, self.in_subquery = old
 
@@ -919,7 +924,7 @@ def find_paths(
     cur_path: Optional[qlast.Path],
     extra_subqs: Iterable[
         Tuple[Optional[qlast.Path], Optional[qlast.Base]]] = (),
-) -> List[Tuple[qlast.Path, bool, bool]]:
+) -> List[Tuple[qlast.Path, Optional[int], bool]]:
     pf = PathFinder(cur_path)
     pf.visit(e)
     pf.in_subquery = True
@@ -948,35 +953,31 @@ def dedup(old: List[T]) -> List[T]:
 
 
 def find_common_prefixes(
-        direct_refs: List[IPath], subquery_refs: List[IPath]) -> Set[IPath]:
+    direct_refs: List[Tuple[IPath, Optional[int]]],
+    subquery_refs: List[Tuple[IPath, Optional[int]]],
+) -> Set[IPath]:
     prefixes = set()
-    for i, x in enumerate(direct_refs):
-        added = False
+    for i, (x, ox) in enumerate(direct_refs):
         # We start from only the refs directly in the query, but we
         # look for common prefixes with anything in subqueries also.
         # XXX: The docs are wrong and don't suggest this.
-        for y in direct_refs[i:] + subquery_refs:
+        for (y, oy) in direct_refs[i:] + subquery_refs:
+            # XXX: Also optional stuff that the docs don't suggest
+            if ox is not None and ox == oy:
+                continue
             pfx = longest_common_prefix(x, y)
             if pfx:
                 prefixes.add(pfx)
-                added = True
-        if not added:
-            prefixes.add(x)
     return prefixes
 
 
 def make_query_input_list(
-        direct_refs: List[IPath], subquery_refs: List[IPath],
-        old: List[IPath]) -> List[IPath]:
-    direct_refs = [x for x in direct_refs if isinstance(x[0], IORef)]
+    direct_refs: List[Tuple[IPath, Optional[int]]],
+    subquery_refs: List[Tuple[IPath, Optional[int]]],
+    old: List[IPath],
+) -> List[IPath]:
+    direct_refs = [x for x in direct_refs if isinstance(x[0][0], IORef)]
     qil = find_common_prefixes(direct_refs, subquery_refs)
-    # For any link property reference in our input list, strip off the
-    # link and the link prop, and add that. So for Person.notes@name,
-    # add Person to our input set too. This prevents us from
-    # deduplicating the link before we access the prop.
-    for x in list(qil):
-        if isinstance(x[-1], IPtr) and x[-1].is_link_property:
-            qil.add(x[:-2])
 
     return sorted(x for x in qil if x not in old)
 
@@ -1017,20 +1018,34 @@ def analyze_paths(
     extra_subqs: Iterable[
         Tuple[Optional[qlast.Path], Optional[qlast.Base]]],
     cur_path: Optional[qlast.Path],
-) -> Tuple[List[IPath], List[IPath], Dict[IPath, bool]]:
+) -> Tuple[
+    List[Tuple[IPath, Optional[int]]],
+    List[Tuple[IPath, Optional[int]]],
+    Dict[IPath, bool],
+]:
     paths_opt = [(simplify_path(p), optional, subq)
                  for p, optional, subq in find_paths(q, cur_path, extra_subqs)]
+
+    # For any link property reference we see, strip off the
+    # link and the link prop, and add that. So for Person.notes@name,
+    # add Person to our input set too. This prevents us from
+    # deduplicating the link before we access the prop.
+    for path, optional, subquery in list(paths_opt):
+        if isinstance(path[-1], IPtr) and path[-1].is_link_property:
+            paths_opt.append((path[:-2], optional, subquery))
+
     always_optional = defaultdict(lambda: True)
 
     direct_paths = []
     subquery_paths = []
     for path, optional, subquery in paths_opt:
         if subquery:
-            subquery_paths.append(path)
+            subquery_paths.append((path, optional))
         else:
-            direct_paths.append(path)
-            # Mark all path prefixes as not being optional
+            direct_paths.append((path, optional))
+            # if optional is None:
             if not optional:
+                # Mark all path prefixes as not being optional
                 for i in range(1, len(path) + 1):
                     always_optional[path[:i]] = False
 

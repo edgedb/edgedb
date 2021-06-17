@@ -115,6 +115,30 @@ class TestModelSmokeTests(unittest.TestCase):
             [('boxing', False), ('unboxing', True), ('dynamic', True)]
         )
 
+    def test_model_optional_prop_05(self):
+        self.assert_test_query(
+            r"""
+            SELECT (User.name ++ User.avatar.name) ?? 'hm';
+            """,
+            ['AliceDragon'],
+        )
+
+    def test_model_optional_prop_06(self):
+        self.assert_test_query(
+            r"""
+            SELECT User.name ?= User.name;
+            """,
+            [True, True, True, True],
+        )
+
+    def test_model_optional_prop_07(self):
+        self.assert_test_query(
+            r"""
+            SELECT (User.name ?= 'Alice', count(User.name))
+            """,
+            [(True, 1), (False, 1), (False, 1), (False, 1)],
+        )
+
     def test_model_subqueries_01(self):
         self.assert_test_query(
             r"""
