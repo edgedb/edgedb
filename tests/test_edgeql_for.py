@@ -643,7 +643,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 SELECT count((
                     WITH X := {1, 2}
                     SELECT (X, (FOR x in {X} UNION (SELECT x)))
-               ));
+                ));
             ''',
             [2],
         )
@@ -653,7 +653,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 SELECT count((
                     WITH X := {1, 2}
                     SELECT ((FOR x in {X} UNION (SELECT x)), X)
-               ));
+                ));
             ''',
             [2],
         )

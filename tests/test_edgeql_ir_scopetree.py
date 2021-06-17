@@ -102,12 +102,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "(default::Card)",
             "(default::Card).<deck[IS __derived__::(opaque: default:User)]\
 .>indirection[IS default::User]": {
-                "[ns~1]@@(default::Card)\
-.<deck[IS __derived__::(opaque: default:User)]",
-                "(default::Card)\
-.<deck[IS __derived__::(opaque: default:User)]",
-                "[ns~1]@[ns~2]@@(default::Card)\
-.<deck[IS __derived__::(opaque: default:User)]"
+                "(default::Card).<deck[IS __derived__::(opaque: default:User)]"
             },
             "FENCE": {
                 "(default::Card).>owner[IS default::User]"
@@ -128,14 +123,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "(default::Card).<deck[IS __derived__::(opaque: default:User)]\
 .>indirection[IS default::User]": {
-                "(default::Card)\
-.<deck[IS __derived__::(opaque: default:User)]",
-                "[ns~1]@@(default::Card)\
-.<deck[IS __derived__::(opaque: default:User)]": {
-                    "[ns~1]@@(default::Card)"
-                },
-                "[ns~1]@[ns~2]@@(default::Card)\
-.<deck[IS __derived__::(opaque: default:User)]"
+                "(default::Card).<deck[IS __derived__::(opaque: default:User)]"
             },
             "(default::Card)",
             "FENCE": {
@@ -370,7 +358,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 % OK %
         "FENCE": {
             "(default::Card).>owners[IS default::User]": {
-                "BRANCH": {
+                "CBRANCH": {
                     "(default::Card)"
                 },
                 "FENCE": {
@@ -454,10 +442,10 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             },
             "(__derived__::__derived__|U@w~1).>cards[IS default::Card]\
 .>foo[IS std::float64]": {
-                "BRANCH": {
+                "CBRANCH": {
                     "(__derived__::__derived__|U@w~1)\
 .>cards[IS default::Card]": {
-                        "BRANCH": {
+                        "CBRANCH": {
                             "(__derived__::__derived__|U@w~1)"
                         },
                         "FENCE": {
@@ -744,10 +732,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                             "[ns~1]@@(__derived__::__derived__|letter@w~1)",
                             "FENCE": {
                                 "FENCE": {
-                                    "(default::User)\
-.>deck[IS default::Card]": {
-                                        "[ns~1]@[ns~3]@@(default::User)"
-                                    },
+                                    "(default::User).>deck[IS default::Card]",
                                     "FENCE": {
                                         "(default::User)\
 .>deck[IS default::Card].>name[IS std::str]"
@@ -806,9 +791,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                                 "FENCE": {
                                     "FENCE": {
                                         "(default::User)\
-.>deck[IS default::Card]": {
-                                            "[ns~1]@[ns~3]@[ns~4]@@(default::User)"
-                                        },
+.>deck[IS default::Card]",
                                         "FENCE": {
                                             "(default::User)\
 .>deck[IS default::Card].>name[IS std::str]"
@@ -900,7 +883,7 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "FENCE": {
                 "(__derived__::__derived__|A@w~1).>owners[IS default::User]": {
-                    "BRANCH": {
+                    "CBRANCH": {
                         "(__derived__::__derived__|A@w~1)"
                     },
                     "FENCE": {
