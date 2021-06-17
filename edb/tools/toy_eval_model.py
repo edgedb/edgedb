@@ -702,7 +702,9 @@ def eval(node: qlast.Base, ctx: EvalContext) -> Result:
 
 
 def get_links(obj: Data, key: str) -> Result:
-    out = obj.get(key, [])
+    out = obj.get(key)
+    if out is None:
+        out = []
     if not isinstance(out, list):
         out = [out]
     return out
