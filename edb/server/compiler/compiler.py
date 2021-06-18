@@ -110,6 +110,7 @@ class CompileContext:
     backend_runtime_params: Any = (
         pgcluster.get_default_runtime_params())
     compat_ver: Optional[verutils.Version] = None
+    protocol_version: Optional[tuple] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
     standalone_mode: bool = False
@@ -460,6 +461,7 @@ class Compiler:
                 output_format=enums.IoFormat.JSON,
                 expected_cardinality_one=False,
                 bootstrap_mode=ctx.bootstrap_mode,
+                protocol_version=ctx.protocol_version,
             )
 
             return self._compile_ql_script(newctx, eql)
@@ -623,7 +625,8 @@ class Compiler:
                 out_type_data, out_type_id = sertypes.TypeSerializer.describe(
                     ir.schema, ir.stype,
                     ir.view_shapes, ir.view_shapes_metadata,
-                    inline_typenames=ctx.inline_typenames)
+                    inline_typenames=ctx.inline_typenames,
+                    protocol_version=ctx.protocol_version)
             else:
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
@@ -680,7 +683,8 @@ class Compiler:
                     ir.schema, element_types={}, named=False)
 
             in_type_data, in_type_id = sertypes.TypeSerializer.describe(
-                ir.schema, params_type, {}, {})
+                ir.schema, params_type, {}, {},
+                protocol_version=ctx.protocol_version)
 
             sql_hash = self._hash_sql(
                 sql_bytes,
@@ -1959,8 +1963,9 @@ class Compiler:
         inline_typeids: bool,
         inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
-        inline_objectids: bool=True,
-        json_parameters: bool=False,
+        protocol_version: Optional[tuple] = None,
+        inline_objectids: bool = True,
+        json_parameters: bool = False,
     ) -> Tuple[List[dbstate.QueryUnit],
                Optional[dbstate.CompilerConnectionState]]:
 
@@ -2000,6 +2005,7 @@ class Compiler:
             stmt_mode=enums.CompileStatementMode(stmt_mode),
             json_parameters=json_parameters,
             source=source,
+            protocol_version=protocol_version,
         )
 
         units = self._compile(ctx=ctx, source=source)
@@ -2025,6 +2031,7 @@ class Compiler:
         inline_typeids: bool,
         inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
+        protocol_version: tuple,
         inline_objectids: bool = True,
     ) -> Tuple[List[dbstate.QueryUnit], dbstate.CompilerConnectionState]:
         state.sync_tx(txid)
@@ -2039,6 +2046,7 @@ class Compiler:
             inline_objectids=inline_objectids,
             stmt_mode=enums.CompileStatementMode(stmt_mode),
             source=source,
+            protocol_version=protocol_version,
         )
 
         return self._compile(ctx=ctx, source=source), ctx.state
@@ -2048,6 +2056,7 @@ class Compiler:
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         database_config: immutables.Map[str, config.SettingValue],
+        protocol_version: tuple,
     ) -> DumpDescriptor:
         schema = s_schema.ChainedSchema(
             self._std_schema,
@@ -2090,7 +2099,8 @@ class Compiler:
         for objtype in objtypes:
             if objtype.is_union_type(schema) or objtype.is_view(schema):
                 continue
-            descriptors.extend(self._describe_object(schema, objtype))
+            descriptors.extend(self._describe_object(schema, objtype,
+                                                     protocol_version))
 
         dynamic_ddl = []
         if sequences:
@@ -2113,6 +2123,7 @@ class Compiler:
         self,
         schema: s_schema.Schema,
         source: s_obj.Object,
+        protocol_version: tuple,
     ) -> List[DumpBlockDescriptor]:
 
         cols = []
@@ -2135,6 +2146,7 @@ class Compiler:
                 view_shapes={},
                 view_shapes_metadata={},
                 follow_links=False,
+                protocol_version=protocol_version,
             )
 
             cols.extend([
@@ -2172,6 +2184,7 @@ class Compiler:
                 view_shapes={},
                 view_shapes_metadata={},
                 follow_links=False,
+                protocol_version=protocol_version,
             )
 
         else:
@@ -2197,7 +2210,8 @@ class Compiler:
                 )
 
                 if link_stor_info is not None:
-                    ptrdesc.extend(self._describe_object(schema, ptr))
+                    ptrdesc.extend(self._describe_object(schema, ptr,
+                                                         protocol_version))
 
             type_data, type_id = sertypes.TypeSerializer.describe(
                 schema,
@@ -2205,6 +2219,7 @@ class Compiler:
                 view_shapes={source: shape},
                 view_shapes_metadata={},
                 follow_links=False,
+                protocol_version=protocol_version,
             )
 
         table_name = pg_common.get_backend_name(
@@ -2255,6 +2270,7 @@ class Compiler:
         schema_ddl: bytes,
         schema_ids: List[Tuple[str, str, bytes]],
         blocks: List[Tuple[bytes, bytes]],  # type_id, typespec
+        protocol_version: tuple,
     ) -> RestoreDescriptor:
         schema_object_ids = {
             (
@@ -2289,6 +2305,7 @@ class Compiler:
             compat_ver=dump_server_ver,
             schema_object_ids=schema_object_ids,
             log_ddl_as_migrations=False,
+            protocol_version=protocol_version,
         )
 
         ctx.state.start_tx()

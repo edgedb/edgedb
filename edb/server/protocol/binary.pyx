@@ -92,7 +92,7 @@ cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (0, 10)
+cdef tuple DUMP_VER_MAX = (0, 11)
 
 cdef object logger = logging.getLogger('edb.server')
 cdef object log_metrics = logging.getLogger('edb.server.metrics')
@@ -140,6 +140,7 @@ cdef class QueryRequestInfo:
     def __cinit__(
         self,
         source: edgeql.Source,
+        protocol_version: tuple,
         *,
         io_format: compiler.IoFormat = FMT_BINARY,
         expect_one: bint = False,
@@ -150,6 +151,7 @@ cdef class QueryRequestInfo:
         allow_capabilities: uint64_t = ALL_CAPABILITIES,
     ):
         self.source = source
+        self.protocol_version = protocol_version
         self.io_format = io_format
         self.expect_one = expect_one
         self.implicit_limit = implicit_limit
@@ -160,6 +162,7 @@ cdef class QueryRequestInfo:
 
         self.cached_hash = hash((
             self.source.cache_key(),
+            self.protocol_version,
             self.io_format,
             self.expect_one,
             self.implicit_limit,
@@ -174,6 +177,7 @@ cdef class QueryRequestInfo:
     def __eq__(self, other: QueryRequestInfo) -> bool:
         return (
             self.source.cache_key() == other.source.cache_key() and
+            self.protocol_version == other.protocol_version and
             self.io_format == other.io_format and
             self.expect_one == other.expect_one and
             self.implicit_limit == other.implicit_limit and
@@ -810,6 +814,7 @@ cdef class EdgeConnection:
                 query_req.inline_typeids,
                 query_req.inline_typenames,
                 'single',
+                self.protocol_version,
                 query_req.inline_objectids,
             )
         else:
@@ -829,6 +834,7 @@ cdef class EdgeConnection:
                 query_req.inline_typeids,
                 query_req.inline_typenames,
                 'single',
+                self.protocol_version,
                 query_req.inline_objectids,
             )
         return units
@@ -858,6 +864,7 @@ cdef class EdgeConnection:
                 False,
                 False,
                 stmt_mode,
+                self.protocol_version,
             )
         else:
             units, self.last_state = await compiler_pool.compile(
@@ -876,6 +883,7 @@ cdef class EdgeConnection:
                 False,
                 False,
                 stmt_mode,
+                self.protocol_version,
             )
         return units
 
@@ -1263,6 +1271,7 @@ cdef class EdgeConnection:
 
         query_req = QueryRequestInfo(
             source,
+            self.protocol_version,
             io_format=io_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
@@ -2242,6 +2251,7 @@ cdef class EdgeConnection:
                     user_schema,
                     global_schema,
                     db_config,
+                    self.protocol_version,
                 )
             )
 
@@ -2349,7 +2359,8 @@ cdef class EdgeConnection:
     async def _execute_utility_stmt(self, eql: str, pgcon):
         cdef dbview.DatabaseConnectionView _dbview
 
-        query_req = QueryRequestInfo(edgeql.Source.from_string(eql))
+        query_req = QueryRequestInfo(edgeql.Source.from_string(eql),
+                                     self.protocol_version)
 
         units = await self._compile(query_req)
         assert len(units) == 1
@@ -2456,6 +2467,7 @@ cdef class EdgeConnection:
                     schema_ddl,
                     schema_ids,
                     blocks,
+                    self.protocol_version,
                 )
 
             for query_unit in schema_sql_units:
