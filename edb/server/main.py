@@ -48,7 +48,6 @@ from . import defines
 from . import logsetup
 from . import pgconnparams
 from . import pgcluster
-from . import protocol
 
 
 if TYPE_CHECKING:
@@ -395,25 +394,6 @@ def bump_rlimit_nofile() -> None:
                      fno_hard))
             except resource.error:
                 logger.warning('could not set RLIMIT_NOFILE')
-
-
-def _protocol_version(
-    ctx: click.Context,
-    param: click.Param,  # type: ignore[name-defined]
-    value: str,
-) -> Tuple[int, int]:
-    try:
-        minor, major = map(int, value.split('.'))
-        ver = minor, major
-        if ver < protocol.MIN_PROTOCOL or ver > protocol.CURRENT_PROTOCOL:
-            raise ValueError()
-    except ValueError:
-        raise click.UsageError(
-            f"protocol version must be in the form "
-            f"MAJOR.MINOR, in the range of "
-            f"{protocol.MIN_PROTOCOL[0]}.{protocol.MIN_PROTOCOL[1]} - "
-            f"{protocol.CURRENT_PROTOCOL[0]}.{protocol.CURRENT_PROTOCOL[1]}")
-    return ver
 
 
 def server_main(*, insecure=False, **kwargs):

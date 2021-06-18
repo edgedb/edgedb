@@ -215,7 +215,7 @@ cdef class HttpProtocol:
         path = path.strip('/')
         path_parts = path.split('/')
 
-        # Check if this a request to a registered extension
+        # Check if this is a request to a registered extension
         if len(path_parts) >= 3 and path_parts[0] == 'db':
             root, dbname, extname, *args = path_parts
             db = self.server.maybe_get_db(dbname=dbname)
