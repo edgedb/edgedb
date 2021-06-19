@@ -8806,6 +8806,48 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         ''')
 
+    async def test_edgeql_migration_backlink_01(self):
+        await self.migrate('''
+            type User {
+                link posts := .<user;
+            }
+
+            abstract type Action {
+                required link user -> User;
+            }
+
+            type Post extending Action;
+        ''')
+
+        # Make sure that the objects can actually be created and
+        # queried.
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT User;
+        ''')
+        post = await self.con.query_one('''
+            INSERT Post {
+                user := (SELECT User LIMIT 1),
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT User{
+                    id,
+                    posts: {
+                        id
+                    } LIMIT 1  # this LIMIT is needed as a workaround
+                               # for another bug
+                }
+            ''',
+            [
+                {
+                    'posts': [{'id': str(post.id)}],
+                },
+            ],
+        )
+
     async def test_edgeql_migration_misplaced_commands(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,

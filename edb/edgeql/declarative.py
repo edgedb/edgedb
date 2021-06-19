@@ -308,7 +308,7 @@ def sdl_to_ddl(
                     ctx.objects[fq_name] = qltracer.ObjectType(fq_name)
 
                 elif isinstance(decl_ast, qlast.CreateScalarType):
-                    ctx.objects[fq_name] = qltracer.Type(fq_name)
+                    ctx.objects[fq_name] = qltracer.ScalarType(fq_name)
 
                 elif isinstance(decl_ast, (qlast.CreateLink,
                                            qlast.CreateProperty)):
@@ -1148,9 +1148,11 @@ def _get_tracer_and_real_type(
     tracer_type: Optional[Type[qltracer.NamedObject]] = None
     real_type: Optional[Type[s_obj.Object]] = None
 
-    if isinstance(decl, (qlast.CreateObjectType,
-                         qlast.CreateScalarType)):
-        tracer_type = qltracer.Type
+    if isinstance(decl, qlast.CreateObjectType):
+        tracer_type = qltracer.ObjectType
+        real_type = s_types.Type
+    elif isinstance(decl, qlast.CreateScalarType):
+        tracer_type = qltracer.ScalarType
         real_type = s_types.Type
     elif isinstance(decl, (qlast.CreateConstraint,
                            qlast.CreateConcreteConstraint)):

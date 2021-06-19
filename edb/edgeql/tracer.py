@@ -76,7 +76,13 @@ class Annotation(NamedObject):
 
 
 class Type(NamedObject):
-    pass
+    def is_scalar(self) -> bool:
+        return False
+
+
+class ScalarType(Type):
+    def is_scalar(self) -> bool:
+        return True
 
 
 TypeLike = Union[Type, s_types.Type]
@@ -138,6 +144,9 @@ SourceLike_T = TypeVar("SourceLike_T", bound="SourceLike")
 class ObjectType(Type, Source):
 
     def is_pointer(self) -> bool:
+        return False
+
+    def is_scalar(self) -> bool:
         return False
 
 
@@ -578,8 +587,23 @@ def trace_Path(
                         # process it on the next step.
                         pass
                     else:
-                        # otherwise we cannot say anything about the target,
-                        # so bail.
+                        # No type intersection, so the only type that
+                        # it can be is "Object", which is trivial.
+                        # However, we need to make it dependent on
+                        # every link of the same name now.
+                        for fqname, obj in ctx.objects.items():
+                            # Ignore what appears to not be a link.
+                            if isinstance(obj, (s_pointers.Pointer,
+                                                Pointer)):
+                                target = obj.get_target(ctx.schema)
+                                if (target is not None and
+                                    not target.is_scalar() and
+                                    fqname.name.split('@', 1)[1] ==
+                                        step.ptr.name):
+                                    # Record link with matching short
+                                    # name.
+                                    ctx.refs.add(fqname)
+
                         return None
                 else:
                     if isinstance(tip, (Source, s_sources.Source)):
