@@ -2266,7 +2266,7 @@ class TestInsert(tb.QueryTestCase):
                         UNLESS CONFLICT ON .name
                         ELSE (DETACHED Person)
                     )
-                SELECT stdgraphql::Query {
+                SELECT {
                     single foo := X
                 };
             ''')
@@ -2281,7 +2281,7 @@ class TestInsert(tb.QueryTestCase):
                         UNLESS CONFLICT ON .name
                         ELSE Note
                     )
-                SELECT stdgraphql::Query {
+                SELECT {
                     single foo := X
                 };
             ''')
@@ -2295,7 +2295,7 @@ class TestInsert(tb.QueryTestCase):
                         INSERT Person {name := "hello"}
                         UNLESS CONFLICT ON .name
                     )
-                SELECT stdgraphql::Query {
+                SELECT {
                     required foo := X
                 };
             ''')
@@ -3105,7 +3105,7 @@ class TestInsert(tb.QueryTestCase):
                             notes := N,
                         }
                     )),
-                SELECT stdgraphql::Query {
+                SELECT {
                     x := (SELECT X { name } ORDER BY .name),
                     n := N { name },
                 };

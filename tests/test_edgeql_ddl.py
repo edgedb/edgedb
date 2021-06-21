@@ -10832,7 +10832,7 @@ type default::Foo {
         ):
             await self.con.execute("""
                 CREATE TYPE Foo {
-                    CREATE PROPERTY foo := (SELECT stdgraphql::Query {
+                    CREATE PROPERTY foo := (SELECT {
                         asdf := random()
                     }).asdf
                 }

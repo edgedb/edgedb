@@ -1042,7 +1042,8 @@ def compile_DescribeStmt(
 @dispatch.compile.register(qlast.Shape)
 def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
-    expr = setgen.ensure_set(dispatch.compile(shape.expr, ctx=ctx), ctx=ctx)
+    shape_expr = shape.expr or qlutils.ANONYMOUS_SHAPE_EXPR
+    expr = setgen.ensure_set(dispatch.compile(shape_expr, ctx=ctx), ctx=ctx)
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
     if not isinstance(expr_stype, s_objtypes.ObjectType):
         raise errors.QueryError(
@@ -1217,7 +1218,7 @@ def compile_result_clause(
         shape: Optional[Sequence[qlast.ShapeElement]]
 
         if isinstance(result, qlast.Shape):
-            result_expr = result.expr
+            result_expr = result.expr or qlutils.ANONYMOUS_SHAPE_EXPR
             shape = result.elements
         else:
             result_expr = result

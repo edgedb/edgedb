@@ -1187,8 +1187,6 @@ aa';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected ':='", line=3, col=18)
     def test_edgeql_syntax_shape_14(self):
         """
         SELECT {

@@ -856,7 +856,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
     async def test_edgeql_scope_binding_06(self):
         await self.assert_query_result(
             r"""
-            SELECT stdgraphql::Query {
+            SELECT {
                 lol := (
                     WITH L := (FOR name in {'Alice', 'Bob'} UNION (
                         SELECT User
@@ -882,7 +882,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
     async def test_edgeql_scope_binding_07(self):
         await self.assert_query_result(
             r"""
-            SELECT stdgraphql::Query {
+            SELECT {
                 lol := (
                     WITH Y := (FOR x IN {1, 2} UNION (x + 1)),
                     SELECT _ := ((SELECT Y), (SELECT Y))

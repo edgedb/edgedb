@@ -928,6 +928,7 @@ async def _populate_data(schema, compiler, conn):
     script = '''
         INSERT stdgraphql::Query;
         INSERT stdgraphql::Mutation;
+        INSERT std::VirtualObject;
     '''
 
     schema, sql = compile_bootstrap_script(compiler, schema, script)

@@ -657,7 +657,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_nested_02(self):
         await self.assert_query_result(
             r"""
-                SELECT stdgraphql::Query {
+                SELECT {
                     foo := (
                         SELECT AwardAlias {
                             name,

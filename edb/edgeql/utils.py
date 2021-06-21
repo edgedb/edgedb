@@ -30,6 +30,13 @@ from edb.schema import functions as s_func
 from . import ast as qlast
 
 
+ANONYMOUS_SHAPE_EXPR = qlast.DetachedExpr(
+    expr=qlast.Path(
+        steps=[qlast.ObjectRef(module='std', name='VirtualObject')],
+    ),
+)
+
+
 class ParameterInliner(ast.NodeTransformer):
 
     def __init__(self, args_map: Mapping[str, qlast.Base]) -> None:

@@ -73,7 +73,8 @@ def is_ql_empty_set(expr: qlast.Expr) -> bool:
 
 def is_ql_path(qlexpr: qlast.Expr) -> bool:
     if isinstance(qlexpr, qlast.Shape):
-        qlexpr = qlexpr.expr
+        if qlexpr.expr:
+            qlexpr = qlexpr.expr
 
     if not isinstance(qlexpr, qlast.Path):
         return False

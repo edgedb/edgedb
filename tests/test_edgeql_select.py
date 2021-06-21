@@ -684,7 +684,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_computable_30(self):
         await self.assert_query_result(
             r"""
-                WITH O := (SELECT stdgraphql::Query {m := 10}),
+                WITH O := (SELECT {m := 10}),
                 SELECT (O {m}, O.m);
             """,
             [
@@ -695,7 +695,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_computable_31(self):
         await self.assert_query_result(
             r"""
-                WITH O := (SELECT stdgraphql::Query {multi m := 10}),
+                WITH O := (SELECT {multi m := 10}),
                 SELECT (O {m});
             """,
             [
@@ -6030,6 +6030,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 [{'number': '1', 'name': 'Release EdgeDB'}, "Open"],
             ]
         )
+
+    async def test_edgeql_select_banned_anonymous_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "cannot use DISTINCT on anonymous shape",
+        ):
+            await self.con.execute("""
+                SELECT DISTINCT {{ z := 1 }, { z := 2 }};
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "cannot use DISTINCT on anonymous shape",
+        ):
+            await self.con.execute("""
+                SELECT DISTINCT { z := 1 } = { z := 2 };
+            """)
 
     @test.xfail("We produce results that don't decode properly")
     async def test_edgeql_select_array_common_type_01(self):
