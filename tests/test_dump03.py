@@ -80,3 +80,12 @@ class TestDump03(tb.StableDumpTestCase, DumpTestCaseMixin):
     async def test_dump03_dump_restore(self):
         await self.check_dump_restore(
             DumpTestCaseMixin.ensure_schema_data_integrity)
+
+
+class TestDump03Compat(
+    tb.DumpCompatTestCase,
+    DumpTestCaseMixin,
+    dump_subdir='dump03',
+    check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
+):
+    pass

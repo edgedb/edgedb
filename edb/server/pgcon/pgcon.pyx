@@ -1378,7 +1378,6 @@ cdef class PGConnection:
             int32_t i
             int32_t nelems
             int32_t dim
-            int64_t overflow_sentinel
             const char *buf
             FRBuffer elem_buf
             int32_t elem_len
@@ -1389,6 +1388,7 @@ cdef class PGConnection:
         if kind is qltypes.SchemaObjectClass.ARRAY_TYPE:
             # Dimensions and flags
             buf = frb_read(rbuf, 8)
+            ndims = hton.unpack_int32(buf)
             wbuf.write_cstr(buf, 8)
             elem_mending_desc = mending_desc.elements[0]
             # Discard the original element OID.
@@ -1398,22 +1398,20 @@ cdef class PGConnection:
             elem_type_oid = type_id_map[elem_type_id]
             wbuf.write_int32(<int32_t>elem_type_oid)
 
-            if mending_desc.needs_mending:
-                ndims = hton.unpack_int32(buf)
-                nelems = 1
-                for i in range(ndims):
-                    # dim and lbound
-                    buf = frb_read(rbuf, 8)
-                    wbuf.write_cstr(buf, 8)
+            if ndims == 0:
+                # Empty array
+                return
 
-                    dim = hton.unpack_int32(buf)
-                    overflow_sentinel = <int64_t>nelems * <int64_t>dim
-                    nelems = <int32_t>overflow_sentinel
-                    if <int64_t>nelems != overflow_sentinel:
-                        raise ValueError(
-                            'array datum in COPY stream exceeds the '
-                            'maximum allowed size'
-                        )
+            if ndims != 1:
+                raise ValueError(
+                    'unexpected non-single dimension array'
+                )
+
+            if mending_desc.needs_mending:
+                # dim and lbound
+                buf = frb_read(rbuf, 8)
+                nelems = hton.unpack_int32(buf)
+                wbuf.write_cstr(buf, 8)
 
                 for i in range(nelems):
                     elem_len = hton.unpack_int32(frb_read(rbuf, 4))
