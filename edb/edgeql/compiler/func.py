@@ -32,6 +32,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
+from edb.schema import objtypes as s_objtypes
 from edb.schema import operators as s_oper
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
@@ -587,7 +588,33 @@ def compile_operator(
         typemod=oper.get_return_typemod(env.schema),
     )
 
+    _check_anonymous_shape_op(node, ctx=ctx)
+
     return setgen.ensure_set(node, typehint=rtype, ctx=ctx)
+
+
+# These ops are all footguns when used with anonymous shapes,
+# so we ban them
+INVALID_ANONYMOUS_SHAPE_OPS: Final = {
+    sn.QualName('std', x) for x in [
+        'DISTINCT', '=', '!=', '?=', '?!=', 'IN', 'NOT IN'
+    ]
+}
+
+
+def _check_anonymous_shape_op(
+        ir: irast.Call, *, ctx: context.ContextLevel) -> None:
+    if ir.func_shortname not in INVALID_ANONYMOUS_SHAPE_OPS:
+        return
+
+    virt_obj = ctx.env.schema.get(
+        'std::VirtualObject', type=s_objtypes.ObjectType)
+    for arg in ir.args:
+        typ = inference.infer_type(arg.expr, ctx.env)
+        if typ.issubclass(ctx.env.schema, virt_obj):
+            raise errors.QueryError(
+                f'cannot use {ir.func_shortname.name} on anonymous shape',
+                context=ir.context)
 
 
 def validate_recursive_operator(

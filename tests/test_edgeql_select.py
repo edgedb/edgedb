@@ -6031,6 +6031,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_select_banned_anonymous_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "cannot use DISTINCT on anonymous shape",
+        ):
+            await self.con.execute("""
+                SELECT DISTINCT {{ z := 1 }, { z := 2 }};
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "cannot use DISTINCT on anonymous shape",
+        ):
+            await self.con.execute("""
+                SELECT DISTINCT { z := 1 } = { z := 2 };
+            """)
+
     @test.xfail("We produce results that don't decode properly")
     async def test_edgeql_select_array_common_type_01(self):
         res = await self.con._fetchall("""
