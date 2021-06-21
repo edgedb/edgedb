@@ -365,6 +365,22 @@ def __infer_config_insert(
 
 
 @_infer_type.register
+def __infer_config_set(
+    ir: irast.ConfigSet,
+    env: context.Environment,
+) -> s_types.Type:
+    return infer_type(ir.expr, env)
+
+
+@_infer_type.register
+def __infer_config_reset(
+    ir: irast.ConfigReset,
+    env: context.Environment,
+) -> s_types.Type:
+    raise errors.QueryError('no type for ConfigReset')
+
+
+@_infer_type.register
 def __infer_slice(
     ir: irast.SliceIndirection,
     env: context.Environment,

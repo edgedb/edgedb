@@ -50,16 +50,7 @@ class Adapter(type):
 
         clsdict['__edb_adaptee__'] = adapts
 
-        result = cast(
-            Adapter_T,
-            super().__new__(  # type: ignore
-                mcls,
-                name,
-                bases,
-                clsdict,
-                **kwargs,
-            ),
-        )
+        result = super().__new__(mcls, name, bases, clsdict, **kwargs)
 
         if adapts is not None:
             assert issubclass(mcls, Adapter) and mcls is not Adapter
@@ -83,7 +74,7 @@ class Adapter(type):
         adapts: Optional[type] = None,
         **kwargs: Any,
     ):
-        super().__init__(name, bases, clsdict, **kwargs)  # type: ignore
+        super().__init__(name, bases, clsdict, **kwargs)
 
     @classmethod
     def _match_adapter(

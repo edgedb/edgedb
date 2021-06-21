@@ -397,7 +397,7 @@ def compile_ConfigReset(
 @dispatch.compile.register
 def compile_ConfigInsert(
         stmt: irast.ConfigInsert, *,
-        ctx: context.CompilerContextLevel) -> pgast.Base:
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     with ctx.new() as subctx:
         with context.output_format(ctx, context.OutputFormat.JSONB):

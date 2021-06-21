@@ -81,11 +81,11 @@ def __infer_statement(
 
 
 @_infer_volatility.register
-def __infer_config_insert(
-    ir: irast.ConfigInsert,
+def __infer_config_command(
+    ir: irast.ConfigCommand,
     env: context.Environment,
 ) -> qltypes.Volatility:
-    return infer_volatility(ir.expr, env)
+    return VOLATILE
 
 
 @_infer_volatility.register

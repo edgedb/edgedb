@@ -108,7 +108,7 @@ class TestDocSnippets(unittest.TestCase):
         parser_class = docutils.parsers.get_parser_class('rst')
         parser = parser_class()
 
-        settings = docutils.frontend.OptionParser(
+        settings = docutils.frontend.OptionParser(  # type: ignore
             components=(parser, )).get_default_values()
         settings.syntax_highlight = 'none'
 

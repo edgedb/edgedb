@@ -142,11 +142,7 @@ class StructMeta(type):
                 for key in myfields.keys():
                     del clsdict[key]
 
-        cls = cast(
-            StructMeta_T,
-            super().__new__(
-                mcls, name, bases, clsdict, **kwargs),  # type: ignore
-        )
+        cls = super().__new__(mcls, name, bases, clsdict, **kwargs)
 
         if use_slots:
             sa = '{}.{}_slots'.format(cls.__module__, cls.__name__)

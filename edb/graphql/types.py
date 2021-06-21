@@ -1367,9 +1367,9 @@ class GQLTypeMeta(type):
 
         edb_type = dct.get('edb_type')
         if edb_type:
-            mcls.edb_map[str(edb_type)] = cls
+            mcls.edb_map[str(edb_type)] = cls  # type: ignore
 
-        return cls  # type: ignore
+        return cls
 
 
 class GQLBaseType(metaclass=GQLTypeMeta):

@@ -1006,8 +1006,8 @@ def write_meta_rename_object(
     stdmode: bool,
 ) -> None:
     # Delegate to the more general function, and then record the rename.
-    write_meta_alter_object(  # type: ignore
-        cmd,  # type: ignore
+    write_meta_alter_object(
+        cmd,
         classlayout=classlayout,
         schema=schema,
         context=context,
