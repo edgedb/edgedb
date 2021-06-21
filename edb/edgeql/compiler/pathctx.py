@@ -113,6 +113,7 @@ def assign_set_scope(
     else:
         if scope.unique_id is None:
             scope.unique_id = ctx.scope_id_ctr.nextval()
+            ctx.env.scope_tree_nodes[scope.unique_id] = scope
         ir_set.path_scope_id = scope.unique_id
         if scope.find_child(ir_set.path_id):
             raise RuntimeError('scoped set must not contain itself')
@@ -128,7 +129,7 @@ def get_set_scope(
     if ir_set.path_scope_id is None:
         return None
     else:
-        scope = ctx.path_scope.root.find_by_unique_id(ir_set.path_scope_id)
+        scope = ctx.env.scope_tree_nodes.get(ir_set.path_scope_id)
         if scope is None:
             raise errors.InternalServerError(
                 f'dangling scope pointer to node with uid'

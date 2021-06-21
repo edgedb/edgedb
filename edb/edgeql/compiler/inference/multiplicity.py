@@ -137,7 +137,7 @@ def _infer_shape(
     ctx: inference_context.InfCtx,
 ) -> None:
     for shape_set, _ in ir.shape:
-        new_scope = cardinality._get_set_scope(shape_set, scope_tree)
+        new_scope = cardinality._get_set_scope(shape_set, scope_tree, ctx=ctx)
         if shape_set.expr and shape_set.rptr:
             expr_mult = infer_multiplicity(
                 shape_set.expr, scope_tree=new_scope, ctx=ctx)
@@ -183,7 +183,7 @@ def _infer_set_inner(
     ctx: inference_context.InfCtx,
 ) -> qltypes.Multiplicity:
     rptr = ir.rptr
-    new_scope = cardinality._get_set_scope(ir, scope_tree)
+    new_scope = cardinality._get_set_scope(ir, scope_tree, ctx=ctx)
 
     if rptr is not None:
         # Validate the source
@@ -506,7 +506,7 @@ def __infer_select_stmt(
     # validated.
     for part in [ir.limit, ir.offset] + [sort.expr for sort in ir.orderby]:
         if part:
-            new_scope = cardinality._get_set_scope(part, scope_tree)
+            new_scope = cardinality._get_set_scope(part, scope_tree, ctx=ctx)
             infer_multiplicity(part, scope_tree=new_scope, ctx=ctx)
 
     if itmult is not None:
@@ -531,7 +531,7 @@ def __infer_insert_stmt(
     infer_multiplicity(
         ir.subject, is_mutation=True, scope_tree=scope_tree, ctx=ctx
     )
-    new_scope = cardinality._get_set_scope(ir.result, scope_tree)
+    new_scope = cardinality._get_set_scope(ir.result, scope_tree, ctx=ctx)
     infer_multiplicity(
         ir.result, is_mutation=True, scope_tree=new_scope, ctx=ctx
     )

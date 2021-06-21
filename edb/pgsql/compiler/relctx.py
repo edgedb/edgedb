@@ -698,7 +698,7 @@ def get_scope(
     result: Optional[irast.ScopeTreeNode] = None
 
     if ir_set.path_scope_id is not None:
-        result = ctx.scope_tree.root.find_by_unique_id(ir_set.path_scope_id)
+        result = ctx.env.scope_tree_nodes.get(ir_set.path_scope_id)
 
     return result
 
