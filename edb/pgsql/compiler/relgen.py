@@ -163,6 +163,7 @@ def get_set_rvar(
         path_scope = relctx.get_scope(ir_set, ctx=subctx)
         new_scope = path_scope or subctx.scope_tree
         is_optional = (
+            subctx.scope_tree.is_optional(path_id) or
             new_scope.is_optional(path_id) or
             path_id in subctx.force_optional
         )
@@ -659,15 +660,17 @@ def finalize_optional_rel(
                         _ensure_empty_tvar(element.val, element.path_id)
                     tvarels.append(pgast.TupleElementBase(
                         path_id=element.path_id))
-                pathctx.put_path_value_var(
-                    optrel.emptyrel,
-                    path_id,
-                    pgast.TupleVarBase(
-                        elements=tvarels,
-                        typeref=tvar.typeref,
-                    ),
-                    env=subctx.env,
-                )
+                for aspect in ('value', 'serialized'):
+                    pathctx.put_path_var(
+                        optrel.emptyrel,
+                        path_id,
+                        pgast.TupleVarBase(
+                            elements=tvarels,
+                            typeref=tvar.typeref,
+                        ),
+                        aspect=aspect,
+                        env=subctx.env,
+                    )
                 pathctx.put_path_source_rvar(
                     optrel.emptyrel, path_id, null_rvar, env=subctx.env)
 
@@ -1479,7 +1482,10 @@ def process_set_as_coalesce(
         newctx.expr_exposed = False
         left_ir, right_ir = (a.expr for a in expr.args)
         left_card, right_card = (a.cardinality for a in expr.args)
-        is_object = ir_set.path_id.is_objtype_path()
+        is_object = (
+            ir_set.path_id.is_objtype_path()
+            or ir_set.path_id.is_tuple_path()
+        )
 
         # The cardinality optimziations below apply to non-object
         # expressions only, because we don't want to have to deal
@@ -1575,19 +1581,23 @@ def process_set_as_coalesce(
                             larg, ir_set.path_id, left_ir.path_id)
                         dispatch.visit(left_ir, ctx=scopectx)
 
-                        lvar = pathctx.get_path_value_var(
-                            larg, path_id=left_ir.path_id, env=scopectx.env)
+                        cols = pathctx.get_path_var_as_col_list(
+                            larg, path_id=left_ir.path_id,
+                            aspect='value', env=scopectx.env)
 
-                        if lvar.nullable:
-                            # The left var is still nullable, which may be the
-                            # case for non-required singleton scalar links.
-                            # Filter out NULLs.
-                            larg.where_clause = astutils.extend_binop(
-                                larg.where_clause,
-                                pgast.NullTest(
-                                    arg=lvar, negated=True
+                        assert cols
+                        for col in cols:
+                            if col.nullable:
+                                # The left var is still nullable,
+                                # which may be the case for
+                                # non-required singleton scalar links.
+                                # Filter out NULLs.
+                                larg.where_clause = astutils.extend_binop(
+                                    larg.where_clause,
+                                    pgast.NullTest(
+                                        arg=col, negated=True
+                                    )
                                 )
-                            )
 
                     with sub2ctx.subrel() as scopectx:
                         rarg = scopectx.rel
@@ -1670,8 +1680,16 @@ def process_set_as_tuple(
             if path_id != element.val.path_id:
                 pathctx.put_path_id_map(stmt, path_id, element.val.path_id)
 
-            dispatch.visit(element.val, ctx=subctx)
+            tvar = dispatch.compile(element.val, ctx=subctx)
             elements.append(pgast.TupleElementBase(path_id=path_id))
+
+            # We need to filter out NULLs at tuple creation time, to
+            # prevent having tuples that are part-NULL.
+            if tvar.nullable:
+                stmt.where_clause = astutils.extend_binop(
+                    stmt.where_clause,
+                    pgast.NullTest(arg=tvar, negated=True)
+                )
 
             var = pathctx.maybe_get_path_var(
                 stmt, element.val.path_id,

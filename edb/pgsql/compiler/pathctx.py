@@ -197,6 +197,9 @@ def get_path_var(
             aspect=aspect)
 
         outputs = astutils.for_each_query_in_set(rel, cb)
+        counts = astutils.for_each_query_in_set(
+            rel, lambda x: len(x.target_list))
+        assert counts == [counts[0]] * len(counts)
 
         first: Optional[pgast.OutputVar] = None
         optional = False
@@ -605,6 +608,25 @@ def get_rvar_output_var_as_col_list(
     return cols
 
 
+def get_path_var_as_col_list(
+        stmt: pgast.Query, path_id: irast.PathId, aspect: str, *,
+        env: context.Environment) -> List[pgast.BaseExpr]:
+
+    cols: List[pgast.BaseExpr]
+
+    var = get_path_var(stmt, path_id=path_id, aspect=aspect, env=env)
+
+    if isinstance(var, pgast.TupleVarBase):
+        cols = []
+        for el in var.elements:
+            cols.extend(get_path_var_as_col_list(
+                stmt, el.path_id, aspect=aspect, env=env))
+    else:
+        cols = [var]
+
+    return cols
+
+
 def put_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
         aspect: str, env: context.Environment) -> None:
@@ -913,12 +935,12 @@ def _get_path_output(
                 element = _get_path_output(
                     rel, el_path_id, aspect=aspect,
                     disable_output_fusion=disable_output_fusion,
-                    allow_nullable=False, env=env)
+                    allow_nullable=allow_nullable, env=env)
             except LookupError:
                 element = get_path_output(
                     rel, el_path_id, aspect=aspect,
                     disable_output_fusion=disable_output_fusion,
-                    allow_nullable=False, env=env)
+                    allow_nullable=allow_nullable, env=env)
 
             elements.append(pgast.TupleElementBase(
                 path_id=el_path_id, name=element))

@@ -1356,3 +1356,129 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ''',
             [],
         )
+
+    async def test_edgeql_coalesce_pointless_01(self):
+        # This is pointless but it should work.
+        await self.assert_query_result(
+            r'''
+                SELECT 'a' ?? (SELECT {'a', 'b'})
+            ''',
+            ["a"],
+        )
+
+    async def test_edgeql_coalesce_correlation_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (
+                    SELECT (Issue.name ++ <str>Issue.time_estimate)) ?? 'n/a'
+                ORDER BY _;
+            ''',
+            ["Issue 160", "Issue 290", "Issue 390"],
+        )
+
+    async def test_edgeql_coalesce_correlation_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := (SELECT (Issue.name ++ <str>Issue.time_estimate)),
+                SELECT _ := X ?? 'n/a'
+                ORDER BY _;
+            ''',
+            ["Issue 160", "Issue 290", "Issue 390"],
+        )
+
+    async def test_edgeql_coalesce_correlation_03(self):
+        # TODO: add this to the schema if we want more like it
+        await self.con.execute('''
+            CREATE FUNCTION opts(x: OPTIONAL str) -> str { USING (x) };
+        ''')
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (
+                    count(Issue),
+                    opts((SELECT (<str>Issue.time_estimate))),
+                ) ORDER BY _;
+            ''',
+            [[6, "60"], [6, "90"], [6, "90"]],
+        )
+
+    async def test_edgeql_coalesce_tuple_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT (SELECT ('no', 'no') FILTER false) ?? ('a', 'b');
+            ''',
+            [
+                ['a', 'b'],
+            ]
+        )
+
+    async def test_edgeql_coalesce_tuple_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (Issue.name, (Issue.name, <str>Issue.time_estimate)
+                             ?? ('hm', 'n/a')) ORDER BY _;
+            ''',
+            [
+                ["Issue 1", ["Issue 1", "60"]],
+                ["Issue 2", ["Issue 2", "90"]],
+                ["Issue 3", ["Issue 3", "90"]],
+                ["Issue 4", ["hm", "n/a"]],
+                ["Issue 5", ["hm", "n/a"]],
+                ["Issue 6", ["hm", "n/a"]],
+            ]
+
+        )
+
+    async def test_edgeql_coalesce_tuple_03(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (Issue.name, (Issue.name, Issue.time_estimate)
+                             ?? (Issue.name, -1)) ORDER BY _;
+            ''',
+            [
+                ["Issue 1", ["Issue 1", 60]],
+                ["Issue 2", ["Issue 2", 90]],
+                ["Issue 3", ["Issue 3", 90]],
+                ["Issue 4", ["Issue 4", -1]],
+                ["Issue 5", ["Issue 5", -1]],
+                ["Issue 6", ["Issue 6", -1]],
+            ]
+        )
+
+    async def test_edgeql_coalesce_tuple_04(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (Issue.name, Issue.time_estimate)
+                             ?? (Issue.name, -1) ORDER BY _;
+            ''',
+            [
+                ["Issue 1", 60],
+                ["Issue 2", 90],
+                ["Issue 3", 90],
+                ["Issue 4", -1],
+                ["Issue 5", -1],
+                ["Issue 6", -1],
+            ],
+        )
+
+    async def test_edgeql_coalesce_tuple_05(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := (Issue.name, Issue.time_estimate),
+                SELECT _ := X ?? ('hm', -1) ORDER BY _;
+            ''',
+            [
+                ["Issue 1", 60],
+                ["Issue 2", 90],
+                ["Issue 3", 90],
+            ],
+        )
+
+    async def test_edgeql_coalesce_tuple_06(self):
+        await self.assert_query_result(
+            r'''
+                SELECT (SELECT ((), 'no') FILTER false) ?? ((), 'b');
+            ''',
+            [
+                [[], 'b'],
+            ]
+        )

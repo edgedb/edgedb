@@ -41,7 +41,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 
-from . import astutils
 from . import casts
 from . import context
 from . import dispatch
@@ -314,6 +313,8 @@ def compile_operator(
             arg_ir = setgen.scoped_set(
                 setgen.ensure_stmt(arg_ir, ctx=fencectx),
                 ctx=fencectx)
+
+            arg_ir = setgen.ensure_set(arg_ir, srcctx=qlarg.context, ctx=ctx)
 
             arg_ctxs[arg_ir] = fencectx
 
@@ -663,10 +664,11 @@ def compile_call_arg(
         # matching.  We will remove it if necessary in `finalize_args()`.
         # Similarly, delay the decision to inject the implicit limit to
         # `finalize_args()`.
-        arg_ql = astutils.ensure_qlstmt(arg_ql)
+        arg_ql = qlast.SelectQuery(result=arg_ql, implicit=True)
         argctx.inhibit_implicit_limit = True
         return setgen.ensure_set(
             dispatch.compile(arg_ql, ctx=argctx),
+            srcctx=arg_ql.context,
             ctx=argctx,
         ), argctx
 
@@ -738,6 +740,31 @@ def process_path_log(arg_ctx: Optional[context.ContextLevel],
         arg_ctx.path_log = []
 
 
+def _is_empty_tuple(t: s_types.Type, ctx: context.ContextLevel) -> bool:
+    return (
+        isinstance(t, s_types.Tuple)
+        and all(
+            _is_empty_tuple(x, ctx) for x in t.get_subtypes(ctx.env.schema)
+        )
+    )
+
+
+def _check_arg(
+    bound_arg: polyres.BoundArg,
+    param_mod: ft.TypeModifier, *,
+    ctx: context.ContextLevel,
+) -> None:
+    if param_mod is ft.TypeModifier.OptionalType:
+        # We disallow use of empty tuples (and degenerate tuples
+        # containing only empty tuples) as optional arguments because there
+        # is no data in them to be NULL. This could be worked around, but
+        # it does not seem particularly important to do so.
+        if _is_empty_tuple(bound_arg.param_type, ctx=ctx):
+            raise errors.QueryError(
+                f'empty tuple may not be used as an optional argument',
+                context=bound_arg.val.context)
+
+
 def finalize_args(
     bound_call: polyres.BoundCall, *,
     arg_ctxs: Dict[irast.Set, context.ContextLevel],
@@ -763,10 +790,11 @@ def finalize_args(
         else:
             param_mod = param.get_typemod(ctx.env.schema)
 
+        _check_arg(barg, param_mod, ctx=ctx)
+
         typemods.append(param_mod)
 
-        orig_arg = arg
-        arg_ctx = arg_ctxs.get(orig_arg)
+        arg_ctx = arg_ctxs.get(arg)
         arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
         if param_mod is not ft.TypeModifier.SetOfType:
             param_shortname = param.get_parameter_name(ctx.env.schema)
@@ -789,13 +817,11 @@ def finalize_args(
 
                 pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
 
-                if arg_scope is not None:
+                if arg_scope is not None and arg.path_scope_id is None:
                     pathctx.assign_set_scope(arg, branch, ctx=ctx)
 
             elif arg_scope is not None:
                 arg_scope.collapse()
-                if arg is orig_arg:
-                    pathctx.assign_set_scope(arg, None, ctx=ctx)
         else:
             process_path_log(arg_ctx, arg_scope)
             is_array_agg = (

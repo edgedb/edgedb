@@ -973,6 +973,7 @@ def ensure_set(
         type_override: Optional[s_types.Type]=None,
         typehint: Optional[s_types.Type]=None,
         path_id: Optional[irast.PathId]=None,
+        srcctx: Optional[parsing.ParserContext]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
     if not isinstance(expr, irast.Set):
@@ -989,6 +990,10 @@ def ensure_set(
             ir_set, stype=type_override, preserve_scope_ns=True, ctx=ctx)
 
         stype = type_override
+
+    if srcctx is not None:
+        ir_set = new_set_from_set(
+            ir_set, preserve_scope_ns=True, context=srcctx, ctx=ctx)
 
     if (isinstance(ir_set, irast.EmptySet)
             and (stype is None or stype.is_any(ctx.env.schema))
