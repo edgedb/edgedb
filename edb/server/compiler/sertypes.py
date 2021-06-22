@@ -94,8 +94,6 @@ class TypeSerializer:
     EDGE_POINTER_IS_IMPLICIT = 1 << 0
     EDGE_POINTER_IS_LINKPROP = 1 << 1
     EDGE_POINTER_IS_LINK = 1 << 2
-    EDGE_POINTER_IS_REQUIRED = 1 << 3
-    EDGE_POINTER_IS_MULTI = 1 << 4
 
     _JSON_DESC = None
 
