@@ -644,38 +644,6 @@ def finalize_optional_rel(
                 )
             )
 
-        if isinstance(lvar, pgast.TupleVar):
-            # Make sure we have a correct TupleVar in place for the empty rvar,
-            # otherwise _get_rel_path_output() will try to inject a NULL in its
-            # place, breaking the UNION balance.
-            null_rvar = pathctx.get_path_rvar(
-                optrel.emptyrel, ir_set.path_id,
-                aspect='value', env=subctx.env)
-
-            def _ensure_empty_tvar(tvar: pgast.TupleVar,
-                                   path_id: irast.PathId) -> None:
-                tvarels = []
-                for element in tvar.elements:
-                    if isinstance(element.val, pgast.TupleVar):
-                        _ensure_empty_tvar(element.val, element.path_id)
-                    tvarels.append(pgast.TupleElementBase(
-                        path_id=element.path_id))
-                for aspect in ('value', 'serialized'):
-                    pathctx.put_path_var(
-                        optrel.emptyrel,
-                        path_id,
-                        pgast.TupleVarBase(
-                            elements=tvarels,
-                            typeref=tvar.typeref,
-                        ),
-                        aspect=aspect,
-                        env=subctx.env,
-                    )
-                pathctx.put_path_source_rvar(
-                    optrel.emptyrel, path_id, null_rvar, env=subctx.env)
-
-            _ensure_empty_tvar(lvar, ir_set.path_id)
-
     unionrel = optrel.unionrel
     union_rvar = relctx.rvar_for_rel(unionrel, lateral=True, ctx=ctx)
 
@@ -1581,23 +1549,19 @@ def process_set_as_coalesce(
                             larg, ir_set.path_id, left_ir.path_id)
                         dispatch.visit(left_ir, ctx=scopectx)
 
-                        cols = pathctx.get_path_var_as_col_list(
-                            larg, path_id=left_ir.path_id,
-                            aspect='value', env=scopectx.env)
+                        lvar = pathctx.get_path_value_var(
+                            larg, path_id=left_ir.path_id, env=scopectx.env)
 
-                        assert cols
-                        for col in cols:
-                            if col.nullable:
-                                # The left var is still nullable,
-                                # which may be the case for
-                                # non-required singleton scalar links.
-                                # Filter out NULLs.
-                                larg.where_clause = astutils.extend_binop(
-                                    larg.where_clause,
-                                    pgast.NullTest(
-                                        arg=col, negated=True
-                                    )
+                        if lvar.nullable:
+                            # The left var is still nullable, which may be the
+                            # case for non-required singleton scalar links.
+                            # Filter out NULLs.
+                            larg.where_clause = astutils.extend_binop(
+                                larg.where_clause,
+                                pgast.NullTest(
+                                    arg=lvar, negated=True
                                 )
+                            )
 
                     with sub2ctx.subrel() as scopectx:
                         rarg = scopectx.rel
@@ -2474,7 +2438,7 @@ def process_set_as_agg_expr_inner(
 
         set_expr = pgast.FuncCall(
             name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter,
-            ser_safe=serialization_safe)
+            ser_safe=serialization_safe and all(x.ser_safe for x in args))
 
         if expr.error_on_null_result:
             set_expr = pgast.FuncCall(
@@ -2679,7 +2643,8 @@ def process_set_as_array_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     if serializing:
-        s_set_expr = astutils.safe_array_expr(s_elements, ser_safe=True)
+        s_set_expr = astutils.safe_array_expr(
+            s_elements, ser_safe=all(x.ser_safe for x in s_elements))
 
         if irutils.is_empty_array_expr(expr):
             s_set_expr = pgast.TypeCast(

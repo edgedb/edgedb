@@ -740,31 +740,6 @@ def process_path_log(arg_ctx: Optional[context.ContextLevel],
         arg_ctx.path_log = []
 
 
-def _is_empty_tuple(t: s_types.Type, ctx: context.ContextLevel) -> bool:
-    return (
-        isinstance(t, s_types.Tuple)
-        and all(
-            _is_empty_tuple(x, ctx) for x in t.get_subtypes(ctx.env.schema)
-        )
-    )
-
-
-def _check_arg(
-    bound_arg: polyres.BoundArg,
-    param_mod: ft.TypeModifier, *,
-    ctx: context.ContextLevel,
-) -> None:
-    if param_mod is ft.TypeModifier.OptionalType:
-        # We disallow use of empty tuples (and degenerate tuples
-        # containing only empty tuples) as optional arguments because there
-        # is no data in them to be NULL. This could be worked around, but
-        # it does not seem particularly important to do so.
-        if _is_empty_tuple(bound_arg.param_type, ctx=ctx):
-            raise errors.QueryError(
-                f'empty tuple may not be used as an optional argument',
-                context=bound_arg.val.context)
-
-
 def finalize_args(
     bound_call: polyres.BoundCall, *,
     arg_ctxs: Dict[irast.Set, context.ContextLevel],
@@ -789,8 +764,6 @@ def finalize_args(
             param_mod = actual_typemods[i]
         else:
             param_mod = param.get_typemod(ctx.env.schema)
-
-        _check_arg(barg, param_mod, ctx=ctx)
 
         typemods.append(param_mod)
 

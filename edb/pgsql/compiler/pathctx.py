@@ -185,7 +185,35 @@ def get_path_var(
 
     var: Optional[pgast.BaseExpr]
 
+    # TODO: move all the set_op logic to its own function (in a clean PR)
     if astutils.is_set_op_query(rel):
+        test_vals = []
+        if aspect in ('value', 'serialized'):
+            test_cb = functools.partial(
+                maybe_get_path_var, env=env, path_id=path_id, aspect=aspect)
+            test_vals = astutils.for_each_query_in_set(rel, test_cb)
+
+        # In order to ensure output balance, we only want to output
+        # a TupleVar if *every* subquery outputs a TupleVar.
+        # If some but not all output TupleVars, we need to fix up
+        # the output TupleVars by outputting them as a real tuple.
+        # This is needed for cases like `(Foo.bar UNION (1,2))`.
+        if (
+            any(isinstance(x, pgast.TupleVarBase) for x in test_vals)
+            and not all(isinstance(x, pgast.TupleVarBase) for x in test_vals)
+        ):
+            def fix(subrel: pgast.Query) -> None:
+                cur = get_path_var_and_fix_tuple(
+                    subrel, env=env, path_id=path_id, aspect=aspect)
+                if isinstance(cur, pgast.TupleVarBase):
+                    new = output.output_as_value(cur, env=env)
+                    new_path_id = map_path_id(path_id, subrel.view_path_id_map)
+                    put_path_var(
+                        subrel, new_path_id, new,
+                        force=True, env=env, aspect=aspect)
+
+            astutils.for_each_query_in_set(rel, fix)
+
         # We disable the find_path_output optimization when doing
         # UNIONs to avoid situations where they have different numbers
         # of columns.
@@ -608,25 +636,6 @@ def get_rvar_output_var_as_col_list(
     return cols
 
 
-def get_path_var_as_col_list(
-        stmt: pgast.Query, path_id: irast.PathId, aspect: str, *,
-        env: context.Environment) -> List[pgast.BaseExpr]:
-
-    cols: List[pgast.BaseExpr]
-
-    var = get_path_var(stmt, path_id=path_id, aspect=aspect, env=env)
-
-    if isinstance(var, pgast.TupleVarBase):
-        cols = []
-        for el in var.elements:
-            cols.extend(get_path_var_as_col_list(
-                stmt, el.path_id, aspect=aspect, env=env))
-    else:
-        cols = [var]
-
-    return cols
-
-
 def put_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
         aspect: str, env: context.Environment) -> None:
@@ -1035,6 +1044,35 @@ def get_path_serialized_or_value_var(
     ref = maybe_get_path_serialized_var(rel, path_id, env=env)
     if ref is None:
         ref = get_path_value_var(rel, path_id, env=env)
+    return ref
+
+
+def get_path_var_and_fix_tuple(
+        rel: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, env: context.Environment) -> pgast.BaseExpr:
+
+    ref = get_path_var(rel, path_id, aspect=aspect, env=env)
+
+    if (
+        isinstance(ref, pgast.TupleVarBase)
+        and not isinstance(ref, pgast.TupleVar)
+    ):
+        elements = []
+
+        for el in ref.elements:
+            assert el.path_id is not None
+            val = get_path_var_and_fix_tuple(
+                rel, el.path_id, aspect=aspect, env=env)
+            elements.append(
+                pgast.TupleElement(
+                    path_id=el.path_id, name=el.name, val=val))
+
+        ref = pgast.TupleVar(
+            elements,
+            named=ref.named,
+            typeref=ref.typeref,
+        )
+
     return ref
 
 

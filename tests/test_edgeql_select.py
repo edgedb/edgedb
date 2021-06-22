@@ -6048,23 +6048,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT DISTINCT { z := 1 } = { z := 2 };
             """)
 
-    async def test_edgeql_select_empty_optional_01(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.QueryError,
-            "empty tuple may not be used as an optional argument",
-        ):
-            await self.con.execute("""
-                SELECT () ?? ()
-            """)
-
-        async with self.assertRaisesRegexTx(
-            edgedb.QueryError,
-            "empty tuple may not be used as an optional argument",
-        ):
-            await self.con.execute("""
-                SELECT ((), ()) ?? ((), ())
-            """)
-
     @test.xfail("We produce results that don't decode properly")
     async def test_edgeql_select_array_common_type_01(self):
         res = await self.con._fetchall("""

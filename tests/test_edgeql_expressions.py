@@ -4257,6 +4257,12 @@ aa \
             [[1, [2, 3]]],
         )
 
+    async def test_edgeql_expr_setop_13(self):
+        await self.assert_query_result(
+            r'''SELECT <tuple<int64, int64>>{} UNION (1, 2);''',
+            [[1, 2]],
+        )
+
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,

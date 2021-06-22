@@ -1218,6 +1218,8 @@ def __infer_tuple(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
+    if not ir.elements:
+        return ONE
     return _common_cardinality(
         [el.val for el in ir.elements], scope_tree=scope_tree, ctx=ctx
     )
