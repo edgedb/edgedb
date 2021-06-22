@@ -800,7 +800,7 @@ class SessionStateCmd(Command):
     testmode: bool
 
 
-class ConfigCommand(Command):
+class ConfigCommand(Command, Expr):
     __abstract_node__ = True
     name: str
     scope: qltypes.ConfigScope
@@ -820,6 +820,6 @@ class ConfigReset(ConfigCommand):
     selector: typing.Optional[Set] = None
 
 
-class ConfigInsert(ConfigCommand, Expr):
+class ConfigInsert(ConfigCommand):
 
     expr: Set

@@ -611,7 +611,7 @@ class ObjectMeta(type):
             del clsdict[k]
 
         try:
-            cls = cast(ObjectMeta, super().__new__(mcls, name, bases, clsdict))
+            cls = super().__new__(mcls, name, bases, clsdict)
         except TypeError as ex:
             raise TypeError(
                 f'Object metaclass has failed to create class {name}: {ex}')
