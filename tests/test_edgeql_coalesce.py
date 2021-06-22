@@ -1513,7 +1513,10 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
 
     async def test_edgeql_coalesce_tuple_08(self):
         await self.con.execute('''
-            CREATE TYPE Foo { CREATE PROPERTY bar -> tuple<int64, int64> };
+            CREATE TYPE Foo {
+                CREATE PROPERTY bar -> tuple<int64, int64>;
+                CREATE PROPERTY baz -> tuple<tuple<int64, int64>, str>;
+             };
         ''')
 
         await self.assert_query_result(
@@ -1530,8 +1533,30 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             [[1, 2]],
         )
 
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.bar ?? (1, 2)).0
+            ''',
+            [1],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.bar UNION (1, 2)).0
+            ''',
+            [1],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.baz ?? ((1, 2), 'huh')).0.1
+            ''',
+            [2],
+        )
+
+        # Insert some data and mess around some more
         await self.con.execute('''
-            INSERT Foo { bar := (3, 4) }
+            INSERT Foo { bar := (3, 4), baz := ((3, 4), 'test') }
         ''')
 
         await self.assert_query_result(
@@ -1555,17 +1580,42 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             [[1, 2], [3, 4]],
         )
 
-    @test.xfail('''
-        We produce a bogus reference
-    ''')
-    async def test_edgeql_coalesce_tuple_09(self):
-        await self.con.execute('''
-            CREATE TYPE Foo { CREATE PROPERTY bar -> tuple<int64, int64> };
-        ''')
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.bar ?? (1, 2)).1
+            ''',
+            [4],
+        )
 
         await self.assert_query_result(
             r'''
                 SELECT _ := (Foo.bar UNION (1, 2)).0 ORDER BY _;
             ''',
             [1, 3],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.baz ?? ((1, 2), 'huh')).0.1
+            ''',
+            [4],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH W := (Foo.baz UNION ((1, 2), 'huh')),
+                SELECT (W, W.1, W.0.0) ORDER BY W;
+            ''',
+            [
+                [[[1, 2], "huh"], "huh", 1],
+                [[[3, 4], "test"], "test", 3],
+            ],
+        )
+
+    async def test_edgeql_coalesce_tuple_09(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := ([(1,2)][0] UNION (3,4)).1 ORDER BY _;
+            ''',
+            [2, 4],
         )

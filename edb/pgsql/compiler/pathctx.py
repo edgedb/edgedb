@@ -202,7 +202,7 @@ def get_path_var(
             any(isinstance(x, pgast.TupleVarBase) for x in test_vals)
             and not all(isinstance(x, pgast.TupleVarBase) for x in test_vals)
         ):
-            def fix(subrel: pgast.Query) -> None:
+            def fixup(subrel: pgast.Query) -> None:
                 cur = get_path_var_and_fix_tuple(
                     subrel, env=env, path_id=path_id, aspect=aspect)
                 if isinstance(cur, pgast.TupleVarBase):
@@ -212,7 +212,7 @@ def get_path_var(
                         subrel, new_path_id, new,
                         force=True, env=env, aspect=aspect)
 
-            astutils.for_each_query_in_set(rel, fix)
+            astutils.for_each_query_in_set(rel, fixup)
 
         # We disable the find_path_output optimization when doing
         # UNIONs to avoid situations where they have different numbers
@@ -296,6 +296,9 @@ def get_path_var(
             src_aspect = aspect
 
         if src_path_id.is_tuple_path():
+            if (var := _find_in_output_tuple(rel, path_id, aspect, env=env)):
+                return var
+
             rel_rvar = maybe_get_path_rvar(
                 rel, src_path_id, aspect=src_aspect, env=env)
 
@@ -394,6 +397,53 @@ def _find_rvar_in_intersection_by_typeref(
         )
 
     return rel_rvar
+
+
+def _find_in_output_tuple(
+        rel: pgast.Query,
+        path_id: irast.PathId,
+        aspect: str,
+        env: context.Environment) -> Optional[pgast.BaseExpr]:
+    """Try indirecting a source tuple already present as an output.
+
+    Normally tuple indirections are handled by
+    process_set_as_tuple_indirection, but UNIONing an explicit tuple with a
+    tuple coming from a base relation (like `(Foo.bar UNION (1,2)).0`)
+    can lead to us looking for a tuple path in relations that only have
+    the actual full tuple.
+    (See test_edgeql_coalesce_tuple_{08,09}).
+
+    We handle this by checking whether some prefix of the tuple path
+    is present in the path_outputs.
+
+    This is sufficient because the relevant cases are all caused by
+    set ops, and the "fixup" done in set op cases ensures that the
+    tuple will be already present.
+    """
+
+    steps = []
+    src_path_id = path_id.src_path()
+    ptrref = path_id.rptr()
+    while (
+        src_path_id
+        and src_path_id.is_tuple_path()
+        and isinstance(ptrref, irast.TupleIndirectionPointerRef)
+    ):
+        steps.append((ptrref.shortname.name, src_path_id))
+
+        if (
+            (var := rel.path_namespace.get((src_path_id, aspect)))
+            and not isinstance(var, pgast.TupleVarBase)
+        ):
+            for name, src in reversed(steps):
+                var = astutils.tuple_getattr(var, src.target, name)
+            put_path_var(rel, path_id, var, aspect=aspect, env=env)
+            return var
+
+        ptrref = src_path_id.rptr()
+        src_path_id = src_path_id.src_path()
+
+    return None
 
 
 def get_path_identity_var(
