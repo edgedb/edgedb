@@ -882,17 +882,20 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
 % OK %
         "FENCE": {
             "FENCE": {
-                "(__derived__::__derived__|A@w~1).>owners[IS default::User]": {
-                    "CBRANCH": {
-                        "(__derived__::__derived__|A@w~1)"
-                    },
-                    "FENCE": {
-                        "ns~2@@(__derived__::__derived__|A@w~1)\
+                "FENCE": {
+                    "(__derived__::__derived__|A@w~1)\
+.>owners[IS default::User]": {
+                        "CBRANCH": {
+                            "(__derived__::__derived__|A@w~1)"
+                        },
+                        "FENCE": {
+                            "ns~2@@(__derived__::__derived__|A@w~1)\
 .<deck[IS __derived__::(opaque: default:User)]\
 .>indirection[IS default::User]": {
-                            "ns~2@@(__derived__::__derived__|A@w~1)\
+                                "ns~2@@(__derived__::__derived__|A@w~1)\
 .<deck[IS __derived__::(opaque: default:User)]": {
-                                "(__derived__::__derived__|A@w~1)"
+                                    "(__derived__::__derived__|A@w~1)"
+                                }
                             }
                         }
                     }
