@@ -1712,10 +1712,10 @@ class Tuple(
         return True
 
     def find_common_implicitly_castable_type(
-        self: Tuple_T,
+        self,
         other: Type,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, Optional[Tuple_T]]:
+    ) -> typing.Tuple[s_schema.Schema, Optional[Tuple]]:
 
         if not isinstance(other, Tuple):
             return schema, None
@@ -1741,11 +1741,11 @@ class Tuple(
             my_names = self.get_element_names(schema)
             other_names = other.get_element_names(schema)
             if my_names == other_names:
-                return type(self).from_subtypes(
+                return Tuple.from_subtypes(
                     schema, dict(zip(my_names, new_types)), {"named": True}
                 )
 
-        return type(self).from_subtypes(schema, new_types)
+        return Tuple.from_subtypes(schema, new_types)
 
     def get_typemods(self, schema: s_schema.Schema) -> Dict[str, bool]:
         return {'named': self.is_named(schema)}

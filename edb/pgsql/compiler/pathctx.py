@@ -185,7 +185,35 @@ def get_path_var(
 
     var: Optional[pgast.BaseExpr]
 
+    # TODO: move all the set_op logic to its own function (in a clean PR)
     if astutils.is_set_op_query(rel):
+        test_vals = []
+        if aspect in ('value', 'serialized'):
+            test_cb = functools.partial(
+                maybe_get_path_var, env=env, path_id=path_id, aspect=aspect)
+            test_vals = astutils.for_each_query_in_set(rel, test_cb)
+
+        # In order to ensure output balance, we only want to output
+        # a TupleVar if *every* subquery outputs a TupleVar.
+        # If some but not all output TupleVars, we need to fix up
+        # the output TupleVars by outputting them as a real tuple.
+        # This is needed for cases like `(Foo.bar UNION (1,2))`.
+        if (
+            any(isinstance(x, pgast.TupleVarBase) for x in test_vals)
+            and not all(isinstance(x, pgast.TupleVarBase) for x in test_vals)
+        ):
+            def fixup(subrel: pgast.Query) -> None:
+                cur = get_path_var_and_fix_tuple(
+                    subrel, env=env, path_id=path_id, aspect=aspect)
+                if isinstance(cur, pgast.TupleVarBase):
+                    new = output.output_as_value(cur, env=env)
+                    new_path_id = map_path_id(path_id, subrel.view_path_id_map)
+                    put_path_var(
+                        subrel, new_path_id, new,
+                        force=True, env=env, aspect=aspect)
+
+            astutils.for_each_query_in_set(rel, fixup)
+
         # We disable the find_path_output optimization when doing
         # UNIONs to avoid situations where they have different numbers
         # of columns.
@@ -197,6 +225,9 @@ def get_path_var(
             aspect=aspect)
 
         outputs = astutils.for_each_query_in_set(rel, cb)
+        counts = astutils.for_each_query_in_set(
+            rel, lambda x: len(x.target_list))
+        assert counts == [counts[0]] * len(counts)
 
         first: Optional[pgast.OutputVar] = None
         optional = False
@@ -265,6 +296,9 @@ def get_path_var(
             src_aspect = aspect
 
         if src_path_id.is_tuple_path():
+            if (var := _find_in_output_tuple(rel, path_id, aspect, env=env)):
+                return var
+
             rel_rvar = maybe_get_path_rvar(
                 rel, src_path_id, aspect=src_aspect, env=env)
 
@@ -363,6 +397,53 @@ def _find_rvar_in_intersection_by_typeref(
         )
 
     return rel_rvar
+
+
+def _find_in_output_tuple(
+        rel: pgast.Query,
+        path_id: irast.PathId,
+        aspect: str,
+        env: context.Environment) -> Optional[pgast.BaseExpr]:
+    """Try indirecting a source tuple already present as an output.
+
+    Normally tuple indirections are handled by
+    process_set_as_tuple_indirection, but UNIONing an explicit tuple with a
+    tuple coming from a base relation (like `(Foo.bar UNION (1,2)).0`)
+    can lead to us looking for a tuple path in relations that only have
+    the actual full tuple.
+    (See test_edgeql_coalesce_tuple_{08,09}).
+
+    We handle this by checking whether some prefix of the tuple path
+    is present in the path_outputs.
+
+    This is sufficient because the relevant cases are all caused by
+    set ops, and the "fixup" done in set op cases ensures that the
+    tuple will be already present.
+    """
+
+    steps = []
+    src_path_id = path_id.src_path()
+    ptrref = path_id.rptr()
+    while (
+        src_path_id
+        and src_path_id.is_tuple_path()
+        and isinstance(ptrref, irast.TupleIndirectionPointerRef)
+    ):
+        steps.append((ptrref.shortname.name, src_path_id))
+
+        if (
+            (var := rel.path_namespace.get((src_path_id, aspect)))
+            and not isinstance(var, pgast.TupleVarBase)
+        ):
+            for name, src in reversed(steps):
+                var = astutils.tuple_getattr(var, src.target, name)
+            put_path_var(rel, path_id, var, aspect=aspect, env=env)
+            return var
+
+        ptrref = src_path_id.rptr()
+        src_path_id = src_path_id.src_path()
+
+    return None
 
 
 def get_path_identity_var(
@@ -913,12 +994,12 @@ def _get_path_output(
                 element = _get_path_output(
                     rel, el_path_id, aspect=aspect,
                     disable_output_fusion=disable_output_fusion,
-                    allow_nullable=False, env=env)
+                    allow_nullable=allow_nullable, env=env)
             except LookupError:
                 element = get_path_output(
                     rel, el_path_id, aspect=aspect,
                     disable_output_fusion=disable_output_fusion,
-                    allow_nullable=False, env=env)
+                    allow_nullable=allow_nullable, env=env)
 
             elements.append(pgast.TupleElementBase(
                 path_id=el_path_id, name=element))
@@ -1013,6 +1094,35 @@ def get_path_serialized_or_value_var(
     ref = maybe_get_path_serialized_var(rel, path_id, env=env)
     if ref is None:
         ref = get_path_value_var(rel, path_id, env=env)
+    return ref
+
+
+def get_path_var_and_fix_tuple(
+        rel: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, env: context.Environment) -> pgast.BaseExpr:
+
+    ref = get_path_var(rel, path_id, aspect=aspect, env=env)
+
+    if (
+        isinstance(ref, pgast.TupleVarBase)
+        and not isinstance(ref, pgast.TupleVar)
+    ):
+        elements = []
+
+        for el in ref.elements:
+            assert el.path_id is not None
+            val = get_path_var_and_fix_tuple(
+                rel, el.path_id, aspect=aspect, env=env)
+            elements.append(
+                pgast.TupleElement(
+                    path_id=el.path_id, name=el.name, val=val))
+
+        ref = pgast.TupleVar(
+            elements,
+            named=ref.named,
+            typeref=ref.typeref,
+        )
+
     return ref
 
 

@@ -1356,3 +1356,266 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             ''',
             [],
         )
+
+    async def test_edgeql_coalesce_pointless_01(self):
+        # This is pointless but it should work.
+        await self.assert_query_result(
+            r'''
+                SELECT 'a' ?? (SELECT {'a', 'b'})
+            ''',
+            ["a"],
+        )
+
+    async def test_edgeql_coalesce_correlation_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (
+                    SELECT (Issue.name ++ <str>Issue.time_estimate)) ?? 'n/a'
+                ORDER BY _;
+            ''',
+            ["Issue 160", "Issue 290", "Issue 390"],
+        )
+
+    async def test_edgeql_coalesce_correlation_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := (SELECT (Issue.name ++ <str>Issue.time_estimate)),
+                SELECT _ := X ?? 'n/a'
+                ORDER BY _;
+            ''',
+            ["Issue 160", "Issue 290", "Issue 390"],
+        )
+
+    async def test_edgeql_coalesce_correlation_03(self):
+        # TODO: add this to the schema if we want more like it
+        await self.con.execute('''
+            CREATE FUNCTION opts(x: OPTIONAL str) -> str { USING (x) };
+        ''')
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (
+                    count(Issue),
+                    opts((SELECT (<str>Issue.time_estimate))),
+                ) ORDER BY _;
+            ''',
+            [[6, "60"], [6, "90"], [6, "90"]],
+        )
+
+    async def test_edgeql_coalesce_tuple_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT (SELECT ('no', 'no') FILTER false) ?? ('a', 'b');
+            ''',
+            [
+                ['a', 'b'],
+            ]
+        )
+
+    async def test_edgeql_coalesce_tuple_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (Issue.name, (Issue.name, <str>Issue.time_estimate)
+                             ?? ('hm', 'n/a')) ORDER BY _;
+            ''',
+            [
+                ["Issue 1", ["Issue 1", "60"]],
+                ["Issue 2", ["Issue 2", "90"]],
+                ["Issue 3", ["Issue 3", "90"]],
+                ["Issue 4", ["hm", "n/a"]],
+                ["Issue 5", ["hm", "n/a"]],
+                ["Issue 6", ["hm", "n/a"]],
+            ]
+
+        )
+
+    async def test_edgeql_coalesce_tuple_03(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (Issue.name, (Issue.name, Issue.time_estimate)
+                             ?? (Issue.name, -1)) ORDER BY _;
+            ''',
+            [
+                ["Issue 1", ["Issue 1", 60]],
+                ["Issue 2", ["Issue 2", 90]],
+                ["Issue 3", ["Issue 3", 90]],
+                ["Issue 4", ["Issue 4", -1]],
+                ["Issue 5", ["Issue 5", -1]],
+                ["Issue 6", ["Issue 6", -1]],
+            ]
+        )
+
+    async def test_edgeql_coalesce_tuple_04(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (Issue.name, Issue.time_estimate)
+                             ?? (Issue.name, -1) ORDER BY _;
+            ''',
+            [
+                ["Issue 1", 60],
+                ["Issue 2", 90],
+                ["Issue 3", 90],
+                ["Issue 4", -1],
+                ["Issue 5", -1],
+                ["Issue 6", -1],
+            ],
+        )
+
+    async def test_edgeql_coalesce_tuple_05(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := (Issue.name, Issue.time_estimate),
+                SELECT _ := X ?? ('hm', -1) ORDER BY _;
+            ''',
+            [
+                ["Issue 1", 60],
+                ["Issue 2", 90],
+                ["Issue 3", 90],
+            ],
+        )
+
+    async def test_edgeql_coalesce_tuple_06(self):
+        await self.assert_query_result(
+            r'''
+                SELECT (SELECT ((), 'no') FILTER false) ?? ((), 'b');
+            ''',
+            [
+                [[], 'b'],
+            ],
+        )
+
+    async def test_edgeql_coalesce_tuple_07(self):
+        await self.assert_query_result(
+            r'''
+                SELECT (SELECT () FILTER false) ?? {(), ()};
+            ''',
+            [
+                [], []
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (SELECT () FILTER true) ?? {(), ()};
+            ''',
+            [
+                []
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (SELECT ((), ()) FILTER true) ?? {((), ()), ((), ())}
+            ''',
+            [
+                [[], []]
+            ],
+        )
+
+    async def test_edgeql_coalesce_tuple_08(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE PROPERTY bar -> tuple<int64, int64>;
+                CREATE PROPERTY baz -> tuple<tuple<int64, int64>, str>;
+             };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo.bar ?? (1, 2)
+            ''',
+            [[1, 2]],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo.bar UNION (1, 2)
+            ''',
+            [[1, 2]],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.bar ?? (1, 2)).0
+            ''',
+            [1],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.bar UNION (1, 2)).0
+            ''',
+            [1],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.baz ?? ((1, 2), 'huh')).0.1
+            ''',
+            [2],
+        )
+
+        # Insert some data and mess around some more
+        await self.con.execute('''
+            INSERT Foo { bar := (3, 4), baz := ((3, 4), 'test') }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT ([Foo.bar], array_agg(Foo.bar));
+            ''',
+            [[[[3, 4]], [[3, 4]]]],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo.bar ?? (1, 2)
+            ''',
+            [[3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT _ := Foo.bar UNION (1, 2) ORDER BY _;
+            ''',
+            [[1, 2], [3, 4]],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.bar ?? (1, 2)).1
+            ''',
+            [4],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (Foo.bar UNION (1, 2)).0 ORDER BY _;
+            ''',
+            [1, 3],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo.baz ?? ((1, 2), 'huh')).0.1
+            ''',
+            [4],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH W := (Foo.baz UNION ((1, 2), 'huh')),
+                SELECT (W, W.1, W.0.0) ORDER BY W;
+            ''',
+            [
+                [[[1, 2], "huh"], "huh", 1],
+                [[[3, 4], "test"], "test", 3],
+            ],
+        )
+
+    async def test_edgeql_coalesce_tuple_09(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := ([(1,2)][0] UNION (3,4)).1 ORDER BY _;
+            ''',
+            [2, 4],
+        )

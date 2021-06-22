@@ -163,6 +163,7 @@ def get_set_rvar(
         path_scope = relctx.get_scope(ir_set, ctx=subctx)
         new_scope = path_scope or subctx.scope_tree
         is_optional = (
+            subctx.scope_tree.is_optional(path_id) or
             new_scope.is_optional(path_id) or
             path_id in subctx.force_optional
         )
@@ -642,36 +643,6 @@ def finalize_optional_rel(
                     arg=lvar, negated=True
                 )
             )
-
-        if isinstance(lvar, pgast.TupleVar):
-            # Make sure we have a correct TupleVar in place for the empty rvar,
-            # otherwise _get_rel_path_output() will try to inject a NULL in its
-            # place, breaking the UNION balance.
-            null_rvar = pathctx.get_path_rvar(
-                optrel.emptyrel, ir_set.path_id,
-                aspect='value', env=subctx.env)
-
-            def _ensure_empty_tvar(tvar: pgast.TupleVar,
-                                   path_id: irast.PathId) -> None:
-                tvarels = []
-                for element in tvar.elements:
-                    if isinstance(element.val, pgast.TupleVar):
-                        _ensure_empty_tvar(element.val, element.path_id)
-                    tvarels.append(pgast.TupleElementBase(
-                        path_id=element.path_id))
-                pathctx.put_path_value_var(
-                    optrel.emptyrel,
-                    path_id,
-                    pgast.TupleVarBase(
-                        elements=tvarels,
-                        typeref=tvar.typeref,
-                    ),
-                    env=subctx.env,
-                )
-                pathctx.put_path_source_rvar(
-                    optrel.emptyrel, path_id, null_rvar, env=subctx.env)
-
-            _ensure_empty_tvar(lvar, ir_set.path_id)
 
     unionrel = optrel.unionrel
     union_rvar = relctx.rvar_for_rel(unionrel, lateral=True, ctx=ctx)
@@ -1479,7 +1450,10 @@ def process_set_as_coalesce(
         newctx.expr_exposed = False
         left_ir, right_ir = (a.expr for a in expr.args)
         left_card, right_card = (a.cardinality for a in expr.args)
-        is_object = ir_set.path_id.is_objtype_path()
+        is_object = (
+            ir_set.path_id.is_objtype_path()
+            or ir_set.path_id.is_tuple_path()
+        )
 
         # The cardinality optimziations below apply to non-object
         # expressions only, because we don't want to have to deal
@@ -1670,8 +1644,16 @@ def process_set_as_tuple(
             if path_id != element.val.path_id:
                 pathctx.put_path_id_map(stmt, path_id, element.val.path_id)
 
-            dispatch.visit(element.val, ctx=subctx)
+            tvar = dispatch.compile(element.val, ctx=subctx)
             elements.append(pgast.TupleElementBase(path_id=path_id))
+
+            # We need to filter out NULLs at tuple creation time, to
+            # prevent having tuples that are part-NULL.
+            if tvar.nullable:
+                stmt.where_clause = astutils.extend_binop(
+                    stmt.where_clause,
+                    pgast.NullTest(arg=tvar, negated=True)
+                )
 
             var = pathctx.maybe_get_path_var(
                 stmt, element.val.path_id,
@@ -2456,7 +2438,7 @@ def process_set_as_agg_expr_inner(
 
         set_expr = pgast.FuncCall(
             name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter,
-            ser_safe=serialization_safe)
+            ser_safe=serialization_safe and all(x.ser_safe for x in args))
 
         if expr.error_on_null_result:
             set_expr = pgast.FuncCall(
@@ -2661,7 +2643,8 @@ def process_set_as_array_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     if serializing:
-        s_set_expr = astutils.safe_array_expr(s_elements, ser_safe=True)
+        s_set_expr = astutils.safe_array_expr(
+            s_elements, ser_safe=all(x.ser_safe for x in s_elements))
 
         if irutils.is_empty_array_expr(expr):
             s_set_expr = pgast.TypeCast(

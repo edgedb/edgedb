@@ -216,7 +216,7 @@ def array_as_json_object(
                         )
                     ]
                 )
-            ]
+            ] if el_type.subtypes else [],
         )
     else:
         return pgast.FuncCall(
@@ -315,7 +315,7 @@ def unnamed_tuple_as_json_object(
                         )
                     ]
                 )
-            ]
+            ] if styperef.subtypes else []
         )
 
 
@@ -400,7 +400,7 @@ def named_tuple_as_json_object(
                         )
                     ]
                 )
-            ]
+            ] if styperef.subtypes else []
         )
 
 
