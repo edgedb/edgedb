@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 from typing import *
+if TYPE_CHECKING:
+    from typing_extensions import TypeGuard
 
 import textwrap
 import weakref
@@ -39,6 +41,10 @@ class FenceInfo(NamedTuple):
             unnest_fence=self.unnest_fence or other.unnest_fence,
             factoring_fence=self.factoring_fence or other.factoring_fence,
         )
+
+
+def has_path_id(nobe: ScopeTreeNode) -> TypeGuard[ScopeTreeNodeWithPathId]:
+    return nobe.path_id is not None
 
 
 class ScopeTreeNode:
@@ -209,17 +215,17 @@ class ScopeTreeNode:
     @property
     def path_children(self) -> Iterator[ScopeTreeNodeWithPathId]:
         """An iterator of node's children that have path ids."""
-        return filter(
-            lambda p: p.path_id is not None,
-            self.children,  # type: ignore
+        return (
+            p for p in self.children
+            if has_path_id(p)
         )
 
     @property
     def path_descendants(self) -> Iterator[ScopeTreeNodeWithPathId]:
         """An iterator of node's descendants that have path ids."""
-        return filter(
-            lambda p: p.path_id is not None,
-            self.descendants,  # type: ignore
+        return (
+            p for p in self.descendants
+            if has_path_id(p)
         )
 
     def get_all_paths(self) -> Set[pathid.PathId]:
@@ -332,8 +338,8 @@ class ScopeTreeNode:
     @property
     def path_ancestor(self) -> Optional[ScopeTreeNodeWithPathId]:
         for ancestor in self.strict_ancestors:
-            if ancestor.path_id is not None:
-                return cast(ScopeTreeNodeWithPathId, ancestor)
+            if has_path_id(ancestor):
+                return ancestor
 
         return None
 
@@ -481,9 +487,8 @@ class ScopeTreeNode:
             node = wrapper_node
 
         for descendant, dns, _ in node.descendants_and_namespaces_ex():
-            if descendant.path_id is None:
+            if not has_path_id(descendant):
                 continue
-            descendant = cast(ScopeTreeNodeWithPathId, descendant)
 
             path_id = descendant.path_id.strip_namespace(dns)
             visible, visible_finfo, vns = self.find_visible_ex(path_id)
@@ -896,9 +901,9 @@ class ScopeTreeNode:
     ) -> List[ScopeTreeNodeWithPathId]:
         matched = []
         for descendant, dns, _ in self.strict_descendants_and_namespaces:
-            if (descendant.path_id is not None
+            if (has_path_id(descendant)
                     and _paths_equal(descendant.path_id, path_id, dns)):
-                matched.append(cast(ScopeTreeNodeWithPathId, descendant))
+                matched.append(descendant)
 
         return matched
 
@@ -975,9 +980,8 @@ class ScopeTreeNode:
                     unfenced_only=fence_seen, skip=last)
             ):
                 cns: AbstractSet[str] = namespaces | dns
-                if (descendant.path_id is not None
+                if (has_path_id(descendant)
                         and _paths_equal(descendant.path_id, path_id, cns)):
-                    descendant = cast(ScopeTreeNodeWithPathId, descendant)
                     points.append((
                         descendant, node, cns, finfo, unnest_fence_seen
                     ))
