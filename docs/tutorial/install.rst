@@ -18,9 +18,9 @@ command:
 
 On Windows, open a PowerShell terminal and enter the following:
 
-.. code-block::
+.. code-block:: powershell
 
-    iwr https://ps1.edgedb.com -useb | iex
+    PS> iwr https://ps1.edgedb.com -useb | iex
 
 The command downloads a script and starts the installation of the ``edgedb``
 command line tool.  The script might require elevated privileges and might
