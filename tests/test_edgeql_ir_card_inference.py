@@ -619,3 +619,17 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         MANY
         """
+
+    def test_edgeql_ir_card_inference_68(self):
+        """
+        SELECT 1 FILTER false
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_69(self):
+        """
+        SELECT {1, 2} FILTER false
+% OK %
+        MANY
+        """

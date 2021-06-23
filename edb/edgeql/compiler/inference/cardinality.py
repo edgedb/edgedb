@@ -1040,6 +1040,8 @@ def _infer_stmt_cardinality(
         ir.where_card = infer_cardinality(
             ir.where, scope_tree=scope_tree, ctx=ctx,
         )
+        # Cross with AT_MOST_ONE to ensure result can be empty
+        result_card = cartesian_cardinality([result_card, AT_MOST_ONE])
 
     if result_card.is_multi() and ir.where:
         result_card = _analyse_filter_clause(
