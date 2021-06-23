@@ -592,14 +592,19 @@ def trace_Path(
                         # However, we need to make it dependent on
                         # every link of the same name now.
                         for fqname, obj in ctx.objects.items():
-                            # Ignore what appears to not be a link.
-                            if isinstance(obj, (s_pointers.Pointer,
-                                                Pointer)):
+                            # Ignore what appears to not be a link
+                            # with the right name.
+                            if (isinstance(obj, (s_pointers.Pointer,
+                                                 Pointer)) and
+                                fqname.name.split('@', 1)[1] ==
+                                    step.ptr.name):
+
                                 target = obj.get_target(ctx.schema)
-                                if (target is not None and
-                                    not target.is_scalar() and
-                                    fqname.name.split('@', 1)[1] ==
-                                        step.ptr.name):
+                                # Ignore scalars, but include other
+                                # computables to produce better error
+                                # messages.
+                                if (target is None or
+                                        not target.is_scalar()):
                                     # Record link with matching short
                                     # name.
                                     ctx.refs.add(fqname)
