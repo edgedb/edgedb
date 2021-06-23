@@ -47,10 +47,12 @@ cdef class HttpProtocol:
         object parser
         object transport
         object unprocessed
+        object sslctx
         bint in_response
         bint first_data_call
         bint external_auth
-        bint response_hsts
+        bint respond_hsts
+        bint tls_compat
 
         HttpRequest current_request
 

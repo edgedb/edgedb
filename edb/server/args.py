@@ -334,8 +334,9 @@ _server_options = [
              'present, the private key will be taken from --tls-certfile as '
              'well. If the private key is protected by a password, specify '
              'with an environment variable EDGEDB_TLS_PRIVATE_KEY_PASSWORD.'),
-    click.option(  # TODO: make the default False
-        '--allow-no-tls', type=bool, default=True, is_flag=True, hidden=True,
+    click.option(
+        '--allow-no-tls', type=bool, is_flag=True, hidden=True,
+        # default=True, flag_value=True,  # TODO: make the default False
         help='Run the server in TLS-compatible mode, supporting clients that '
              'use both TLS and cleartext transports.'),
     click.option(

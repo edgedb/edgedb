@@ -91,7 +91,7 @@ BUILD_DEPS = [
 
 RUST_VERSION = '1.45.0'  # Also update docs/internal/dev.rst
 
-EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
+EDGEDBCLI_REPO = 'https://github.com/fantix/edgedb-cli'
 
 EXTRA_DEPS = {
     'test': TEST_DEPS,
@@ -260,7 +260,7 @@ def _check_rust():
 
 def _get_edgedbcli_rev():
     output = subprocess.check_output(
-        ['git', 'ls-remote', EDGEDBCLI_REPO, 'master'],
+        ['git', 'ls-remote', EDGEDBCLI_REPO, 'authenticate'],
         universal_newlines=True,
     )
     rev, _ = output.split()

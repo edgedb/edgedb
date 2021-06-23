@@ -31,6 +31,7 @@ import socket
 import ssl
 import stat
 import sys
+import tempfile
 import uuid
 
 import immutables
@@ -182,13 +183,6 @@ class Server:
         self._stop_evt = asyncio.Event()
         self._tls_certfile = tls_certfile
         self._tls_keyfile = tls_keyfile
-        self._sslctx = ssl.SSLContext()
-        self._sslctx.load_cert_chain(
-            tls_certfile,
-            tls_keyfile,
-            lambda: os.environ.get('EDGEDB_TLS_PRIVATE_KEY_PASSWORD', '')
-        )
-        self._sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         self._tls_compat = tls_compat
 
     async def _request_stats_logger(self):
@@ -825,36 +819,48 @@ class Server:
     async def _start_servers(self, host, port):
         nethost = await _fix_localhost(host)
 
+        sslctx = ssl.SSLContext()
+        def password():
+            return os.environ.get('EDGEDB_TLS_PRIVATE_KEY_PASSWORD', '')
+        if not self._tls_certfile and devmode.is_in_dev_mode():
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, '-m', 'edb.cli', 'authenticate',
+                 '-n', 'local_dev', '-u', 'edgedb', '-y',
+                 '--generate-dev-cert', f'{nethost[0]}:{port}',
+                stdout=asyncio.subprocess.PIPE,
+            )
+            certdata, _ = await proc.communicate()
+
+            with tempfile.NamedTemporaryFile('wb') as tf:
+                tf.write(certdata)
+                tf.flush()
+                sslctx.load_cert_chain(tf.name, password=password)
+        else:
+            sslctx.load_cert_chain(
+                self._tls_certfile,
+                self._tls_keyfile,
+
+            )
+        sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
+
         tcp_srv = await self._loop.create_server(
-            lambda: protocol.HttpProtocol(self),
+            lambda: protocol.HttpProtocol(
+                self, sslctx, tls_compat=self._tls_compat),
             host=nethost, port=port)
 
         if port == 0:
             port = tcp_srv.sockets[0].getsockname()[1]
 
         try:
-            unix_sock_path = os.path.join(
-                self._runstate_dir, f'.s.EDGEDB.{port}')
-            unix_srv = await self._loop.create_unix_server(
-                lambda: protocol.HttpProtocol(self),
-                unix_sock_path)
-        except Exception:
-            tcp_srv.close()
-            await tcp_srv.wait_closed()
-            raise
-
-        try:
             admin_unix_sock_path = os.path.join(
                 self._runstate_dir, f'.s.EDGEDB.admin.{port}')
             admin_unix_srv = await self._loop.create_unix_server(
-                lambda: protocol.HttpProtocol(self, external_auth=True),
+                lambda: binary.EdgeConnection(self, external_auth=True),
                 admin_unix_sock_path)
             os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
         except Exception:
             tcp_srv.close()
             await tcp_srv.wait_closed()
-            unix_srv.close()
-            await unix_srv.wait_closed()
             raise
 
         servers = []
@@ -866,8 +872,6 @@ class Server:
             host_str = next(iter(nethost))
 
         logger.info('Serving on %s:%s', host_str, port)
-        servers.append(unix_srv)
-        logger.info('Serving on %s', unix_sock_path)
         servers.append(admin_unix_srv)
         logger.info('Serving admin on %s', admin_unix_sock_path)
 

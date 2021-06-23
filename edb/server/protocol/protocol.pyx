@@ -59,18 +59,21 @@ cdef class HttpResponse:
 
 cdef class HttpProtocol:
 
-    def __init__(self, server, *, external_auth: bool=False):
+    def __init__(self, server, sslctx, *,
+                 external_auth: bool=False, tls_compat: bool=False):
         self.loop = server.get_loop()
         self.server = server
         self.transport = None
         self.external_auth = external_auth
+        self.sslctx = sslctx
+        self.tls_compat = tls_compat
 
         self.parser = None
         self.current_request = None
         self.in_response = False
         self.unprocessed = None
         self.first_data_call = True
-        self.response_hsts = False
+        self.respond_hsts = False
 
     def connection_made(self, transport):
         self.transport = transport
@@ -87,26 +90,18 @@ cdef class HttpProtocol:
             self.first_data_call = False
 
             is_ssl = True
-            is_binary = False
             try:
                 outgoing = ssl.MemoryBIO()
                 incoming = ssl.MemoryBIO()
                 incoming.write(data)
-                sslobj = self.server._sslctx.wrap_bio(
+                sslobj = self.sslctx.wrap_bio(
                     incoming, outgoing, server_side=True
                 )
                 sslobj.do_handshake()
             except ssl.SSLWantReadError:
                 pass
-            except Exception:
+            except ssl.SSLError:
                 is_ssl = False
-                if not self.server._tls_compat:
-                    if data[0:2] == b'V\x00':
-                        # This is, most likely, our binary protocol,
-                        # as its first message kind is `V`.
-                        self.loop.create_task(self._return_binary_error())
-                    else:
-                        self.response_hsts = True
 
             if is_ssl:
                 self.loop.create_task(self._forward_first_data(data))
@@ -118,11 +113,14 @@ cdef class HttpProtocol:
                 # as its first message kind is `V`.
                 #
                 # Switch protocols now (for compatibility).
+                if not self.tls_compat:
+                    self.loop.create_task(self._return_binary_error())
                 self._switch_to_binary_protocol(data)
                 return
             else:
                 # HTTP.
                 self._init_http_parser()
+                self.respond_hsts = not self.tls_compat
 
         try:
             self.parser.feed_data(data)
@@ -251,7 +249,7 @@ cdef class HttpProtocol:
 
     async def _start_tls(self):
         self.transport = await self.loop.start_tls(
-            self.transport, self, self.server._sslctx, server_side=True
+            self.transport, self, self.sslctx, server_side=True
         )
         sslobj = self.transport.get_extra_info('ssl_object')
         if sslobj.selected_alpn_protocol() == 'edgedb-binary':
@@ -275,7 +273,7 @@ cdef class HttpProtocol:
         if self.transport is None:
             return
 
-        if self.response_hsts:
+        if self.respond_hsts:
             if request.host:
                 path = request.url.path.lstrip(b'/')
                 loc = b'https://' + request.host + b'/' + path
