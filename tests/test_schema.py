@@ -1430,6 +1430,72 @@ class TestSchema(tb.BaseSchemaLoadTest):
             )
         )
 
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot follow backlink 'bar'",
+                  line=4, col=27)
+    def test_schema_backlink_01(self):
+        """
+            type Bar {
+                link foo -> Foo;
+                link f := .<bar[IS Foo];
+            }
+
+            type Foo {
+                link bar := .<foo[IS Bar];
+            }
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot follow backlink 'bar'",
+                  line=4, col=27)
+    def test_schema_backlink_02(self):
+        """
+            type Bar {
+                link foo -> Foo;
+                link f := .<bar;
+            }
+
+            type Foo {
+                link bar := .<foo;
+            }
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot follow backlink 'bar'",
+                  line=3, col=22)
+    def test_schema_backlink_03(self):
+        """
+            alias B := Bar {
+                f := .<bar[IS Foo]
+            };
+
+            type Bar {
+                link foo -> Foo;
+            }
+
+            type Foo {
+                link bar := .<foo[IS Bar];
+            }
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot follow backlink 'bar'",
+                  line=3, col=20)
+    def test_schema_backlink_04(self):
+        """
+            function foo() -> uuid using (
+                Bar.<bar[IS Foo].id
+            );
+
+            type Bar {
+                link foo -> Foo;
+            }
+
+            type Foo {
+                link bar := .<foo[IS Bar];
+            }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.

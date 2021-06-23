@@ -664,6 +664,15 @@ def resolve_ptr(
                     ctx.env.add_schema_ref(
                         p.get_nearest_non_derived_parent(ctx.env.schema),
                         track_ref)
+            for ptr in ptrs:
+                if ptr.is_pure_computable(ctx.env.schema):
+                    vname = ptr.get_verbosename(ctx.env.schema,
+                                                with_parent=True)
+                    raise errors.InvalidReferenceError(
+                        f'cannot follow backlink {pointer_name!r} because '
+                        f'{vname} is computable',
+                        context=source_context
+                    )
 
             opaque = not far_endpoints
             ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(

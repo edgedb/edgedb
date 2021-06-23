@@ -52,7 +52,7 @@ type User extending Named {
 type Card extending Named {
     required property element -> str;
     required property cost -> int64;
-    multi link owners := __source__.<deck[IS User];
+    multi link owners := .<deck[IS User];
     # computable property
     property elemental_cost := <str>.cost ++ ' ' ++ .element;
     multi link awards -> Award;

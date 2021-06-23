@@ -22,6 +22,8 @@ import os.path
 
 from edb.testbase import server as tb
 
+import edgedb
+
 
 class TestEdgeQLExprAliases(tb.QueryTestCase):
     '''The scope is to test expression aliases.'''
@@ -1004,3 +1006,21 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                 }]
             }]
         )
+
+    async def test_edgeql_aliases_backlinks_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            "cannot follow backlink 'owners'",
+        ):
+            await self.con.execute("""
+                SELECT User.<owners[Is Card];
+            """)
+
+    async def test_edgeql_aliases_backlinks_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            "cannot follow backlink 'owners'",
+        ):
+            await self.con.execute("""
+                SELECT User.<owners;
+            """)
