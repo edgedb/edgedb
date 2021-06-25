@@ -314,7 +314,20 @@ class TestModelSmokeTests(unittest.TestCase):
                 ),
                 ('Bob', []),
                 ('Carol', []),
-                ('Dave', [])]
+                ('Dave', []),
+            ]
+        )
+
+    def test_edgeql_lprop_reverse_01(self):
+        self.assert_test_query(
+            r'''
+                SELECT count((
+                    Card.name,
+                    Card.<deck[IS User].name,
+                    Card.<deck[IS User]@count,
+                ));
+            ''',
+            [22]
         )
 
     def test_edgeql_partial_path_01(self):

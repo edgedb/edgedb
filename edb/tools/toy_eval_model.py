@@ -727,11 +727,15 @@ def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
 
 def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
     # XXX: This is slow even by the standards of this terribly slow model
-    return [
-        Obj(obj["id"])
-        for obj in ctx.db.values()
-        if base in get_links(obj, ptr.ptr)
-    ]
+    res = []
+    for obj in ctx.db.values():
+        for tgt in get_links(obj, ptr.ptr):
+            if base == tgt:
+                # Extract any lprops and put them on the backlink
+                data = {k: v for k, v in tgt.data.items() if k[0] == '@'}
+                res.append(Obj(obj['id'], data=data))
+                break
+    return res
 
 
 def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
