@@ -24,10 +24,10 @@ from __future__ import annotations
 import collections.abc
 import types
 
-from edb.common import adapter, ast
+from edb.common import adapter
 
 
-class MatchASTMeta(adapter.Adapter, ast.MetaAST):
+class MatchASTMeta(adapter.Adapter):
     pass
 
 

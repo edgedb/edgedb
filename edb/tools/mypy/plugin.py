@@ -33,8 +33,8 @@ from mypy.server import trigger as mypy_trigger
 
 METADATA_KEY = 'edbplugin'
 
-AST_BASE_METACLASSES = {
-    'edb.common.ast.base.MetaAST',
+AST_BASE_CLASSES = {
+    'edb.common.ast.base.AST',
 }
 
 STRUCT_BASE_METACLASSES = {
@@ -58,13 +58,13 @@ class EDBPlugin(mypy_plugin.Plugin):
             return self.handle_schema_class
 
     def handle_schema_class(self, ctx: mypy_plugin.ClassDefContext):
+        mro = ctx.cls.info.mro
         mcls = ctx.cls.info.metaclass_type
-        if not mcls:
-            return
+        mcls_mro = mcls.type.mro if mcls else []
 
         transformers: List[BaseTransformer] = []
 
-        if any(c.fullname in SCHEMA_BASE_METACLASSES for c in mcls.type.mro):
+        if any(c.fullname in SCHEMA_BASE_METACLASSES for c in mcls_mro):
             transformers.append(
                 SchemaClassTransformer(
                     ctx,
@@ -78,7 +78,7 @@ class EDBPlugin(mypy_plugin.Plugin):
                 )
             )
 
-        elif any(c.fullname in STRUCT_BASE_METACLASSES for c in mcls.type.mro):
+        elif any(c.fullname in STRUCT_BASE_METACLASSES for c in mcls_mro):
             transformers.append(
                 StructTransformer(
                     ctx,
@@ -86,7 +86,7 @@ class EDBPlugin(mypy_plugin.Plugin):
                 )
             )
 
-        elif any(c.fullname in AST_BASE_METACLASSES for c in mcls.type.mro):
+        elif any(c.fullname in AST_BASE_CLASSES for c in mro):
             transformers.append(
                 ASTClassTransformer(
                     ctx,
