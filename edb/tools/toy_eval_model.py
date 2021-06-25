@@ -69,6 +69,7 @@ import argparse
 import contextlib
 import functools
 import itertools
+import json
 import operator
 import pprint
 import random
@@ -1122,18 +1123,27 @@ def go(q: qlast.Expr, db: DB) -> Data:
     return clean_data(toplevel_query(q, db))
 
 
-def run(db: DB, s: str, print_asts: bool, use_pprint: bool) -> None:
+class EdbJSONEncoder(json.JSONEncoder):
+    def default(self, x: Any) -> Any:
+        if isinstance(x, uuid.UUID):
+            return str(x)
+        return super().default(x)
+
+
+def run(db: DB, s: str, print_asts: bool, output_mode: str) -> None:
     q = parse(s)
     if print_asts:
         debug.dump(q)
     res = go(q, db)
-    if use_pprint:
+    if output_mode == 'pprint':
         pprint.pprint(res)
+    elif output_mode == 'json':
+        print(EdbJSONEncoder().encode(res))
     else:
         debug.dump(res)
 
 
-def repl(db: DB, print_asts: bool=False, use_pprint: bool=False) -> None:
+def repl(db: DB, print_asts: bool=False, output_mode: str='debug') -> None:
     # for now users should just invoke this script with rlwrap since I
     # don't want to fiddle with history or anything
     while True:
@@ -1144,7 +1154,7 @@ def repl(db: DB, print_asts: bool=False, use_pprint: bool=False) -> None:
             if not s:
                 return
         try:
-            run(db, s, print_asts, use_pprint)
+            run(db, s, print_asts, output_mode)
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
@@ -1416,7 +1426,9 @@ parser = argparse.ArgumentParser(description='Toy EdgeQL eval model')
 parser.add_argument('--debug', '-d', action='store_true',
                     help='Dump ASTs after parsing')
 parser.add_argument('--pprint', '-p', action='store_true',
-                    help='Use pprint instead of dump')
+                    help='Use pprint instead of debug.dump')
+parser.add_argument('--json', '-j', action='store_true',
+                    help='Use json.dump instead of debug.dump')
 
 parser.add_argument('commands', metavar='cmd', type=str, nargs='*',
                     help='commands to run')
@@ -1427,11 +1439,13 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    output_mode = 'json' if args.json else 'pprint' if args.pprint else 'debug'
+
     if args.commands:
         for arg in args.commands:
-            run(db, arg, args.debug, args.pprint)
+            run(db, arg, args.debug, output_mode)
     else:
-        return repl(db, args.debug, args.pprint)
+        return repl(db, args.debug, output_mode)
 
 
 if __name__ == '__main__':
