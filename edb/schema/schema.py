@@ -1255,8 +1255,9 @@ class FlatSchema(Schema):
             obj = so.Object.schema_restore((sclass_name, obj_id))
             if type is not None and not isinstance(obj, type):
                 raise errors.InvalidReferenceError(
-                    f'schema object {obj_id!r} exists, but is not '
-                    f'{type.get_schema_class_displayname()}'
+                    f'schema object {obj_id!r} exists, but is a '
+                    f'{obj.__class__.get_schema_class_displayname()!r} '
+                    f'not a {type.get_schema_class_displayname()!r}'
                 )
 
             # Avoid the overhead of cast(Object_T) below

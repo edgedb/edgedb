@@ -973,7 +973,7 @@ class CollectionExprAlias(QualifiedType, Collection):
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:
-        return 'view'
+        return 'expression alias'
 
 
 class Array(
