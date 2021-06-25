@@ -85,7 +85,7 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v1-test-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
       uses: actions/cache@v2
