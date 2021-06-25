@@ -8980,6 +8980,424 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 CONFIGURE CURRENT DATABASE SET _foo := 123;
             ''')
 
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: scalar type 'test::Alias'
+        does not exist
+    ''')
+    async def test_edgeql_migration_alias_01(self):
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                property comp := Alias;
+            };
+
+            alias Alias := {0, 1, 2, 3};
+        ''')
+
+        # Make sure that the objects can actually be created and
+        # queried.
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Foo {name := 'foo'};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp,
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': {0, 1, 2, 3},
+                },
+            ],
+        )
+
+    async def test_edgeql_migration_alias_02(self):
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                property comp := Alias + 0;
+            };
+
+            alias Alias := {0, 1, 2, 3};
+        ''')
+
+        # Make sure that the objects can actually be created and
+        # queried.
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Foo {name := 'foo'};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp,
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': {0, 1, 2, 3},
+                },
+            ],
+        )
+
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                property comp := Alias + 0;
+            };
+
+            alias Alias := {4, 5};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp,
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': {4, 5},
+                },
+            ],
+        )
+
+    @test.xfail('''
+        The second migration check produces the following issue:
+
+        No more "proposed", but not "completed" either.
+    ''')
+    async def test_edgeql_migration_alias_03(self):
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                property comp := {Alias, Alias};
+            };
+
+            alias Alias := 42;
+        ''')
+
+        # Make sure that the objects can actually be created and
+        # queried.
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Foo {name := 'foo'};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp,
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': [42, 42],
+                },
+            ],
+        )
+
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                property comp := {Alias, Alias};
+            };
+
+            alias Alias := 'alias';
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp,
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': ['alias', 'alias'],
+                },
+            ],
+        )
+
+    @test.xfail('''
+        The migration works, but then the query produces this error
+        (implying that the migration didn't update the type of the computable).
+
+        edgedb.errors.InvalidValueError: invalid input syntax for type
+        std::int64: "alias"
+    ''')
+    async def test_edgeql_migration_alias_04(self):
+        # Same as the previous test, but using a single DDL command to
+        # migrate.
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                property comp := {Alias, Alias};
+            };
+
+            alias Alias := 42;
+        ''')
+
+        # Make sure that the objects can actually be created and
+        # queried.
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Foo {name := 'foo'};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp,
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': [42, 42],
+                },
+            ],
+        )
+
+        # Instead of using an SDL migration, use a single DDL command.
+        await self.con.execute('''
+            ALTER ALIAS Alias USING ('alias');
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp,
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': ['alias', 'alias'],
+                },
+            ],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: object type 'test::Alias'
+        does not exist
+    ''')
+    async def test_edgeql_migration_alias_05(self):
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                link comp := Alias;
+            };
+
+            type Bar;
+
+            alias Alias := Bar {val := 42};
+        ''')
+
+        # Make sure that the objects can actually be created and
+        # queried.
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Bar;
+            INSERT Foo {name := 'foo'};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp: {
+                        val
+                    },
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': {
+                        'val': 42,
+                    },
+                },
+            ],
+        )
+
+    @test.xfail('''
+        The second migration check produces the following issue:
+
+        No more "proposed", but not "completed" either.
+    ''')
+    async def test_edgeql_migration_alias_06(self):
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                property comp := Alias.val;
+            };
+
+            type Bar;
+
+            alias Alias := Bar {val := 42};
+        ''')
+
+        # Make sure that the objects can actually be created and
+        # queried.
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Bar;
+            INSERT Foo {name := 'foo'};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp,
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': {42},
+                },
+            ],
+        )
+
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                property comp := Alias.val;
+            };
+
+            type Bar;
+
+            alias Alias := Bar {val := 'val'};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp,
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': {'val'},
+                },
+            ],
+        )
+
+    @test.xfail('''
+        edgedb.errors.InvalidReferenceError: object type 'test::Fuz'
+        does not exist
+    ''')
+    async def test_edgeql_migration_alias_07(self):
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                link comp := Alias.alias_link;
+            };
+
+            type Bar {
+                property val -> str;
+            };
+            type Fuz {
+                property val -> str;
+            };
+
+            alias Alias := Bar {
+                alias_link := Fuz {
+                    alias_comp := 42,
+                }
+            };
+        ''')
+
+        # Make sure that the objects can actually be created and
+        # queried.
+        await self.con.execute('''
+            SET MODULE test;
+            INSERT Bar {val := 'bar'};
+            INSERT Fuz {val := 'fuz'};
+            INSERT Foo {name := 'foo'};
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp: {
+                        val,
+                        alias_comp,
+                    },
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': [{
+                        'val': 'fuz',
+                        'alais_comp': 42,
+                    }],
+                },
+            ],
+        )
+
+        await self.migrate(r'''
+            type Foo {
+                property name -> str;
+                link comp := Alias.alias_link;
+            };
+
+            type Bar {
+                property val -> str;
+            };
+            type Fuz {
+                property val -> str;
+            };
+
+            alias Alias := Bar {
+                alias_link := Fuz {
+                    alias_comp := 42,
+                }
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Foo {
+                    name,
+                    comp: {
+                        val
+                    },
+                }
+            ''',
+            [
+                {
+                    'name': 'foo',
+                    'comp': [{
+                        'val': 'bar',
+                        'alais_comp': 42,
+                    }],
+                },
+            ],
+        )
+
 
 class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
