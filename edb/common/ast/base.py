@@ -50,136 +50,6 @@ class Field:
         self.meta = field_meta
 
 
-class MetaAST(type):
-    def __new__(mcls, name, bases, dct):
-        cls = super().__new__(mcls, name, bases, dct)
-
-        cls.__abstract_node__ = bool(dct.get('__abstract_node__'))
-
-        if '__annotations__' not in dct:
-            return cls
-
-        globalns = sys.modules[cls.__module__].__dict__.copy()
-        globalns[cls.__name__] = cls
-
-        try:
-            while True:
-                try:
-                    annos = get_type_hints(cls, globalns)
-                except NameError as e:
-                    # Forward type declaration.  Generally, we try
-                    # to avoid these as much as possible, but when
-                    # there's a cycle it's better to have correct
-                    # static type analysis even though the runtime
-                    # validation infrastructure does not support
-                    # cyclic rerefences.
-                    # XXX: This is a horrible hack, need to find
-                    # a better way.
-                    m = re.match(r"name '(\w+)' is not defined", e.args[0])
-                    if not m:
-                        raise
-                    globalns[m.group(1)] = AST
-                else:
-                    break
-
-        except Exception:
-            raise RuntimeError(
-                f'unable to resolve type annotations for '
-                f'{cls.__module__}.{cls.__qualname__}')
-
-        if annos:
-            annos = {k: v for k, v in annos.items()
-                     if k in dct['__annotations__']}
-
-            module_name = cls.__module__
-            fields_attrname = f'_{name}__fields'
-
-            if fields_attrname in dct:
-                raise RuntimeError(
-                    'cannot combine class annotations and '
-                    'legacy __fields attribute in '
-                    f'{cls.__module__}.{cls.__qualname__}')
-
-            hidden = ()
-            if '__ast_hidden__' in dct:
-                hidden = set(dct['__ast_hidden__'])
-
-            meta = ()
-            if '__ast_meta__' in dct:
-                meta = set(dct['__ast_meta__'])
-
-            fields = []
-            for f_name, f_type in annos.items():
-                f_fullname = f'{module_name}.{cls.__qualname__}.{f_name}'
-
-                if f_type is object:
-                    f_type = None
-
-                if f_name in dct:
-                    f_default = dct[f_name]
-                    delattr(cls, f_name)
-                else:
-                    f_default = None
-
-                f_default = _check_annotation(f_type, f_fullname, f_default)
-
-                f_hidden = f_name in hidden
-                f_meta = f_name in meta
-
-                fields.append((f_name, f_type, f_default,
-                               True, None, f_hidden, f_meta))
-
-            setattr(cls, fields_attrname, fields)
-
-        return cls
-
-    def __init__(cls, name, bases, dct):
-        super().__init__(name, bases, dct)
-        fields = collections.OrderedDict()
-
-        for parent in reversed(cls.__mro__):
-            lst = getattr(cls, '_' + parent.__name__ + '__fields', [])
-            for field in lst:
-                field_name = field
-                field_type = None
-                field_default = None
-                field_traverse = True
-                field_child_traverse = None
-                field_hidden = False
-                field_meta = False
-
-                if isinstance(field, tuple):
-                    field_name = field[0]
-
-                    if len(field) > 1:
-                        field_type = field[1]
-                    if len(field) > 2:
-                        field_default = field[2]
-                    else:
-                        field_default = field_type
-
-                    if len(field) > 3:
-                        field_traverse = field[3]
-
-                    if len(field) > 4:
-                        field_child_traverse = field[4]
-
-                    if len(field) > 5:
-                        field_hidden = field[5]
-
-                    if len(field) > 6:
-                        field_meta = field[6]
-
-                fields[field_name] = Field(
-                    field_name, field_type, field_default, field_traverse,
-                    field_child_traverse, field_hidden, field_meta)
-
-        cls._fields = fields
-
-    def get_field(cls, name):
-        return cls._fields.get(name)
-
-
 def _check_type_passthrough(type_, value, raise_error):
     pass
 
@@ -231,12 +101,144 @@ else:
     _check_type = _check_type_passthrough
 
 
-class AST(object, metaclass=MetaAST):
+class AST:
     # These use type comments because type annotations are interpreted
     # by the AST system and so annotating them would interfere!
     __fields = []  # type: List[str]
     __ast_frozen_fields__ = frozenset()  # type: AbstractSet[str]
 
+    # Class setup stuff:
+    @classmethod
+    def _collect_direct_fields(cls):
+        dct = cls.__dict__
+        cls.__abstract_node__ = bool(dct.get('__abstract_node__'))
+
+        if '__annotations__' not in dct:
+            return cls
+
+        globalns = sys.modules[cls.__module__].__dict__.copy()
+        globalns[cls.__name__] = cls
+
+        try:
+            while True:
+                try:
+                    annos = get_type_hints(cls, globalns)
+                except NameError as e:
+                    # Forward type declaration.  Generally, we try
+                    # to avoid these as much as possible, but when
+                    # there's a cycle it's better to have correct
+                    # static type analysis even though the runtime
+                    # validation infrastructure does not support
+                    # cyclic rerefences.
+                    # XXX: This is a horrible hack, need to find
+                    # a better way.
+                    m = re.match(r"name '(\w+)' is not defined", e.args[0])
+                    if not m:
+                        raise
+                    globalns[m.group(1)] = AST
+                else:
+                    break
+
+        except Exception:
+            raise RuntimeError(
+                f'unable to resolve type annotations for '
+                f'{cls.__module__}.{cls.__qualname__}')
+
+        if annos:
+            annos = {k: v for k, v in annos.items()
+                     if k in dct['__annotations__']}
+
+            module_name = cls.__module__
+            fields_attrname = f'_{cls.__name__}__fields'
+
+            if fields_attrname in dct:
+                raise RuntimeError(
+                    'cannot combine class annotations and '
+                    'legacy __fields attribute in '
+                    f'{cls.__module__}.{cls.__qualname__}')
+
+            hidden = ()
+            if '__ast_hidden__' in dct:
+                hidden = set(dct['__ast_hidden__'])
+
+            meta = ()
+            if '__ast_meta__' in dct:
+                meta = set(dct['__ast_meta__'])
+
+            fields = []
+            for f_name, f_type in annos.items():
+                f_fullname = f'{module_name}.{cls.__qualname__}.{f_name}'
+
+                if f_type is object:
+                    f_type = None
+
+                if f_name in dct:
+                    f_default = dct[f_name]
+                    delattr(cls, f_name)
+                else:
+                    f_default = None
+
+                f_default = _check_annotation(f_type, f_fullname, f_default)
+
+                f_hidden = f_name in hidden
+                f_meta = f_name in meta
+
+                fields.append((f_name, f_type, f_default,
+                               True, None, f_hidden, f_meta))
+
+            setattr(cls, fields_attrname, fields)
+
+        return cls
+
+    def __init_subclass__(cls):
+        cls._collect_direct_fields()
+
+        fields = collections.OrderedDict()
+
+        for parent in reversed(cls.__mro__):
+            lst = getattr(cls, '_' + parent.__name__ + '__fields', [])
+            for field in lst:
+                field_name = field
+                field_type = None
+                field_default = None
+                field_traverse = True
+                field_child_traverse = None
+                field_hidden = False
+                field_meta = False
+
+                if isinstance(field, tuple):
+                    field_name = field[0]
+
+                    if len(field) > 1:
+                        field_type = field[1]
+                    if len(field) > 2:
+                        field_default = field[2]
+                    else:
+                        field_default = field_type
+
+                    if len(field) > 3:
+                        field_traverse = field[3]
+
+                    if len(field) > 4:
+                        field_child_traverse = field[4]
+
+                    if len(field) > 5:
+                        field_hidden = field[5]
+
+                    if len(field) > 6:
+                        field_meta = field[6]
+
+                fields[field_name] = Field(
+                    field_name, field_type, field_default, field_traverse,
+                    field_child_traverse, field_hidden, field_meta)
+
+        cls._fields = fields
+
+    @classmethod
+    def get_field(cls, name):
+        return cls._fields.get(name)
+
+    # Actual object level code
     def __init__(self, **kwargs):
         if type(self).__abstract_node__:
             raise ASTError(

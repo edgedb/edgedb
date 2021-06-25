@@ -398,8 +398,8 @@ class Pointer(Base):
     target: Set
     ptrref: BasePointerRef
     direction: s_pointers.PointerDirection
-    anchor: typing.Union[str, ast.MetaAST]
-    show_as_anchor: typing.Union[str, ast.MetaAST]
+    anchor: str
+    show_as_anchor: str
 
     @property
     def is_inbound(self) -> bool:
