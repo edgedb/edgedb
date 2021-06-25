@@ -890,6 +890,75 @@ class FunctionCommand:
 
         return self.make_function(func, sql_text, schema)
 
+    def sql_rval_consistency_check(
+        self,
+        cobj: s_funcs.CallableObject,
+        expr: str,
+        schema: s_schema.Schema,
+    ) -> dbops.Command:
+        fname = cobj.get_verbosename(schema)
+        rtype = types.pg_type_from_object(
+            schema,
+            cobj.get_return_type(schema),
+            persistent_tuples=True,
+        )
+        rtype_desc = '.'.join(rtype)
+
+        # Determine the actual returned type of the SQL function.
+        # We can't easily do this by looking in system catalogs because
+        # of polymorphic dispatch, but, fortunately, there's pg_typeof().
+        # We only need to be sure to actually NOT call the target function,
+        # as we can't assume how it'll behave with dummy inputs. Hence, the
+        # weird looking query below, where we rely in Postgres executor to
+        # skip the call, because no rows satisfy the WHERE condition, but
+        # we then still generate a NULL row via a LEFT JOIN.
+        f_test = textwrap.dedent(f'''\
+            (SELECT
+                pg_typeof(f.i)
+            FROM
+                (SELECT NULL::text) AS spreader
+                LEFT JOIN (SELECT {expr} WHERE False) AS f(i) ON (true))''')
+
+        check = dbops.Query(text=f'''
+            PERFORM
+                edgedb.raise_on_not_null(
+                    NULLIF(
+                        pg_typeof(NULL::{qt(rtype)}),
+                        {f_test}
+                    ),
+                    'invalid_function_definition',
+                    msg => format(
+                        '%s is declared to return SQL type "%s", but '
+                        || 'the underlying SQL function returns "%s"',
+                        {ql(fname)},
+                        {ql(rtype_desc)},
+                        {f_test}::text
+                    ),
+                    hint => (
+                        'Declare the function with '
+                        || '`force_return_cast := true`, '
+                        || 'or add an explicit cast to its body.'
+                    )
+                );
+        ''')
+
+        return check
+
+    def get_dummy_func_call(
+        self,
+        cobj: s_funcs.CallableObject,
+        sql_func: str,
+        schema: s_schema.Schema,
+    ) -> str:
+        args = []
+        func_params = cobj.get_params(schema)
+        for param in func_params.get_in_canonical_order(schema):
+            param_type = param.get_type(schema)
+            pg_at = self.get_pgtype(cobj, param_type, schema)
+            args.append(f'NULL::{qt(pg_at)}')
+
+        return f'{sql_func}({", ".join(args)})'
+
     def make_op(
         self,
         func: s_funcs.Function,
@@ -897,27 +966,40 @@ class FunctionCommand:
         context: sd.CommandContext,
         *,
         or_replace: bool=False,
-    ) -> Tuple[s_schema.Schema, dbops.CreateFunction]:
-        if (
-            func.get_code(schema) is None
-            and func.get_nativecode(schema) is None
-        ):
-            return schema, None
+    ) -> Iterable[dbops.Command]:
+        if func.get_from_expr(schema):
+            # Intrinsic function, handled directly by the compiler.
+            return ()
+        elif sql_func := func.get_from_function(schema):
+            func_params = func.get_params(schema)
 
-        func_language = func.get_language(schema)
-
-        if func_language is ql_ast.Language.SQL:
-            dbf = self.compile_sql_function(func, schema)
-        elif func_language is ql_ast.Language.EdgeQL:
-            dbf = self.compile_edgeql_function(func, schema, context)
+            if (
+                func.get_force_return_cast(schema)
+                or func_params.has_polymorphic(schema)
+                or func.get_sql_func_has_out_params(schema)
+            ):
+                return ()
+            else:
+                # Function backed directly by an SQL function.
+                # Check the consistency of the return type.
+                dexpr = self.get_dummy_func_call(func, sql_func, schema)
+                check = self.sql_rval_consistency_check(func, dexpr, schema)
+                return (check,)
         else:
-            raise errors.QueryError(
-                f'cannot compile function {func.get_shortname(schema)}: '
-                f'unsupported language {func_language}',
-                context=self.source_context)
+            func_language = func.get_language(schema)
 
-        op = dbops.CreateFunction(dbf, or_replace=or_replace)
-        return schema, op
+            if func_language is ql_ast.Language.SQL:
+                dbf = self.compile_sql_function(func, schema)
+            elif func_language is ql_ast.Language.EdgeQL:
+                dbf = self.compile_edgeql_function(func, schema, context)
+            else:
+                raise errors.QueryError(
+                    f'cannot compile function {func.get_shortname(schema)}: '
+                    f'unsupported language {func_language}',
+                    context=self.source_context)
+
+            op = dbops.CreateFunction(dbf, or_replace=or_replace)
+            return (op,)
 
 
 class CreateFunction(FunctionCommand, CreateObject,
@@ -929,9 +1011,7 @@ class CreateFunction(FunctionCommand, CreateObject,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super().apply(schema, context)
-        schema, op = self.make_op(self.scls, schema, context)
-        if op is not None:
-            self.pgops.add(op)
+        self.pgops.update(self.make_op(self.scls, schema, context))
         return schema
 
 
@@ -957,10 +1037,8 @@ class AlterFunction(
             self.get_attribute_value('volatility') is not None or
             self.get_attribute_value('nativecode') is not None
         ):
-            schema, op = self.make_op(
-                self.scls, schema, context, or_replace=True)
-            if op is not None:
-                self.pgops.add(op)
+            self.pgops.update(
+                self.make_op(self.scls, schema, context, or_replace=True))
 
         return schema
 
@@ -1049,6 +1127,27 @@ class OperatorCommand(FunctionCommand):
             returns=self.get_pgtype(
                 oper, oper.get_return_type(schema), schema),
             text=oper.get_code(schema))
+
+    def get_dummy_operator_call(
+        self,
+        oper: s_opers.Operator,
+        pgop: str,
+        from_args: Tuple[Tuple[str, ...], ...],
+        schema: s_schema.Schema,
+    ) -> str:
+        # Need a proxy function with casts
+        oper_kind = oper.get_operator_kind(schema)
+
+        if oper_kind is ql_ft.OperatorKind.Infix:
+            op = f'NULL::{qt(from_args[0])} {pgop} NULL::{qt(from_args[1])}'
+        elif oper_kind is ql_ft.OperatorKind.Postfix:
+            op = f'NULL::{qt(from_args[0])} {pgop}'
+        elif oper_kind is ql_ft.OperatorKind.Prefix:
+            op = f'{pgop} NULL::{qt(from_args[1])}'
+        else:
+            raise RuntimeError(f'unexpected operator kind: {oper_kind!r}')
+
+        return op
 
 
 class CreateOperator(OperatorCommand, CreateObject,
@@ -1144,6 +1243,16 @@ class CreateOperator(OperatorCommand, CreateObject,
                     negator=negator,
                 ))
 
+                if oper_func_name is not None:
+                    cexpr = self.get_dummy_func_call(
+                        oper, oper_func_name, schema)
+                else:
+                    cexpr = self.get_dummy_operator_call(
+                        oper, pg_oper_name, from_args, schema)
+
+                check = self.sql_rval_consistency_check(oper, cexpr, schema)
+                self.pgops.add(check)
+
         elif oper_language is ql_ast.Language.SQL and oper_code:
             args = self.get_pg_operands(schema, oper)
             oper_func = self.make_operator_function(oper, schema)
@@ -1155,6 +1264,11 @@ class CreateOperator(OperatorCommand, CreateObject,
                 args=args,
                 procedure=oper_func_name,
             ))
+
+            cexpr = self.get_dummy_func_call(
+                oper, q(*oper_func.name), schema)
+            check = self.sql_rval_consistency_check(oper, cexpr, schema)
+            self.pgops.add(check)
 
         elif oper.get_from_expr(schema):
             # This operator is handled by the compiler and does not
@@ -1866,8 +1980,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 fc = CreateFunction(classname=obj.get_name(schema))
                 for f in ('language', 'params', 'return_type'):
                     fc.set_attribute_value(f, obj.get_field_value(schema, f))
-                _, op = fc.make_op(obj, schema, context)
-                self.pgops.add(op)
+                self.pgops.update(fc.make_op(obj, schema, context))
             elif isinstance(obj, s_constr.Constraint):
                 self.pgops.add(
                     ConstraintCommand.create_constraint(obj, schema, context))

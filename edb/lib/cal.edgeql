@@ -1190,6 +1190,7 @@ std::min(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -1200,6 +1201,7 @@ std::min(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -1210,6 +1212,7 @@ std::min(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -1220,6 +1223,7 @@ std::min(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_d
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -1230,6 +1234,7 @@ std::min(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -1240,6 +1245,7 @@ std::min(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -1250,6 +1256,7 @@ std::min(vals: SET OF array<cal::relative_duration>) -> OPTIONAL array<cal::rela
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -1260,6 +1267,7 @@ std::max(vals: SET OF cal::local_datetime) -> OPTIONAL cal::local_datetime
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -1270,6 +1278,7 @@ std::max(vals: SET OF cal::local_date) -> OPTIONAL cal::local_date
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -1280,6 +1289,7 @@ std::max(vals: SET OF cal::local_time) -> OPTIONAL cal::local_time
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -1290,6 +1300,7 @@ std::max(vals: SET OF array<cal::local_datetime>) -> OPTIONAL array<cal::local_d
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -1300,6 +1311,7 @@ std::max(vals: SET OF array<cal::local_date>) -> OPTIONAL array<cal::local_date>
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -1310,6 +1322,7 @@ std::max(vals: SET OF array<cal::local_time>) -> OPTIONAL array<cal::local_time>
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -1320,5 +1333,6 @@ std::max(vals: SET OF array<cal::relative_duration>) -> OPTIONAL array<cal::rela
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };

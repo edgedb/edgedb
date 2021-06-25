@@ -95,7 +95,7 @@ class Operator(
         elif kind is ft.OperatorKind.Postfix:
             return f'{params[0]} {name}'
         elif kind is ft.OperatorKind.Prefix:
-            return f'{name} {params[1]}'
+            return f'{name} {params[0]}'
         elif kind is ft.OperatorKind.Ternary:
             return f'{name} ({", ".join(params)})'
         else:

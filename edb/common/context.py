@@ -50,13 +50,14 @@ class ParserContext(markup.MarkupExceptionContext):
     title = 'Source Context'
 
     def __init__(self, name, buffer, start: int, end: int, document=None, *,
-                 filename=None):
+                 filename=None, context_lines=1):
         self.name = name
         self.buffer = buffer
         self.start = start
         self.end = end
         self.document = document
         self.filename = filename
+        self.context_lines = context_lines
         self._points = None
         assert start is not None
         assert end is not None
@@ -104,25 +105,29 @@ class ParserContext(markup.MarkupExceptionContext):
             offset = match.end()
             line_offsets.append(offset)
 
-        if start.line > 1:
-            ctx_line, _ = self._get_line_snippet(
-                start, offset=-1, line_offsets=line_offsets)
-            lines.append(ctx_line)
-            line_numbers.append(start.line - 1)
+        for i in range(self.context_lines + 1, 1, -1):
+            try:
+                ctx_line, _ = self._get_line_snippet(
+                    start, offset=-i, line_offsets=line_offsets)
+            except ValueError:
+                pass
+            else:
+                lines.append(ctx_line)
+                line_numbers.append(start.line - i)
 
-        snippet, _ = self._get_line_snippet(
-            start, line_offsets=line_offsets)
+        snippet, _ = self._get_line_snippet(start, line_offsets=line_offsets)
         lines.append(snippet)
         line_numbers.append(start.line)
 
-        try:
-            ctx_line, _ = self._get_line_snippet(
-                start, offset=1, line_offsets=line_offsets)
-        except ValueError:
-            pass
-        else:
-            lines.append(ctx_line)
-            line_numbers.append(start.line + 1)
+        for i in range(1, self.context_lines + 1):
+            try:
+                ctx_line, _ = self._get_line_snippet(
+                    start, offset=i, line_offsets=line_offsets)
+            except ValueError:
+                pass
+            else:
+                lines.append(ctx_line)
+                line_numbers.append(start.line + i)
 
         tbp = me.lang.TracebackPoint(
             name=self.name, filename=self.name, lineno=start.line,

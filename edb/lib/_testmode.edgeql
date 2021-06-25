@@ -136,6 +136,7 @@ std::_gen_series(
 ) -> SET OF std::bigint
 {
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'generate_series';
 };
 
@@ -147,6 +148,7 @@ std::_gen_series(
 ) -> SET OF std::bigint
 {
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'generate_series';
 };
 

@@ -3669,8 +3669,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_function_17(self):
         await self.con.execute(r'''
-            CREATE FUNCTION ddlf_17(str: std::str) -> int64
-                USING SQL FUNCTION 'whatever';
+            CREATE FUNCTION ddlf_17(str: std::str) -> int32
+                USING SQL FUNCTION 'char_length';
         ''')
 
         with self.assertRaisesRegex(
@@ -3680,7 +3680,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
             async with self.con.transaction():
                 await self.con.execute(r'''
-                    CREATE FUNCTION ddlf_17(str: std::int64) -> int64
+                    CREATE FUNCTION ddlf_17(str: std::int64) -> int32
                         USING SQL FUNCTION 'whatever2';
                 ''')
 
@@ -3958,6 +3958,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''\
                 CREATE FUNCTION foo() -> str USING ('a');
                 CREATE TYPE foo;
+            ''')
+
+    async def test_edgeql_ddl_function_30(self):
+        with self.assertRaisesRegex(
+            edgedb.InternalServerError,
+            r'declared to return SQL type "int8", but the underlying '
+            r'SQL function returns "integer"'
+        ):
+            await self.con.execute(r'''
+                CREATE FUNCTION ddlf_30(str: std::str) -> int64
+                    USING SQL FUNCTION 'char_length';
             ''')
 
     async def test_edgeql_ddl_function_rename_01(self):
@@ -4490,13 +4501,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_operator_02(self):
         try:
             await self.con.execute('''
-                CREATE POSTFIX OPERATOR `!`
-                    (operand: int64) -> int64
-                    USING SQL OPERATOR r'!';
-
                 CREATE PREFIX OPERATOR `!`
                     (operand: int64) -> int64
-                    USING SQL OPERATOR r'!!';
+                {
+                    USING SQL OPERATOR r'+';
+                };
+
+                CREATE INFIX OPERATOR `!`
+                    (l: int64, r: int64) -> int64
+                {
+                    SET commutator := 'default::!';
+                    USING SQL OPERATOR r'+';
+                };
             ''')
 
             await self.assert_query_result(
@@ -4514,7 +4530,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 [
                     {
                         'name': 'default::!',
-                        'operator_kind': 'Postfix',
+                        'operator_kind': 'Infix',
                     },
                     {
                         'name': 'default::!',
@@ -4525,8 +4541,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         finally:
             await self.con.execute('''
-                DROP POSTFIX OPERATOR `!`
-                    (operand: int64);
+                DROP INFIX OPERATOR `!`
+                    (l: int64, r: int64);
 
                 DROP PREFIX OPERATOR `!`
                     (operand: int64);
@@ -4703,6 +4719,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 `IN` (l: std::int64, r: std::int64) -> std::bool {
                     USING SQL EXPRESSION;
                     SET derivative_of := 'std::=';
+                };
+            ''')
+
+    async def test_edgeql_ddl_operator_12(self):
+        with self.assertRaisesRegex(
+            edgedb.InternalServerError,
+            r'operator "! std::int64" is declared to return SQL type "int8", '
+            r'but the underlying SQL function returns "numeric"',
+        ):
+            await self.con.execute('''
+                CREATE PREFIX OPERATOR
+                `!` (l: std::int64) -> std::int64 {
+                    USING SQL OPERATOR '!!';
                 };
             ''')
 

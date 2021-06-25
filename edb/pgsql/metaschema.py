@@ -2326,6 +2326,20 @@ class QuoteNameFunction(dbops.Function):
         )
 
 
+class DescribeRolesAsDDLFunctionForwardDecl(dbops.Function):
+    """Forward declaration for _describe_roles_as_ddl"""
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_describe_roles_as_ddl'),
+            args=[],
+            returns=('text'),
+            # Stable because it's raising exceptions.
+            volatility='stable',
+            text='SELECT NULL::text',
+        )
+
+
 class DescribeRolesAsDDLFunction(dbops.Function):
     """Describe roles as DDL"""
 
@@ -2421,6 +2435,30 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             # Stable because it's raising exceptions.
             volatility='stable',
             text=text)
+
+
+class DescribeSystemConfigAsDDLFunctionForwardDecl(dbops.Function):
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_describe_system_config_as_ddl'),
+            args=[],
+            returns=('text'),
+            volatility='stable',
+            text='SELECT NULL::text',
+        )
+
+
+class DescribeDatabaseConfigAsDDLFunctionForwardDecl(dbops.Function):
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_describe_database_config_as_ddl'),
+            args=[],
+            returns=('text'),
+            volatility='stable',
+            text='SELECT NULL::text',
+        )
 
 
 class DumpSequencesFunction(dbops.Function):
@@ -3183,8 +3221,10 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
                     NULL::bigint,
                     'invalid_parameter_value',
                     msg => (
-                        'cannot determine OID of EdgeDB type '
-                        || typeid::text
+                        format(
+                            'cannot determine OID of EdgeDB type %L',
+                            typeid::text
+                        )
                     )
                 )
             )::bigint
@@ -3292,6 +3332,9 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(GetCachedReflection()),
         dbops.CreateFunction(GetBaseScalarTypeMap()),
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
+        dbops.CreateFunction(DescribeSystemConfigAsDDLFunctionForwardDecl()),
+        dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
+        dbops.CreateFunction(DescribeRolesAsDDLFunctionForwardDecl()),
     ])
 
     block = dbops.PLTopBlock()
@@ -4031,9 +4074,12 @@ async def generate_more_support_functions(
     )
 
     commands.add_commands([
-        dbops.CreateFunction(DescribeSystemConfigAsDDLFunction),
-        dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunction),
-        dbops.CreateFunction(DescribeRolesAsDDLFunction(schema)),
+        dbops.CreateFunction(
+            DescribeSystemConfigAsDDLFunction, or_replace=True),
+        dbops.CreateFunction(
+            DescribeDatabaseConfigAsDDLFunction, or_replace=True),
+        dbops.CreateFunction(
+            DescribeRolesAsDDLFunction(schema), or_replace=True),
         dbops.CreateFunction(GetSequenceBackendNameFunction()),
         dbops.CreateFunction(DumpSequencesFunction()),
     ])
