@@ -209,13 +209,13 @@ class PropertyCommand(
     referrer_context_class=PropertySourceContext,
 ):
 
-    def _validate_pointer_def(
+    def validate_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
         """Check that property definition is sound."""
-        super()._validate_pointer_def(schema, context)
+        super().validate_object(schema, context)
 
         scls = self.scls
         if not scls.get_owned(schema):

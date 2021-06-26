@@ -1663,6 +1663,13 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         assert prompt_id is not None
         return prompt_id, prompt_text
 
+    def validate_object(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> None:
+        pass
+
     @classmethod
     def get_parent_op(
         cls,
@@ -2754,6 +2761,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+        if not context.canonical:
+            self.validate_object(schema, context)
         return schema
 
     def apply(
@@ -2891,7 +2900,10 @@ class AlterObjectOrFragment(ObjectCommand[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        return self._finalize_affected_refs(schema, context)
+        schema = self._finalize_affected_refs(schema, context)
+        if not context.canonical:
+            self.validate_object(schema, context)
+        return schema
 
 
 class AlterObjectFragment(AlterObjectOrFragment[so.Object_T]):

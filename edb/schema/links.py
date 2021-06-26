@@ -222,13 +222,13 @@ class LinkCommand(
 
         super()._append_subcmd_ast(schema, node, subcmd, context)
 
-    def _validate_pointer_def(
+    def validate_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
         """Check that link definition is sound."""
-        super()._validate_pointer_def(schema, context)
+        super().validate_object(schema, context)
 
         scls = self.scls
         assert isinstance(scls, Link)

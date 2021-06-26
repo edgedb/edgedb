@@ -1364,45 +1364,6 @@ class PointerCommand(
     PointerCommandOrFragment[Pointer_T],
 ):
 
-    def _create_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._create_begin(schema, context)
-
-        if not context.canonical:
-            self._validate_pointer_def(schema, context)
-        return schema
-
-    def _create_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._create_finalize(schema, context)  # type: ignore
-        self._validate_computables(schema, context)
-        return schema
-
-    def _alter_begin(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._alter_begin(schema, context)
-        if not context.canonical:
-            self._validate_pointer_def(schema, context)
-        return schema
-
-    def _alter_finalize(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._alter_finalize(schema, context)  # type: ignore
-        self._validate_computables(schema, context)
-        return schema
-
     def _validate_computables(
         self,
         schema: s_schema.Schema,
@@ -1518,7 +1479,7 @@ class PointerCommand(
             # Did not find anything wrong with the computable lineage.
             return LineageStatus.VALID
 
-    def _validate_pointer_def(
+    def validate_object(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -1529,6 +1490,8 @@ class PointerCommand(
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx is None:
             return
+
+        self._validate_computables(schema, context)
 
         scls = self.scls
         if not scls.get_owned(schema):
