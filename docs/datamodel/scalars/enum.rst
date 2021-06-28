@@ -19,7 +19,14 @@ Enum
 
         scalar type Color extending enum<Red, Green, Blue>;
 
-    :eql:op:`Casting <CAST>` is required to obtain an
+    Enum values can then be accessed directly:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT Color.Red IS Color;
+        {true}
+
+    :eql:op:`Casting <CAST>` can be used to obtain an
     enum value in an expression:
 
     .. code-block:: edgeql-repl
@@ -27,6 +34,8 @@ Enum
         db> SELECT 'Red' IS Color;
         {false}
         db> SELECT <Color>'Red' IS Color;
+        {true}
+        db> SELECT <Color>'Red' = Color.Red;
         {true}
 
     .. note::

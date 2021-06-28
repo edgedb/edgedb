@@ -28,6 +28,7 @@ import contextlib
 
 from edb import errors
 
+from edb.common import levenshtein
 from edb.common import parsing
 
 from edb.ir import ast as irast
@@ -38,6 +39,7 @@ from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
+from edb.schema import scalars as s_scalars
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
@@ -47,6 +49,7 @@ from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
 
 from . import astutils
+from . import casts
 from . import context
 from . import dispatch
 from . import inference
@@ -254,13 +257,21 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     step,
                     condition=lambda o: (
                         isinstance(o, s_types.Type)
-                        and (o.is_object_type() or o.is_view(ctx.env.schema))
+                        and (
+                            o.is_object_type() or
+                            o.is_view(ctx.env.schema) or
+                            o.is_enum(ctx.env.schema)
+                        )
                     ),
                     label='object type or alias',
                     item_type=s_types.QualifiedType,
                     srcctx=step.context,
                     ctx=ctx,
                 )
+
+                if (stype.is_enum(ctx.env.schema) and
+                        not stype.is_view(ctx.env.schema)):
+                    return compile_enum_path(expr, source=stype, ctx=ctx)
 
                 if (stype.get_expr_type(ctx.env.schema) is not None and
                         stype.get_name(ctx.env.schema) not in ctx.view_nodes):
@@ -778,6 +789,99 @@ def _is_computable_ptr(
             and bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
         )
     )
+
+
+def compile_enum_path(
+        expr: qlast.Path,
+        *,
+        source: s_types.Type,
+        ctx: context.ContextLevel) -> irast.Set:
+
+    assert isinstance(source, s_scalars.ScalarType)
+    enum_values = source.get_enum_values(ctx.env.schema)
+    assert enum_values
+
+    nsteps = len(expr.steps)
+    if nsteps == 1:
+        raise errors.QueryError(
+            f"'{source.get_displayname(ctx.env.schema)}' enum "
+            f"path expression lacks an enum member name, as in "
+            f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
+            context=expr.steps[0].context,
+        )
+
+    step2 = expr.steps[1]
+    if not isinstance(step2, qlast.Ptr):
+        raise errors.QueryError(
+            f"an enum member name must follow enum type name in the path, "
+            f"as in "
+            f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
+            context=step2.context,
+        )
+
+    ptr_name = step2.ptr.name
+
+    step2_direction = s_pointers.PointerDirection.Outbound
+    if step2.direction is not None:
+        step2_direction = s_pointers.PointerDirection(step2.direction)
+    if step2_direction is not s_pointers.PointerDirection.Outbound:
+        raise errors.QueryError(
+            f"enum types do not support backlink navigation",
+            context=step2.context,
+        )
+    if step2.type == 'property':
+        raise errors.QueryError(
+            f"unexpected reference to link property '{ptr_name}' "
+            f"outside of a path expression",
+            context=step2.context,
+        )
+
+    if nsteps > 2:
+        raise errors.QueryError(
+            f"invalid property reference on a primitive type expression",
+            context=expr.steps[2].context,
+        )
+
+    if ptr_name not in enum_values:
+        rec_name = sorted(
+            enum_values,
+            key=lambda name: levenshtein.distance(name, ptr_name)
+        )[0]
+        src_name = source.get_displayname(ctx.env.schema)
+        raise errors.InvalidReferenceError(
+            f"'{src_name}' enum has no member called {ptr_name!r}",
+            hint=f"did you mean {rec_name!r}?",
+            context=step2.context,
+        )
+
+    return enum_indirection_set(
+        source=source,
+        ptr_name=step2.ptr.name,
+        source_context=expr.context,
+        ctx=ctx,
+    )
+
+
+def enum_indirection_set(
+        *,
+        source: s_types.Type,
+        ptr_name: str,
+        source_context: Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    strref = typegen.type_to_typeref(
+        ctx.env.get_track_schema_type(s_name.QualName('std', 'str')),
+        env=ctx.env,
+    )
+
+    ptr = casts.compile_cast(
+        irast.StringConstant(value=ptr_name, typeref=strref),
+        source,
+        srcctx=source_context,
+        ctx=ctx,
+    )
+
+    return ensure_set(ptr, ctx=ctx)
 
 
 def tuple_indirection_set(

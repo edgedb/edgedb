@@ -24,7 +24,7 @@ import edgedb
 from edb.testbase import server as tb
 
 
-class TestEdgeQLEnuma(tb.QueryTestCase):
+class TestEdgeQLEnums(tb.QueryTestCase):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'enums.esdl')
 
@@ -78,6 +78,92 @@ class TestEdgeQLEnuma(tb.QueryTestCase):
                 SELECT 'The test color is: ' ++ <str>Foo.color;
             ''',
             ['The test color is: BLUE'],
+        )
+
+    async def test_edgeql_enums_pathsyntax_01(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "enum path expression lacks an enum member name"):
+            async with self._run_and_rollback():
+                await self.con.execute('SELECT color_enum_t')
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "enum path expression lacks an enum member name"):
+            async with self._run_and_rollback():
+                await self.con.execute(
+                    'WITH e := color_enum_t SELECT e.RED'
+                )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "unexpected reference to link property 'RED'"):
+            async with self._run_and_rollback():
+                await self.con.execute(
+                    'SELECT color_enum_t@RED'
+                )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "enum types do not support backlink"):
+            async with self._run_and_rollback():
+                await self.con.execute(
+                    'SELECT color_enum_t.<RED'
+                )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "an enum member name must follow enum type name in the path"):
+            async with self._run_and_rollback():
+                await self.con.execute(
+                    'SELECT color_enum_t[IS color_enum_t].RED'
+                )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "invalid property reference on a primitive type expression"):
+            async with self._run_and_rollback():
+                await self.con.execute(
+                    'SELECT color_enum_t.RED.GREEN'
+                )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "invalid property reference on a primitive type expression"):
+            async with self._run_and_rollback():
+                await self.con.execute(
+                    'WITH x := color_enum_t.RED SELECT x.GREEN'
+                )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                "enum has no member called 'RAD'",
+                _hint="did you mean 'RED'?"):
+            async with self._run_and_rollback():
+                await self.con.execute(
+                    'SELECT color_enum_t.RAD'
+                )
+
+    async def test_edgeql_enums_pathsyntax_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT color_enum_t.GREEN;
+            ''',
+            {'GREEN'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT default::color_enum_t.BLUE;
+            ''',
+            {'BLUE'},
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH x := default::color_enum_t.RED SELECT x;
+            ''',
+            {'RED'},
         )
 
     async def test_edgeql_enums_assignment_01(self):

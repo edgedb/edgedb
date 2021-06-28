@@ -20,7 +20,7 @@
 from __future__ import annotations
 
 
-def distance(s, t):
+def distance(s: str, t: str) -> int:
     """Calculates Levenshtein distance between s and t."""
 
     m, n = len(s), len(t)
