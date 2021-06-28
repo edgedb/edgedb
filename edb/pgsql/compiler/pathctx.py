@@ -133,6 +133,9 @@ def get_path_var(
     if (path_id, aspect) in rel.path_namespace:
         return rel.path_namespace[path_id, aspect]
 
+    if astutils.is_set_op_query(rel):
+        return _get_path_var_in_setop(rel, path_id, aspect=aspect, env=env)
+
     ptrref = path_id.rptr()
     is_type_intersection = path_id.is_type_intersection_path()
 
@@ -184,82 +187,6 @@ def get_path_var(
         ptr_dir = None
 
     var: Optional[pgast.BaseExpr]
-
-    # TODO: move all the set_op logic to its own function (in a clean PR)
-    if astutils.is_set_op_query(rel):
-        test_vals = []
-        if aspect in ('value', 'serialized'):
-            test_cb = functools.partial(
-                maybe_get_path_var, env=env, path_id=path_id, aspect=aspect)
-            test_vals = astutils.for_each_query_in_set(rel, test_cb)
-
-        # In order to ensure output balance, we only want to output
-        # a TupleVar if *every* subquery outputs a TupleVar.
-        # If some but not all output TupleVars, we need to fix up
-        # the output TupleVars by outputting them as a real tuple.
-        # This is needed for cases like `(Foo.bar UNION (1,2))`.
-        if (
-            any(isinstance(x, pgast.TupleVarBase) for x in test_vals)
-            and not all(isinstance(x, pgast.TupleVarBase) for x in test_vals)
-        ):
-            def fixup(subrel: pgast.Query) -> None:
-                cur = get_path_var_and_fix_tuple(
-                    subrel, env=env, path_id=path_id, aspect=aspect)
-                if isinstance(cur, pgast.TupleVarBase):
-                    new = output.output_as_value(cur, env=env)
-                    new_path_id = map_path_id(path_id, subrel.view_path_id_map)
-                    put_path_var(
-                        subrel, new_path_id, new,
-                        force=True, env=env, aspect=aspect)
-
-            astutils.for_each_query_in_set(rel, fixup)
-
-        # We disable the find_path_output optimization when doing
-        # UNIONs to avoid situations where they have different numbers
-        # of columns.
-        cb = functools.partial(
-            get_path_output_or_null,
-            env=env,
-            disable_output_fusion=True,
-            path_id=path_id,
-            aspect=aspect)
-
-        outputs = astutils.for_each_query_in_set(rel, cb)
-        counts = astutils.for_each_query_in_set(
-            rel, lambda x: len(x.target_list))
-        assert counts == [counts[0]] * len(counts)
-
-        first: Optional[pgast.OutputVar] = None
-        optional = False
-        all_null = True
-        nullable = False
-
-        for colref, is_null in outputs:
-            if colref.nullable:
-                nullable = True
-            if first is None:
-                first = colref
-            if is_null:
-                optional = True
-            else:
-                all_null = False
-
-        if all_null:
-            raise LookupError(
-                f'cannot find refs for '
-                f'path {path_id} {aspect} in {rel}')
-
-        if first is None:
-            raise AssertionError(
-                f'union did not produce any outputs')
-
-        # Path vars produced by UNION expressions can be "optional",
-        # i.e the record is accepted as-is when such var is NULL.
-        # This is necessary to correctly join heterogeneous UNIONs.
-        var = astutils.strip_output_var(
-            first, optional=optional, nullable=optional or nullable)
-        put_path_var(rel, path_id, var, aspect=aspect, env=env)
-        return var
 
     if ptrref is None:
         if len(path_id) == 1:
@@ -366,6 +293,85 @@ def get_path_var(
             put_path_var_if_not_exists(rel, element.path_id, element.val,
                                        aspect=aspect, env=env)
 
+    return var
+
+
+def _get_path_var_in_setop(
+    rel: pgast.Query, path_id: irast.PathId, *,
+    aspect: str, env: context.Environment,
+) -> pgast.BaseExpr:
+    test_vals = []
+    if aspect in ('value', 'serialized'):
+        test_cb = functools.partial(
+            maybe_get_path_var, env=env, path_id=path_id, aspect=aspect)
+        test_vals = astutils.for_each_query_in_set(rel, test_cb)
+
+    # In order to ensure output balance, we only want to output
+    # a TupleVar if *every* subquery outputs a TupleVar.
+    # If some but not all output TupleVars, we need to fix up
+    # the output TupleVars by outputting them as a real tuple.
+    # This is needed for cases like `(Foo.bar UNION (1,2))`.
+    if (
+        any(isinstance(x, pgast.TupleVarBase) for x in test_vals)
+        and not all(isinstance(x, pgast.TupleVarBase) for x in test_vals)
+    ):
+        def fixup(subrel: pgast.Query) -> None:
+            cur = get_path_var_and_fix_tuple(
+                subrel, env=env, path_id=path_id, aspect=aspect)
+            if isinstance(cur, pgast.TupleVarBase):
+                new = output.output_as_value(cur, env=env)
+                new_path_id = map_path_id(path_id, subrel.view_path_id_map)
+                put_path_var(
+                    subrel, new_path_id, new,
+                    force=True, env=env, aspect=aspect)
+
+        astutils.for_each_query_in_set(rel, fixup)
+
+    # We disable the find_path_output optimization when doing
+    # UNIONs to avoid situations where they have different numbers
+    # of columns.
+    cb = functools.partial(
+        get_path_output_or_null,
+        env=env,
+        disable_output_fusion=True,
+        path_id=path_id,
+        aspect=aspect)
+
+    outputs = astutils.for_each_query_in_set(rel, cb)
+    counts = astutils.for_each_query_in_set(
+        rel, lambda x: len(x.target_list))
+    assert counts == [counts[0]] * len(counts)
+
+    first: Optional[pgast.OutputVar] = None
+    optional = False
+    all_null = True
+    nullable = False
+
+    for colref, is_null in outputs:
+        if colref.nullable:
+            nullable = True
+        if first is None:
+            first = colref
+        if is_null:
+            optional = True
+        else:
+            all_null = False
+
+    if all_null:
+        raise LookupError(
+            f'cannot find refs for '
+            f'path {path_id} {aspect} in {rel}')
+
+    if first is None:
+        raise AssertionError(
+            f'union did not produce any outputs')
+
+    # Path vars produced by UNION expressions can be "optional",
+    # i.e the record is accepted as-is when such var is NULL.
+    # This is necessary to correctly join heterogeneous UNIONs.
+    var = astutils.strip_output_var(
+        first, optional=optional, nullable=optional or nullable)
+    put_path_var(rel, path_id, var, aspect=aspect, env=env)
     return var
 
 
