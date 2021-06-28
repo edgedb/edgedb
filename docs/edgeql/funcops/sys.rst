@@ -73,7 +73,7 @@ System
     .. code-block:: edgeql-repl
 
         db> SELECT sys::get_transaction_isolation();
-        {<enum>'RepeatableRead'}
+        {sys::TransactionIsolation.RepeatableRead}
 
 
 ----------
