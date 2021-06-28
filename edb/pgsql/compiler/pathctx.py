@@ -204,52 +204,14 @@ def get_path_var(
     elif is_type_intersection:
         src_path_id = path_id
 
-    rel_rvar = maybe_get_path_rvar(rel, path_id, aspect=aspect, env=env)
-
-    if rel_rvar is None:
-        alt_aspect = get_less_specific_aspect(path_id, aspect)
-        if alt_aspect is not None:
-            rel_rvar = maybe_get_path_rvar(
-                rel, path_id, aspect=alt_aspect, env=env)
-    else:
-        alt_aspect = None
-
     assert src_path_id is not None
 
-    if rel_rvar is None:
-        if src_path_id.is_objtype_path():
-            src_aspect = 'source'
-        else:
-            src_aspect = aspect
+    # Find which rvar will have path_id as an output
+    src_aspect, rel_rvar, accidentally_found_var = _find_rel_rvar(
+        rel, path_id, src_path_id, aspect=aspect, env=env)
 
-        if src_path_id.is_tuple_path():
-            if (var := _find_in_output_tuple(rel, path_id, aspect, env=env)):
-                return var
-
-            rel_rvar = maybe_get_path_rvar(
-                rel, src_path_id, aspect=src_aspect, env=env)
-
-            if rel_rvar is None:
-                _src_path_id_prefix = src_path_id.src_path()
-                if _src_path_id_prefix is not None:
-                    rel_rvar = maybe_get_path_rvar(
-                        rel, _src_path_id_prefix, aspect=src_aspect, env=env)
-        else:
-            rel_rvar = maybe_get_path_rvar(
-                rel, src_path_id, aspect=src_aspect, env=env)
-
-        if (rel_rvar is None
-                and src_aspect != 'source' and path_id != src_path_id):
-            rel_rvar = maybe_get_path_rvar(
-                rel, src_path_id, aspect='source', env=env)
-
-    if rel_rvar is None and alt_aspect is not None:
-        # There is no source range var for the requested aspect,
-        # check if there is a cached var with less specificity.
-        var = rel.path_namespace.get((path_id, alt_aspect))
-        if var is not None:
-            put_path_var(rel, path_id, var, aspect=aspect, env=env)
-            return var
+    if accidentally_found_var:
+        return accidentally_found_var
 
     if rel_rvar is None:
         raise LookupError(
@@ -294,6 +256,64 @@ def get_path_var(
                                        aspect=aspect, env=env)
 
     return var
+
+
+def _find_rel_rvar(
+    rel: pgast.Query, path_id: irast.PathId, src_path_id: irast.PathId, *,
+    aspect: str, env: context.Environment,
+) -> Tuple[str, Optional[pgast.PathRangeVar], Optional[pgast.BaseExpr]]:
+    """Rummage around rel looking for an appropriate rvar for path_id.
+
+    Somewhat unfortunately, it can also sometimes "accidentally" find
+    the actual var.
+    """
+    src_aspect = aspect
+    rel_rvar = maybe_get_path_rvar(rel, path_id, aspect=aspect, env=env)
+
+    if rel_rvar is None:
+        alt_aspect = get_less_specific_aspect(path_id, aspect)
+        if alt_aspect is not None:
+            rel_rvar = maybe_get_path_rvar(
+                rel, path_id, aspect=alt_aspect, env=env)
+    else:
+        alt_aspect = None
+
+    if rel_rvar is None:
+        if src_path_id.is_objtype_path():
+            src_aspect = 'source'
+        else:
+            src_aspect = aspect
+
+        if src_path_id.is_tuple_path():
+            if (var := _find_in_output_tuple(rel, path_id, aspect, env=env)):
+                return src_aspect, None, var
+
+            rel_rvar = maybe_get_path_rvar(
+                rel, src_path_id, aspect=src_aspect, env=env)
+
+            if rel_rvar is None:
+                _src_path_id_prefix = src_path_id.src_path()
+                if _src_path_id_prefix is not None:
+                    rel_rvar = maybe_get_path_rvar(
+                        rel, _src_path_id_prefix, aspect=src_aspect, env=env)
+        else:
+            rel_rvar = maybe_get_path_rvar(
+                rel, src_path_id, aspect=src_aspect, env=env)
+
+        if (rel_rvar is None
+                and src_aspect != 'source' and path_id != src_path_id):
+            rel_rvar = maybe_get_path_rvar(
+                rel, src_path_id, aspect='source', env=env)
+
+    if rel_rvar is None and alt_aspect is not None:
+        # There is no source range var for the requested aspect,
+        # check if there is a cached var with less specificity.
+        var = rel.path_namespace.get((path_id, alt_aspect))
+        if var is not None:
+            put_path_var(rel, path_id, var, aspect=aspect, env=env)
+            return src_aspect, None, var
+
+    return src_aspect, rel_rvar, None
 
 
 def _get_path_var_in_setop(
