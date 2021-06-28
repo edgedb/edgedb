@@ -251,6 +251,19 @@ class ScalarType(
 
         return alter
 
+    def as_type_delete_if_dead(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[sd.DeleteObject[ScalarType]]:
+        if self.get_alias_is_persistent(schema):
+            return self.init_delta_command(
+                schema,
+                sd.DeleteObject,
+                if_unused=True,
+            )
+        else:
+            return None
+
 
 class AnonymousEnumTypeShell(s_types.TypeShell[ScalarType]):
 
@@ -589,7 +602,7 @@ class RebaseScalarType(
 
 class AlterScalarType(
     ScalarTypeCommand,
-    inheriting.AlterInheritingObject[ScalarType],
+    s_types.AlterInheritingType[ScalarType],
 ):
     astnode = qlast.AlterScalarType
 

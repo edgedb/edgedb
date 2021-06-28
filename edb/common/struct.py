@@ -54,8 +54,8 @@ class Field(ProtoField, Generic[T]):
         default: Union[T, NoDefaultT] = NoDefault,
         *,
         coerce: bool = False,
-        str_formatter: Callable[[T], str] = str,
-        repr_formatter: Callable[[T], str] = repr,
+        str_formatter: Optional[Callable[[T], str]] = str,
+        repr_formatter: Optional[Callable[[T], str]] = repr,
         frozen: bool = False,
     ) -> None:
         """

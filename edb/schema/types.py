@@ -51,6 +51,8 @@ if typing.TYPE_CHECKING:
     from typing import AbstractSet, Sequence, Union
     from edb.common import parsing
 
+    from . import pointers as s_pointers
+
 
 TYPE_ID_NAMESPACE = uuidgen.UUID('00e50276-2502-11e7-97f2-27fe51238dbd')
 MAX_TYPE_DISTANCE = 1_000_000_000
@@ -108,6 +110,23 @@ class Type(
         weak_ref=True,
         default=None, compcoef=0.909)
 
+    # For alias types derived for computable pointers, this would
+    # be the source object of the computable pointer.
+    source = so.SchemaField(
+        so.Object,
+        weak_ref=True,
+        default=None,
+        compcoef=0.999,
+        aux_cmd_data=True,
+    )
+
+    source_ptr = so.SchemaField(
+        str,
+        default=None,
+        compcoef=0.999,
+        aux_cmd_data=True,
+    )
+
     # The OID by which the backend refers to the type.
     backend_id = so.SchemaField(
         int,
@@ -128,6 +147,7 @@ class Type(
         inheritance_merge: bool = True,
         preserve_path_id: bool = False,
         transient: bool = False,
+        stdmode: bool = False,
         inheritance_refdicts: Optional[AbstractSet[str]] = None,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, TypeT]:
@@ -157,6 +177,7 @@ class Type(
         context = sd.CommandContext(
             modaliases={},
             schema=schema,
+            stdmode=stdmode,
         )
 
         delta = sd.DeltaRoot()
@@ -368,6 +389,18 @@ class Type(
     ) -> typing.Tuple[s_schema.Schema, TypeT]:
         return schema, self
 
+    def is_equal_materially(
+        self,
+        schema: s_schema.Schema,
+        other: so.Object,
+    ) -> bool:
+        schema, m_self = self.material_type(schema)
+        if not isinstance(other, Type):
+            return False
+        else:
+            _, m_other = other.material_type(schema)
+            return m_self == m_other
+
     def peel_view(self, schema: s_schema.Schema) -> Type:
         return self
 
@@ -392,7 +425,10 @@ class Type(
     ) -> TypeShell[TypeT]:
         name = typing.cast(s_name.QualName, self.get_name(schema))
 
-        if union_of := self.get_union_of(schema):
+        if (
+            (union_of := self.get_union_of(schema))
+            and not self.is_view(schema)
+        ):
             assert isinstance(self, so.QualifiedObject)
             return UnionTypeShell(
                 components=[
@@ -401,8 +437,12 @@ class Type(
                 module=name.module,
                 opaque=self.get_is_opaque_union(schema),
                 schemaclass=type(self),
+                expr=self.get_expr(schema),
             )
-        elif intersection_of := self.get_intersection_of(schema):
+        elif (
+            (intersection_of := self.get_intersection_of(schema))
+            and not self.is_view(schema)
+        ):
             assert isinstance(self, so.QualifiedObject)
             return IntersectionTypeShell(
                 components=[
@@ -410,11 +450,13 @@ class Type(
                 ],
                 module=name.module,
                 schemaclass=type(self),
+                expr=self.get_expr(schema),
             )
         else:
             return TypeShell(
                 name=name,
                 schemaclass=type(self),
+                expr=self.get_expr(schema),
             )
 
     def record_cmd_object_aux_data(
@@ -487,6 +529,30 @@ class InheritingType(so.DerivableInheritingObject, QualifiedType):
             return min(
                 all_ancestors.index(ancestor) + 1 for ancestor in ancestors)
 
+    def is_subclass_materially(
+        self,
+        schema: s_schema.Schema,
+        parent: Union[
+            so.SubclassableObject,
+            typing.Tuple[so.SubclassableObject, ...],
+        ],
+    ) -> bool:
+        schema, m_self = self.material_type(schema)
+        m_parent: Union[InheritingType, typing.Tuple[InheritingType, ...]]
+        if isinstance(parent, tuple):
+            m_parent_l = []
+            for p in parent:
+                if isinstance(p, InheritingType):
+                    schema, m_p = p.material_type(schema)
+                    m_parent_l.append(m_p)
+            m_parent = tuple(m_parent_l)
+        elif isinstance(parent, InheritingType):
+            schema, m_parent = parent.material_type(schema)
+        else:
+            return False
+
+        return m_self.issubclass(schema, m_parent)
+
 
 class TypeShell(so.ObjectShell[TypeT_co]):
 
@@ -497,15 +563,13 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         *,
         name: s_name.Name,
         origname: Optional[s_name.Name] = None,
-        displayname: Optional[str] = None,
-        expr: Optional[str] = None,
+        expr: Optional[s_expr.Expression] = None,
         schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         super().__init__(
             name=name,
             origname=origname,
-            displayname=displayname,
             schemaclass=schemaclass,
             sourcectx=sourcectx,
         )
@@ -542,6 +606,7 @@ class TypeExprShell(TypeShell[TypeT_co]):
         *,
         components: Iterable[TypeShell[TypeT_co]],
         module: str,
+        expr: Optional[s_expr.Expression] = None,
         schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
@@ -549,6 +614,7 @@ class TypeExprShell(TypeShell[TypeT_co]):
             name=s_name.UnqualName('__unresolved__'),
             schemaclass=schemaclass,
             sourcectx=sourcectx,
+            expr=expr,
         )
         self.components = tuple(components)
         self.module = module
@@ -573,6 +639,7 @@ class UnionTypeShell(TypeExprShell[TypeT_co]):
         *,
         components: Iterable[TypeShell[TypeT_co]],
         module: str,
+        expr: Optional[s_expr.Expression] = None,
         opaque: bool = False,
         schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
@@ -580,6 +647,7 @@ class UnionTypeShell(TypeExprShell[TypeT_co]):
         super().__init__(
             components=components,
             module=module,
+            expr=expr,
             schemaclass=schemaclass,
             sourcectx=sourcectx,
         )
@@ -646,6 +714,8 @@ class RenameType(sd.RenameObject[TypeT]):
         ref_order = sd.sort_by_cross_refs(schema, referrers)
 
         for ref_type in ref_order:
+            if ref_type.is_view(schema):
+                continue
             field_names = referrers[ref_type]
             for field_name in field_names:
                 if field_name == 'union_of' or field_name == 'intersection_of':
@@ -723,6 +793,33 @@ class RenameType(sd.RenameObject[TypeT]):
             return super()._get_ast(schema, context, parent_node=parent_node)
 
 
+class AlterType(sd.AlterObject[TypeT]):
+
+    def canonicalize_alter_from_external_ref(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().canonicalize_alter_from_external_ref(schema, context)
+        src = self.maybe_get_object_aux_data('source')
+        if src is not None:
+            src_ptr_name = self.get_object_aux_data('source_ptr')
+            src_ptr = src.getptr(schema, s_name.UnqualName(src_ptr_name))
+            _, cmd_alter, alter_ctx = src_ptr.init_delta_branch(
+                schema, context, cmdtype=sd.AlterObject)
+
+            with alter_ctx():
+                type_cmd, _ = cmd_alter.process_computable(
+                    source=src,
+                    ptr_shell=src_ptr.as_shell(schema),
+                    expr=self.get_attribute_value('expr').qlast,
+                    schema=schema,
+                    context=context,
+                )
+
+                self.add(type_cmd)
+
+
 class DeleteType(sd.DeleteObject[TypeT]):
 
     def _get_ast(
@@ -741,6 +838,13 @@ class DeleteType(sd.DeleteObject[TypeT]):
 class RenameInheritingType(
     RenameType[InheritingTypeT],
     inheriting.RenameInheritingObject[InheritingTypeT],
+):
+    pass
+
+
+class AlterInheritingType(
+    AlterType[InheritingTypeT],
+    inheriting.AlterInheritingObject[InheritingTypeT],
 ):
     pass
 
@@ -1140,6 +1244,7 @@ class Array(
         *,
         name: s_name.QualName,
         attrs: Optional[Mapping[str, Any]] = None,
+        stdmode: bool = False,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, ArrayExprAlias]:
         assert not kwargs
@@ -1284,7 +1389,7 @@ class Array(
         subtypes: Sequence[TypeShell[Type]],
         typemods: Any = None,
         name: Optional[s_name.Name] = None,
-        expr: Optional[str] = None,
+        expr: Optional[s_expr.Expression] = None,
     ) -> ArrayTypeShell[Array_T]:
         if not typemods:
             typemods = ([-1],)
@@ -1307,13 +1412,12 @@ class Array(
         schema: s_schema.Schema,
     ) -> ArrayTypeShell[Array_T]:
         expr = self.get_expr(schema)
-        expr_text = expr.text if expr is not None else None
         return type(self).create_shell(
             schema,
             subtypes=[st.as_shell(schema) for st in self.get_subtypes(schema)],
             typemods=self.get_typemods(schema),
             name=self.get_name(schema),
-            expr=expr_text,
+            expr=expr,
         )
 
     def material_type(
@@ -1342,7 +1446,7 @@ class ArrayTypeShell(CollectionTypeShell[Array_T_co]):
         self,
         *,
         name: s_name.Name,
-        expr: Optional[str] = None,
+        expr: Optional[s_expr.Expression] = None,
         subtype: TypeShell[Type],
         typemods: typing.Tuple[typing.Any, ...],
         schemaclass: typing.Type[Array_T_co],
@@ -1611,6 +1715,7 @@ class Tuple(
         *,
         name: s_name.QualName,
         attrs: Optional[Mapping[str, Any]] = None,
+        stdmode: bool = False,
         **kwargs: Any,
     ) -> typing.Tuple[s_schema.Schema, TupleExprAlias]:
         assert not kwargs
@@ -2157,6 +2262,16 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
         assert field.name == 'expr'
+
+        singletons: List[Union[Type, s_pointers.Pointer]] = []
+        path_prefix_anchor = None
+        anchors: Dict[str, Any] = {}
+
+        if source := self.maybe_get_object_aux_data('source'):
+            anchors[qlast.Source().name] = source
+            singletons = [source]
+            path_prefix_anchor = qlast.Source().name
+
         return type(value).compiled(
             value,
             schema=schema,
@@ -2164,6 +2279,9 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
                 modaliases=context.modaliases,
                 in_ddl_context_name='type definition',
                 track_schema_ref_exprs=track_schema_ref_exprs,
+                singletons=frozenset(singletons),
+                path_prefix_anchor=path_prefix_anchor,
+                anchors=anchors,
             ),
         )
 
@@ -2273,7 +2391,7 @@ class CreateCollectionType(
 
 class AlterCollectionType(
     CollectionTypeCommand[CollectionTypeT],
-    sd.AlterObject[CollectionTypeT],
+    AlterType[CollectionTypeT],
 ):
     pass
 
@@ -2444,15 +2562,31 @@ def materialize_type_in_attribute(
     type_ref = cmd.get_local_attribute_value(attrname)
     if type_ref is None:
         return schema
+    else:
+        if not isinstance(type_ref, (Type, TypeShell)):
+            raise AssertionError(
+                f'unexpected value in type attribute {attrname!r} of '
+                f'{cmd.get_verbosename()}: {type_ref!r}'
+            )
+        src_ctx = cmd.get_attribute_source_context('target')
+        return materialize_type(
+            schema, context, type_ref, cmd, src_ctx=src_ctx)
 
-    srcctx = cmd.get_attribute_source_context('target')
+
+def materialize_type(
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    type_ref: Any,
+    cmd: sd.Command,
+    src_ctx: Optional[parsing.ParserContext] = None,
+) -> s_schema.Schema:
 
     if isinstance(type_ref, TypeExprShell):
         cc_cmd = ensure_schema_type_expr_type(
             schema,
             type_ref,
             parent_cmd=cmd,
-            src_context=srcctx,
+            src_context=src_ctx,
             context=context,
         )
         if cc_cmd is not None:
@@ -2481,14 +2615,11 @@ def materialize_type_in_attribute(
                     modaliases=context.modaliases,
                     schema=schema,
                     item_type=Type,
-                    context=srcctx,
+                    context=src_ctx,
                 )
             raise
     elif not isinstance(type_ref, Type):
-        raise AssertionError(
-            f'unexpected value in type attribute {attrname!r} of '
-            f'{cmd.get_verbosename()}: {type_ref!r}'
-        )
+        raise AssertionError(f'unexpected value: {type_ref}')
 
     return schema
 

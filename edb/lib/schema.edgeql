@@ -70,8 +70,31 @@ CREATE ABSTRACT TYPE schema::SubclassableObject EXTENDING schema::Object {
 };
 
 
+CREATE ABSTRACT LINK schema::reference {
+    CREATE PROPERTY owned -> std::bool;
+    # Backwards compatibility.
+    CREATE PROPERTY is_owned := @owned;
+};
+
+
+CREATE TYPE schema::Annotation EXTENDING schema::Object {
+    CREATE PROPERTY inheritable -> std::bool;
+};
+
+
+CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
+    CREATE MULTI LINK annotations EXTENDING schema::reference
+    -> schema::Annotation {
+        CREATE PROPERTY value -> std::str;
+        ON TARGET DELETE ALLOW;
+    };
+};
+
+
 # Base type for all *types*.
-CREATE ABSTRACT TYPE schema::Type EXTENDING schema::SubclassableObject;
+CREATE ABSTRACT TYPE schema::Type
+    EXTENDING schema::SubclassableObject, schema::AnnotationSubject;
+
 CREATE TYPE schema::PseudoType EXTENDING schema::Type;
 
 ALTER TYPE schema::Type {
@@ -89,19 +112,12 @@ ALTER TYPE std::BaseObject {
 };
 
 
-CREATE ABSTRACT LINK schema::reference {
-    CREATE PROPERTY owned -> std::bool;
-    # Backwards compatibility.
-    CREATE PROPERTY is_owned := @owned;
-};
-
-
 CREATE ABSTRACT LINK schema::ordered {
     CREATE PROPERTY index -> std::int64;
 };
 
 
-CREATE TYPE schema::Module EXTENDING schema::Object;
+CREATE TYPE schema::Module EXTENDING schema::AnnotationSubject;
 
 
 CREATE ABSTRACT TYPE schema::PrimitiveType EXTENDING schema::Type;
@@ -136,20 +152,6 @@ CREATE TYPE schema::Tuple EXTENDING schema::CollectionType {
 
 CREATE TYPE schema::Delta EXTENDING schema::Object {
     CREATE MULTI LINK parents -> schema::Delta;
-};
-
-
-CREATE TYPE schema::Annotation EXTENDING schema::Object {
-    CREATE PROPERTY inheritable -> std::bool;
-};
-
-
-CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
-    CREATE MULTI LINK annotations EXTENDING schema::reference
-    -> schema::Annotation {
-        CREATE PROPERTY value -> std::str;
-        ON TARGET DELETE ALLOW;
-    };
 };
 
 

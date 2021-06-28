@@ -331,9 +331,19 @@ class CreateProperty(
 
         if op.property == 'target' and link:
             if isinstance(node, qlast.CreateConcreteProperty):
-                expr = self.get_attribute_value('expr')
+                assert isinstance(op.new_value, s_types.TypeShell)
+                expr = op.new_value.expr
                 if expr is not None:
-                    node.target = expr.qlast
+                    if node.target is not None:
+                        node.commands.append(
+                            qlast.SetField(
+                                name='expr',
+                                value=expr.qlast,
+                                special_syntax=True,
+                            )
+                        )
+                    else:
+                        node.target = expr.qlast
                 else:
                     ref = op.new_value
                     assert isinstance(ref, (so.Object, so.ObjectShell))

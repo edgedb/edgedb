@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from edb.schema import functions as s_func
     from edb.schema import objects as s_obj
     from edb.schema import name as s_name
+    from edb.schema import sources as s_sources
     from edb.schema import types as s_types
     from edb.schema import pointers as s_pointers
 
@@ -74,6 +75,9 @@ class GlobalCompilerOptions:
     #: Sometimes (like in queries compiled form GraphQL) it may be OK
     #: to contain DML in the top-level shape computables.
     allow_top_level_shape_dml: bool = False
+
+    #: Set to true during stdlib bootstrap.
+    stdmode: bool = False
 
 
 @dataclass

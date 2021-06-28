@@ -878,6 +878,7 @@ def _normalize_view_ptr_expr(
         if existing is not None:
             existing_target = existing.get_target(ctx.env.schema)
             assert existing_target is not None
+            _, existing_target = existing_target.material_type(ctx.env.schema)
             if ctx.recompiling_schema_alias:
                 ptr_cardinality = existing.get_cardinality(ctx.env.schema)
                 ptr_required = existing.get_required(ctx.env.schema)

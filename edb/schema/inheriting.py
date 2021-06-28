@@ -811,7 +811,10 @@ class CreateInheritingObject(
                 referrer=scls,
             )
 
-            cmd.set_attribute_value(refdict.backref_attr, scls)
+            cmd.set_attribute_value(
+                refdict.backref_attr,
+                scls.as_shell(schema),
+            )
 
             group.add(cmd)
 

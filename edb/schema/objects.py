@@ -1228,6 +1228,13 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     def is_type(self) -> bool:
         return False
 
+    def is_equal_materially(
+        self,
+        schema: s_schema.Schema,
+        other: Object,
+    ) -> bool:
+        return self == other
+
     def hash_criteria(
         self: Object_T, schema: s_schema.Schema
     ) -> FrozenSet[HashCriterion]:
@@ -1484,7 +1491,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
     ) -> ObjectShell[Object_T]:
         return ObjectShell(
             name=self.get_name(schema),
-            displayname=self.get_displayname(schema),
             schemaclass=type(self),
         )
 
@@ -2074,13 +2080,11 @@ class ObjectShell(Shell, Generic[Object_T_co]):
         *,
         name: sn.Name,
         schemaclass: Type[Object_T_co],
-        displayname: Optional[str] = None,
         origname: Optional[sn.Name] = None,
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         self.name = name
         self.origname = origname
-        self.displayname = displayname
         self.schemaclass = schemaclass
         self.sourcectx = sourcectx
 
@@ -2115,8 +2119,20 @@ class ObjectShell(Shell, Generic[Object_T_co]):
     def get_name(self, schema: s_schema.Schema) -> sn.Name:
         return self.name
 
+    def get_shortname(self, schema: s_schema.Schema) -> sn.Name:
+        return self.schemaclass.get_shortname_static(self.name)
+
     def get_displayname(self, schema: s_schema.Schema) -> str:
-        return self.displayname or str(self.name)
+        return self.schemaclass.get_displayname_static(self.name)
+
+    def get_verbosename(
+        self,
+        schema: s_schema.Schema,
+        *,
+        parent: Optional[str] = None,
+    ) -> str:
+        return self.schemaclass.get_verbosename_static(
+            self.name, parent=parent)
 
     def get_schema_class_displayname(self) -> str:
         return self.schemaclass.get_schema_class_displayname()
@@ -2857,6 +2873,13 @@ class SubclassableObject(Object):
                 return True
             else:
                 return self._issubclass(schema, parent)
+
+    def is_subclass_materially(
+        self,
+        schema: s_schema.Schema,
+        parent: Union[SubclassableObject, Tuple[SubclassableObject, ...]],
+    ) -> bool:
+        return self.issubclass(schema, parent)
 
 
 InheritingObjectT = TypeVar('InheritingObjectT', bound='InheritingObject')

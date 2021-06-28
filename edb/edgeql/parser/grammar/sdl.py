@@ -593,6 +593,7 @@ class ConcretePropertyBlock(Nonterm):
         if target:
             return target, cmds
 
+        non_expr_cmds = []
         for cmd in cmds:
             if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
@@ -600,13 +601,15 @@ class ConcretePropertyBlock(Nonterm):
                         f'computed property with more than one expression',
                         context=context)
                 target = cmd.value
+            else:
+                non_expr_cmds.append(cmd)
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed property without expression',
                 context=context)
 
-        return target, cmds
+        return target, non_expr_cmds
 
     def reduce_CreateRegularProperty(self, *kids):
         """%reduce
@@ -785,6 +788,7 @@ class ConcreteLinkBlock(Nonterm):
         if target:
             return target, cmds
 
+        non_expr_cmds = []
         for cmd in cmds:
             if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
@@ -792,13 +796,15 @@ class ConcreteLinkBlock(Nonterm):
                         f'computed link with more than one expression',
                         context=context)
                 target = cmd.value
+            else:
+                non_expr_cmds.append(cmd)
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
                 f'computed link without expression',
                 context=context)
 
-        return target, cmds
+        return target, non_expr_cmds
 
     def reduce_CreateRegularLink(self, *kids):
         """%reduce

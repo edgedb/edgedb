@@ -391,6 +391,8 @@ def define_alias(
     *,
     expr: s_expr.Expression,
     prev_expr: Optional[s_expr.Expression] = None,
+    source: Optional[so.Object] = None,
+    source_ptr: Optional[str] = None,
     classname: sn.QualName,
     schema: s_schema.Schema,
     parser_context: Optional[parsing.ParserContext] = None,
@@ -496,6 +498,8 @@ def define_alias(
             existing_type_cmd = op
             break
 
+    type_cmd: Optional[sd.ObjectCommand[s_types.Type]] = None
+
     if existing_type_cmd is not None:
         type_cmd = existing_type_cmd
     else:
@@ -509,18 +513,28 @@ def define_alias(
                 derived_delta.add(type_cmd)
                 break
         else:
-            raise RuntimeError(
-                'view delta does not contain the expected '
-                'view Create/Alter command')
+            if prev_expr is None:
+                raise RuntimeError(
+                    'view delta does not contain the expected '
+                    'view Create/Alter command')
 
-    type_cmd.set_attribute_value('expr', expr)
+    if type_cmd is not None:
+        type_cmd.set_attribute_value('expr', expr)
+        if source is not None:
+            type_cmd.set_attribute_value('source', source.as_shell(schema))
+        if source_ptr is not None:
+            type_cmd.set_attribute_value('source_ptr', source_ptr)
+        schemaclass = type_cmd.get_schema_metaclass()
+    else:
+        assert prev_expr is not None
+        schemaclass = type(prev_expr.stype)
 
     result = sd.CommandGroup()
     result.update(derived_delta.get_subcommands())
     type_shell = s_types.TypeShell(
         name=classname,
         origname=classname,
-        schemaclass=type_cmd.get_schema_metaclass(),
+        schemaclass=schemaclass,
         sourcectx=parser_context,
     )
     return result, type_shell

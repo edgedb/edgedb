@@ -891,7 +891,10 @@ class ReferencedInheritingObjectCommand(
                 base_value = base.get_field_value(schema, field_name)
 
                 if isinstance(value, so.SubclassableObject):
-                    if not value.issubclass(schema, base_value):
+                    if not value.is_subclass_materially(schema, base_value):
+                        non_altered_bases.append(base)
+                elif isinstance(value, so.Object):
+                    if not value.is_equal_materially(schema, base_value):
                         non_altered_bases.append(base)
                 else:
                     if value != base_value:

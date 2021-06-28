@@ -318,7 +318,11 @@ def sort_by_cross_refs(
     # inlined, essentially).
     self_ref = None
     for x in objs:
-        referrers = schema.get_referrers(x)
+        referrers = itertools.chain.from_iterable(
+            objs
+            for (reft, fn), objs in schema.get_referrers_ex(x).items()
+            if not reft.get_field(fn).weak_ref
+        )
         if x in referrers:
             self_ref = x
         graph[x] = topological.DepGraphEntry(
@@ -413,7 +417,12 @@ class Command(
     markup.MarkupCapableMixin,
     metaclass=CommandMeta,
 ):
-    source_context = struct.Field(parsing.ParserContext, default=None)
+    source_context = struct.Field(
+        parsing.ParserContext,
+        default=None,
+        repr_formatter=None,
+        str_formatter=None,
+    )
     canonical = struct.Field(bool, default=False)
 
     _context_class: Optional[Type[CommandContextToken[Command]]] = None
@@ -1727,6 +1736,12 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         classname = cls._classname_from_ast(schema, astnode, context)
         return cls(classname=classname)
 
+    def get_object_shell(self) -> so.ObjectShell[so.Object_T]:
+        return so.ObjectShell(
+            name=self.classname,
+            schemaclass=self.get_schema_metaclass(),
+        )
+
     def is_data_safe(self) -> bool:
         if self.get_schema_metaclass()._data_safe:
             return True
@@ -2259,6 +2274,18 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
         return None
+
+    def get_field_for_ast_attr(
+        self,
+        astnode: qlast.SetField,
+    ) -> so.Field[Any]:
+        propname = astnode.name
+        try:
+            return self.get_schema_metaclass().get_field(propname)
+        except LookupError:
+            raise errors.SchemaDefinitionError(
+                f'{propname!r} is not a valid field',
+                context=astnode.context) from None
 
     def get_ddl_identity_fields(
         self,
@@ -3825,12 +3852,7 @@ class AlterObjectProperty(Command):
         ):
             return Nop()
         else:
-            try:
-                field = parent_cls.get_field(propname)
-            except LookupError:
-                raise errors.SchemaDefinitionError(
-                    f'{propname!r} is not a valid field',
-                    context=astnode.context)
+            field = parent_op.get_field_for_ast_attr(astnode)
 
         if not (
             astnode.special_syntax

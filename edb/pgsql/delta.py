@@ -3898,6 +3898,7 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
                 and link.get_required(schema)
                 and not link.is_pure_computable(schema)
                 and not sets_required
+                and not link.is_pure_computable(schema)
             ):
                 self._alter_pointer_optionality(
                     schema, schema, context, fill_expr=None)
@@ -4423,6 +4424,7 @@ class SetPropertyType(PropertyMetaCommand, adapts=s_props.SetPropertyType):
             and not self.scls.is_pure_computable(schema)
             and not self.scls.is_endpoint_pointer(schema)
             and (orig_type != new_type or self.cast_expr is not None)
+            and not self.scls.is_pure_computable(schema)
         ):
             self._alter_pointer_type(self.scls, schema, orig_schema, context)
         return schema

@@ -293,7 +293,7 @@ class Constraint(
 class ConsistencySubject(
     so.QualifiedObject,
     so.InheritingObject,
-    s_anno.AnnotationSubject,
+    s_anno.AnnotationSubject
 ):
     constraints_refs = so.RefDict(
         attr='constraints',

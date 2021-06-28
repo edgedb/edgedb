@@ -37,11 +37,11 @@ from . import objects as so
 from . import pointers
 from . import referencing
 from . import sources
+from . import types as s_types
 from . import utils
 
 if TYPE_CHECKING:
     from . import objtypes as s_objtypes
-    from . import types as s_types
     from . import schema as s_schema
 
 
@@ -354,9 +354,19 @@ class CreateLink(
             # AlterConcreteLink, which requires different handling.
             if isinstance(node, qlast.CreateConcreteLink):
                 if not node.target:
-                    expr = self.get_attribute_value('expr')
+                    assert isinstance(op.new_value, s_types.TypeShell)
+                    expr = op.new_value.expr
                     if expr is not None:
-                        node.target = expr.qlast
+                        if node.target is not None:
+                            node.commands.append(
+                                qlast.SetField(
+                                    name='expr',
+                                    value=expr.qlast,
+                                    special_syntax=True,
+                                )
+                            )
+                        else:
+                            node.target = expr.qlast
                     else:
                         t = op.new_value
                         assert isinstance(t, (so.Object, so.ObjectShell))

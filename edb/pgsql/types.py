@@ -286,7 +286,8 @@ class _PointerStorageInfo:
 
     @classmethod
     def _resolve_type(cls, schema, pointer):
-        pointer_target = pointer.get_target(schema)
+        schema, pointer_target = pointer.get_target(schema).material_type(
+            schema)
         if pointer_target is not None:
             if pointer_target.is_object_type():
                 column_type = ('uuid',)

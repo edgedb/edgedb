@@ -217,8 +217,32 @@ class Schema(abc.ABC):
     ) -> FrozenSet[so.Object_T]:
         raise NotImplementedError
 
+    @overload
+    def get_referrers_ex(  # NoQA: F811
+        self,
+        scls: so.Object,
+        *,
+        scls_type: Type[so.Object_T],
+    ) -> Dict[
+        Tuple[Type[so.Object_T], str],
+        FrozenSet[so.Object_T],
+    ]:
+        ...
+
+    @overload
+    def get_referrers_ex(  # NoQA: F811
+        self,
+        scls: so.Object,
+        *,
+        scls_type: None = None,
+    ) -> Dict[
+        Tuple[Type[so.Object], str],
+        FrozenSet[so.Object],
+    ]:
+        ...
+
     @abc.abstractmethod
-    def get_referrers_ex(
+    def get_referrers_ex(  # NoQA: F811
         self,
         scls: so.Object,
         *,
@@ -455,7 +479,7 @@ class Schema(abc.ABC):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> SchemaIterator[so.Object_T]:
         raise NotImplementedError
 
@@ -1204,8 +1228,19 @@ class FlatSchema(Schema):
 
             return frozenset(referrers)  # type: ignore
 
-    @functools.lru_cache()
     def get_referrers_ex(
+        self,
+        scls: so.Object,
+        *,
+        scls_type: Optional[Type[so.Object_T]] = None,
+    ) -> Dict[
+        Tuple[Type[so.Object_T], str],
+        FrozenSet[so.Object_T],
+    ]:
+        return self._get_referrers_ex(scls, scls_type=scls_type)
+
+    @functools.lru_cache()
+    def _get_referrers_ex(
         self,
         scls: so.Object,
         *,
@@ -1385,7 +1420,7 @@ class FlatSchema(Schema):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> SchemaIterator[so.Object_T]:
         return SchemaIterator[so.Object_T](
             self,
@@ -1430,7 +1465,7 @@ class SchemaIterator(Generic[so.Object_T]):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> None:
 
         filters = []
@@ -1889,7 +1924,7 @@ class ChainedSchema(Schema):
         included_items: Optional[Iterable[sn.Name]] = None,
         excluded_items: Optional[Iterable[sn.Name]] = None,
         type: Optional[Type[so.Object_T]] = None,
-        extra_filters: Iterable[Callable[[Schema, so.Object], bool]] = (),
+        extra_filters: Iterable[Callable[[Schema, so.Object_T], bool]] = (),
     ) -> SchemaIterator[so.Object_T]:
         return SchemaIterator[so.Object_T](
             self,

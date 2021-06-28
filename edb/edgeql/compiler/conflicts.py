@@ -76,7 +76,9 @@ def _compile_conflict_select(
     while wl:
         p = wl.pop()
         ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
-        if expr := ptr.get_expr(ctx.env.schema):
+        target = ptr.get_target(ctx.env.schema)
+        assert target is not None
+        if expr := target.get_expr(ctx.env.schema):
             assert isinstance(expr.qlast, qlast.Expr)
             ptr_anchors[p] = expr.qlast
             for ref in qlutils.find_subject_ptrs(expr.qlast):

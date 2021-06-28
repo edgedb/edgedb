@@ -578,7 +578,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         "'title' of object type 'test::A' is collection "
         "'tuple<std::int64, std::int64>', which does not match the explicitly "
         "specified collection 'tuple<std::str, std::str>'",
-        line=3, col=35)
+        line=4, col=27)
     def test_schema_target_consistency_check_02(self):
         """
             type A {
