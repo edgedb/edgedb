@@ -538,6 +538,9 @@ def _normalize_view_ptr_expr(
                     qlast.TypeIntersection(type=target_typexpr),
                 ], partial=True)
 
+            if shape_el.elements:
+                qlexpr = qlast.Shape(expr=qlexpr, elements=shape_el.elements)
+
             qlexpr = astutils.ensure_qlstmt(qlexpr)
             assert isinstance(qlexpr, qlast.SelectQuery)
             qlexpr.where = shape_el.where
@@ -582,6 +585,12 @@ def _normalize_view_ptr_expr(
             ctx.env.pointer_specified_info[ptrcls] = (
                 shape_el.cardinality, shape_el.required, shape_el.context)
 
+        implicit_tid = has_implicit_type_computables(
+            ptr_target,
+            is_mutation=is_mutation,
+            ctx=ctx,
+        )
+
         # If the element has clauses, we need to compile it to figure
         # out if those clauses need materialization.
         if has_clause and qlexpr:
@@ -591,13 +600,7 @@ def _normalize_view_ptr_expr(
                 is_insert=is_insert, is_update=is_update, ctx=ctx)
             ptr_target = inference.infer_type(irexpr, ctx.env)
 
-        implicit_tid = has_implicit_type_computables(
-            ptr_target,
-            is_mutation=is_mutation,
-            ctx=ctx,
-        )
-
-        if shape_el.elements or implicit_tid:
+        elif shape_el.elements or implicit_tid:
             sub_view_rptr = context.ViewRPtr(
                 ptrsource if is_linkprop else view_scls,
                 ptrcls=ptrcls,

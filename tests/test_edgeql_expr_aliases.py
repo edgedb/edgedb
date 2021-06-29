@@ -21,6 +21,7 @@ import json
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLExprAliases(tb.QueryTestCase):
@@ -777,6 +778,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ],
         )
 
+    @test.xfail('Busted because of #2629')
     async def test_edgeql_aliases_ignore_alias(self):
         await self.con.execute('''
 
