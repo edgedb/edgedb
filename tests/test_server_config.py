@@ -972,12 +972,6 @@ class TestServerConfig(tb.QueryTestCase):
              srv_ver.stage_no,)
         )
 
-        srv_ver_string = await self.con.query_one(r"""
-            SELECT sys::get_version_as_str()
-        """)
-
-        self.assertEqual(srv_ver_string, str(ver))
-
     async def test_server_proto_configure_compilation(self):
         try:
             await self.con.execute('''
