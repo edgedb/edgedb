@@ -74,6 +74,10 @@ def compile_SelectQuery(
             sctx.partial_path_prefix = ctx.partial_path_prefix
             stmt.implicit_wrapper = True
 
+        # If there is an offset or a limit, this query was a wrapper
+        # around something else, and we need to forward_rptr
+        forward_rptr = bool(expr.offset or expr.limit)
+
         if (
             (ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
             and ctx.implicit_limit
@@ -88,6 +92,7 @@ def compile_SelectQuery(
             view_rptr=ctx.view_rptr,
             result_alias=expr.result_alias,
             view_name=ctx.toplevel_result_view_name,
+            forward_rptr=forward_rptr,
             ctx=sctx)
 
         clauses.compile_where_clause(
