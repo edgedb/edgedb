@@ -1846,6 +1846,23 @@ class TestEdgeQLScope(tb.QueryTestCase):
             sort=lambda x: x['name']
         )
 
+        await self.assert_query_result(
+            r'''
+                # adding a top-level DETACHED should not change anything at all
+                SELECT DETACHED User {
+                    name,
+                    fire_deck := (
+                        SELECT User.deck {name, element}
+                        FILTER .element = 'Fire'
+                        ORDER BY .name
+                    ).name
+                };
+            ''',
+            res,
+            implicit_limit=100,
+            sort=lambda x: x['name']
+        )
+
     async def test_edgeql_scope_detached_09(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'only singletons are allowed'):
