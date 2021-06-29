@@ -467,9 +467,11 @@ class DeleteProperty(
         cmds = super()._canonicalize(schema, context, scls)
 
         target = scls.get_target(schema)
-        if target is not None and not scls.is_special_pointer(schema):
-            if op := target.as_type_delete_if_dead(schema):
-                cmds.append(op)
+        if target is not None and not scls.is_link_source_property(schema):
+            if del_cmd := target.as_type_delete_if_dead(schema):
+                subcmds = del_cmd._canonicalize(schema, context, target)
+                del_cmd.update(subcmds)
+                cmds.append(del_cmd)
 
         return cmds
 

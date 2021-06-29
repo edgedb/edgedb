@@ -647,22 +647,8 @@ class DeleteLink(
     astnode = [qlast.DropConcreteLink, qlast.DropLink]
     referenced_astnode = qlast.DropConcreteLink
 
-    def _canonicalize(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        scls: so.Object,
-    ) -> List[sd.Command]:
-        assert isinstance(scls, Link)
-        commands = super()._canonicalize(schema, context, scls)
-        target = scls.get_target(schema)
-
-        if target and (del_cmd := target.as_type_delete_if_dead(schema)):
-            subcmds = del_cmd._canonicalize(schema, context, target)
-            del_cmd.update(subcmds)
-            commands.append(del_cmd)
-
-        return commands
+    # NB: target type cleanup (e.g. target compound type) is done by
+    #     the DeleteProperty handler for the @target property.
 
     def _get_ast(
         self,

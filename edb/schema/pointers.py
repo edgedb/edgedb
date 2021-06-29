@@ -629,6 +629,10 @@ class Pointer(referencing.ReferencedInheritingObject,
         assert isinstance(std_id, so.SubclassableObject)
         return self.issubclass(schema, (std_id, std_target))
 
+    def is_link_source_property(self, schema: s_schema.Schema) -> bool:
+        std_source = schema.get('std::source', type=so.SubclassableObject)
+        return self.issubclass(schema, std_source)
+
     def is_endpoint_pointer(self, schema: s_schema.Schema) -> bool:
         std_source = schema.get('std::source', type=so.SubclassableObject)
         std_target = schema.get('std::target', type=so.SubclassableObject)
