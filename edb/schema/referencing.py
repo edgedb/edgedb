@@ -376,6 +376,11 @@ class ReferencedObjectCommandBase(sd.QualifiedObjectCommand[ReferencedT]):
         Type[sd.ObjectCommandContext[so.Object]]
     ]] = None
 
+    #: Whether the referenced command represents a "strong" reference,
+    #: i.e. the one that must not be broken out of the enclosing parent
+    #: command when doing dependency reorderings.
+    is_strong_ref = struct.Field(bool, default=False)
+
     def __init_subclass__(
         cls,
         *,
@@ -433,12 +438,6 @@ class ReferencedObjectCommandBase(sd.QualifiedObjectCommand[ReferencedT]):
                 break
             op = ctx.op
         return op
-
-
-class StronglyReferencedObjectCommand(
-    ReferencedObjectCommandBase[ReferencedT]
-):
-    pass
 
 
 class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):

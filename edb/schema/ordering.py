@@ -446,11 +446,14 @@ def _break_down(
             )
         ):
             pass
-        elif isinstance(sub_op, breakable_commands):
-            _break_down(opmap, strongrefs, new_opbranch + [sub_op])
-        elif isinstance(sub_op, referencing.StronglyReferencedObjectCommand):
+        elif (
+            isinstance(sub_op, referencing.ReferencedObjectCommandBase)
+            and sub_op.is_strong_ref
+        ):
             assert isinstance(op, sd.ObjectCommand)
             strongrefs[sub_op.classname] = op.classname
+        elif isinstance(sub_op, breakable_commands):
+            _break_down(opmap, strongrefs, new_opbranch + [sub_op])
 
     # For SET TYPE and friends, we need to make sure that an alter
     # (with children) makes it into the opmap so it is processed.

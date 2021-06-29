@@ -26,6 +26,7 @@ from typing import *
 
 from edb import errors
 
+from edb.common import struct
 from edb.common import verutils
 
 from edb.edgeql import ast as qlast
@@ -455,10 +456,12 @@ class ParameterCommandContext(sd.ObjectCommandContext[Parameter]):
 # type ignore below, because making Parameter
 # a referencing.ReferencedObject breaks the code
 class ParameterCommand(
-    referencing.StronglyReferencedObjectCommand[Parameter],  # type: ignore
+    referencing.ReferencedObjectCommandBase[Parameter],  # type: ignore
     context_class=ParameterCommandContext,
     referrer_context_class=CallableCommandContext
 ):
+
+    is_strong_ref = struct.Field(bool, default=True)
 
     def get_ast(
         self,

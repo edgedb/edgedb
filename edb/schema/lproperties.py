@@ -169,6 +169,24 @@ class Property(
     ) -> bool:
         return not self.is_endpoint_pointer(schema)
 
+    def init_delta_command(
+        self,
+        schema: s_schema.Schema,
+        cmdtype: Type[sd.ObjectCommand_T],
+        *,
+        classname: Optional[sn.Name] = None,
+        **kwargs: Any,
+    ) -> sd.ObjectCommand_T:
+        delta = super().init_delta_command(
+            schema=schema,
+            cmdtype=cmdtype,
+            classname=classname,
+            **kwargs,
+        )
+        assert isinstance(delta, referencing.ReferencedObjectCommandBase)
+        delta.is_strong_ref = self.is_endpoint_pointer(schema)
+        return delta  # type: ignore
+
 
 class PropertySourceContext(sources.SourceCommandContext):
     pass

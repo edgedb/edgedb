@@ -430,6 +430,7 @@ class CreateLink(
 
         src_prop = lproperties.CreateProperty(
             classname=src_prop_name,
+            is_strong_ref=True,
         )
         src_prop.set_attribute_value('name', src_prop_name)
         src_prop.set_attribute_value(
@@ -463,6 +464,7 @@ class CreateLink(
 
         tgt_prop = lproperties.CreateProperty(
             classname=tgt_prop_name,
+            is_strong_ref=True,
         )
 
         tgt_prop.set_attribute_value('name', tgt_prop_name)
