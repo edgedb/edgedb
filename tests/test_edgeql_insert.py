@@ -23,7 +23,6 @@ import uuid
 import edgedb
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestInsert(tb.QueryTestCase):
@@ -322,12 +321,6 @@ class TestInsert(tb.QueryTestCase):
             }],
         )
 
-    @test.xfail('''
-        This test fails with the following error:
-        invalid reference to link property in top level shape
-
-        The culprit appears to be specifically the LIMIT 1.
-    ''')
     async def test_edgeql_insert_nested_06(self):
         await self.con.execute('''
             INSERT Subordinate {
@@ -435,10 +428,6 @@ class TestInsert(tb.QueryTestCase):
             }
         }])
 
-    @test.xfail('''
-        edgedb.errors.QueryError: invalid reference to link property
-        in top level shape
-    ''')
     async def test_edgeql_insert_nested_10(self):
         # test a single link with a link property
         await self.con.execute(r'''
