@@ -207,11 +207,11 @@ def get_path_var(
     assert src_path_id is not None
 
     # Find which rvar will have path_id as an output
-    src_aspect, rel_rvar, accidentally_found_var = _find_rel_rvar(
+    src_aspect, rel_rvar, found_path_var = _find_rel_rvar(
         rel, path_id, src_path_id, aspect=aspect, env=env)
 
-    if accidentally_found_var:
-        return accidentally_found_var
+    if found_path_var:
+        return found_path_var
 
     if rel_rvar is None:
         raise LookupError(
@@ -264,8 +264,9 @@ def _find_rel_rvar(
 ) -> Tuple[str, Optional[pgast.PathRangeVar], Optional[pgast.BaseExpr]]:
     """Rummage around rel looking for an appropriate rvar for path_id.
 
-    Somewhat unfortunately, it can also sometimes "accidentally" find
-    the actual var.
+    Somewhat unfortunately, some checks to find the actual path var
+    (in a particular tuple case) need to occur in the middle of the
+    rvar rel search, so we can also find the actual path var in passing.
     """
     src_aspect = aspect
     rel_rvar = maybe_get_path_rvar(rel, path_id, aspect=aspect, env=env)
