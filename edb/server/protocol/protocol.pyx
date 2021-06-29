@@ -113,9 +113,12 @@ cdef class HttpProtocol:
                 # as its first message kind is `V`.
                 #
                 # Switch protocols now (for compatibility).
-                if not self.tls_compat:
-                    self.loop.create_task(self._return_binary_error())
-                self._switch_to_binary_protocol(data)
+                if self.tls_compat:
+                    self._switch_to_binary_protocol(data)
+                else:
+                    self.loop.create_task(self._return_binary_error(
+                        self._switch_to_binary_protocol()
+                    ))
                 return
             else:
                 # HTTP.
@@ -224,6 +227,7 @@ cdef class HttpProtocol:
         binproto.connection_made(self.transport)
         if data:
             binproto.data_received(data)
+        return binproto
 
     def _init_http_parser(self):
         self.parser = httptools.HttpRequestParser(self)
@@ -257,14 +261,13 @@ cdef class HttpProtocol:
         else:
             self._init_http_parser()
 
-    async def _return_binary_error(self):
-        binary_proto = self.transport.get_protocol()
-        await binary_proto.write_error(errors.BinaryProtocolError(
+    async def _return_binary_error(self, proto):
+        await proto.write_error(errors.BinaryProtocolError(
             'TLS Required',
             details='The server requires Transport Layer Security (TLS)',
             hint='Upgrade the client to a newer version that supports TLS'
         ))
-        binary_proto.close()
+        proto.close()
 
     async def _handle_request(self, HttpRequest request):
         cdef:
