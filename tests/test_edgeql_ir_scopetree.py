@@ -611,19 +611,19 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
                 "FENCE": {
                     "FENCE": {
                         "FENCE": {
+                            "(default::User).>deck[IS default::Card]",
                             "FENCE": {
                                 "(default::User)\
 .>deck[IS default::Card]@count[IS std::int64]"
                             }
                         }
-                    },
-                    "(default::User).>deck[IS default::Card]"
+                    }
                 }
             },
             "FENCE": {
-                "[ns~1]@[ns~2]@@(default::User).>deck[IS default::Card]",
+                "[ns~1]@[ns~3]@@(default::User).>deck[IS default::Card]",
                 "FENCE": {
-                    "[ns~1]@[ns~2]@@(default::User)\
+                    "[ns~1]@[ns~3]@@(default::User)\
 .>deck[IS default::Card]@count[IS std::int64]"
                 },
                 "(default::User).>deck[IS default::Card]"
@@ -631,18 +631,18 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "FENCE": {
                 "(default::User).>deck[IS default::Card]": {
                     "FENCE": {
-                        "[ns~1]@[ns~4]@@(default::User)\
+                        "[ns~1]@[ns~5]@@(default::User)\
 .>deck[IS default::Card]",
                         "FENCE": {
-                            "[ns~1]@[ns~4]@@(default::User)\
+                            "[ns~1]@[ns~5]@@(default::User)\
 .>deck[IS default::Card]@count[IS std::int64]"
                         }
                     },
                     "FENCE": {
-                        "[ns~1]@[ns~3]@@(default::User)\
+                        "[ns~1]@[ns~4]@@(default::User)\
 .>deck[IS default::Card]",
                         "FENCE": {
-                            "[ns~1]@[ns~3]@@(default::User)\
+                            "[ns~1]@[ns~4]@@(default::User)\
 .>deck[IS default::Card]@count[IS std::int64]"
                         }
                     }
