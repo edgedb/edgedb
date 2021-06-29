@@ -430,6 +430,9 @@ class Field(struct.ProtoField, Generic[T]):
     def is_schema_field(self) -> bool:
         return False
 
+    def maybe_get_default(self) -> Any:
+        return NoDefault
+
     def get_default(self) -> Any:
         raise ValueError(f'field {self.name!r} is required and has no default')
 
@@ -489,11 +492,8 @@ class SchemaField(Field[Type_T]):
     def is_schema_field(self) -> bool:
         return True
 
-    def get_default(self) -> Any:
-        if self.default is NoDefault:
-            raise ValueError(
-                f'field {self.name!r} is required and has no default')
-        elif self.default is DEFAULT_CONSTRUCTOR:
+    def maybe_get_default(self) -> Any:
+        if self.default is DEFAULT_CONSTRUCTOR:
             if issubclass(self.type, ObjectCollection):
                 value = self.type.create_empty()
             else:
@@ -501,6 +501,14 @@ class SchemaField(Field[Type_T]):
         else:
             value = self.default
         return value
+
+    def get_default(self) -> Any:
+        value = self.maybe_get_default()
+        if value is NoDefault:
+            raise ValueError(
+                f'field {self.name!r} is required and has no default')
+        else:
+            return value
 
     def __get__(
         self,

@@ -32,7 +32,7 @@ from . import annos as s_anno
 from . import casts as s_casts
 from . import constraints
 from . import delta as sd
-from . import expr
+from . import expr as s_expr
 from . import inheriting
 from . import name as s_name
 from . import objects as so
@@ -50,7 +50,7 @@ class ScalarType(
 ):
 
     default = so.SchemaField(
-        expr.Expression, default=None,
+        s_expr.Expression, default=None,
         coerce=True, compcoef=0.909,
     )
 
@@ -328,6 +328,18 @@ class ScalarTypeCommand(
                 ancestors.extend(base.get_ancestors(schema).objects(schema))
 
             self.validate_scalar_ancestors(ancestors, schema, context)
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text=f'0')
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
 
 
 class CreateScalarType(

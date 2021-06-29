@@ -2070,6 +2070,20 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
             ),
         )
 
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            raise AssertionError(
+                f"{self} must define get_dummy_expr_field_value() "
+                f"for {field.name}")
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
+
     def _create_begin(
         self, schema: s_schema.Schema, context: sd.CommandContext
     ) -> s_schema.Schema:
@@ -2237,7 +2251,18 @@ class AlterTupleExprAlias(
     CollectionExprAliasCommand[TupleExprAlias],
     sd.AlterObject[TupleExprAlias],
 ):
-    pass
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text='()')
+        else:
+            raise AssertionError(f'unhandled field {field.name!r}')
 
 
 class CreateArray(CreateCollectionType[Array]):
@@ -2272,7 +2297,18 @@ class AlterArrayExprAlias(
     CollectionExprAliasCommand[ArrayExprAlias],
     sd.AlterObject[ArrayExprAlias],
 ):
-    pass
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text='[]')
+        else:
+            raise AssertionError(f'unhandled field {field.name!r}')
 
 
 class DeleteTuple(DeleteCollectionType[Tuple]):

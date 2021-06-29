@@ -419,7 +419,18 @@ class ObjectTypeCommand(
     links.LinkSourceCommand[ObjectType],
     context_class=ObjectTypeCommandContext,
 ):
-    pass
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text=f'SELECT std::Object LIMIT 1')
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
 
 
 class CreateObjectType(

@@ -530,6 +530,18 @@ class ConstraintCommand(
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
 
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name in {'expr', 'subjectexpr', 'finalexpr'}:
+            return s_expr.Expression(text='SELECT false')
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
+
     @classmethod
     def get_inherited_ref_name(
         cls,
@@ -1304,6 +1316,37 @@ class AlterConstraint(
                 f' it is defined as non-delegated in {bases_repr}',
                 context=self.source_context,
             )
+
+    def canonicalize_alter_from_external_ref(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        if (
+            not self.get_attribute_value('abstract')
+            and (subjectexpr :=
+                 self.get_attribute_value('subjectexpr')) is not None
+        ):
+            # To compute the new name, we construct an AST of the
+            # constraint, since that is the infrastructure we have for
+            # computing the classname.
+            name = sn.shortname_from_fullname(self.classname)
+            assert isinstance(name, sn.QualName), "expected qualified name"
+            ast = qlast.CreateConcreteConstraint(
+                name=qlast.ObjectRef(name=name.name, module=name.module),
+                subjectexpr=subjectexpr.qlast,
+            )
+            quals = sn.quals_from_fullname(self.classname)
+            new_name = self._classname_from_ast_and_referrer(
+                schema, sn.QualName.from_string(quals[0]), ast, context)
+            if new_name == self.classname:
+                return
+
+            rename = self.scls.init_delta_command(
+                schema, sd.RenameObject, new_name=new_name)
+            rename.set_attribute_value(
+                'name', value=new_name, orig_value=self.classname)
+            self.add(rename)
 
 
 class DeleteConstraint(

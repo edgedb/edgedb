@@ -109,6 +109,19 @@ class AliasCommand(
             ),
         )
 
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            # XXX: this is imprecise
+            return s_expr.Expression(text='std::Object')
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
+
     def _compile_alias_expr(
         self,
         expr: qlast.Base,

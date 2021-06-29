@@ -376,8 +376,7 @@ class AlterPropertyOwned(
 
 class AlterProperty(
     PropertyCommand,
-    pointers.PointerAlterFragment[Property],
-    referencing.AlterReferencedInheritingObject[Property],
+    pointers.AlterPointer[Property],
 ):
     astnode = [qlast.AlterConcreteProperty,
                qlast.AlterProperty]

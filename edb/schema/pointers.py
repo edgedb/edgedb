@@ -1323,6 +1323,20 @@ class PointerCommandOrFragment(
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
 
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return None
+        elif field.name == 'default':
+            return None
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
+
     def _deparse_name(
         self,
         schema: s_schema.Schema,
@@ -1337,73 +1351,6 @@ class PointerCommandOrFragment(
         else:
             ref.module = ''
             return ref
-
-
-class PointerAlterFragment(
-    referencing.ReferencedObjectCommandBase[Pointer_T]
-):
-    @classmethod
-    def _cmd_tree_from_ast(
-        cls,
-        schema: s_schema.Schema,
-        astnode: qlast.DDLOperation,
-        context: sd.CommandContext,
-    ) -> referencing.AlterReferencedInheritingObject[Any]:
-        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, PointerCommand)
-        if isinstance(astnode, qlast.CreateConcreteLink):
-            cmd._process_create_or_alter_ast(schema, astnode, context)
-        else:
-            expr_cmd = qlast.get_ddl_field_command(astnode, 'expr')
-            if expr_cmd is not None:
-                expr = expr_cmd.value
-                if expr is None:
-                    # `RESET EXPRESSION` detected
-                    aop = sd.AlterObjectProperty(
-                        property='expr',
-                        new_value=None,
-                        source_context=astnode.context,
-                    )
-                    cmd.add(aop)
-
-        assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
-        return cmd
-
-    def canonicalize_attributes(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super().canonicalize_attributes(schema, context)
-
-        # Handle `RESET EXPRESSION` here
-        if (
-            self.has_attribute_value('expr')
-            and not self.is_attribute_inherited('expr')
-            and self.get_attribute_value('expr') is None
-        ):
-            old_expr = self.get_orig_attribute_value('expr')
-            pointer = schema.get(self.classname, type=Pointer)
-            if old_expr is None:
-                # Get the old value from the schema if the old_expr
-                # attribute isn't set.
-                old_expr = pointer.get_expr(schema)
-
-            if old_expr is not None:
-                # If the expression was explicitly set to None,
-                # that means that `RESET EXPRESSION` was executed
-                # and this is no longer a computable.
-                self.set_attribute_value('computable', False)
-                computed_fields = pointer.get_computed_fields(schema)
-                if 'required' in computed_fields:
-                    self.set_attribute_value('required', None)
-                if 'cardinality' in computed_fields:
-                    self.set_attribute_value('cardinality', None)
-
-            # Clear the placeholder value for 'expr'.
-            self.set_attribute_value('expr', None)
-
-        return schema
 
 
 class PointerCommand(
@@ -1833,6 +1780,111 @@ class CreatePointer(
             cmd.set_attribute_value('from_alias', True)
 
         return cmd
+
+
+class AlterPointer(
+    referencing.AlterReferencedInheritingObject[Pointer_T],
+    PointerCommand[Pointer_T],
+):
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> referencing.AlterReferencedInheritingObject[Any]:
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, PointerCommand)
+        if isinstance(astnode, qlast.CreateConcreteLink):
+            cmd._process_create_or_alter_ast(schema, astnode, context)
+        else:
+            expr_cmd = qlast.get_ddl_field_command(astnode, 'expr')
+            if expr_cmd is not None:
+                expr = expr_cmd.value
+                if expr is None:
+                    # `RESET EXPRESSION` detected
+                    aop = sd.AlterObjectProperty(
+                        property='expr',
+                        new_value=None,
+                        source_context=astnode.context,
+                    )
+                    cmd.add(aop)
+
+        assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
+        return cmd
+
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+
+        # Handle `RESET EXPRESSION` here
+        if (
+            self.has_attribute_value('expr')
+            and not self.is_attribute_inherited('expr')
+            and self.get_attribute_value('expr') is None
+        ):
+            old_expr = self.get_orig_attribute_value('expr')
+            pointer = schema.get(self.classname, type=Pointer)
+            if old_expr is None:
+                # Get the old value from the schema if the old_expr
+                # attribute isn't set.
+                old_expr = pointer.get_expr(schema)
+
+            if old_expr is not None:
+                # If the expression was explicitly set to None,
+                # that means that `RESET EXPRESSION` was executed
+                # and this is no longer a computable.
+                self.set_attribute_value('computable', False)
+                computed_fields = pointer.get_computed_fields(schema)
+                if 'required' in computed_fields:
+                    self.set_attribute_value('required', None)
+                if 'cardinality' in computed_fields:
+                    self.set_attribute_value('cardinality', None)
+
+            # Clear the placeholder value for 'expr'.
+            self.set_attribute_value('expr', None)
+
+        return schema
+
+    def canonicalize_alter_from_external_ref(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        # if the delta involves re-setting a computable
+        # expression, then we also need to change the type to the
+        # new expression type
+
+        from edb.ir import ast as irast
+
+        expr = self.get_attribute_value('expr')
+        if expr is None:
+            # This shouldn't happen, but asserting here doesn't seem quite
+            # right either.
+            return
+
+        assert isinstance(expr, s_expr.Expression)
+        pointer = schema.get(self.classname, type=Pointer)
+        source = cast(s_types.Type, pointer.get_source(schema))
+        expression = s_expr.Expression.compiled(
+            expr,
+            schema=schema,
+            options=qlcompiler.CompilerOptions(
+                modaliases=context.modaliases,
+                anchors={qlast.Source().name: source},
+                path_prefix_anchor=qlast.Source().name,
+                singletons=frozenset([source]),
+                apply_query_rewrites=not context.stdmode,
+            ),
+        )
+
+        assert isinstance(expression.irast, irast.Statement)
+        target = expression.irast.stype
+        self.set_attribute_value('target', target)
 
 
 class DeletePointer(

@@ -588,8 +588,7 @@ class SetTargetDeletePolicy(sd.Command):
 
 class AlterLink(
     LinkCommand,
-    pointers.PointerAlterFragment[Link],
-    referencing.AlterReferencedInheritingObject[Link],
+    pointers.AlterPointer[Link],
 ):
     astnode = [qlast.AlterConcreteLink, qlast.AlterLink]
     referenced_astnode = qlast.AlterConcreteLink
