@@ -78,7 +78,7 @@ DEF TCP_KEEPCNT = 3
 DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
-cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
+cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
 
 
 cdef bytes INIT_CON_SCRIPT = None

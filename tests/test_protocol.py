@@ -20,6 +20,7 @@
 import asyncio
 import edgedb
 
+from edb.server import compiler
 from edb.testbase import protocol
 from edb.testbase.protocol.test import ProtocolTestCase
 
@@ -125,7 +126,7 @@ class TestProtocol(ProtocolTestCase):
             protocol.Prepare(
                 headers=[],
                 io_format=protocol.IOFormat.BINARY,
-                expected_cardinality=protocol.Cardinality.ONE,
+                expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
                 statement_name=b'',
                 command='SEL ECT 1',
             )
@@ -146,7 +147,7 @@ class TestProtocol(ProtocolTestCase):
             protocol.Prepare(
                 headers=[],
                 io_format=protocol.IOFormat.BINARY,
-                expected_cardinality=protocol.Cardinality.ONE,
+                expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
                 statement_name=b'',
                 command='SELECT 1',
             ),
@@ -154,7 +155,7 @@ class TestProtocol(ProtocolTestCase):
         )
         await self.con.recv_match(
             protocol.PrepareComplete,
-            cardinality=protocol.Cardinality.ONE,
+            cardinality=compiler.Cardinality.AT_MOST_ONE,
         )
 
         # Test that Flush has completed successfully -- the

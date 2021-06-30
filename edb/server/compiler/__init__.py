@@ -25,16 +25,17 @@ from .compiler import compile_edgeql_script
 from .compiler import load_std_schema
 from .compiler import new_compiler, new_compiler_context
 from .dbstate import QueryUnit
-from .enums import Capability, CompileStatementMode, ResultCardinality
+from .enums import Capability, CompileStatementMode, Cardinality
 from .enums import IoFormat
 
 
 __all__ = (
+    'Cardinality',
     'Compiler',
     'CompileContext',
     'CompilerDatabaseState',
     'QueryUnit',
-    'Capability', 'CompileStatementMode', 'ResultCardinality', 'IoFormat',
+    'Capability', 'CompileStatementMode', 'IoFormat',
     'compile_edgeql_script',
     'load_std_schema',
     'new_compiler',

@@ -588,12 +588,12 @@ class Compiler:
         )
 
         if ir.cardinality.is_single():
-            result_cardinality = enums.ResultCardinality.ONE
+            result_cardinality = enums.Cardinality.AT_MOST_ONE
         else:
-            result_cardinality = enums.ResultCardinality.MANY
+            result_cardinality = enums.Cardinality.MANY
             if ctx.expected_cardinality_one:
                 raise errors.ResultCardinalityMismatchError(
-                    f'the query has cardinality {result_cardinality} '
+                    f'the query has cardinality {result_cardinality.name} '
                     f'which does not match the expected cardinality ONE')
 
         sql_text, argmap = pg_compiler.compile_ir_to_sql(
@@ -1614,7 +1614,7 @@ class Compiler:
         # That means that the returned QueryUnit has to have the in/out codec
         # information, correctly inferred "singleton_result" field etc.
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
-        default_cardinality = enums.ResultCardinality.NO_RESULT
+        default_cardinality = enums.Cardinality.NO_RESULT
 
         statements = edgeql.parse_block(source)
         statements_len = len(statements)
@@ -1820,7 +1820,7 @@ class Compiler:
         for unit in units:  # pragma: no cover
             # Sanity checks
             na_cardinality = (
-                unit.cardinality is enums.ResultCardinality.NO_RESULT
+                unit.cardinality is enums.Cardinality.NO_RESULT
             )
             if unit.cacheable and (
                 unit.config_ops or unit.modaliases or unit.user_schema or
