@@ -1861,6 +1861,194 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
+    def test_graphql_functional_fragment_type_13(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... on User {
+                        active
+                        profile {
+                            value
+                        }
+                    }
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
+    def test_graphql_functional_fragment_type_14(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            fragment userFrag on User {
+                active
+                profile {
+                    value
+                }
+            }
+
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... userFrag
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
+    def test_graphql_functional_fragment_type_15(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... on User {
+                        active
+                        profile(filter: {name: {eq: "Alice profile"}}) {
+                            value
+                        }
+                    }
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
+        self.assert_graphql_query_result(r"""
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... on User {
+                        active
+                        profile(filter: {name: {eq: "no such profile"}}) {
+                            value
+                        }
+                    }
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': None,
+            }],
+        })
+
+    def test_graphql_functional_fragment_type_16(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            fragment userFrag on User {
+                active
+                profile(filter: {name: {eq: "Alice profile"}}) {
+                    value
+                }
+            }
+
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... userFrag
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
+        self.assert_graphql_query_result(r"""
+            fragment userFrag on User {
+                active
+                profile(filter: {name: {eq: "no such profile"}}) {
+                    value
+                }
+            }
+
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... userFrag
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': None,
+            }],
+        })
+
+    def test_graphql_functional_fragment_type_17(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... on User {
+                        ... {
+                            active
+                            profile {
+                                value
+                            }
+                        }
+                    }
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
     def test_graphql_functional_directives_01(self):
         self.assert_graphql_query_result(r"""
             query {
