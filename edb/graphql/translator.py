@@ -94,7 +94,7 @@ class GraphQLTranslatorContext:
         self.fields = []
         self.path = []
         self.filter = None
-        self.include_base = [False]
+        self.include_base = []
         self.gqlcore = gqlcore
         self.query = query
         self.document_ast = document_ast
@@ -306,11 +306,14 @@ class GraphQLTranslator:
         self._context.vars = {
             name: Var(val=val, defn=None, critical=False)
             for name, val in self._context.variables.items()}
+        self._context.include_base.append(False)
+
         opname = None
         if node.name:
             opname = node.name.value
 
         if opname != self._context.operation_name:
+            self._context.include_base.pop()
             return None
 
         if (node.operation is None or
@@ -329,6 +332,8 @@ class GraphQLTranslator:
         # variables that were defined in this operation
         defvars = {name: var.val for name, var in self._context.vars.items()
                    if var.defn is not None}
+
+        self._context.include_base.pop()
 
         return Operation(
             name=opname,
@@ -605,6 +610,7 @@ class GraphQLTranslator:
                 cardinality=qltypes.SchemaCardinality.Many,
             )
 
+        self._context.include_base.append(False)
         # INSERT mutations have different arguments from queries
         if not is_shadowed and node.name.value.startswith('insert_'):
             # a single recursion target, so we can process
@@ -698,6 +704,7 @@ class GraphQLTranslator:
             # shell for the shape paths.
             self._context.path.pop()
 
+        self._context.include_base.pop()
         return spec
 
     def visit_InlineFragmentNode(self, node):
@@ -705,6 +712,8 @@ class GraphQLTranslator:
         result = self.visit(node.selection_set)
         if node.type_condition is not None:
             self._context.path.pop()
+            self._context.include_base.pop()
+
         return result
 
     def visit_FragmentSpreadNode(self, node):
@@ -716,6 +725,10 @@ class GraphQLTranslator:
 
         result = self.visit(selection_set)
         self._context.path.pop()
+
+        if frag.type_condition is not None:
+            self._context.include_base.pop()
+
         return result
 
     def _validate_fragment_type(self, frag, spread):
@@ -1303,10 +1316,23 @@ class GraphQLTranslator:
             prefix = [qlast.ObjectRef(name=base_step.eql_alias)]
         else:
             prefix = [base_step.type.edb_base_name_ast]
-        prefix.extend(
-            qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
-            for step in path
-        )
+
+        for step in path:
+            if isinstance(step.name, gql_ast.NamedTypeNode):
+                # This is coming from a fragment, so we need to add a
+                # type intersection.
+                base = step.type
+                prefix.append(
+                    qlast.TypeIntersection(
+                        type=qlast.TypeName(
+                            maintype=base.edb_base_name_ast
+                        )
+                    )
+                )
+            else:
+                prefix.append(
+                    qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
+                )
 
         return prefix
 
