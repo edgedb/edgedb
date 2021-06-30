@@ -82,7 +82,7 @@ class Query(BaseQuery):
 
     sql_hash: bytes
 
-    cardinality: enums.ResultCardinality
+    cardinality: enums.Cardinality
 
     out_type_data: bytes
     out_type_id: bytes
@@ -237,8 +237,8 @@ class QueryUnit:
 
     # Cardinality of the result set.  Set to NO_RESULT if the
     # unit represents multiple queries compiled as one script.
-    cardinality: enums.ResultCardinality = \
-        enums.ResultCardinality.NO_RESULT
+    cardinality: enums.Cardinality = \
+        enums.Cardinality.NO_RESULT
 
     out_type_data: bytes = sertypes.NULL_TYPE_DESC
     out_type_id: bytes = sertypes.NULL_TYPE_ID

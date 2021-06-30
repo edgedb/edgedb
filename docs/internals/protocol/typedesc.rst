@@ -84,12 +84,7 @@ Object Shape Descriptor
         uint16          type_pos;
     };
 
-    enum Cardinality {
-        AT_MOST_ONE     = 0x0;
-        ONE             = 0x1;
-        MANY            = 0x2;
-        AT_LEAST_ONE    = 0x3;
-    };
+.. eql:struct:: edb.server.compiler.Cardinality
 
 Objects are encoded on the wire as :ref:`tuples <ref_protocol_fmt_tuple>`.
 

@@ -82,9 +82,9 @@ DEF FLUSH_BUFFER_AFTER = 100_000
 cdef bytes ZERO_UUID = b'\x00' * 16
 cdef bytes EMPTY_TUPLE_UUID = s_obj.get_known_type_id('empty-tuple').bytes
 
-cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
-cdef object CARD_ONE = compiler.ResultCardinality.ONE
-cdef object CARD_MANY = compiler.ResultCardinality.MANY
+cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
+cdef object CARD_AT_MOST_ONE = compiler.Cardinality.AT_MOST_ONE
+cdef object CARD_MANY = compiler.Cardinality.MANY
 
 cdef object FMT_BINARY = compiler.IoFormat.BINARY
 cdef object FMT_JSON = compiler.IoFormat.JSON
@@ -1185,11 +1185,11 @@ cdef class EdgeConnection:
         )
 
     cdef parse_cardinality(self, bytes card):
-        if card == b'm':
+        if card[0] == CARD_MANY.value:
             return CARD_MANY
-        elif card == b'o':
-            return CARD_ONE
-        elif card == b'n':
+        elif card[0] == CARD_AT_MOST_ONE.value:
+            return CARD_AT_MOST_ONE
+        elif card[0] == CARD_NO_RESULT:
             raise errors.BinaryProtocolError(
                 'cardinality NO_RESULT cannot be requested')
         else:
@@ -1197,15 +1197,7 @@ cdef class EdgeConnection:
                 f'unknown expected cardinality "{repr(card)[2:-1]}"')
 
     cdef char render_cardinality(self, query_unit) except -1:
-        if query_unit.cardinality is CARD_NO_RESULT:
-            return <char>(b'n')
-        elif query_unit.cardinality is CARD_ONE:
-            return <char>(b'o')
-        elif query_unit.cardinality is CARD_MANY:
-            return <char>(b'm')
-        else:
-            raise errors.InternalServerError(
-                f'unknown cardinality {query_unit.cardinality!r}')
+        return query_unit.cardinality.value
 
     cdef parse_io_format(self, bytes mode):
         if mode == b'j':
@@ -1254,7 +1246,7 @@ cdef class EdgeConnection:
 
         io_format = self.parse_io_format(self.buffer.read_byte())
         expect_one = (
-            self.parse_cardinality(self.buffer.read_byte()) is CARD_ONE
+            self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
         )
 
         if parse_stmt_name:

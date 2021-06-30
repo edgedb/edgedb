@@ -772,7 +772,7 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
         src = '''
         .. eql:struct:: edb.testbase.protocol.AuthenticationSASLFinal
 
-        .. eql:struct:: edb.testbase.protocol.Cardinality
+        .. eql:struct:: edb.server.compiler.Cardinality
         '''
 
         out = self.build(src, format='xml')
