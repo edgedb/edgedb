@@ -56,6 +56,7 @@ from typing import *
 
 
 from edb.common import debug
+from edb.common.compiler import SimpleCounter
 from edb import edgeql
 
 from edb.common.ast import NodeVisitor
@@ -256,6 +257,16 @@ def if_(x: Result, bs: Result, y: Result) -> Result:
     return out
 
 
+def bad_array_cast(x: Data) -> Result:
+    if x != []:
+        raise ValueError("We only know how to cast empty arrays")
+    return x
+
+
+# For implementing a next() testing function
+NextCounter = SimpleCounter()
+
+
 _BASIS_BINOP_IMPLS: Any = {
     '+': lift(operator.add),
     '-': lift(operator.sub),
@@ -293,6 +304,8 @@ _BASIS_CAST_IMPLS: Any = {
     'str': lift(str),
     'int32': lift(int),
     'int64': lift(int),
+    'uuid': lift(uuid.UUID),
+    'array': lift(bad_array_cast),
 }
 _BASIS_FUNC_IMPLS: Any = {
     'enumerate': enumerate_,
@@ -308,6 +321,8 @@ _BASIS_FUNC_IMPLS: Any = {
     'random': lift(random.random),
     'contains': lift(operator.contains),
     'round': lift(round),
+    'next': lift(NextCounter.nextval),  # testing func, not really in std
+    'uuid_generate_v1mc': lift(uuid.uuid4),
 }
 
 BASIS_IMPLS: Dict[Tuple[str, str], LiftedFunc] = {
