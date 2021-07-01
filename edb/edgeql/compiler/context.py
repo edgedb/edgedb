@@ -120,6 +120,12 @@ class PointerRefCache(Dict[irtyputils.PtrRefCacheKey, irast.BasePointerRef]):
         return self._rcache.get(ref)
 
 
+# Volatility inference computes two volatility results:
+# A basic one, and one for consumption by materialization
+InferredVolatility = Union[
+    qltypes.Volatility, Tuple[qltypes.Volatility, qltypes.Volatility]]
+
+
 class Environment:
     """Compilation environment."""
 
@@ -157,7 +163,7 @@ class Environment:
 
     inferred_volatility: Dict[
         irast.Base,
-        qltypes.Volatility]
+        InferredVolatility]
     """A dictionary of expressions and their inferred volatility."""
 
     inferred_multiplicity: Dict[
@@ -212,6 +218,15 @@ class Environment:
     scope_tree_nodes: MutableMapping[int, irast.ScopeTreeNode]
     """Map from unique_id to nodes."""
 
+    materialized_sets: Dict[
+        Union[s_types.Type, s_pointers.PointerLike],
+        qlast.Statement,
+    ]
+    """A mapping of computed sets that must be computed only once."""
+
+    compiled_stmts: Dict[qlast.Statement, irast.Stmt]
+    """A mapping of from input edgeql to compiled IR"""
+
     def __init__(
         self,
         *,
@@ -249,6 +264,8 @@ class Environment:
         self.pointer_specified_info = {}
         self.singletons = []
         self.scope_tree_nodes = weakref.WeakValueDictionary()
+        self.materialized_sets = {}
+        self.compiled_stmts = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -411,6 +428,9 @@ class ContextLevel(compiler.ContextLevel):
     stmt: Optional[irast.Stmt]
     """Statement node currently being built."""
 
+    qlstmt: Optional[qlast.Statement]
+    """Statement source node currently being built."""
+
     path_id_namespace: FrozenSet[str]
     """A namespace to use for all path ids."""
 
@@ -525,6 +545,7 @@ class ContextLevel(compiler.ContextLevel):
 
             self.toplevel_stmt = None
             self.stmt = None
+            self.qlstmt = None
             self.path_id_namespace = frozenset()
             self.pending_stmt_own_path_id_namespace = frozenset()
             self.pending_stmt_full_path_id_namespace = frozenset()
@@ -617,6 +638,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_rptr = None
                 self.view_scls = None
                 self.stmt = None
+                self.qlstmt = None
 
                 self.view_rptr = None
                 self.toplevel_result_view_name = None
@@ -641,6 +663,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_rptr = None
                 self.view_scls = None
                 self.stmt = prevlevel.stmt
+                self.qlstmt = prevlevel.qlstmt
 
                 self.partial_path_prefix = None
 
@@ -654,6 +677,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.class_view_overrides = prevlevel.class_view_overrides
 
                 self.stmt = prevlevel.stmt
+                self.qlstmt = prevlevel.qlstmt
 
                 self.view_rptr = prevlevel.view_rptr
                 self.toplevel_result_view_name = \

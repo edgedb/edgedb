@@ -27,6 +27,9 @@ import uuid
 
 from edb import errors
 
+from edb.edgeql import qltypes
+from edb.edgeql import ast as qlast
+
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
@@ -41,6 +44,7 @@ from edb.pgsql import types as pg_types
 from . import astutils
 from . import context
 from . import dispatch
+from . import output
 from . import pathctx
 
 
@@ -53,8 +57,9 @@ def init_toplevel_query(
     ctx.pending_query = ctx.rel
 
 
-def pull_path_namespace(
+def _pull_path_namespace(
         *, target: pgast.Query, source: pgast.PathRangeVar,
+        flavor: str='normal',
         replace_bonds: bool=True, ctx: context.CompilerContextLevel) -> None:
 
     squery = source.query
@@ -69,12 +74,20 @@ def pull_path_namespace(
 
     for source_q in source_qs:
         s_paths: Set[Tuple[irast.PathId, str]] = set()
-        if hasattr(source_q, 'path_outputs'):
-            s_paths.update(source_q.path_outputs)
-        if hasattr(source_q, 'path_namespace'):
-            s_paths.update(source_q.path_namespace)
-        if isinstance(source_q, pgast.Query):
-            s_paths.update(source_q.path_rvar_map)
+        if flavor == 'normal':
+            if hasattr(source_q, 'path_outputs'):
+                s_paths.update(source_q.path_outputs)
+            if hasattr(source_q, 'path_namespace'):
+                s_paths.update(source_q.path_namespace)
+            if isinstance(source_q, pgast.Query):
+                s_paths.update(source_q.path_rvar_map)
+        elif flavor == 'packed':
+            if hasattr(source_q, 'packed_path_outputs'):
+                s_paths.update(source_q.packed_path_outputs)
+            if isinstance(source_q, pgast.Query):
+                s_paths.update(source_q.path_packed_rvar_map)
+        else:
+            raise AssertionError(f'unexpected flavor "{flavor}"')
 
         view_path_id_map = getattr(source_q, 'view_path_id_map', {})
 
@@ -92,14 +105,24 @@ def pull_path_namespace(
                 continue
 
             rvar = pathctx.maybe_get_path_rvar(
-                target, path_id, aspect=aspect, env=ctx.env)
+                target, path_id, aspect=aspect, flavor=flavor, env=ctx.env)
             if rvar is None:
                 pathctx.put_path_rvar(
-                    target, path_id, source, aspect=aspect, env=ctx.env)
+                    target, path_id, source, aspect=aspect, flavor=flavor,
+                    env=ctx.env)
+
+
+def pull_path_namespace(
+        *, target: pgast.Query, source: pgast.PathRangeVar,
+        replace_bonds: bool=True, ctx: context.CompilerContextLevel) -> None:
+    for flavor in ('normal', 'packed'):
+        _pull_path_namespace(target=target, source=source, flavor=flavor,
+                             replace_bonds=replace_bonds, ctx=ctx)
 
 
 def find_rvar(
         stmt: pgast.Query, *,
+        flavor: str='normal',
         source_stmt: Optional[pgast.Query]=None,
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> \
@@ -111,6 +134,9 @@ def find_rvar(
 
     :param stmt:
         The statement to ensure range var visibility in.
+
+    :param flavor:
+        Whether to look for normal rvars or packed rvars
 
     :param source_stmt:
         An optional statement object which is used as the starting SQL scope
@@ -131,17 +157,18 @@ def find_rvar(
         source_stmt = stmt
 
     rvar = maybe_get_path_rvar(source_stmt, path_id=path_id,
-                               aspect='value', ctx=ctx)
+                               aspect='value', flavor=flavor, ctx=ctx)
     if rvar is not None:
         pathctx.put_path_rvar_if_not_exists(
-            stmt, path_id, rvar, aspect='value', env=ctx.env)
+            stmt, path_id, rvar, aspect='value', flavor=flavor, env=ctx.env)
 
         src_rvar = maybe_get_path_rvar(source_stmt, path_id=path_id,
-                                       aspect='source', ctx=ctx)
+                                       aspect='source', flavor=flavor, ctx=ctx)
 
         if src_rvar is not None:
             pathctx.put_path_rvar_if_not_exists(
-                stmt, path_id, src_rvar, aspect='source', env=ctx.env)
+                stmt, path_id, src_rvar,
+                aspect='source', flavor=flavor, env=ctx.env)
 
     return rvar
 
@@ -152,7 +179,8 @@ def include_rvar(
         path_id: irast.PathId, *,
         overwrite_path_rvar: bool=False,
         pull_namespace: bool=True,
-        aspects: Optional[Iterable[str]]=None,
+        flavor: str='normal',
+        aspects: Optional[Tuple[str, ...]]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Ensure that *rvar* is visible in *stmt* as a value/source aspect.
 
@@ -164,6 +192,9 @@ def include_rvar(
 
     :param join_type:
         JOIN type to use when including *rel*.
+
+    :param flavor:
+        Whether this is a normal or packed rvar
 
     :param aspect:
         The reference aspect of the range var.
@@ -181,6 +212,7 @@ def include_rvar(
         stmt, rvar=rvar, path_id=path_id,
         overwrite_path_rvar=overwrite_path_rvar,
         pull_namespace=pull_namespace,
+        flavor=flavor,
         aspects=aspects,
         ctx=ctx)
 
@@ -191,6 +223,7 @@ def include_specific_rvar(
         path_id: irast.PathId, *,
         overwrite_path_rvar: bool=False,
         pull_namespace: bool=True,
+        flavor: str='normal',
         aspects: Iterable[str]=('value',),
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Make the *aspect* of *path_id* visible in *stmt* as *rvar*.
@@ -204,6 +237,9 @@ def include_specific_rvar(
     :param join_type:
         JOIN type to use when including *rel*.
 
+    :param flavor:
+        Whether this is a normal or packed rvar
+
     :param aspect:
         The reference aspect of the range var.
 
@@ -211,7 +247,7 @@ def include_specific_rvar(
         Compiler context.
     """
 
-    if not has_rvar(stmt, rvar, ctx=ctx):
+    if not has_rvar(stmt, rvar, flavor=flavor, ctx=ctx):
         if not (
             ctx.env.external_rvars
             and has_external_rvar(path_id, aspects, ctx=ctx)
@@ -225,11 +261,14 @@ def include_specific_rvar(
     for aspect in aspects:
         if overwrite_path_rvar:
             pathctx.put_path_rvar(
-                stmt, path_id, rvar, aspect=aspect, env=ctx.env)
+                stmt, path_id, rvar, flavor=flavor, aspect=aspect, env=ctx.env)
         else:
             pathctx.put_path_rvar_if_not_exists(
-                stmt, path_id, rvar, aspect=aspect, env=ctx.env)
+                stmt, path_id, rvar, flavor=flavor, aspect=aspect, env=ctx.env)
 
+    # Packed rvars don't necessarily have anything to do with the
+    # current scope, so we don't set up path_id_mask based on them.
+    if flavor != 'packed':
         scopes = [ctx.scope_tree]
         parent_scope = ctx.scope_tree.parent
         if parent_scope is not None:
@@ -244,12 +283,13 @@ def include_specific_rvar(
 
 def has_rvar(
         stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
+        flavor: str='normal',
         ctx: context.CompilerContextLevel) -> bool:
 
     curstmt: Optional[pgast.Query] = stmt
 
     while curstmt is not None:
-        if pathctx.has_rvar(curstmt, rvar, env=ctx.env):
+        if pathctx.has_rvar(curstmt, rvar, flavor=flavor, env=ctx.env):
             return True
         curstmt = ctx.rel_hierarchy.get(curstmt)
 
@@ -275,17 +315,19 @@ def _maybe_get_path_rvar(
     stmt: pgast.Query,
     path_id: irast.PathId,
     *,
+    flavor: str='normal',
     aspect: str,
     ctx: context.CompilerContextLevel,
 ) -> Optional[Tuple[pgast.PathRangeVar, irast.PathId]]:
     qry: Optional[pgast.Query] = stmt
     while qry is not None:
         rvar = pathctx.maybe_get_path_rvar(
-            qry, path_id, aspect=aspect, env=ctx.env)
+            qry, path_id, aspect=aspect, flavor=flavor, env=ctx.env)
         if rvar is not None:
             if qry is not stmt:
                 # Cache the rvar reference.
-                pathctx.put_path_rvar(stmt, path_id, rvar, aspect=aspect,
+                pathctx.put_path_rvar(stmt, path_id, rvar,
+                                      flavor=flavor, aspect=aspect,
                                       env=ctx.env)
             return rvar, path_id
         qry = ctx.rel_hierarchy.get(qry)
@@ -297,10 +339,12 @@ def _get_path_rvar(
     stmt: pgast.Query,
     path_id: irast.PathId,
     *,
+    flavor: str='normal',
     aspect: str,
     ctx: context.CompilerContextLevel,
 ) -> Tuple[pgast.PathRangeVar, irast.PathId]:
-    result = _maybe_get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    result = _maybe_get_path_rvar(
+        stmt, path_id, flavor=flavor, aspect=aspect, ctx=ctx)
     if result is None:
         raise LookupError(f'there is no range var for {path_id} in {stmt}')
     else:
@@ -309,8 +353,10 @@ def _get_path_rvar(
 
 def get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
+        flavor: str='normal',
         aspect: str, ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    return _get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)[0]
+    return _get_path_rvar(
+        stmt, path_id, flavor=flavor, aspect=aspect, ctx=ctx)[0]
 
 
 def get_path_var(
@@ -328,9 +374,11 @@ def get_path_var(
 
 def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
+        flavor: str='normal',
         aspect: str, ctx: context.CompilerContextLevel
 ) -> Optional[pgast.PathRangeVar]:
-    result = _maybe_get_path_rvar(stmt, path_id, aspect=aspect, ctx=ctx)
+    result = _maybe_get_path_rvar(stmt, path_id,
+                                  aspect=aspect, flavor=flavor, ctx=ctx)
     return result[0] if result is not None else None
 
 
@@ -734,6 +782,289 @@ def maybe_get_scope_stmt(
     if stmt is None and path_id.is_ptr_path():
         stmt = ctx.path_scope.get(path_id.tgt_path())
     return stmt
+
+
+class UnpackElement(NamedTuple):
+    path_id: irast.PathId
+    colname: str
+    packed: bool
+    multi: bool
+    ref: Optional[pgast.BaseExpr]
+
+
+def unpack_rvar(
+        stmt: pgast.SelectStmt, path_id: irast.PathId, *,
+        packed_rvar: pgast.PathRangeVar,
+        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+
+    qry = pgast.SelectStmt()
+
+    ref: pgast.BaseExpr
+    ref, multi = pathctx.get_packed_path_var(
+        packed_rvar, path_id, 'value', env=ctx.env)
+
+    view_tvars: List[Tuple[irast.PathId, pgast.TupleVarBase, bool]] = []
+    els = []
+    ctr = 0
+
+    def walk(ref: pgast.BaseExpr, path_id: irast.PathId, multi: bool) -> None:
+        nonlocal ctr
+
+        coldeflist = []
+        alias = ctx.env.aliases.get('unpack')
+        simple = False
+        if irtyputils.is_tuple(path_id.target):
+            els.append(UnpackElement(
+                path_id, alias, packed=False, multi=False, ref=None
+            ))
+
+            orig_view_count = len(view_tvars)
+            tuple_tvar_elements = []
+            for i, st in enumerate(path_id.target.subtypes):
+                colname = f'_t{ctr}'
+                ctr += 1
+
+                typ = pg_types.pg_type_from_ir_typeref(st)
+                if st.id in ctx.env.materialized_views:
+                    typ = ('record',)
+
+                # Construct a path_id for the element
+                el_name = sn.QualName('__tuple__', st.element_name or str(i))
+                el_ref = irast.TupleIndirectionPointerRef(
+                    name=el_name, shortname=el_name, path_id_name=el_name,
+                    out_source=path_id.target,
+                    out_target=st,
+                    out_cardinality=qltypes.Cardinality.ONE,
+                    dir_cardinality=qltypes.Cardinality.ONE,
+                )
+                el_path_id = path_id.extend(ptrref=el_ref)
+
+                walk(
+                    pgast.ColumnRef(name=[colname]),
+                    el_path_id,
+                    multi=False,
+                )
+                tuple_tvar_elements.append(
+                    pgast.TupleElementBase(
+                        path_id=el_path_id, name=el_name.name
+                    )
+                )
+
+                coldeflist.append(
+                    pgast.ColumnDef(
+                        name=colname,
+                        typename=pgast.TypeName(name=typ)
+                    )
+                )
+
+            if len(view_tvars) > orig_view_count:
+                tuple_tvar = pgast.TupleVarBase(
+                    elements=tuple_tvar_elements,
+                    typeref=path_id.target,
+                    named=any(
+                        st.element_name for st in path_id.target.subtypes),
+                )
+                view_tvars.append((path_id, tuple_tvar, True))
+
+            if irtyputils.is_persistent_tuple(path_id.target):
+                coldeflist = []
+
+        elif irtyputils.is_array(path_id.target) and multi:
+            # TODO: materialized arrays of tuples and arrays are really
+            # quite broken
+            coldeflist = [
+                pgast.ColumnDef(
+                    name='q',
+                    typename=pgast.TypeName(
+                        name=pg_types.pg_type_from_ir_typeref(
+                            path_id.target)
+                    )
+                )
+            ]
+
+            els.append(UnpackElement(
+                path_id, coldeflist[0].name,
+                packed=False, multi=False, ref=None
+            ))
+
+        elif path_id.target.id in ctx.env.materialized_views:
+            view_tuple = ctx.env.materialized_views[path_id.target.id]
+
+            vpath_ids = []
+            id_idx = None
+            for el, _ in view_tuple.shape:
+                src_path, el_ptrref = el.path_id.src_path(), el.path_id.rptr()
+                assert src_path and el_ptrref
+
+                # We want to graft the ptrref for this element onto
+                # the main path_id. To get the right one (that will
+                # match code that wants to consume this), we need to
+                # find the ptrref that matches the path_id view type.
+                ptrref = irtyputils.maybe_find_actual_ptrref(
+                    path_id.target, el_ptrref, material=False)
+                if not ptrref:
+                    # A missing ptrref should mean that this computable isn't
+                    # actually used, so we don't need to worry too hard.
+                    ptrref = el_ptrref
+                el_id = path_id.ptr_path().extend(ptrref=ptrref)
+
+                assert el.rptr
+                card = el.rptr.ptrref.dir_cardinality
+                is_singleton = card.is_single() and not card.can_be_zero()
+                must_pack = not is_singleton
+
+                if (rptr_name := el_id.rptr_name()) and rptr_name.name == 'id':
+                    id_idx = len(els)
+
+                colname = f'_t{ctr}'
+                ctr += 1
+
+                typ = pg_types.pg_type_from_ir_typeref(el_id.target)
+                if el_id.target.id in ctx.env.materialized_views:
+                    typ = ('record',)
+                    must_pack = True
+
+                if not is_singleton:
+                    typ = pg_types.pg_type_array(typ)
+
+                coldeflist.append(
+                    pgast.ColumnDef(
+                        name=colname,
+                        typename=pgast.TypeName(name=typ),
+                    )
+                )
+                els.append(UnpackElement(
+                    el_id, colname,
+                    packed=must_pack, multi=not is_singleton, ref=None
+                ))
+
+                vpath_ids.append(el_id)
+
+            if id_idx is not None:
+                els.append(UnpackElement(
+                    path_id, els[id_idx].colname,
+                    multi=False, packed=False, ref=None,
+                ))
+
+            view_tvars.append((path_id, pgast.TupleVarBase(
+                elements=[
+                    pgast.TupleElementBase(
+                        path_id=pid,
+                        name=astutils.tuple_element_for_shape_el(
+                            el, ctx=ctx).name,
+                    )
+                    for (el, op), pid in zip(view_tuple.shape, vpath_ids)
+                    if op != qlast.ShapeOp.MATERIALIZE or ctx.materializing
+                ],
+                typeref=path_id.target,
+                named=True,
+            ), False))
+
+        else:
+            coldeflist = []
+            simple = not multi
+            els.append(UnpackElement(
+                path_id, alias, multi=False, packed=False,
+                ref=ref if simple else None,
+            ))
+
+        if not simple:
+            if not multi:
+                # Sigh, have to wrap in an array so we can unpack.
+                ref = pgast.ArrayExpr(elements=[ref])
+
+            qry.from_clause.insert(
+                0,
+                pgast.RangeFunction(
+                    alias=pgast.Alias(
+                        aliasname=alias,
+                    ),
+                    is_rowsfrom=True,
+                    functions=[
+                        pgast.FuncCall(
+                            name=('unnest',),
+                            args=[ref],
+                            coldeflist=coldeflist,
+                        )
+                    ]
+                )
+            )
+
+    ########################
+
+    walk(ref, path_id, multi)
+
+    rvar = rvar_for_rel(qry, lateral=True, ctx=ctx)
+    include_rvar(stmt, rvar, path_id=path_id, aspects=('value',), ctx=ctx)
+
+    for el in els:
+        el_id = el.path_id
+        cur_ref = el.ref or pgast.ColumnRef(name=[el.colname])
+
+        for aspect in ('value', 'serialized'):
+            pathctx.put_path_var(
+                qry, el_id, cur_ref, aspect=aspect, env=ctx.env,
+            )
+
+        if not el.packed:
+            pathctx.put_path_rvar(
+                stmt, el_id, rvar, aspect='value', env=ctx.env)
+
+            pathctx.put_path_rvar(
+                ctx.rel, el_id, rvar, aspect='value', env=ctx.env)
+        else:
+            cref = pathctx.get_rvar_path_var(rvar, el_id, 'value', env=ctx.env)
+
+            colname = ctx.env.aliases.get("col")
+            sub_packed_stmt = pgast.SelectStmt(
+                target_list=[pgast.ResTarget(name=colname, val=cref)],
+            )
+            sub_packed_stmt.packed_path_outputs[el_id, 'value'] = (
+                pgast.ColumnRef(name=[colname]), el.multi,
+            )
+
+            sub_rvar = rvar_for_rel(sub_packed_stmt, lateral=True, ctx=ctx)
+            # Need to specify value as the aspects because we *don't*
+            # provide the source.
+            include_rvar(
+                stmt, sub_rvar, path_id=el_id, aspects=('value',),
+                flavor='packed', pull_namespace=False, ctx=ctx,
+            )
+
+    # When we're producing an exposed shape, we need to rewrite the
+    # serialized shape.
+    # We also need to rewrite tuples that contain such shapes!
+    # What a pain!
+    # Note, though, that the cases here are:
+    # 1) Any shapes are "implicit" ones, just containing id, __tname, etc
+    # 2) We are still materializing
+    #
+    # We *also* need to rewrite tuple values, so that we don't consider
+    # serialized materialized objects as part of the value of the tuple
+    for view_path_id, view_tvar, is_tuple in view_tvars:
+        if not view_tvar.elements:
+            continue
+
+        rewrite_aspects = []
+        if ctx.expr_exposed:
+            rewrite_aspects.append('serialized')
+        if is_tuple:
+            rewrite_aspects.append('value')
+        for aspect in rewrite_aspects:
+            tv = pathctx.fix_tuple(qry, view_tvar, aspect=aspect, env=ctx.env)
+            sval = (
+                output.output_as_value(tv, env=ctx.env)
+                if aspect == 'value' else
+                output.serialize_expr(tv, path_id=path_id, env=ctx.env)
+            )
+            pathctx.put_path_var(
+                qry, view_path_id, sval, aspect=aspect, env=ctx.env, force=True
+            )
+            pathctx.put_path_rvar(
+                ctx.rel, view_path_id, rvar, aspect=aspect, env=ctx.env
+            )
+
+    return rvar
 
 
 def get_scope_stmt(

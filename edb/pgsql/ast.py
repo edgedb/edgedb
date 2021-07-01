@@ -133,6 +133,12 @@ class EdgeQLPathInfo(Base):
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[typing.Tuple[irast.PathId, str], OutputVar]
 
+    # Map of res target names corresponding to materialized paths.
+    packed_path_outputs: typing.Dict[
+        typing.Tuple[irast.PathId, str],
+        typing.Tuple[OutputVar, bool],
+    ]
+
     path_id_mask: typing.Set[irast.PathId]
 
     # Map of col refs corresponding to paths.
@@ -394,16 +400,30 @@ class Query(ReturningQuery):
     """Generic superclass representing a query."""
 
     # Ignore the below fields in AST visitor/transformer.
-    __ast_meta__ = {'path_rvar_map',
+    __ast_meta__ = {'path_rvar_map', 'path_packed_rvar_map',
                     'view_path_id_map', 'argnames', 'nullable'}
 
     view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
     # Map of RangeVars corresponding to paths.
     path_rvar_map: typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]
+    # Map of materialized RangeVars corresponding to paths.
+    path_packed_rvar_map: typing.Dict[
+        typing.Tuple[irast.PathId, str],
+        PathRangeVar,
+    ]
 
     argnames: typing.Dict[str, Param]
 
     ctes: typing.List[CommonTableExpr]
+
+    def get_rvar_map(self, flavor: str) -> typing.Dict[
+            typing.Tuple[irast.PathId, str], PathRangeVar]:
+        if flavor == 'packed':
+            return self.path_packed_rvar_map
+        elif flavor == 'normal':
+            return self.path_rvar_map
+        else:
+            raise AssertionError(f'unexpected flavor "{flavor}"')
 
     @property
     def ser_safe(self):

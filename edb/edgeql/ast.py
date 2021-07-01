@@ -499,6 +499,7 @@ class ShapeOp(s_enum.StrEnum):
     APPEND = 'APPEND'
     SUBTRACT = 'SUBTRACT'
     ASSIGN = 'ASSIGN'
+    MATERIALIZE = 'MATERIALIZE'  # This is an internal implementation artifact
 
 
 # Need indirection over ShapeOp to preserve the source context.

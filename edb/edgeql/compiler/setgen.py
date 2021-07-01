@@ -33,6 +33,7 @@ from edb.common import parsing
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.schema import links as s_links
 from edb.schema import name as s_name
@@ -290,6 +291,9 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         is_binding=True,
                         ctx=ctx,
                     )
+
+                    maybe_materialize(stype, path_tip, ctx=ctx)
+
                 else:
                     path_tip = class_set(stype, ctx=ctx)
 
@@ -1298,6 +1302,8 @@ def computable_ptr_set(
 
     rptr.target = comp_ir_set
 
+    maybe_materialize(ptrcls, comp_ir_set, ctx=ctx)
+
     return comp_ir_set
 
 
@@ -1384,3 +1390,84 @@ def _get_computable_ctx(
             yield subctx
 
     return newctx
+
+
+def maybe_materialize(
+    stype: Union[s_types.Type, s_pointers.PointerLike],
+    ir: irast.Set,
+    *,
+    ctx: context.ContextLevel,
+) -> None:
+    mat_qlstmt = ctx.env.materialized_sets.get(stype)
+    if mat_qlstmt is not None:
+        materialize_in_stmt = ctx.env.compiled_stmts[mat_qlstmt]
+
+        assert not isinstance(stype, s_pointers.PseudoPointer)
+        if stype.id not in materialize_in_stmt.materialized_sets:
+            materialize_in_stmt.materialized_sets[stype.id] = (
+                irast.MaterializedSet(materialized=ir, use_sets=[]))
+        materialize_in_stmt.materialized_sets[stype.id].use_sets.append(ir)
+
+        # When the source typeref doesn't match the source id, take the
+        # current ir to be the canonical one.
+        # Otherwise the volatility refs get broken.
+        # XXX: This is a hack, originally written to solve a different
+        # problem, and I don't really understand why it is needed to
+        # solve this one.
+        if ir.rptr:
+            if ir.rptr.source.typeref.id != ir.rptr.source.path_id.target.id:
+                mat_set = materialize_in_stmt.materialized_sets[stype.id]
+                mat_set.materialized = ir
+
+
+def force_materialized_volatile(
+    ir: irast.Base, *, ctx: context.ContextLevel
+) -> None:
+    vol = inference.infer_volatility(ir, ctx.env)
+    ctx.env.inferred_volatility[ir] = (vol, qltypes.Volatility.Volatile)
+
+
+def should_materialize(
+    ir: irast.Base, *,
+    binding_pessimism: bool=False,
+    skipped_bindings: AbstractSet[irast.PathId]=frozenset(),
+    ctx: context.ContextLevel,
+) -> bool:
+    volatility = inference.infer_volatility(
+        ir, ctx.env, for_materialization=True)
+    if volatility is qltypes.Volatility.Volatile:
+        return True
+
+    if not isinstance(ir, irast.Set):
+        return False
+
+    typ = get_set_type(ir, ctx=ctx)
+
+    # For shape elements, we need to materialize when they reference bindings
+    # TODO: this is pretty pessimistic, we should be able to detect
+    # cases where it isn't necessary afterwards in stmtctx and clean
+    # them up.
+    if binding_pessimism and irutils.contains_binding(ir, skipped_bindings):
+        return True
+
+    return should_materialize_type(typ, ctx=ctx)
+
+
+def should_materialize_type(
+    typ: s_types.Type, *, ctx: context.ContextLevel
+) -> bool:
+    schema = ctx.env.schema
+    if isinstance(
+            typ, (s_objtypes.ObjectType, s_pointers.Pointer)):
+        for pointer in typ.get_pointers(schema).objects(schema):
+            if (
+                pointer in ctx.source_map
+                and ctx.source_map[pointer].should_materialize
+            ):
+                return True
+    elif isinstance(typ, s_types.Collection):
+        for sub in typ.get_subtypes(schema):
+            if should_materialize_type(sub, ctx=ctx):
+                return True
+
+    return False

@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+from typing import *
+
 from edb.common import typeutils
 
 from . import base
@@ -112,6 +114,7 @@ class NodeVisitor:
     """
 
     skip_hidden = False
+    extra_skips: AbstractSet[str] = frozenset()
 
     def __init__(self, *, context=None, memo=None):
         if memo is not None:
@@ -174,6 +177,8 @@ class NodeVisitor:
         for field, value in base.iter_fields(node, include_meta=False):
             field_spec = node._fields[field]
             if self.skip_hidden and field_spec.hidden:
+                continue
+            if field in self.extra_skips:
                 continue
 
             res = self.visit(value)

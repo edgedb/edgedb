@@ -136,6 +136,62 @@ def setup_iterator_volatility(
     ctx.volatility_ref = old + (get_ref,)
 
 
+def compile_materialized_exprs(
+        query: pgast.SelectStmt, stmt: irast.Stmt, *,
+        ctx: context.CompilerContextLevel) -> None:
+    if not stmt.materialized_sets:
+        return
+
+    if stmt in ctx.materializing:
+        return
+
+    with context.output_format(ctx, context.OutputFormat.NATIVE), (
+            ctx.new()) as matctx:
+        matctx.materializing |= {stmt}
+        matctx.expr_exposed = True
+
+        for mat_set in stmt.materialized_sets.values():
+            if len(mat_set.uses) <= 1:
+                continue
+            if relctx.find_rvar(
+                    query, flavor='packed',
+                    path_id=mat_set.materialized.path_id, ctx=matctx):
+                continue
+
+            mat_ids = set(mat_set.uses)
+
+            # We pack optional things into arrays also, since it works.
+            # TODO: use NULL?
+            card = mat_set.cardinality
+            is_singleton = card.is_single() and not card.can_be_zero()
+
+            matctx.path_scope = matctx.path_scope.new_child()
+            for mat_id in mat_ids:
+                matctx.path_scope[mat_id] = None
+            mat_qry = relgen.set_as_subquery(
+                mat_set.materialized, as_value=True, ctx=matctx
+            )
+
+            if not is_singleton:
+                mat_qry = relgen.set_to_array(
+                    ir_set=mat_set.materialized,
+                    query=mat_qry,
+                    materializing=True,
+                    ctx=matctx)
+
+            ref = pgast.ColumnRef(name=[mat_qry.target_list[0].name])
+            for mat_id in mat_ids:
+                mat_qry.packed_path_outputs[mat_id, 'value'] = (
+                    ref, not is_singleton)
+
+            mat_rvar = relctx.rvar_for_rel(mat_qry, lateral=True, ctx=matctx)
+            for mat_id in mat_ids:
+                relctx.include_rvar(
+                    query, mat_rvar, path_id=mat_id,
+                    flavor='packed', pull_namespace=False, ctx=matctx,
+                )
+
+
 def compile_iterator_expr(
         query: pgast.SelectStmt, iterator_expr: irast.Set, *,
         ctx: context.CompilerContextLevel) \

@@ -713,11 +713,65 @@ def get_rvar_output_var_as_col_list(
     return cols
 
 
+def get_rvar_path_packed_output(
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str, *,
+        env: context.Environment) -> Tuple[pgast.OutputVar, bool]:
+    """Return ColumnRef for a given *path_id* in a given *range var*."""
+
+    outvar = rvar.query.packed_path_outputs.get((path_id, aspect))
+    if outvar is None:
+        raise LookupError(
+            f'there is no packed var for {path_id} {aspect} in {rvar.query}')
+    return astutils.get_rvar_var(rvar, outvar[0]), outvar[1]
+
+
+def maybe_get_rvar_path_packed_output(
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str, *,
+        env: context.Environment) -> Optional[Tuple[pgast.OutputVar, bool]]:
+    try:
+        return get_rvar_path_packed_output(rvar, path_id, aspect, env=env)
+    except LookupError:
+        return None
+
+
+def get_packed_path_var(
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str, *,
+        env: context.Environment) -> Tuple[pgast.OutputVar, bool]:
+    res = maybe_get_rvar_path_packed_output(
+        rvar, path_id, aspect, env=env)
+    if res:
+        return res
+
+    query = rvar.query
+    assert isinstance(query, pgast.Query)
+    rel_rvar = get_path_rvar(
+        query, path_id, flavor='packed', aspect=aspect, env=env)
+
+    # XXX: some duplication of path_output
+    ref, multi = get_packed_path_var(rel_rvar, path_id, aspect, env=env)
+    alias = get_path_output_alias(path_id, aspect, env=env)
+
+    restarget = pgast.ResTarget(
+        name=alias, val=ref, ser_safe=getattr(ref, 'ser_safe', False))
+    query.target_list.append(restarget)
+    nullable = is_nullable(ref, env=env)
+    optional = None
+    if isinstance(ref, pgast.ColumnRef):
+        optional = ref.optional
+
+    result = pgast.ColumnRef(
+        name=[alias], nullable=nullable, optional=optional)
+    _put_path_output_var(query, path_id, aspect, result, env=env)
+
+    return result, multi
+
+
 def put_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
+        flavor: str='normal',
         aspect: str, env: context.Environment) -> None:
     assert isinstance(path_id, irast.PathId)
-    stmt.path_rvar_map[path_id, aspect] = rvar
+    stmt.get_rvar_map(flavor)[path_id, aspect] = rvar
 
     # Normally, masked paths (i.e paths that are only behind a fence below),
     # will not be exposed in a query namespace.  However, when the masked
@@ -734,33 +788,40 @@ def put_path_rvar(
 
 def put_path_value_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
+        flavor: str='normal',
         env: context.Environment) -> None:
-    put_path_rvar(stmt, path_id, rvar, aspect='value', env=env)
+    put_path_rvar(stmt, path_id, rvar, aspect='value', flavor=flavor, env=env)
 
 
 def put_path_source_rvar(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
+        flavor: str='normal',
         env: context.Environment) -> None:
-    put_path_rvar(stmt, path_id, rvar, aspect='source', env=env)
+    put_path_rvar(stmt, path_id, rvar, aspect='source', flavor=flavor, env=env)
 
 
 def has_rvar(
         stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
+        flavor: str='normal',
         env: context.Environment) -> bool:
-    return rvar in set(stmt.path_rvar_map.values())
+    return rvar in set(stmt.get_rvar_map(flavor).values())
 
 
 def put_path_rvar_if_not_exists(
         stmt: pgast.Query, path_id: irast.PathId, rvar: pgast.PathRangeVar, *,
+        flavor: str='normal',
         aspect: str, env: context.Environment) -> None:
-    if (path_id, aspect) not in stmt.path_rvar_map:
-        put_path_rvar(stmt, path_id, rvar, aspect=aspect, env=env)
+    if (path_id, aspect) not in stmt.get_rvar_map(flavor):
+        put_path_rvar(
+            stmt, path_id, rvar, aspect=aspect, flavor=flavor, env=env)
 
 
 def get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *,
+        flavor: str='normal',
         aspect: str, env: context.Environment) -> pgast.PathRangeVar:
-    rvar = maybe_get_path_rvar(stmt, path_id, aspect=aspect, env=env)
+    rvar = maybe_get_path_rvar(
+        stmt, path_id, aspect=aspect, flavor=flavor, env=env)
     if rvar is None:
         raise LookupError(
             f'there is no range var for {path_id} {aspect} in {stmt}')
@@ -769,18 +830,22 @@ def get_path_rvar(
 
 def maybe_get_path_rvar(
         stmt: pgast.Query, path_id: irast.PathId, *, aspect: str,
+        flavor: str='normal',
         env: context.Environment) -> Optional[pgast.PathRangeVar]:
     rvar = env.external_rvars.get((path_id, aspect))
+    path_rvar_map = stmt.get_rvar_map(flavor)
     if rvar is None:
-        rvar = stmt.path_rvar_map.get((path_id, aspect))
+        rvar = path_rvar_map.get((path_id, aspect))
     if rvar is None and aspect == 'identity':
-        rvar = stmt.path_rvar_map.get((path_id, 'value'))
+        rvar = path_rvar_map.get((path_id, 'value'))
     return rvar
 
 
 def list_path_aspects(
         stmt: pgast.Query, path_id: irast.PathId, *,
         env: context.Environment) -> Set[str]:
+
+    path_id = map_path_id(path_id, stmt.view_path_id_map)
 
     aspects = set()
 
@@ -1124,11 +1189,9 @@ def get_path_serialized_or_value_var(
     return ref
 
 
-def get_path_var_and_fix_tuple(
-        rel: pgast.Query, path_id: irast.PathId, *,
+def fix_tuple(
+        rel: pgast.Query, ref: pgast.BaseExpr, *,
         aspect: str, env: context.Environment) -> pgast.BaseExpr:
-
-    ref = get_path_var(rel, path_id, aspect=aspect, env=env)
 
     if (
         isinstance(ref, pgast.TupleVarBase)
@@ -1151,6 +1214,14 @@ def get_path_var_and_fix_tuple(
         )
 
     return ref
+
+
+def get_path_var_and_fix_tuple(
+        rel: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, env: context.Environment) -> pgast.BaseExpr:
+
+    ref = get_path_var(rel, path_id, aspect=aspect, env=env)
+    return fix_tuple(rel, ref, aspect=aspect, env=env)
 
 
 def get_path_serialized_output(

@@ -115,6 +115,33 @@ class OptionalRel(NamedTuple):
     marker: str
 
 
+def _lookup_set_rvar(
+        ir_set: irast.Set, *,
+        scope_stmt: Optional[pgast.SelectStmt]=None,
+        ctx: context.CompilerContextLevel) -> Optional[pgast.PathRangeVar]:
+    path_id = ir_set.path_id
+
+    rvar = relctx.find_rvar(ctx.rel, source_stmt=scope_stmt,
+                            path_id=path_id, ctx=ctx)
+
+    if rvar is not None:
+        return rvar
+
+    # We couldn't find a regular rvar, but maybe we can find a packed one?
+    packed_rvar = relctx.find_rvar(ctx.rel, flavor='packed',
+                                   source_stmt=scope_stmt,
+                                   path_id=path_id, ctx=ctx)
+
+    if packed_rvar is not None:
+        rvar = relctx.unpack_rvar(
+            scope_stmt or ctx.rel,
+            path_id, packed_rvar=packed_rvar, ctx=ctx)
+
+        return rvar
+
+    return None
+
+
 def get_set_rvar(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
@@ -125,10 +152,7 @@ def get_set_rvar(
     path_id = ir_set.path_id
 
     scope_stmt = relctx.maybe_get_scope_stmt(path_id, ctx=ctx)
-    rvar = relctx.find_rvar(ctx.rel, source_stmt=scope_stmt,
-                            path_id=path_id, ctx=ctx)
-
-    if rvar is not None:
+    if rvar := _lookup_set_rvar(ir_set, scope_stmt=scope_stmt, ctx=ctx):
         return rvar
 
     if ctx.toplevel_stmt is context.NO_STMT:
@@ -453,6 +477,7 @@ def set_as_subquery(
 
 def set_to_array(
         ir_set: irast.Set, query: pgast.Query, *,
+        materializing: bool=False,
         ctx: context.CompilerContextLevel) -> pgast.Query:
     """Collapse a set into an array."""
     subrvar = pgast.RangeSubselect(
@@ -477,6 +502,10 @@ def set_to_array(
             value_var, path_id=ir_set.path_id, env=ctx.env)
         pathctx.put_path_serialized_var(
             result, ir_set.path_id, val, force=True, env=ctx.env)
+
+    if isinstance(val, pgast.TupleVarBase):
+        val = output.serialize_expr(
+            val, path_id=ir_set.path_id, env=ctx.env)
 
     pg_type = output.get_pg_type(ir_set.typeref, ctx=ctx)
     orig_val = val
@@ -514,8 +543,9 @@ def set_to_array(
 
     result.target_list = [
         pgast.ResTarget(
+            name=ctx.env.aliases.get('v'),
             val=agg_expr,
-            ser_safe=array_agg.ser_safe,
+            ser_safe=agg_expr.ser_safe,
         )
     ]
 
@@ -1107,6 +1137,23 @@ def process_set_as_path(
     return SetRVars(main=main_rvar, new=rvars)
 
 
+def _new_subquery_stmt_set_rvar(
+    ir_set: irast.Set,
+    stmt: pgast.Query,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    aspects = pathctx.list_path_aspects(
+        stmt, ir_set.path_id, env=ctx.env)
+    if ir_set.path_id.is_tuple_path():
+        # If we are wrapping a tuple expression, make sure not to
+        # over-represent it in terms of the exposed aspects.
+        aspects -= {'serialized'}
+
+    return new_stmt_set_rvar(
+        ir_set, stmt, aspects=aspects, ctx=ctx)
+
+
 def process_set_as_subquery(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -1139,9 +1186,6 @@ def process_set_as_subquery(
         outer_id = ir_set.path_id
         inner_id = inner_set.path_id
         semi_join = False
-
-        if inner_id != outer_id:
-            pathctx.put_path_id_map(ctx.rel, outer_id, inner_id)
 
         if ir_source is not None:
             if ir_source.path_id != ctx.current_insert_path_id:
@@ -1176,6 +1220,26 @@ def process_set_as_subquery(
                 relctx.include_rvar(
                     stmt, subrvar, ir_source.path_id, ctx=ctx)
 
+        # If we are looking at a materialized computable, running
+        # get_set_rvar on the source above may have made it show
+        # up. So try to lookup the rvar again, and if we find it,
+        # skip compiling the computable.
+        if ir_source and (new_rvar := _lookup_set_rvar(ir_set, ctx=ctx)):
+            if semi_join:
+                # We need to use DISTINCT, instead of doing an actual
+                # semi-join, unfortunately: we need to extract data
+                # out from stmt, which we can't do with a semi-join.
+                value_var = pathctx.get_rvar_path_var(
+                    new_rvar, outer_id, aspect='value', env=ctx.env)
+                stmt.distinct_clause = (
+                    pathctx.get_rvar_output_var_as_col_list(
+                        subrvar, value_var, aspect='value', env=ctx.env))
+
+            return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+        if inner_id != outer_id:
+            pathctx.put_path_id_map(ctx.rel, outer_id, inner_id)
+
         if (isinstance(ir_set.expr, irast.MutatingStmt)
                 and ir_set.expr in ctx.dml_stmts):
             # The DML table-routing logic may result in the same
@@ -1204,13 +1268,7 @@ def process_set_as_subquery(
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause, cond_expr)
 
-    aspects = pathctx.list_path_aspects(stmt, inner_id, env=ctx.env)
-    if inner_id.is_tuple_path():
-        # If we are wrapping a tuple expression, make sure not to
-        # over-represent it in terms of the exposed aspects.
-        aspects -= {'serialized'}
-
-    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
+    return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_membership_expr(
@@ -1696,6 +1754,10 @@ def process_set_as_tuple_indirection(
     with ctx.new() as subctx:
         subctx.expr_exposed = False
         rvar = get_set_rvar(tuple_set, ctx=subctx)
+
+        # Check if unpack_rvar has found our answer for us.
+        if ret_rvar := _lookup_set_rvar(ir_set, ctx=ctx):
+            return new_simple_set_rvar(ir_set, ret_rvar, aspects=('value',))
 
         source_rvar = relctx.maybe_get_path_rvar(
             stmt, tuple_set.path_id, aspect='source', ctx=subctx)

@@ -637,6 +637,16 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         )
 
+    async def test_edgeql_for_and_computable_01(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := (SELECT (FOR x IN {1,2} UNION (
+                    SELECT User { m := x }))),
+                SELECT count(X.m);
+            ''',
+            [8],
+        )
+
     async def test_edgeql_for_correlated_01(self):
         await self.assert_query_result(
             r'''

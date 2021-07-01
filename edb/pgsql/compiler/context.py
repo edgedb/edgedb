@@ -116,6 +116,9 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: Query to become current in the next SUBSTMT switch.
     pending_query: Optional[pgast.SelectStmt]
 
+    #: Sets currently being materialized
+    materializing: FrozenSet[irast.Stmt]
+
     #: Whether the expression currently being processed is
     #: directly exposed to the output of the statement.
     expr_exposed: Optional[bool]
@@ -146,7 +149,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     intersection_narrowing: Dict[irast.Set, irast.Set]
 
     #: Which SQL query holds the SQL scope for the given PathId
-    path_scope: ChainMap[irast.PathId, pgast.SelectStmt]
+    path_scope: ChainMap[irast.PathId, Optional[pgast.SelectStmt]]
 
     #: Relevant IR scope for this context.
     scope_tree: irast.ScopeTreeNode
@@ -223,6 +226,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.dml_stmts = {}
             self.parent_rel = None
             self.pending_query = None
+            self.materializing = frozenset()
 
             self.expr_exposed = None
             self.volatility_ref = ()
@@ -259,6 +263,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.dml_stmts = prevlevel.dml_stmts
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
+            self.materializing = prevlevel.materializing
 
             self.expr_exposed = prevlevel.expr_exposed
             self.volatility_ref = prevlevel.volatility_ref
@@ -370,6 +375,7 @@ class Environment:
     type_rewrites: Dict[uuid.UUID, irast.Set]
     scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+    materialized_views: Dict[uuid.UUID, irast.Set]
 
     def __init__(
         self,
@@ -399,6 +405,7 @@ class Environment:
         self.type_rewrites = type_rewrites
         self.scope_tree_nodes = scope_tree_nodes
         self.external_rvars = external_rvars or {}
+        self.materialized_views = {}
 
 
 # XXX: this context hack is necessary until pathctx is converted

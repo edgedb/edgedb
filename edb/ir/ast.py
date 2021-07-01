@@ -69,7 +69,7 @@ import dataclasses
 import typing
 import uuid
 
-from edb.common import ast, compiler, parsing
+from edb.common import ast, compiler, parsing, markup
 
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
@@ -182,7 +182,10 @@ class BasePointerRef(ImmutableBase):
     __ast_hidden__ = {'children'}
 
     # cardinality fields need to be mutable for lazy cardinality inference.
-    __ast_mutable_fields__ = frozenset(('dir_cardinality', 'out_cardinality'))
+    # and children because we update pointers with newly derived children
+    __ast_mutable_fields__ = frozenset(
+        ('dir_cardinality', 'out_cardinality', 'children')
+    )
 
     # The defaults set here are mostly to try to reduce debug spew output.
     name: sn.QualName
@@ -475,6 +478,7 @@ class ComputableInfo(typing.NamedTuple):
     path_id: PathId
     path_id_ns: typing.Optional[WeakNamespace]
     shape_op: qlast.ShapeOp
+    should_materialize: bool
 
 
 class Statement(Command):
@@ -733,6 +737,30 @@ class TypeCast(ImmutableExpr):
     sql_expr: bool
 
 
+class MaterializedSet(Base):
+    # Hide uses to reduce spew; we produce our own simpler uses
+    __ast_hidden__ = {'use_sets'}
+    materialized: Set
+    # We really only want the *paths* of all the places it is used,
+    # but we need to store the sets to take advantage of weak
+    # namespace rewriting.
+    use_sets: typing.List[Set]
+    cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
+
+    @property
+    def uses(self) -> typing.List[PathId]:
+        return [x.path_id for x in self.use_sets]
+
+
+@markup.serializer.serializer.register(MaterializedSet)
+def _serialize_to_markup(
+        ir: MaterializedSet, *, ctx: typing.Any) -> typing.Any:
+    # We want to show the path_ids but *not* to show the full uses
+    node = ast.serialize_to_markup(ir, ctx=ctx)
+    node.add_child(label='uses', node=markup.serialize(ir.uses, ctx=ctx))
+    return node
+
+
 class Stmt(Expr):
     __abstract_node__ = True
     # Hide parent_stmt to reduce debug spew and to hide it from find_children
@@ -743,6 +771,8 @@ class Stmt(Expr):
     parent_stmt: typing.Optional[Stmt]
     iterator_stmt: typing.Optional[Set]
     bindings: typing.List[Set]
+    # Sets to materialize at this point, keyed by the type/ptr id.
+    materialized_sets: typing.Dict[uuid.UUID, MaterializedSet]
 
 
 class FilteredStmt(Stmt):

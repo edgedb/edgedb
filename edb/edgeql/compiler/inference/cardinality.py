@@ -29,6 +29,7 @@ from typing import *
 
 import enum
 import functools
+import uuid
 
 from edb import errors
 from edb.common import parsing
@@ -191,42 +192,6 @@ def _coalesce_cardinality(
 
 
 VOLATILE = qltypes.Volatility.Volatile
-
-
-def _check_binding_volatility(
-    ir: irast.Set,
-    scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> None:
-    # Check the binding volatility
-    if (
-        ir.is_binding
-        and ir.expr
-        and volatility.infer_volatility(ir.expr, env=ctx.env) == VOLATILE
-    ):
-        path_id = ir.path_id
-        if path_id not in ctx.bindings:
-            return
-
-        bind_scope = ctx.bindings[path_id]
-
-        if ctx.in_for_body:
-            raise errors.QueryError(
-                "volatile aliased expressions may not "
-                "be used inside FOR bodies",
-                context=ir.context)
-
-        if bind_scope and scope_tree.fence != bind_scope.fence:
-            if (
-                path_id in ctx.volatile_uses
-                and ctx.volatile_uses[path_id] != scope_tree
-            ):
-                raise errors.QueryError(
-                    "volatile aliased expressions may not "
-                    "be used in multiple subqueries",
-                    context=ir.context)
-            else:
-                ctx.volatile_uses[path_id] = scope_tree
 
 
 def _check_op_volatility(
@@ -616,8 +581,6 @@ def _infer_set_inner(
         return ONE
     if (node := _find_visible(ir, scope_tree)) is not None:
         return AT_MOST_ONE if node.optional else ONE
-
-    _check_binding_volatility(ir, scope_tree=scope_tree, ctx=ctx)
 
     if rptr is not None:
         if isinstance(rptrref, irast.TypeIntersectionPointerRef):
@@ -1024,6 +987,23 @@ def _analyse_filter_clause(
     return result_card
 
 
+def _infer_matset_cardinality(
+    materialized_sets: Dict[uuid.UUID, irast.MaterializedSet],
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> None:
+    for mat_set in materialized_sets.values():
+        if (len(mat_set.uses) <= 1
+                or mat_set.cardinality != qltypes.Cardinality.UNKNOWN):
+            continue
+        # set it to something to prevent recursion
+        mat_set.cardinality = MANY
+        mat_set.cardinality = infer_cardinality(
+            mat_set.materialized, scope_tree=scope_tree, ctx=ctx,
+        )
+
+
 def _infer_stmt_cardinality(
     ir: irast.FilteredStmt,
     *,
@@ -1047,6 +1027,9 @@ def _infer_stmt_cardinality(
         result_card = _analyse_filter_clause(
             ir.result, result_card, ir.where, scope_tree, ctx)
 
+    _infer_matset_cardinality(
+        ir.materialized_sets, scope_tree=scope_tree, ctx=ctx)
+
     return result_card
 
 
@@ -1065,7 +1048,6 @@ def __infer_select_stmt(
         iter_card = infer_cardinality(
             ir.iterator_stmt, scope_tree=scope_tree, ctx=ctx,
         )
-        ctx = ctx._replace(in_for_body=True)
 
     stmt_card = _infer_stmt_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
@@ -1108,6 +1090,9 @@ def __infer_insert_stmt(
     )
 
     assert not ir.iterator_stmt, "InsertStmt shouldn't ever have an iterator"
+
+    _infer_matset_cardinality(
+        ir.materialized_sets, scope_tree=scope_tree, ctx=ctx)
 
     # INSERT without a FOR is always a singleton.
     if not ir.on_conflict:

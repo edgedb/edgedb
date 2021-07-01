@@ -65,11 +65,21 @@ def compile_shape(
             if iterator:
                 shapectx.path_scope[iterator.path_id] = ctx.rel
 
-        for el, _ in shape:
+        for el, op in shape:
+            if op == qlast.ShapeOp.MATERIALIZE and not ctx.materializing:
+                continue
+
             rptr = el.rptr
             assert rptr is not None
             ptrref = rptr.ptrref
-            is_singleton = ptrref.dir_cardinality.is_single()
+            # As an implementation expedient, we currently represent
+            # AT_MOST_ONE materialized values with arrays
+            card = ptrref.dir_cardinality
+            is_singleton = (
+                card.is_single() and (
+                    op != qlast.ShapeOp.MATERIALIZE or not card.can_be_zero()
+                )
+            )
             value: pgast.BaseExpr
 
             if (irutils.is_subquery_set(el) or

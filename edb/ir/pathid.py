@@ -363,6 +363,11 @@ class PathId:
         """
         result = self.__class__(self)
         result._namespace = frozenset(namespace)
+
+        if result._prefix is not None:
+            result._prefix = result._get_minimal_prefix(
+                result._prefix)
+
         return result
 
     def merge_namespace(
@@ -637,6 +642,9 @@ class PathId:
                         prefix, replacement)
                 else:
                     result._prefix = replacement._prefix
+
+                result._prefix = result._get_minimal_prefix(
+                    result._prefix)
 
                 return result
             else:

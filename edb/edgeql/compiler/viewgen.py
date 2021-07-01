@@ -82,7 +82,7 @@ def process_view(
         view_path_id_ns = None
         new_path_id = path_id
         if ctx.expr_exposed or is_insert or is_update:
-            view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
+            view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('tmpns'))
             scopectx.path_id_namespace |= {view_path_id_ns}
             scopectx.path_scope.add_namespaces({view_path_id_ns})
             new_path_id = path_id.merge_namespace({view_path_id_ns})
@@ -194,6 +194,37 @@ def _process_view(
                     context=shape_el.context)
 
             pointers.append(pointer)
+
+    # If we are not defining a shape (so we might care about
+    # materialization), look through our parent view (if one exists)
+    # for materialized properties that are not present in this shape.
+    # If any are found, inject them.
+    # (See test_edgeql_volatility_rebind_flat_01 for an example.)
+    schema = ctx.env.schema
+    base = view_scls.get_bases(schema).objects(schema)[0]
+    base_ptrs = (view_scls.get_pointers(schema).objects(schema)
+                 if not is_defining_shape else ())
+    for ptrcls in base_ptrs:
+        if ptrcls in pointers or base not in ctx.env.view_shapes:
+            continue
+        pptr = ptrcls.get_bases(schema).objects(schema)[0]
+        if (pptr, qlast.ShapeOp.MATERIALIZE) not in ctx.env.view_shapes[base]:
+            continue
+
+        # Make up a dummy shape element
+        name = ptrcls.get_shortname(schema).name
+        dummy_el = qlast.ShapeElement(expr=qlast.Path(
+            steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=name))]))
+
+        with ctx.newscope(fenced=True) as scopectx:
+            pointer = _normalize_view_ptr_expr(
+                dummy_el, view_scls, path_id=path_id,
+                path_id_namespace=path_id_namespace,
+                is_insert=is_insert, is_update=is_update,
+                view_rptr=view_rptr,
+                ctx=scopectx)
+
+        pointers.append(pointer)
 
     if is_insert:
         explicit_ptrs = {
@@ -332,8 +363,12 @@ def _process_view(
                 shape_op = cinfo.shape_op
             else:
                 shape_op = qlast.ShapeOp.ASSIGN
+        elif ptrcls.get_computable(ctx.env.schema):
+            shape_op = qlast.ShapeOp.MATERIALIZE
+        else:
+            continue
 
-            ctx.env.view_shapes[source].append((ptrcls, shape_op))
+        ctx.env.view_shapes[source].append((ptrcls, shape_op))
 
     if (view_rptr is not None and view_rptr.ptrcls is not None and
             view_scls != stype):
@@ -428,6 +463,7 @@ def _normalize_view_ptr_expr(
     is_linkprop = False
     is_polymorphic = False
     is_mutation = is_insert or is_update
+    materialized = False
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
     plen = len(steps)
@@ -514,15 +550,10 @@ def _normalize_view_ptr_expr(
         if base_cardinality is not None and base_cardinality.is_known():
             base_is_singleton = base_cardinality.is_single()
 
-        has_clause = (
-            shape_el.where
-            or shape_el.orderby
-            or shape_el.offset
-            or shape_el.limit
-        )
+        is_nontrivial = astutils.is_nontrivial_shape_element(shape_el)
 
         if (
-            has_clause
+            is_nontrivial
             or base_ptr_is_computable
             or is_polymorphic
             or target_typexpr is not None
@@ -592,13 +623,16 @@ def _normalize_view_ptr_expr(
             ctx=ctx,
         )
 
-        # If the element has clauses, we need to compile it to figure
-        # out if those clauses need materialization.
-        if has_clause and qlexpr:
+        # If the element has clauses or computable elements, we need to
+        # compile it to figure out if those need materialization.
+        if is_nontrivial and qlexpr and not is_mutation:
             irexpr, _ = _compile_qlexpr(
                 qlexpr, view_scls, ptrcls=ptrcls, ptrsource=ptrsource,
                 path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
                 is_insert=is_insert, is_update=is_update, ctx=ctx)
+            materialized = setgen.should_materialize(
+                irexpr, binding_pessimism=True, skipped_bindings={path_id},
+                ctx=ctx)
             ptr_target = inference.infer_type(irexpr, ctx.env)
 
         elif shape_el.elements or implicit_tid:
@@ -696,6 +730,9 @@ def _normalize_view_ptr_expr(
             qlexpr, view_scls, ptrcls=ptrcls, ptrsource=ptrsource,
             path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
             is_insert=is_insert, is_update=is_update, ctx=ctx)
+        materialized = setgen.should_materialize(
+            irexpr, binding_pessimism=True, skipped_bindings={path_id},
+            ctx=ctx)
         ptr_target = inference.infer_type(irexpr, ctx.env)
 
         if (
@@ -855,6 +892,14 @@ def _normalize_view_ptr_expr(
 
     assert ptrcls is not None
 
+    if materialized and not is_mutation and ctx.qlstmt:
+        assert ptrcls not in ctx.env.materialized_sets
+        ctx.env.materialized_sets[ptrcls] = ctx.qlstmt
+
+        if not ctx.expr_exposed and irexpr:
+            irexpr = setgen.ensure_set(irexpr, ctx=ctx)
+            setgen.maybe_materialize(ptrcls, irexpr, ctx=ctx)
+
     if qlexpr is None:
         # This is not a computable, just a pointer
         # to a nested shape.  Have it reuse the original
@@ -873,9 +918,10 @@ def _normalize_view_ptr_expr(
             path_id=path_id,
             path_id_ns=path_id_namespace,
             shape_op=shape_el.operation.op,
+            should_materialize=materialized,
         )
 
-    if compexpr is not None or is_polymorphic:
+    if compexpr is not None or is_polymorphic or materialized:
         ctx.env.schema = ptrcls.set_field_value(
             ctx.env.schema,
             'computable',
@@ -1181,6 +1227,9 @@ def _get_shape_configuration(
         for ptr, shape_op in ctx.env.view_shapes[source]:
             shape_ptrs.append((ir_set, ptr, shape_op))
 
+    all_materialize = all(
+        op == qlast.ShapeOp.MATERIALIZE for _, _, op in shape_ptrs)
+
     if is_objtype:
         assert isinstance(stype, s_objtypes.ObjectType)
 
@@ -1197,24 +1246,28 @@ def _get_shape_configuration(
             # we are inside an UPDATE shape and this is
             # an explicit expression (link target update)
             or (is_parent_update and ir_set.expr is not None)
+            or all_materialize
         )
+        # We actually *always* inject an implicit id, but it's just
+        # there in case materialization needs it, in many cases.
+        implicit_op = qlast.ShapeOp.ASSIGN
+        if not implicit_id:
+            implicit_op = qlast.ShapeOp.MATERIALIZE
 
-        if implicit_id:
-            # We want the id in this shape and it's not already there,
-            # so insert it in the first position.
-            pointers = stype.get_pointers(ctx.env.schema).objects(
-                ctx.env.schema)
-            view_shape = ctx.env.view_shapes[stype]
-            view_shape_ptrs = {p for p, _ in view_shape}
-            for ptr in pointers:
-                if ptr.is_id_pointer(ctx.env.schema):
-                    if ptr not in view_shape_ptrs:
-                        shape_metadata = ctx.env.view_shapes_metadata[stype]
-                        view_shape.insert(0, (ptr, qlast.ShapeOp.ASSIGN))
-                        shape_metadata.has_implicit_id = True
-                        shape_ptrs.insert(
-                            0, (ir_set, ptr, qlast.ShapeOp.ASSIGN))
-                    break
+        # We want the id in this shape and it's not already there,
+        # so insert it in the first position.
+        pointers = stype.get_pointers(ctx.env.schema).objects(
+            ctx.env.schema)
+        view_shape = ctx.env.view_shapes[stype]
+        view_shape_ptrs = {p for p, _ in view_shape}
+        for ptr in pointers:
+            if ptr.is_id_pointer(ctx.env.schema):
+                if ptr not in view_shape_ptrs:
+                    shape_metadata = ctx.env.view_shapes_metadata[stype]
+                    view_shape.insert(0, (ptr, implicit_op))
+                    shape_metadata.has_implicit_id = True
+                    shape_ptrs.insert(0, (ir_set, ptr, implicit_op))
+                break
 
     is_mutation = parent_view_type in {
         s_types.ExprType.Insert,

@@ -63,11 +63,20 @@ CREATE FUNCTION rand_int(top: int64) -> int64 {
     USING (<int64>(random() * top))
 };
 
+CREATE FUNCTION vol_id(x: int64) -> int64 {
+    SET volatility := 'Volatile';
+    USING (x)
+};
 
-INSERT Obj { n := 1 };
-INSERT Obj { n := 2 };
-INSERT Obj { n := 3 };
+CREATE SCALAR TYPE TestCounter extending std::sequence;
+CREATE FUNCTION next() -> int64 USING (
+	SELECT sequence_next(INTROSPECT TestCounter)
+);
+
 INSERT Tgt { n := 1 };
 INSERT Tgt { n := 2 };
 INSERT Tgt { n := 3 };
 INSERT Tgt { n := 4 };
+INSERT Obj { n := 1, tgt := (SELECT Tgt FILTER .n IN {1, 2}) };
+INSERT Obj { n := 2, tgt := (SELECT Tgt FILTER .n IN {2, 3}) };
+INSERT Obj { n := 3, tgt := (SELECT Tgt FILTER .n IN {3, 4}) };
