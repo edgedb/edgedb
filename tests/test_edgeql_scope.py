@@ -1956,6 +1956,60 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_scope_detached_11(self):
+        await self.assert_query_result(
+            r"""
+            SELECT _ := (User.name, { x := User.name }) ORDER BY _;
+            """,
+            [
+                ["Alice", {"x": "Alice"}],
+                ["Bob", {"x": "Bob"}],
+                ["Carol", {"x": "Carol"}],
+                ["Dave", {"x": "Dave"}],
+            ]
+        )
+
+    async def test_edgeql_scope_detached_12(self):
+        await self.assert_query_result(
+            r"""
+            SELECT DETACHED User { name2 := User.name } ORDER BY .name;
+            """,
+            [
+                {"name2": "Alice"},
+                {"name2": "Bob"},
+                {"name2": "Carol"},
+                {"name2": "Dave"},
+            ]
+        )
+
+    async def test_edgeql_scope_detached_13(self):
+        # Detached but using a partial path should still give singletons
+        await self.assert_query_result(
+            r"""
+            SELECT (DETACHED User) { name2 := .name } ORDER BY .name;
+            """,
+            [
+                {"name2": "Alice"},
+                {"name2": "Bob"},
+                {"name2": "Carol"},
+                {"name2": "Dave"},
+            ]
+        )
+
+    async def test_edgeql_scope_detached_14(self):
+        # Detached reference to User should be an unrelated one
+        await self.assert_query_result(
+            r"""
+            SELECT (DETACHED User) { names := User.name }
+            """,
+            [
+                {"names": {"Alice", "Bob", "Carol", "Dave"}},
+                {"names": {"Alice", "Bob", "Carol", "Dave"}},
+                {"names": {"Alice", "Bob", "Carol", "Dave"}},
+                {"names": {"Alice", "Bob", "Carol", "Dave"}},
+            ]
+        )
+
     async def test_edgeql_scope_union_01(self):
         await self.assert_query_result(
             r'''

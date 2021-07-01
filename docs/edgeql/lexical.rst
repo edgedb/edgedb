@@ -254,7 +254,7 @@ content with *dollar-quotes* in an unambiguous manner:
 More specifically, a delimiter:
 
 * Must start with an ASCII letter or underscore
-* Has following characters that can be digits 0-9, underscores or 
+* Has following characters that can be digits 0-9, underscores or
   ASCII letters
 
 .. _ref_eql_lexical_bytes:
@@ -438,14 +438,14 @@ EdgeQL operators listed in order of precedence from lowest to highest:
     * - :eql:op:`*<MULT>`, :eql:op:`/<DIV>`,
         :eql:op:`//<FLOORDIV>`, :eql:op:`%<MOD>`
     * - :eql:op:`??<COALESCE>`
-    * - :eql:op:`DISTINCT`, unary :eql:op:`-<UMINUS>`
+    * - :eql:op:`DISTINCT`, :eql:op:`EXISTS`,
+	    :ref:`DETACHED <ref_eql_with_detached>`, unary :eql:op:`-<UMINUS>`
     * - :eql:op:`^<POW>`
     * - :eql:op:`type cast <CAST>`
     * - :eql:op:`array[] <ARRAYIDX>`,
         :eql:op:`str[] <STRIDX>`,
         :eql:op:`json[] <JSONIDX>`,
         :eql:op:`bytes[] <BYTESIDX>`
-    * - :ref:`DETACHED <ref_eql_with_detached>`
 
 .. |neq| replace:: !=
 .. _neq: ./funcops/generic#operator::NEQ
