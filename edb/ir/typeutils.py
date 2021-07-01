@@ -663,6 +663,11 @@ def ptrref_from_ptrcls(  # NoQA: F811
     if cache is not None:
         cache[ptrcls, direction] = ptrref
 
+        # This is kind of unfortunate, but if we are caching, update the
+        # base_ptr with this child
+        if base_ptr and not material_ptr and ptrref not in base_ptr.children:
+            base_ptr.children = base_ptr.children | frozenset([ptrref])
+
     return ptrref
 
 
@@ -836,11 +841,13 @@ def type_contains(
 def find_actual_ptrref(
     source_typeref: irast.TypeRef,
     parent_ptrref: irast.BasePointerRef,
+    *,
+    material: bool=True,
 ) -> irast.BasePointerRef:
-    if source_typeref.material_type:
+    if material and source_typeref.material_type:
         source_typeref = source_typeref.material_type
 
-    if parent_ptrref.material_ptr:
+    if material and parent_ptrref.material_ptr:
         parent_ptrref = parent_ptrref.material_ptr
 
     ptrref = parent_ptrref
@@ -859,7 +866,8 @@ def find_actual_ptrref(
                     actual_ptrref = dp
                     break
                 else:
-                    candidate = maybe_find_actual_ptrref(source_typeref, dp)
+                    candidate = maybe_find_actual_ptrref(
+                        source_typeref, dp, material=material)
                     if candidate is not None:
                         actual_ptrref = candidate
                         break
@@ -872,7 +880,8 @@ def find_actual_ptrref(
         # We are updating a subtype, find the
         # correct descendant ptrref.
         for dp in ptrref.union_components | ptrref.intersection_components:
-            candidate = maybe_find_actual_ptrref(source_typeref, dp)
+            candidate = maybe_find_actual_ptrref(
+                source_typeref, dp, material=material)
             if candidate is not None:
                 actual_ptrref = candidate
                 break
@@ -882,7 +891,8 @@ def find_actual_ptrref(
                     actual_ptrref = dp
                     break
                 else:
-                    candidate = maybe_find_actual_ptrref(source_typeref, dp)
+                    candidate = maybe_find_actual_ptrref(
+                        source_typeref, dp, material=material)
                     if candidate is not None:
                         actual_ptrref = candidate
                         break
@@ -898,9 +908,12 @@ def find_actual_ptrref(
 def maybe_find_actual_ptrref(
     source_typeref: irast.TypeRef,
     parent_ptrref: irast.BasePointerRef,
+    *,
+    material: bool=True,
 ) -> Optional[irast.BasePointerRef]:
     try:
-        return find_actual_ptrref(source_typeref, parent_ptrref)
+        return find_actual_ptrref(
+            source_typeref, parent_ptrref, material=material)
     except LookupError:
         return None
 

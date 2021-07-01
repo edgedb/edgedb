@@ -89,6 +89,9 @@ def compile_SelectStmt(
                     )
                 last_iterator = iterator_set
 
+        # Process materialized sets
+        clauses.compile_materialized_exprs(query, stmt, ctx=ctx)
+
         # Process the result expression.
         with ctx.new() as ictx:
             clauses.setup_iterator_volatility(last_iterator, ctx=ictx)

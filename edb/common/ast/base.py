@@ -324,7 +324,7 @@ class ImmutableASTMixin:
 
 
 @markup.serializer.serializer.register(AST)
-def _serialize_to_markup(ast, *, ctx):
+def serialize_to_markup(ast, *, ctx):
     node = markup.elements.lang.TreeNode(id=id(ast), name=type(ast).__name__)
     include_meta = ctx.kwargs.get('_ast_include_meta', True)
     exclude_unset = ctx.kwargs.get('_ast_exclude_unset', True)

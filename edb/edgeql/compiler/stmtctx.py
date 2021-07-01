@@ -50,6 +50,7 @@ from . import inference
 from . import options as coptions
 from . import pathctx
 from . import setgen
+from . import viewgen
 from . import schemactx
 
 
@@ -115,6 +116,27 @@ def fini_expression(
         and pathctx.get_set_scope(ir, ctx=ctx) is None
     ):
         ir = setgen.scoped_set(ir, ctx=ctx)
+
+    # Make sure that all materialized sets have their views compiled
+    v = ast_visitor.NodeVisitor()
+    v.node_visit(ir)
+    children = [x for x in v.memo if isinstance(x, irast.Stmt)]
+    for stmt in children:
+        for key in list(stmt.materialized_sets):
+            mat_set = stmt.materialized_sets[key]
+            ir_set = mat_set.materialized
+            if len(mat_set.uses) <= 1:
+                del stmt.materialized_sets[key]
+            else:
+                with ctx.new() as subctx:
+                    subctx.implicit_tid_in_shapes = False
+                    subctx.implicit_tname_in_shapes = False
+                    assert ir_set.path_scope_id is not None
+                    new_scope = ctx.env.scope_tree_nodes.get(
+                        ir_set.path_scope_id)
+                    assert new_scope
+                    subctx.path_scope = new_scope
+                    viewgen.compile_view_shapes(ir_set, ctx=subctx)
 
     # The inference context object will be shared between
     # cardinality and multiplicity inferrers.
@@ -227,7 +249,7 @@ def fini_expression(
         multiplicity=multiplicity,
         stype=expr_type,
         view_shapes={
-            src: [ptr for ptr, _ in ptrs]
+            src: [ptr for ptr, op in ptrs if op != qlast.ShapeOp.MATERIALIZE]
             for src, ptrs in ctx.env.view_shapes.items()
         },
         view_shapes_metadata=ctx.env.view_shapes_metadata,
@@ -295,9 +317,11 @@ def _try_namespace_fix(
         replacement = scope.find_visible(prefix)
         if (
             replacement and replacement.path_id
-            and replacement.path_id != prefix
+            and replacement.path_id.namespace != obj.path_id.namespace
         ):
-            new = obj.path_id.replace_prefix(prefix, replacement.path_id)
+            new = obj.path_id.strip_namespace(
+                obj.path_id.namespace - replacement.path_id.namespace)
+
             obj.path_id = new
             break
 

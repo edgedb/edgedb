@@ -499,8 +499,6 @@ def __infer_select_stmt(
             ir.iterator_stmt, scope_tree=scope_tree, ctx=ctx,
         )
 
-        ctx = ctx._replace(in_for_body=True)
-
     # OFFSET, LIMIT and ORDER BY have already been validated to be
     # singletons, but their sub-expressions (if any) still need to be
     # validated.

@@ -322,6 +322,47 @@ def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
     return res
 
 
+class ContainsBindingVisitor(ast.NodeVisitor):
+    skip_hidden = True
+    extra_skips = frozenset(['materialized_sets'])
+
+    def __init__(self, to_skip: AbstractSet[irast.PathId]) -> None:
+        super().__init__()
+        self.to_skip = to_skip
+
+    def combine_field_results(self, xs: List[Optional[bool]]) -> bool:
+        return any(
+            x is True
+            or (isinstance(x, list) and self.combine_field_results(x))
+            for x in xs
+        )
+
+    def visit_Set(self, node: irast.Set) -> bool:
+        if node.path_id in self.to_skip:
+            return False
+
+        if node.is_binding:
+            return True
+
+        results = []
+        results.append(self.visit(node.rptr))
+        results.append(self.visit(node.shape))
+        if not node.rptr:
+            results.append(self.visit(node.expr))
+
+        # Visit sub-trees
+        return self.combine_field_results(results)
+
+
+def contains_binding(
+    stmt: irast.Base, to_skip: AbstractSet[irast.PathId]=frozenset()
+) -> bool:
+    """Check whether a statement contains any bindings in a subtree."""
+    # TODO: Make this caching.
+    visitor = ContainsBindingVisitor(to_skip=to_skip)
+    return visitor.visit(stmt) is True
+
+
 def contains_set_of_op(ir: irast.Base) -> bool:
     flt = (lambda n: isinstance(n, irast.Call)
            and any(x == ft.TypeModifier.SetOfType

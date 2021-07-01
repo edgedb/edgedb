@@ -711,10 +711,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        Fails due to incorrect scoping of the "l" computable due
-        to an intermediate subtype.
-    ''')
     async def test_edgeql_scope_tuple_14(self):
         # Test that the tuple elements are interpreted as singletons.
 
@@ -2539,4 +2535,24 @@ class TestEdgeQLScope(tb.QueryTestCase):
                           (((SELECT U.cards.foo), (U.cards.foo)),).0))
             """,
             [7],
+        )
+
+    async def test_edgeql_scope_reverse_lprop_01(self):
+        # try injecting something myself?
+        await self.assert_query_result(
+            """
+            WITH X1 := (Card { z := (.<deck[IS User], .<deck[IS User]@count)}),
+                 X2 := X1 { owners2 := .z.0 { count := X1.z.1 } },
+            SELECT X2 { name, owners2: {name, count} ORDER BY .name }
+            FILTER .name = 'Dwarf';
+            """,
+            [
+                {
+                    "name": "Dwarf",
+                    "owners2": [
+                        {"count": 3, "name": "Bob"},
+                        {"count": 4, "name": "Carol"}
+                    ]
+                }
+            ],
         )

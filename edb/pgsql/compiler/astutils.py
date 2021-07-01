@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 def tuple_element_for_shape_el(
     shape_el: irast.Set,
-    value: Optional[pgast.BaseExpr],
+    value: Optional[pgast.BaseExpr]=None,
     *,
     ctx: context.CompilerContextLevel
 ) -> pgast.TupleElementBase:

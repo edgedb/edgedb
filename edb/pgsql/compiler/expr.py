@@ -620,6 +620,14 @@ def _compile_shape(
         pathctx.put_path_serialized_var(
             ctx.rel, element.path_id, element.val, force=True, env=ctx.env)
 
+    # When we compile a shape during materialization, stash the
+    # set away so we can consume it in unpack_rvar.
+    if (
+        ctx.materializing
+        and ir_set.typeref.id not in ctx.env.materialized_views
+    ):
+        ctx.env.materialized_views[ir_set.typeref.id] = ir_set
+
     ser_elements = []
     for el in result.elements:
         ser_val = pathctx.get_path_serialized_or_value_var(

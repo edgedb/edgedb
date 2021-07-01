@@ -153,6 +153,13 @@ def pg_type_from_scalar(
     return column_type
 
 
+def pg_type_array(tp: Tuple[str, ...]) -> Tuple[str, ...]:
+    if len(tp) == 1:
+        return (tp[0] + '[]',)
+    else:
+        return (tp[0], tp[1] + '[]')
+
+
 def pg_type_from_object(
         schema: s_schema.Schema,
         obj: s_obj.Object,

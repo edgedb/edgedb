@@ -31,12 +31,35 @@ from edb.ir import ast as irast
 from .. import context
 
 
+InferredVolatility = context.InferredVolatility
+
+
 IMMUTABLE = qltypes.Volatility.Immutable
 STABLE = qltypes.Volatility.Stable
 VOLATILE = qltypes.Volatility.Volatile
 
 
-def _max_volatility(args: Iterable[qltypes.Volatility]) -> qltypes.Volatility:
+# Volatility inference computes two volatility results:
+# A basic one, and one for consumption by materialization.
+#
+# The one for consumption by materialization differs in that it
+# does not consider variable bindings to be Stable and that it
+# (counterintuitively) does not consider DML to be volatile
+# (since DML has its own "materialization" mechanism).
+#
+# We represent this output as a pair, but for ergonomics, inference
+# functions are allowed to still produce a single volatility value,
+# which is normalized when necessary.
+
+def _normalize_volatility(vol: InferredVolatility) -> Tuple[
+        qltypes.Volatility, qltypes.Volatility]:
+    if not isinstance(vol, tuple):
+        return (vol, vol)
+    else:
+        return vol
+
+
+def _max_volatility(args: Iterable[InferredVolatility]) -> InferredVolatility:
     # We rely on a happy coincidence that the lexical
     # order of volatility constants coincides with the volatility
     # level.
@@ -44,85 +67,87 @@ def _max_volatility(args: Iterable[qltypes.Volatility]) -> qltypes.Volatility:
     if not arg_list:
         return IMMUTABLE
     else:
-        return max(arg_list)
+        nargs = [_normalize_volatility(x) for x in arg_list]
+        return (
+            max(x[0] for x in nargs),
+            max(x[1] for x in nargs),
+        )
 
 
 def _common_volatility(
     args: Iterable[irast.Base],
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return _max_volatility(
-        infer_volatility(a, env) for a in args)
+        _infer_volatility(a, env) for a in args)
 
 
 @functools.singledispatch
-def _infer_volatility(
+def _infer_volatility_inner(
     ir: irast.Base,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     raise ValueError(f'infer_volatility: cannot handle {ir!r}')
 
 
-@_infer_volatility.register(type(None))
+@_infer_volatility_inner.register(type(None))
 def __infer_none(
     ir: None,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     # Here for debugging purposes.
     raise ValueError('invalid infer_volatility(None, schema) call')
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_statement(
     ir: irast.Statement,
     env: context.Environment,
-) -> qltypes.Volatility:
-    return infer_volatility(ir.expr, env)
+) -> InferredVolatility:
+    return _infer_volatility(ir.expr, env)
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_config_command(
     ir: irast.ConfigCommand,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return VOLATILE
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_emptyset(
     ir: irast.EmptySet,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return IMMUTABLE
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_typeref(
     ir: irast.TypeRef,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return IMMUTABLE
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_type_introspection(
     ir: irast.TypeIntrospection,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return IMMUTABLE
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_set(
     ir: irast.Set,
     env: context.Environment,
-) -> qltypes.Volatility:
-    if ir.is_binding:
-        vol = STABLE
-    elif ir.rptr is not None:
-        vol = infer_volatility(ir.rptr.source, env)
+) -> InferredVolatility:
+    if ir.rptr is not None:
+        vol = _infer_volatility(ir.rptr.source, env)
     elif ir.expr is not None:
-        vol = infer_volatility(ir.expr, env)
+        vol = _infer_volatility(ir.expr, env)
     else:
         vol = STABLE
 
@@ -137,14 +162,18 @@ def __infer_set(
             ),
             vol,
         ])
+
+    if ir.is_binding:
+        vol = (STABLE, _normalize_volatility(vol)[1])
+
     return vol
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_func_call(
     ir: irast.FunctionCall,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     if ir.args:
         return _max_volatility([
             _common_volatility((arg.expr for arg in ir.args), env),
@@ -154,11 +183,11 @@ def __infer_func_call(
         return ir.volatility
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_oper_call(
     ir: irast.OperatorCall,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     if ir.args:
         return _max_volatility([
             _common_volatility((arg.expr for arg in ir.args), env),
@@ -168,51 +197,51 @@ def __infer_oper_call(
         return ir.volatility
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_const(
     ir: irast.BaseConstant,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return IMMUTABLE
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_param(
     ir: irast.Parameter,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return IMMUTABLE
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_const_set(
     ir: irast.ConstantSet,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return IMMUTABLE
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_typecheckop(
     ir: irast.TypeCheckOp,
     env: context.Environment,
-) -> qltypes.Volatility:
-    return infer_volatility(ir.left, env)
+) -> InferredVolatility:
+    return _infer_volatility(ir.left, env)
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_typecast(
     ir: irast.TypeCast,
     env: context.Environment,
-) -> qltypes.Volatility:
-    return infer_volatility(ir.expr, env)
+) -> InferredVolatility:
+    return _infer_volatility(ir.expr, env)
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_select_stmt(
     ir: irast.SelectStmt,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     components = []
 
     if ir.iterator_stmt is not None:
@@ -237,43 +266,29 @@ def __infer_select_stmt(
     return _common_volatility(components, env)
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_group_stmt(
     ir: irast.GroupStmt,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     raise NotImplementedError
 
 
-@_infer_volatility.register
-def __infer_insert_stmt(
-    ir: irast.InsertStmt,
+@_infer_volatility_inner.register
+def __infer_dml_stmt(
+    ir: irast.MutatingStmt,
     env: context.Environment,
-) -> qltypes.Volatility:
-    return VOLATILE
+) -> InferredVolatility:
+    # For materialization purposes, DML is not volatile.  (Since it
+    # has its *own* elaborate mechanism using top-level CTEs).
+    return VOLATILE, STABLE
 
 
-@_infer_volatility.register
-def __infer_update_stmt(
-    ir: irast.UpdateStmt,
-    env: context.Environment,
-) -> qltypes.Volatility:
-    return VOLATILE
-
-
-@_infer_volatility.register
-def __infer_delete_stmt(
-    ir: irast.DeleteStmt,
-    env: context.Environment,
-) -> qltypes.Volatility:
-    return VOLATILE
-
-
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_slice(
     ir: irast.SliceIndirection,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     # slice indirection volatility depends on the volatility of
     # the base expression and the slice index expressions
     args = [ir.expr]
@@ -285,49 +300,61 @@ def __infer_slice(
     return _common_volatility(args, env)
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_index(
     ir: irast.IndexIndirection,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     # index indirection volatility depends on both the volatility of
     # the base expression and the index expression
     return _common_volatility([ir.expr, ir.index], env)
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_array(
     ir: irast.Array,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return _common_volatility(ir.elements, env)
 
 
-@_infer_volatility.register
+@_infer_volatility_inner.register
 def __infer_tuple(
     ir: irast.Tuple,
     env: context.Environment,
-) -> qltypes.Volatility:
+) -> InferredVolatility:
     return _common_volatility(
         [el.val for el in ir.elements], env)
+
+
+def _infer_volatility(
+    ir: irast.Base,
+    env: context.Environment,
+) -> InferredVolatility:
+    result = env.inferred_volatility.get(ir)
+    if result is not None:
+        return result
+
+    result = _infer_volatility_inner(ir, env)
+
+    env.inferred_volatility[ir] = result
+
+    return result
 
 
 def infer_volatility(
     ir: irast.Base,
     env: context.Environment,
+    *,
+    for_materialization: bool=False,
 ) -> qltypes.Volatility:
-    result = env.inferred_volatility.get(ir)
-    if result is not None:
-        return result
-
-    result = _infer_volatility(ir, env)
+    result = _normalize_volatility(_infer_volatility(ir, env))[
+        for_materialization]
 
     if result not in {VOLATILE, STABLE, IMMUTABLE}:
         raise errors.QueryError(
             'could not determine the volatility of '
             'set produced by expression',
             context=ir.context)
-
-    env.inferred_volatility[ir] = result
 
     return result

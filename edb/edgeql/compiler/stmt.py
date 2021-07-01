@@ -1048,7 +1048,10 @@ def compile_DescribeStmt(
 def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
     shape_expr = shape.expr or qlutils.ANONYMOUS_SHAPE_EXPR
-    expr = setgen.ensure_set(dispatch.compile(shape_expr, ctx=ctx), ctx=ctx)
+    with ctx.new() as subctx:
+        subctx.expr_exposed = False
+        expr = setgen.ensure_set(
+            dispatch.compile(shape_expr, ctx=subctx), ctx=subctx)
     expr_stype = setgen.get_set_type(expr, ctx=ctx)
     if not isinstance(expr_stype, s_objtypes.ObjectType):
         raise errors.QueryError(
@@ -1066,6 +1069,8 @@ def compile_Shape(
 def init_stmt(
         irstmt: irast.Stmt, qlstmt: qlast.Statement, *,
         ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
+
+    ctx.env.compiled_stmts[qlstmt] = irstmt
 
     if isinstance(irstmt, irast.MutatingStmt):
         # This is some kind of mutation, so we need to check if it is
@@ -1092,6 +1097,7 @@ def init_stmt(
             )
 
     ctx.stmt = irstmt
+    ctx.qlstmt = qlstmt
     if ctx.toplevel_stmt is None:
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
 
@@ -1112,15 +1118,15 @@ def init_stmt(
         if metadata.iterator_target:
             ctx.iterator_ctx = ctx
 
-    if isinstance(irstmt, irast.MutatingStmt):
-        ctx.path_scope.factoring_fence = True
-        parent_ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
-        ctx.iterator_ctx = None
-
     irstmt.parent_stmt = parent_ctx.stmt
 
     irstmt.bindings = process_with_block(
         qlstmt, ctx=ctx, parent_ctx=parent_ctx)
+
+    if isinstance(irstmt, irast.MutatingStmt):
+        ctx.path_scope.factoring_fence = True
+        parent_ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+        ctx.iterator_ctx = None
 
 
 def fini_stmt(
@@ -1169,6 +1175,19 @@ def fini_stmt(
         result = setgen.new_set_from_set(
             result, context=irstmt.context, ctx=ctx)
 
+    if isinstance(irstmt, irast.Stmt):
+        # If a binding is in a branched-but-not-fenced subnode, we
+        # want to hoist it up to the current scope. This is important
+        # for materialization-related cases where WITH+tuple is being
+        # used like FOR.
+        # See test_edgeql_volatility_hack_0{3,4}b
+        # XXX: To be honest I do not 100% remember why this makes sense.
+        for binding in irstmt.bindings:
+            if node := ctx.path_scope.find_child(
+                    binding.path_id, in_branches=True):
+                node.remove()
+                ctx.path_scope.attach_subtree(node)
+
     if view is not None:
         parent_ctx.view_sets[view] = result
 
@@ -1179,6 +1198,7 @@ def process_with_block(
         edgeql_tree: qlast.Statement, *,
         ctx: context.ContextLevel,
         parent_ctx: context.ContextLevel) -> List[irast.Set]:
+    had_materialized = False
     results = []
     for with_entry in edgeql_tree.aliases:
         if isinstance(with_entry, qlast.ModuleAliasDecl):
@@ -1187,18 +1207,33 @@ def process_with_block(
         elif isinstance(with_entry, qlast.AliasedExpr):
             with ctx.new() as scopectx:
                 scopectx.expr_exposed = False
-                results.append(
-                    stmtctx.declare_view(
-                        with_entry.expr,
-                        s_name.UnqualName(with_entry.alias),
-                        must_be_used=True,
-                        ctx=scopectx,
-                    ),
+                binding = stmtctx.declare_view(
+                    with_entry.expr,
+                    s_name.UnqualName(with_entry.alias),
+                    must_be_used=True,
+                    ctx=scopectx,
                 )
+                results.append(binding)
+
+                if setgen.should_materialize(binding, ctx=ctx):
+                    had_materialized = True
+                    typ = setgen.get_set_type(binding, ctx=ctx)
+                    ctx.env.materialized_sets[typ] = edgeql_tree
+                    assert binding.expr
+                    setgen.force_materialized_volatile(binding.expr, ctx=ctx)
+                    setgen.maybe_materialize(typ, binding, ctx=ctx)
 
         else:
             raise RuntimeError(
                 f'unexpected expression in WITH block: {with_entry}')
+
+    if had_materialized:
+        # If we had to materialize, put the body of the statement into
+        # its own fence, to avoid potential spurious factoring when we
+        # compile view sets for materialized sets.
+        # (We could just *always* do this, but don't, to avoid cluttering
+        # up the scope tree more.)
+        ctx.path_scope = ctx.path_scope.attach_fence()
 
     return results
 
@@ -1270,8 +1305,11 @@ def compile_result_clause(
                 srcctx=result_expr.context,
             )
         else:
-            expr = setgen.ensure_set(
-                dispatch.compile(result_expr, ctx=sctx), ctx=sctx)
+            with sctx.new() as ectx:
+                if shape is not None:
+                    ectx.expr_exposed = False
+                expr = setgen.ensure_set(
+                    dispatch.compile(result_expr, ctx=ectx), ctx=ectx)
 
         ctx.partial_path_prefix = expr
 
@@ -1343,16 +1381,23 @@ def compile_query_subject(
         (
             (
                 ctx.expr_exposed
-                and viewgen.has_implicit_type_computables(
-                    expr_stype,
-                    is_mutation=is_mutation,
-                    ctx=ctx,
+                and expr_stype.is_object_type()
+                and (
+                    viewgen.has_implicit_type_computables(
+                        expr_stype,
+                        is_mutation=is_mutation,
+                        ctx=ctx,
+                    )
+                    or expr_stype in ctx.env.materialized_sets
                 )
             )
             or is_mutation
         )
         and shape is None
-        and expr_stype not in ctx.env.view_shapes
+        and (
+            expr_stype not in ctx.env.view_shapes
+            or expr_stype in ctx.env.materialized_sets
+        )
     ):
         # Force the subject to be compiled as a view if:
         # a) a __tid__ insertion is anticipated (the actual
@@ -1362,6 +1407,12 @@ def compile_query_subject(
         # b) this is a mutation without an explicit shape,
         #    such as a DELETE, because mutation subjects are
         #    always expected to be derived types.
+        # c) this is a use of a type we think we are materializing,
+        #    which hacks around issues like
+        #    test_edgeql_volatility_select_hard_objects_09 where we
+        #    can't rely on the serialization done at an inner location.
+        #    (This is a hack, because I don't think it can generalize
+        #     to tuples/arrays containing objects)
         shape = []
 
     if shape is not None and view_scls is None:
