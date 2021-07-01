@@ -1227,7 +1227,8 @@ def process_set_as_subquery(
         if ir_source and (new_rvar := _lookup_set_rvar(ir_set, ctx=ctx)):
             if semi_join:
                 # We need to use DISTINCT, instead of doing an actual
-                # semi-join, unfortunately
+                # semi-join, unfortunately: we need to extract data
+                # out from stmt, which we can't do with a semi-join.
                 value_var = pathctx.get_rvar_path_var(
                     new_rvar, outer_id, aspect='value', env=ctx.env)
                 stmt.distinct_clause = (

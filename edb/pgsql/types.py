@@ -184,10 +184,7 @@ def pg_type_from_object(
             tp = pg_type_from_object(
                 schema, obj.get_subtypes(schema)[0],
                 persistent_tuples=persistent_tuples)
-            if len(tp) == 1:
-                return (tp[0] + '[]',)
-            else:
-                return (tp[0], tp[1] + '[]')
+            return pg_type_array(tp)
 
     elif isinstance(obj, s_objtypes.ObjectType):
         return ('uuid',)

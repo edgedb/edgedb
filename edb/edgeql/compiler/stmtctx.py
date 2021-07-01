@@ -118,9 +118,8 @@ def fini_expression(
         ir = setgen.scoped_set(ir, ctx=ctx)
 
     # Make sure that all materialized sets have their views compiled
-    v = ast_visitor.NodeVisitor()
-    v.node_visit(ir)
-    children = [x for x in v.memo if isinstance(x, irast.Stmt)]
+    children = ast_visitor.find_children(
+        ir, lambda n: isinstance(n, irast.Stmt))
     for stmt in children:
         for key in list(stmt.materialized_sets):
             mat_set = stmt.materialized_sets[key]

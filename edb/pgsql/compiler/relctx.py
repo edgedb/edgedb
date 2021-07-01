@@ -81,11 +81,13 @@ def _pull_path_namespace(
                 s_paths.update(source_q.path_namespace)
             if isinstance(source_q, pgast.Query):
                 s_paths.update(source_q.path_rvar_map)
-        else:
+        elif flavor == 'packed':
             if hasattr(source_q, 'packed_path_outputs'):
                 s_paths.update(source_q.packed_path_outputs)
             if isinstance(source_q, pgast.Query):
                 s_paths.update(source_q.path_packed_rvar_map)
+        else:
+            raise AssertionError(f'unexpected flavor "{flavor}"')
 
         view_path_id_map = getattr(source_q, 'view_path_id_map', {})
 
@@ -96,7 +98,7 @@ def _pull_path_namespace(
             # Skip pulling paths that match the path_id_mask before or after
             # doing path id mapping. We need to look at before as well
             # to prevent paths leaking out under a different name.
-            if flavor == 'normal' and (
+            if (
                 path_id in squery.path_id_mask
                 or orig_path_id in squery.path_id_mask
             ):
@@ -264,7 +266,9 @@ def include_specific_rvar(
             pathctx.put_path_rvar_if_not_exists(
                 stmt, path_id, rvar, flavor=flavor, aspect=aspect, env=ctx.env)
 
-    if flavor == 'normal':
+    # Packed rvars don't necessarily have anything to do with the
+    # current scope, so we don't set up path_id_mask based on them.
+    if flavor != 'packed':
         scopes = [ctx.scope_tree]
         parent_scope = ctx.scope_tree.parent
         if parent_scope is not None:
@@ -969,7 +973,8 @@ def unpack_rvar(
                 # Sigh, have to wrap in an array so we can unpack.
                 ref = pgast.ArrayExpr(elements=[ref])
 
-            qry.from_clause[0:0] = [
+            qry.from_clause.insert(
+                0,
                 pgast.RangeFunction(
                     alias=pgast.Alias(
                         aliasname=alias,
@@ -983,7 +988,7 @@ def unpack_rvar(
                         )
                     ]
                 )
-            ]
+            )
 
     ########################
 
@@ -1058,13 +1063,6 @@ def unpack_rvar(
             pathctx.put_path_rvar(
                 ctx.rel, view_path_id, rvar, aspect=aspect, env=ctx.env
             )
-
-    # Every time I removed this debug spew I ended up needing it again.
-    # I'll probably remember to remove it before putting up the PR.
-    # print("UNPACK_RVAR", path_id, ref, [el.path_id for el in els])
-    # from edb.common.debug import dump_sql
-    # dump_sql(rvar)
-    # breakpoint()
 
     return rvar
 

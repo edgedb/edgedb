@@ -420,8 +420,10 @@ class Query(ReturningQuery):
             typing.Tuple[irast.PathId, str], PathRangeVar]:
         if flavor == 'packed':
             return self.path_packed_rvar_map
-        else:
+        elif flavor == 'normal':
             return self.path_rvar_map
+        else:
+            raise AssertionError(f'unexpected flavor "{flavor}"')
 
     @property
     def ser_safe(self):

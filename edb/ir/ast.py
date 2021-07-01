@@ -739,7 +739,7 @@ class TypeCast(ImmutableExpr):
 
 class MaterializedSet(Base):
     # Hide uses to reduce spew; we produce our own simpler uses
-    __ast_hidden__ = {'uses'}
+    __ast_hidden__ = {'use_sets'}
     materialized: Set
     # We really only want the *paths* of all the places it is used,
     # but we need to store the sets to take advantage of weak
