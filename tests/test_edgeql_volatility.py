@@ -1276,7 +1276,9 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             """)
 
             self.assertEqual(len(res), 3)
-            # TODO: more testing, once it doesn't crash
+            self.assertNotEqual(res[0]['x'], res[1]['x'])
+            for obj in res:
+                self.assertEqual(obj['x'], -obj['y'])
 
     @test.xfail("We produce too many rows")
     async def test_edgeql_volatility_for_like_hard_02(self):
@@ -1289,7 +1291,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             """)
 
             self.assertEqual(len(res), 3)
-            # TODO: more testing, once the basic stuff works
+            self.assertNotEqual(res[0]['o']['x'], res[1]['o']['x'])
 
     @test.xfail("Fails finding a range var")
     async def test_edgeql_volatility_for_like_hard_03(self):
@@ -1303,7 +1305,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             """)
 
             self.assertEqual(len(res), 3)
-            # TODO: more testing, once it doesn't crash
+            self.assertNotEqual(res[0]['o']['x'], res[1]['o']['x'])
 
     @test.xfail("We produce too many rows")
     async def test_edgeql_volatility_for_hard_01(self):
@@ -1319,7 +1321,9 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             """)
 
             self.assertEqual(len(res), 3)
-            # TODO: more testing, once the very basic thing works
+            self.assertNotEqual(res[0]['x'], res[1]['x'])
+            for obj in res:
+                self.assertEqual(obj['x'], -obj['y'])
 
     @test.xfail("We produce too many rows")
     async def test_edgeql_volatility_for_hard_02(self):
@@ -1334,7 +1338,9 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             """)
 
             self.assertEqual(len(res), 3)
-            # TODO: more testing, once the very basic thing works
+            self.assertNotEqual(res[0]['a']['x'], res[1]['a']['x'])
+            for obj in res:
+                self.assertEqual(obj['a']['x'], -obj['a']['y'])
 
     @test.xfail("We produce too many rows")
     async def test_edgeql_volatility_for_hard_03(self):
@@ -1342,7 +1348,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             res = await query("""
                 WITH Z := (FOR O IN {(
                     SELECT Obj {
-                        tgt: { x := random() }
+                        tgt: { x := next() }
                     }
                 )} UNION (
                     SELECT O {tgt: {n, x, y := -.x}}
@@ -1351,7 +1357,9 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             """)
 
             self.assertEqual(len(res), 3)
-            # TODO: more testing, once the very basic thing works
+            for obj in res:
+                for tgt in obj['tgt']:
+                    self.assertEqual(tgt['x'], -tgt['y'])
 
     @test.xfail("We generate SQL with a missing FROM-clause entry")
     async def test_edgeql_volatility_for_hard_04(self):
@@ -1359,7 +1367,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             res = await query("""
                 WITH Z := (FOR O IN {(
                     SELECT Obj {
-                        tgt: { x := random() }
+                        tgt: { x := next() }
                     }
                 )} UNION (
                     SELECT { a := (O {tgt: {n, x, y := -.x}}) }
@@ -1368,7 +1376,9 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             """)
 
             self.assertEqual(len(res), 3)
-            # TODO: actually test the result, once it doesn't crash
+            for obj in res:
+                for tgt in obj['a']['tgt']:
+                    self.assertEqual(tgt['x'], -tgt['y'])
 
     async def test_edgeql_volatility_rebind_flat_01(self):
         for query in self.test_loop():
