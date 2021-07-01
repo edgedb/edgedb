@@ -1427,6 +1427,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 len(node.commands) == 1
                 and isinstance(node.commands[0], qlast.SetField)
                 and node.commands[0].name == 'expr'
+                and not isinstance(node.target, qlast.TypeExpr)
             )
         )
 
@@ -1553,6 +1554,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 len(node.commands) == 1
                 and isinstance(node.commands[0], qlast.SetField)
                 and node.commands[0].name == 'expr'
+                and not isinstance(node.target, qlast.TypeExpr)
             )
         )
 

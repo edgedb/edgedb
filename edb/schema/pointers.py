@@ -969,8 +969,13 @@ class ComputableRef:
 
     expr: qlast.Base
 
-    def __init__(self, expr: qlast.Base) -> None:
+    def __init__(
+        self,
+        expr: qlast.Base,
+        specified_type: Optional[s_types.TypeShell] = None,
+    ) -> None:
         self.expr = expr
+        self.specified_type = specified_type
 
 
 class PointerCommandContext(sd.ObjectCommandContext[Pointer_T],
@@ -1018,6 +1023,8 @@ class PointerCommandOrFragment(
             schema, inf_target_ref, base = self._parse_computable(
                 target_ref.expr, schema, context)
         elif (expr := self.get_local_attribute_value('expr')) is not None:
+            schema = s_types.materialize_type_in_attribute(
+                schema, context, self, 'target')
             schema, inf_target_ref, base = self._parse_computable(
                 expr.qlast, schema, context)
         else:
@@ -1123,10 +1130,39 @@ class PointerCommandOrFragment(
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()
 
+        spec_target: Optional[
+            Union[s_types.TypeShell, s_types.Type, ComputableRef]] = (
+            self.get_specified_attribute_value('target', schema, context))
         spec_required: Optional[bool] = (
             self.get_specified_attribute_value('required', schema, context))
         spec_card: Optional[qltypes.SchemaCardinality] = (
             self.get_specified_attribute_value('cardinality', schema, context))
+
+        if (
+            spec_target is not None
+            and (
+                not isinstance(spec_target, ComputableRef)
+                or (spec_target := spec_target.specified_type) is not None
+            )
+        ):
+            if isinstance(spec_target, s_types.TypeShell):
+                spec_target_type = spec_target.resolve(schema)
+            else:
+                spec_target_type = spec_target
+
+            mschema, inferred_target_type = target.material_type(
+                expression.irast.schema)
+
+            if spec_target_type != inferred_target_type:
+                srcctx = self.get_attribute_source_context('target')
+                raise errors.SchemaDefinitionError(
+                    f'the type inferred from the expression '
+                    f'of the computable {ptr_name} '
+                    f'is {inferred_target_type.get_verbosename(mschema)}, '
+                    f'which does not match the explicitly specified '
+                    f'{spec_target_type.get_verbosename(schema)}',
+                    context=srcctx
+                )
 
         if spec_required and not required:
             srcctx = self.get_attribute_source_context('target')
@@ -1726,6 +1762,33 @@ class PointerCommand(
                 target_ref,
                 source_context=astnode.target.context,
             )
+
+    def _process_alter_ast(
+        self,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> None:
+        """Handle the ALTER {PROPERTY|LINK} AST node."""
+        expr_cmd = qlast.get_ddl_field_command(astnode, 'expr')
+        if expr_cmd is not None:
+            expr = expr_cmd.value
+            if expr is not None:
+                qlcompiler.normalize(
+                    expr,
+                    schema=schema,
+                    modaliases=context.modaliases
+                )
+                target_ref = ComputableRef(
+                    expr,
+                    specified_type=self.get_attribute_value('target'),
+                )
+                self.set_attribute_value(
+                    'target',
+                    target_ref,
+                    source_context=expr.context,
+                )
+                self.discard_attribute('expr')
 
 
 class CreatePointer(

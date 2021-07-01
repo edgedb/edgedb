@@ -4963,6 +4963,44 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_type_19(self):
+        """
+        ALTER TYPE Foo {
+            CREATE PROPERTY bar -> str {
+                USING (4);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_20(self):
+        """
+        ALTER TYPE Foo {
+            ALTER PROPERTY bar {
+                SET TYPE str;
+                USING (4);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_21(self):
+        """
+        ALTER TYPE Foo {
+            CREATE LINK bar -> Object {
+                USING (SELECT Object);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_22(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                SET TYPE Object;
+                USING (SELECT Object);
+            };
+        };
+        """
+
     def test_edgeql_syntax_set_command_01(self):
         """
         SET MODULE default;

@@ -22,7 +22,6 @@ from __future__ import annotations
 from typing import *
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
 from edb import errors
@@ -601,31 +600,13 @@ class AlterLink(
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> referencing.AlterReferencedInheritingObject[Link]:
+    ) -> AlterLink:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-        assert isinstance(cmd, pointers.PointerCommand)
+        assert isinstance(cmd, AlterLink)
         if isinstance(astnode, qlast.CreateConcreteLink):
             cmd._process_create_or_alter_ast(schema, astnode, context)
         else:
-            expr_cmd = qlast.get_ddl_field_command(astnode, 'expr')
-            if expr_cmd is not None:
-                expr = expr_cmd.value
-                if expr is not None:
-                    qlcompiler.normalize(
-                        expr,
-                        schema=schema,
-                        modaliases=context.modaliases
-                    )
-                    target_ref = pointers.ComputableRef(expr)
-
-                    cmd.set_attribute_value(
-                        'target',
-                        target_ref,
-                        source_context=expr.context,
-                    )
-                    cmd.discard_attribute('expr')
-
-        assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
+            cmd._process_alter_ast(schema, astnode, context)
         return cmd
 
     def _apply_field_ast(

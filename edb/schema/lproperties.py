@@ -390,14 +390,13 @@ class AlterProperty(
         schema: s_schema.Schema,
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
-    ) -> referencing.AlterReferencedInheritingObject[Property]:
+    ) -> AlterProperty:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
-
+        assert isinstance(cmd, AlterProperty)
         if isinstance(astnode, qlast.CreateConcreteProperty):
-            assert isinstance(cmd, pointers.PointerCommand)
             cmd._process_create_or_alter_ast(schema, astnode, context)
-
-        assert isinstance(cmd, referencing.AlterReferencedInheritingObject)
+        else:
+            cmd._process_alter_ast(schema, astnode, context)
         return cmd
 
     def _apply_field_ast(
