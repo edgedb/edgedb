@@ -120,7 +120,11 @@ def compile_DetachedExpr(
     ctx: context.ContextLevel,
 ) -> typing.Union[irast.Set, irast.Expr]:
     with ctx.detached() as subctx:
-        return dispatch.compile(expr.expr, ctx=subctx)
+        ir = dispatch.compile(expr.expr, ctx=subctx)
+    # Wrap the result in another set, so that the inner namespace
+    # doesn't leak out into any shapes (since computable computation
+    # will pull namespaces from the source path_ids.)
+    return setgen.ensure_set(setgen.ensure_stmt(ir, ctx=ctx), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Set)
