@@ -26,6 +26,7 @@ std::datetime_current() -> std::datetime
     CREATE ANNOTATION std::description :=
         'Return the current server date and time.';
     SET volatility := 'Volatile';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'clock_timestamp';
 };
 
@@ -36,6 +37,7 @@ std::datetime_of_transaction() -> std::datetime
     CREATE ANNOTATION std::description :=
         'Return the date and time of the start of the current transaction.';
     SET volatility := 'Stable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'transaction_timestamp';
 };
 
@@ -46,6 +48,7 @@ std::datetime_of_statement() -> std::datetime
     CREATE ANNOTATION std::description :=
         'Return the date and time of the start of the current statement.';
     SET volatility := 'Stable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'statement_timestamp';
 };
 

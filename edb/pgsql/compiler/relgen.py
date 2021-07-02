@@ -2360,6 +2360,17 @@ def process_set_as_func_expr(
                 ]
             )
 
+        if expr.force_return_cast:
+            # The underlying function has a return value type
+            # different from that of the EdgeQL function declaration,
+            # so we need to make an explicit cast here.
+            set_expr = pgast.TypeCast(
+                arg=set_expr,
+                type_name=pgast.TypeName(
+                    name=pg_types.pg_type_from_ir_typeref(expr.typeref)
+                )
+            )
+
         func_rel = newctx.rel
 
     return _compile_func_epilogue(

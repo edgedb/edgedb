@@ -218,6 +218,7 @@ std::min(vals: SET OF datetime) -> OPTIONAL datetime
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -228,6 +229,7 @@ std::min(vals: SET OF duration) -> OPTIONAL duration
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -293,6 +295,7 @@ std::max(vals: SET OF datetime) -> OPTIONAL datetime
     CREATE ANNOTATION std::description :=
         'Return the greatest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -303,6 +306,7 @@ std::max(vals: SET OF duration) -> OPTIONAL duration
     CREATE ANNOTATION std::description :=
         'Return the greatest value of the input set.';
     SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };
 

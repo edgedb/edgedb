@@ -908,7 +908,7 @@ async def _execute_ddl(conn, sql_text):
 
         if point is not None:
             context = parser_context.ParserContext(
-                'query', text, start=point, end=point)
+                'query', text, start=point, end=point, context_lines=30)
             exceptions.replace_context(e, context)
 
         raise
