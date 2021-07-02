@@ -173,4 +173,5 @@ def path_is_banned(
         path_id: irast.PathId, *,
         ctx: context.ContextLevel) -> bool:
 
-    return path_id in ctx.banned_paths and ctx.path_scope.is_visible(path_id)
+    node = ctx.path_scope.find_visible(path_id)
+    return bool(node and node.path_id in ctx.banned_paths)

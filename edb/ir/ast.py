@@ -81,7 +81,7 @@ from edb.schema import types as s_types
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
-from .pathid import PathId, AnyNamespace, WeakNamespace  # noqa
+from .pathid import PathId, Namespace  # noqa
 from .scopetree import ScopeTreeNode  # noqa
 
 
@@ -476,7 +476,7 @@ class ComputableInfo(typing.NamedTuple):
     irexpr: typing.Optional[typing.Union[Set, Expr]]
     context: compiler.ContextLevel
     path_id: PathId
-    path_id_ns: typing.Optional[WeakNamespace]
+    path_id_ns: typing.Optional[Namespace]
     shape_op: qlast.ShapeOp
     should_materialize: bool
 
