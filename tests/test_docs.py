@@ -295,7 +295,9 @@ class TestDocSnippets(unittest.TestCase):
                     pass
                 elif lang == 'json':
                     json.loads(snippet)
-                elif lang in {'bash', 'c', 'javascript', 'python'}:
+                elif lang in {
+                    'bash', 'powershell', 'c', 'javascript', 'python'
+                }:
                     pass
                 else:
                     raise LookupError(f'unknown code-lang {lang}')

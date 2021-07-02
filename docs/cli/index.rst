@@ -28,7 +28,7 @@ on-screen instructions:
 
 For Windows, the installation script is:
 
-.. code-block:: bash
+.. code-block:: powershell
 
     PS> iwr https://ps1.edgedb.com -useb | iex
 
