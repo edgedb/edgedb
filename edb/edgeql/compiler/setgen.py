@@ -469,16 +469,14 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 scope_set = scoped_set(scope_set, ctx=subctx)
 
-        for key_path_id in path_tip.path_id.iter_weak_namespace_prefixes():
-            mapped = ctx.view_map.get(key_path_id)
-            if mapped is not None:
-                path_tip = new_set(
-                    path_id=mapped.path_id,
-                    stype=get_set_type(path_tip, ctx=ctx),
-                    expr=mapped.expr,
-                    rptr=mapped.rptr,
-                    ctx=ctx)
-                break
+        mapped = ctx.view_map.get(path_tip.path_id)
+        if mapped is not None:
+            path_tip = new_set(
+                path_id=mapped.path_id,
+                stype=get_set_type(path_tip, ctx=ctx),
+                expr=mapped.expr,
+                rptr=mapped.rptr,
+                ctx=ctx)
 
         if pathctx.path_is_banned(path_tip.path_id, ctx=ctx):
             dname = stype.get_displayname(ctx.env.schema)
@@ -1313,7 +1311,7 @@ def _get_computable_ctx(
     source: irast.Set,
     source_scls: s_types.Type,
     inner_source_path_id: Optional[irast.PathId],
-    path_id_ns: Optional[irast.WeakNamespace],
+    path_id_ns: Optional[irast.Namespace],
     same_scope: bool,
     qlctx: context.ContextLevel,
     ctx: context.ContextLevel
@@ -1343,9 +1341,7 @@ def _get_computable_ctx(
             if path_id_ns is not None:
                 subctx.path_id_namespace |= {path_id_ns}
 
-            pending_pid_ns: Set[irast.AnyNamespace] = {
-                irast.WeakNamespace(ctx.aliases.get('ns')),
-            }
+            pending_pid_ns = {ctx.aliases.get('ns')}
 
             if path_id_ns is not None and same_scope:
                 pending_pid_ns.add(path_id_ns)

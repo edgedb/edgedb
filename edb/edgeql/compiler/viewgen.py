@@ -82,7 +82,7 @@ def process_view(
         view_path_id_ns = None
         new_path_id = path_id
         if ctx.expr_exposed or is_insert or is_update:
-            view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('tmpns'))
+            view_path_id_ns = ctx.aliases.get('tmpns')
             scopectx.path_id_namespace |= {view_path_id_ns}
             scopectx.path_scope.add_namespaces({view_path_id_ns})
             new_path_id = path_id.merge_namespace({view_path_id_ns})
@@ -114,7 +114,7 @@ def _process_view(
     *,
     stype: s_objtypes.ObjectType,
     path_id: irast.PathId,
-    path_id_namespace: Optional[irast.WeakNamespace] = None,
+    path_id_namespace: Optional[irast.Namespace] = None,
     elements: List[qlast.ShapeElement],
     view_rptr: Optional[context.ViewRPtr] = None,
     view_name: Optional[sn.QualName] = None,
@@ -453,7 +453,7 @@ def _normalize_view_ptr_expr(
         shape_el: qlast.ShapeElement,
         view_scls: s_objtypes.ObjectType, *,
         path_id: irast.PathId,
-        path_id_namespace: Optional[irast.WeakNamespace]=None,
+        path_id_namespace: Optional[irast.Namespace]=None,
         is_insert: bool=False,
         is_update: bool=False,
         from_default: bool=False,

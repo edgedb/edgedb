@@ -77,7 +77,7 @@ class ScopeTreeNode:
     children: List[ScopeTreeNode]
     """A set of child nodes."""
 
-    namespaces: Set[pathid.AnyNamespace]
+    namespaces: Set[pathid.Namespace]
     """A set of namespaces used by paths in this branch.
 
     When a path node is pulled up from this branch,
@@ -197,7 +197,7 @@ class ScopeTreeNode:
 
     @property
     def ancestors_and_namespaces(self) \
-            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[pathid.AnyNamespace]]]:
+            -> Iterator[Tuple[ScopeTreeNode, FrozenSet[pathid.Namespace]]]:
         """An iterator of node's ancestors and namespaces, including self."""
         namespaces: FrozenSet[str] = frozenset()
         node: Optional[ScopeTreeNode] = self
@@ -248,7 +248,7 @@ class ScopeTreeNode:
     ) -> Iterator[
         Tuple[
             ScopeTreeNode,
-            AbstractSet[pathid.AnyNamespace],
+            AbstractSet[pathid.Namespace],
             FenceInfo
         ]
     ]:
@@ -294,7 +294,7 @@ class ScopeTreeNode:
     ) -> Iterator[
         Tuple[
             ScopeTreeNode,
-            AbstractSet[pathid.AnyNamespace],
+            AbstractSet[pathid.Namespace],
             FenceInfo
         ]
     ]:
@@ -305,7 +305,7 @@ class ScopeTreeNode:
         return self.descendants_and_namespaces_ex(strict=True)
 
     @property
-    def descendant_namespaces(self) -> Set[pathid.AnyNamespace]:
+    def descendant_namespaces(self) -> Set[pathid.Namespace]:
         """An set of namespaces declared by descendants."""
         namespaces = set()
         for child in self.descendants:
@@ -704,15 +704,15 @@ class ScopeTreeNode:
 
     def add_namespaces(
         self,
-        namespaces: AbstractSet[pathid.AnyNamespace],
+        namespaces: AbstractSet[pathid.Namespace],
     ) -> None:
         # Make sure we don't add namespaces that already appear
         # in on of the ancestors.
         namespaces = frozenset(namespaces) - self.get_effective_namespaces()
         self.namespaces.update(namespaces)
 
-    def get_effective_namespaces(self) -> AbstractSet[pathid.AnyNamespace]:
-        namespaces: Set[pathid.AnyNamespace] = set()
+    def get_effective_namespaces(self) -> AbstractSet[pathid.Namespace]:
+        namespaces: Set[pathid.Namespace] = set()
 
         for _node, ans in self.ancestors_and_namespaces:
             namespaces |= ans
@@ -790,10 +790,10 @@ class ScopeTreeNode:
     ) -> Tuple[
         Optional[ScopeTreeNode],
         Optional[FenceInfo],
-        AbstractSet[pathid.AnyNamespace],
+        AbstractSet[pathid.Namespace],
     ]:
         """Find the visible node with the given *path_id*."""
-        namespaces: Set[pathid.AnyNamespace] = set()
+        namespaces: Set[pathid.Namespace] = set()
         finfo = None
         found = None
 
@@ -907,7 +907,7 @@ class ScopeTreeNode:
         path_id: pathid.PathId
     ) -> Tuple[
         Optional[ScopeTreeNode],
-        AbstractSet[pathid.AnyNamespace],
+        AbstractSet[pathid.Namespace],
         Optional[FenceInfo],
     ]:
         for descendant, dns, finfo in self.strict_descendants_and_namespaces:
@@ -932,7 +932,7 @@ class ScopeTreeNode:
         Tuple[
             ScopeTreeNodeWithPathId,
             ScopeTreeNode,
-            AbstractSet[pathid.AnyNamespace],
+            AbstractSet[pathid.Namespace],
             FenceInfo,
             bool,
         ]

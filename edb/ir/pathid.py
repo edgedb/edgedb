@@ -35,11 +35,7 @@ if TYPE_CHECKING:
     from edb.edgeql.compiler import context as qlcompiler_ctx
 
 
-class WeakNamespace(str):
-    pass
-
-
-AnyNamespace = Union[str, WeakNamespace]
+Namespace = str
 
 
 class PathId:
@@ -135,7 +131,7 @@ class PathId:
         t: s_types.Type,
         *,
         env: Optional[qlcompiler_ctx.Environment] = None,
-        namespace: AbstractSet[AnyNamespace] = frozenset(),
+        namespace: AbstractSet[Namespace] = frozenset(),
         typename: Optional[s_name.QualName] = None,
     ) -> PathId:
         """Return a ``PathId`` instance for a given :class:`schema.types.Type`
@@ -177,7 +173,7 @@ class PathId:
         schema: s_schema.Schema,
         pointer: s_pointers.Pointer,
         *,
-        namespace: AbstractSet[AnyNamespace] = frozenset(),
+        namespace: AbstractSet[Namespace] = frozenset(),
     ) -> PathId:
         """Return a ``PathId`` instance for a given link or property.
 
@@ -217,7 +213,7 @@ class PathId:
         cls,
         typeref: irast.TypeRef,
         *,
-        namespace: AbstractSet[AnyNamespace] = frozenset(),
+        namespace: AbstractSet[Namespace] = frozenset(),
         typename: Optional[Union[s_name.Name, uuid.UUID]] = None,
     ) -> PathId:
         """Return a ``PathId`` instance for a given :class:`ir.ast.TypeRef`
@@ -285,7 +281,7 @@ class PathId:
         ptrref: irast.BasePointerRef,
         direction: s_pointers.PointerDirection = (
             s_pointers.PointerDirection.Outbound),
-        ns: AbstractSet[AnyNamespace] = frozenset(),
+        ns: AbstractSet[Namespace] = frozenset(),
     ) -> PathId:
         """Return a new ``PathId`` that is a *path step* from this ``PathId``.
 
@@ -357,7 +353,7 @@ class PathId:
 
     def replace_namespace(
         self,
-        namespace: AbstractSet[AnyNamespace],
+        namespace: AbstractSet[Namespace],
     ) -> PathId:
         """Return a copy of this ``PathId`` with namespace set to *namespace*.
         """
@@ -372,7 +368,7 @@ class PathId:
 
     def merge_namespace(
         self,
-        namespace: AbstractSet[AnyNamespace],
+        namespace: AbstractSet[Namespace],
     ) -> PathId:
         """Return a copy of this ``PathId`` that has *namespace* added to its
            namespace.
@@ -387,7 +383,7 @@ class PathId:
         else:
             return self
 
-    def strip_namespace(self, namespace: AbstractSet[AnyNamespace]) -> PathId:
+    def strip_namespace(self, namespace: AbstractSet[Namespace]) -> PathId:
         """Return a copy of this ``PathId`` with a given portion of the
            namespace id removed."""
         if self._namespace and namespace:
@@ -402,18 +398,6 @@ class PathId:
         else:
             return self
 
-    def iter_weak_namespace_prefixes(self) -> Iterator[PathId]:
-        yield self
-
-        if not self._namespace:
-            return
-
-        weak_nses = [ns for ns in self._namespace
-                     if isinstance(ns, WeakNamespace)]
-
-        for weak_ns in weak_nses:
-            yield self.replace_namespace(self._namespace - {weak_ns})
-
     def pformat_internal(self, debug: bool = False) -> str:
         """Verbose format for debugging purposes."""
         result = ''
@@ -422,14 +406,7 @@ class PathId:
             return ''
 
         if self._namespace:
-            ns_str = []
-            for item in sorted(self._namespace):
-                if isinstance(item, WeakNamespace):
-                    ns_str.append(f'[{item}]')
-                else:
-                    ns_str.append(item)
-
-            result += f'{"@".join(ns_str)}@@'
+            result += f'{"@".join(sorted(self._namespace))}@@'
 
         path = self._path
 
