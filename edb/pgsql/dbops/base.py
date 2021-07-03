@@ -261,7 +261,7 @@ class PLTopBlock(PLBlock):
         return self
 
 
-class BaseCommand(metaclass=markup.MarkupCapableMeta):
+class BaseCommand(markup.MarkupCapableMixin):
     def generate(self, block):
         raise NotImplementedError
 

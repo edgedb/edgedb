@@ -190,7 +190,9 @@ class AST:
 
         return cls
 
-    def __init_subclass__(cls):
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
         cls._collect_direct_fields()
 
         fields = collections.OrderedDict()

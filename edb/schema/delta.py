@@ -310,7 +310,6 @@ CommandMeta_T = TypeVar("CommandMeta_T", bound="CommandMeta")
 class CommandMeta(
     adapter.Adapter,
     struct.MixedStructMeta,
-    markup.MarkupCapableMeta,
 ):
 
     _astnode_map: Dict[Type[qlast.DDLOperation], Type[Command]] = {}
@@ -376,7 +375,11 @@ Command_T = TypeVar("Command_T", bound="Command")
 Command_T_co = TypeVar("Command_T_co", bound="Command", covariant=True)
 
 
-class Command(struct.MixedStruct, metaclass=CommandMeta):
+class Command(
+    struct.MixedStruct,
+    markup.MarkupCapableMixin,
+    metaclass=CommandMeta,
+):
     source_context = struct.Field(parsing.ParserContext, default=None)
     canonical = struct.Field(bool, default=False)
 
@@ -1510,7 +1513,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         # Check if the command subclass has been parametrized with
         # a concrete schema object class, and if so, record the
         # argument to be made available via get_schema_metaclass().
-        super().__init_subclass__(*args, **kwargs)  # type: ignore
+        super().__init_subclass__(*args, **kwargs)
         generic_bases = typing_inspect.get_generic_bases(cls)
         mcls: Optional[Type[so.Object]] = None
         for gb in generic_bases:

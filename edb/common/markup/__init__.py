@@ -30,21 +30,15 @@ from .serializer.base import Context  # noqa
 from .elements.base import Markup  # noqa
 
 
-class MarkupCapableMeta(type):
+class MarkupCapableMixin:
 
-    def __new__(mcls, name, bases, dct, **kwargs):
-        cls = super().__new__(mcls, name, bases, dct, **kwargs)
-        if 'as_markup' in dct:
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if hasattr(cls, 'as_markup'):
             serializer.serializer.register(cls)(cls.as_markup)
-        return cls
 
 
-class MarkupExceptionContextMeta(MarkupCapableMeta, abc.ABCMeta):
-    pass
-
-
-class MarkupExceptionContext(exceptions.ExceptionContext,
-                             metaclass=MarkupExceptionContextMeta):
+class MarkupExceptionContext(exceptions.ExceptionContext):
 
     @abc.abstractclassmethod
     def as_markup(cls, *, ctx):
