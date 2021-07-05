@@ -25,7 +25,7 @@ import io
 import typing
 
 from edb.common import binwrapper
-from edb.server import compiler
+from edb.server.enums import Cardinality
 
 from . import render_utils
 
@@ -551,7 +551,7 @@ class CommandDataDescription(ServerMessage):
     message_length = MessageLength
     headers = Headers
     result_cardinality = EnumOf(
-        UInt8, compiler.Cardinality, 'Actual result cardinality.')
+        UInt8, Cardinality, 'Actual result cardinality.')
     input_typedesc_id = UUID('Argument data descriptor ID.')
     input_typedesc = Bytes('Argument data descriptor.')
     output_typedesc_id = UUID('Output data descriptor ID.')
@@ -628,7 +628,7 @@ class PrepareComplete(ServerMessage):
     mtype = MessageType('1')
     message_length = MessageLength
     headers = Headers
-    cardinality = EnumOf(UInt8, compiler.Cardinality, 'Result cardinality.')
+    cardinality = EnumOf(UInt8, Cardinality, 'Result cardinality.')
     input_typedesc_id = UUID('Argument data descriptor ID.')
     output_typedesc_id = UUID('Result data descriptor ID.')
 
@@ -712,7 +712,7 @@ class Prepare(ClientMessage):
     message_length = MessageLength
     headers = Headers
     io_format = EnumOf(UInt8, IOFormat, 'Data I/O format.')
-    expected_cardinality = EnumOf(UInt8, compiler.Cardinality,
+    expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality')
     statement_name = Bytes('Prepared statement name. Currently must be empty.')
     command = String('Command text.')
@@ -791,7 +791,7 @@ class OptimisticExecute(ClientMessage):
     message_length = MessageLength
     headers = Headers
     io_format = EnumOf(UInt8, IOFormat, 'Data I/O format.')
-    expected_cardinality = EnumOf(UInt8, compiler.Cardinality,
+    expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality.')
     command_text = String('Command text.')
     input_typedesc_id = UUID('Argument data descriptor ID.')

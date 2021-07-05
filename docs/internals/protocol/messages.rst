@@ -284,7 +284,7 @@ Known headers:
   not have an implicit ``id`` property i.e. query shapes will have to
   explicitly list id properties.
 
-.. eql:struct:: edb.server.compiler.Cardinality
+.. eql:struct:: edb.server.enums.Cardinality
 
 
 .. _ref_protocol_msg_describe_statement:
@@ -326,7 +326,7 @@ Format:
 
 .. eql:struct:: edb.testbase.protocol.CommandDataDescription
 
-.. eql:struct:: edb.server.compiler.Cardinality
+.. eql:struct:: edb.server.enums.Cardinality
 
 
 The format of the *input_typedesc* and *output_typedesc* fields is described
@@ -558,7 +558,7 @@ Format:
 
 .. eql:struct:: edb.testbase.protocol.PrepareComplete
 
-.. eql:struct:: edb.server.compiler.Cardinality
+.. eql:struct:: edb.server.enums.Cardinality
 
 Known headers:
 
