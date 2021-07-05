@@ -2237,13 +2237,14 @@ cdef class EdgeConnection:
             user_schema = await server.introspect_user_schema(pgcon)
             global_schema = await server.introspect_global_schema(pgcon)
             db_config = await server.introspect_db_config(pgcon)
+            dump_protocol = self.max_protocol
 
             schema_ddl, schema_dynamic_ddl, schema_ids, blocks = (
                 await compiler_pool.describe_database_dump(
                     user_schema,
                     global_schema,
                     db_config,
-                    self.protocol_version,
+                    dump_protocol,
                 )
             )
 
@@ -2266,8 +2267,8 @@ cdef class EdgeConnection:
             msg_buf.write_int16(DUMP_HEADER_SERVER_TIME)
             msg_buf.write_len_prefixed_utf8(str(int(time.time())))
 
-            msg_buf.write_int16(self.max_protocol[0])
-            msg_buf.write_int16(self.max_protocol[1])
+            msg_buf.write_int16(dump_protocol[0])
+            msg_buf.write_int16(dump_protocol[1])
             msg_buf.write_len_prefixed_utf8(schema_ddl)
 
             msg_buf.write_int32(len(schema_ids))
@@ -2459,7 +2460,7 @@ cdef class EdgeConnection:
                     schema_ddl,
                     schema_ids,
                     blocks,
-                    self.protocol_version,
+                    proto,
                 )
 
             for query_unit in schema_sql_units:
