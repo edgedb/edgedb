@@ -2354,7 +2354,7 @@ class Compiler:
         for schema_object_id, typedesc in blocks:
             schema_object_id = uuidgen.from_bytes(schema_object_id)
             obj = schema.get_by_id(schema_object_id)
-            desc = sertypes.TypeSerializer.parse(typedesc)
+            desc = sertypes.TypeSerializer.parse(typedesc, protocol_version)
             elided_col_set = set()
             mending_desc = []
 
