@@ -116,7 +116,7 @@ Create a ``dbschema`` directory, then put the above schema in it as an
 ``.esdl`` file, e.g. ``dbschema/schema.esdl``.
 
 Then create a new migration using :ref:`edgedb -I my_instance
-create-migration <ref_cli_edgedb_create_migration>`.
+migration create <ref_cli_edgedb_migration_create>`.
 
 Apply the migration using :ref:`edgedb -I my_instance migrate
 <ref_cli_edgedb_migrate>`.
