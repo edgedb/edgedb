@@ -64,8 +64,7 @@ def die(msg):
 
 @edbcommands.command()
 @click.option(
-    '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
-    default=str(pathlib.Path.home() / '.edgedb'),
+    '-D', '--data-dir', type=str, default=str(pathlib.Path.home() / '.edgedb'),
     help='database cluster directory')
 @click.option(
     '-t', '--tests-dir', type=str,
