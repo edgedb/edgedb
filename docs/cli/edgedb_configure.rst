@@ -9,27 +9,35 @@ Configure the EdgeDB server.
 .. cli:synopsis::
 
     edgedb [<connection-option>...] configure [ <option> ... ] \
-        set <parameter> <value>
-
-    edgedb [<connection-option>...] configure [ <option> ... ] \
-        reset <parameter>
-
-    edgedb [<connection-option>...] configure [ <option> ... ] \
-        insert <parameter-class> [ --<property>=<value> ... ]
-
-    edgedb [<connection-option>...] configure [ <option> ... ] \
-        reset <parameter-class> [ --<property>=<value> ... ]
-
+        <action> <parameter-class> [ --<property>=<value> ... ]
 
 Description
 ===========
 
-``edgedb configure`` is a terminal command used to alter the configuration
-of an EdgeDB instance.
+``edgedb configure`` is a terminal command used to alter the
+configuration of an EdgeDB instance. There are three types of
+configuration actions that can be performed.
+
+Actions
+=======
+
+:cli:synopsis:`edgedb configure insert`
+    Insert a new configuration entry for a setting that supports
+    multiple configuration objects (e.g. Auth or Port).
+
+:cli:synopsis:`edgedb configure set`
+    Set a scalar configuration value.
+
+:cli:synopsis:`edgedb configure reset`
+    Reset an existing configuration entry or remove all values for an
+    entry that supports multiple configuration objects.
 
 
 Options
 =======
+
+Most of the options are the same across all of the different
+configuration actions.
 
 :cli:synopsis:`<connection-option>`
     See the :ref:`ref_cli_edgedb_connopts`.

@@ -1,15 +1,15 @@
-.. _ref_cli_edgedb_describe:
+.. _ref_cli_edgedb_describe_object:
 
 
-===============
-edgedb describe
-===============
+======================
+edgedb describe object
+======================
 
 Describe a named schema object.
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...] describe [--verbose] <name>
+    edgedb [<connection-option>...] describe object [--verbose] <name>
 
 
 Description

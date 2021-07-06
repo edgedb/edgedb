@@ -17,9 +17,9 @@ the schema:
 
     using extension edgeql_http;
 
-Then create a new migration and apply it using :ref:`edgedb
-create-migration <ref_cli_edgedb_create_migration>` and :ref:`edgedb
-migrate <ref_cli_edgedb_migrate>`, respectively.
+Then create a new migration and apply it using
+:ref:`ref_cli_edgedb_migration_create` and
+:ref:`ref_cli_edgedb_migrate`, respectively.
 
 ``http://127.0.0.1:<instance-port>/db/<database-name>/edgeql`` will
 expose GraphQL API. Check the credentials file for your instance at

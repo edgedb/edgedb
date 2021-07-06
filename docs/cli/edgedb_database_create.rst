@@ -1,21 +1,21 @@
-.. _ref_cli_edgedb_create_db:
+.. _ref_cli_edgedb_database_create:
 
 
 ======================
-edgedb create-database
+edgedb database create
 ======================
 
 Create a new :ref:`database <ref_datamodel_databases>`.
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...] create-database <name>
+    edgedb [<connection-option>...] database create <name>
 
 
 Description
 ===========
 
-``edgedb create-database`` is a terminal command equivalent to
+``edgedb database create`` is a terminal command equivalent to
 :eql:stmt:`CREATE DATABASE`.
 
 

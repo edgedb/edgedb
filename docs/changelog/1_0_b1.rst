@@ -37,7 +37,7 @@ Let's say we start with the following schema for a simple chat app:
 We create a directory ``app_schema`` and write the above into a
 ``app_schema/schema.esdl`` file inside it. Then we can initialize our
 project database by running :ref:`edgedb create-migration
-<ref_cli_edgedb_create_migration>`:
+<ref_cli_edgedb_migration_create>`:
 
 .. code-block:: bash
 
@@ -103,7 +103,7 @@ schema to be:
     };
 
 And we apply the changes by using :ref:`edgedb
-create-migration <ref_cli_edgedb_create_migration>` and :ref:`edgedb
+create-migration <ref_cli_edgedb_migration_create>` and :ref:`edgedb
 migrate <ref_cli_edgedb_migrate>` commands again:
 
 .. code-block:: bash
@@ -126,7 +126,7 @@ migrate <ref_cli_edgedb_migrate>` commands again:
 At this point we may want to actually create a default channel "Main"
 and make the ``channel`` link required. So we alter the schema to make
 the link required and run :ref:`edgedb create-migration
-<ref_cli_edgedb_create_migration>` again:
+<ref_cli_edgedb_migration_create>` again:
 
 .. code-block:: bash
 
@@ -191,7 +191,7 @@ apply the changes:
 The above example shows some of the interactions with the EdgeDB
 migration management tools. We will keep improving the inference
 engine that guides the prompts of :ref:`edgedb create-migration
-<ref_cli_edgedb_create_migration>`. However, if the suggestion engine
+<ref_cli_edgedb_migration_create>`. However, if the suggestion engine
 fails to provide a perfect fit, the option of adjusting the migration
 file is always available.
 

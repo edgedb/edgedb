@@ -18,9 +18,9 @@ the schema:
 
     using extension graphql;
 
-Then create a new migration and apply it using :ref:`edgedb
-create-migration <ref_cli_edgedb_create_migration>` and :ref:`edgedb
-migrate <ref_cli_edgedb_migrate>`, respectively.
+Then create a new migration and apply it using
+:ref:`ref_cli_edgedb_migration_create` and
+:ref:`ref_cli_edgedb_migrate`, respectively.
 
 Select all users in the system:
 
