@@ -171,6 +171,9 @@ class ObjectType(
                 )
             )
 
+        for intersection in self.get_intersection_of(schema).objects(schema):
+            ptrs.update(intersection.getrptrs(schema, name, sources=sources))
+
         unions = schema.get_referrers(
             self, scls_type=ObjectType, field_name='union_of')
 

@@ -2357,6 +2357,34 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_scope_computables_12(self):
+        await self.assert_query_result(
+            r"""
+                WITH rows := Named,
+                SELECT rows {
+                    name, owner_count := count([IS Card].owners)
+                } FILTER .name IN {'1st', 'Alice', 'Dwarf'} ORDER BY .name;
+            """,
+            [
+                {"name": "1st", "owner_count": 0},
+                {"name": "Alice", "owner_count": 0},
+                {"name": "Dwarf", "owner_count": 2}
+            ]
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT (Named { name }) {
+                    name, owner_count := count([IS Card].owners)
+                } FILTER .name IN {'1st', 'Alice', 'Dwarf'} ORDER BY .name;
+            """,
+            [
+                {"name": "1st", "owner_count": 0},
+                {"name": "Alice", "owner_count": 0},
+                {"name": "Dwarf", "owner_count": 2}
+            ]
+        )
+
     async def test_edgeql_scope_with_01(self):
         # Test that same symbol can be re-used in WITH block.
         await self.assert_query_result(
