@@ -1913,6 +1913,7 @@ class SetPointerType(
     ) -> bool:
         return (
             not old_type.assignment_castable_to(new_type, schema)
+            and not self.scls.is_pure_computable(schema)
             and not ptr_op.maybe_get_object_aux_data('from_alias')
             and self.cast_expr is None
             and not self._is_endpoint_property()
