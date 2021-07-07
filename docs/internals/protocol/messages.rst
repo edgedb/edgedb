@@ -118,9 +118,9 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.ErrorResponse
+.. eql:struct:: edb.protocol.ErrorResponse
 
-.. eql:struct:: edb.testbase.protocol.ErrorSeverity
+.. eql:struct:: edb.protocol.ErrorSeverity
 
 
 See the :ref:`list of error codes <ref_protocol_error_codes>` for all possible
@@ -173,9 +173,9 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.LogMessage
+.. eql:struct:: edb.protocol.LogMessage
 
-.. eql:struct:: edb.testbase.protocol.MessageSeverity
+.. eql:struct:: edb.protocol.MessageSeverity
 
 See the :ref:`list of error codes <ref_protocol_error_codes>` for all possible
 log message codes.
@@ -190,9 +190,9 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.ReadyForCommand
+.. eql:struct:: edb.protocol.ReadyForCommand
 
-.. eql:struct:: edb.testbase.protocol.TransactionState
+.. eql:struct:: edb.protocol.TransactionState
 
 .. _ref_protocol_msg_restore_ready:
 
@@ -206,7 +206,7 @@ data. See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.RestoreReady
+.. eql:struct:: edb.protocol.RestoreReady
 
 .. _ref_protocol_msg_command_complete:
 
@@ -217,7 +217,7 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.CommandComplete
+.. eql:struct:: edb.protocol.CommandComplete
 
 Known headers:
 
@@ -235,7 +235,7 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.ExecuteScript
+.. eql:struct:: edb.protocol.ExecuteScript
 
 Known headers:
 
@@ -249,9 +249,9 @@ Prepare
 
 Sent by: client.
 
-.. eql:struct:: edb.testbase.protocol.Prepare
+.. eql:struct:: edb.protocol.Prepare
 
-.. eql:struct:: edb.testbase.protocol.IOFormat
+.. eql:struct:: edb.protocol.IOFormat
 
 Use:
 
@@ -284,7 +284,7 @@ Known headers:
   not have an implicit ``id`` property i.e. query shapes will have to
   explicitly list id properties.
 
-.. eql:struct:: edb.server.enums.Cardinality
+.. eql:struct:: edb.protocol.enums.Cardinality
 
 
 .. _ref_protocol_msg_describe_statement:
@@ -296,9 +296,9 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.DescribeStatement
+.. eql:struct:: edb.protocol.DescribeStatement
 
-.. eql:struct:: edb.testbase.protocol.DescribeAspect
+.. eql:struct:: edb.protocol.DescribeAspect
 
 
 .. _ref_protocol_msg_dump:
@@ -312,7 +312,7 @@ Initiates a database backup. See :ref:`ref_protocol_dump_flow`.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.Dump
+.. eql:struct:: edb.protocol.Dump
 
 
 .. _ref_protocol_msg_command_data_description:
@@ -324,9 +324,9 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.CommandDataDescription
+.. eql:struct:: edb.protocol.CommandDataDescription
 
-.. eql:struct:: edb.server.enums.Cardinality
+.. eql:struct:: edb.protocol.enums.Cardinality
 
 
 The format of the *input_typedesc* and *output_typedesc* fields is described
@@ -342,7 +342,7 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.Sync
+.. eql:struct:: edb.protocol.Sync
 
 
 .. _ref_protocol_msg_flush:
@@ -354,7 +354,7 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.Flush
+.. eql:struct:: edb.protocol.Flush
 
 
 .. _ref_protocol_msg_execute:
@@ -366,7 +366,7 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.Execute
+.. eql:struct:: edb.protocol.Execute
 
 Known headers:
 
@@ -385,7 +385,7 @@ See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.Restore
+.. eql:struct:: edb.protocol.Restore
 
 .. _ref_protocol_msg_restore_block:
 
@@ -399,7 +399,7 @@ See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.RestoreBlock
+.. eql:struct:: edb.protocol.RestoreBlock
 
 
 .. _ref_protocol_msg_restore_eof:
@@ -414,7 +414,7 @@ See :ref:`ref_protocol_restore_flow`.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.RestoreEof
+.. eql:struct:: edb.protocol.RestoreEof
 
 
 .. _ref_protocol_msg_optimistic_execute:
@@ -426,7 +426,7 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.OptimisticExecute
+.. eql:struct:: edb.protocol.OptimisticExecute
 
 
 The data in *arguments* must be encoded as a
@@ -463,9 +463,9 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.Data
+.. eql:struct:: edb.protocol.Data
 
-.. eql:struct:: edb.testbase.protocol.DataElement
+.. eql:struct:: edb.protocol.DataElement
 
 The exact encoding of ``DataElement.data`` is defined by the query output
 :ref:`type descriptor <ref_proto_typedesc>`.
@@ -486,11 +486,11 @@ See :ref:`ref_protocol_dump_flow`.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.DumpHeader
+.. eql:struct:: edb.protocol.DumpHeader
 
-.. eql:struct:: edb.testbase.protocol.DumpTypeInfo
+.. eql:struct:: edb.protocol.DumpTypeInfo
 
-.. eql:struct:: edb.testbase.protocol.DumpObjectDesc
+.. eql:struct:: edb.protocol.DumpObjectDesc
 
 Known headers:
 
@@ -512,7 +512,7 @@ See :ref:`ref_protocol_dump_flow`.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.DumpBlock
+.. eql:struct:: edb.protocol.DumpBlock
 
 
 Known headers:
@@ -532,7 +532,7 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.ServerKeyData
+.. eql:struct:: edb.protocol.ServerKeyData
 
 
 .. _ref_protocol_msg_server_parameter_status:
@@ -544,7 +544,7 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.ParameterStatus
+.. eql:struct:: edb.protocol.ParameterStatus
 
 
 .. _ref_protocol_msg_prepare_complete:
@@ -556,9 +556,9 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.PrepareComplete
+.. eql:struct:: edb.protocol.PrepareComplete
 
-.. eql:struct:: edb.server.enums.Cardinality
+.. eql:struct:: edb.protocol.enums.Cardinality
 
 Known headers:
 
@@ -577,11 +577,11 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.ClientHandshake
+.. eql:struct:: edb.protocol.ClientHandshake
 
-.. eql:struct:: edb.testbase.protocol.ConnectionParam
+.. eql:struct:: edb.protocol.ConnectionParam
 
-.. eql:struct:: edb.testbase.protocol.ProtocolExtension
+.. eql:struct:: edb.protocol.ProtocolExtension
 
 The ``ClientHandshake`` message is the first message sent by the client
 upon connecting to the server.  It is the first phase of protocol negotiation,
@@ -600,9 +600,9 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.ServerHandshake
+.. eql:struct:: edb.protocol.ServerHandshake
 
-.. eql:struct:: edb.testbase.protocol.ProtocolExtension
+.. eql:struct:: edb.protocol.ProtocolExtension
 
 
 The ``ServerHandshake`` message is a direct response to the
@@ -624,7 +624,7 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.AuthenticationOK
+.. eql:struct:: edb.protocol.AuthenticationOK
 
 The ``AuthenticationOK`` message is sent by the server once it considers
 the authentication to be successful.
@@ -639,7 +639,7 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.AuthenticationRequiredSASLMessage
+.. eql:struct:: edb.protocol.AuthenticationRequiredSASLMessage
 
 The ``AuthenticationSASL`` message is sent by the server if
 it determines that a SASL-based authentication method is required in
@@ -675,7 +675,7 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.AuthenticationSASLContinue
+.. eql:struct:: edb.protocol.AuthenticationSASLContinue
 
 .. _ref_protocol_msg_auth_sasl_final:
 
@@ -686,7 +686,7 @@ Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.AuthenticationSASLFinal
+.. eql:struct:: edb.protocol.AuthenticationSASLFinal
 
 .. _ref_protocol_msg_auth_sasl_initial_response:
 
@@ -697,7 +697,7 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.AuthenticationSASLInitialResponse
+.. eql:struct:: edb.protocol.AuthenticationSASLInitialResponse
 
 .. _ref_protocol_msg_auth_sasl_response:
 
@@ -708,7 +708,7 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.AuthenticationSASLResponse
+.. eql:struct:: edb.protocol.AuthenticationSASLResponse
 
 
 .. _ref_protocol_msg_terminate:
@@ -720,7 +720,7 @@ Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.testbase.protocol.Terminate
+.. eql:struct:: edb.protocol.Terminate
 
 .. _RFC1004:
     https://github.com/edgedb/rfcs/blob/master/text/1004-transactions-api.rst

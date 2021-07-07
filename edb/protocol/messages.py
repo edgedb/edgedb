@@ -25,7 +25,7 @@ import io
 import typing
 
 from edb.common import binwrapper
-from edb.server.enums import Cardinality
+from .enums import Cardinality
 
 from . import render_utils
 

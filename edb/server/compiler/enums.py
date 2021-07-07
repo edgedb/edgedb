@@ -23,7 +23,7 @@ from typing import *
 import enum
 
 from edb.common import enum as strenum
-from edb.server.enums import *
+from edb.protocol.enums import * # NoQA
 
 
 class CompileStatementMode(enum.Enum):

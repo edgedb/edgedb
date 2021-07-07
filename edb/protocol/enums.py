@@ -22,6 +22,7 @@ from typing import *
 
 import enum
 
+
 class Cardinality(enum.Enum):
     # Cardinality isn't applicable for the query:
     # * the query is a command like CONFIGURE that

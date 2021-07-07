@@ -84,7 +84,7 @@ Object Shape Descriptor
         uint16          type_pos;
     };
 
-.. eql:struct:: edb.server.enums.Cardinality
+.. eql:struct:: edb.protocol.enums.Cardinality
 
 Objects are encoded on the wire as :ref:`tuples <ref_protocol_fmt_tuple>`.
 
