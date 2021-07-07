@@ -4865,7 +4865,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Derived extending Base;
         """])
 
-    def test_schema_migrations_equivalence_constraint_04(self):
+    def test_schema_migrations_equivalence_constraint_03(self):
         self._assert_migration_equivalence([r"""
             abstract constraint Lol { using (__subject__ < 10) };
             type Foo {
@@ -4885,7 +4885,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Bar extending Foo;
         """])
 
-    def test_schema_migrations_equivalence_constraint_03(self):
+    def test_schema_migrations_equivalence_constraint_04(self):
         self._assert_migration_equivalence([r"""
             type Base {
                 property firstname -> str {
@@ -4913,6 +4913,31 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 }
             }
         """, r"""
+        """])
+
+    def test_schema_migrations_equivalence_constraint_05(self):
+        self._assert_migration_equivalence([r"""
+            abstract constraint not_bad {
+                using (__subject__ != "bad" and __subject__ != "terrible")
+            }
+
+            type Foo {
+                property x -> str {
+                    constraint not_bad;
+                }
+            }
+            type Bar extending Foo;
+        """, r"""
+            abstract constraint not_bad {
+                using (__subject__ != "bad" and __subject__ != "awful")
+            }
+
+            type Foo {
+                property x -> str {
+                    constraint not_bad;
+                }
+            }
+            type Bar extending Foo;
         """])
 
     # NOTE: array<str>, array<int16>, array<json> already exist in std
