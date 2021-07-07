@@ -2689,7 +2689,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
             not orig_schema
             or pointer.get_default(orig_schema)
             or (tgt := pointer.get_target(orig_schema)) and tgt.issubclass(
-                schema, schema.get('std::sequence'))
+                orig_schema, schema.get('std::sequence'))
         ):
             return
 
