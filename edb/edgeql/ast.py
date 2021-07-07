@@ -1105,11 +1105,11 @@ class Language(s_enum.StrEnum):
 
 
 class FunctionCode(Clause):
-    language: Language
+    language: Language = Language.EdgeQL
     code: typing.Optional[str]
     nativecode: typing.Optional[Expr]
     from_function: typing.Optional[str]
-    from_expr: bool
+    from_expr: bool = False
 
 
 class FunctionCommand(CallableObjectCommand):
@@ -1130,7 +1130,7 @@ class CreateFunction(CreateObject, FunctionCommand):
 
 class AlterFunction(AlterObject, FunctionCommand):
 
-    code: FunctionCode
+    code: FunctionCode = FunctionCode  # type: ignore
     nativecode: typing.Optional[Expr]
 
 

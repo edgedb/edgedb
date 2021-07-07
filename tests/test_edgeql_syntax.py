@@ -4539,6 +4539,19 @@ aa';
             std::int64 USING SQL FUNCTION 'aaa';
         """
 
+    def test_edgeql_syntax_ddl_function_53(self):
+        """
+        ALTER FUNCTION foo() USING ('no');
+        """
+
+    def test_edgeql_syntax_ddl_function_54(self):
+        """
+        ALTER FUNCTION foo() {
+            SET volatility := 'volatile';
+            USING ('no');
+        };
+        """
+
     def test_edgeql_syntax_ddl_operator_01(self):
         """
         CREATE INFIX OPERATOR

@@ -2301,6 +2301,27 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             DROP FUNCTION test::foo2(x: test::Bar);
         ''')
 
+    async def test_edgeql_migration_function_04(self):
+        await self.migrate('''
+            function foo() -> str USING ('foo');
+        ''')
+
+        await self.start_migration('''
+            function foo() -> str USING ('bar');
+        ''')
+
+        await self.interact([
+            "did you alter function 'test::foo'?"
+        ])
+        await self.fast_forward_describe_migration()
+
+        await self.assert_query_result(
+            r"""
+                SELECT test::foo()
+            """,
+            ["bar"],
+        )
+
     async def test_edgeql_migration_describe_type_rename_01(self):
         await self.migrate('''
             type Foo;

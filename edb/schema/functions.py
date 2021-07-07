@@ -967,8 +967,12 @@ class AlterCallableObject(
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.CallableObjectCommand]:
         node = cast(
-            qlast.CallableObjectCommand,
-            super()._get_ast(schema, context, parent_node=parent_node)
+            Optional[qlast.CallableObjectCommand],
+            # Skip AlterObject's _get_ast, since we don't want to
+            # filter things without subcommands. (Since updating
+            # nativecode isn't a subcommand in the AST.)
+            super(sd.AlterObject, self)._get_ast(
+                schema, context, parent_node=parent_node)
         )
 
         if not node:
@@ -1133,7 +1137,7 @@ class Function(
         str, default=None, compcoef=0.4)
 
     nativecode = so.SchemaField(
-        expr.Expression, default=None, compcoef=0.4)
+        expr.Expression, default=None, compcoef=0.9)
 
     language = so.SchemaField(
         qlast.Language, default=None, compcoef=0.4, coerce=True)
