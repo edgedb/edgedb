@@ -5976,6 +5976,39 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Comment extending Text, Owned;
         """])
 
+    def test_schema_migrations_expression_ref_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Article {
+                    required property deleted_a := (
+                        EXISTS (.<element[IS DeletionRecord]));
+                };
+                type Category {
+                    required property deleted_c := (
+                        EXISTS (.<element[IS DeletionRecord]));
+                };
+                type DeletionRecord {
+                    required link element -> (Article | Category) {
+                        on target delete delete source;
+                        constraint std::exclusive;
+                    };
+                };
+            """,
+            r"""
+                abstract type Removable {
+                    property deleted := EXISTS(.<element[IS DeletionRecord]);
+                }
+                type Article extending Removable;
+                type Category extending Removable;
+                type DeletionRecord {
+                    required link element -> Removable {
+                        on target delete delete source;
+                        constraint std::exclusive;
+                    };
+                };
+            """
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
