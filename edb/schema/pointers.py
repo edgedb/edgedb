@@ -1865,6 +1865,7 @@ class SetPointerType(
         assert len(context.parent_ops) > 1
         ptr_op = context.parent_ops[-1]
         src_op = context.parent_ops[-2]
+        is_computable = bool(ptr_op.get_attribute_value('expr'))
         needs_cast = (
             old_type is None
             or self._needs_cast_expr(
@@ -1873,6 +1874,7 @@ class SetPointerType(
                 src_op=src_op,
                 old_type=old_type,
                 new_type=new_type,
+                is_computable=is_computable,
             )
         )
 
@@ -1910,9 +1912,11 @@ class SetPointerType(
         src_op: sd.ObjectCommand[so.Object],
         old_type: s_types.Type,
         new_type: s_types.Type,
+        is_computable: bool,
     ) -> bool:
         return (
             not old_type.assignment_castable_to(new_type, schema)
+            and not is_computable
             and not ptr_op.maybe_get_object_aux_data('from_alias')
             and self.cast_expr is None
             and not self._is_endpoint_property()
@@ -1962,6 +1966,7 @@ class SetPointerType(
                 src_op=src_op,
                 old_type=orig_target,
                 new_type=new_target,
+                is_computable=self.scls.is_pure_computable(schema),
             ):
                 vn = scls.get_verbosename(schema, with_parent=True)
                 ot = orig_target.get_verbosename(schema)

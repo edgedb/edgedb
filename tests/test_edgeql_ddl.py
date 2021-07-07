@@ -5013,6 +5013,21 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_ddl_property_computable_03(self):
+        await self.con.execute(r'''
+            CREATE TYPE Foo {
+                CREATE PROPERTY bar -> str;
+            };
+        ''')
+
+        await self.con.execute(r'''
+            ALTER TYPE Foo { ALTER PROPERTY bar { USING (1) } };
+        ''')
+
+        await self.con.execute(r'''
+            ALTER TYPE Foo { ALTER PROPERTY bar { USING ("1") } };
+        ''')
+
     async def test_edgeql_ddl_property_computable_circular(self):
         await self.con.execute('''\
             CREATE TYPE CompPropCircular {

@@ -2375,6 +2375,17 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_migration_computable_02(self):
+        await self.migrate(r'''
+            type Foo { property foo := '1' };
+            type Bar extending Foo;
+        ''')
+
+        await self.migrate(r'''
+            type Foo { property foo := 1 };
+            type Bar extending Foo;
+        ''')
+
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
             type Base;
