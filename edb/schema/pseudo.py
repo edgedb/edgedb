@@ -148,7 +148,7 @@ class PseudoType(
                 f'unexpected pseudo type: {self.get_name(schema)}')
 
 
-class PseudoTypeShell(s_types.TypeShell):
+class PseudoTypeShell(s_types.TypeShell[PseudoType]):
 
     def __init__(self, *, name: sn.Name) -> None:
         super().__init__(name=name, schemaclass=PseudoType)

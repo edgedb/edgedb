@@ -559,12 +559,13 @@ class ConstraintCommand(
         context: sd.CommandContext,
         refcls: Constraint,
         implicit_bases: List[Constraint],
-    ) -> inheriting.BaseDelta_T:
+    ) -> inheriting.BaseDelta_T[Constraint]:
         child_bases = refcls.get_bases(schema).objects(schema)
 
         return inheriting.delta_bases(
             [b.get_name(schema) for b in child_bases],
             [b.get_name(schema) for b in implicit_bases],
+            t=Constraint,
         )
 
     def get_ast_attr_for_field(
@@ -1177,7 +1178,7 @@ class CreateConstraint(
         schema: s_schema.Schema,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
-    ) -> List[so.ObjectShell]:
+    ) -> List[so.ObjectShell[Constraint]]:
         if isinstance(astnode, qlast.CreateConcreteConstraint):
             classname = cls._classname_from_ast(schema, astnode, context)
             base_name = sn.shortname_from_fullname(classname)
@@ -1438,6 +1439,6 @@ class RebaseConstraint(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        bases: Tuple[so.ObjectShell, ...],
-    ) -> Tuple[so.ObjectShell, ...]:
+        bases: Tuple[so.ObjectShell[Constraint], ...],
+    ) -> Tuple[so.ObjectShell[Constraint], ...]:
         return ()

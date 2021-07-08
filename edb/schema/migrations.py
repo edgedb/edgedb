@@ -96,7 +96,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         parent_migration = schema.get_last_migration()
 
-        parent: Optional[so.ObjectShell]
+        parent: Optional[so.ObjectShell[Migration]]
 
         if astnode.parent is None:
             if parent_migration is not None:

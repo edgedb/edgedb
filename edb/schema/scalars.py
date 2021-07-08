@@ -252,7 +252,7 @@ class ScalarType(
         return alter
 
 
-class AnonymousEnumTypeShell(s_types.TypeShell):
+class AnonymousEnumTypeShell(s_types.TypeShell[ScalarType]):
 
     elements: Sequence[str]
 
@@ -262,10 +262,10 @@ class AnonymousEnumTypeShell(s_types.TypeShell):
         name: s_name.Name = s_name.QualName(module='std', name='anyenum'),
         elements: Iterable[str],
     ) -> None:
-        super().__init__(name=name)
+        super().__init__(name=name, schemaclass=ScalarType)
         self.elements = list(elements)
 
-    def resolve(self, schema: s_schema.Schema) -> s_types.Type:
+    def resolve(self, schema: s_schema.Schema) -> ScalarType:
         raise NotImplementedError(
             f'cannot resolve {self.__class__.__name__!r}'
         )
@@ -373,6 +373,7 @@ class CreateScalarType(
             bases = [
                 s_utils.ast_to_type_shell(
                     b,
+                    metaclass=ScalarType,
                     modaliases=context.modaliases,
                     schema=schema,
                 )

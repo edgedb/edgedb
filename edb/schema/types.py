@@ -65,8 +65,11 @@ class ExprType(enum.IntEnum):
 
 
 TypeT = typing.TypeVar('TypeT', bound='Type')
+TypeT_co = typing.TypeVar('TypeT_co', bound='Type', covariant=True)
 InheritingTypeT = typing.TypeVar('InheritingTypeT', bound='InheritingType')
 CollectionTypeT = typing.TypeVar('CollectionTypeT', bound='Collection')
+CollectionTypeT_co = typing.TypeVar(
+    'CollectionTypeT_co', bound='Collection', covariant=True)
 CollectionExprAliasT = typing.TypeVar(
     'CollectionExprAliasT', bound='CollectionExprAlias'
 )
@@ -380,7 +383,10 @@ class Type(
     ) -> bool:
         return not self.is_view(schema)
 
-    def as_shell(self, schema: s_schema.Schema) -> TypeShell:
+    def as_shell(
+        self: TypeT,
+        schema: s_schema.Schema,
+    ) -> TypeShell[TypeT]:
         name = typing.cast(s_name.QualName, self.get_name(schema))
 
         if union_of := self.get_union_of(schema):
@@ -391,6 +397,7 @@ class Type(
                 ],
                 module=name.module,
                 opaque=self.get_is_opaque_union(schema),
+                schemaclass=type(self),
             )
         elif intersection_of := self.get_intersection_of(schema):
             assert isinstance(self, so.QualifiedObject)
@@ -399,6 +406,7 @@ class Type(
                     o.as_shell(schema) for o in intersection_of.objects(schema)
                 ],
                 module=name.module,
+                schemaclass=type(self),
             )
         else:
             return TypeShell(
@@ -476,9 +484,9 @@ class InheritingType(so.DerivableInheritingObject, QualifiedType):
             return ancestors.index(ancestor) + 1
 
 
-class TypeShell(so.ObjectShell):
+class TypeShell(so.ObjectShell[TypeT_co]):
 
-    schemaclass: typing.Type[Type]
+    schemaclass: typing.Type[TypeT_co]
 
     def __init__(
         self,
@@ -487,7 +495,7 @@ class TypeShell(so.ObjectShell):
         origname: Optional[s_name.Name] = None,
         displayname: Optional[str] = None,
         expr: Optional[str] = None,
-        schemaclass: typing.Type[Type] = Type,
+        schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         super().__init__(
@@ -500,7 +508,7 @@ class TypeShell(so.ObjectShell):
 
         self.expr = expr
 
-    def resolve(self, schema: s_schema.Schema) -> Type:
+    def resolve(self, schema: s_schema.Schema) -> TypeT_co:
         return schema.get(
             self.get_name(schema),
             type=self.schemaclass,
@@ -520,17 +528,17 @@ class TypeShell(so.ObjectShell):
         raise NotImplementedError
 
 
-class TypeExprShell(TypeShell):
+class TypeExprShell(TypeShell[TypeT_co]):
 
-    components: typing.Tuple[TypeShell, ...]
+    components: typing.Tuple[TypeShell[TypeT_co], ...]
     module: str
 
     def __init__(
         self,
         *,
-        components: Iterable[TypeShell],
+        components: Iterable[TypeShell[TypeT_co]],
         module: str,
-        schemaclass: typing.Type[Type] = Type,
+        schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         super().__init__(
@@ -544,28 +552,25 @@ class TypeExprShell(TypeShell):
     def resolve_components(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[InheritingType, ...]:
-        return tuple(
-            typing.cast(InheritingType, c.resolve(schema))
-            for c in self.components
-        )
+    ) -> typing.Tuple[TypeT_co, ...]:
+        return tuple(c.resolve(schema) for c in self.components)
 
     def get_components(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[TypeShell, ...]:
+    ) -> typing.Tuple[TypeShell[TypeT_co], ...]:
         return self.components
 
 
-class UnionTypeShell(TypeExprShell):
+class UnionTypeShell(TypeExprShell[TypeT_co]):
 
     def __init__(
         self,
         *,
-        components: Iterable[TypeShell],
+        components: Iterable[TypeShell[TypeT_co]],
         module: str,
         opaque: bool = False,
-        schemaclass: typing.Type[Type] = Type,
+        schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         super().__init__(
@@ -774,7 +779,7 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
         return schema
 
 
-class IntersectionTypeShell(TypeExprShell):
+class IntersectionTypeShell(TypeExprShell[TypeT_co]):
 
     def get_name(
         self,
@@ -950,14 +955,15 @@ class Collection(Type, s_abc.Collection):
 
 Dimensions = checked.FrozenCheckedList[int]
 Array_T = typing.TypeVar("Array_T", bound="Array")
+Array_T_co = typing.TypeVar("Array_T_co", bound="Array", covariant=True)
 
 
-class CollectionTypeShell(TypeShell):
+class CollectionTypeShell(TypeShell[CollectionTypeT_co]):
 
     def get_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[TypeShell, ...]:
+    ) -> typing.Tuple[TypeShell[Type], ...]:
         raise NotImplementedError
 
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
@@ -1216,14 +1222,14 @@ class Array(
 
     @classmethod
     def create_shell(
-        cls,
+        cls: typing.Type[Array_T],
         schema: s_schema.Schema,
         *,
-        subtypes: Sequence[TypeShell],
+        subtypes: Sequence[TypeShell[Type]],
         typemods: Any = None,
         name: Optional[s_name.Name] = None,
         expr: Optional[str] = None,
-    ) -> ArrayTypeShell:
+    ) -> ArrayTypeShell[Array_T]:
         if not typemods:
             typemods = ([-1],)
 
@@ -1240,7 +1246,10 @@ class Array(
             schemaclass=cls,
         )
 
-    def as_shell(self, schema: s_schema.Schema) -> ArrayTypeShell:
+    def as_shell(
+        self: Array_T,
+        schema: s_schema.Schema,
+    ) -> ArrayTypeShell[Array_T]:
         expr = self.get_expr(schema)
         expr_text = expr.text if expr is not None else None
         return type(self).create_shell(
@@ -1269,18 +1278,18 @@ class Array(
             return (schema, self)
 
 
-class ArrayTypeShell(CollectionTypeShell):
+class ArrayTypeShell(CollectionTypeShell[Array_T_co]):
 
-    schemaclass: typing.Type[Array]
+    schemaclass: typing.Type[Array_T_co]
 
     def __init__(
         self,
         *,
         name: s_name.Name,
         expr: Optional[str] = None,
-        subtype: TypeShell,
+        subtype: TypeShell[Type],
         typemods: typing.Tuple[typing.Any, ...],
-        schemaclass: typing.Type[Array] = Array,
+        schemaclass: typing.Type[Array_T_co],
     ) -> None:
         super().__init__(name=name, schemaclass=schemaclass, expr=expr)
         self.subtype = subtype
@@ -1297,7 +1306,7 @@ class ArrayTypeShell(CollectionTypeShell):
     def get_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[TypeShell, ...]:
+    ) -> typing.Tuple[TypeShell[Type], ...]:
         return (self.subtype,)
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
@@ -1306,11 +1315,12 @@ class ArrayTypeShell(CollectionTypeShell):
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
         return generate_array_type_id(schema, self.subtype, self.typemods[0])
 
-    def resolve(self, schema: s_schema.Schema) -> Array:
+    def resolve(self, schema: s_schema.Schema) -> Array_T_co:
         if isinstance(self.name, s_name.QualName):
-            return schema.get(self.name, type=Array)
+            arr = schema.get(self.name, type=Array)
         else:
-            return schema.get_by_id(self.get_id(schema), type=Array)
+            arr = schema.get_by_id(self.get_id(schema), type=Array)
+        return arr  # type: ignore
 
     def as_create_delta(
         self,
@@ -1363,6 +1373,7 @@ class ArrayExprAlias(
 
 
 Tuple_T = typing.TypeVar('Tuple_T', bound='Tuple')
+Tuple_T_co = typing.TypeVar('Tuple_T_co', bound='Tuple', covariant=True)
 
 
 class Tuple(
@@ -1572,13 +1583,13 @@ class Tuple(
 
     @classmethod
     def create_shell(
-        cls,
+        cls: typing.Type[Tuple_T],
         schema: s_schema.Schema,
         *,
-        subtypes: Mapping[str, TypeShell],
+        subtypes: Mapping[str, TypeShell[Type]],
         typemods: Any = None,
         name: Optional[s_name.Name] = None,
-    ) -> TupleTypeShell:
+    ) -> TupleTypeShell[Tuple_T]:
         if name is None:
             name = s_name.UnqualName(name='__unresolved__')
 
@@ -1589,8 +1600,11 @@ class Tuple(
             schemaclass=cls,
         )
 
-    def as_shell(self, schema: s_schema.Schema) -> TupleTypeShell:
-        stshells: Dict[str, TypeShell] = {}
+    def as_shell(
+        self: Tuple_T,
+        schema: s_schema.Schema,
+    ) -> TupleTypeShell[Tuple_T]:
+        stshells: Dict[str, TypeShell[Type]] = {}
 
         for n, st in self.iter_subtypes(schema):
             stshells[n] = st.as_shell(schema)
@@ -1835,17 +1849,17 @@ class Tuple(
             return schema, self
 
 
-class TupleTypeShell(CollectionTypeShell):
+class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
 
-    schemaclass: typing.Type[Tuple]
+    schemaclass: typing.Type[Tuple_T_co]
 
     def __init__(
         self,
         *,
         name: s_name.Name,
-        subtypes: Mapping[str, TypeShell],
+        subtypes: Mapping[str, TypeShell[Type]],
         typemods: Any = None,
-        schemaclass: typing.Type[Tuple] = Tuple,
+        schemaclass: typing.Type[Tuple_T_co],
     ) -> None:
         super().__init__(name=name, schemaclass=schemaclass)
         self.subtypes = subtypes
@@ -1870,13 +1884,13 @@ class TupleTypeShell(CollectionTypeShell):
     def get_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[TypeShell, ...]:
+    ) -> typing.Tuple[TypeShell[Type], ...]:
         return tuple(self.subtypes.values())
 
     def iter_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> Iterator[typing.Tuple[str, TypeShell]]:
+    ) -> Iterator[typing.Tuple[str, TypeShell[Type]]]:
         return iter(self.subtypes.items())
 
     def is_named(self) -> bool:
@@ -1885,11 +1899,12 @@ class TupleTypeShell(CollectionTypeShell):
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
         return generate_tuple_type_id(schema, self.subtypes, self.is_named())
 
-    def resolve(self, schema: s_schema.Schema) -> Tuple:
+    def resolve(self, schema: s_schema.Schema) -> Tuple_T_co:
         if isinstance(self.name, s_name.QualName):
-            return schema.get(self.name, type=Tuple)
+            tup = schema.get(self.name, type=Tuple)
         else:
-            return schema.get_by_id(self.get_id(schema), type=Tuple)
+            tup = schema.get_by_id(self.get_id(schema), type=Tuple)
+        return tup  # type: ignore
 
     def as_create_delta(
         self,
@@ -1948,7 +1963,7 @@ def generate_type_id(id_str: str) -> uuid.UUID:
 
 def generate_tuple_type_id(
     schema: s_schema.Schema,
-    element_types: Mapping[str, Union[Type, TypeShell]],
+    element_types: Mapping[str, Union[Type, TypeShell[Type]]],
     named: bool = False,
     *quals: str,
 ) -> uuid.UUID:
@@ -1962,7 +1977,7 @@ def generate_tuple_type_id(
 
 def generate_array_type_id(
     schema: s_schema.Schema,
-    element_type: Union[Type, TypeShell],
+    element_type: Union[Type, TypeShell[Type]],
     dimensions: Sequence[int] = (),
     *quals: str,
 ) -> uuid.UUID:
@@ -2000,7 +2015,7 @@ def get_intersection_type_name(
 
 def ensure_schema_type_expr_type(
     schema: s_schema.Schema,
-    type_shell: TypeExprShell,
+    type_shell: TypeExprShell[Type],
     parent_cmd: sd.Command,
     *,
     src_context: typing.Optional[parsing.ParserContext] = None,

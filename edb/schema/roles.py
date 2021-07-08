@@ -112,7 +112,7 @@ class RoleCommand(
         schema: s_schema.Schema,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
-    ) -> List[so.ObjectShell]:
+    ) -> List[so.ObjectShell[Role]]:
         result = []
         for b in getattr(astnode, 'bases', None) or []:
             result.append(utils.ast_objref_to_object_shell(

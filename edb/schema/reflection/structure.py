@@ -340,7 +340,11 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                 rschema_name, type=s_objtypes.ObjectType)
         else:
             ex_bases = schema_objtype.get_bases(schema).names(schema)
-            _, added_bases = s_inh.delta_bases(ex_bases, bases)
+            _, added_bases = s_inh.delta_bases(
+                ex_bases,
+                bases,
+                t=type(schema_objtype),
+            )
 
             if added_bases:
                 for subset, position in added_bases:

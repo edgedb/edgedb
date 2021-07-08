@@ -3716,6 +3716,7 @@ class AlterObjectProperty(Command):
 
                 new_value = utils.ast_to_object_shell(
                     astnode.value,
+                    metaclass=so.Object,
                     modaliases=context.modaliases,
                     schema=schema,
                 )
@@ -3728,6 +3729,8 @@ class AlterObjectProperty(Command):
                 new_value = None
 
             elif isinstance(astnode.value, qlast.TypeExpr):
+                from . import types as s_types
+
                 if not isinstance(parent_op, QualifiedObjectCommand):
                     raise AssertionError(
                         'cannot determine module for derived compound type: '
@@ -3736,6 +3739,7 @@ class AlterObjectProperty(Command):
 
                 new_value = utils.ast_to_type_shell(
                     astnode.value,
+                    metaclass=s_types.Type,
                     module=parent_op.classname.module,
                     modaliases=context.modaliases,
                     schema=schema,
