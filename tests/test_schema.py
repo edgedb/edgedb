@@ -4053,6 +4053,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
         """])
 
+    def test_schema_migrations_equivalence_function_04(self):
+        self._assert_migration_equivalence([r"""
+            function foo() -> str USING ('foo');
+        """, r"""
+            function foo() -> str USING ('bar');
+        """])
+
     @test.xfail('''
         cannot drop function 'default::hello06(a: std::int64)'
         because other objects in the schema depend on it
