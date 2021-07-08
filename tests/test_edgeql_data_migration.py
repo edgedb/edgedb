@@ -2322,6 +2322,46 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ["bar"],
         )
 
+    async def test_edgeql_migration_constraint_01(self):
+        await self.migrate('''
+            abstract constraint not_bad {
+                using (__subject__ != "bad" and __subject__ != "terrible")
+            }
+
+            type Foo {
+                property foo -> str {
+                    constraint not_bad;
+                }
+            }
+            type Bar extending Foo;
+        ''')
+
+        await self.start_migration('''
+            abstract constraint not_bad {
+                using (__subject__ != "bad" and __subject__ != "awful")
+            }
+
+            type Foo {
+                property foo -> str {
+                    constraint not_bad;
+                }
+            }
+            type Bar extending Foo;
+        ''')
+
+        await self.interact([
+            "did you alter abstract constraint 'test::not_bad'?"
+        ])
+        await self.fast_forward_describe_migration()
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "invalid foo",
+        ):
+            await self.con.execute(r"""
+                INSERT test::Foo { foo := "awful" };
+            """)
+
     async def test_edgeql_migration_describe_type_rename_01(self):
         await self.migrate('''
             type Foo;

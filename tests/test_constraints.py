@@ -1273,6 +1273,51 @@ class TestConstraintsDDL(tb.DDLTestCase):
             }
         """)
 
+    async def test_constraints_ddl_15(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT CONSTRAINT not_bad {
+                USING (__subject__ != "bad" and __subject__ != "terrible")
+            };
+        """)
+
+        await self.con.execute(r"""
+            CREATE TYPE Foo {
+                CREATE PROPERTY foo -> str {
+                    CREATE CONSTRAINT not_bad;
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT CONSTRAINT not_bad {
+                USING (__subject__ != "bad" and __subject__ != "terrible"
+                       and __subject__ != "awful")
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "invalid foo",
+        ):
+            await self.con.execute(r"""
+                INSERT Foo { foo := "awful" };
+            """)
+
+        await self.con.execute(r"""
+            INSERT Foo { foo := "scow" };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "invalid foo",
+        ):
+            await self.con.execute(r"""
+                ALTER ABSTRACT CONSTRAINT not_bad {
+                    USING (__subject__ != "bad" and __subject__ != "terrible"
+                           and __subject__ != "scow")
+                };
+            """)
+
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
             CREATE FUNCTION comp_func(s: str) -> str {

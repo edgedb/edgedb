@@ -4120,6 +4120,12 @@ aa';
         RESET errmessage;
         """
 
+    def test_edgeql_syntax_ddl_constraint_13(self):
+        """
+        ALTER ABSTRACT CONSTRAINT not_bad
+            USING (((__subject__ != 'bad') and (__subject__ != 'terrible')));
+        """
+
     def test_edgeql_syntax_ddl_function_01(self):
         """
         CREATE FUNCTION std::strlen(string: std::str) -> std::int64
