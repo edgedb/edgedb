@@ -1295,12 +1295,19 @@ def get_ddl_field_value(
     return cmd.value if cmd is not None else None
 
 
+def get_ddl_subcommand(
+    ddlcmd: DDLOperation,
+    cmdtype: typing.Type[DDLOperation],
+) -> typing.Optional[DDLOperation]:
+    for cmd in ddlcmd.commands:
+        if isinstance(cmd, cmdtype):
+            return cmd
+    else:
+        return None
+
+
 def has_ddl_subcommand(
     ddlcmd: DDLOperation,
     cmdtype: typing.Type[DDLOperation],
 ) -> bool:
-    for cmd in ddlcmd.commands:
-        if isinstance(cmd, cmdtype):
-            return True
-    else:
-        return False
+    return bool(get_ddl_subcommand(ddlcmd, cmdtype))

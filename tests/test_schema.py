@@ -557,6 +557,55 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "the type inferred from the expression of the computable property "
+        "'title' of object type 'test::A' is scalar type 'std::int64', "
+        "which does not match the explicitly specified scalar type 'std::str'",
+        line=3, col=35)
+    def test_schema_target_consistency_check_01(self):
+        """
+            type A {
+                property title -> str {
+                    using (1)
+                }
+            }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "the type inferred from the expression of the computable property "
+        "'title' of object type 'test::A' is collection "
+        "'tuple<std::int64, std::int64>', which does not match the explicitly "
+        "specified collection 'tuple<std::str, std::str>'",
+        line=3, col=35)
+    def test_schema_target_consistency_check_02(self):
+        """
+            type A {
+                property title -> tuple<str, str> {
+                    using ((1, 2))
+                }
+            }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "the type inferred from the expression of the computable link "
+        "'foo' of object type 'test::C' is object type 'test::B', "
+        "which does not match the explicitly specified object type 'test::A'",
+        line=6, col=29)
+    def test_schema_target_consistency_check_03(self):
+        """
+            type A;
+            type B;
+
+            type C {
+                link foo -> A {
+                    using (SELECT B)
+                }
+            }
+        """
+
     def test_schema_refs_01(self):
         schema = self.load_schema("""
             type Object1;
