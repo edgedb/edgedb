@@ -2239,7 +2239,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'statements': [{
                     'text': (
                         'ALTER FUNCTION test::foo(x: std::str) '
-                        'RENAME TO test::bar;'
+                        '{RENAME TO test::bar;};'
                     )
                 }],
             },
