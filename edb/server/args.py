@@ -200,7 +200,7 @@ def _status_sink_fd(fileno: int) -> Callable[[str], None]:
 
 _server_options = [
     click.option(
-        '-D', '--data-dir', type=PathPath(), envvar='EDGEDB_DATADIR',
+        '-D', '--data-dir', type=PathPath(),
         help='database cluster directory'),
     click.option(
         '--postgres-dsn', type=str,
@@ -222,10 +222,9 @@ _server_options = [
              'exiting with a catalog incompatibility error.'
     ),
     click.option(
-        '-l', '--log-level',
+        '-l', '--log-level', default='i',
         help=('Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '
-              '(e)rror, (s)ilent'),
-        default='i', envvar='EDGEDB_LOG_LEVEL'),
+              '(e)rror, (s)ilent')),
     click.option(
         '--log-to',
         help=('send logs to DEST, where DEST can be a file name, "syslog", '
@@ -263,7 +262,7 @@ _server_options = [
         default=False),
     click.option(
         '-I', '--bind-address', type=str, default=None,
-        help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS'),
+        help='IP address to listen on'),
     click.option(
         '-P', '--port', type=PortType(), default=None,
         help='port to listen on'),
