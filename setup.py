@@ -727,8 +727,8 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.testbase.protocol.protocol",
-            ["edb/testbase/protocol/protocol.pyx"],
+            "edb.protocol.protocol",
+            ["edb/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 

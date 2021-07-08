@@ -21,7 +21,7 @@ import asyncio
 import edgedb
 
 from edb.server import compiler
-from edb.testbase import protocol
+from edb import protocol
 from edb.testbase.protocol.test import ProtocolTestCase
 
 

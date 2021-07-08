@@ -58,7 +58,7 @@ The following data types are used in the descriptions:
       - a byte string prefixed with its length as ``uint32``
 
     * - ``Header``
-      - .. eql:struct:: edb.testbase.protocol.Header
+      - .. eql:struct:: edb.protocol.Header
 
     * - ``uuid``
       - an array of 16 bytes with no length prefix, equivalent to

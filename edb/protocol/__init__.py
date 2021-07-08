@@ -19,24 +19,30 @@
 
 from __future__ import annotations
 
-from edb.testbase import server
+import enum
+import typing
 
-from edb.protocol import protocol  # type: ignore
+from . import messages
+from . import render_utils
+
+from .messages import *  # NoQA
 
 
-class ProtocolTestCase(server.ClusterTestCase):
+def render(
+    obj: typing.Union[typing.Type[enum.Enum], typing.Type[messages.Struct]]
+) -> str:
+    if issubclass(obj, messages.Struct):
+        return obj.render()
+    else:
+        assert issubclass(obj, enum.Enum)
 
-    def setUp(self):
-        self.con = self.loop.run_until_complete(
-            protocol.new_connection(
-                **self.get_connect_args()
-            )
-        )
-
-    def tearDown(self):
-        try:
-            self.loop.run_until_complete(
-                self.con.aclose()
-            )
-        finally:
-            self.con = None
+        buf = render_utils.RenderBuffer()
+        buf.write(f'enum {obj.__name__} {{')
+        with buf.indent():
+            for membername, member in obj.__members__.items():
+                buf.write(
+                    f'{membername.ljust(messages._PAD - 1)} = '
+                    f'{member.value:#x};'
+                )
+        buf.write('};')
+        return str(buf)

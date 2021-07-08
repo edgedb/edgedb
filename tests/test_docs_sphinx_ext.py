@@ -770,9 +770,9 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
 
     def test_sphinx_eql_struct_01(self):
         src = '''
-        .. eql:struct:: edb.testbase.protocol.AuthenticationSASLFinal
+        .. eql:struct:: edb.protocol.AuthenticationSASLFinal
 
-        .. eql:struct:: edb.server.compiler.Cardinality
+        .. eql:struct:: edb.protocol.enums.Cardinality
         '''
 
         out = self.build(src, format='xml')
