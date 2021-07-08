@@ -3971,6 +3971,18 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     USING SQL FUNCTION 'char_length';
             ''')
 
+    async def test_edgeql_ddl_function_31(self):
+        await self.con.execute(r'''
+            CREATE FUNCTION foo() -> str USING ('a');
+        ''')
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidFunctionDefinitionError,
+                r"return type mismatch"):
+            await self.con.execute(r'''
+                ALTER FUNCTION foo() USING (1);
+            ''')
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {
