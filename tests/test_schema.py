@@ -3878,14 +3878,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
-        edb.errors.SchemaError: link 'owned' of object type
-        'default::User' cannot be cast automatically from object type
-        'default::Post' to object type 'default::Action'
-
-        Notice that since this link is a computable, we shouldn't care
-        about "converting" it.
-    ''')
     def test_schema_migrations_equivalence_48(self):
         # change a link used in a computable
         self._assert_migration_equivalence([r"""
