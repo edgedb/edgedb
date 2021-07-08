@@ -1802,6 +1802,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         else:
             self.write(' ')
 
+        had_using = True
         if node.code.from_function:
             from_clause = f'USING {node.code.language} FUNCTION '
             if self.sdlmode:
@@ -1814,10 +1815,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(' (')
                 self.visit(node.nativecode)
                 self.write(')')
-            else:
-                assert node.code.code
+            elif node.code.code:
                 self._write_keywords('USING')
                 self.write(f' ({node.code.code})')
+            else:
+                had_using = False
         else:
             from_clause = f'USING {node.code.language} '
             if self.sdlmode:
@@ -1829,7 +1831,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.commands:
             self._block_ws(-1)
-            self.write(';')
+            if had_using:
+                self.write(';')
             self.write('}')
 
     def visit_CreateFunction(self, node: qlast.CreateFunction) -> None:
