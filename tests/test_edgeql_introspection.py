@@ -1356,3 +1356,27 @@ class TestIntrospection(tb.QueryTestCase):
         """)
 
         self.assertGreater(res, 0)
+
+    async def test_edgeql_default_injection_collision_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Pointer {
+                    name,
+                    required,
+                    [IS Link].pointers: {
+                      name,
+                      required,
+                    } FILTER .name = 'value'
+                }
+                FILTER .source.name = 'schema::AnnotationSubject'
+                   AND .name = 'annotations';
+            """,
+            [
+                {
+                    "name": "annotations",
+                    "pointers": [{"name": "value", "required": False}],
+                    "required": False
+                }
+            ]
+        )
