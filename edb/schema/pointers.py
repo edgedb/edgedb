@@ -1771,6 +1771,25 @@ class AlterPointer(
     PointerCommand[Pointer_T],
 ):
 
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+
+        if self.get_attribute_value('expr') is not None:
+            # If the expression gets changed, we need to propagate
+            # this change to other expressions referring to this one,
+            # in case there are any cycles caused by this change.
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema=schema),
+            )
+
+        return schema
+
     @classmethod
     def _cmd_tree_from_ast(
         cls,

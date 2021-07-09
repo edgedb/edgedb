@@ -150,6 +150,10 @@ class ObjectType(Type, Source):
         return False
 
 
+class Alias(ObjectType):
+    pass
+
+
 class UnionType(Type):
 
     def __init__(
@@ -180,6 +184,12 @@ class Pointer(Source):
     def is_pointer(self) -> bool:
         return True
 
+    def is_property(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        raise NotImplementedError
+
     def maybe_get_ptr(
         self,
         schema: s_schema.Schema,
@@ -201,6 +211,22 @@ class Pointer(Source):
         schema: s_schema.Schema,
     ) -> Optional[SourceLike]:
         return self.source
+
+
+class Property(Pointer):
+    def is_property(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        return True
+
+
+class Link(Pointer):
+    def is_property(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        return False
 
 
 def qualify_name(name: sn.QualName, qual: str) -> sn.QualName:
