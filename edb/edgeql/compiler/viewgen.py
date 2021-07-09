@@ -566,9 +566,12 @@ def _normalize_view_ptr_expr(
             ctx=ctx,
         )
 
-        # If the element has clauses or computable elements, we need to
-        # compile it to figure out if those need materialization.
-        if is_nontrivial and qlexpr and not is_mutation:
+        # If we generated qlexpr for the element, we process the
+        # subview by just compiling the qlexpr. This is so that we can
+        # figure out if it needs materialization and also so that
+        # `qlexpr is not None` always implies that we did the
+        # compilation. (Except for mutations)
+        if qlexpr and not is_mutation:
             irexpr, _ = _compile_qlexpr(
                 qlexpr, view_scls, ptrcls=ptrcls, ptrsource=ptrsource,
                 path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
@@ -843,7 +846,8 @@ def _normalize_view_ptr_expr(
             irexpr = setgen.ensure_set(irexpr, ctx=ctx)
             setgen.maybe_materialize(ptrcls, irexpr, ctx=ctx)
 
-    if qlexpr is None:
+    if qlexpr is None and not setgen.is_injected_computable_ptr(
+            ptrcls, ctx=ctx):
         # This is not a computable, just a pointer
         # to a nested shape.  Have it reuse the original
         # pointer name so that in `Foo.ptr.name` and

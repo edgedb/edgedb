@@ -254,7 +254,14 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
             "(schema::Type)",
             "FENCE": {
                 "FENCE": {
-                    "(schema::Type).>element_type[IS schema::Type]"
+                    "FENCE": {
+                        "FENCE": {
+                            "(schema::Type).>indirection[IS schema::Array]\
+.>element_type[IS schema::Type]": {
+                                "(schema::Type).>indirection[IS schema::Array]"
+                            }
+                        }
+                    }
                 }
             },
             "FENCE": {
@@ -280,6 +287,15 @@ class TestEdgeQLIRScopeTree(tb.BaseEdgeQLCompilerTest):
         "FENCE": {
             "FENCE": {
                 "(schema::Type)"
+            },
+            "FENCE": {
+                "FENCE": {
+                    "FENCE": {
+                        "FENCE": {
+                            "(__derived__::expr~3).>foo[IS std::str]"
+                        }
+                    }
+                }
             },
             "(__derived__::expr~3)",
             "FENCE": {
