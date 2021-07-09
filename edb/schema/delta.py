@@ -1778,7 +1778,28 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         expr_refs = s_expr.get_expr_referrers(schema, scls)
 
         if expr_refs:
-            sorted_ref_objs = sort_by_cross_refs(schema, expr_refs.keys())
+            try:
+                sorted_ref_objs = sort_by_cross_refs(schema, expr_refs.keys())
+            except topological.CycleError as e:
+                assert e.item is not None
+                assert e.path is not None
+
+                item_vn = e.item.get_verbosename(schema, with_parent=True)
+
+                if len(e.path):
+                    # Recursion involving more than one schema object.
+                    rec_vn = e.path[-1].get_verbosename(
+                        schema, with_parent=True)
+                    msg = (
+                        f'definition dependency cycle between {rec_vn} '
+                        f'and {item_vn}'
+                    )
+                else:
+                    # A single schema object with a recursive definition.
+                    msg = f'{item_vn} is defined recursively'
+
+                raise errors.InvalidDefinitionError(msg) from e
+
             ref_desc = []
             for ref in sorted_ref_objs:
                 cmd_drop: Command

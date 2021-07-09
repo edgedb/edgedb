@@ -1545,6 +1545,207 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    def test_schema_recursive_01(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                link next -> Foo;
+                property val := 1;
+            }
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "property 'val' of object type 'default::Foo' "
+            "is defined recursively"
+        ):
+            self.run_ddl(schema, '''
+                ALTER TYPE default::Foo
+                    ALTER PROPERTY val USING (1 + (.next.val ?? 0));
+            ''')
+
+    @test.xfail('''
+        The error is not raised.
+    ''')
+    def test_schema_recursive_02(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                link next -> Bar;
+                property val := 1;
+            }
+
+            type Bar {
+                link next -> Foo;
+                property val := 1;
+            }
+        ''', modname='default')
+
+        self.run_ddl(schema, '''
+            ALTER TYPE default::Foo
+                ALTER PROPERTY val USING (1 + (.next.val ?? 0));
+        ''')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "definition dependency cycle between "
+            "property 'val' of object type 'default::Bar' and "
+            "property 'val' of object type 'default::Foo'"
+        ):
+            self.run_ddl(schema, '''
+                ALTER TYPE default::Bar
+                    ALTER PROPERTY val USING (1 + (.next.val ?? 0));
+                    # ALTER PROPERTY val USING ('bad');
+            ''')
+
+    def test_schema_recursive_03(self):
+        schema = self.load_schema(r'''
+            function foo(v: int64) -> int64 using (
+                1 + v
+            );
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"function 'default::foo\(v:.+int64\)' "
+            r"is defined recursively"
+        ):
+            self.run_ddl(schema, '''
+                ALTER FUNCTION foo(v: int64) USING (
+                    0 IF v < 0 ELSE 1 + foo(v -1)
+                );
+            ''')
+
+    @test.xfail('''
+        RecursionError: maximum recursion depth exceeded in comparison
+
+        This happens while processing '_alter_finalize'.
+    ''')
+    def test_schema_recursive_04(self):
+        schema = self.load_schema(r'''
+            function foo(v: int64) -> int64 using (
+                1 + v
+            );
+
+            function bar(v: int64) -> int64 using (
+                0 IF v < 0 ELSE 1 + foo(v -1)
+            );
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::bar\(v:.+int64\)' and "
+            r"function 'default::foo\(v:.+int64\)'"
+        ):
+            self.run_ddl(schema, '''
+                ALTER FUNCTION foo(v: int64) USING (
+                    0 IF v < 0 ELSE 1 + bar(v -1)
+                );
+            ''')
+
+    @test.xfail('''
+        The cycle is detected, but stragely doesn't mention Foo.
+    ''')
+    def test_schema_recursive_05(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                property val := foo(1);
+            }
+
+            function foo(v: int64) -> int64 using (
+                1 + v
+            );
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::foo\(v:.+int64\)' and "
+            r"property 'val' of object type 'default::Foo'"
+        ):
+            self.run_ddl(schema, r'''
+                ALTER FUNCTION foo(v: int64) USING (
+                    # This is very broken now
+                    1 + (SELECT Foo LIMIT 1).val
+                );
+            ''')
+
+    def test_schema_recursive_06(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                property val := 1;
+            }
+
+            function foo(v: int64) -> int64 using (
+                1 + (SELECT Foo LIMIT 1).val
+            );
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            r"cannot alter property 'val' of object type 'default::Foo' "
+            r"because this affects nativecode expression of "
+            r"function 'default::foo\(v:.+int64\)'"
+        ):
+            self.run_ddl(schema, r'''
+                ALTER TYPE Foo {
+                    # This is very broken now
+                    ALTER PROPERTY val USING (foo(1));
+                };
+            ''')
+
+    @test.xfail('''
+        ...File
+          "/home/victor/dev/magicstack/edgedb/edb/edgeql/compiler/stmtctx.py",
+          line 588, in declare_view_from_schema
+            assert view_expr is not None
+        AssertionError
+    ''')
+    def test_schema_recursive_07(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                property val -> int64;
+            }
+
+            alias FooAlias0 := Foo {
+                comp := .val + (SELECT FooAlias1 LIMIT 1).comp
+            };
+
+            alias FooAlias1 := Foo {
+                comp := .val + 1
+            };
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "definition dependency cycle between "
+            "alias 'default::FooAlias1' and alias 'default::FooAlias0'"
+        ):
+            self.run_ddl(schema, r'''
+                ALTER ALIAS FooAlias1 USING (
+                    Foo {
+                      comp := .val + (SELECT FooAlias0 LIMIT 1).comp
+                    }
+                );
+            ''')
+
+    @test.xfail('''
+        RecursionError: maximum recursion depth exceeded in comparison
+    ''')
+    def test_schema_recursive_08(self):
+        schema = self.load_schema(r'''
+            type Foo;
+
+            type Bar extending Foo;
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "'default::Foo' is defined recursively"
+        ):
+            self.run_ddl(schema, r'''
+                ALTER TYPE Foo EXTENDING Bar;
+            ''')
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
@@ -4297,6 +4498,203 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 )
             }
         """])
+
+    def test_schema_migrations_equivalence_recursive_01(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "property 'val' of object type 'default::Foo' "
+            "is defined recursively"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    link next -> Foo;
+                    property val := 1;
+                }
+            """, r"""
+                type Foo {
+                    link next -> Foo;
+                    property val := 1 + (.next.val ?? 0);
+                }
+            """])
+
+    def test_schema_migrations_equivalence_recursive_02(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "definition dependency cycle between "
+            "property 'val' of object type 'default::Bar' and "
+            "property 'val' of object type 'default::Foo'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    link next -> Bar;
+                    property val := 1;
+                }
+
+                type Bar {
+                    link next -> Foo;
+                    property val := 1;
+                }
+            """, r"""
+                type Foo {
+                    link next -> Bar;
+                    property val := 1 + (.next.val ?? 0);
+                }
+
+                type Bar {
+                    link next -> Foo;
+                    property val := 1;
+                }
+            """, r"""
+                type Foo {
+                    link next -> Bar;
+                    property val := 1 + (.next.val ?? 0);
+                }
+
+                type Bar {
+                    link next -> Foo;
+                    property val := 1 + (.next.val ?? 0);
+                }
+            """])
+
+    def test_schema_migrations_equivalence_recursive_03(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"function 'default::foo\(v: int64\)' "
+            r"is defined recursively"
+        ):
+            self._assert_migration_equivalence([r"""
+                function foo(v: int64) -> int64 using (
+                    1 + v
+                );
+            """, r"""
+                function foo(v: int64) -> int64 using (
+                    0 IF v < 0 ELSE 1 + foo(v -1)
+                );
+            """])
+
+    def test_schema_migrations_equivalence_recursive_04(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::bar\(v: int64\)' and "
+            r"function 'default::foo\(v: int64\)'"
+        ):
+            self._assert_migration_equivalence([r"""
+                function foo(v: int64) -> int64 using (
+                    1 + v
+                );
+
+                function bar(v: int64) -> int64 using (
+                    0 IF v < 0 ELSE 1 + foo(v -1)
+                );
+            """, r"""
+                function foo(v: int64) -> int64 using (
+                    0 IF v < 0 ELSE 1 + bar(v -1)
+                );
+
+                function bar(v: int64) -> int64 using (
+                    0 IF v < 0 ELSE 1 + foo(v -1)
+                );
+            """])
+
+    def test_schema_migrations_equivalence_recursive_05(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::foo\(v: int64\)' and "
+            r"property 'val' of object type 'default::Foo'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    property val := foo(1);
+                }
+
+                function foo(v: int64) -> int64 using (
+                    1 + v
+                );
+            """, r"""
+                type Foo {
+                    property val := foo(1);
+                }
+
+                function foo(v: int64) -> int64 using (
+                    # This is very broken now
+                    1 + (SELECT Foo LIMIT 1).val
+                );
+            """])
+
+    def test_schema_migrations_equivalence_recursive_06(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::foo\(v: int64\)' and "
+            r"property 'val' of object type 'default::Foo'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    property val := 1;
+                }
+
+                function foo(v: int64) -> int64 using (
+                    1 + (SELECT Foo LIMIT 1).val
+                );
+            """, r"""
+                type Foo {
+                    # This is very broken now
+                    property val := foo(1);
+                }
+
+                function foo(v: int64) -> int64 using (
+                    1 + (SELECT Foo LIMIT 1).val
+                );
+            """])
+
+    def test_schema_migrations_equivalence_recursive_07(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "definition dependency cycle between "
+            "alias 'default::FooAlias1' and alias 'default::FooAlias0'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    property val -> int64;
+                }
+
+                alias FooAlias0 := Foo {
+                    comp := .val + (SELECT FooAlias1 LIMIT 1).comp
+                };
+
+                alias FooAlias1 := Foo {
+                    comp := .val + 1
+                };
+            """, r"""
+                type Foo {
+                    property val -> int64;
+                }
+
+                alias FooAlias0 := Foo {
+                    comp := .val + (SELECT FooAlias1 LIMIT 1).comp
+                };
+
+                alias FooAlias1 := Foo {
+                    comp := .val + (SELECT FooAlias0 LIMIT 1).comp
+                };
+            """])
+
+    def test_schema_migrations_equivalence_recursive_08(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "'default::Foo' is defined recursively"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo;
+
+                type Bar extending Foo;
+            """, r"""
+                type Foo extending Bar;
+
+                type Bar extending Foo;
+            """])
 
     def test_schema_migrations_equivalence_computed_01(self):
         self._assert_migration_equivalence([r"""
