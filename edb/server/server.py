@@ -28,6 +28,7 @@ import logging
 import os
 import pickle
 import socket
+import ssl
 import stat
 import sys
 import uuid
@@ -100,6 +101,9 @@ class Server:
         compiler_pool_size,
         nethost,
         netport,
+        tls_cert_file: str,
+        tls_key_file: Optional[str] = None,
+        optional_tls: bool = False,
         auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
@@ -113,6 +117,7 @@ class Server:
 
         self._serving = False
         self._initing = False
+        self._accept_new_tasks = False
 
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
@@ -176,6 +181,9 @@ class Server:
 
         self._task_group = None
         self._stop_evt = asyncio.Event()
+        self._tls_cert_file = tls_cert_file
+        self._tls_key_file = tls_key_file
+        self._optional_tls = optional_tls
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -811,36 +819,33 @@ class Server:
     async def _start_servers(self, host, port):
         nethost = await _fix_localhost(host)
 
+        sslctx = ssl.SSLContext()
+        sslctx.load_cert_chain(
+            self._tls_cert_file,
+            self._tls_key_file,
+            password=_tls_private_key_password,
+        )
+        sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
+
         tcp_srv = await self._loop.create_server(
-            lambda: protocol.HttpProtocol(self),
+            lambda: protocol.HttpProtocol(
+                self, sslctx, optional_tls=self._optional_tls
+            ),
             host=nethost, port=port)
 
         if port == 0:
             port = tcp_srv.sockets[0].getsockname()[1]
 
         try:
-            unix_sock_path = os.path.join(
-                self._runstate_dir, f'.s.EDGEDB.{port}')
-            unix_srv = await self._loop.create_unix_server(
-                lambda: protocol.HttpProtocol(self),
-                unix_sock_path)
-        except Exception:
-            tcp_srv.close()
-            await tcp_srv.wait_closed()
-            raise
-
-        try:
             admin_unix_sock_path = os.path.join(
                 self._runstate_dir, f'.s.EDGEDB.admin.{port}')
             admin_unix_srv = await self._loop.create_unix_server(
-                lambda: protocol.HttpProtocol(self, external_auth=True),
+                lambda: binary.EdgeConnection(self, external_auth=True),
                 admin_unix_sock_path)
             os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
         except Exception:
             tcp_srv.close()
             await tcp_srv.wait_closed()
-            unix_srv.close()
-            await unix_srv.wait_closed()
             raise
 
         servers = []
@@ -852,8 +857,6 @@ class Server:
             host_str = next(iter(nethost))
 
         logger.info('Serving on %s:%s', host_str, port)
-        servers.append(unix_srv)
-        logger.info('Serving on %s', unix_sock_path)
         servers.append(admin_unix_srv)
         logger.info('Serving admin on %s', admin_unix_sock_path)
 
@@ -870,6 +873,7 @@ class Server:
         assert self._task_group is None
         self._task_group = taskgroup.TaskGroup()
         await self._task_group.__aenter__()
+        self._accept_new_tasks = True
 
         await self._create_compiler_pool()
 
@@ -906,12 +910,14 @@ class Server:
                 "socket_dir": str(self._runstate_dir),
                 "main_pid": os.getpid(),
                 "tenant_id": self._tenant_id,
+                "tls_cert_file": self._tls_cert_file,
             }
             self._status_sink(f'READY={json.dumps(status)}')
 
     async def stop(self):
         try:
             self._serving = False
+            self._accept_new_tasks = False
 
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
@@ -937,7 +943,7 @@ class Server:
             self._sys_pgcon_waiter = None
 
     def create_task(self, coro):
-        if self._serving:
+        if self._accept_new_tasks:
             return self._task_group.create_task(coro)
 
     async def serve_forever(self):
@@ -1010,3 +1016,7 @@ async def _fix_localhost(host):
         hosts.insert(idx, addr)
 
     return hosts
+
+
+def _tls_private_key_password():
+    return os.environ.get('EDGEDB_TLS_PRIVATE_KEY_PASSWORD', '')

@@ -89,6 +89,10 @@ class ServerConfig(NamedTuple):
     startup_script: Optional[StartupScript]
     status_sink: Optional[Callable[[str], None]]
 
+    tls_cert_file: Optional[pathlib.Path]
+    tls_key_file: Optional[pathlib.Path]
+    optional_tls: bool
+
 
 class PathPath(click.Path):
     name = 'path'
@@ -317,6 +321,23 @@ _server_options = [
         help='shutdown the server after the last connection has been closed '
              'for N seconds. N < 0 is treated as infinite.'),
     click.option(
+        '--tls-cert-file', type=PathPath(),
+        help='Specify a path to a single file in PEM format containing the TLS'
+             'certificate as well as any number of CA certificates needed to '
+             'establish the certificate’s authenticity. If not present, a '
+             'self-signed certificate will be generated and used instead (for '
+             'development only!).'),
+    click.option(
+        '--tls-key-file', type=PathPath(),
+        help='Specify a path to a file containing the private key. If not '
+             'present, the private key will be taken from --tls-cert-file as '
+             'well. If the private key is protected by a password, specify '
+             'with an environment variable EDGEDB_TLS_PRIVATE_KEY_PASSWORD.'),
+    click.option(
+        '--optional-tls', type=bool, is_flag=True, hidden=True,
+        help='Run the server in TLS-compatible mode, supporting clients that '
+             'use both TLS and cleartext transports.'),
+    click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
 ]
@@ -407,6 +428,10 @@ def parse_args(**kwargs: Any):
                       'PostgreSQL cluster using the --postgres-dsn argument')
         elif kwargs['postgres_dsn']:
             abort('The -D and --postgres-dsn options are mutually exclusive.')
+
+    if not kwargs['tls_cert_file']:
+        if not devmode.is_in_dev_mode():
+            abort('Please specify a TLS certificate with --tls-cert-file.')
 
     bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_script']:

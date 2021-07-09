@@ -65,6 +65,7 @@ class BaseCluster:
         self._daemon_process = None
         self._port = port
         self._effective_port = None
+        self._tls_cert_file = None
         self._env = env
 
     def _get_pg_cluster(self):
@@ -104,7 +105,8 @@ class BaseCluster:
     def get_connect_args(self):
         return {
             'host': 'localhost',
-            'port': self._effective_port
+            'port': self._effective_port,
+            'tls_cert_file': self._tls_cert_file,
         }
 
     async def async_connect(self, **kwargs):
@@ -236,6 +238,7 @@ class BaseCluster:
                     ) from None
 
                 self._effective_port = data['port']
+                self._tls_cert_file = data['tls_cert_file']
                 stat_writer.close()
                 left -= (time.monotonic() - started)
 
@@ -245,6 +248,7 @@ class BaseCluster:
                     conn = await edgedb.async_connect(
                         host=str(self._runstate_dir),
                         port=self._effective_port,
+                        admin=True,
                         database=edgedb_defines.EDGEDB_SUPERUSER_DB,
                         user=edgedb_defines.EDGEDB_SUPERUSER,
                         timeout=left,
@@ -259,8 +263,6 @@ class BaseCluster:
                     raise ClusterError(
                         f'could not connect to edgedb-server '
                         f'within {timeout} seconds') from None
-                except edgedb.AuthenticationError:
-                    return
                 else:
                     await conn.aclose()
                     return
@@ -268,11 +270,14 @@ class BaseCluster:
         asyncio.run(test(timeout))
 
     def _admin_query(self, query):
-        conn_args = self.get_connect_args().copy()
-        conn_args['host'] = str(self._runstate_dir)
-        conn_args['admin'] = True
-        conn_args['user'] = edgedb_defines.EDGEDB_SUPERUSER
-        conn_args['database'] = edgedb_defines.EDGEDB_SUPERUSER_DB
+        conn_args = {
+            "dsn": None,
+            "host": str(self._runstate_dir),
+            "port": self._effective_port,
+            "admin": True,
+            "user": edgedb_defines.EDGEDB_SUPERUSER,
+            "database": edgedb_defines.EDGEDB_SUPERUSER_DB,
+        }
         conn = self.connect(**conn_args)
 
         try:

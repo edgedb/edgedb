@@ -80,6 +80,7 @@ class TestServerOps(tb.TestCase):
                     user='edgedb',
                     host=sd.host,
                     port=sd.port,
+                    tls_cert_file=sd.tls_cert_file,
                     wait_until_available=0,
                 )
 

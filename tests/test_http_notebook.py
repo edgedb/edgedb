@@ -43,7 +43,8 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
             self.http_addr, method='POST')  # type: ignore
         req.add_header('Content-Type', 'application/json')
         response = urllib.request.urlopen(
-            req, json.dumps(req_data).encode())
+            req, json.dumps(req_data).encode(), context=self.tls_context
+        )
         resp_data = json.loads(response.read())
         return resp_data
 
@@ -157,7 +158,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
     def test_http_notebook_04(self):
         req = urllib.request.Request(self.http_addr + '/status',
                                      method='GET')
-        response = urllib.request.urlopen(req)
+        response = urllib.request.urlopen(req, context=self.tls_context)
         resp_data = json.loads(response.read())
         self.assertEqual(resp_data, {'kind': 'status', 'status': 'OK'})
 

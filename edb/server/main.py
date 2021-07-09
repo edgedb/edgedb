@@ -29,6 +29,7 @@ import pathlib
 import resource
 import signal
 import socket
+import subprocess
 import sys
 import tempfile
 
@@ -173,6 +174,8 @@ async def _run_server(
     args: srvargs.ServerConfig,
     runstate_dir,
     internal_runstate_dir,
+    tls_cert_file,
+    tls_key_file,
     *,
     do_setproctitle: bool
 ):
@@ -189,6 +192,9 @@ async def _run_server(
             echo_runtime_info=args.echo_runtime_info,
             status_sink=args.status_sink,
             startup_script=args.startup_script,
+            tls_cert_file=tls_cert_file,
+            tls_key_file=tls_key_file,
+            optional_tls=args.optional_tls,
         )
         await sc.wait_for(ss.init())
 
@@ -217,6 +223,50 @@ async def _run_server(
             await sc.wait_for(ss.stop())
 
 
+def _init_tls_certs(
+    args: srvargs.ServerConfig,
+    cert_dir: Optional[tempfile.TemporaryDirectory],
+):
+    cert_path = None
+    if args.tls_cert_file:
+        cert_file = pathlib.Path(args.tls_cert_file).resolve()
+        if args.tls_key_file is None:
+            return str(cert_file), None
+        else:
+            key_file = pathlib.Path(args.tls_key_file).resolve()
+            return str(cert_file), str(key_file)
+    elif args.data_dir:
+        cert_path = pathlib.Path(args.data_dir).resolve()
+    elif cert_dir is not None:
+        cert_path = pathlib.Path(cert_dir.name).resolve()
+
+    if cert_path is not None:
+        cert_file = cert_path / "certificate.crt"
+        key_file = cert_path / "private.key"
+        if cert_file.exists():
+            if key_file.exists():
+                return str(cert_file), str(key_file)
+            else:
+                return str(cert_file), None
+        elif devmode.is_in_dev_mode():
+            logger.info("Generating TLS certificate for development.")
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "edb.cli",
+                    "_generate_dev_cert",
+                    "--cert-file",
+                    str(cert_file),
+                    "--key-file",
+                    str(key_file),
+                ]
+            )
+            return str(cert_file), str(key_file)
+
+    abort("Cannot start EdgeDB server without TLS certificate.")
+
+
 def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
 
     from . import server as server_mod
@@ -234,6 +284,7 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
 
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
+    cert_dir = None
 
     if args.tenant_id is None:
         tenant_id = buildmeta.get_default_tenant_id()
@@ -288,6 +339,7 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                   f'detected maximum available NUM: {max_conns}')
 
         default_runstate_dir = None
+        cert_dir = tempfile.TemporaryDirectory()
     else:
         # This should have been checked by main() already,
         # but be extra careful.
@@ -357,6 +409,7 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                         args,
                         runstate_dir,
                         internal_runstate_dir,
+                        *_init_tls_certs(args, cert_dir),
                         do_setproctitle=do_setproctitle,
                     )
                 )
@@ -378,6 +431,8 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
 
         elif pg_cluster_started_by_us:
             cluster.stop()
+        if cert_dir is not None:
+            cert_dir.cleanup()
 
 
 def bump_rlimit_nofile() -> None:

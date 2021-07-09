@@ -772,6 +772,7 @@ class CLITestCaseMixin:
         cmd_args = [
             '--host', conn_args['host'],
             '--port', str(conn_args['port']),
+            '--tls-cert-file', conn_args['tls_cert_file']
         ]
         if conn_args.get('user'):
             cmd_args += ['--user', conn_args['user']]
@@ -1401,6 +1402,7 @@ class _EdgeDBServerData(NamedTuple):
     port: int
     password: str
     server_data: Any
+    tls_cert_file: str
 
     async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
         conn_args = dict(
@@ -1408,6 +1410,7 @@ class _EdgeDBServerData(NamedTuple):
             password=self.password,
             host=self.host,
             port=self.port,
+            tls_cert_file=self.tls_cert_file,
         )
 
         conn_args.update(kwargs)
@@ -1583,10 +1586,11 @@ class _EdgeDBServer:
             status_w.close()
 
         return _EdgeDBServerData(
-            host=data['socket_dir'],
+            host='127.0.0.1',
             port=data['port'],
             password=password,
             server_data=data,
+            tls_cert_file=data['tls_cert_file'],
         )
 
     async def __aexit__(self, exc_type, exc, tb):

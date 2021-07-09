@@ -17,6 +17,7 @@
 #
 
 
+import subprocess
 import sys
 
 import click
@@ -35,11 +36,25 @@ def cli(args: list[str]):
     args = list(args)
 
     if (
-        '-H' not in args and
         '--host' not in args and
-        not any('--host=' in a for a in args)
+        not any(a.startswith('-H') for a in args) and
+        not any(a.startswith('--host=') for a in args) and
+        '--port' not in args and
+        not any(a.startswith('-P') for a in args) and
+        not any(a.startswith('--port=') for a in args) and
+        '--instance' not in args and
+        not any(a.startswith('-I') for a in args) and
+        not any(a.startswith('--instance=') for a in args)
     ):
-        args += ['-H', 'localhost']
+        args += ['-I', '_localdev']
+        subprocess.check_call([
+            sys.executable,
+            "-m",
+            "edb.cli",
+            "authenticate",
+            "_localdev",
+            "--non-interactive",
+        ])
 
     if (
         '--wait-until-available' not in args and
