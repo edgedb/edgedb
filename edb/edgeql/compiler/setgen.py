@@ -1160,7 +1160,7 @@ def computable_ptr_set(
     ptrcls = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
     source_set = rptr.source
     source_scls = get_set_type(source_set, ctx=ctx)
-    ptrcls_to_shadow = ptrcls
+    ptrcls_to_shadow = None
 
     # process_view() may generate computable pointer expressions
     # in the form "self.linkname".  To prevent infinite recursion,
@@ -1288,7 +1288,9 @@ def computable_ptr_set(
     result_stype = ptrcls.get_target(ctx.env.schema)
     base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
     with newctx() as subctx:
-        subctx.disable_shadowing.add(ptrcls_to_shadow)
+        subctx.disable_shadowing.add(ptrcls)
+        if ptrcls_to_shadow:
+            subctx.disable_shadowing.add(ptrcls_to_shadow)
         if result_stype != base_object:
             subctx.view_scls = result_stype
         subctx.view_rptr = context.ViewRPtr(
