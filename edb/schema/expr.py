@@ -292,7 +292,7 @@ class ExpressionShell(so.Shell):
         self,
         *,
         text: str,
-        refs: Optional[Iterable[so.ObjectShell]],
+        refs: Optional[Iterable[so.ObjectShell[so.Object]]],
         _qlast: Optional[qlast_.Base] = None,
         _irast: Optional[irast_.Command] = None,
     ) -> None:

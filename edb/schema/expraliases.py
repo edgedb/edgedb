@@ -176,7 +176,7 @@ class AliasCommand(
         context: sd.CommandContext,
         is_alter: bool = False,
         parser_context: Optional[parsing.ParserContext] = None,
-    ) -> Tuple[sd.Command, s_types.TypeShell, s_expr.Expression]:
+    ) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type], s_expr.Expression]:
         ir = compile_alias_expr(
             expr.qlast,
             classname,
@@ -392,7 +392,7 @@ def define_alias(
     classname: sn.QualName,
     schema: s_schema.Schema,
     parser_context: Optional[parsing.ParserContext] = None,
-) -> Tuple[sd.Command, s_types.TypeShell]:
+) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type]]:
     from edb.ir import ast as irast
     from . import ordering as s_ordering
 

@@ -79,117 +79,6 @@ class ReferencedObject(so.DerivableObject):
     def get_referrer(self, schema: s_schema.Schema) -> Optional[so.Object]:
         return self.get_subject(schema)
 
-    def derive_ref(
-        self: ReferencedT,
-        schema: s_schema.Schema,
-        referrer: so.QualifiedObject,
-        *qualifiers: str,
-        mark_derived: bool = False,
-        attrs: Optional[Dict[str, Any]] = None,
-        dctx: Optional[sd.CommandContext] = None,
-        derived_name_base: Optional[sn.Name] = None,
-        inheritance_merge: bool = True,
-        preserve_path_id: Optional[bool] = None,
-        inheritance_refdicts: Optional[AbstractSet[str]] = None,
-        transient: bool = False,
-        name: Optional[sn.QualName] = None,
-        **kwargs: Any,
-    ) -> Tuple[s_schema.Schema, ReferencedT]:
-        if name is None:
-            derived_name = self.get_derived_name(
-                schema,
-                referrer,
-                *qualifiers,
-                mark_derived=mark_derived,
-                derived_name_base=derived_name_base,
-            )
-        else:
-            derived_name = name
-
-        if self.get_name(schema) == derived_name:
-            raise errors.SchemaError(
-                f'cannot derive {self!r}({derived_name}) from itself')
-
-        derived_attrs: Dict[str, object] = {}
-
-        if attrs is not None:
-            derived_attrs.update(attrs)
-
-        derived_attrs['name'] = derived_name
-        derived_attrs['bases'] = so.ObjectList.create(schema, [self])
-
-        mcls = type(self)
-        referrer_class = type(referrer)
-
-        refdict = referrer_class.get_refdict_for_class(mcls)
-        reftype = referrer_class.get_field(refdict.attr).type
-        refname = reftype.get_key_for_name(schema, derived_name)
-        refcoll = referrer.get_field_value(schema, refdict.attr)
-        existing = refcoll.get(schema, refname, default=None)
-
-        cmdcls = sd.AlterObject if existing is not None else sd.CreateObject
-        cmd: sd.ObjectCommand[ReferencedT] = sd.get_object_delta_command(
-            objtype=type(self),
-            cmdtype=cmdcls,  # type: ignore[arg-type]
-            schema=schema,
-            name=derived_name,
-        )
-
-        for k, v in derived_attrs.items():
-            cmd.set_attribute_value(k, v)
-
-        if existing is not None:
-            new_bases = derived_attrs['bases']
-            old_bases = existing.get_bases(schema)
-
-            if new_bases != old_bases:
-                assert isinstance(new_bases, so.ObjectList)
-                removed_bases, added_bases = inheriting.delta_bases(
-                    [b.get_name(schema) for b in old_bases.objects(schema)],
-                    [b.get_name(schema) for b in new_bases.objects(schema)],
-                )
-
-                rebase_cmd = sd.get_object_delta_command(
-                    objtype=type(self),
-                    cmdtype=inheriting.RebaseInheritingObject,
-                    schema=schema,
-                    name=derived_name,
-                    added_bases=added_bases,
-                    removed_bases=removed_bases,
-                )
-
-                cmd.add(rebase_cmd)
-
-        context = sd.CommandContext(modaliases={}, schema=schema)
-        delta, parent_cmd, _ = self.init_parent_delta_branch(
-            schema, context, referrer=referrer)
-        root = sd.DeltaRoot()
-        root.add(delta)
-
-        with context(sd.DeltaRootContext(schema=schema, op=root)):
-            if not inheritance_merge:
-                context.current().inheritance_merge = False
-
-            if inheritance_refdicts is not None:
-                context.current().inheritance_refdicts = (
-                    inheritance_refdicts)
-
-            if mark_derived:
-                context.current().mark_derived = True
-
-            if transient:
-                context.current().transient_derivation = True
-
-            if preserve_path_id:
-                context.current().preserve_path_id = True
-
-            parent_cmd.add(cmd)
-            schema = delta.apply(schema, context)
-
-        derived = cast(ReferencedT, schema.get(derived_name))
-
-        return schema, derived
-
     def get_verbosename(
         self,
         schema: s_schema.Schema,
@@ -368,6 +257,120 @@ class ReferencedInheritingObject(
                 assert len(renames) == 1
                 rename = renames[0]
                 rename.set_annotation('implicit_propagation', True)
+
+    def derive_ref(
+        self: ReferencedInheritingObjectT,
+        schema: s_schema.Schema,
+        referrer: so.QualifiedObject,
+        *qualifiers: str,
+        mark_derived: bool = False,
+        attrs: Optional[Dict[str, Any]] = None,
+        dctx: Optional[sd.CommandContext] = None,
+        derived_name_base: Optional[sn.Name] = None,
+        inheritance_merge: bool = True,
+        preserve_path_id: Optional[bool] = None,
+        inheritance_refdicts: Optional[AbstractSet[str]] = None,
+        transient: bool = False,
+        name: Optional[sn.QualName] = None,
+        **kwargs: Any,
+    ) -> Tuple[s_schema.Schema, ReferencedInheritingObjectT]:
+        if name is None:
+            derived_name = self.get_derived_name(
+                schema,
+                referrer,
+                *qualifiers,
+                mark_derived=mark_derived,
+                derived_name_base=derived_name_base,
+            )
+        else:
+            derived_name = name
+
+        if self.get_name(schema) == derived_name:
+            raise errors.SchemaError(
+                f'cannot derive {self!r}({derived_name}) from itself')
+
+        derived_attrs: Dict[str, object] = {}
+
+        if attrs is not None:
+            derived_attrs.update(attrs)
+
+        derived_attrs['name'] = derived_name
+        derived_attrs['bases'] = so.ObjectList.create(schema, [self])
+
+        mcls = type(self)
+        referrer_class = type(referrer)
+
+        refdict = referrer_class.get_refdict_for_class(mcls)
+        reftype = referrer_class.get_field(refdict.attr).type
+        refname = reftype.get_key_for_name(schema, derived_name)
+        refcoll = referrer.get_field_value(schema, refdict.attr)
+        existing = refcoll.get(schema, refname, default=None)
+
+        cmdcls = sd.AlterObject if existing is not None else sd.CreateObject
+        cmd: sd.ObjectCommand[ReferencedInheritingObjectT] = (
+            sd.get_object_delta_command(
+                objtype=type(self),
+                cmdtype=cmdcls,  # type: ignore[arg-type]
+                schema=schema,
+                name=derived_name,
+            )
+        )
+
+        for k, v in derived_attrs.items():
+            cmd.set_attribute_value(k, v)
+
+        if existing is not None:
+            new_bases = derived_attrs['bases']
+            old_bases = existing.get_bases(schema)
+
+            if new_bases != old_bases:
+                assert isinstance(new_bases, so.ObjectList)
+                removed_bases, added_bases = inheriting.delta_bases(
+                    [b.get_name(schema) for b in old_bases.objects(schema)],
+                    [b.get_name(schema) for b in new_bases.objects(schema)],
+                    t=type(self),
+                )
+
+                rebase_cmd = sd.get_object_delta_command(
+                    objtype=type(self),
+                    cmdtype=inheriting.RebaseInheritingObject,
+                    schema=schema,
+                    name=derived_name,
+                    added_bases=added_bases,
+                    removed_bases=removed_bases,
+                )
+
+                cmd.add(rebase_cmd)
+
+        context = sd.CommandContext(modaliases={}, schema=schema)
+        delta, parent_cmd, _ = self.init_parent_delta_branch(
+            schema, context, referrer=referrer)
+        root = sd.DeltaRoot()
+        root.add(delta)
+
+        with context(sd.DeltaRootContext(schema=schema, op=root)):
+            if not inheritance_merge:
+                context.current().inheritance_merge = False
+
+            if inheritance_refdicts is not None:
+                context.current().inheritance_refdicts = (
+                    inheritance_refdicts)
+
+            if mark_derived:
+                context.current().mark_derived = True
+
+            if transient:
+                context.current().transient_derivation = True
+
+            if preserve_path_id:
+                context.current().preserve_path_id = True
+
+            parent_cmd.add(cmd)
+            schema = delta.apply(schema, context)
+
+        derived = schema.get(derived_name, type=type(self))
+
+        return schema, derived
 
 
 class ReferencedObjectCommandBase(sd.QualifiedObjectCommand[ReferencedT]):
@@ -738,7 +741,7 @@ class ReferencedInheritingObjectCommand(
         context: sd.CommandContext,
         refcls: ReferencedInheritingObjectT,
         implicit_bases: List[ReferencedInheritingObjectT],
-    ) -> inheriting.BaseDelta_T:
+    ) -> inheriting.BaseDelta_T[ReferencedInheritingObjectT]:
         child_bases = refcls.get_bases(schema).objects(schema)
 
         default_base = refcls.get_default_base_name()
@@ -751,6 +754,7 @@ class ReferencedInheritingObjectCommand(
         return inheriting.delta_bases(
             [b.get_name(schema) for b in child_bases],
             [b.get_name(schema) for b in new_bases],
+            t=type(refcls),
         )
 
     def _validate(
@@ -1314,8 +1318,8 @@ class RebaseReferencedInheritingObject(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        bases: Tuple[so.ObjectShell, ...],
-    ) -> Tuple[so.ObjectShell, ...]:
+        bases: Tuple[so.ObjectShell[ReferencedInheritingObjectT], ...],
+    ) -> Tuple[so.ObjectShell[ReferencedInheritingObjectT], ...]:
         bases = super()._get_bases_for_ast(schema, context, bases)
         implicit_bases = set(self.get_implicit_bases(schema, context, bases))
         return tuple(b for b in bases if b.name not in implicit_bases)
