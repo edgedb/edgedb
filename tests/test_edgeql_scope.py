@@ -115,123 +115,276 @@ class TestEdgeQLScope(tb.QueryTestCase):
         )
 
     async def test_edgeql_scope_tuple_04a(self):
-        await self.assert_query_result(
-            r'''
-                SELECT _ := (
-                    # User.friends is a common path, so it refers to the
-                    # SAME object in both tuple elements. In particular
-                    # that means that in the User shape there will always
-                    # be a single object appearing in friends link
-                    # (although it's a ** link).
-                    User {
-                        name,
-                        friends: {
-                            @nickname
-                        }
-                    },
-                    User.friends {name}
-                )
-                ORDER BY _.0.name THEN _.1.name;
-            ''',
+        query = r'''
+            SELECT _ := (
+                # User.friends is a common path, so it refers to the
+                # SAME object in both tuple elements. In particular
+                # that means that in the User shape there will always
+                # be a single object appearing in friends link
+                # (although it's a ** link).
+                User {
+                    name,
+                    friends: {
+                        @nickname
+                    }
+                },
+                User.friends {name}
+            )
+            ORDER BY _.0.name THEN _.1.name;
+        '''
+
+        res = [
             [
-                [
-                    {
-                        'name': 'Alice',
-                        'friends': [{'@nickname': 'Swampy'}],
-                    },
-                    {
-                        'name': 'Bob',
-                    },
-                ],
-                [
-                    {
-                        'name': 'Alice',
-                        'friends': [{'@nickname': 'Firefighter'}],
-                    },
-                    {
-                        'name': 'Carol',
-                    },
-                ],
-                [
-                    {
-                        'name': 'Alice',
-                        'friends': [{'@nickname': 'Grumpy'}],
-                    },
-                    {
-                        'name': 'Dave',
-                    },
-                ],
-                [
-                    {
-                        'name': 'Dave',
-                        'friends': [{'@nickname': None}],
-                    },
-                    {
-                        'name': 'Bob',
-                    },
-                ],
-            ]
-        )
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Swampy'}],
+                },
+                {
+                    'name': 'Bob',
+                },
+            ],
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Firefighter'}],
+                },
+                {
+                    'name': 'Carol',
+                },
+            ],
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Grumpy'}],
+                },
+                {
+                    'name': 'Dave',
+                },
+            ],
+            [
+                {
+                    'name': 'Dave',
+                    'friends': [{'@nickname': None}],
+                },
+                {
+                    'name': 'Bob',
+                },
+            ],
+        ]
+
+        await self.assert_query_result(query, res)
+        await self.assert_query_result(query, res, implicit_limit=100)
 
     async def test_edgeql_scope_tuple_04b(self):
-        # N.B: for reproducing, I needed \set limit 0
-        await self.assert_query_result(
-            r'''
-                SELECT _ := (
-                    User.friends {name},
-                    # User.friends is a common path, so it refers to the
-                    # SAME object in both tuple elements. In particular
-                    # that means that in the User shape there will always
-                    # be a single object appearing in friends link
-                    # (although it's a ** link).
-                    User {
-                        name,
-                        friends: {
-                            @nickname
-                        }
-                    },
-                )
-                ORDER BY _.1.name THEN _.0.name;
-            ''',
+        query = r'''
+            SELECT _ := (
+                User.friends {name},
+                # User.friends is a common path, so it refers to the
+                # SAME object in both tuple elements. In particular
+                # that means that in the User shape there will always
+                # be a single object appearing in friends link
+                # (although it's a ** link).
+                User {
+                    name,
+                    friends: {
+                        @nickname
+                    }
+                },
+            )
+            ORDER BY _.1.name THEN _.0.name;
+        '''
+        res = [
             [
-                [
-                    {
-                        'name': 'Bob',
-                    },
-                    {
-                        'name': 'Alice',
-                        'friends': [{'@nickname': 'Swampy'}],
-                    },
-                ],
-                [
-                    {
-                        'name': 'Carol',
-                    },
-                    {
-                        'name': 'Alice',
-                        'friends': [{'@nickname': 'Firefighter'}],
-                    },
-                ],
-                [
-                    {
-                        'name': 'Dave',
-                    },
-                    {
-                        'name': 'Alice',
-                        'friends': [{'@nickname': 'Grumpy'}],
-                    },
-                ],
-                [
-                    {
-                        'name': 'Bob',
-                    },
-                    {
-                        'name': 'Dave',
-                        'friends': [{'@nickname': None}],
-                    },
-                ],
-            ]
-        )
+                {
+                    'name': 'Bob',
+                },
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Swampy'}],
+                },
+            ],
+            [
+                {
+                    'name': 'Carol',
+                },
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Firefighter'}],
+                },
+            ],
+            [
+                {
+                    'name': 'Dave',
+                },
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Grumpy'}],
+                },
+            ],
+            [
+                {
+                    'name': 'Bob',
+                },
+                {
+                    'name': 'Dave',
+                    'friends': [{'@nickname': None}],
+                },
+            ],
+        ]
+
+        await self.assert_query_result(query, res)
+        await self.assert_query_result(query, res, implicit_limit=100)
+
+    async def test_edgeql_scope_tuple_04c(self):
+        query = r'''
+            SELECT _ := (
+                # User.friends is a common path, so it refers to the
+                # SAME object in both tuple elements. In particular
+                # that means that in the User shape there will always
+                # be a single object appearing in friends link
+                # (although it's a ** link).
+                User {
+                    name,
+                    friends: {
+                        @nickname
+                    }
+                    # We filter out one of the friends but it ought to still
+                    # show up in the correlated set
+                    FILTER @nickname ?!= "Firefighter"
+                },
+                User.friends {name}
+            )
+            ORDER BY _.0.name THEN _.1.name;
+        '''
+
+        res = [
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Swampy'}],
+                },
+                {
+                    'name': 'Bob',
+                },
+            ],
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [],
+                },
+                {
+                    'name': 'Carol',
+                },
+            ],
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Grumpy'}],
+                },
+                {
+                    'name': 'Dave',
+                },
+            ],
+            [
+                {
+                    'name': 'Dave',
+                    'friends': [{'@nickname': None}],
+                },
+                {
+                    'name': 'Bob',
+                },
+            ],
+        ]
+
+        await self.assert_query_result(query, res)
+        await self.assert_query_result(query, res, implicit_limit=100)
+
+    async def test_edgeql_scope_tuple_04d(self):
+        query = r'''
+            SELECT _ := (
+                # User.friends is a common path, so it refers to the
+                # SAME object in both tuple elements. In particular
+                # that means that in the User shape there will always
+                # be a single object appearing in friends link
+                # (although it's a ** link).
+                User {
+                    name,
+                    friends: {
+                        @nickname
+                    } LIMIT 10
+                },
+                User.friends {name}
+            )
+            ORDER BY _.0.name THEN _.1.name;
+        '''
+
+        res = [
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Swampy'}],
+                },
+                {
+                    'name': 'Bob',
+                },
+            ],
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Firefighter'}],
+                },
+                {
+                    'name': 'Carol',
+                },
+            ],
+            [
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Grumpy'}],
+                },
+                {
+                    'name': 'Dave',
+                },
+            ],
+            [
+                {
+                    'name': 'Dave', 'friends': [{'@nickname': None}],
+                },
+                {
+                    'name': 'Bob',
+                },
+            ],
+        ]
+
+        await self.assert_query_result(query, res)
+        await self.assert_query_result(query, res, implicit_limit=100)
+
+    async def test_edgeql_scope_tuple_04e(self):
+        # Basically the same as the above sequence of things, but
+        # with a computable link
+        query = r'''
+            SELECT _ := (
+                Card {
+                    name,
+                    owners: {
+                        name
+                    }
+                },
+                Card.owners {name}
+            )
+            FILTER _.0.name = 'Sprite'
+            ORDER BY _.0.name THEN _.1.name;
+        '''
+
+        res = [
+            [{"name": "Sprite",
+              "owners": [{"name": "Carol"}]}, {"name": "Carol"}],
+            [{"name": "Sprite",
+              "owners": [{"name": "Dave"}]}, {"name": "Dave"}]
+        ]
+
+        await self.assert_query_result(query, res)
+        await self.assert_query_result(query, res, implicit_limit=100)
 
     async def test_edgeql_scope_tuple_05(self):
         await self.assert_query_result(

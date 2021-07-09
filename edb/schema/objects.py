@@ -92,6 +92,7 @@ T = TypeVar("T")
 Type_T = TypeVar("Type_T", bound=type)
 ObjectContainer_T = TypeVar('ObjectContainer_T', bound='ObjectContainer')
 Object_T = TypeVar("Object_T", bound="Object")
+Object_T_co = TypeVar("Object_T_co", bound="Object", covariant=True)
 ObjectCollection_T = TypeVar(
     "ObjectCollection_T",
     bound="ObjectCollection[Object]",
@@ -1466,7 +1467,10 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
         return schema
 
-    def as_shell(self, schema: s_schema.Schema) -> ObjectShell:
+    def as_shell(
+        self: Object_T,
+        schema: s_schema.Schema,
+    ) -> ObjectShell[Object_T]:
         return ObjectShell(
             name=self.get_name(schema),
             displayname=self.get_displayname(schema),
@@ -2050,13 +2054,13 @@ class Shell:
         raise NotImplementedError
 
 
-class ObjectShell(Shell):
+class ObjectShell(Shell, Generic[Object_T_co]):
 
     def __init__(
         self,
         *,
         name: sn.Name,
-        schemaclass: Type[Object] = Object,
+        schemaclass: Type[Object_T_co],
         displayname: Optional[str] = None,
         origname: Optional[sn.Name] = None,
         sourcectx: Optional[parsing.ParserContext] = None,
@@ -2070,7 +2074,7 @@ class ObjectShell(Shell):
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
         return self.resolve(schema).get_id(schema)
 
-    def resolve(self, schema: s_schema.Schema) -> Object:
+    def resolve(self, schema: s_schema.Schema) -> Object_T_co:
         if self.name is None:
             raise TypeError(
                 'cannot resolve anonymous ObjectShell'
@@ -2375,7 +2379,7 @@ class ObjectCollectionShell(Shell, Generic[Object_T]):
 
     def __init__(
         self,
-        items: Iterable[ObjectShell],
+        items: Iterable[ObjectShell[Object_T]],
         collection_type: Type[ObjectCollection[Object_T]],
     ) -> None:
         self.items = items
@@ -2384,7 +2388,7 @@ class ObjectCollectionShell(Shell, Generic[Object_T]):
     def resolve(self, schema: s_schema.Schema) -> ObjectCollection[Object_T]:
         return self.collection_type.create(
             schema,
-            [cast(Object_T, s.resolve(schema)) for s in self.items],
+            [s.resolve(schema) for s in self.items],
         )
 
     def __repr__(self) -> str:
@@ -2702,12 +2706,12 @@ class ObjectDictShell(
     Generic[Key_T, Object_T],
 ):
 
-    items: Mapping[Any, ObjectShell]
+    items: Mapping[Any, ObjectShell[Object_T]]
     collection_type: Type[ObjectDict[Key_T, Object_T]]
 
     def __init__(
         self,
-        items: Mapping[Any, ObjectShell],
+        items: Mapping[Any, ObjectShell[Object_T]],
         collection_type: Type[ObjectDict[Key_T, Object_T]],
     ) -> None:
         self.items = items
@@ -2722,10 +2726,7 @@ class ObjectDictShell(
     def resolve(self, schema: s_schema.Schema) -> ObjectDict[Key_T, Object_T]:
         return self.collection_type.create(
             schema,
-            {
-                k: cast(Object_T, s.resolve(schema))
-                for k, s in self.items.items()
-            },
+            {k: s.resolve(schema) for k, s in self.items.items()},
         )
 
 
@@ -3024,7 +3025,11 @@ class InheritingObject(SubclassableObject):
         new_base_names = other.get_bases(other_schema).names(other_schema)
 
         if old_base_names != new_base_names and rebase is not None:
-            removed, added = s_inh.delta_bases(old_base_names, new_base_names)
+            removed, added = s_inh.delta_bases(
+                old_base_names,
+                new_base_names,
+                t=type(self),
+            )
 
             rebase_cmd = rebase(
                 classname=other.get_name(other_schema),

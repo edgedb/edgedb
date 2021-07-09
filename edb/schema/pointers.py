@@ -976,7 +976,7 @@ class ComputableRef:
     def __init__(
         self,
         expr: qlast.Base,
-        specified_type: Optional[s_types.TypeShell] = None,
+        specified_type: Optional[s_types.TypeShell[s_types.Type]] = None,
     ) -> None:
         self.expr = expr
         self.specified_type = specified_type
@@ -998,7 +998,7 @@ class PointerCommandOrFragment(
     ) -> s_schema.Schema:
         schema = super().canonicalize_attributes(schema, context)
         target_ref = self.get_local_attribute_value('target')
-        inf_target_ref: Optional[s_types.TypeShell]
+        inf_target_ref: Optional[s_types.TypeShell[s_types.Type]]
 
         # When cardinality/required is altered, we need to force a
         # reconsideration of expr if it exists in order to check
@@ -1073,7 +1073,11 @@ class PointerCommandOrFragment(
         expr: qlast.Base,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> Tuple[s_schema.Schema, s_types.TypeShell, Optional[PointerLike]]:
+    ) -> Tuple[
+        s_schema.Schema,
+        s_types.TypeShell[s_types.Type],
+        Optional[PointerLike],
+    ]:
         from edb.ir import ast as irast
         from edb.ir import typeutils as irtyputils
         from edb.ir import utils as irutils
@@ -1135,7 +1139,12 @@ class PointerCommandOrFragment(
         required, card = expression.irast.cardinality.to_schema_value()
 
         spec_target: Optional[
-            Union[s_types.TypeShell, s_types.Type, ComputableRef]] = (
+            Union[
+                s_types.TypeShell[s_types.Type],
+                s_types.Type,
+                ComputableRef,
+            ]
+        ] = (
             self.get_specified_attribute_value('target', schema, context))
         spec_required: Optional[bool] = (
             self.get_specified_attribute_value('required', schema, context))
@@ -1588,6 +1597,8 @@ class PointerCommand(
 
         This may be called in the context of either Create or Alter.
         """
+        from edb.schema import sources as s_sources
+
         if astnode.is_required is not None:
             self.set_attribute_value(
                 'required',
@@ -1619,11 +1630,14 @@ class PointerCommand(
 
         parent_ctx = self.get_referrer_context_or_die(context)
         source_name = context.get_referrer_name(parent_ctx)
-        self.set_attribute_value('source', so.ObjectShell(name=source_name))
+        self.set_attribute_value(
+            'source',
+            so.ObjectShell(name=source_name, schemaclass=s_sources.Source),
+        )
 
         # FIXME: this is an approximate solution
         targets = qlast.get_targets(astnode.target)
-        target_ref: Union[None, s_types.TypeShell, ComputableRef]
+        target_ref: Union[None, s_types.TypeShell[s_types.Type], ComputableRef]
 
         if len(targets) > 1:
             assert isinstance(source_name, sn.QualName)
@@ -1631,6 +1645,7 @@ class PointerCommand(
             new_targets = [
                 utils.ast_to_type_shell(
                     t,
+                    metaclass=s_types.Type,
                     modaliases=context.modaliases,
                     schema=schema,
                 )
@@ -1640,12 +1655,14 @@ class PointerCommand(
             target_ref = s_types.UnionTypeShell(
                 components=new_targets,
                 module=source_name.module,
+                schemaclass=s_types.Type,
             )
         elif targets:
             target_expr = targets[0]
             if isinstance(target_expr, qlast.TypeName):
                 target_ref = utils.ast_to_type_shell(
                     target_expr,
+                    metaclass=s_types.Type,
                     modaliases=context.modaliases,
                     schema=schema,
                 )

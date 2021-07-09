@@ -72,7 +72,7 @@ def param_as_str(
         ret.append(typemod.to_edgeql())
         ret.append(' ')
 
-    paramt: Union[s_types.Type, s_types.TypeShell]
+    paramt: Union[s_types.Type, s_types.TypeShell[s_types.Type]]
     if isinstance(param, ParameterDesc):
         paramt = param.get_type_shell(schema)
     else:
@@ -160,7 +160,7 @@ class ParameterDesc(ParameterLike):
     num: int
     name: sn.Name
     default: Optional[s_expr.Expression]
-    type: s_types.TypeShell
+    type: s_types.TypeShell[s_types.Type]
     typemod: ft.TypeModifier
     kind: ft.ParameterKind
 
@@ -170,7 +170,7 @@ class ParameterDesc(ParameterLike):
         num: int,
         name: sn.Name,
         default: Optional[s_expr.Expression],
-        type: s_types.TypeShell,
+        type: s_types.TypeShell[s_types.Type],
         typemod: ft.TypeModifier,
         kind: ft.ParameterKind,
     ) -> None:
@@ -216,6 +216,7 @@ class ParameterDesc(ParameterLike):
         assert isinstance(paramt_ast, qlast.TypeName)
         paramt = utils.ast_to_type_shell(
             paramt_ast,
+            metaclass=s_types.Type,
             modaliases=modaliases,
             schema=schema,
         )
@@ -244,7 +245,10 @@ class ParameterDesc(ParameterLike):
     def get_type(self, schema: s_schema.Schema) -> s_types.Type:
         return self.type.resolve(schema)
 
-    def get_type_shell(self, schema: s_schema.Schema) -> s_types.TypeShell:
+    def get_type_shell(
+        self,
+        schema: s_schema.Schema,
+    ) -> s_types.TypeShell[s_types.Type]:
         return self.type
 
     def get_typemod(self, _: s_schema.Schema) -> ft.TypeModifier:
@@ -1031,6 +1035,7 @@ class CreateCallableObject(
 
             return_type = utils.ast_to_type_shell(
                 astnode.returning,
+                metaclass=s_types.Type,
                 modaliases=modaliases,
                 schema=schema,
             )

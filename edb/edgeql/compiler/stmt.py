@@ -1315,6 +1315,7 @@ def compile_result_clause(
 
         ir_result = compile_query_subject(
             expr, shape=shape, view_rptr=view_rptr, view_name=view_name,
+            forward_rptr=forward_rptr,
             result_alias=result_alias,
             view_scls=view_scls,
             compile_views=ctx.stmt is ctx.toplevel_stmt,
@@ -1337,6 +1338,7 @@ def compile_query_subject(
         is_insert: bool=False,
         is_update: bool=False,
         is_delete: bool=False,
+        forward_rptr: bool=False,
         parser_context: Optional[pctx.ParserContext]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
@@ -1382,6 +1384,7 @@ def compile_query_subject(
             (
                 ctx.expr_exposed
                 and expr_stype.is_object_type()
+                and not forward_rptr
                 and (
                     viewgen.has_implicit_type_computables(
                         expr_stype,
@@ -1399,11 +1402,13 @@ def compile_query_subject(
             or expr_stype in ctx.env.materialized_sets
         )
     ):
-        # Force the subject to be compiled as a view if:
+        # Force the subject to be compiled as a view in these cases:
         # a) a __tid__ insertion is anticipated (the actual
         #    decision about this is taken by the
-        #    compile_view_shapes() flow),
-        #    or
+        #    compile_view_shapes() flow);
+        #    we also skip doing this when forward_rptr is true, because
+        #    generating an extra type in those cases can cause issues,
+        #    and we can just do the insertion on whatever the inner thing is
         # b) this is a mutation without an explicit shape,
         #    such as a DELETE, because mutation subjects are
         #    always expected to be derived types.

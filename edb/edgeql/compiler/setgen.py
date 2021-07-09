@@ -780,6 +780,18 @@ def extend_path(
     return target_set
 
 
+def is_injected_computable_ptr(
+    ptrcls: s_pointers.PointerLike,
+    *,
+    ctx: context.ContextLevel,
+) -> bool:
+    return (
+        ctx.env.options.apply_query_rewrites
+        and ptrcls not in ctx.disable_shadowing
+        and bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
+    )
+
+
 def _is_computable_ptr(
     ptrcls: s_pointers.PointerLike,
     *,
@@ -794,11 +806,7 @@ def _is_computable_ptr(
 
     return (
         ptrcls.is_pure_computable(ctx.env.schema)
-        or (
-            ctx.env.options.apply_query_rewrites
-            and ptrcls not in ctx.disable_shadowing
-            and bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
-        )
+        or is_injected_computable_ptr(ptrcls, ctx=ctx)
     )
 
 
@@ -1152,6 +1160,8 @@ def computable_ptr_set(
     ptrcls = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
     source_set = rptr.source
     source_scls = get_set_type(source_set, ctx=ctx)
+    ptrcls_to_shadow = None
+
     # process_view() may generate computable pointer expressions
     # in the form "self.linkname".  To prevent infinite recursion,
     # self must resolve to the parent type of the view NOT the view
@@ -1210,6 +1220,13 @@ def computable_ptr_set(
                     right=qlparser.parse_fragment(schema_deflt),
                     op='??',
                 )
+
+                # Is this is a view, we want to shadow the underlying
+                # ptrcls, since otherwise we will generate this default
+                # code *twice*.
+                if rptr.ptrref.base_ptr:
+                    ptrcls_to_shadow = typegen.ptrcls_from_ptrref(
+                        rptr.ptrref.base_ptr, ctx=ctx)
 
         if schema_qlexpr is None:
             if comp_expr is None:
@@ -1272,6 +1289,8 @@ def computable_ptr_set(
     base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
     with newctx() as subctx:
         subctx.disable_shadowing.add(ptrcls)
+        if ptrcls_to_shadow:
+            subctx.disable_shadowing.add(ptrcls_to_shadow)
         if result_stype != base_object:
             subctx.view_scls = result_stype
         subctx.view_rptr = context.ViewRPtr(
