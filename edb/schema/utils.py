@@ -103,40 +103,13 @@ def resolve_name(
     return name
 
 
-@overload
-def ast_objref_to_object_shell(  # NoQA: F811
+def ast_objref_to_object_shell(
     ref: qlast.ObjectRef,
     *,
     metaclass: Type[so.Object_T],
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
 ) -> so.ObjectShell[so.Object_T]:
-    ...
-
-
-@overload
-def ast_objref_to_object_shell(  # NoQA: F811
-    ref: qlast.ObjectRef,
-    *,
-    metaclass: None = None,
-    modaliases: Mapping[Optional[str], str],
-    schema: s_schema.Schema,
-) -> so.ObjectShell[so.Object]:
-    ...
-
-
-def ast_objref_to_object_shell(  # NoQA: F811
-    ref: qlast.ObjectRef,
-    *,
-    metaclass: Optional[Type[so.Object_T]] = None,
-    modaliases: Mapping[Optional[str], str],
-    schema: s_schema.Schema,
-) -> so.ObjectShell[so.Object_T]:
-    if metaclass is not None:
-        mcls = metaclass
-    else:
-        mcls = so.Object  # type: ignore
-
     lname = ast_ref_to_name(ref)
     name = resolve_name(
         lname,
@@ -148,7 +121,7 @@ def ast_objref_to_object_shell(  # NoQA: F811
     return so.ObjectShell(
         name=name,
         origname=lname,
-        schemaclass=mcls,
+        schemaclass=metaclass,
         sourcectx=ref.context,
     )
 
