@@ -91,7 +91,7 @@ class ServerConfig(NamedTuple):
 
     tls_cert_file: Optional[pathlib.Path]
     tls_key_file: Optional[pathlib.Path]
-    optional_tls: bool
+    allow_cleartext_connections: bool
 
 
 class PathPath(click.Path):
@@ -334,9 +334,8 @@ _server_options = [
              'well. If the private key is protected by a password, specify '
              'with an environment variable EDGEDB_TLS_PRIVATE_KEY_PASSWORD.'),
     click.option(
-        '--optional-tls', type=bool, is_flag=True, hidden=True,
-        help='Run the server in TLS-compatible mode, supporting clients that '
-             'use both TLS and cleartext transports.'),
+        '--allow-cleartext-connections', type=bool, is_flag=True, hidden=True,
+        help='Also allow client connections in cleartext in addition to TLS.'),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')

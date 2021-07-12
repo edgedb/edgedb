@@ -218,72 +218,59 @@ class BaseCluster:
                     f"{dataline!r} ({e})"
                 )
 
-        async def test(timeout):
-            left = timeout
-            started = time.monotonic()
-
-            if status_sock is not None:
-                stat_reader, stat_writer = await asyncio.open_connection(
-                    sock=status_sock,
+        async def test():
+            stat_reader, stat_writer = await asyncio.open_connection(
+                sock=status_sock,
+            )
+            try:
+                data = await asyncio.wait_for(
+                    _read_server_status(stat_reader),
+                    timeout=timeout
                 )
-                try:
-                    data = await asyncio.wait_for(
-                        _read_server_status(stat_reader),
-                        timeout=timeout
-                    )
-                except asyncio.TimeoutError:
-                    raise ClusterError(
-                        f'EdgeDB server did not initialize '
-                        f'within {timeout} seconds'
-                    ) from None
+            except asyncio.TimeoutError:
+                raise ClusterError(
+                    f'EdgeDB server did not initialize '
+                    f'within {timeout} seconds'
+                ) from None
 
-                self._effective_port = data['port']
-                self._tls_cert_file = data['tls_cert_file']
-                stat_writer.close()
-                left -= (time.monotonic() - started)
+            self._effective_port = data['port']
+            self._tls_cert_file = data['tls_cert_file']
+            stat_writer.close()
 
-            while True:
-                started = time.monotonic()
-                try:
-                    conn = await edgedb.async_connect(
-                        host=str(self._runstate_dir),
-                        port=self._effective_port,
-                        admin=True,
-                        database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-                        user=edgedb_defines.EDGEDB_SUPERUSER,
-                        timeout=left,
-                    )
-                except (OSError, asyncio.TimeoutError,
-                        edgedb.ClientConnectionError):
-                    left -= (time.monotonic() - started)
-                    if left > 0.05:
-                        await asyncio.sleep(0.05)
-                        left -= 0.05
-                        continue
-                    raise ClusterError(
-                        f'could not connect to edgedb-server '
-                        f'within {timeout} seconds') from None
-                else:
-                    await conn.aclose()
-                    return
+        left = timeout
+        if status_sock is not None:
+            started = time.monotonic()
+            asyncio.run(test())
+            left -= (time.monotonic() - started)
 
-        asyncio.run(test(timeout))
+        if self._admin_query("SELECT ();", f"{min(1, int(left))}s"):
+            raise ClusterError(
+                f'could not connect to edgedb-server '
+                f'within {timeout} seconds') from None
 
-    def _admin_query(self, query):
-        conn_args = {
-            "dsn": None,
-            "host": str(self._runstate_dir),
-            "port": self._effective_port,
-            "admin": True,
-            "user": edgedb_defines.EDGEDB_SUPERUSER,
-            "database": edgedb_defines.EDGEDB_SUPERUSER_DB,
-        }
-        conn = self.connect(**conn_args)
-
-        try:
-            return conn.query(query)
-        finally:
-            conn.close()
+    def _admin_query(self, query, wait_until_available="0s"):
+        return subprocess.call(
+            [
+                sys.executable,
+                "-m",
+                "edb.cli",
+                "--host",
+                str(self._runstate_dir),
+                "--port",
+                str(self._effective_port),
+                "--admin",
+                "--user",
+                edgedb_defines.EDGEDB_SUPERUSER,
+                "--database",
+                edgedb_defines.EDGEDB_SUPERUSER_DB,
+                "--wait-until-available",
+                wait_until_available,
+                "-c",
+                query,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
 
     def set_superuser_password(self, password):
         self._admin_query(f'''

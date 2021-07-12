@@ -60,13 +60,14 @@ cdef class HttpResponse:
 cdef class HttpProtocol:
 
     def __init__(self, server, sslctx, *,
-                 external_auth: bool=False, optional_tls: bool=False):
+                 external_auth: bool=False,
+                 allow_cleartext_connections: bool=False):
         self.loop = server.get_loop()
         self.server = server
         self.transport = None
         self.external_auth = external_auth
         self.sslctx = sslctx
-        self.optional_tls = optional_tls
+        self.allow_cleartext_connections = allow_cleartext_connections
 
         self.parser = None
         self.current_request = None
@@ -122,7 +123,7 @@ cdef class HttpProtocol:
                 # as its first message kind is `V`.
                 #
                 # Switch protocols now (for compatibility).
-                if self.optional_tls:
+                if self.allow_cleartext_connections:
                     self._switch_to_binary_protocol(data)
                 else:
                     self.loop.create_task(self._return_binary_error(
@@ -132,7 +133,7 @@ cdef class HttpProtocol:
             else:
                 # HTTP.
                 self._init_http_parser()
-                self.respond_hsts = not self.optional_tls
+                self.respond_hsts = not self.allow_cleartext_connections
 
         try:
             self.parser.feed_data(data)

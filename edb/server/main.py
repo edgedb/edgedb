@@ -194,7 +194,7 @@ async def _run_server(
             startup_script=args.startup_script,
             tls_cert_file=tls_cert_file,
             tls_key_file=tls_key_file,
-            optional_tls=args.optional_tls,
+            allow_cleartext_connections=args.allow_cleartext_connections,
         )
         await sc.wait_for(ss.init())
 
@@ -264,7 +264,8 @@ def _init_tls_certs(
             )
             return str(cert_file), str(key_file)
 
-    abort("Cannot start EdgeDB server without TLS certificate.")
+    abort("Cannot start EdgeDB server without a TLS certificate, use the"
+          "`--tls-cert-file` command-line argument to specify it.")
 
 
 def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
@@ -413,6 +414,9 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                         do_setproctitle=do_setproctitle,
                     )
                 )
+
+    except server.StartupError as e:
+        abort(str(e))
 
     except BaseException:
         if pg_cluster_init_by_us and not _server_initialized:

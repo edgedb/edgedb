@@ -52,7 +52,7 @@ cdef class HttpProtocol:
         bint first_data_call
         bint external_auth
         bint respond_hsts
-        bint optional_tls
+        bint allow_cleartext_connections
 
         HttpRequest current_request
 

@@ -71,6 +71,10 @@ class RoleDescriptor(TypedDict):
     password: str
 
 
+class StartupError(Exception):
+    pass
+
+
 class Server:
 
     _sys_pgcon: Optional[pgcon.PGConnection]
@@ -103,7 +107,7 @@ class Server:
         netport,
         tls_cert_file: str,
         tls_key_file: Optional[str] = None,
-        optional_tls: bool = False,
+        allow_cleartext_connections: bool = False,
         auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
@@ -183,7 +187,7 @@ class Server:
         self._stop_evt = asyncio.Event()
         self._tls_cert_file = tls_cert_file
         self._tls_key_file = tls_key_file
-        self._optional_tls = optional_tls
+        self._allow_cleartext_connections = allow_cleartext_connections
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -819,17 +823,12 @@ class Server:
     async def _start_servers(self, host, port):
         nethost = await _fix_localhost(host)
 
-        sslctx = ssl.SSLContext()
-        sslctx.load_cert_chain(
-            self._tls_cert_file,
-            self._tls_key_file,
-            password=_tls_private_key_password,
-        )
-        sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
+        sslctx = await self._init_tls()
 
         tcp_srv = await self._loop.create_server(
             lambda: protocol.HttpProtocol(
-                self, sslctx, optional_tls=self._optional_tls
+                self, sslctx,
+                allow_cleartext_connections=self._allow_cleartext_connections,
             ),
             host=nethost, port=port)
 
@@ -861,6 +860,53 @@ class Server:
         logger.info('Serving admin on %s', admin_unix_sock_path)
 
         return servers, port
+
+    async def _init_tls(self):
+        tls_password_needed = False
+
+        def _tls_private_key_password():
+            nonlocal tls_password_needed
+            tls_password_needed = True
+            return os.environ.get('EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
+
+        sslctx = ssl.SSLContext()
+        try:
+            sslctx.load_cert_chain(
+                self._tls_cert_file,
+                self._tls_key_file,
+                password=_tls_private_key_password,
+            )
+        except ssl.SSLError as e:
+            if e.errno == 9:
+                if tls_password_needed:
+                    if _tls_private_key_password():
+                        raise StartupError(
+                            "Cannot load TLS certificates - it's likely that "
+                            "the private key password is wrong."
+                        ) from e
+                    else:
+                        raise StartupError(
+                            "Cannot load TLS certificates - the private key "
+                            "file is likely protected by a password. Specify "
+                            "the password using environment variable: "
+                            "EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD"
+                        ) from e
+                elif self._tls_key_file is None:
+                    raise StartupError(
+                        "Cannot load TLS certificates - have you specified "
+                        "the private key file using the `--tls-key-file` "
+                        "command-line argument?"
+                    ) from e
+                else:
+                    raise StartupError(
+                        "Cannot load TLS certificates - please double check "
+                        "if the specified certificate files are valid."
+                    )
+
+            raise StartupError("") from e
+
+        sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
+        return sslctx
 
     async def _stop_servers(self, servers):
         async with taskgroup.TaskGroup() as g:
@@ -1016,7 +1062,3 @@ async def _fix_localhost(host):
         hosts.insert(idx, addr)
 
     return hosts
-
-
-def _tls_private_key_password():
-    return os.environ.get('EDGEDB_TLS_PRIVATE_KEY_PASSWORD', '')
