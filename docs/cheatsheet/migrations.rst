@@ -13,9 +13,14 @@ Migrate to a new schema using SDL:
             required property image -> str;
             index on (.image);
         }
+
         type User extending HasImage {
-            required property name -> str;
+            required property name -> str {
+                # Ensure unique name for each User.
+                constraint exclusive;
+            }
         }
+
         type Review {
             required property body -> str;
             required property rating -> int64 {
@@ -31,6 +36,7 @@ Migrate to a new schema using SDL:
                 default := datetime_current();
             }
         }
+
         type Person extending HasImage {
             required property first_name -> str {
                 default := '';
@@ -55,14 +61,18 @@ Migrate to a new schema using SDL:
                 );
             property bio -> str;
         }
+
         abstract link crew {
             # Provide a way to specify some "natural"
             # ordering, as relevant to the movie. This
             # may be order of importance, appearance, etc.
             property list_order -> int64;
         }
+
         abstract link directors extending crew;
+
         abstract link actors extending crew;
+
         type Movie extending HasImage {
             required property title -> str;
             required property year -> int64;
@@ -77,6 +87,7 @@ Migrate to a new schema using SDL:
             property avg_rating :=
                 math::mean(.<movie[IS Review].rating);
         }
+
         type Label {
             annotation description :=
                 'Special label to stick on reviews';
@@ -86,12 +97,14 @@ Migrate to a new schema using SDL:
                     'This review needs some attention';
             };
         }
+
         alias ReviewAlias := Review {
             # It will already have all the Review
             # properties and links.
             author_name := .author.name,
             movie_title := .movie.title,
         };
+
         alias MovieAlias := Movie {
             # A computable link for accessing all the
             # reviews for this movie.
