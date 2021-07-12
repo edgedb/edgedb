@@ -318,6 +318,14 @@ class TestModelSmokeTests(unittest.TestCase):
             ]
         )
 
+    def test_edgeql_lprop_04(self):
+        self.assert_test_query(
+            r'''
+                SELECT count(Card.<deck[IS User]@count);
+            ''',
+            [22]
+        )
+
     def test_edgeql_lprop_reverse_01(self):
         self.assert_test_query(
             r'''
@@ -328,6 +336,21 @@ class TestModelSmokeTests(unittest.TestCase):
                 ));
             ''',
             [22]
+        )
+
+    def test_edgeql_lprop_reverse_02(self):
+        # This should (I claim), but does not yet, work for real.
+        self.assert_test_query(
+            r'''
+                SELECT Card {
+                    name,
+                    z := .<deck[IS User] { name, @count }
+                } FILTER .name = 'Dragon'
+            ''',
+            [{"name": ["Dragon"], "z": [
+                {"name": ["Alice"], "@count": [2]},
+                {"name": ["Dave"], "@count": [1]},
+            ]}]
         )
 
     def test_edgeql_partial_path_01(self):

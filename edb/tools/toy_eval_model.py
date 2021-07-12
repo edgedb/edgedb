@@ -342,8 +342,10 @@ def _eval(
         f'no EdgeQL eval handler for {node.__class__}')
 
 
-def graft(prefix: Optional[qlast.Path], new: qlast.Path) -> qlast.Path:
-    if new.partial:
+def graft(
+    prefix: Optional[qlast.Path], new: qlast.Path, always_partial: bool=False
+) -> qlast.Path:
+    if new.partial or always_partial:
         assert prefix is not None
         return qlast.Path(
             steps=prefix.steps + new.steps, partial=prefix.partial)
@@ -851,9 +853,9 @@ class PathFinder(NodeVisitor):
         yield from self._update(
             current_path=update_path(self.current_path, query))
 
-    def visit_Path(self, path: qlast.Path) -> None:
+    def visit_Path(self, path: qlast.Path, always_partial: bool=False) -> None:
         self.paths.append((
-            graft(self.current_path, path),
+            graft(self.current_path, path, always_partial=always_partial),
             self.optional_counter if self.in_optional else None,
             self.in_subquery,
         ))
@@ -877,7 +879,7 @@ class PathFinder(NodeVisitor):
             self.visit(shape.elements)
 
     def visit_ShapeElement(self, el: qlast.ShapeElement) -> None:
-        self.visit(el.expr)
+        self.visit_Path(el.expr, always_partial=True)
         self.visit(el.compexpr)
         with self.subquery(), self.update_path(el.expr):
             self.visit(el.elements)
@@ -1036,7 +1038,10 @@ def analyze_paths(
     # deduplicating the link before we access the prop.
     for path, optional, subquery in list(paths_opt):
         if isinstance(path[-1], IPtr) and path[-1].is_link_property:
-            paths_opt.append((path[:-2], optional, subquery))
+            i = -2
+            while isinstance(path[i], ITypeIntersection):
+                i -= 1
+            paths_opt.append((path[:i], optional, subquery))
 
     always_optional = defaultdict(lambda: True)
 
@@ -1047,7 +1052,6 @@ def analyze_paths(
             subquery_paths.append((path, optional))
         else:
             direct_paths.append((path, optional))
-            # if optional is None:
             if not optional:
                 # Mark all path prefixes as not being optional
                 for i in range(1, len(path) + 1):
