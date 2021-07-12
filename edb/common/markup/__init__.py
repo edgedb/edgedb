@@ -38,7 +38,10 @@ class MarkupCapableMixin:
             serializer.serializer.register(cls)(cls.as_markup)
 
 
-class MarkupExceptionContext(exceptions.ExceptionContext):
+class MarkupExceptionContext(
+    exceptions.ExceptionContext,
+    MarkupCapableMixin,
+):
 
     @abc.abstractclassmethod
     def as_markup(cls, *, ctx):
