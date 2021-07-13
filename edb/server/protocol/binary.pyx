@@ -300,14 +300,24 @@ cdef class EdgeConnection:
                 self.server.release_pgcon(_dbview.dbname, conn)
 
     def debug_print(self, *args):
-        cdef dbview.DatabaseConnectionView _dbview = self.get_dbview()
-        print(
-            '::EDGEPROTO::',
-            f'id:{self._id}',
-            f'in_tx:{int(_dbview.in_tx())}',
-            f'tx_error:{int(_dbview.in_tx_error())}',
-            *args,
-        )
+        if self._dbview is None:
+            # This may happen before dbview is initialized, e.g. sending errors
+            # to non-TLS clients due to mandatory TLS.
+            print(
+                '::EDGEPROTO::',
+                f'id:{self._id}',
+                f'in_tx:{0}',
+                f'tx_error:{0}',
+                *args,
+            )
+        else:
+            print(
+                '::EDGEPROTO::',
+                f'id:{self._id}',
+                f'in_tx:{int(self._dbview.in_tx())}',
+                f'tx_error:{int(self._dbview.in_tx_error())}',
+                *args,
+            )
 
     cdef write(self, WriteBuffer buf):
         # One rule for this method: don't write partial messages.
@@ -358,7 +368,7 @@ cdef class EdgeConnection:
         if self._write_buf is not None and self._write_buf.len():
             buf = self._write_buf
             self._write_buf = None
-            self._transport.write(buf)
+            self._transport.write(memoryview(buf))
 
     async def wait_for_message(self):
         if self.buffer.take_message():
@@ -2289,7 +2299,7 @@ cdef class EdgeConnection:
                     assert len(depid.bytes) == 16
                     msg_buf.write_bytes(depid.bytes)  # uuid
 
-            self._transport.write(msg_buf.end_message())
+            self._transport.write(memoryview(msg_buf.end_message()))
             self.flush()
 
             blocks_queue = collections.deque(blocks)
@@ -2331,7 +2341,7 @@ cdef class EdgeConnection:
                         msg_buf.write_int16(DUMP_HEADER_BLOCK_DATA)
                         msg_buf.write_len_prefixed_buffer(data)
 
-                        self._transport.write(msg_buf.end_message())
+                        self._transport.write(memoryview(msg_buf.end_message()))
                         if self._write_waiter:
                             await self._write_waiter
 

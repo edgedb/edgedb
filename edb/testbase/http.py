@@ -22,6 +22,7 @@ from __future__ import annotations
 import contextlib
 import http.client
 import json
+import ssl
 import urllib.parse
 import urllib.request
 
@@ -32,7 +33,7 @@ from edb.errors import base as base_errors
 from . import server
 
 
-class StubbornHttpConnection(http.client.HTTPConnection):
+class StubbornHttpConnection(http.client.HTTPSConnection):
 
     def close(self):
         # Don't actually close the connection.  This allows us to
@@ -44,6 +45,7 @@ class StubbornHttpConnection(http.client.HTTPConnection):
 
 
 class BaseHttpTest:
+    tls_context: ssl.SSLContext
 
     @classmethod
     def get_api_path(cls):
@@ -53,13 +55,22 @@ class BaseHttpTest:
     def setUpClass(cls):
         super().setUpClass()
 
+        cls.tls_context = ssl.SSLContext()
+        cls.tls_context.verify_mode = ssl.CERT_REQUIRED
+        cls.tls_context.check_hostname = False
+        cls.tls_context.load_verify_locations(
+            cafile=cls.get_connect_args()['tls_cert_file']
+        )
+
         cls.http_host, cls.http_port = cls.con.connected_addr()
         api_path = cls.get_api_path()
-        cls.http_addr = f'http://{cls.http_host}:{cls.http_port}{api_path}'
+        cls.http_addr = f'https://{cls.http_host}:{cls.http_port}{api_path}'
 
     @contextlib.contextmanager
     def http_con(self):
-        con = StubbornHttpConnection(self.http_host, self.http_port)
+        con = StubbornHttpConnection(
+            self.http_host, self.http_port, context=self.tls_context
+        )
         con.connect()
         try:
             yield con
@@ -138,13 +149,16 @@ class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
             response = urllib.request.urlopen(
-                req, json.dumps(req_data).encode())
+                req, json.dumps(req_data).encode(), context=self.tls_context
+            )
             resp_data = json.loads(response.read())
         else:
             if variables is not None:
                 req_data['variables'] = json.dumps(variables)
             response = urllib.request.urlopen(
-                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}')
+                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+                context=self.tls_context,
+            )
             resp_data = json.loads(response.read())
 
         if 'data' in resp_data:
@@ -198,13 +212,16 @@ class GraphQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
             response = urllib.request.urlopen(
-                req, json.dumps(req_data).encode())
+                req, json.dumps(req_data).encode(), context=self.tls_context
+            )
             resp_data = json.loads(response.read())
         else:
             if variables is not None:
                 req_data['variables'] = json.dumps(variables)
             response = urllib.request.urlopen(
-                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}')
+                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+                context=self.tls_context,
+            )
             resp_data = json.loads(response.read())
 
         if 'data' in resp_data:

@@ -52,14 +52,14 @@ RUNTIME_DEPS = [
     'setproctitle~=1.1.10',
     'setuptools-rust==0.10.3',
     'setuptools_scm~=3.2.0',
-    'uvloop~=0.15.1',
+    'uvloop~=0.15.3',
     "typing_inspect~=0.5.0;python_version<'3.9'",
     'wcwidth~=0.2.5',
 
     'graphql-core~=3.1.5',
     'promise~=2.2.0',
 
-    'edgedb>=0.15.0',
+    'edgedb @ git+https://github.com/edgedb/edgedb-python.git@master',
 ]
 
 CYTHON_DEPENDENCY = 'Cython==0.29.23'

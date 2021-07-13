@@ -20,12 +20,15 @@
 include "./consts.pxi"
 
 
+import asyncio
 import collections
 import http
+import ssl
 import urllib.parse
 
 import httptools
 
+from edb import errors
 from edb.common import debug
 from edb.common import markup
 
@@ -56,17 +59,22 @@ cdef class HttpResponse:
 
 cdef class HttpProtocol:
 
-    def __init__(self, server, *, external_auth: bool=False):
+    def __init__(self, server, sslctx, *,
+                 external_auth: bool=False,
+                 allow_cleartext_connections: bool=False):
         self.loop = server.get_loop()
         self.server = server
         self.transport = None
         self.external_auth = external_auth
+        self.sslctx = sslctx
+        self.allow_cleartext_connections = allow_cleartext_connections
 
         self.parser = None
         self.current_request = None
         self.in_response = False
         self.unprocessed = None
         self.first_data_call = True
+        self.respond_hsts = False  # redirect non-TLS HTTP clients to TLS URL
 
     def connection_made(self, transport):
         self.transport = transport
@@ -75,25 +83,57 @@ cdef class HttpProtocol:
         self.transport = None
         self.unprocessed = None
 
+    def eof_received(self):
+        pass
+
     def data_received(self, data):
         if self.first_data_call:
             self.first_data_call = False
 
+            # Detect if the client is speaking TLS in the "first" data using
+            # the SSL library. This is not the official handshake as we only
+            # need to know "is_ssl"; the first data is used again for the true
+            # handshake if is_ssl = True. This is for further responding a nice
+            # error message to non-TLS clients.
+            is_ssl = True
+            try:
+                outgoing = ssl.MemoryBIO()
+                incoming = ssl.MemoryBIO()
+                incoming.write(data)
+                sslobj = self.sslctx.wrap_bio(
+                    incoming, outgoing, server_side=True
+                )
+                sslobj.do_handshake()
+            except ssl.SSLWantReadError:
+                pass
+            except ssl.SSLError:
+                is_ssl = False
+
+            if is_ssl:
+                # Most clients should arrive here to continue with TLS
+                self.transport.pause_reading()
+                self.loop.create_task(self._forward_first_data(data))
+                self.loop.create_task(self._start_tls())
+                return
+
+            # In case when we're talking to a non-TLS client, keep using the
+            # legacy magic byte check to choose the HTTP or binary protocol.
             if data[0:2] == b'V\x00':
                 # This is, most likely, our binary protocol,
                 # as its first message kind is `V`.
                 #
                 # Switch protocols now (for compatibility).
-                binproto = binary.EdgeConnection(
-                    self.server, self.external_auth)
-                self.transport.set_protocol(binproto)
-                binproto.connection_made(self.transport)
-                binproto.data_received(data)
+                if self.allow_cleartext_connections:
+                    self._switch_to_binary_protocol(data)
+                else:
+                    self.loop.create_task(self._return_binary_error(
+                        self._switch_to_binary_protocol()
+                    ))
                 return
             else:
                 # HTTP.
-                self.parser = httptools.HttpRequestParser(self)
-                self.current_request = HttpRequest()
+                self._init_http_parser()
+                self.respond_hsts = not self.allow_cleartext_connections
 
         try:
             self.parser.feed_data(data)
@@ -107,6 +147,8 @@ cdef class HttpProtocol:
         name = name.lower()
         if name == b'content-type':
             self.current_request.content_type = value
+        elif name == b'host':
+            self.current_request.host = value
 
     def on_body(self, body: bytes):
         self.current_request.body = body
@@ -189,11 +231,87 @@ cdef class HttpProtocol:
             response.body,
             response.close_connection)
 
+    def _switch_to_binary_protocol(self, data=None):
+        binproto = binary.EdgeConnection(self.server, self.external_auth)
+        self.transport.set_protocol(binproto)
+        binproto.connection_made(self.transport)
+        if data:
+            binproto.data_received(data)
+        return binproto
+
+    def _init_http_parser(self):
+        self.parser = httptools.HttpRequestParser(self)
+        self.current_request = HttpRequest()
+
+    async def _forward_first_data(self, data):
+        # As we stole the "first data", we need to manually send it back to
+        # the SSLProtocol. The hack here is highly-coupled with uvloop impl.
+        transport = self.transport  # The TCP transport
+        for i in range(3):
+            await asyncio.sleep(0)
+            ssl_proto = self.transport.get_protocol()
+            if ssl_proto is not self:
+                break
+        else:
+            raise RuntimeError("start_tls() hasn't run in 3 loop iterations")
+
+        # Delay for one more iteration to make sure the first data is fed after
+        # SSLProtocol.connection_made() is called.
+        await asyncio.sleep(0)
+
+        data_len = len(data)
+        buf = ssl_proto.get_buffer(data_len)
+        buf[:data_len] = data
+        ssl_proto.buffer_updated(data_len)
+
+    async def _start_tls(self):
+        self.transport = await self.loop.start_tls(
+            self.transport, self, self.sslctx, server_side=True
+        )
+        sslobj = self.transport.get_extra_info('ssl_object')
+        if sslobj.selected_alpn_protocol() == 'edgedb-binary':
+            self._switch_to_binary_protocol()
+        else:
+            # It's either HTTP as the negotiated protocol, or the negotiation
+            # failed and we have no idea what ALPN the client has set. Here we
+            # just start talking in HTTP, and let the client bindings decide if
+            # this is an error based on the ALPN result.
+            self._init_http_parser()
+
+    async def _return_binary_error(self, proto):
+        await proto.write_error(errors.BinaryProtocolError(
+            'TLS Required',
+            details='The server requires Transport Layer Security (TLS)',
+            hint='Upgrade the client to a newer version that supports TLS'
+        ))
+        proto.close()
+
     async def _handle_request(self, HttpRequest request):
         cdef:
             HttpResponse response = HttpResponse()
 
         if self.transport is None:
+            return
+
+        if self.respond_hsts:
+            if request.host:
+                path = request.url.path.lstrip(b'/')
+                loc = b'https://' + request.host + b'/' + path
+                self.transport.write(
+                    b'HTTP/1.1 301 Moved Permanently\r\n'
+                    b'Strict-Transport-Security: max-age=31536000\r\n'
+                    b'Location: ' + loc + b'\r\n'
+                    b'\r\n'
+                )
+            else:
+                msg = b'Request is missing header: Host\r\n'
+                self.transport.write(
+                    b'HTTP/1.1 400 Bad Request\r\n'
+                    b'Content-Length: ' + str(len(msg)).encode() + b'\r\n'
+                    b'\r\n' + msg
+                )
+
+            self.close()
             return
 
         try:

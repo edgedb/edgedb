@@ -105,11 +105,15 @@ async def new_connection(
     password: str = None,
     admin: str = None,
     database: str = None,
+    tls_cert_file: str = None,
+    tls_verify_hostname: bool = None,
     timeout: float = 60,
+    use_tls: bool = True,
 ):
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         admin=admin, database=database,
+        tls_cert_file=tls_cert_file, tls_verify_hostname=tls_verify_hostname,
         timeout=timeout, command_timeout=None, server_settings=None,
         wait_until_available=timeout)
 
@@ -130,7 +134,9 @@ async def new_connection(
                     protocol_factory, addr)
             else:
                 connector = loop.create_connection(
-                    protocol_factory, *addr)
+                    protocol_factory, *addr,
+                    ssl=params.ssl_ctx if use_tls else None,
+                )
 
             before = time.monotonic()
             try:

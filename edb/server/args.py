@@ -89,6 +89,10 @@ class ServerConfig(NamedTuple):
     startup_script: Optional[StartupScript]
     status_sink: Optional[Callable[[str], None]]
 
+    tls_cert_file: Optional[pathlib.Path]
+    tls_key_file: Optional[pathlib.Path]
+    allow_cleartext_connections: bool
+
 
 class PathPath(click.Path):
     name = 'path'
@@ -316,16 +320,39 @@ _server_options = [
         '--auto-shutdown-after', type=float, default=-1.0,
         help='shutdown the server after the last connection has been closed '
              'for N seconds. N < 0 is treated as infinite.'),
+    lambda has_devmode, func: click.option(
+        '--tls-cert-file', type=PathPath(), required=not has_devmode,
+        help='Specify a path to a single file in PEM format containing the '
+             'TLS certificate as well as any number of CA certificates needed '
+             'to establish the certificate’s authenticity.' + (
+                 ' If not present, a self-signed certificate will be '
+                 'generated and used instead.' if has_devmode else '')
+    )(func),
+    click.option(
+        '--tls-key-file', type=PathPath(),
+        help='Specify a path to a file containing the private key. If not '
+             'present, the private key will be taken from --tls-cert-file as '
+             'well. If the private key is protected by a password, specify '
+             'with an environment variable '
+             'EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD.'),
+    click.option(
+        '--allow-cleartext-connections', type=bool, is_flag=True, hidden=True,
+        help='Also allow client connections in cleartext in addition to TLS.'),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
 ]
 
 
-def server_options(func):
-    for option in reversed(_server_options):
-        func = option(func)
-    return func
+def server_options(has_devmode=False):
+    def decorator(func):
+        for option in reversed(_server_options):
+            try:
+                func = option(func)
+            except TypeError:
+                func = option(has_devmode, func)
+        return func
+    return decorator
 
 
 def parse_args(**kwargs: Any):
@@ -407,6 +434,10 @@ def parse_args(**kwargs: Any):
                       'PostgreSQL cluster using the --postgres-dsn argument')
         elif kwargs['postgres_dsn']:
             abort('The -D and --postgres-dsn options are mutually exclusive.')
+
+    if not kwargs['tls_cert_file']:
+        if not devmode.is_in_dev_mode():
+            abort('Please specify a TLS certificate with --tls-cert-file.')
 
     bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_script']:

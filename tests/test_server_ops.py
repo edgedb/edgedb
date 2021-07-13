@@ -30,9 +30,12 @@ import tempfile
 import time
 
 import edgedb
+from edgedb import errors
 
+from edb import protocol
 from edb.common import devmode
 from edb.common import taskgroup
+from edb.protocol import protocol as edb_protocol  # type: ignore
 from edb.server import pgcluster, pgconnparams
 from edb.testbase import server as tb
 
@@ -80,6 +83,7 @@ class TestServerOps(tb.TestCase):
                     user='edgedb',
                     host=sd.host,
                     port=sd.port,
+                    tls_cert_file=sd.tls_cert_file,
                     wait_until_available=0,
                 )
 
@@ -91,7 +95,7 @@ class TestServerOps(tb.TestCase):
         # * "--bootstrap-command"
 
         cmd = [
-            sys.executable, '-m', 'edb.server.main',
+            sys.executable, '-m', 'edb.tools', 'testserver',
             '--port', 'auto',
             '--testmode',
             '--temp-dir',
@@ -134,7 +138,7 @@ class TestServerOps(tb.TestCase):
         os.close(status_fd)
 
         cmd = [
-            sys.executable, '-m', 'edb.server.main',
+            sys.executable, '-m', 'edb.tools', 'testserver',
             '--port', 'auto',
             '--testmode',
             '--temp-dir',
@@ -269,3 +273,70 @@ class TestServerOps(tb.TestCase):
                 self.loop.run_until_complete(run())
             finally:
                 cluster.stop()
+
+    async def _test_connection(self, con):
+        await con.connect()
+
+        await con.send(
+            protocol.ExecuteScript(
+                headers=[],
+                script='SELECT 1'
+            )
+        )
+        await con.recv_match(
+            protocol.CommandComplete,
+            status='SELECT'
+        )
+        await con.recv_match(
+            protocol.ReadyForCommand,
+            transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
+        )
+
+    async def test_server_ops_downgrade_to_plaintext(self):
+        async with tb.start_edgedb_server(
+            auto_shutdown=True,
+            allow_cleartext_connections=True,
+        ) as sd:
+            con = await edb_protocol.new_connection(
+                user='edgedb',
+                password=sd.password,
+                host=sd.host,
+                port=sd.port,
+                use_tls=False,
+            )
+            try:
+                await self._test_connection(con)
+            finally:
+                await con.aclose()
+
+    async def test_server_ops_no_plaintext(self):
+        async with tb.start_edgedb_server(
+            auto_shutdown=True,
+            allow_cleartext_connections=False,
+        ) as sd:
+            con = await edb_protocol.new_connection(
+                user='edgedb',
+                password=sd.password,
+                host=sd.host,
+                port=sd.port,
+                use_tls=False,
+            )
+            try:
+                with self.assertRaisesRegex(
+                    errors.BinaryProtocolError, "TLS Required"
+                ):
+                    await con.connect()
+            finally:
+                await con.aclose()
+
+            con = await edb_protocol.new_connection(
+                user='edgedb',
+                password=sd.password,
+                host=sd.host,
+                port=sd.port,
+                tls_cert_file=sd.tls_cert_file,
+            )
+            try:
+                await self._test_connection(con)
+            finally:
+                await con.aclose()

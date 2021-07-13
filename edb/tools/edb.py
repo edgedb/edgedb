@@ -43,7 +43,7 @@ def edbcommands(ctx, devmode: bool):
 
 
 @edbcommands.command()
-@srv_args.server_options
+@srv_args.server_options(has_devmode=True)
 def server(version=False, **kwargs):
     if version:
         print(f"edb, version {buildmeta.get_version()}")
@@ -52,6 +52,16 @@ def server(version=False, **kwargs):
     os.environ['EDGEDB_DEBUG_SERVER'] = '1'
     debug.init_debug_flags()
     srv_main.server_main(insecure=True, **kwargs)
+
+
+@edbcommands.command(hidden=True)
+@srv_args.server_options(has_devmode=True)
+def testserver(version=False, **kwargs):
+    # This is only used for running tests
+    if version:
+        print(f"edgedb-server, version {buildmeta.get_version()}")
+        sys.exit(0)
+    srv_main.server_main(**kwargs)
 
 
 # Import at the end of the file so that "edb.tools.edb.edbcommands"
