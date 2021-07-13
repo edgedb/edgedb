@@ -50,7 +50,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
-from edb.schema import lproperties as s_lprops
+from edb.schema import properties as s_props
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -1165,7 +1165,7 @@ def _get_tracer_and_real_type(
     elif isinstance(decl, (qlast.CreateProperty,
                            qlast.CreateConcreteProperty)):
         tracer_type = qltracer.Pointer
-        real_type = s_lprops.Property
+        real_type = s_props.Property
     elif isinstance(decl, (qlast.CreateLink,
                            qlast.CreateConcreteLink)):
         tracer_type = qltracer.Pointer

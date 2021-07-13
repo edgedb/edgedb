@@ -56,7 +56,7 @@ from edb.schema import ddl as s_ddl
 from edb.schema import delta as s_delta
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
-from edb.schema import lproperties as s_props
+from edb.schema import properties as s_props
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj

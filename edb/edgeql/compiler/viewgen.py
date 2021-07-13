@@ -51,7 +51,7 @@ from . import setgen
 from . import typegen
 
 if TYPE_CHECKING:
-    from edb.schema import lproperties as s_props
+    from edb.schema import properties as s_props
     from edb.schema import sources as s_sources
 
     ShapePtr = Tuple[irast.Set, s_pointers.Pointer, qlast.ShapeOp]

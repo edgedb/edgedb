@@ -36,7 +36,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
-from edb.schema import lproperties as s_lprops
+from edb.schema import properties as s_props
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
@@ -979,7 +979,7 @@ def compile_DescribeStmt(
             elif ql.language is qltypes.DescribeLanguage.TEXT:
                 method = s_ddl.descriptive_text_from_schema
                 if not verbose.val:
-                    referenced_classes = [s_links.Link, s_lprops.Property]
+                    referenced_classes = [s_links.Link, s_props.Property]
             else:
                 raise errors.InternalServerError(
                     f'cannot handle describe language {ql.language}'
