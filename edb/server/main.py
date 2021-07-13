@@ -226,15 +226,19 @@ async def _run_server(
 def _init_tls_certs(
     args: srvargs.ServerConfig,
     cert_dir: Optional[tempfile.TemporaryDirectory],
-):
+) -> Tuple[pathlib.Path, Optional[pathlib.Path]]:
     cert_path = None
     if args.tls_cert_file:
         cert_file = pathlib.Path(args.tls_cert_file).resolve()
+        if not cert_file.exists():
+            abort(f"File doesn't exist: --tls-cert-file={cert_file}")
         if args.tls_key_file is None:
-            return str(cert_file), None
+            return cert_file, None
         else:
             key_file = pathlib.Path(args.tls_key_file).resolve()
-            return str(cert_file), str(key_file)
+            if not key_file.exists():
+                abort(f"File doesn't exist: --tls-key-file={key_file}")
+            return cert_file, key_file
     elif args.data_dir:
         cert_path = pathlib.Path(args.data_dir).resolve()
     elif cert_dir is not None:
@@ -245,9 +249,9 @@ def _init_tls_certs(
         key_file = cert_path / "private.key"
         if cert_file.exists():
             if key_file.exists():
-                return str(cert_file), str(key_file)
+                return cert_file, key_file
             else:
-                return str(cert_file), None
+                return cert_file, None
         elif devmode.is_in_dev_mode():
             logger.info("Generating TLS certificate for development.")
             subprocess.check_call(
@@ -262,7 +266,7 @@ def _init_tls_certs(
                     str(key_file),
                 ]
             )
-            return str(cert_file), str(key_file)
+            return cert_file, key_file
 
     abort("Cannot start EdgeDB server without a TLS certificate, use the"
           "`--tls-cert-file` command-line argument to specify it.")
@@ -486,7 +490,7 @@ def server_main(*, insecure=False, **kwargs):
 @click.command(
     'EdgeDB Server',
     context_settings=dict(help_option_names=['-h', '--help']))
-@srvargs.server_options
+@srvargs.server_options()
 def main(version=False, **kwargs):
     if version:
         print(f"edgedb-server, version {buildmeta.get_version()}")

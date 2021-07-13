@@ -320,19 +320,21 @@ _server_options = [
         '--auto-shutdown-after', type=float, default=-1.0,
         help='shutdown the server after the last connection has been closed '
              'for N seconds. N < 0 is treated as infinite.'),
-    click.option(
-        '--tls-cert-file', type=PathPath(),
-        help='Specify a path to a single file in PEM format containing the TLS'
-             'certificate as well as any number of CA certificates needed to '
-             'establish the certificate’s authenticity. If not present, a '
-             'self-signed certificate will be generated and used instead (for '
-             'development only!).'),
+    lambda has_devmode, func: click.option(
+        '--tls-cert-file', type=PathPath(), required=not has_devmode,
+        help='Specify a path to a single file in PEM format containing the '
+             'TLS certificate as well as any number of CA certificates needed '
+             'to establish the certificate’s authenticity.' + (
+                 ' If not present, a self-signed certificate will be '
+                 'generated and used instead.' if has_devmode else '')
+    )(func),
     click.option(
         '--tls-key-file', type=PathPath(),
         help='Specify a path to a file containing the private key. If not '
              'present, the private key will be taken from --tls-cert-file as '
              'well. If the private key is protected by a password, specify '
-             'with an environment variable EDGEDB_TLS_PRIVATE_KEY_PASSWORD.'),
+             'with an environment variable '
+             'EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD.'),
     click.option(
         '--allow-cleartext-connections', type=bool, is_flag=True, hidden=True,
         help='Also allow client connections in cleartext in addition to TLS.'),
@@ -342,10 +344,15 @@ _server_options = [
 ]
 
 
-def server_options(func):
-    for option in reversed(_server_options):
-        func = option(func)
-    return func
+def server_options(has_devmode=False):
+    def decorator(func):
+        for option in reversed(_server_options):
+            try:
+                func = option(func)
+            except TypeError:
+                func = option(has_devmode, func)
+        return func
+    return decorator
 
 
 def parse_args(**kwargs: Any):

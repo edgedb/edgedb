@@ -26,6 +26,7 @@ import collections
 import json
 import logging
 import os
+import pathlib
 import pickle
 import socket
 import ssl
@@ -105,8 +106,8 @@ class Server:
         compiler_pool_size,
         nethost,
         netport,
-        tls_cert_file: str,
-        tls_key_file: Optional[str] = None,
+        tls_cert_file: pathlib.Path,
+        tls_key_file: Optional[pathlib.Path] = None,
         allow_cleartext_connections: bool = False,
         auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
@@ -877,7 +878,7 @@ class Server:
                 password=_tls_private_key_password,
             )
         except ssl.SSLError as e:
-            if e.errno == 9:
+            if e.library == "SSL" and e.errno == 9:  # ERR_LIB_PEM
                 if tls_password_needed:
                     if _tls_private_key_password():
                         raise StartupError(
@@ -902,8 +903,14 @@ class Server:
                         "Cannot load TLS certificates - please double check "
                         "if the specified certificate files are valid."
                     )
+            elif e.library == "X509" and e.errno == 116:
+                # X509 Error 116: X509_R_KEY_VALUES_MISMATCH
+                raise StartupError(
+                    "Cannot load TLS certificates - the private key doesn't "
+                    "match the certificate."
+                )
 
-            raise StartupError("") from e
+            raise StartupError(f"Cannot load TLS certificates - {e}") from e
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         return sslctx
@@ -956,7 +963,7 @@ class Server:
                 "socket_dir": str(self._runstate_dir),
                 "main_pid": os.getpid(),
                 "tenant_id": self._tenant_id,
-                "tls_cert_file": self._tls_cert_file,
+                "tls_cert_file": str(self._tls_cert_file),
             }
             self._status_sink(f'READY={json.dumps(status)}')
 

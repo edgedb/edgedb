@@ -108,6 +108,7 @@ async def new_connection(
     tls_cert_file: str = None,
     tls_verify_hostname: bool = None,
     timeout: float = 60,
+    use_tls: bool = True,
 ):
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
@@ -133,7 +134,9 @@ async def new_connection(
                     protocol_factory, addr)
             else:
                 connector = loop.create_connection(
-                    protocol_factory, *addr, ssl=params.ssl_ctx)
+                    protocol_factory, *addr,
+                    ssl=params.ssl_ctx if use_tls else None,
+                )
 
             before = time.monotonic()
             try:

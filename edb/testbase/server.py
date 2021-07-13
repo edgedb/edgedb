@@ -1435,6 +1435,7 @@ class _EdgeDBServer:
         runstate_dir: Optional[str] = None,
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
+        allow_cleartext_connections: bool = False,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
@@ -1448,6 +1449,7 @@ class _EdgeDBServer:
         self.tenant_id = tenant_id
         self.proc = None
         self.data = None
+        self.allow_cleartext_connections = allow_cleartext_connections
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -1495,7 +1497,7 @@ class _EdgeDBServer:
         status_r, status_w = socket.socketpair()
 
         cmd = [
-            sys.executable, '-m', 'edb.server.main',
+            sys.executable, '-m', 'edb.tools', 'server',
             '--port', 'auto',
             '--testmode',
             '--emit-server-status', f'fd://{status_w.fileno()}',
@@ -1559,6 +1561,9 @@ class _EdgeDBServer:
         if self.tenant_id:
             cmd += ['--tenant-id', self.tenant_id]
 
+        if self.allow_cleartext_connections:
+            cmd += ['--allow-cleartext-connections']
+
         if self.debug:
             print(f'Starting EdgeDB cluster with the following params: {cmd}')
 
@@ -1609,6 +1614,7 @@ def start_edgedb_server(
     runstate_dir: Optional[str] = None,
     reset_auth: Optional[bool] = None,
     tenant_id: Optional[str] = None,
+    allow_cleartext_connections: bool = False,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if postgres_dsn or adjacent_to:
@@ -1628,6 +1634,7 @@ def start_edgedb_server(
         tenant_id=tenant_id,
         runstate_dir=runstate_dir,
         reset_auth=reset_auth,
+        allow_cleartext_connections=allow_cleartext_connections,
     )
 
 
