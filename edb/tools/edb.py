@@ -54,6 +54,16 @@ def server(version=False, **kwargs):
     srv_main.server_main(insecure=True, **kwargs)
 
 
+@edbcommands.command(hidden=True)
+@srv_args.server_options(has_devmode=True)
+def testserver(version=False, **kwargs):
+    # This is only used for running tests
+    if version:
+        print(f"edgedb-server, version {buildmeta.get_version()}")
+        sys.exit(0)
+    srv_main.server_main(**kwargs)
+
+
 # Import at the end of the file so that "edb.tools.edb.edbcommands"
 # is defined for all of the below modules when they try to import it.
 from . import cli  # noqa
