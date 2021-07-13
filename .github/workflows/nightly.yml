@@ -479,12 +479,12 @@ jobs:
         ref: master
         path: dockerfile
     - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@2.6
+      uses: elgohr/Publish-Docker-Github-Action@3.04
       with:
-        name: edgedb/edgedb:nightly
+        name: edgedb/edgedb
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        snapshot: true
+        tags: "nightly,nightly_cv${{ steps.describe.outputs.catalog-version }},nightly_${{ steps.describe.outputs.version-slot }}_cv${{ steps.describe.outputs.catalog-version }}"
         workdir: dockerfile
         buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=.nightly
     
