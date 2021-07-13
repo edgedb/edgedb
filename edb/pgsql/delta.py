@@ -46,7 +46,7 @@ from edb.schema import extensions as s_exts
 from edb.schema import functions as s_funcs
 from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
-from edb.schema import lproperties as s_props
+from edb.schema import properties as s_props
 from edb.schema import migrations as s_migrations
 from edb.schema import modules as s_mod
 from edb.schema import name as sn

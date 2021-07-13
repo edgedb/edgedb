@@ -34,7 +34,7 @@ from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
 from . import links
-from . import lproperties
+from . import properties
 from . import name as sn
 from . import objects as so
 from . import pointers
@@ -408,7 +408,7 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext[ObjectType],
                                constraints.ConsistencySubjectCommandContext,
                                s_anno.AnnotationSubjectCommandContext,
                                links.LinkSourceCommandContext,
-                               lproperties.PropertySourceContext):
+                               properties.PropertySourceContext):
     pass
 
 

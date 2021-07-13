@@ -26,7 +26,7 @@ import uuid
 from edb.edgeql import qltypes
 
 from edb.schema import links as s_links
-from edb.schema import lproperties as s_props
+from edb.schema import properties as s_props
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars

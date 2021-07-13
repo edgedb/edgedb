@@ -31,7 +31,7 @@ from . import constraints
 from . import delta as sd
 from . import indexes
 from . import inheriting
-from . import lproperties
+from . import properties
 from . import name as sn
 from . import objects as so
 from . import pointers
@@ -192,13 +192,13 @@ class LinkSourceCommand(inheriting.InheritingObjectCommand[sources.Source_T]):
 
 class LinkCommandContext(pointers.PointerCommandContext[Link],
                          constraints.ConsistencySubjectCommandContext,
-                         lproperties.PropertySourceContext,
+                         properties.PropertySourceContext,
                          indexes.IndexSourceCommandContext):
     pass
 
 
 class LinkCommand(
-    lproperties.PropertySourceCommand[Link],
+    properties.PropertySourceCommand[Link],
     pointers.PointerCommand[Link],
     context_class=LinkCommandContext,
     referrer_context_class=LinkSourceCommandContext,
@@ -428,7 +428,7 @@ class CreateLink(
         src_prop_name = sn.QualName(
             name=s_name, module=self.classname.module)
 
-        src_prop = lproperties.CreateProperty(
+        src_prop = properties.CreateProperty(
             classname=src_prop_name,
             is_strong_ref=True,
         )
@@ -462,7 +462,7 @@ class CreateLink(
         tgt_prop_name = sn.QualName(
             name=s_name, module=self.classname.module)
 
-        tgt_prop = lproperties.CreateProperty(
+        tgt_prop = properties.CreateProperty(
             classname=tgt_prop_name,
             is_strong_ref=True,
         )
