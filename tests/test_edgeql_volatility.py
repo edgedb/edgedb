@@ -1529,6 +1529,17 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 for tgt in obj['a']['tgt']:
                     self.assertEqual(tgt['x'], -tgt['y'])
 
+    @test.xfail("We return non-matching values")
+    async def test_edgeql_volatility_for_hard_05(self):
+        for query in self.test_loop(single=True):
+            res = await query("""
+                WITH Z := Obj { m := next() },
+                     Y := (FOR k in {Z} UNION (k.m)),
+                SELECT { z := Z.m, y := Y };
+            """)
+
+            self.assertEqual(set(res['z']), set(res['y']))
+
     async def test_edgeql_volatility_rebind_flat_01(self):
         for query in self.test_loop():
             res = await query("""
