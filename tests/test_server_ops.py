@@ -95,7 +95,7 @@ class TestServerOps(tb.TestCase):
         # * "--bootstrap-command"
 
         cmd = [
-            sys.executable, '-m', 'edb.tools', 'testserver',
+            sys.executable, '-m', 'edb.tools', 'server',
             '--port', 'auto',
             '--testmode',
             '--temp-dir',
@@ -138,7 +138,7 @@ class TestServerOps(tb.TestCase):
         os.close(status_fd)
 
         cmd = [
-            sys.executable, '-m', 'edb.tools', 'testserver',
+            sys.executable, '-m', 'edb.tools', 'server',
             '--port', 'auto',
             '--testmode',
             '--temp-dir',
