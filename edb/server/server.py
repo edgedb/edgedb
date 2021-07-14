@@ -26,7 +26,6 @@ import collections
 import json
 import logging
 import os
-import pathlib
 import pickle
 import socket
 import ssl
@@ -106,8 +105,6 @@ class Server:
         compiler_pool_size,
         nethost,
         netport,
-        tls_cert_file: pathlib.Path,
-        tls_key_file: Optional[pathlib.Path] = None,
         allow_cleartext_connections: bool = False,
         auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
@@ -186,8 +183,8 @@ class Server:
 
         self._task_group = None
         self._stop_evt = asyncio.Event()
-        self._tls_cert_file = tls_cert_file
-        self._tls_key_file = tls_key_file
+        self._tls_cert_file = None
+        self._sslctx = None
         self._allow_cleartext_connections = allow_cleartext_connections
 
     async def _request_stats_logger(self):
@@ -202,6 +199,9 @@ class Server:
                 last_seen = current
 
             await asyncio.sleep(30)
+
+    def get_listen_host(self):
+        return self._listen_host
 
     def get_listen_port(self):
         return self._listen_port
@@ -824,11 +824,9 @@ class Server:
     async def _start_servers(self, host, port):
         nethost = await _fix_localhost(host)
 
-        sslctx = await self._init_tls()
-
         tcp_srv = await self._loop.create_server(
             lambda: protocol.HttpProtocol(
-                self, sslctx,
+                self, self._sslctx,
                 allow_cleartext_connections=self._allow_cleartext_connections,
             ),
             host=nethost, port=port)
@@ -862,7 +860,8 @@ class Server:
 
         return servers, port
 
-    async def _init_tls(self):
+    def init_tls(self, tls_cert_file, tls_key_file):
+        assert self._sslctx is None
         tls_password_needed = False
 
         def _tls_private_key_password():
@@ -873,8 +872,8 @@ class Server:
         sslctx = ssl.SSLContext()
         try:
             sslctx.load_cert_chain(
-                self._tls_cert_file,
-                self._tls_key_file,
+                tls_cert_file,
+                tls_key_file,
                 password=_tls_private_key_password,
             )
         except ssl.SSLError as e:
@@ -892,7 +891,7 @@ class Server:
                             "the password using environment variable: "
                             "EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD"
                         ) from e
-                elif self._tls_key_file is None:
+                elif tls_key_file is None:
                     raise StartupError(
                         "Cannot load TLS certificates - have you specified "
                         "the private key file using the `--tls-key-file` "
@@ -913,7 +912,8 @@ class Server:
             raise StartupError(f"Cannot load TLS certificates - {e}") from e
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
-        return sslctx
+        self._sslctx = sslctx
+        self._tls_cert_file = str(tls_cert_file)
 
     async def _stop_servers(self, servers):
         async with taskgroup.TaskGroup() as g:
@@ -963,7 +963,7 @@ class Server:
                 "socket_dir": str(self._runstate_dir),
                 "main_pid": os.getpid(),
                 "tenant_id": self._tenant_id,
-                "tls_cert_file": str(self._tls_cert_file),
+                "tls_cert_file": self._tls_cert_file,
             }
             self._status_sink(f'READY={json.dumps(status)}')
 

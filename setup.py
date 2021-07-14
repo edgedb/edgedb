@@ -55,6 +55,7 @@ RUNTIME_DEPS = [
     'uvloop~=0.15.3',
     "typing_inspect~=0.5.0;python_version<'3.9'",
     'wcwidth~=0.2.5',
+    'cryptography~=3.4.7',
 
     'graphql-core~=3.1.5',
     'promise~=2.2.0',

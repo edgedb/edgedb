@@ -22,6 +22,7 @@ from typing import *
 
 import asyncio
 import contextlib
+import datetime
 import logging
 import os
 import os.path
@@ -29,9 +30,9 @@ import pathlib
 import resource
 import signal
 import socket
-import subprocess
 import sys
 import tempfile
+import uuid
 
 import uvloop
 
@@ -174,8 +175,7 @@ async def _run_server(
     args: srvargs.ServerConfig,
     runstate_dir,
     internal_runstate_dir,
-    tls_cert_file,
-    tls_key_file,
+    tls_cert_gen_dir,
     *,
     do_setproctitle: bool
 ):
@@ -192,8 +192,6 @@ async def _run_server(
             echo_runtime_info=args.echo_runtime_info,
             status_sink=args.status_sink,
             startup_script=args.startup_script,
-            tls_cert_file=tls_cert_file,
-            tls_key_file=tls_key_file,
             allow_cleartext_connections=args.allow_cleartext_connections,
         )
         await sc.wait_for(ss.init())
@@ -201,6 +199,13 @@ async def _run_server(
         if args.bootstrap_only:
             await sc.wait_for(ss.run_startup_script_and_exit())
             return
+
+        if tls_cert_gen_dir:
+            ss.init_tls(
+                *_generate_cert(tls_cert_gen_dir, ss.get_listen_host())
+            )
+        else:
+            ss.init_tls(args.tls_cert_file, args.tls_key_file)
 
         try:
             await sc.wait_for(ss.start())
@@ -223,53 +228,60 @@ async def _run_server(
             await sc.wait_for(ss.stop())
 
 
-def _init_tls_certs(
-    args: srvargs.ServerConfig,
-    cert_dir: Optional[tempfile.TemporaryDirectory],
+def _generate_cert(
+    cert_dir: pathlib.Path, listen_host: str
 ) -> Tuple[pathlib.Path, Optional[pathlib.Path]]:
-    cert_path = None
-    if args.tls_cert_file:
-        cert_file = pathlib.Path(args.tls_cert_file).resolve()
-        if not cert_file.exists():
-            abort(f"File doesn't exist: --tls-cert-file={cert_file}")
-        if args.tls_key_file is None:
-            return cert_file, None
-        else:
-            key_file = pathlib.Path(args.tls_key_file).resolve()
-            if not key_file.exists():
-                abort(f"File doesn't exist: --tls-key-file={key_file}")
-            return cert_file, key_file
-    elif args.data_dir:
-        cert_path = pathlib.Path(args.data_dir).resolve()
-    elif cert_dir is not None:
-        cert_path = pathlib.Path(cert_dir.name).resolve()
+    logger.info("Generating self-signed TLS certificate.")
 
-    if cert_path is not None:
-        cert_file = cert_path / "certificate.crt"
-        key_file = cert_path / "private.key"
-        if cert_file.exists():
-            if key_file.exists():
-                return cert_file, key_file
-            else:
-                return cert_file, None
-        elif devmode.is_in_dev_mode():
-            logger.info("Generating TLS certificate for development.")
-            subprocess.check_call(
-                [
-                    sys.executable,
-                    "-m",
-                    "edb.cli",
-                    "_generate_dev_cert",
-                    "--cert-file",
-                    str(cert_file),
-                    "--key-file",
-                    str(key_file),
-                ]
+    from cryptography import x509
+    from cryptography.hazmat import backends
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509 import oid
+
+    backend = backends.default_backend()
+    private_key = rsa.generate_private_key(
+        public_exponent=65537, key_size=2048, backend=backend
+    )
+    subject = x509.Name(
+        [x509.NameAttribute(oid.NameOID.COMMON_NAME, "EdgeDB Server")]
+    )
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .public_key(private_key.public_key())
+        .serial_number(int(uuid.uuid4()))
+        .issuer_name(subject)
+        .not_valid_before(
+            datetime.datetime.today() - datetime.timedelta(days=1)
+        )
+        .not_valid_after(
+            datetime.datetime.today() + datetime.timedelta(weeks=1000)
+        )
+        .add_extension(
+            x509.SubjectAlternativeName([x509.DNSName(listen_host)]),
+            critical=False,
+        )
+        .sign(
+            private_key=private_key,
+            algorithm=hashes.SHA256(),
+            backend=backend,
+        )
+    )
+    cert_file = cert_dir / srvargs.TLS_CERT_FILE_NAME
+    key_file = cert_dir / srvargs.TLS_KEY_FILE_NAME
+    with cert_file.open("wb") as f:
+        f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
+    with key_file.open("wb") as f:
+        f.write(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
             )
-            return cert_file, key_file
-
-    abort("Cannot start EdgeDB server without a TLS certificate, use the"
-          "`--tls-cert-file` command-line argument to specify it.")
+        )
+    return cert_file, key_file
 
 
 def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
@@ -289,7 +301,7 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
 
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
-    cert_dir = None
+    cert_temp_dir = None
 
     if args.tenant_id is None:
         tenant_id = buildmeta.get_default_tenant_id()
@@ -344,7 +356,6 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                   f'detected maximum available NUM: {max_conns}')
 
         default_runstate_dir = None
-        cert_dir = tempfile.TemporaryDirectory()
     else:
         # This should have been checked by main() already,
         # but be extra careful.
@@ -407,6 +418,12 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                             ),
                         ),
                     )
+                if not args.tls_cert_file:
+                    if args.data_dir:
+                        tls_cert_gen_dir = args.data_dir
+                    else:
+                        cert_temp_dir = tempfile.TemporaryDirectory()
+                        tls_cert_gen_dir = pathlib.Path(cert_temp_dir.name)
 
                 asyncio.run(
                     _run_server(
@@ -414,7 +431,7 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                         args,
                         runstate_dir,
                         internal_runstate_dir,
-                        *_init_tls_certs(args, cert_dir),
+                        tls_cert_gen_dir,
                         do_setproctitle=do_setproctitle,
                     )
                 )
@@ -439,8 +456,8 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
 
         elif pg_cluster_started_by_us:
             cluster.stop()
-        if cert_dir is not None:
-            cert_dir.cleanup()
+        if cert_temp_dir is not None:
+            cert_temp_dir.cleanup()
 
 
 def bump_rlimit_nofile() -> None:
