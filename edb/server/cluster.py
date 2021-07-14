@@ -47,7 +47,7 @@ class ClusterError(Exception):
 class BaseCluster:
     def __init__(self, runstate_dir, *, port=edgedb_defines.EDGEDB_PORT,
                  env=None, testmode=False, log_level=None):
-        self._edgedb_cmd = [sys.executable, '-m', 'edb.tools', 'server']
+        self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
         if log_level:
             self._edgedb_cmd.extend(['--log-level', log_level])
