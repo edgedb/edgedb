@@ -321,7 +321,8 @@ _server_options = [
         help='shutdown the server after the last connection has been closed '
              'for N seconds. N < 0 is treated as infinite.'),
     lambda has_devmode, func: click.option(
-        '--tls-cert-file', type=PathPath(), required=not has_devmode,
+        '--tls-cert-file',
+        type=PathPath(),
         help='Specify a path to a single file in PEM format containing the '
              'TLS certificate as well as any number of CA certificates needed '
              'to establish the certificate’s authenticity.' + (
@@ -435,9 +436,12 @@ def parse_args(**kwargs: Any):
         elif kwargs['postgres_dsn']:
             abort('The -D and --postgres-dsn options are mutually exclusive.')
 
-    if not kwargs['tls_cert_file']:
-        if not devmode.is_in_dev_mode():
-            abort('Please specify a TLS certificate with --tls-cert-file.')
+    if (
+        not kwargs['tls_cert_file']
+        and not devmode.is_in_dev_mode()
+        and not kwargs['bootstrap_only']
+    ):
+        abort('Please specify a TLS certificate with --tls-cert-file.')
 
     bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_script']:
