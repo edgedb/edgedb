@@ -894,7 +894,8 @@ class PathFinder(NodeVisitor):
             self.visit(shape.elements)
 
     def visit_ShapeElement(self, el: qlast.ShapeElement) -> None:
-        self.visit_Path(el.expr, always_partial=True)
+        if not el.compexpr:
+            self.visit_Path(el.expr, always_partial=True)
         self.visit(el.compexpr)
         with self.subquery(), self.update_path(el.expr):
             self.visit(el.elements)
