@@ -28,6 +28,9 @@ import textwrap
 from edb.testbase import server as tb
 
 
+TIMEOUT = 5
+
+
 @contextlib.asynccontextmanager
 async def spawn(test_prog, global_prog=""):
     p = await asyncio.create_subprocess_exec(
@@ -50,20 +53,20 @@ async def spawn(test_prog, global_prog=""):
     try:
         yield p
     except Exception:
-        stdout, stderr = await asyncio.wait_for(p.communicate(), 1)
+        stdout, stderr = await asyncio.wait_for(p.communicate(), TIMEOUT)
         if p.returncode <= 0:
             raise
         else:
             raise ChildProcessError("\n\n" + stderr.decode())
     else:
-        stdout, stderr = await asyncio.wait_for(p.communicate(), 1)
+        stdout, stderr = await asyncio.wait_for(p.communicate(), TIMEOUT)
         if p.returncode > 0:
             raise ChildProcessError("\n\n" + stderr.decode())
 
     finally:
         try:
             p.kill()
-            await asyncio.wait_for(p.wait(), 1)
+            await asyncio.wait_for(p.wait(), TIMEOUT)
         except OSError:
             pass
 
@@ -73,13 +76,13 @@ class TestSignalctl(tb.TestCase):
         p.stdin.write(str(mark).encode() + b"\n")
 
     async def wait_for_child(self, p, mark):
-        line = await asyncio.wait_for(p.stdout.readline(), 1)
+        line = await asyncio.wait_for(p.stdout.readline(), TIMEOUT)
         if not line:
             self.fail("Child process exited unexpectedly.")
         elif len(line) <= 3:
             self.assertEqual(line.strip(), str(mark).encode())
         else:
-            line += await asyncio.wait_for(p.stdout.read(), 1)
+            line += await asyncio.wait_for(p.stdout.read(), TIMEOUT)
             ex, traceback = pickle.loads(line)
             raise ex from ChildProcessError("\n\n" + traceback.strip())
 
@@ -104,7 +107,7 @@ class TestSignalctl(tb.TestCase):
             await self.wait_for_child(p, 2)
             p.terminate()
             self.assertEqual(
-                await asyncio.wait_for(p.wait(), 1), -signal.SIGTERM
+                await asyncio.wait_for(p.wait(), TIMEOUT), -signal.SIGTERM
             )
 
     async def test_signalctl_wait_for_02(self):
@@ -129,7 +132,7 @@ class TestSignalctl(tb.TestCase):
             await self.wait_for_child(p, 2)
             p.send_signal(signal.SIGINT)
             self.assertEqual(
-                await asyncio.wait_for(p.wait(), 1), -signal.SIGINT
+                await asyncio.wait_for(p.wait(), TIMEOUT), -signal.SIGINT
             )
             end_reached = True
 
@@ -166,7 +169,7 @@ class TestSignalctl(tb.TestCase):
 
             p.terminate()
             self.assertEqual(
-                await asyncio.wait_for(p.wait(), 1), -signal.SIGTERM
+                await asyncio.wait_for(p.wait(), TIMEOUT), -signal.SIGTERM
             )
 
     async def test_signalctl_wait_for_04(self):
