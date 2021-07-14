@@ -79,6 +79,10 @@ DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
 cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
+cdef object POSTGRES_SHUTDOWN_ERR_CODES = {
+    '57P01': 'admin_shutdown',
+    '57P02': 'crash_shutdown',
+}
 
 
 cdef bytes INIT_CON_SCRIPT = None
@@ -413,13 +417,22 @@ cdef class PGConnection:
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
 
-    async def set_server(self, server):
+    def set_server(self, server):
         assert defines.EDGEDB_SYSTEM_DB in self.dbname
-        await self.simple_query(
-            b'LISTEN __edgedb_sysevent__;',
-            ignore_data=True
-        )
         self.server = server
+
+    async def listen_for_sysevent(self):
+        try:
+            assert defines.EDGEDB_SYSTEM_DB in self.dbname
+            await self.simple_query(
+                b'LISTEN __edgedb_sysevent__;',
+                ignore_data=True
+            )
+        except Exception:
+            try:
+                self.abort()
+            finally:
+                raise
 
     async def signal_sysevent(self, event, **kwargs):
         assert defines.EDGEDB_SYSTEM_DB in self.dbname
@@ -1566,7 +1579,7 @@ cdef class PGConnection:
             finally:
                 self.buffer.finish_message()
 
-    def is_healthy_to_go_back_to_pool(self):
+    def is_healthy(self):
         return (
             self.connected and
             self.idle and
@@ -1633,6 +1646,14 @@ cdef class PGConnection:
         while self.buffer.take_message():
             if not self.parse_notification():
                 mtype = self.buffer.get_message_type()
+                if mtype == b'E':  # ErrorResponse
+                    er_cls, fields = self.parse_error_message()
+                    msg = POSTGRES_SHUTDOWN_ERR_CODES.get(fields['C'])
+                    if msg:
+                        msg = fields.get('M', msg)
+                        if self.server is not None:
+                            self.server.set_pg_unavailable_msg(msg)
+                        continue
                 raise RuntimeError(
                     f'unexpected message type {chr(mtype)!r} in IDLE state')
 
@@ -1783,16 +1804,15 @@ cdef class PGConnection:
         self.connected_fut = None
 
     def connection_lost(self, exc):
-        # Mark the connection as disconnected, so that
-        # `self.is_healthy_to_go_back_to_pool()` surely returns False
-        # for this connection.
+        # Mark the connection as disconnected, so that `self.is_healthy()`
+        # surely returns False for this connection.
         self.connected = False
 
         self.transport = None
 
         if self.server is not None:
             # only system db PGConnection has self.server
-            self.server._on_sys_pgcon_connection_lost()
+            self.server._on_sys_pgcon_connection_lost(exc)
 
         if self.connected_fut is not None and not self.connected_fut.done():
             self.connected_fut.set_exception(ConnectionAbortedError())

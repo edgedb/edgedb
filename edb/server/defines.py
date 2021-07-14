@@ -59,3 +59,7 @@ DEFAULT_MODULE_ALIAS = 'default'
 
 HTTP_PORT_QUERY_CACHE_SIZE = 1000
 HTTP_PORT_MAX_CONCURRENCY = 250  # XXX
+
+# The time in seconds the EdgeDB server shall wait between retries to connect
+# to the system database after the connection was broken during runtime.
+SYSTEM_DB_RECONNECT_INTERVAL = 1

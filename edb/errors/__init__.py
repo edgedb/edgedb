@@ -10,6 +10,7 @@ from edb.errors.base import *
 
 __all__ = base.__all__ + (  # type: ignore
     'InternalServerError',
+    'PostgresUnavailableError',
     'UnsupportedFeatureError',
     'ProtocolError',
     'BinaryProtocolError',
@@ -84,6 +85,10 @@ __all__ = base.__all__ + (  # type: ignore
 
 class InternalServerError(EdgeDBError):
     _code = 0x_01_00_00_00
+
+
+class PostgresUnavailableError(InternalServerError):
+    _code = 0x_01_00_00_01
 
 
 class UnsupportedFeatureError(EdgeDBError):
