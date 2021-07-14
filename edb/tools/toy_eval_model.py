@@ -471,14 +471,20 @@ def eval_limit(limit: Optional[qlast.Expr], out: List[Row],
     return out
 
 
-@_eval.register
-def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> Result:
+def eval_aliases(node: qlast.Statement, ctx: EvalContext) -> EvalContext:
     if node.aliases:
         ctx = replace(ctx, aliases=ctx.aliases.copy())
         for alias in node.aliases:
             assert isinstance(alias, qlast.AliasedExpr)
             ctx.aliases[alias.alias] = (
                 strip_shapes(subquery(alias.expr, ctx=ctx)))
+
+    return ctx
+
+
+@_eval.register
+def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> Result:
+    ctx = eval_aliases(node, ctx)
 
     # XXX: I believe this is right, but:
     # WHERE and ORDER BY are treated as subqueries of the result query,
@@ -574,6 +580,7 @@ def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> Result:
 
 @_eval.register
 def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> Result:
+    ctx = eval_aliases(node, ctx)
     iter_vals = strip_shapes(subquery(node.iterator, ctx=ctx))
     qil = ctx.query_input_list + [(IORef(node.iterator_alias),)]
     out = []

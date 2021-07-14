@@ -231,6 +231,14 @@ class TestModelSmokeTests(unittest.TestCase):
             [(1, 1), (2, 2), (3, 3)],
         )
 
+    def test_edgeql_for_02(self):
+        self.assert_test_query(
+            r'''
+            WITH X := 1, FOR x in {X} UNION (x);
+            ''',
+            [1],
+        )
+
     def test_edgeql_with_01(self):
         self.assert_test_query(
             r'''
