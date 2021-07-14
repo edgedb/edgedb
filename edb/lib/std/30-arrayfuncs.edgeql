@@ -78,6 +78,8 @@ std::array_join(array: array<std::str>, delimiter: std::str) -> std::str
 
 CREATE INFIX OPERATOR
 std::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::=';
@@ -89,6 +91,9 @@ std::`=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL array<anytype>,
            r: OPTIONAL array<anytype>) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
     SET recursive := true;
@@ -97,6 +102,8 @@ std::`?=` (l: OPTIONAL array<anytype>,
 
 CREATE INFIX OPERATOR
 std::`!=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::!=';
@@ -108,6 +115,9 @@ std::`!=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL array<anytype>,
             r: OPTIONAL array<anytype>) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
     SET recursive := true;
@@ -115,6 +125,8 @@ std::`?!=` (l: OPTIONAL array<anytype>,
 
 CREATE INFIX OPERATOR
 std::`>=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::<=';
@@ -124,6 +136,8 @@ std::`>=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::<';
@@ -133,6 +147,8 @@ std::`>` (l: array<anytype>, r: array<anytype>) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::>=';
@@ -142,6 +158,8 @@ std::`<=` (l: array<anytype>, r: array<anytype>) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: array<anytype>, r: array<anytype>) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::>';
@@ -152,6 +170,8 @@ std::`<` (l: array<anytype>, r: array<anytype>) -> std::bool {
 # Concatenation
 CREATE INFIX OPERATOR
 std::`++` (l: array<anytype>, r: array<anytype>) -> array<anytype> {
+    CREATE ANNOTATION std::identifier := 'concat';
+    CREATE ANNOTATION std::description := 'Array concatenation.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR '||';
 };

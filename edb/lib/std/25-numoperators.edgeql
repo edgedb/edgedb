@@ -46,6 +46,8 @@
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::int16, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -55,6 +57,9 @@ std::`=` (l: std::int16, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -62,6 +67,8 @@ std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::int16, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -71,6 +78,9 @@ std::`=` (l: std::int16, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -78,6 +88,8 @@ std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::int16, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -87,6 +99,9 @@ std::`=` (l: std::int16, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -94,6 +109,8 @@ std::`?=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::int32, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -103,6 +120,9 @@ std::`=` (l: std::int32, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -110,6 +130,8 @@ std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::int32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -119,6 +141,9 @@ std::`=` (l: std::int32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -126,6 +151,8 @@ std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::int32, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -135,6 +162,9 @@ std::`=` (l: std::int32, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -142,6 +172,8 @@ std::`?=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::int64, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -151,6 +183,9 @@ std::`=` (l: std::int64, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -158,6 +193,8 @@ std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::int64, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -167,6 +204,9 @@ std::`=` (l: std::int64, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -174,6 +214,8 @@ std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::int64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -183,6 +225,9 @@ std::`=` (l: std::int64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -190,6 +235,8 @@ std::`?=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::float32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -199,6 +246,9 @@ std::`=` (l: std::float32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -206,6 +256,8 @@ std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::float32, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -215,6 +267,9 @@ std::`=` (l: std::float32, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -222,6 +277,8 @@ std::`?=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::float64, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -231,6 +288,9 @@ std::`=` (l: std::float64, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -238,6 +298,8 @@ std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::float64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -247,6 +309,9 @@ std::`=` (l: std::float64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -254,6 +319,8 @@ std::`?=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::bigint, r: std::bigint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -263,6 +330,8 @@ std::`=` (l: std::bigint, r: std::bigint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::decimal, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -272,6 +341,8 @@ std::`=` (l: std::decimal, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::decimal, r: std::anyint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -281,6 +352,9 @@ std::`=` (l: std::decimal, r: std::anyint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::bigint, r: OPTIONAL std::bigint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -288,6 +362,9 @@ std::`?=` (l: OPTIONAL std::bigint, r: OPTIONAL std::bigint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -295,6 +372,9 @@ std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -302,6 +382,8 @@ std::`?=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::anyint, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -311,6 +393,9 @@ std::`=` (l: std::anyint, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::anyint, r: OPTIONAL std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -320,6 +405,8 @@ std::`?=` (l: OPTIONAL std::anyint, r: OPTIONAL std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::int16, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -329,6 +416,9 @@ std::`!=` (l: std::int16, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -336,6 +426,8 @@ std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::int16, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -345,6 +437,9 @@ std::`!=` (l: std::int16, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -352,6 +447,8 @@ std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::int16, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -361,6 +458,9 @@ std::`!=` (l: std::int16, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -368,6 +468,8 @@ std::`?!=` (l: OPTIONAL std::int16, r: OPTIONAL std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::int32, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -377,6 +479,9 @@ std::`!=` (l: std::int32, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -384,6 +489,8 @@ std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::int32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -393,6 +500,9 @@ std::`!=` (l: std::int32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -400,6 +510,8 @@ std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::int32, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -409,6 +521,9 @@ std::`!=` (l: std::int32, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -416,6 +531,8 @@ std::`?!=` (l: OPTIONAL std::int32, r: OPTIONAL std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::int64, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -425,6 +542,9 @@ std::`!=` (l: std::int64, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -432,6 +552,8 @@ std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::int64, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -441,6 +563,9 @@ std::`!=` (l: std::int64, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -448,6 +573,8 @@ std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::int64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -457,6 +584,9 @@ std::`!=` (l: std::int64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -464,6 +594,8 @@ std::`?!=` (l: OPTIONAL std::int64, r: OPTIONAL std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::float32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -473,6 +605,9 @@ std::`!=` (l: std::float32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -480,6 +615,8 @@ std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::float32, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -489,6 +626,9 @@ std::`!=` (l: std::float32, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -496,6 +636,8 @@ std::`?!=` (l: OPTIONAL std::float32, r: OPTIONAL std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::float64, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -505,6 +647,9 @@ std::`!=` (l: std::float64, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -512,6 +657,8 @@ std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::float64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -521,6 +668,9 @@ std::`!=` (l: std::float64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -528,6 +678,8 @@ std::`?!=` (l: OPTIONAL std::float64, r: OPTIONAL std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::bigint, r: std::bigint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -537,6 +689,8 @@ std::`!=` (l: std::bigint, r: std::bigint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::decimal, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -546,6 +700,8 @@ std::`!=` (l: std::decimal, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::decimal, r: std::anyint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -555,6 +711,9 @@ std::`!=` (l: std::decimal, r: std::anyint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::bigint, r: OPTIONAL std::bigint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -562,6 +721,9 @@ std::`?!=` (l: OPTIONAL std::bigint, r: OPTIONAL std::bigint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -569,6 +731,9 @@ std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -576,6 +741,8 @@ std::`?!=` (l: OPTIONAL std::decimal, r: OPTIONAL std::anyint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::anyint, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -585,6 +752,9 @@ std::`!=` (l: std::anyint, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::anyint, r: OPTIONAL std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -595,6 +765,8 @@ std::`?!=` (l: OPTIONAL std::anyint, r: OPTIONAL std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int16, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -604,6 +776,8 @@ std::`>` (l: std::int16, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int16, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -613,6 +787,8 @@ std::`>` (l: std::int16, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int16, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -622,6 +798,8 @@ std::`>` (l: std::int16, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int32, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -631,6 +809,8 @@ std::`>` (l: std::int32, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -640,6 +820,8 @@ std::`>` (l: std::int32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int32, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -649,6 +831,8 @@ std::`>` (l: std::int32, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -658,6 +842,8 @@ std::`>` (l: std::int32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int64, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -667,6 +853,8 @@ std::`>` (l: std::int64, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int64, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -676,6 +864,8 @@ std::`>` (l: std::int64, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -685,6 +875,8 @@ std::`>` (l: std::int64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::int64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -694,6 +886,8 @@ std::`>` (l: std::int64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::float32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -703,6 +897,8 @@ std::`>` (l: std::float32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::float32, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -712,6 +908,8 @@ std::`>` (l: std::float32, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::float32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -721,6 +919,8 @@ std::`>` (l: std::float32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::float64, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -730,6 +930,8 @@ std::`>` (l: std::float64, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::float64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -739,6 +941,8 @@ std::`>` (l: std::float64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::float64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -748,6 +952,8 @@ std::`>` (l: std::float64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::bigint, r: std::bigint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -757,6 +963,8 @@ std::`>` (l: std::bigint, r: std::bigint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::decimal, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -766,6 +974,8 @@ std::`>` (l: std::decimal, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::anyint, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -775,6 +985,8 @@ std::`>` (l: std::anyint, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::decimal, r: std::anyint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -786,6 +998,8 @@ std::`>` (l: std::decimal, r: std::anyint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int16, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -795,6 +1009,8 @@ std::`>=` (l: std::int16, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int16, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -804,6 +1020,8 @@ std::`>=` (l: std::int16, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int16, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -813,6 +1031,8 @@ std::`>=` (l: std::int16, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int32, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -822,6 +1042,8 @@ std::`>=` (l: std::int32, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -831,6 +1053,8 @@ std::`>=` (l: std::int32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int32, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -840,6 +1064,8 @@ std::`>=` (l: std::int32, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -849,6 +1075,8 @@ std::`>=` (l: std::int32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int64, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -858,6 +1086,8 @@ std::`>=` (l: std::int64, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int64, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -867,6 +1097,8 @@ std::`>=` (l: std::int64, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -876,6 +1108,8 @@ std::`>=` (l: std::int64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::int64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -885,6 +1119,8 @@ std::`>=` (l: std::int64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::float32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -894,6 +1130,8 @@ std::`>=` (l: std::float32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::float32, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -903,6 +1141,8 @@ std::`>=` (l: std::float32, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::float32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -912,6 +1152,8 @@ std::`>=` (l: std::float32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::float64, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -921,6 +1163,8 @@ std::`>=` (l: std::float64, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::float64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -930,6 +1174,8 @@ std::`>=` (l: std::float64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::float64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -939,6 +1185,8 @@ std::`>=` (l: std::float64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::bigint, r: std::bigint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -948,6 +1196,8 @@ std::`>=` (l: std::bigint, r: std::bigint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::decimal, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -957,6 +1207,8 @@ std::`>=` (l: std::decimal, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::anyint, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -966,6 +1218,8 @@ std::`>=` (l: std::anyint, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::decimal, r: std::anyint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -977,6 +1231,8 @@ std::`>=` (l: std::decimal, r: std::anyint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int16, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -986,6 +1242,8 @@ std::`<` (l: std::int16, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int16, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -995,6 +1253,8 @@ std::`<` (l: std::int16, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int16, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1004,6 +1264,8 @@ std::`<` (l: std::int16, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int32, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1013,6 +1275,8 @@ std::`<` (l: std::int32, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1022,6 +1286,8 @@ std::`<` (l: std::int32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int32, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1031,6 +1297,8 @@ std::`<` (l: std::int32, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1040,6 +1308,8 @@ std::`<` (l: std::int32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int64, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1049,6 +1319,8 @@ std::`<` (l: std::int64, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int64, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1058,6 +1330,8 @@ std::`<` (l: std::int64, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1067,6 +1341,8 @@ std::`<` (l: std::int64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::int64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1076,6 +1352,8 @@ std::`<` (l: std::int64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::float32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1085,6 +1363,8 @@ std::`<` (l: std::float32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::float32, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1094,6 +1374,8 @@ std::`<` (l: std::float32, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::float32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1103,6 +1385,8 @@ std::`<` (l: std::float32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::float64, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1112,6 +1396,8 @@ std::`<` (l: std::float64, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::float64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1121,6 +1407,8 @@ std::`<` (l: std::float64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::float64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1130,6 +1418,8 @@ std::`<` (l: std::float64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::bigint, r: std::bigint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1139,6 +1429,8 @@ std::`<` (l: std::bigint, r: std::bigint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::decimal, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1148,6 +1440,8 @@ std::`<` (l: std::decimal, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::anyint, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1157,6 +1451,8 @@ std::`<` (l: std::anyint, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::decimal, r: std::anyint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -1168,6 +1464,8 @@ std::`<` (l: std::decimal, r: std::anyint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int16, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1177,6 +1475,8 @@ std::`<=` (l: std::int16, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int16, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1186,6 +1486,8 @@ std::`<=` (l: std::int16, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int16, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1195,6 +1497,8 @@ std::`<=` (l: std::int16, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int32, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1204,6 +1508,8 @@ std::`<=` (l: std::int32, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1213,6 +1519,8 @@ std::`<=` (l: std::int32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int32, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1222,6 +1530,8 @@ std::`<=` (l: std::int32, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1231,6 +1541,8 @@ std::`<=` (l: std::int32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int64, r: std::int16) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1240,6 +1552,8 @@ std::`<=` (l: std::int64, r: std::int16) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int64, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1249,6 +1563,8 @@ std::`<=` (l: std::int64, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1258,6 +1574,8 @@ std::`<=` (l: std::int64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::int64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1267,6 +1585,8 @@ std::`<=` (l: std::int64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::float32, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1276,6 +1596,8 @@ std::`<=` (l: std::float32, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::float32, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1285,6 +1607,8 @@ std::`<=` (l: std::float32, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::float32, r: std::int32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1294,6 +1618,8 @@ std::`<=` (l: std::float32, r: std::int32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::float64, r: std::float32) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1303,6 +1629,8 @@ std::`<=` (l: std::float64, r: std::float32) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::float64, r: std::float64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1312,6 +1640,8 @@ std::`<=` (l: std::float64, r: std::float64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::float64, r: std::int64) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1321,6 +1651,8 @@ std::`<=` (l: std::float64, r: std::int64) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::bigint, r: std::bigint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1330,6 +1662,8 @@ std::`<=` (l: std::bigint, r: std::bigint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::decimal, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1339,6 +1673,8 @@ std::`<=` (l: std::decimal, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::anyint, r: std::decimal) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1348,6 +1684,8 @@ std::`<=` (l: std::anyint, r: std::decimal) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::decimal, r: std::anyint) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -1359,6 +1697,8 @@ std::`<=` (l: std::decimal, r: std::anyint) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::int16, r: std::int16) -> std::int16 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
@@ -1367,6 +1707,8 @@ std::`+` (l: std::int16, r: std::int16) -> std::int16 {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::int32, r: std::int32) -> std::int32 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
@@ -1375,6 +1717,8 @@ std::`+` (l: std::int32, r: std::int32) -> std::int32 {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::int64, r: std::int64) -> std::int64 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
@@ -1383,6 +1727,8 @@ std::`+` (l: std::int64, r: std::int64) -> std::int64 {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::float32, r: std::float32) -> std::float32 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
@@ -1391,6 +1737,8 @@ std::`+` (l: std::float32, r: std::float32) -> std::float32 {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::float64, r: std::float64) -> std::float64 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
@@ -1399,6 +1747,8 @@ std::`+` (l: std::float64, r: std::float64) -> std::float64 {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::bigint, r: std::bigint) -> std::bigint {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+(numeric,numeric)';
@@ -1407,6 +1757,8 @@ std::`+` (l: std::bigint, r: std::bigint) -> std::bigint {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::decimal, r: std::decimal) -> std::decimal {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+';
@@ -1417,6 +1769,8 @@ std::`+` (l: std::decimal, r: std::decimal) -> std::decimal {
 
 CREATE PREFIX OPERATOR
 std::`+` (l: std::int16) -> std::int16 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'+';
 };
@@ -1424,6 +1778,8 @@ std::`+` (l: std::int16) -> std::int16 {
 
 CREATE PREFIX OPERATOR
 std::`+` (l: std::int32) -> std::int32 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'+';
 };
@@ -1431,6 +1787,8 @@ std::`+` (l: std::int32) -> std::int32 {
 
 CREATE PREFIX OPERATOR
 std::`+` (l: std::int64) -> std::int64 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'+';
 };
@@ -1438,6 +1796,8 @@ std::`+` (l: std::int64) -> std::int64 {
 
 CREATE PREFIX OPERATOR
 std::`+` (l: std::float32) -> std::float32 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'+';
 };
@@ -1445,6 +1805,8 @@ std::`+` (l: std::float32) -> std::float32 {
 
 CREATE PREFIX OPERATOR
 std::`+` (l: std::float64) -> std::float64 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'+';
 };
@@ -1452,6 +1814,8 @@ std::`+` (l: std::float64) -> std::float64 {
 
 CREATE PREFIX OPERATOR
 std::`+` (l: std::bigint) -> std::bigint {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'+(,numeric)';
 };
@@ -1459,6 +1823,8 @@ std::`+` (l: std::bigint) -> std::bigint {
 
 CREATE PREFIX OPERATOR
 std::`+` (l: std::decimal) -> std::decimal {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description := 'Arithmetic addition.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'+';
 };
@@ -1469,6 +1835,8 @@ std::`+` (l: std::decimal) -> std::decimal {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::int16, r: std::int16) -> std::int16 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1476,6 +1844,8 @@ std::`-` (l: std::int16, r: std::int16) -> std::int16 {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::int32, r: std::int32) -> std::int32 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1483,6 +1853,8 @@ std::`-` (l: std::int32, r: std::int32) -> std::int32 {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::int64, r: std::int64) -> std::int64 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1490,6 +1862,8 @@ std::`-` (l: std::int64, r: std::int64) -> std::int64 {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::float32, r: std::float32) -> std::float32 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1497,6 +1871,8 @@ std::`-` (l: std::float32, r: std::float32) -> std::float32 {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::float64, r: std::float64) -> std::float64 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1504,6 +1880,8 @@ std::`-` (l: std::float64, r: std::float64) -> std::float64 {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::bigint, r: std::bigint) -> std::bigint {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-(numeric,numeric)';
 };
@@ -1511,6 +1889,8 @@ std::`-` (l: std::bigint, r: std::bigint) -> std::bigint {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::decimal, r: std::decimal) -> std::decimal {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1520,6 +1900,8 @@ std::`-` (l: std::decimal, r: std::decimal) -> std::decimal {
 
 CREATE PREFIX OPERATOR
 std::`-` (l: std::int16) -> std::int16 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1527,6 +1909,8 @@ std::`-` (l: std::int16) -> std::int16 {
 
 CREATE PREFIX OPERATOR
 std::`-` (l: std::int32) -> std::int32 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1534,6 +1918,8 @@ std::`-` (l: std::int32) -> std::int32 {
 
 CREATE PREFIX OPERATOR
 std::`-` (l: std::int64) -> std::int64 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1541,6 +1927,8 @@ std::`-` (l: std::int64) -> std::int64 {
 
 CREATE PREFIX OPERATOR
 std::`-` (l: std::float32) -> std::float32 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1548,6 +1936,8 @@ std::`-` (l: std::float32) -> std::float32 {
 
 CREATE PREFIX OPERATOR
 std::`-` (l: std::float64) -> std::float64 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1555,6 +1945,8 @@ std::`-` (l: std::float64) -> std::float64 {
 
 CREATE PREFIX OPERATOR
 std::`-` (l: std::bigint) -> std::bigint {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-(,numeric)';
 };
@@ -1562,6 +1954,8 @@ std::`-` (l: std::bigint) -> std::bigint {
 
 CREATE PREFIX OPERATOR
 std::`-` (l: std::decimal) -> std::decimal {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description := 'Arithmetic subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-';
 };
@@ -1571,6 +1965,8 @@ std::`-` (l: std::decimal) -> std::decimal {
 
 CREATE INFIX OPERATOR
 std::`*` (l: std::int16, r: std::int16) -> std::int16 {
+    CREATE ANNOTATION std::identifier := 'mult';
+    CREATE ANNOTATION std::description := 'Arithmetic multiplication.';
     SET volatility := 'Immutable';
     SET commutator := 'std::*';
     USING SQL OPERATOR r'*';
@@ -1579,6 +1975,8 @@ std::`*` (l: std::int16, r: std::int16) -> std::int16 {
 
 CREATE INFIX OPERATOR
 std::`*` (l: std::int32, r: std::int32) -> std::int32 {
+    CREATE ANNOTATION std::identifier := 'mult';
+    CREATE ANNOTATION std::description := 'Arithmetic multiplication.';
     SET volatility := 'Immutable';
     SET commutator := 'std::*';
     USING SQL OPERATOR r'*';
@@ -1587,6 +1985,8 @@ std::`*` (l: std::int32, r: std::int32) -> std::int32 {
 
 CREATE INFIX OPERATOR
 std::`*` (l: std::int64, r: std::int64) -> std::int64 {
+    CREATE ANNOTATION std::identifier := 'mult';
+    CREATE ANNOTATION std::description := 'Arithmetic multiplication.';
     SET volatility := 'Immutable';
     SET commutator := 'std::*';
     USING SQL OPERATOR r'*';
@@ -1595,6 +1995,8 @@ std::`*` (l: std::int64, r: std::int64) -> std::int64 {
 
 CREATE INFIX OPERATOR
 std::`*` (l: std::float32, r: std::float32) -> std::float32 {
+    CREATE ANNOTATION std::identifier := 'mult';
+    CREATE ANNOTATION std::description := 'Arithmetic multiplication.';
     SET volatility := 'Immutable';
     SET commutator := 'std::*';
     USING SQL OPERATOR r'*';
@@ -1603,6 +2005,8 @@ std::`*` (l: std::float32, r: std::float32) -> std::float32 {
 
 CREATE INFIX OPERATOR
 std::`*` (l: std::float64, r: std::float64) -> std::float64 {
+    CREATE ANNOTATION std::identifier := 'mult';
+    CREATE ANNOTATION std::description := 'Arithmetic multiplication.';
     SET volatility := 'Immutable';
     SET commutator := 'std::*';
     USING SQL OPERATOR r'*';
@@ -1611,6 +2015,8 @@ std::`*` (l: std::float64, r: std::float64) -> std::float64 {
 
 CREATE INFIX OPERATOR
 std::`*` (l: std::bigint, r: std::bigint) -> std::bigint {
+    CREATE ANNOTATION std::identifier := 'mult';
+    CREATE ANNOTATION std::description := 'Arithmetic multiplication.';
     SET volatility := 'Immutable';
     SET commutator := 'std::*';
     USING SQL OPERATOR r'*(numeric,numeric)';
@@ -1619,6 +2025,8 @@ std::`*` (l: std::bigint, r: std::bigint) -> std::bigint {
 
 CREATE INFIX OPERATOR
 std::`*` (l: std::decimal, r: std::decimal) -> std::decimal {
+    CREATE ANNOTATION std::identifier := 'mult';
+    CREATE ANNOTATION std::description := 'Arithmetic multiplication.';
     SET volatility := 'Immutable';
     SET commutator := 'std::*';
     USING SQL OPERATOR r'*';
@@ -1628,8 +2036,9 @@ std::`*` (l: std::decimal, r: std::decimal) -> std::decimal {
 # DIV
 
 CREATE INFIX OPERATOR
-std::`/` (l: std::int64, r: std::int64) -> std::float64
-{
+std::`/` (l: std::int64, r: std::int64) -> std::float64 {
+    CREATE ANNOTATION std::identifier := 'div';
+    CREATE ANNOTATION std::description := 'Arithmetic division.';
     SET volatility := 'Immutable';
     # We need both USING SQL OPERATOR and USING SQL to copy
     # the common attributes of the SQL division operator while
@@ -1641,6 +2050,8 @@ std::`/` (l: std::int64, r: std::int64) -> std::float64
 
 CREATE INFIX OPERATOR
 std::`/` (l: std::float32, r: std::float32) -> std::float32 {
+    CREATE ANNOTATION std::identifier := 'div';
+    CREATE ANNOTATION std::description := 'Arithmetic division.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
 };
@@ -1648,6 +2059,8 @@ std::`/` (l: std::float32, r: std::float32) -> std::float32 {
 
 CREATE INFIX OPERATOR
 std::`/` (l: std::float64, r: std::float64) -> std::float64 {
+    CREATE ANNOTATION std::identifier := 'div';
+    CREATE ANNOTATION std::description := 'Arithmetic division.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
 };
@@ -1655,6 +2068,8 @@ std::`/` (l: std::float64, r: std::float64) -> std::float64 {
 
 CREATE INFIX OPERATOR
 std::`/` (l: std::decimal, r: std::decimal) -> std::decimal {
+    CREATE ANNOTATION std::identifier := 'div';
+    CREATE ANNOTATION std::description := 'Arithmetic division.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
 };
@@ -1671,6 +2086,9 @@ std::`/` (l: std::decimal, r: std::decimal) -> std::decimal {
 CREATE INFIX OPERATOR
 std::`//` (n: std::int16, d: std::int16) -> std::int16
 {
+    CREATE ANNOTATION std::identifier := 'floordiv';
+    CREATE ANNOTATION std::description :=
+        'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     # We need both USING SQL OPERATOR and USING SQL FUNCTION to copy
     # the common attributes of the SQL division operator while
@@ -1683,6 +2101,9 @@ std::`//` (n: std::int16, d: std::int16) -> std::int16
 CREATE INFIX OPERATOR
 std::`//` (n: std::int32, d: std::int32) -> std::int32
 {
+    CREATE ANNOTATION std::identifier := 'floordiv';
+    CREATE ANNOTATION std::description :=
+        'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
     USING SQL 'SELECT floor("n"::numeric / "d"::numeric)::int4';
@@ -1692,6 +2113,9 @@ std::`//` (n: std::int32, d: std::int32) -> std::int32
 CREATE INFIX OPERATOR
 std::`//` (n: std::int64, d: std::int64) -> std::int64
 {
+    CREATE ANNOTATION std::identifier := 'floordiv';
+    CREATE ANNOTATION std::description :=
+        'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
     USING SQL 'SELECT floor("n"::numeric / "d"::numeric)::int8';
@@ -1701,6 +2125,9 @@ std::`//` (n: std::int64, d: std::int64) -> std::int64
 CREATE INFIX OPERATOR
 std::`//` (n: std::float32, d: std::float32) -> std::float32
 {
+    CREATE ANNOTATION std::identifier := 'floordiv';
+    CREATE ANNOTATION std::description :=
+        'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
     USING SQL 'SELECT floor("n" / "d")::float4';
@@ -1710,6 +2137,9 @@ std::`//` (n: std::float32, d: std::float32) -> std::float32
 CREATE INFIX OPERATOR
 std::`//` (n: std::float64, d: std::float64) -> std::float64
 {
+    CREATE ANNOTATION std::identifier := 'floordiv';
+    CREATE ANNOTATION std::description :=
+        'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
     USING SQL 'SELECT floor("n" / "d")';
@@ -1719,6 +2149,9 @@ std::`//` (n: std::float64, d: std::float64) -> std::float64
 CREATE INFIX OPERATOR
 std::`//` (n: std::bigint, d: std::bigint) -> std::bigint
 {
+    CREATE ANNOTATION std::identifier := 'floordiv';
+    CREATE ANNOTATION std::description :=
+        'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/(numeric,numeric)';
     USING SQL 'SELECT floor("n" / "d")::edgedb.bigint_t;'
@@ -1728,6 +2161,9 @@ std::`//` (n: std::bigint, d: std::bigint) -> std::bigint
 CREATE INFIX OPERATOR
 std::`//` (n: std::decimal, d: std::decimal) -> std::decimal
 {
+    CREATE ANNOTATION std::identifier := 'floordiv';
+    CREATE ANNOTATION std::description :=
+        'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
     USING SQL 'SELECT floor("n" / "d");'
@@ -1739,6 +2175,8 @@ std::`//` (n: std::decimal, d: std::decimal) -> std::decimal
 CREATE INFIX OPERATOR
 std::`%` (n: std::int16, d: std::int16) -> std::int16
 {
+    CREATE ANNOTATION std::identifier := 'mod';
+    CREATE ANNOTATION std::description := 'Remainder from division (modulo).';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
@@ -1750,6 +2188,8 @@ std::`%` (n: std::int16, d: std::int16) -> std::int16
 CREATE INFIX OPERATOR
 std::`%` (n: std::int32, d: std::int32) -> std::int32
 {
+    CREATE ANNOTATION std::identifier := 'mod';
+    CREATE ANNOTATION std::description := 'Remainder from division (modulo).';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
@@ -1761,6 +2201,8 @@ std::`%` (n: std::int32, d: std::int32) -> std::int32
 CREATE INFIX OPERATOR
 std::`%` (n: std::int64, d: std::int64) -> std::int64
 {
+    CREATE ANNOTATION std::identifier := 'mod';
+    CREATE ANNOTATION std::description := 'Remainder from division (modulo).';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
@@ -1772,6 +2214,8 @@ std::`%` (n: std::int64, d: std::int64) -> std::int64
 CREATE INFIX OPERATOR
 std::`%` (n: std::float32, d: std::float32) -> std::float32
 {
+    CREATE ANNOTATION std::identifier := 'mod';
+    CREATE ANNOTATION std::description := 'Remainder from division (modulo).';
     SET volatility := 'Immutable';
     # We cheat here a bit by copying most of SQL operator metadata
     # from the `/` operator, since there is no float % in Postgres.
@@ -1785,6 +2229,8 @@ std::`%` (n: std::float32, d: std::float32) -> std::float32
 CREATE INFIX OPERATOR
 std::`%` (n: std::float64, d: std::float64) -> std::float64
 {
+    CREATE ANNOTATION std::identifier := 'mod';
+    CREATE ANNOTATION std::description := 'Remainder from division (modulo).';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
     USING SQL $$
@@ -1796,6 +2242,8 @@ std::`%` (n: std::float64, d: std::float64) -> std::float64
 CREATE INFIX OPERATOR
 std::`%` (n: std::bigint, d: std::bigint) -> std::bigint
 {
+    CREATE ANNOTATION std::identifier := 'mod';
+    CREATE ANNOTATION std::description := 'Remainder from division (modulo).';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%(numeric,numeric)';
     USING SQL $$
@@ -1807,6 +2255,8 @@ std::`%` (n: std::bigint, d: std::bigint) -> std::bigint
 CREATE INFIX OPERATOR
 std::`%` (n: std::decimal, d: std::decimal) -> std::decimal
 {
+    CREATE ANNOTATION std::identifier := 'mod';
+    CREATE ANNOTATION std::description := 'Remainder from division (modulo).';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
@@ -1820,6 +2270,8 @@ std::`%` (n: std::decimal, d: std::decimal) -> std::decimal
 CREATE INFIX OPERATOR
 std::`^` (n: std::int64, p: std::int64) -> std::float64
 {
+    CREATE ANNOTATION std::identifier := 'pow';
+    CREATE ANNOTATION std::description := 'Power operation.';
     SET volatility := 'Immutable';
     # We cheat here a bit by copying most of SQL operator metadata
     # from the `/` operator, since there is no int ^ in Postgres. The
@@ -1835,6 +2287,8 @@ std::`^` (n: std::int64, p: std::int64) -> std::float64
 CREATE INFIX OPERATOR
 std::`^` (n: std::float32, p: std::float32) -> std::float32
 {
+    CREATE ANNOTATION std::identifier := 'pow';
+    CREATE ANNOTATION std::description := 'Power operation.';
     SET volatility := 'Immutable';
     # We cheat here a bit by copying most of SQL operator metadata
     # from the `/` operator, since there is no float4 ^ in Postgres.
@@ -1848,6 +2302,8 @@ std::`^` (n: std::float32, p: std::float32) -> std::float32
 
 CREATE INFIX OPERATOR
 std::`^` (n: std::float64, p: std::float64) -> std::float64 {
+    CREATE ANNOTATION std::identifier := 'pow';
+    CREATE ANNOTATION std::description := 'Power operation.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR '^';
 };
@@ -1855,6 +2311,8 @@ std::`^` (n: std::float64, p: std::float64) -> std::float64 {
 
 CREATE INFIX OPERATOR
 std::`^` (n: std::bigint, p: std::bigint) -> std::decimal {
+    CREATE ANNOTATION std::identifier := 'pow';
+    CREATE ANNOTATION std::description := 'Power operation.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR '^(numeric,numeric)';
 };
@@ -1862,6 +2320,8 @@ std::`^` (n: std::bigint, p: std::bigint) -> std::decimal {
 
 CREATE INFIX OPERATOR
 std::`^` (n: std::decimal, p: std::decimal) -> std::decimal {
+    CREATE ANNOTATION std::identifier := 'pow';
+    CREATE ANNOTATION std::description := 'Power operation.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR '^';
 };

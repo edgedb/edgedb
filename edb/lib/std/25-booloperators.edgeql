@@ -35,6 +35,8 @@
 # boolean expression in conjunction.
 CREATE INFIX OPERATOR
 std::`OR` (a: std::bool, b: std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'or';
+    CREATE ANNOTATION std::description := 'Logical disjunction.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT ("a" OR "b") AND ("a"::int | "b"::int)::bool
@@ -46,6 +48,8 @@ std::`OR` (a: std::bool, b: std::bool) -> std::bool {
 # by the compiler into some SQL expression.
 CREATE INFIX OPERATOR
 std::`AND` (a: std::bool, b: std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'and';
+    CREATE ANNOTATION std::description := 'Logical conjunction.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -53,6 +57,8 @@ std::`AND` (a: std::bool, b: std::bool) -> std::bool {
 
 CREATE PREFIX OPERATOR
 std::`NOT` (v: std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'not';
+    CREATE ANNOTATION std::description := 'Logical negation.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -60,6 +66,8 @@ std::`NOT` (v: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::bool, r: std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -69,6 +77,9 @@ std::`=` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -76,6 +87,8 @@ std::`?=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::bool, r: std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -85,6 +98,9 @@ std::`!=` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -92,6 +108,8 @@ std::`?!=` (l: OPTIONAL std::bool, r: OPTIONAL std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::bool, r: std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -101,6 +119,8 @@ std::`>=` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::bool, r: std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -110,6 +130,8 @@ std::`>` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::bool, r: std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -119,6 +141,8 @@ std::`<=` (l: std::bool, r: std::bool) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::bool, r: std::bool) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
