@@ -43,7 +43,7 @@ def edbcommands(ctx, devmode: bool):
 
 
 @edbcommands.command()
-@srv_args.server_options(has_devmode=True)
+@srv_args.server_options
 def server(version=False, **kwargs):
     if version:
         print(f"edb, version {buildmeta.get_version()}")

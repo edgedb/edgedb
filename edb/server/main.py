@@ -490,7 +490,7 @@ def server_main(*, insecure=False, **kwargs):
 @click.command(
     'EdgeDB Server',
     context_settings=dict(help_option_names=['-h', '--help']))
-@srvargs.server_options()
+@srvargs.server_options
 def main(version=False, **kwargs):
     if version:
         print(f"edgedb-server, version {buildmeta.get_version()}")

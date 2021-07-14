@@ -320,15 +320,12 @@ _server_options = [
         '--auto-shutdown-after', type=float, default=-1.0,
         help='shutdown the server after the last connection has been closed '
              'for N seconds. N < 0 is treated as infinite.'),
-    lambda has_devmode, func: click.option(
+    click.option(
         '--tls-cert-file',
         type=PathPath(),
         help='Specify a path to a single file in PEM format containing the '
              'TLS certificate as well as any number of CA certificates needed '
-             'to establish the certificate’s authenticity.' + (
-                 ' If not present, a self-signed certificate will be '
-                 'generated and used instead.' if has_devmode else '')
-    )(func),
+             'to establish the certificate’s authenticity.'),
     click.option(
         '--tls-key-file', type=PathPath(),
         help='Specify a path to a file containing the private key. If not '
@@ -345,15 +342,10 @@ _server_options = [
 ]
 
 
-def server_options(has_devmode=False):
-    def decorator(func):
-        for option in reversed(_server_options):
-            try:
-                func = option(func)
-            except TypeError:
-                func = option(has_devmode, func)
-        return func
-    return decorator
+def server_options(func):
+    for option in reversed(_server_options):
+        func = option(func)
+    return func
 
 
 def parse_args(**kwargs: Any):
