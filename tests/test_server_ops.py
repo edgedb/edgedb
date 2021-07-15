@@ -307,9 +307,9 @@ class TestServerOps(tb.TestCase):
 
                     # stop the postgres
                     cluster.stop()
-                    # TODO: Use PostgresUnavailableError here
+                    # TODO: Use PostgresUnavailableError here, same below
                     with self.assertRaisesRegex(
-                        errors.InternalServerError,
+                        errors.EdgeDBError,
                         'Postgres is not available',
                     ):
                         await con.query_one('SELECT 123+456')
@@ -323,7 +323,7 @@ class TestServerOps(tb.TestCase):
                         try:
                             val = await con.query_one('SELECT 123+456')
                             break
-                        except errors.InternalServerError:
+                        except errors.EdgeDBError:  # TODO: ditto
                             pass
                     self.assertEqual(int(val), 579)
                 finally:
