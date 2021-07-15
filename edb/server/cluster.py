@@ -251,9 +251,7 @@ class BaseCluster:
     def _admin_query(self, query, wait_until_available="0s"):
         return subprocess.call(
             [
-                sys.executable,
-                "-m",
-                "edb.cli",
+                "edgedb",
                 "--host",
                 str(self._runstate_dir),
                 "--port",
