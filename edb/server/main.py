@@ -418,7 +418,10 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                             ),
                         ),
                     )
-                if not args.tls_cert_file:
+
+                if args.tls_cert_file:
+                    tls_cert_gen_dir = None
+                else:
                     if args.data_dir:
                         tls_cert_gen_dir = args.data_dir
                     else:
