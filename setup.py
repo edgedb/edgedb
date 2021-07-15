@@ -60,7 +60,7 @@ RUNTIME_DEPS = [
     'graphql-core~=3.1.5',
     'promise~=2.2.0',
 
-    'edgedb@git+https://github.com/edgedb/edgedb-python.git@master',
+    'edgedb>=0.16.0',
 ]
 
 CYTHON_DEPENDENCY = 'Cython==0.29.23'
