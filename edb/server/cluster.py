@@ -54,6 +54,8 @@ class BaseCluster:
 
         if devmode.is_in_dev_mode():
             self._edgedb_cmd.append('--devmode')
+        else:
+            self._edgedb_cmd.append('--generate-self-signed-cert')
 
         if testmode:
             self._edgedb_cmd.append('--testmode')

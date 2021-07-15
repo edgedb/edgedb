@@ -1502,6 +1502,7 @@ class _EdgeDBServer:
             '--testmode',
             '--emit-server-status', f'fd://{status_w.fileno()}',
             '--compiler-pool-size', str(self.compiler_pool_size),
+            '--generate-self-signed-cert',
         ]
 
         reset_auth = self.reset_auth
