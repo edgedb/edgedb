@@ -175,7 +175,6 @@ async def _run_server(
     args: srvargs.ServerConfig,
     runstate_dir,
     internal_runstate_dir,
-    tls_cert_gen_dir,
     *,
     do_setproctitle: bool
 ):
@@ -198,7 +197,10 @@ async def _run_server(
 
         if args.generate_self_signed_cert:
             ss.init_tls(
-                *_generate_cert(tls_cert_gen_dir, ss.get_listen_host())
+                *_generate_cert(
+                    args.data_dir or pathlib.Path(internal_runstate_dir),
+                    ss.get_listen_host(),
+                )
             )
 
         if args.startup_script:
@@ -304,7 +306,6 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
 
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
-    cert_temp_dir = None
 
     if args.tenant_id is None:
         tenant_id = buildmeta.get_default_tenant_id()
@@ -423,21 +424,12 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                         ),
                     )
 
-                tls_cert_gen_dir = None
-                if args.generate_self_signed_cert:
-                    if args.data_dir:
-                        tls_cert_gen_dir = args.data_dir
-                    else:
-                        cert_temp_dir = tempfile.TemporaryDirectory()
-                        tls_cert_gen_dir = pathlib.Path(cert_temp_dir.name)
-
                 asyncio.run(
                     _run_server(
                         cluster,
                         args,
                         runstate_dir,
                         internal_runstate_dir,
-                        tls_cert_gen_dir,
                         do_setproctitle=do_setproctitle,
                     )
                 )
@@ -462,8 +454,6 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
 
         elif pg_cluster_started_by_us:
             cluster.stop()
-        if cert_temp_dir is not None:
-            cert_temp_dir.cleanup()
 
 
 def bump_rlimit_nofile() -> None:
