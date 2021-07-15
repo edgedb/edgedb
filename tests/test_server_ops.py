@@ -103,6 +103,7 @@ class TestServerOps(tb.TestCase):
             '--bootstrap-only',
             '--log-level=error',
             '--max-backend-connections', '10',
+            '--generate-self-signed-cert',
         ]
 
         # Note: for debug comment "stderr=subprocess.PIPE".
@@ -145,6 +146,7 @@ class TestServerOps(tb.TestCase):
             '--log-level=debug',
             '--max-backend-connections', '10',
             '--emit-server-status', status_file,
+            '--generate-self-signed-cert',
         ]
 
         proc: Optional[asyncio.Process] = None
