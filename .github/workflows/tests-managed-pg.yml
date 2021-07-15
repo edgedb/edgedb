@@ -73,7 +73,7 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v2-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
       uses: actions/cache@v2
@@ -129,9 +129,9 @@ jobs:
       if: steps.cli-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/cli
-        key: edb-cli-build-v1-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-build-v2-${{ env.EDGEDBCLI_GIT_REV }}
         restore-keys: |
-          edb-cli-build-v1-
+          edb-cli-build-v2-
 
     - name: Build EdgeDB CLI
       env:
@@ -353,7 +353,7 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v2-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
@@ -545,7 +545,7 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v2-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
@@ -785,7 +785,7 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v1-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v2-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
