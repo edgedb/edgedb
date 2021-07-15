@@ -245,7 +245,7 @@ class BaseCluster:
             asyncio.run(test())
             left -= (time.monotonic() - started)
 
-        if self._admin_query("SELECT ();", f"{min(1, int(left))}s"):
+        if self._admin_query("SELECT ();", f"{max(1, int(left))}s"):
             raise ClusterError(
                 f'could not connect to edgedb-server '
                 f'within {timeout} seconds') from None
@@ -253,9 +253,7 @@ class BaseCluster:
     def _admin_query(self, query, wait_until_available="0s"):
         return subprocess.call(
             [
-                sys.executable,
-                "-m",
-                "edb.cli",
+                "edgedb",
                 "--host",
                 str(self._runstate_dir),
                 "--port",

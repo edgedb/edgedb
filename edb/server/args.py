@@ -93,6 +93,7 @@ class ServerConfig(NamedTuple):
 
     tls_cert_file: Optional[pathlib.Path]
     tls_key_file: Optional[pathlib.Path]
+    generate_self_signed_cert: bool
     allow_cleartext_connections: bool
 
 
@@ -484,7 +485,7 @@ def parse_args(**kwargs: Any):
                 if (tls_key_file := data_dir / TLS_KEY_FILE_NAME).exists():
                     kwargs['tls_key_file'] = tls_key_file
     if (
-        not kwargs.pop('generate_self_signed_cert')
+        not kwargs['generate_self_signed_cert']
         and not kwargs['tls_cert_file']
         and not kwargs['bootstrap_only']
     ):
