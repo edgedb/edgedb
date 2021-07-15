@@ -280,8 +280,8 @@ GQL_TO_OPS_MAP = {
 
 HIDDEN_MODULES = set(s_schema.STD_MODULES) - {s_name.UnqualName('std')}
 TOP_LEVEL_TYPES = {
-    s_name.QualName(module='stdgraphql', name='Query'),
-    s_name.QualName(module='stdgraphql', name='Mutation'),
+    s_name.QualName(module='__graphql__', name='Query'),
+    s_name.QualName(module='__graphql__', name='Mutation'),
 }
 
 
@@ -336,7 +336,8 @@ class GQLCoreSchema:
 
         self._define_types()
 
-        Query = s_name.QualName(module='stdgraphql', name='Query')
+        # Use a fake name as a placeholder.
+        Query = s_name.QualName(module='__graphql__', name='Query')
         query = self._gql_objtypes[Query] = GraphQLObjectType(
             name='Query',
             fields=self.get_fields(Query),
@@ -347,7 +348,7 @@ class GQLCoreSchema:
         # but we would still want the reflection to work without
         # error, even if all that can be discovered through GraphQL
         # then is the schema.
-        Mutation = s_name.QualName(module='stdgraphql', name='Mutation')
+        Mutation = s_name.QualName(module='__graphql__', name='Mutation')
         fields = self.get_fields(Mutation)
         if not fields:
             mutation = None
@@ -590,7 +591,7 @@ class GQLCoreSchema:
     ) -> Dict[str, GraphQLField]:
         fields = {}
 
-        if str(typename) == 'stdgraphql::Query':
+        if str(typename) == '__graphql__::Query':
             # The fields here will come from abstract types and aliases.
             queryable: List[Tuple[s_name.QualName, GraphQLNamedType]] = []
             queryable.extend(self._gql_interfaces.items())
@@ -606,7 +607,7 @@ class GQLCoreSchema:
                     GraphQLList(GraphQLNonNull(gqliface)),
                     args=self._get_query_args(name),
                 )
-        elif str(typename) == 'stdgraphql::Mutation':
+        elif str(typename) == '__graphql__::Mutation':
             for name, gqltype in sorted(self._gql_objtypes.items(),
                                         key=lambda x: x[1].name):
                 # '_edb' prefix indicates an internally generated type
@@ -1308,7 +1309,7 @@ class GQLCoreSchema:
         edb_base = None
         kwargs: Dict[str, Any] = {'dummy': dummy}
 
-        if not name.startswith('stdgraphql::'):
+        if not name.startswith('__graphql__::'):
             if edb_base is None:
                 if '::' in name:
                     edb_base = self.edb_schema.get(
@@ -1375,7 +1376,7 @@ class GQLTypeMeta(type):
 class GQLBaseType(metaclass=GQLTypeMeta):
 
     edb_type: ClassVar[Optional[s_name.QualName]] = None
-    _edb_base: s_types.Type
+    _edb_base: Optional[s_types.Type]
     _module: Optional[str]
     _fields: Dict[Tuple[str, bool], GQLBaseType]
     _shadow_fields: Tuple[str, ...]
@@ -1392,17 +1393,21 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
         if edb_base is None:
             if self.edb_type:
-                edb_base = schema.edb_schema.get(
-                    self.edb_type,
-                    type=s_objtypes.ObjectType,
-                )
+                if self.edb_type.module == '__graphql__':
+                    edb_base_name = str(self.edb_type)
+                else:
+                    edb_base = schema.edb_schema.get(
+                        self.edb_type,
+                        type=s_objtypes.ObjectType,
+                    )
+                    edb_base_name = str(edb_base.get_name(schema.edb_schema))
             else:
                 raise AssertionError(
                     f'neither the constructor, nor the class attribute '
                     f'define a required edb_base for {type(self)!r}',
                 )
-
-        edb_base_name = str(edb_base.get_name(schema.edb_schema))
+        else:
+            edb_base_name = str(edb_base.get_name(schema.edb_schema))
 
         # __typename
         if name is None:
@@ -1476,11 +1481,13 @@ class GQLBaseType(metaclass=GQLTypeMeta):
         return self._module
 
     @property
-    def edb_base(self) -> s_types.Type:
+    def edb_base(self) -> Optional[s_types.Type]:
         return self._edb_base
 
     @property
-    def edb_base_name_ast(self) -> qlast.ObjectRef:
+    def edb_base_name_ast(self) -> Optional[qlast.ObjectRef]:
+        if self.edb_base is None:
+            return None
         if isinstance(self.edb_base, s_types.Array):
             el = self.edb_base.get_element_type(self.edb_schema)
             base_name = el.get_name(self.edb_schema)
@@ -1499,13 +1506,23 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
     @property
     def edb_base_name(self) -> str:
-        return codegen.generate_source(self.edb_base_name_ast)
+        ast = self.edb_base_name_ast
+        if ast is None:
+            return ''
+        else:
+            return codegen.generate_source(ast)
 
     @property
     def gql_typename(self) -> str:
         name = self.name
         module, shortname = name.split('::', 1)
-        if self.edb_base.is_view(self.edb_schema):
+
+        if self.edb_base is None:
+            # We expect that this is one of the fake objects, that
+            # only have an edb_type.
+            assert self.edb_type is not None
+            return self.edb_type.name
+        elif self.edb_base.is_view(self.edb_schema):
             suffix = ''
         else:
             suffix = '_Type'
@@ -1589,7 +1606,9 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return False
 
     def issubclass(self, other: Any) -> bool:
-        if isinstance(other, GQLShadowType):
+        if (self.edb_base is not None and
+            other.edb_base is not None and
+                isinstance(other, GQLShadowType)):
             return self.edb_base.issubclass(self._schema.edb_schema,
                                             other.edb_base)
         else:
@@ -1636,13 +1655,24 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             return eql, shape, filterable
 
         if name == '__typename' and not self.is_field_shadowed(name):
-            is_view = self.edb_base.is_view(self.edb_schema)
-            if is_view:
+            if self.edb_base is None:
+                # We expect that this is one of the fake objects, that
+                # only have an edb_type.
+                assert self.edb_type is not None
+                eql = parse_fragment(f'{self.edb_type.name!r}')
+            elif self.edb_base.is_view(self.edb_schema):
                 eql = parse_fragment(f'{self.gql_typename!r}')
             else:
-                eql = parse_fragment(
-                    f'''stdgraphql::short_name(
-                        {codegen.generate_source(parent)}.__type__.name)''')
+                # Construct the GraphQL type name from the actual type name.
+                eql = parse_fragment(f'''
+                    WITH name := {codegen.generate_source(parent)}
+                        .__type__.name
+                    SELECT (
+                        name[5:] IF name LIKE 'std::%' ELSE
+                        name[9:] IF name LIKE 'default::%' ELSE
+                        re_replace(r'(.+?)::(.+$)', r'\1__\2', name)
+                    ) ++ '_Type'
+                ''')
 
         elif has_shape:
             eql = parse_fragment(
@@ -1705,7 +1735,10 @@ class GQLShadowType(GQLBaseType):
 
     @property
     def is_enum(self) -> bool:
-        return self.edb_base.is_enum(self.edb_schema)
+        if self.edb_base is None:
+            return False
+        else:
+            return self.edb_base.is_enum(self.edb_schema)
 
 
 class GQLBaseQuery(GQLBaseType):
@@ -1720,7 +1753,6 @@ class GQLBaseQuery(GQLBaseType):
     ) -> None:
         self.modules = schema.modules
         super().__init__(schema, name=name, edb_base=edb_base, dummy=dummy)
-        self._shadow_fields = ('__typename',)
         # Record names of std built-in object types
         self._std_obj_names = [
             t.get_name(self.edb_schema).name for t in
@@ -1740,7 +1772,7 @@ class GQLBaseQuery(GQLBaseType):
 
 
 class GQLQuery(GQLBaseQuery):
-    edb_type = s_name.QualName(module='stdgraphql', name='Query')
+    edb_type = s_name.QualName(module='__graphql__', name='Query')
 
     def get_field_type(self, name: str) -> Optional[GQLBaseType]:
         fkey = (name, self.dummy)
@@ -1750,10 +1782,7 @@ class GQLQuery(GQLBaseQuery):
             if fkey in self._fields:
                 return self._fields[fkey]
 
-            target = self.convert_edb_to_gql_type(
-                self.edb_schema.get(self.edb_type, type=s_objtypes.ObjectType),
-                dummy=True,
-            )
+            target = self.schema.get(str(self.edb_type), dummy=True)
 
         else:
             target = super().get_field_type(name)
@@ -1776,7 +1805,7 @@ class GQLQuery(GQLBaseQuery):
 
 
 class GQLMutation(GQLBaseQuery):
-    edb_type = s_name.QualName(module='stdgraphql', name='Mutation')
+    edb_type = s_name.QualName(module='__graphql__', name='Mutation')
 
     def get_field_type(self, name: str) -> Optional[GQLBaseType]:
         fkey = (name, self.dummy)

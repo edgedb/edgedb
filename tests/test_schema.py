@@ -6263,18 +6263,24 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             """,
 
-            'DESCRIBE FUNCTION stdgraphql::short_name AS SDL',
+            'DESCRIBE FUNCTION sys::get_version AS SDL',
 
             r"""
-            function stdgraphql::short_name(name: std::str) -> std::str {
-                volatility := 'Immutable';
-                using (
-                    SELECT (
-                       ((name)[5:] IF (name LIKE 'std::%') ELSE
-                       ((name)[9:] IF (name LIKE 'default::%') ELSE
-                        std::re_replace('(.+?)::(.+$)', r'\1__\2', name)))
-                      ++ '_Type'
-                    )
+            function sys::get_version() -> tuple<major: std::int64,
+                                                 minor: std::int64,
+                                                 stage: sys::VersionStage,
+                                                 stage_no: std::int64,
+                                                 local: array<std::str>>
+            {
+                volatility := 'Stable';
+                annotation std::description :=
+                    'Return the server version as a tuple.';
+                using (SELECT <tuple<
+                    major: std::int64,
+                    minor: std::int64,
+                    stage: sys::VersionStage,
+                    stage_no: std::int64,
+                    local: array<std::str>>>sys::__version_internal()
                 )
             ;};
             """,

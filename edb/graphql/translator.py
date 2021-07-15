@@ -348,19 +348,14 @@ class GraphQLTranslator:
             self.visit(node.variable_definitions)
 
         # base Query needs to be configured specially
-        base = self._context.gqlcore.get('stdgraphql::Query')
+        base = self._context.gqlcore.get('__graphql__::Query')
 
         # special treatment of the selection_set, different from inner
         # recursion
         query = qlast.SelectQuery(
             result=qlast.Shape(
-                expr=qlast.Path(
-                    steps=[qlast.ObjectRef(name='Query',
-                                           module='stdgraphql')]
-                ),
                 elements=[]
-            ),
-            limit=qlast.IntegerConstant(value='1')
+            )
         )
 
         self._context.fields.append({})
@@ -377,19 +372,14 @@ class GraphQLTranslator:
             self.visit(node.variable_definitions)
 
         # base Mutation needs to be configured specially
-        base = self._context.gqlcore.get('stdgraphql::Mutation')
+        base = self._context.gqlcore.get('__graphql__::Mutation')
 
         # special treatment of the selection_set, different from inner
         # recursion
         query = qlast.SelectQuery(
             result=qlast.Shape(
-                expr=qlast.Path(
-                    steps=[qlast.ObjectRef(name='Mutation',
-                                           module='stdgraphql')]
-                ),
                 elements=[]
-            ),
-            limit=qlast.IntegerConstant(value='1')
+            )
         )
 
         self._context.fields.append({})

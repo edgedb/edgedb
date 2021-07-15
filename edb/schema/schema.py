@@ -59,7 +59,6 @@ STD_MODULES = (
     sn.UnqualName('sys'),
     sn.UnqualName('cfg'),
     sn.UnqualName('cal'),
-    sn.UnqualName('stdgraphql'),
 )
 
 # Specifies the order of processing of files and directories in lib/

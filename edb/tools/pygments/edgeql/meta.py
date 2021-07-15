@@ -222,7 +222,6 @@ class EdgeQL:
         "math",
         "schema",
         "std",
-        "stdgraphql",
         "sys",
     )
     constraint_builtins = (

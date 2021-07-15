@@ -926,8 +926,6 @@ async def _init_defaults(schema, compiler, conn):
 
 async def _populate_data(schema, compiler, conn):
     script = '''
-        INSERT stdgraphql::Query;
-        INSERT stdgraphql::Mutation;
         INSERT std::VirtualObject;
     '''
 
