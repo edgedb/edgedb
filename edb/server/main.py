@@ -196,15 +196,18 @@ async def _run_server(
         )
         await sc.wait_for(ss.init())
 
-        if args.bootstrap_only:
-            await sc.wait_for(ss.run_startup_script_and_exit())
-            return
-
-        if tls_cert_gen_dir:
+        if args.generate_self_signed_cert:
             ss.init_tls(
                 *_generate_cert(tls_cert_gen_dir, ss.get_listen_host())
             )
-        else:
+
+        if args.startup_script:
+            await sc.wait_for(ss.run_startup_script_and_exit())
+
+        if args.bootstrap_only:
+            return
+
+        if not args.generate_self_signed_cert:
             ss.init_tls(args.tls_cert_file, args.tls_key_file)
 
         try:
@@ -407,6 +410,7 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                 not args.bootstrap_only
                 or args.bootstrap_script
                 or args.bootstrap_command
+                or args.generate_self_signed_cert
             ):
                 if args.data_dir:
                     cluster.set_connection_params(
@@ -419,9 +423,8 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                         ),
                     )
 
-                if args.tls_cert_file:
-                    tls_cert_gen_dir = None
-                else:
+                tls_cert_gen_dir = None
+                if args.generate_self_signed_cert:
                     if args.data_dir:
                         tls_cert_gen_dir = args.data_dir
                     else:
