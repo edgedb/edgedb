@@ -175,3 +175,19 @@ std::`++` (l: array<anytype>, r: array<anytype>) -> array<anytype> {
     SET volatility := 'Immutable';
     USING SQL OPERATOR '||';
 };
+
+CREATE INFIX OPERATOR
+std::`[]` (l: array<anytype>, r: std::int64) -> anytype {
+    CREATE ANNOTATION std::identifier := 'index';
+    CREATE ANNOTATION std::description := 'Array indexing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+CREATE INFIX OPERATOR
+std::`[]` (l: array<anytype>, r: tuple<std::int64, std::int64>) -> array<anytype> {
+    CREATE ANNOTATION std::identifier := 'slice';
+    CREATE ANNOTATION std::description := 'Array slicing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
