@@ -83,7 +83,7 @@ class TestServerOps(tb.TestCase):
                     user='edgedb',
                     host=sd.host,
                     port=sd.port,
-                    tls_cert_file=sd.tls_cert_file,
+                    tls_ca_file=sd.tls_cert_file,
                     wait_until_available=0,
                 )
 
@@ -334,7 +334,7 @@ class TestServerOps(tb.TestCase):
                 password=sd.password,
                 host=sd.host,
                 port=sd.port,
-                tls_cert_file=sd.tls_cert_file,
+                tls_ca_file=sd.tls_cert_file,
             )
             try:
                 await self._test_connection(con)

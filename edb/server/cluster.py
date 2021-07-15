@@ -106,7 +106,7 @@ class BaseCluster:
         return {
             'host': 'localhost',
             'port': self._effective_port,
-            'tls_cert_file': self._tls_cert_file,
+            'tls_ca_file': self._tls_cert_file,
         }
 
     async def async_connect(self, **kwargs):

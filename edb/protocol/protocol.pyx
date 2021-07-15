@@ -105,7 +105,7 @@ async def new_connection(
     password: str = None,
     admin: str = None,
     database: str = None,
-    tls_cert_file: str = None,
+    tls_ca_file: str = None,
     tls_verify_hostname: bool = None,
     timeout: float = 60,
     use_tls: bool = True,
@@ -113,7 +113,7 @@ async def new_connection(
     addrs, params, config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
         admin=admin, database=database,
-        tls_cert_file=tls_cert_file, tls_verify_hostname=tls_verify_hostname,
+        tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
         timeout=timeout, command_timeout=None, server_settings=None,
         wait_until_available=timeout)
 
