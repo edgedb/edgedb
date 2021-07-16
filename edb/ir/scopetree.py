@@ -1024,6 +1024,9 @@ class ScopeTreeNode:
         else:
             return f'"{self.debugname(fuller=fuller)}"'
 
+    def dump(self) -> None:
+        print(self.pdebugformat())
+
     def _set_parent(self, parent: Optional[ScopeTreeNode]) -> None:
         current_parent = self.parent
         if parent is current_parent:
