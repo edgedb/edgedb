@@ -954,6 +954,7 @@ class Server:
             ri = {
                 "port": self._listen_port,
                 "runstate_dir": str(self._runstate_dir),
+                "tls_cert_file": self._tls_cert_file,
             }
             print(f'\nEDGEDB_SERVER_DATA:{json.dumps(ri)}\n', flush=True)
 
