@@ -1246,9 +1246,9 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     } ORDER BY User.friends.name
                 }
                 ORDER BY (
-                    (SELECT User.friends
-                     FILTER User.friends@nickname = 'Firefighter'
-                     LIMIT 1).name
+                    assert_single((
+                        SELECT User.friends FILTER @nickname = 'Firefighter'
+                    )).name
                 ) EMPTY FIRST
                 THEN User.name;
             ''',

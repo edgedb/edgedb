@@ -345,6 +345,11 @@ def _get_set_rvar(
                 else:
                     rvars = process_set_as_enumerate(ir_set, stmt, ctx=ctx)
 
+            elif str(expr.func_shortname) == 'std::assert_single':
+                # Cardinality assertion
+                rvars = process_set_as_singleton_assertion(
+                    ir_set, stmt, ctx=ctx)
+
             elif str(expr.func_shortname) == 'std::min' and expr.func_sql_expr:
                 # Generic std::min
                 rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
@@ -1900,6 +1905,89 @@ def process_set_as_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
+def process_set_as_singleton_assertion(
+    ir_set: irast.Set,
+    stmt: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    with ctx.subrel() as newctx:
+        ir_arg = expr.args[0].expr
+        arg_ref = dispatch.compile(ir_arg, ctx=newctx)
+        arg_val = output.output_as_value(arg_ref, env=newctx.env)
+
+        # Generate a singleton set assertion as the following SQL:
+        #
+        #    SELECT
+        #        <target_set>,
+        #        raise_on_null(NULLIF(row_number() OVER (), 2)) AS _sentinel
+        #    ORDER BY
+        #        _sentinel
+        #
+        # This effectively raises an error whenever the row counter reaches 2.
+        check_expr = pgast.FuncCall(
+            name=('nullif',),
+            args=[
+                pgast.FuncCall(
+                    name=('row_number',),
+                    args=[],
+                    over=pgast.WindowDef()
+                ),
+                pgast.NumericConstant(
+                    val='2',
+                ),
+            ],
+        )
+
+        maybe_raise = pgast.FuncCall(
+            name=('edgedb', 'raise_on_null'),
+            args=[
+                check_expr,
+                pgast.StringConstant(val='cardinality_violation'),
+                pgast.NamedFuncArg(
+                    name='msg',
+                    val=pgast.StringConstant(
+                        val='assert_single violation: more than one element '
+                            'returned by an expression',
+                    ),
+                ),
+                pgast.NamedFuncArg(
+                    name='constraint',
+                    val=pgast.StringConstant(val='std::assert_single'),
+                ),
+            ],
+        )
+
+        # Force Postgres to actually evaluate the result target
+        # by putting it into an ORDER BY.
+        newctx.rel.target_list.append(
+            pgast.ResTarget(
+                name="_sentinel",
+                val=maybe_raise,
+            ),
+        )
+
+        newctx.rel.sort_clause.append(
+            pgast.SortBy(node=pgast.ColumnRef(name=["_sentinel"])),
+        )
+
+        pathctx.put_path_var_if_not_exists(
+            newctx.rel, ir_set.path_id, arg_val, aspect='value', env=ctx.env)
+
+        pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg.path_id)
+
+    aspects = ('value', 'source')
+
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
+                        pull_namespace=False, aspects=aspects, ctx=ctx)
+
+    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
 def process_set_as_enumerate(

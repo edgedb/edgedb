@@ -37,6 +37,7 @@ from edb.pgsql import types
 
 class PGErrorCode(enum.Enum):
 
+    CardinalityViolationError = '21000'
     IntegrityConstraintViolationError = '23000'
     RestrictViolationError = '23001'
     NotNullViolationError = '23502'
@@ -347,6 +348,12 @@ def static_interpret_backend_error(fields):
 
     elif err_details.code == PGErrorCode.DuplicateDatabaseError:
         return errors.DuplicateDatabaseDefinitionError(err_details.message)
+
+    elif (
+        err_details.code == PGErrorCode.CardinalityViolationError
+        and err_details.constraint_name == 'std::assert_single'
+    ):
+        return errors.CardinalityViolationError(err_details.message)
 
     return errors.InternalServerError(err_details.message)
 

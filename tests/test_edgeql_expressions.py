@@ -4791,3 +4791,69 @@ aa \
                 edgedb.EdgeQLSyntaxError, "Unexpected type expression"):
 
             await self.con.query('SELECT <tuple<"">>1;')
+
+    async def test_edgeql_assert_single_01(self):
+        await self.con.execute("""
+            INSERT User {
+                name := "He Who Remains"
+            }
+        """)
+
+        await self.assert_query_result("""
+            SELECT assert_single((
+                SELECT User { name } FILTER .name ILIKE "He Who%"
+            ))
+        """, [{
+            "name": "He Who Remains",
+        }])
+
+        await self.con.query_one("""
+            SELECT assert_single((
+                SELECT User { name } FILTER .name ILIKE "He Who%"
+            ))
+        """)
+
+        await self.con.query("""
+            FOR x IN {1, 2, 3}
+            UNION (
+                SELECT assert_single(x)
+            );
+        """)
+
+    async def test_edgeql_assert_single_02(self):
+        await self.con.execute("""
+            FOR name IN {"Hunter B-15", "Hunter B-22"}
+            UNION (
+                INSERT User {
+                    name := name
+                }
+            );
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_single violation",
+        ):
+            await self.con.query("""
+                SELECT assert_single({1, 2});
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_single violation",
+        ):
+            await self.con.query("""
+                SELECT assert_single(
+                    (SELECT User FILTER .name ILIKE "Hunter B%")
+                );
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_single violation",
+        ):
+            await self.con.query("""
+                SELECT User {
+                    single name := assert_single(.name ++ {"!", "?"})
+                };
+            """)

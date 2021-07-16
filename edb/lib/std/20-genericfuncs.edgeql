@@ -19,6 +19,20 @@
 ## Fundamental polymorphic functions
 
 
+# std::assert_single -- runtime cardinality assertion
+# ---------------------------------------------------
+
+CREATE FUNCTION
+std::assert_single(input: SET OF anytype) -> anytype
+{
+    CREATE ANNOTATION std::description :=
+        "Check that the input set contains at most one element, raise
+         CardinalityViolationError otherwise.";
+    SET volatility := 'Stable';
+    USING SQL EXPRESSION;
+};
+
+
 # std::len
 # --------
 
