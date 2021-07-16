@@ -3565,30 +3565,43 @@ aa \
         )
 
     async def test_edgeql_expr_tuple_17(self):
-        await self.assert_query_result(
-            '''SELECT (1, 2) ?= (1, 2)''',
-            [True],
-        )
+        # We want to do these tests with the tuple both persistent and not
+        # I'm relatively confident that tuple<int64, tuple<int64>>
+        # won't make it into the standard library.
 
-        await self.assert_query_result(
-            '''SELECT (0, 2) ?= enumerate(2)''',
-            [True],
-        )
+        for i in range(2):
+            # Make the tuple persistent on the second time around
+            if i == 1:
+                await self.con.execute(r"""
+                    CREATE TYPE Foo {
+                        CREATE PROPERTY x -> tuple<int64, tuple<int64>>;
+                    }
+                """)
 
-        await self.assert_query_result(
-            '''WITH A := enumerate(2) SELECT (0, 2) ?= A''',
-            [True],
-        )
+            await self.assert_query_result(
+                '''SELECT (1, (2,)) ?= (1, (2,))''',
+                [True],
+            )
 
-        await self.assert_query_result(
-            '''SELECT <tuple<int64, int64>>{} ?? (1, 2);''',
-            [[1, 2]],
-        )
+            await self.assert_query_result(
+                '''SELECT (0, (2,)) ?= enumerate((2,))''',
+                [True],
+            )
 
-        await self.assert_query_result(
-            '''SELECT (1, 2) ?? <tuple<int64, int64>>{};''',
-            [[1, 2]],
-        )
+            await self.assert_query_result(
+                '''WITH A := enumerate((2,)) SELECT (0, (2,)) ?= A''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                '''SELECT <tuple<int64, tuple<int64>>>{} ?? (1, (2,));''',
+                [[1, [2]]],
+            )
+
+            await self.assert_query_result(
+                '''SELECT (1, (2,)) ?? <tuple<int64, tuple<int64>>>{};''',
+                [[1, [2]]],
+            )
 
     async def test_edgeql_expr_tuple_18(self):
         await self.assert_query_result(
