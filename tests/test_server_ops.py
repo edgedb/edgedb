@@ -132,6 +132,23 @@ class TestServerOps(tb.TestCase):
                     'Unexpected server error output:\n' + stderr.decode()
                 )
 
+    async def test_server_ops_bootstrap_script_server(self):
+        # Test that "edgedb-server" works as expected with the
+        # following arguments:
+        #
+        # * "--bootstrap-command"
+
+        async with tb.start_edgedb_server(
+            auto_shutdown=True,
+            bootstrap_command='CREATE SUPERUSER ROLE test_bootstrap2 '
+                              '{ SET password := "tbs2" };'
+        ) as sd:
+            con = await sd.connect(user='test_bootstrap2', password='tbs2')
+            try:
+                self.assertEqual(await con.query_one('SELECT 1'), 1)
+            finally:
+                await con.aclose()
+
     async def test_server_ops_emit_server_status_to_file(self):
         debug = False
 
