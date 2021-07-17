@@ -203,10 +203,9 @@ async def _run_server(
                 )
             )
 
-        if args.startup_script:
-            await sc.wait_for(ss.run_startup_script_and_exit())
-
         if args.bootstrap_only:
+            if args.startup_script:
+                await sc.wait_for(ss.run_startup_script_and_exit())
             return
 
         if not args.generate_self_signed_cert:
