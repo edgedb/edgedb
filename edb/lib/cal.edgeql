@@ -279,6 +279,9 @@ cal::date_get(dt: cal::local_date, el: std::str) -> std::float64
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'Stable';
     SET commutator := 'std::+';
@@ -290,6 +293,9 @@ std::`+` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::relative_duration, r: std::datetime) -> std::datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'Stable';
     SET commutator := 'std::+';
@@ -301,6 +307,9 @@ std::`+` (l: cal::relative_duration, r: std::datetime) -> std::datetime {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'Stable';
     USING SQL $$
@@ -314,6 +323,8 @@ std::`-` (l: std::datetime, r: cal::relative_duration) -> std::datetime {
 
 CREATE INFIX OPERATOR
 std::`=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -324,6 +335,9 @@ std::`=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL cal::local_datetime,
            r: OPTIONAL cal::local_datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -331,6 +345,8 @@ std::`?=` (l: OPTIONAL cal::local_datetime,
 
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -341,6 +357,9 @@ std::`!=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL cal::local_datetime,
             r: OPTIONAL cal::local_datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -348,6 +367,8 @@ std::`?!=` (l: OPTIONAL cal::local_datetime,
 
 CREATE INFIX OPERATOR
 std::`>` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -357,6 +378,8 @@ std::`>` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -366,6 +389,8 @@ std::`>=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -375,6 +400,8 @@ std::`<` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -384,6 +411,9 @@ std::`<=` (l: cal::local_datetime, r: cal::local_datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
@@ -394,6 +424,9 @@ std::`+` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_datetime) -> cal::local_datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
@@ -404,6 +437,9 @@ std::`+` (l: std::duration, r: cal::local_datetime) -> cal::local_datetime {
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT ("l" - "r")::edgedb.timestamp_t
@@ -413,6 +449,9 @@ std::`-` (l: cal::local_datetime, r: std::duration) -> cal::local_datetime {
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
@@ -423,6 +462,9 @@ std::`+` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datet
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::relative_duration, r: cal::local_datetime) -> cal::local_datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
@@ -433,6 +475,9 @@ std::`+` (l: cal::relative_duration, r: cal::local_datetime) -> cal::local_datet
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datetime {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT ("l" - "r")::edgedb.timestamp_t
@@ -445,6 +490,8 @@ std::`-` (l: cal::local_datetime, r: cal::relative_duration) -> cal::local_datet
 
 CREATE INFIX OPERATOR
 std::`=` (l: cal::local_date, r: cal::local_date) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -455,6 +502,9 @@ std::`=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL cal::local_date,
            r: OPTIONAL cal::local_date) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -462,6 +512,8 @@ std::`?=` (l: OPTIONAL cal::local_date,
 
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::local_date, r: cal::local_date) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -472,6 +524,9 @@ std::`!=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL cal::local_date,
             r: OPTIONAL cal::local_date) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -479,6 +534,8 @@ std::`?!=` (l: OPTIONAL cal::local_date,
 
 CREATE INFIX OPERATOR
 std::`>` (l: cal::local_date, r: cal::local_date) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -488,6 +545,8 @@ std::`>` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::local_date, r: cal::local_date) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -497,6 +556,8 @@ std::`>=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: cal::local_date, r: cal::local_date) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -506,6 +567,8 @@ std::`<` (l: cal::local_date, r: cal::local_date) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::local_date, r: cal::local_date) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -516,6 +579,9 @@ std::`<=` (l: cal::local_date, r: cal::local_date) -> std::bool {
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_date, r: std::duration) -> cal::local_date
 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     SET force_return_cast := true;
@@ -528,6 +594,9 @@ std::`+` (l: cal::local_date, r: std::duration) -> cal::local_date
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_date) -> cal::local_date
 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     SET force_return_cast := true;
@@ -540,6 +609,9 @@ std::`+` (l: std::duration, r: cal::local_date) -> cal::local_date
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_date, r: std::duration) -> cal::local_date
 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     SET force_return_cast := true;
     USING SQL $$
@@ -551,6 +623,9 @@ std::`-` (l: cal::local_date, r: std::duration) -> cal::local_date
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_date, r: cal::relative_duration) -> cal::local_date
 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     SET force_return_cast := true;
@@ -563,6 +638,9 @@ std::`+` (l: cal::local_date, r: cal::relative_duration) -> cal::local_date
 CREATE INFIX OPERATOR
 std::`+` (l: cal::relative_duration, r: cal::local_date) -> cal::local_date
 {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     SET force_return_cast := true;
@@ -575,6 +653,9 @@ std::`+` (l: cal::relative_duration, r: cal::local_date) -> cal::local_date
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_date, r: cal::relative_duration) -> cal::local_date
 {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     SET force_return_cast := true;
     USING SQL $$
@@ -588,6 +669,8 @@ std::`-` (l: cal::local_date, r: cal::relative_duration) -> cal::local_date
 
 CREATE INFIX OPERATOR
 std::`=` (l: cal::local_time, r: cal::local_time) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -598,6 +681,9 @@ std::`=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL cal::local_time,
            r: OPTIONAL cal::local_time) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -605,6 +691,8 @@ std::`?=` (l: OPTIONAL cal::local_time,
 
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::local_time, r: cal::local_time) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -615,6 +703,9 @@ std::`!=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL cal::local_time,
             r: OPTIONAL cal::local_time) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -622,6 +713,8 @@ std::`?!=` (l: OPTIONAL cal::local_time,
 
 CREATE INFIX OPERATOR
 std::`>` (l: cal::local_time, r: cal::local_time) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -631,6 +724,8 @@ std::`>` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::local_time, r: cal::local_time) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -640,6 +735,8 @@ std::`>=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: cal::local_time, r: cal::local_time) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -649,6 +746,8 @@ std::`<` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::local_time, r: cal::local_time) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -658,6 +757,9 @@ std::`<=` (l: cal::local_time, r: cal::local_time) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_time, r: std::duration) -> cal::local_time {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+(time, interval)';
@@ -666,6 +768,9 @@ std::`+` (l: cal::local_time, r: std::duration) -> cal::local_time {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::local_time) -> cal::local_time {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+(interval, time)';
@@ -674,6 +779,9 @@ std::`+` (l: std::duration, r: cal::local_time) -> cal::local_time {
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_time, r: std::duration) -> cal::local_time {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-(time, interval)';
 };
@@ -681,6 +789,9 @@ std::`-` (l: cal::local_time, r: std::duration) -> cal::local_time {
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::local_time, r: cal::relative_duration) -> cal::local_time {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+(time, interval)';
@@ -689,6 +800,9 @@ std::`+` (l: cal::local_time, r: cal::relative_duration) -> cal::local_time {
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::relative_duration, r: cal::local_time) -> cal::local_time {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL OPERATOR r'+(interval, time)';
@@ -697,6 +811,9 @@ std::`+` (l: cal::relative_duration, r: cal::local_time) -> cal::local_time {
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::local_time, r: cal::relative_duration) -> cal::local_time {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'-(time, interval)';
 };
@@ -707,6 +824,8 @@ std::`-` (l: cal::local_time, r: cal::relative_duration) -> cal::local_time {
 
 CREATE INFIX OPERATOR
 std::`=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -715,7 +834,11 @@ std::`=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 
 CREATE INFIX OPERATOR
-std::`?=` (l: OPTIONAL cal::relative_duration, r: OPTIONAL cal::relative_duration) -> std::bool {
+std::`?=` (l: OPTIONAL cal::relative_duration,
+           r: OPTIONAL cal::relative_duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -723,6 +846,8 @@ std::`?=` (l: OPTIONAL cal::relative_duration, r: OPTIONAL cal::relative_duratio
 
 CREATE INFIX OPERATOR
 std::`!=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -735,6 +860,9 @@ std::`?!=` (
         l: OPTIONAL cal::relative_duration,
         r: OPTIONAL cal::relative_duration
 ) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -742,6 +870,8 @@ std::`?!=` (
 
 CREATE INFIX OPERATOR
 std::`>` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -751,6 +881,8 @@ std::`>` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -760,6 +892,8 @@ std::`>=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -769,6 +903,8 @@ std::`<` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -778,6 +914,9 @@ std::`<=` (l: cal::relative_duration, r: cal::relative_duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative_duration {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
@@ -788,6 +927,9 @@ std::`+` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative_duration {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT ("l"::interval - "r"::interval)::edgedb.relative_duration_t;
@@ -797,6 +939,9 @@ std::`-` (l: cal::relative_duration, r: cal::relative_duration) -> cal::relative
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
@@ -807,6 +952,9 @@ std::`+` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration
 
 CREATE INFIX OPERATOR
 std::`+` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
@@ -817,6 +965,9 @@ std::`+` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT ("l"::interval - "r"::interval)::edgedb.relative_duration_t;
@@ -826,6 +977,9 @@ std::`-` (l: std::duration, r: cal::relative_duration) -> cal::relative_duration
 
 CREATE INFIX OPERATOR
 std::`-` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT ("l"::interval - "r"::interval)::edgedb.relative_duration_t;
@@ -835,6 +989,9 @@ std::`-` (l: cal::relative_duration, r: std::duration) -> cal::relative_duration
 
 CREATE PREFIX OPERATOR
 std::`-` (v: cal::relative_duration) -> cal::relative_duration {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT (-"v"::interval)::edgedb.relative_duration_t;

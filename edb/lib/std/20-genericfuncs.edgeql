@@ -536,6 +536,8 @@ std::find(haystack: array<anytype>, needle: anytype,
 
 CREATE INFIX OPERATOR
 std::`=` (l: anytuple, r: anytuple) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::=';
@@ -546,6 +548,9 @@ std::`=` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
     SET recursive := true;
@@ -554,6 +559,8 @@ std::`?=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: anytuple, r: anytuple) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::!=';
@@ -564,6 +571,9 @@ std::`!=` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
     SET recursive := true;
@@ -572,6 +582,8 @@ std::`?!=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: anytuple, r: anytuple) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::<=';
@@ -582,6 +594,8 @@ std::`>=` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: anytuple, r: anytuple) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::<';
@@ -592,6 +606,8 @@ std::`>` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: anytuple, r: anytuple) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::>=';
@@ -602,6 +618,8 @@ std::`<=` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: anytuple, r: anytuple) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::>';

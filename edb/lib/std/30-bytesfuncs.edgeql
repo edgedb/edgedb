@@ -38,6 +38,8 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::bytes, r: std::bytes) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -47,6 +49,9 @@ std::`=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -54,6 +59,8 @@ std::`?=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::bytes, r: std::bytes) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -63,6 +70,9 @@ std::`!=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -70,6 +80,8 @@ std::`?!=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`++` (l: std::bytes, r: std::bytes) -> std::bytes {
+    CREATE ANNOTATION std::identifier := 'concat';
+    CREATE ANNOTATION std::description := 'Bytes concatenation.';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'||';
 };
@@ -77,6 +89,8 @@ std::`++` (l: std::bytes, r: std::bytes) -> std::bytes {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::bytes, r: std::bytes) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -86,6 +100,8 @@ std::`>=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::bytes, r: std::bytes) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -95,6 +111,8 @@ std::`>` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::bytes, r: std::bytes) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -104,6 +122,8 @@ std::`<=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::bytes, r: std::bytes) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';

@@ -171,6 +171,8 @@ std::duration_to_seconds(dur: std::duration) -> std::decimal
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::datetime, r: std::datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -180,6 +182,9 @@ std::`=` (l: std::datetime, r: std::datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::datetime, r: OPTIONAL std::datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -187,6 +192,8 @@ std::`?=` (l: OPTIONAL std::datetime, r: OPTIONAL std::datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::datetime, r: std::datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -196,6 +203,9 @@ std::`!=` (l: std::datetime, r: std::datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::datetime, r: OPTIONAL std::datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -203,6 +213,8 @@ std::`?!=` (l: OPTIONAL std::datetime, r: OPTIONAL std::datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::datetime, r: std::datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -212,6 +224,8 @@ std::`>` (l: std::datetime, r: std::datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::datetime, r: std::datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -221,6 +235,8 @@ std::`>=` (l: std::datetime, r: std::datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::datetime, r: std::datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -230,6 +246,8 @@ std::`<` (l: std::datetime, r: std::datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::datetime, r: std::datetime) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -239,6 +257,9 @@ std::`<=` (l: std::datetime, r: std::datetime) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::datetime, r: std::duration) -> std::datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'Stable';
     SET commutator := 'std::+';
@@ -250,6 +271,9 @@ std::`+` (l: std::datetime, r: std::duration) -> std::datetime {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::datetime) -> std::datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'Stable';
     SET commutator := 'std::+';
@@ -261,6 +285,9 @@ std::`+` (l: std::duration, r: std::datetime) -> std::datetime {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     # operators on timestamptz are STABLE in PostgreSQL
     SET volatility := 'Stable';
     USING SQL $$
@@ -271,6 +298,9 @@ std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
         SELECT EXTRACT(epoch FROM "l" - "r")::text::edgedb.duration_t
@@ -282,6 +312,8 @@ std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::duration, r: std::duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -291,6 +323,9 @@ std::`=` (l: std::duration, r: std::duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::duration, r: OPTIONAL std::duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -298,6 +333,8 @@ std::`?=` (l: OPTIONAL std::duration, r: OPTIONAL std::duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::duration, r: std::duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
     SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -310,6 +347,9 @@ std::`?!=` (
         l: OPTIONAL std::duration,
         r: OPTIONAL std::duration
 ) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
     SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
@@ -317,6 +357,8 @@ std::`?!=` (
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::duration, r: std::duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -326,6 +368,8 @@ std::`>` (l: std::duration, r: std::duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::duration, r: std::duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -335,6 +379,8 @@ std::`>=` (l: std::duration, r: std::duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::duration, r: std::duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
@@ -344,6 +390,8 @@ std::`<` (l: std::duration, r: std::duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::duration, r: std::duration) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
     SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -353,6 +401,9 @@ std::`<=` (l: std::duration, r: std::duration) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::duration) -> std::duration {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     SET volatility := 'Immutable';
     SET commutator := 'std::+';
     USING SQL $$
@@ -363,6 +414,9 @@ std::`+` (l: std::duration, r: std::duration) -> std::duration {
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::duration, r: std::duration) -> std::duration {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT ("l"::interval - "r"::interval)::edgedb.duration_t;
@@ -372,6 +426,9 @@ std::`-` (l: std::duration, r: std::duration) -> std::duration {
 
 CREATE PREFIX OPERATOR
 std::`-` (v: std::duration) -> std::duration {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     SET volatility := 'Immutable';
     USING SQL $$
     SELECT (-"v"::interval)::edgedb.duration_t;

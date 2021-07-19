@@ -6725,6 +6725,8 @@ type default::Foo {
                 CREATE INFIX OPERATOR
                 std::`AND`(a: std::bool, b: std::bool) -> std::bool {
                     SET volatility := 'Immutable';
+                    CREATE ANNOTATION std::description :=
+                        'Logical conjunction.';
                     USING SQL EXPRESSION;
                 };
                 ''',
