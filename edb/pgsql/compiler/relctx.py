@@ -839,11 +839,13 @@ def unpack_rvar(
                 )
                 el_path_id = path_id.extend(ptrref=el_ref)
 
-                walk(
-                    pgast.ColumnRef(name=[colname]),
-                    el_path_id,
-                    multi=False,
+                el_ref = (
+                    astutils.tuple_getattr(ref, path_id.target, el_name.name)
+                    if irtyputils.is_persistent_tuple(path_id.target)
+                    else pgast.ColumnRef(name=[colname])
                 )
+                walk(el_ref, el_path_id, multi=False)
+
                 tuple_tvar_elements.append(
                     pgast.TupleElementBase(
                         path_id=el_path_id, name=el_name.name
