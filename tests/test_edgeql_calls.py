@@ -787,6 +787,7 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
         ''')
 
         await self.con.execute('SELECT call19((1,2));')
+        await self.con.execute('SELECT call19((1,));')
 
     @test.xfail(
         "Polymorphic callable matching is currently too dumb to realize "
