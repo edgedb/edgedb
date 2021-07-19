@@ -106,12 +106,15 @@ INSERT User {
     )
 };
 
-INSERT User {
+INSERT Bot {
     name := 'Dave',
     deck := (
         SELECT Card {@count := 4 IF Card.cost = 1 ELSE 1}
         FILTER .element = 'Air' OR .cost != 1
-    )
+    ),
+    avatar := (
+        SELECT Card {@text := 'Wow'} FILTER .name = 'Djinn'
+    ),
 };
 
 # update friends list
