@@ -32,6 +32,9 @@ Set
     * - :eql:op:`anytype [IS type] <ISINTERSECT>`
       - :eql:op-desc:`ISINTERSECT`
 
+    * - :eql:func:`assert_single`
+      - :eql:func-desc:`assert_single`
+
     * - :eql:func:`count`
       - :eql:func-desc:`count`
 
@@ -270,6 +273,31 @@ Set
         # With the use of type intersection it's possible to refer to
         # specific property of Issue now:
         SELECT User.<owner[IS Issue].title;
+
+
+----------
+
+
+.. eql:function:: std::assert_single(s: SET OF anytype) -> anytype
+
+    :index: cardinality singleton
+
+    Check that the input set contains no more than one element.
+
+    If the input set contains more than one element, ``assert_single`` raises
+    a ``CardinalityViolationError``.  This function is useful as a runtime
+    cardinality assertion in queries and computables that should always return
+    sets with at most a single element, but where static cardinality inference
+    is not capable enough or outright impossible.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT assert_single((SELECT User FILTER .name = "Unique"))
+        {default::User {id: ...}}
+
+        db> SELECT assert_single((SELECT User))
+        ERROR: CardinalityViolationError: assert_single violation: more than
+               one element returned by an expression
 
 
 ----------
