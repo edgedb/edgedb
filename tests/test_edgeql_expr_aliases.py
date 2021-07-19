@@ -21,6 +21,7 @@ import json
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 import edgedb
 
@@ -32,9 +33,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                           'cards.esdl')
 
     SETUP = [os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards_setup.edgeql'),
-             os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards_aliases_setup.edgeql')]
+                          'cards_setup.edgeql')]
 
     async def test_edgeql_aliases_basic_01(self):
         await self.assert_query_result(
@@ -370,6 +369,73 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                     {'fr0': 0, 'fr1': 0, 'name': 'Carol'},
                     {'fr0': 1, 'fr1': 1, 'name': 'Dave'},
                 ]
+            }]
+        )
+
+    @test.xfail('''
+        edb.errors.InternalServerError: more than one row returned by
+        a subquery used as an expression
+    ''')
+    async def test_edgeql_computable_nested_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH C := Card { ava_owners := .<avatar }
+                SELECT C {
+                    ava_owners: {
+                        typename := (
+                            WITH name := C.ava_owners.__type__.name
+                            SELECT name
+                        )
+                    }
+                }
+                FILTER EXISTS .ava_owners
+                ORDER BY .name
+            ''',
+            [{
+                'name': 'Djinn',
+                'ava_owners': [{
+                    'typename': 'default::Bot'
+                }],
+            }, {
+                'name': 'Dragon',
+                'ava_owners': [{
+                    'typename': 'default::User'
+                }],
+            }]
+        )
+
+    @test.xfail('''
+        AssertionError: data shape differs: unexpected trailing
+        elements in set [path PATH: [0]["ava_owners"][0]["typename"]]
+    ''')
+    async def test_edgeql_computable_nested_03(self):
+        # This SHOULD be identical to the previous test case, except
+        # for the cardinality being forced to be MULTI.
+        await self.assert_query_result(
+            r'''
+                WITH C := Card { ava_owners := .<avatar }
+                SELECT C {
+                    name,
+                    ava_owners: {
+                        multi typename := (
+                            WITH name := C.ava_owners.__type__.name
+                            SELECT name
+                        )
+                    }
+                }
+                FILTER EXISTS .ava_owners
+                ORDER BY .name;
+            ''',
+            [{
+                'name': 'Djinn',
+                'ava_owners': [{
+                    'typename': {'default::Bot'}
+                }],
+            }, {
+                'name': 'Dragon',
+                'ava_owners': [{
+                    'typename': {'default::User'}
+                }],
             }]
         )
 

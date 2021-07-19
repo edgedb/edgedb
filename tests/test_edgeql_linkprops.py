@@ -391,9 +391,9 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             r'''
                 SELECT User.avatar@text;
             ''',
-            [
-                'Best'
-            ]
+            {
+                'Best', 'Wow',
+            }
         )
 
     async def test_edgeql_props_basic_07(self):
@@ -403,10 +403,12 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                     avatar: {
                         @text
                     }
-                } FILTER EXISTS .avatar@text;
+                } FILTER EXISTS .avatar@text
+                ORDER BY .name;
             ''',
             [
                 {'avatar': {'@text': 'Best'}},
+                {'avatar': {'@text': 'Wow'}},
             ]
         )
 
