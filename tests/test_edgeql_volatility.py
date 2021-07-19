@@ -436,6 +436,10 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             WITH X := (random(),) SELECT X.0;
         ''')
 
+        await self.con.query(r'''
+            WITH X := {(random(),),(random(),)} SELECT X.0;
+        ''')
+
     async def test_edgeql_volatility_update_clause_01(self):
         # Spurious failure probability: 1/2^99
         await self.con.execute(r'''
