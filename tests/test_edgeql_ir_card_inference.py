@@ -22,7 +22,6 @@ import textwrap
 
 from edb import errors
 from edb.testbase import lang as tb
-from edb.tools import test
 
 from edb.edgeql import compiler
 from edb.edgeql import qltypes
@@ -614,9 +613,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         MANY
         """
 
-    @test.xfail('''
-        The cardinality of any instance of a anonymous shape should be ONE.
-    ''')
     def test_edgeql_ir_card_inference_67(self):
         """
         SELECT stdgraphql::Query { o := (SELECT (SELECT User) ORDER BY .name) }
@@ -652,9 +648,6 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         MANY
         """
 
-    @test.xfail('''
-        The cardinality of any instance of a anonymous shape should be ONE.
-    ''')
     def test_edgeql_ir_card_inference_72(self):
         """
         SELECT {a := 42}
@@ -664,9 +657,9 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_73(self):
         # Make sure that a union of anonymous shapes still ends up
-        # with cardinality MANY.
+        # with cardinality AT_LEAST_ONE.
         """
         FOR x IN {0, 1} UNION {a := x}
 % OK %
-        MANY
+        AT_LEAST_ONE
         """
