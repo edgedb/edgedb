@@ -634,7 +634,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     foo := (SELECT X {n, m}),
                     baz := (SELECT X.m),
-                } LIMIT 1;
+                };
             """)
 
             foos = [x['m'] for x in res['foo'] if x['m'] is not None]
@@ -763,7 +763,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     foo := (SELECT O {n, m}),
                     bar := (SELECT O {n, m}),
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(
@@ -779,7 +779,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     foo := (SELECT O {n, m}),
                     bar := (SELECT O {n, m}),
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(res['foo']['n'], res['bar']['n'])
@@ -791,7 +791,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             SELECT {
                 foo := (SELECT O),
                 bar := (SELECT O),
-            } LIMIT 1;
+            };
         ''', [
             {
                 'foo': [{"id": {}}, {"id": {}}, {"id": {}}],
@@ -809,7 +809,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     a := (SELECT O {m, friends: {n}} ORDER BY .m),
                     b := (SELECT O {m, friends: {n}} ORDER BY .m),
-                } LIMIT 1;
+                };
             """)
 
             nums = [row['m'] for row in res['a']]
@@ -833,7 +833,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     a := (SELECT O {m, friends} ORDER BY .m),
                     b := (SELECT O {m, friends} ORDER BY .m),
-                } LIMIT 1;
+                };
             """)
 
             nums = [row['m'] for row in res['a']]
@@ -857,7 +857,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     a := (SELECT O {m, friends: {n}} ORDER BY .m),
                     b := (SELECT O {m, friend_nums := .friends.n} ORDER BY .m),
-                } LIMIT 1;
+                };
             """)
 
             nums = [row['m'] for row in res['a']]
@@ -880,7 +880,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     a := (SELECT O {m, friends: {x}} ORDER BY .m),
                     b := (SELECT O {m, friend_nums := .friends.x} ORDER BY .m),
-                } LIMIT 1;
+                };
             """)
 
             nums = [row['m'] for row in res['a']]
@@ -903,7 +903,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     a := (SELECT O {m, friends: {@x}} ORDER BY .m),
                     b := (SELECT O {m, friend_nums := .friends@x} ORDER BY .m),
-                } LIMIT 1;
+                };
             """)
 
             nums = [row['m'] for row in res['a']]
@@ -925,7 +925,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     a := (SELECT O {friends: {n, x}}),
                     b := (SELECT O {friends: {n, x}}),
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(len(res['a']), 3)
@@ -945,7 +945,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     a := (SELECT O {tgt: {n, x}}),
                     b := (SELECT O {tgt: {n, x}}),
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(len(res['a']), 3)
@@ -972,7 +972,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                               friend_sums := sum(.friends.x),
                           }),
                     c := (O.n, O.friends {n, x}, O.friends {n, x}),
-                } LIMIT 1;
+                };
             """)
 
             cs = {x['n']: [] for x in res['a']}
@@ -1011,7 +1011,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     x := (O { friends: {x} }),
                     y := O.friends.x,
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(len(res['y']), 4)
@@ -1028,7 +1028,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     x := (O { friends: {n, x} }),
                     y := O.friends {n, x},
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(len(res['y']), 4)
@@ -1107,7 +1107,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     foo := (SELECT O[0] {m}),
                     bar := (SELECT O[0] {m}),
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(res['foo'], res['bar'])
@@ -1120,7 +1120,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     foo := (SELECT O.0 {n, m}),
                     bar := (SELECT O.0 {n, m}),
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(res['foo'], res['bar'])
@@ -1135,7 +1135,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     bar := (SELECT O.z.0 {n, m}),
                     os := O,
                     ms := O.z.0.m,
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(res['foo'], res['bar'])
@@ -1180,7 +1180,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 SELECT {
                     foo := Foo {n, m},
                     bar := Foo {n, m},
-                } LIMIT 1;
+                };
             """)
 
             self.assertEqual(res['foo']['n'], 10)
@@ -1472,7 +1472,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     }
                 ),
                 Z := { o := (SELECT O {tgt: {n, y := -.x}}) },
-                SELECT Z { o: {tgt: {n, x, y}} } LIMIT 1;
+                SELECT Z { o: {tgt: {n, x, y}} };
             """)
 
             for obj in res['o']:

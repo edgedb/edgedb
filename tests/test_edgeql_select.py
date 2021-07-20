@@ -6092,13 +6092,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         for row in res:
             self.assertEqual(row[0].__tname__, "std::Object")
 
-    @test.xfail("""
-        edgedb.errors.ResultCardinalityMismatchError: the query has
-        cardinality MANY which does not match the expected cardinality
-        ONE
-
-        In fact, the anonymous shape should be inferred as cardinality ONE.
-    """)
     async def test_edgeql_select_anonymous_shape_01(self):
         res = await self.con.query_one('SELECT {test := 1}')
         self.assertEqual(res.test, 1)

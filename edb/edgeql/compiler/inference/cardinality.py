@@ -232,6 +232,19 @@ def _common_cardinality(
     return cartesian_cardinality(cards)
 
 
+SINGLETON_TYPE_NAMES = {
+    sn.QualName('std', 'VirtualObject'),
+    sn.QualName('stdgraphql', 'Query'),
+    sn.QualName('stdgraphql', 'Mutation'),
+}
+
+
+def _is_singleton_type(typeref: irast.TypeRef) -> bool:
+    if typeref.material_type:
+        typeref = typeref.material_type
+    return typeref.name_hint in SINGLETON_TYPE_NAMES
+
+
 @functools.singledispatch
 def _infer_cardinality(
     ir: irast.Expr,
@@ -649,6 +662,8 @@ def _infer_set_inner(
         return AT_MOST_ONE
     elif ir.expr is not None:
         return expr_card
+    elif _is_singleton_type(ir.typeref):
+        return ONE
     else:
         return MANY
 
