@@ -20,7 +20,6 @@
 import os.path
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLCoalesce(tb.QueryTestCase):
@@ -1342,17 +1341,19 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             [True, False],
         )
 
-    @test.xfail('''
-        This test produces a bogus NULL object, when it should
-        return an empty set.
-
-        I think it is a issue in relgen.
-    ''')
     async def test_edgeql_coalesce_self_01(self):
-        # This is busted!
         await self.assert_query_result(
             r'''
                 SELECT Publication ?? Publication
+            ''',
+            [],
+        )
+
+    async def test_edgeql_coalesce_self_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH Z := (SELECT Comment FILTER .owner.name = "Yury")
+                SELECT (Z.parent ?? Z);
             ''',
             [],
         )
