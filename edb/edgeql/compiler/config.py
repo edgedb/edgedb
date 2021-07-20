@@ -165,7 +165,7 @@ def compile_ConfigInsert(
         if isinstance(el.compexpr, qlast.InsertQuery):
             _inject_tname(el.compexpr, ctx=ctx)
 
-    with ctx.newscope() as subctx:
+    with ctx.newscope(fenced=False) as subctx:
         subctx.expr_exposed = True
         subctx.modaliases = ctx.modaliases.copy()
         subctx.modaliases[None] = 'cfg'

@@ -157,6 +157,8 @@ def fini_expression(
     # Fix up weak namespaces
     _rewrite_weak_namespaces(ir, ctx)
 
+    _prune_temp_namespaces(ir, ctx)
+
     ctx.path_scope.validate_unique_ids()
 
     if isinstance(ir, irast.Command):
@@ -357,6 +359,14 @@ def _rewrite_weak_namespaces(
             # in temporary scopes, so we need to just skip those.
             if scope := ctx.env.scope_tree_nodes.get(path_scope_id):
                 _try_namespace_fix(scope, ir_set)
+
+
+def _prune_temp_namespaces(
+    ir: irast.Base, ctx: context.ContextLevel
+) -> None:
+    for node in ctx.path_scope.descendants:
+        if node.is_temporary:
+            node.remove()
 
 
 def _elide_derived_ancestors(
