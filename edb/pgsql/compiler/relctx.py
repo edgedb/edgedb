@@ -1289,7 +1289,16 @@ def range_for_typeref(
         # to SELECTing from a parent table.
         set_ops = []
 
+        # Concrete unions might have view type elements with duplicate
+        # material types, and we need to filter those out.
+        seen = set()
         for child in typeref.union:
+            mat_child = child.material_type or child
+            if mat_child.id in seen:
+                assert typeref.union_is_concrete
+                continue
+            seen.add(mat_child.id)
+
             c_rvar = range_for_typeref(
                 child,
                 path_id=path_id,

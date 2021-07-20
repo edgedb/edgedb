@@ -637,7 +637,7 @@ def get_rvar_path_var(
             and (not rvar.query.path_id.is_type_intersection_path()
                  or rvar.query.path_id.src_path() != path_id)
         ):
-            actual_rptr = irtyputils.find_actual_ptrref(
+            actual_rptr = irtyputils.maybe_find_actual_ptrref(
                 rvar.typeref,
                 rptr,
             )

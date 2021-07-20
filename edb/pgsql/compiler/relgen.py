@@ -1371,7 +1371,10 @@ def process_set_as_setop(
         subqry.rarg = rarg
 
         union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
-        relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
+        # No pull_namespace because we don't want the union arguments to
+        # escape, just the final result.
+        relctx.include_rvar(
+            stmt, union_rvar, ir_set.path_id, pull_namespace=False, ctx=subctx)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -1679,8 +1682,11 @@ def process_set_as_coalesce(
 
             subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=newctx)
 
+            # No pull_namespace because we don't want the coalesce arguments to
+            # escape, just the final result.
             relctx.include_rvar(
-                stmt, subrvar, path_id=ir_set.path_id, ctx=newctx)
+                stmt, subrvar, path_id=ir_set.path_id,
+                pull_namespace=False, ctx=newctx)
 
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause,
