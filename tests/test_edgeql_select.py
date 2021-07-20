@@ -2393,7 +2393,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('Too many results')
     async def test_edgeql_select_setops_13a(self):
         await self.assert_query_result(
             r"""
@@ -2417,7 +2416,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('The results get deduplicated')
     async def test_edgeql_select_setops_13b(self):
         # This should be equivalent to the above test, but actually we
         # end up deduplicating.
@@ -2529,6 +2527,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             """,
             {'1', '2', '3', '4'},
         )
+
+    async def test_edgeql_select_setops_20(self):
+        res = await self.con.query(r'''
+            SELECT (
+                {(SELECT Issue.time_spent_log.body FILTER false), 'asdf'},
+                Issue,
+            )
+        ''')
+        self.assertEqual(len(res), 4)
+        for row in res:
+            self.assertNotEqual(row[1].id, None)
+
+    async def test_edgeql_select_setops_21(self):
+        res = await self.con.query(r'''
+            SELECT (
+                'oh no' ?? (SELECT Issue.time_spent_log.body FILTER false),
+                Issue,
+            )
+        ''')
+        self.assertEqual(len(res), 4)
+        for row in res:
+            self.assertNotEqual(row[1].id, None)
 
     async def test_edgeql_select_order_01(self):
         await self.assert_query_result(
