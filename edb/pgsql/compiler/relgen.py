@@ -1610,10 +1610,7 @@ def process_set_as_coalesce(
                         larg = scopectx.rel
                         pathctx.put_path_id_map(
                             larg, ir_set.path_id, left_ir.path_id)
-                        dispatch.visit(left_ir, ctx=scopectx)
-
-                        lvar = pathctx.get_path_value_var(
-                            larg, path_id=left_ir.path_id, env=scopectx.env)
+                        lvar = dispatch.compile(left_ir, ctx=scopectx)
 
                         if lvar.nullable:
                             # The left var is still nullable, which may be the
@@ -1630,7 +1627,13 @@ def process_set_as_coalesce(
                         rarg = scopectx.rel
                         pathctx.put_path_id_map(
                             rarg, ir_set.path_id, right_ir.path_id)
-                        dispatch.visit(right_ir, ctx=scopectx)
+                        rvar = dispatch.compile(right_ir, ctx=scopectx)
+
+                        if rvar.nullable:
+                            rarg.where_clause = astutils.extend_binop(
+                                rarg.where_clause,
+                                pgast.NullTest(arg=rvar, negated=True)
+                            )
 
                     marker = sub2ctx.env.aliases.get('m')
 
