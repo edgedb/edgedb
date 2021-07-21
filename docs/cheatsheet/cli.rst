@@ -43,7 +43,7 @@ Configure passwordless access (such as to a local development database):
     > --comment 'passwordless access' \
     > --priority 1 \
     > --method Trust
-    OK: CONFIGURE SYSTEM
+    OK: CONFIGURE INSTANCE
 
 
 ----------
@@ -70,7 +70,7 @@ Configure access that checks password (with a higher priority):
     > --comment 'password is required' \
     > --priority 0 \
     > --method SCRAM
-    OK: CONFIGURE SYSTEM
+    OK: CONFIGURE INSTANCE
 
 
 ----------

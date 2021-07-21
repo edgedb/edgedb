@@ -84,7 +84,7 @@ def compile_ConfigSet(
 
     result: pgast.BaseExpr
 
-    if op.scope is qltypes.ConfigScope.SYSTEM and op.backend_setting:
+    if op.scope is qltypes.ConfigScope.INSTANCE and op.backend_setting:
         assert isinstance(val, pgast.SelectStmt) and len(val.target_list) == 1
         valval = val.target_list[0].val
         if isinstance(valval, pgast.TypeCast):
@@ -127,7 +127,7 @@ def compile_ConfigSet(
             env=ctx.env,
         )
 
-    elif op.scope is qltypes.ConfigScope.SYSTEM:
+    elif op.scope is qltypes.ConfigScope.INSTANCE:
         result_row = pgast.RowExpr(
             args=[
                 pgast.StringConstant(val='SET'),
@@ -256,7 +256,7 @@ def compile_ConfigReset(
 
     stmt: pgast.BaseExpr
 
-    if op.scope is qltypes.ConfigScope.SYSTEM and op.backend_setting:
+    if op.scope is qltypes.ConfigScope.INSTANCE and op.backend_setting:
         stmt = pgast.AlterSystem(
             name=op.backend_setting,
             value=None,
@@ -293,7 +293,7 @@ def compile_ConfigReset(
             env=ctx.env,
         )
 
-    elif op.scope is qltypes.ConfigScope.SYSTEM:
+    elif op.scope is qltypes.ConfigScope.INSTANCE:
 
         if op.selector is None:
             # Scalar reset
@@ -458,7 +458,7 @@ def top_output_as_config_op(
 
     assert isinstance(ir_set.expr, irast.ConfigCommand)
 
-    if ir_set.expr.scope is qltypes.ConfigScope.SYSTEM:
+    if ir_set.expr.scope is qltypes.ConfigScope.INSTANCE:
         alias = env.aliases.get('cfg')
         subrvar = pgast.RangeSubselect(
             subquery=stmt,

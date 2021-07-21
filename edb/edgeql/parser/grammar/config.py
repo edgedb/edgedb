@@ -35,7 +35,10 @@ class ConfigScope(Nonterm):
         self.val = qltypes.ConfigScope.DATABASE
 
     def reduce_SYSTEM(self, *kids):
-        self.val = qltypes.ConfigScope.SYSTEM
+        self.val = qltypes.ConfigScope.INSTANCE
+
+    def reduce_INSTANCE(self, *kids):
+        self.val = qltypes.ConfigScope.INSTANCE
 
 
 class ConfigOp(Nonterm):

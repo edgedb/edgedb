@@ -2437,7 +2437,7 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             text=text)
 
 
-class DescribeSystemConfigAsDDLFunctionForwardDecl(dbops.Function):
+class DescribeInstanceConfigAsDDLFunctionForwardDecl(dbops.Function):
 
     def __init__(self) -> None:
         super().__init__(
@@ -2536,7 +2536,7 @@ class SysConfigScopeType(dbops.Enum):
         super().__init__(
             name=('edgedb', '_sys_config_scope_t'),
             values=[
-                'SYSTEM',
+                'INSTANCE',
                 'DATABASE',
                 'SESSION',
             ]
@@ -2752,7 +2752,7 @@ class SysConfigFullFunction(dbops.Function):
         q.source,
         (CASE
             WHEN q.source < 'database'::edgedb._sys_config_source_t THEN
-                'SYSTEM'
+                'INSTANCE'
             WHEN q.source = 'database'::edgedb._sys_config_source_t THEN
                 'DATABASE'
             ELSE
@@ -2962,7 +2962,7 @@ class SysConfigNoFileAccessFunction(dbops.Function):
         q.source,
         (CASE
             WHEN q.source < 'database'::edgedb._sys_config_source_t THEN
-                'SYSTEM'
+                'INSTANCE'
             WHEN q.source = 'database'::edgedb._sys_config_source_t THEN
                 'DATABASE'
             ELSE
@@ -3332,7 +3332,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(GetCachedReflection()),
         dbops.CreateFunction(GetBaseScalarTypeMap()),
         dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
-        dbops.CreateFunction(DescribeSystemConfigAsDDLFunctionForwardDecl()),
+        dbops.CreateFunction(DescribeInstanceConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeRolesAsDDLFunctionForwardDecl()),
     ])
@@ -3976,9 +3976,9 @@ async def generate_support_views(
         for tn, q in cfg_views
     ])
 
-    conf = schema.get('cfg::SystemConfig', type=s_objtypes.ObjectType)
+    conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=qltypes.ConfigScope.SYSTEM, path=[], rptr=None)
+        schema, conf, scope=qltypes.ConfigScope.INSTANCE, path=[], rptr=None)
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -4047,7 +4047,7 @@ async def generate_more_support_functions(
         output_format=edbcompiler.IoFormat.BINARY,
     )
 
-    DescribeSystemConfigAsDDLFunction = dbops.Function(
+    DescribeInstanceConfigAsDDLFunction = dbops.Function(
         name=('edgedb', '_describe_system_config_as_ddl'),
         args=[],
         returns=('text'),
@@ -4075,7 +4075,7 @@ async def generate_more_support_functions(
 
     commands.add_commands([
         dbops.CreateFunction(
-            DescribeSystemConfigAsDDLFunction, or_replace=True),
+            DescribeInstanceConfigAsDDLFunction, or_replace=True),
         dbops.CreateFunction(
             DescribeDatabaseConfigAsDDLFunction, or_replace=True),
         dbops.CreateFunction(
@@ -4097,8 +4097,8 @@ def _describe_config(
     """Generate an EdgeQL query to render config as DDL."""
 
     if source == 'system override':
-        scope = qltypes.ConfigScope.SYSTEM
-        config_object_name = 'cfg::SystemConfig'
+        scope = qltypes.ConfigScope.INSTANCE
+        config_object_name = 'cfg::InstanceConfig'
     elif source == 'database':
         scope = qltypes.ConfigScope.DATABASE
         config_object_name = 'cfg::DatabaseConfig'
@@ -4487,7 +4487,7 @@ def _generate_config_type_view(
     json_t = schema.get('std::json', type=s_scalars.ScalarType)
 
     if scope is not None:
-        if scope is qltypes.ConfigScope.SYSTEM:
+        if scope is qltypes.ConfigScope.INSTANCE:
             max_source = "'system override'"
         elif scope is qltypes.ConfigScope.DATABASE:
             max_source = "'database'"

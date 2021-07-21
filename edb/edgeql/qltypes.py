@@ -228,7 +228,7 @@ class LinkTargetDeleteAction(s_enum.StrEnum):
 
 class ConfigScope(s_enum.StrEnum):
 
-    SYSTEM = 'SYSTEM'
+    INSTANCE = 'INSTANCE'
     DATABASE = 'DATABASE'
     SESSION = 'SESSION'
 

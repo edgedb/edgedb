@@ -843,7 +843,7 @@ def compile_DescribeStmt(
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
 
-        elif ql.object is qlast.DescribeGlobal.SystemConfig:
+        elif ql.object is qlast.DescribeGlobal.InstanceConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 function_call = dispatch.compile(
                     qlast.FunctionCall(

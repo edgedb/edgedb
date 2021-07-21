@@ -2946,6 +2946,6 @@ class TestServerCapabilities(tb.QueryTestCase):
         caps = ALL_CAPABILITIES & ~enums.Capability.PERSISTENT_CONFIG
         with self.assertRaises(edgedb.ProtocolError):
             await self.con._fetchall(
-                'CONFIGURE SYSTEM SET singleprop := "42"',
+                'CONFIGURE INSTANCE SET singleprop := "42"',
                 __allow_capabilities__=caps,
             )

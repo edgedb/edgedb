@@ -9034,12 +9034,12 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
-            r"cannot execute CONFIGURE SYSTEM"
+            r"cannot execute CONFIGURE INSTANCE"
             r" in a migration block",
         ):
             await self.start_migration('type Foo;')
             await self.con.execute('''
-                CONFIGURE SYSTEM SET _foo := 123;
+                CONFIGURE INSTANCE SET _foo := 123;
             ''')
 
         async with self.assertRaisesRegexTx(

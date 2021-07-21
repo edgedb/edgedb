@@ -192,7 +192,7 @@ class Operation(NamedTuple):
         value: Any,
     ) -> SettingsMap:
 
-        if self.scope is qltypes.ConfigScope.SYSTEM:
+        if self.scope is qltypes.ConfigScope.INSTANCE:
             source = 'system override'
         elif self.scope is qltypes.ConfigScope.DATABASE:
             source = 'database'

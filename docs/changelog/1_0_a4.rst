@@ -19,7 +19,7 @@ EdgeQL
 * Only show link properties on link computables that are aliases.
 * :eql:stmt:`DESCRIBE` command now shows matches that are potentially
   masked by the user-defined types or functions (:eql:gh:`#1439`).
-* Add ``DESCRIBE ROLES`` and ``DESCRIBE SYSTEM CONFIG`` to the
+* Add ``DESCRIBE ROLES`` and ``DESCRIBE INSTANCE CONFIG`` to the
   :eql:stmt:`DESCRIBE` command.
 * Allow underscore in numeric literals and forbids float and decimal
   constants to end in ``.`` (:eql:gh:`#920`).

@@ -42,7 +42,7 @@ CREATE TYPE cfg::Subclass2 EXTENDING cfg::Base {
 };
 
 
-CREATE TYPE cfg::TestSystemConfig {
+CREATE TYPE cfg::TestInstanceConfig {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     };
@@ -55,7 +55,7 @@ ALTER TYPE cfg::AbstractConfig {
     CREATE MULTI LINK sessobj -> cfg::TestSessionConfig {
         CREATE ANNOTATION cfg::internal := 'true';
     };
-    CREATE MULTI LINK sysobj -> cfg::TestSystemConfig {
+    CREATE MULTI LINK sysobj -> cfg::TestInstanceConfig {
         CREATE ANNOTATION cfg::internal := 'true';
     };
 

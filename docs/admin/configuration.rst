@@ -19,7 +19,7 @@ parameters using EdgeQL.  For example:
 
 .. code-block:: edgeql
 
-    CONFIGURE SYSTEM SET listen_addresses := {'127.0.0.1', '::1'};
+    CONFIGURE INSTANCE SET listen_addresses := {'127.0.0.1', '::1'};
 
 
 edgedb configure

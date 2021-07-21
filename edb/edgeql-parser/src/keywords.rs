@@ -33,6 +33,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "index",
     "infix",
     "inheritable",
+    "instance",
     "into",
     "isolation",
     "json",

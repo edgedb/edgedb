@@ -280,7 +280,7 @@ class BaseCluster:
 
     def trust_local_connections(self):
         self._admin_query('''
-            CONFIGURE SYSTEM INSERT Auth {
+            CONFIGURE INSTANCE INSERT Auth {
                 priority := 0,
                 method := (INSERT Trust),
             }
