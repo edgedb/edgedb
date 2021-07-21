@@ -357,17 +357,24 @@ class Server:
 
     async def acquire_pgcon(self, dbname):
         if self._pg_unavailable_msg is not None:
-            raise errors.PostgresUnavailableError(
+            raise errors.BackendUnavailableError(
                 'Postgres is not available: ' + self._pg_unavailable_msg
             )
 
-        while True:
+        for _ in range(self._pg_pool.max_capacity + 1):
             conn = await self._pg_pool.acquire(dbname)
             if conn.is_healthy():
                 return conn
             else:
                 logger.warning('Acquired an unhealthy pgcon; discard now.')
                 self._pg_pool.release(dbname, conn, discard=True)
+        else:
+            # This is unlikely to happen, but we defer to the caller to retry
+            # when it does happen
+            raise errors.BackendUnavailableError(
+                'No healthy backend connection available at the moment, '
+                'please try again.'
+            )
 
     def release_pgcon(self, dbname, conn, *, discard=False):
         if not conn.is_healthy():
@@ -415,6 +422,12 @@ class Server:
         )
 
     async def _reintrospect_global_schema(self):
+        if not self._initing and not self._serving:
+            logger.warning(
+                "global-schema-changes event received during shutdown; "
+                "ignoring."
+            )
+            return
         new_global_schema = await self.introspect_global_schema()
         self._dbindex.update_global_schema(new_global_schema)
         self._fetch_roles()
@@ -444,8 +457,10 @@ class Server:
         try:
             conn = await self.acquire_pgcon(dbname)
         except pgcon_errors.BackendError as e:
-            if skip_dropped and e.fields['C'] == '3D000':
-                # 3D000 - INVALID CATALOG NAME, database does not exist
+            if skip_dropped and e.code_is(
+                pgcon_errors.ERROR_INVALID_CATALOG_NAME
+            ):
+                # database does not exist
                 logger.warning(
                     "Detected concurrently-dropped database %s; skipping.",
                     dbname,
@@ -716,13 +731,13 @@ class Server:
 
     async def _acquire_sys_pgcon(self):
         if not self._initing and not self._serving:
-            return None
+            raise RuntimeError("EdgeDB server is not serving.")
 
         await self._sys_pgcon_waiter.acquire()
 
         if not self._initing and not self._serving:
             self._sys_pgcon_waiter.release()
-            return None
+            raise RuntimeError("EdgeDB server is not serving.")
 
         if self.__sys_pgcon is None or not self.__sys_pgcon.is_healthy():
             conn, self.__sys_pgcon = self.__sys_pgcon, None
@@ -733,6 +748,7 @@ class Server:
             await self._sys_pgcon_ready_evt.wait()
             if self.__sys_pgcon is None:
                 self._sys_pgcon_waiter.release()
+                raise RuntimeError("Cannot acquire pgcon to the system DB.")
 
         return self.__sys_pgcon
 
@@ -770,19 +786,20 @@ class Server:
 
     async def _cancel_and_discard_pgcon(self, pgcon, dbname) -> None:
         try:
-            await self._cancel_pgcon_operation(pgcon)
+            if self._serving:
+                await self._cancel_pgcon_operation(pgcon)
         finally:
             self.release_pgcon(dbname, pgcon, discard=True)
 
     async def _signal_sysevent(self, event, **kwargs):
-        pgcon = await self._acquire_sys_pgcon()
-        if pgcon is None:
-            # No pgcon means that the server is going down.  This is very
-            # likely if we are doing "run_startup_script_and_exit()",
-            # but is also possible if the server was shut down with
-            # this coroutine as a background task in flight.
+        if not self._initing and not self._serving:
+            # This is very likely if we are doing
+            # "run_startup_script_and_exit()", but is also possible if the
+            # server was shut down with this coroutine as a background task
+            # in flight.
             return
 
+        pgcon = await self._acquire_sys_pgcon()
         try:
             await pgcon.signal_sysevent(event, **kwargs)
         finally:
@@ -841,9 +858,8 @@ class Server:
                     pass
                 except pgcon_errors.BackendError as e:
                     #   3. The Postgres cluster is still starting up
-                    if e.fields['C'] != '57P03':
+                    if not e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW):
                         raise
-                    # 57P03: the database system is starting up
 
                 if self._serving:
                     try:

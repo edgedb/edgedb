@@ -78,7 +78,7 @@ __all__ = base.__all__ + (  # type: ignore
     'AccessError',
     'AuthenticationError',
     'AvailabilityError',
-    'PostgresUnavailableError',
+    'BackendUnavailableError',
     'LogMessage',
     'WarningMessage',
 )
@@ -360,7 +360,7 @@ class AvailabilityError(EdgeDBError):
     _code = 0x_08_00_00_00
 
 
-class PostgresUnavailableError(AvailabilityError):
+class BackendUnavailableError(AvailabilityError):
     _code = 0x_08_00_00_01
 
 

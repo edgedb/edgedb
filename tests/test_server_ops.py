@@ -307,7 +307,7 @@ class TestServerOps(tb.TestCase):
 
                     # stop the postgres
                     cluster.stop()
-                    # TODO: Use PostgresUnavailableError here, same below
+                    # TODO: Use BackendUnavailableError here, same below
                     with self.assertRaisesRegex(
                         errors.EdgeDBError,
                         'Postgres is not available',

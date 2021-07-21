@@ -56,7 +56,7 @@ async def handle_request(
             response.close_connection = True
 
         return
-    except errors.PostgresUnavailableError as ex:
+    except errors.BackendUnavailableError as ex:
         _response_error(
             response, http.HTTPStatus.SERVICE_UNAVAILABLE, str(ex), type(ex)
         )

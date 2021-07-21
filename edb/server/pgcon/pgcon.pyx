@@ -211,8 +211,7 @@ async def _connect(connargs, dbname, ssl):
     try:
         await pgcon.connect()
     except pgerror.BackendError as e:
-        if e.fields['C'] != '28000':
-            # 'C' is error code, 28000 is invalid_authorization_specification
+        if not e.code_is(pgerror.ERROR_INVALID_AUTHORIZATION_SPECIFICATION):
             raise
 
         if (
@@ -1729,9 +1728,8 @@ cdef class PGConnection:
 
             message = self.buffer.read_null_str().decode()
 
-            if code == 67 and message == '57014':
-                # 67 is b'C' -- error code
-                # 57014 is Postgres' QueryCanceledError
+            if (code == 67 and  # 67 is b'C' -- error code
+                message == pgerror.ERROR_QUERY_CANCELLED):
                 cls = pgerror.BackendQueryCancelledError
 
             fields[chr(code)] = message

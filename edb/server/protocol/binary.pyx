@@ -1866,13 +1866,13 @@ cdef class EdgeConnection:
             WriteBuffer buf
             int16_t fields_len
 
-        if self.debug and not isinstance(exc, errors.PostgresUnavailableError):
+        if self.debug and not isinstance(exc, errors.BackendUnavailableError):
             self.debug_print('EXCEPTION', type(exc).__name__, exc)
             from edb.common.markup import dump
             dump(exc)
 
         if debug.flags.server and not isinstance(
-            exc, errors.PostgresUnavailableError
+            exc, errors.BackendUnavailableError
         ):
             self.loop.call_exception_handler({
                 'message': (
