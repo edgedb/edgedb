@@ -256,21 +256,25 @@ cdef class EdgeConnection:
     async def get_pgcon(self) -> pgcon.PGConnection:
         cdef dbview.DatabaseConnectionView _dbview
         self._get_pgcon_cc += 1
-        if self._get_pgcon_cc > 1:
-            raise RuntimeError('nested get_pgcon() calls are prohibited')
-        _dbview = self.get_dbview()
-        if _dbview.in_tx():
-            if not self._pinned_pgcon_in_tx or self._pinned_pgcon is None:
-                raise RuntimeError(
-                    'get_pgcon(): in dbview transaction, but `_pinned_pgcon` '
-                    'is None')
-            return self._pinned_pgcon
-        if self._pinned_pgcon is not None:
-            raise RuntimeError('there is already a pinned pgcon')
-        conn = await self.server.acquire_pgcon(_dbview.dbname)
-        self._pinned_pgcon = conn
-        self._pgcon_released = False
-        return conn
+        try:
+            if self._get_pgcon_cc > 1:
+                raise RuntimeError('nested get_pgcon() calls are prohibited')
+            _dbview = self.get_dbview()
+            if _dbview.in_tx():
+                if not self._pinned_pgcon_in_tx or self._pinned_pgcon is None:
+                    raise RuntimeError(
+                        'get_pgcon(): in dbview transaction, '
+                        'but `_pinned_pgcon` is None')
+                return self._pinned_pgcon
+            if self._pinned_pgcon is not None:
+                raise RuntimeError('there is already a pinned pgcon')
+            conn = await self.server.acquire_pgcon(_dbview.dbname)
+            self._pinned_pgcon = conn
+            self._pgcon_released = False
+            return conn
+        except Exception:
+            self._get_pgcon_cc -= 1
+            raise
 
     def maybe_release_pgcon(self, pgcon.PGConnection conn):
         cdef dbview.DatabaseConnectionView _dbview
@@ -1862,12 +1866,14 @@ cdef class EdgeConnection:
             WriteBuffer buf
             int16_t fields_len
 
-        if self.debug:
+        if self.debug and not isinstance(exc, errors.BackendUnavailableError):
             self.debug_print('EXCEPTION', type(exc).__name__, exc)
             from edb.common.markup import dump
             dump(exc)
 
-        if debug.flags.server:
+        if debug.flags.server and not isinstance(
+            exc, errors.BackendUnavailableError
+        ):
             self.loop.call_exception_handler({
                 'message': (
                     'an error in edgedb protocol'

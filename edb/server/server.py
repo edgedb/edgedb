@@ -133,6 +133,7 @@ class Server:
             disconnect=self._pg_disconnect,
             max_capacity=pool_capacity,
         )
+        self._pg_unavailable_msg = None
 
         # DB state will be initialized in init().
         self._dbindex = None
@@ -261,6 +262,8 @@ class Server:
         try:
             self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
             self._sys_pgcon_waiter = asyncio.Lock()
+            self._sys_pgcon_ready_evt = asyncio.Event()
+            self._sys_pgcon_reconnect_evt = asyncio.Event()
 
             await self._load_instance_data()
 
@@ -279,7 +282,9 @@ class Server:
 
             # Now, once all DBs have been introspected, start listening on
             # any notifications about schema/roles/etc changes.
-            await self.__sys_pgcon.set_server(self)
+            await self.__sys_pgcon.listen_for_sysevent()
+            self.__sys_pgcon.set_server(self)
+            self._sys_pgcon_ready_evt.set()
 
             self._populate_sys_auth()
 
@@ -351,11 +356,29 @@ class Server:
         return self._dbindex.get_compilation_system_config()
 
     async def acquire_pgcon(self, dbname):
-        return await self._pg_pool.acquire(dbname)
+        if self._pg_unavailable_msg is not None:
+            raise errors.BackendUnavailableError(
+                'Postgres is not available: ' + self._pg_unavailable_msg
+            )
+
+        for _ in range(self._pg_pool.max_capacity + 1):
+            conn = await self._pg_pool.acquire(dbname)
+            if conn.is_healthy():
+                return conn
+            else:
+                logger.warning('Acquired an unhealthy pgcon; discard now.')
+                self._pg_pool.release(dbname, conn, discard=True)
+        else:
+            # This is unlikely to happen, but we defer to the caller to retry
+            # when it does happen
+            raise errors.BackendUnavailableError(
+                'No healthy backend connection available at the moment, '
+                'please try again.'
+            )
 
     def release_pgcon(self, dbname, conn, *, discard=False):
-        if not conn.is_healthy_to_go_back_to_pool():
-            # TODO: Add warning. This shouldn't happen.
+        if not conn.is_healthy():
+            logger.warning('Released an unhealthy pgcon; discard now.')
             discard = True
         self._pg_pool.release(dbname, conn, discard=discard)
 
@@ -399,6 +422,12 @@ class Server:
         )
 
     async def _reintrospect_global_schema(self):
+        if not self._initing and not self._serving:
+            logger.warning(
+                "global-schema-changes event received during shutdown; "
+                "ignoring."
+            )
+            return
         new_global_schema = await self.introspect_global_schema()
         self._dbindex.update_global_schema(new_global_schema)
         self._fetch_roles()
@@ -428,8 +457,10 @@ class Server:
         try:
             conn = await self.acquire_pgcon(dbname)
         except pgcon_errors.BackendError as e:
-            if skip_dropped and e.fields['C'] == '3D000':
-                # 3D000 - INVALID CATALOG NAME, database does not exist
+            if skip_dropped and e.code_is(
+                pgcon_errors.ERROR_INVALID_CATALOG_NAME
+            ):
+                # database does not exist
                 logger.warning(
                     "Detected concurrently-dropped database %s; skipping.",
                     dbname,
@@ -700,19 +731,24 @@ class Server:
 
     async def _acquire_sys_pgcon(self):
         if not self._initing and not self._serving:
-            return None
+            raise RuntimeError("EdgeDB server is not serving.")
 
         await self._sys_pgcon_waiter.acquire()
 
         if not self._initing and not self._serving:
             self._sys_pgcon_waiter.release()
-            return None
+            raise RuntimeError("EdgeDB server is not serving.")
 
-        if (self.__sys_pgcon is None or
-                not self.__sys_pgcon.is_healthy_to_go_back_to_pool()):
-            self.__sys_pgcon.abort()
-            self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
-            await self.__sys_pgcon.set_server(self)
+        if self.__sys_pgcon is None or not self.__sys_pgcon.is_healthy():
+            conn, self.__sys_pgcon = self.__sys_pgcon, None
+            if conn is not None:
+                self._sys_pgcon_ready_evt.clear()
+                conn.abort()
+            # We depend on the reconnect on connection_lost() of __sys_pgcon
+            await self._sys_pgcon_ready_evt.wait()
+            if self.__sys_pgcon is None:
+                self._sys_pgcon_waiter.release()
+                raise RuntimeError("Cannot acquire pgcon to the system DB.")
 
         return self.__sys_pgcon
 
@@ -750,19 +786,20 @@ class Server:
 
     async def _cancel_and_discard_pgcon(self, pgcon, dbname) -> None:
         try:
-            await self._cancel_pgcon_operation(pgcon)
+            if self._serving:
+                await self._cancel_pgcon_operation(pgcon)
         finally:
             self.release_pgcon(dbname, pgcon, discard=True)
 
     async def _signal_sysevent(self, event, **kwargs):
-        pgcon = await self._acquire_sys_pgcon()
-        if pgcon is None:
-            # No pgcon means that the server is going down.  This is very
-            # likely if we are doing "run_startup_script_and_exit()",
-            # but is also possible if the server was shut down with
-            # this coroutine as a background task in flight.
+        if not self._initing and not self._serving:
+            # This is very likely if we are doing
+            # "run_startup_script_and_exit()", but is also possible if the
+            # server was shut down with this coroutine as a background task
+            # in flight.
             return
 
+        pgcon = await self._acquire_sys_pgcon()
         try:
             await pgcon.signal_sysevent(event, **kwargs)
         finally:
@@ -788,22 +825,70 @@ class Server:
     def _on_global_schema_change(self):
         self._loop.create_task(self._reintrospect_global_schema())
 
-    def _on_sys_pgcon_connection_lost(self):
+    def _on_sys_pgcon_connection_lost(self, exc):
         if not self._serving:
-            # The server is shutting down.
+            # The server is shutting down, release all events so that
+            # the waiters if any could continue and exit
+            self._sys_pgcon_ready_evt.set()
+            self._sys_pgcon_reconnect_evt.set()
             return
-        self.__sys_pgcon = None
 
-        async def reconnect():
-            conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
-            if self.__sys_pgcon is not None or not self._serving:
-                conn.abort()
+        logger.error(
+            "Connection to the system database is " +
+            ("closed." if exc is None else f"broken! Reason: {exc}")
+        )
+        self.set_pg_unavailable_msg(
+            "Connection is lost, please check server log for the reason."
+        )
+        self.__sys_pgcon = None
+        self._sys_pgcon_ready_evt.clear()
+        self._loop.create_task(self._reconnect_sys_pgcon())
+
+    async def _reconnect_sys_pgcon(self):
+        try:
+            conn = None
+            while self._serving:
+                try:
+                    conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+                    break
+                except ConnectionError:
+                    # Keep retrying as far as:
+                    #   1. The EdgeDB server is still serving,
+                    #   2. We still cannot connect to the Postgres cluster, or
+                    pass
+                except pgcon_errors.BackendError as e:
+                    #   3. The Postgres cluster is still starting up
+                    if not e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW):
+                        raise
+
+                if self._serving:
+                    try:
+                        # Retry after INTERVAL seconds, unless the event is set
+                        # and we can retry immediately after the event.
+                        await asyncio.wait_for(
+                            self._sys_pgcon_reconnect_evt.wait(),
+                            defines.SYSTEM_DB_RECONNECT_INTERVAL,
+                        )
+                        # But the event can only skip one INTERVAL.
+                        self._sys_pgcon_reconnect_evt.clear()
+                    except asyncio.TimeoutError:
+                        pass
+
+            if not self._serving:
+                if conn is not None:
+                    conn.abort()
                 return
 
+            logger.info("Successfully reconnected to the system database.")
             self.__sys_pgcon = conn
-            await self.__sys_pgcon.set_server(self)
-
-        self._loop.create_task(reconnect())
+            self.__sys_pgcon.set_server(self)
+            # This await is meant to be after set_server() because we need the
+            # pgcon to be able to trigger another reconnect if its connection
+            # is lost during this await.
+            await self.__sys_pgcon.listen_for_sysevent()
+            self.set_pg_unavailable_msg(None)
+        finally:
+            self._sys_pgcon_ready_evt.set()
 
     async def run_startup_script_and_exit(self):
         """Run the script specified in *startup_script* and exit immediately"""
@@ -1026,6 +1111,10 @@ class Server:
 
     def get_backend_runtime_params(self) -> Any:
         return self._cluster.get_runtime_params()
+
+    def set_pg_unavailable_msg(self, msg):
+        if msg is None or self._pg_unavailable_msg is None:
+            self._pg_unavailable_msg = msg
 
 
 async def _fix_localhost(host):

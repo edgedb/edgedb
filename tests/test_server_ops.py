@@ -296,6 +296,57 @@ class TestServerOps(tb.TestCase):
             finally:
                 cluster.stop()
 
+    def test_server_ops_postgres_recovery(self):
+        async def test(pgdata_path):
+            async with tb.start_edgedb_server(
+                postgres_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
+                reset_auth=True,
+                runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    val = await con.query_one('SELECT 123')
+                    self.assertEqual(int(val), 123)
+
+                    # stop the postgres
+                    cluster.stop()
+                    # TODO: Use BackendUnavailableError here, same below
+                    with self.assertRaisesRegex(
+                        errors.EdgeDBError,
+                        'Postgres is not available',
+                    ):
+                        await con.query_one('SELECT 123+456')
+
+                    # bring postgres back
+                    await self.loop.run_in_executor(None, cluster.start)
+
+                    # give the EdgeDB server some time to recover
+                    deadline = time.monotonic() + 5
+                    while time.monotonic() < deadline:
+                        try:
+                            val = await con.query_one('SELECT 123+456')
+                            break
+                        except errors.EdgeDBError:  # TODO: ditto
+                            pass
+                    self.assertEqual(int(val), 579)
+                finally:
+                    await con.aclose()
+
+        with tempfile.TemporaryDirectory() as td:
+            cluster = pgcluster.get_local_pg_cluster(td)
+            cluster.set_connection_params(
+                pgconnparams.ConnectionParameters(
+                    user='postgres',
+                    database='template1',
+                ),
+            )
+            self.assertTrue(cluster.ensure_initialized())
+            cluster.start()
+            try:
+                self.loop.run_until_complete(test(td))
+            finally:
+                cluster.stop()
+
     async def _test_connection(self, con):
         await con.connect()
 

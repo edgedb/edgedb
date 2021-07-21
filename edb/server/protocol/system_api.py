@@ -56,25 +56,38 @@ async def handle_request(
             response.close_connection = True
 
         return
+    except errors.BackendUnavailableError as ex:
+        _response_error(
+            response, http.HTTPStatus.SERVICE_UNAVAILABLE, str(ex), type(ex)
+        )
+    except errors.EdgeDBError as ex:
+        if debug.flags.server:
+            markup.dump(ex)
+        _response_error(
+            response, http.HTTPStatus.INTERNAL_SERVER_ERROR, str(ex), type(ex)
+        )
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
 
-        ex_type = type(ex)
-        if not issubclass(ex_type, errors.EdgeDBError):
-            # XXX Fix this when LSP "location" objects are implemented
-            ex_type = errors.InternalServerError
+        # XXX Fix this when LSP "location" objects are implemented
+        ex_type = errors.InternalServerError
 
-        err_dct = {
-            'message': str(ex),
-            'type': str(ex_type.__name__),
-            'code': ex_type.get_code(),
-        }
+        _response_error(
+            response, http.HTTPStatus.INTERNAL_SERVER_ERROR, str(ex), ex_type
+        )
 
-        response.body = json.dumps({'error': err_dct}).encode()
-        response.status = http.HTTPStatus.INTERNAL_SERVER_ERROR
-        response.close_connection = True
-        return
+
+def _response_error(response, status, message, ex_type):
+    err_dct = {
+        'message': message,
+        'type': str(ex_type.__name__),
+        'code': ex_type.get_code(),
+    }
+
+    response.body = json.dumps({'error': err_dct}).encode()
+    response.status = status
+    response.close_connection = True
 
 
 async def handle_status_request(

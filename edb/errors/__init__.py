@@ -77,6 +77,8 @@ __all__ = base.__all__ + (  # type: ignore
     'ConfigurationError',
     'AccessError',
     'AuthenticationError',
+    'AvailabilityError',
+    'BackendUnavailableError',
     'LogMessage',
     'WarningMessage',
 )
@@ -352,6 +354,14 @@ class AccessError(EdgeDBError):
 
 class AuthenticationError(AccessError):
     _code = 0x_07_01_00_00
+
+
+class AvailabilityError(EdgeDBError):
+    _code = 0x_08_00_00_00
+
+
+class BackendUnavailableError(AvailabilityError):
+    _code = 0x_08_00_00_01
 
 
 class LogMessage(EdgeDBMessage):

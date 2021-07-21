@@ -20,7 +20,6 @@
 from __future__ import annotations
 from typing import *
 
-import enum
 import json
 import re
 
@@ -34,39 +33,7 @@ from edb.schema import pointers as s_pointers
 from edb.pgsql import common
 from edb.pgsql import types
 
-
-class PGErrorCode(enum.Enum):
-
-    CardinalityViolationError = '21000'
-    IntegrityConstraintViolationError = '23000'
-    RestrictViolationError = '23001'
-    NotNullViolationError = '23502'
-    ForeignKeyViolationError = '23503'
-    UniqueViolationError = '23505'
-    CheckViolationError = '23514'
-    ExclusionViolationError = '23P01'
-
-    NumericValueOutOfRange = '22003'
-    InvalidParameterValue = '22023'
-    InvalidTextRepresentation = '22P02'
-    WrongObjectType = '42809'
-
-    DivisionByZeroError = '22012'
-    IntervalFieldOverflow = '22015'
-
-    ReadOnlySQLTransactionError = '25006'
-
-    InvalidDatetimeFormatError = '22007'
-    DatetimeError = '22008'
-
-    TransactionSerializationFailure = '40001'
-    TransactionDeadlockDetected = '40P01'
-
-    InvalidCatalogNameError = '3D000'
-
-    DuplicateDatabaseError = '42P04'
-
-    ObjectInUse = '55006'
+from edb.server.pgcon import errors as pgerrors
 
 
 class SchemaRequired:
@@ -77,10 +44,10 @@ class SchemaRequired:
 # other error codes that only require the schema under certain
 # circumstances.
 SCHEMA_CODES = frozenset({
-    PGErrorCode.InvalidTextRepresentation,
-    PGErrorCode.NumericValueOutOfRange,
-    PGErrorCode.InvalidDatetimeFormatError,
-    PGErrorCode.DatetimeError,
+    pgerrors.ERROR_INVALID_TEXT_REPRESENTATION,
+    pgerrors.ERROR_NUMERIC_VALUE_OUT_OF_RANGE,
+    pgerrors.ERROR_INVALID_DATETIME_FORMAT,
+    pgerrors.ERROR_DATETIME_FIELD_OVERFLOW,
 })
 
 
@@ -88,7 +55,7 @@ class ErrorDetails(NamedTuple):
     message: str
     detail: Optional[str] = None
     detail_json: Optional[Dict[str, Any]] = None
-    code: Optional[PGErrorCode] = None
+    code: Optional[str] = None
     schema_name: Optional[str] = None
     table_name: Optional[str] = None
     column_name: Optional[str] = None
@@ -97,13 +64,13 @@ class ErrorDetails(NamedTuple):
 
 
 constraint_errors = frozenset({
-    PGErrorCode.IntegrityConstraintViolationError,
-    PGErrorCode.RestrictViolationError,
-    PGErrorCode.NotNullViolationError,
-    PGErrorCode.ForeignKeyViolationError,
-    PGErrorCode.UniqueViolationError,
-    PGErrorCode.CheckViolationError,
-    PGErrorCode.ExclusionViolationError,
+    pgerrors.ERROR_INTEGRITY_CONSTRAINT_VIOLATION,
+    pgerrors.ERROR_RESTRICT_VIOLATION,
+    pgerrors.ERROR_NOT_NULL_VIOLATION,
+    pgerrors.ERROR_FOREIGN_KEY_VIOLATION,
+    pgerrors.ERROR_UNIQUE_VIOLATION,
+    pgerrors.ERROR_CHECK_VIOLATION,
+    pgerrors.ERROR_EXCLUSION_VIOLATION,
 })
 
 
@@ -178,11 +145,7 @@ def get_error_details(fields):
                 return ErrorDetails(
                     errcls=errcls, message=message, detail_json=detail_json)
 
-    try:
-        code = PGErrorCode(fields['C'])
-    except ValueError:
-        return ErrorDetails(errcls=errors.InternalServerError, message=message)
-
+    code = fields['C']
     schema_name = fields.get('s')
     table_name = fields.get('t')
     column_name = fields.get('c')
@@ -213,7 +176,7 @@ def static_interpret_backend_error(fields):
     if err is not None:
         return err
 
-    if err_details.code == PGErrorCode.NotNullViolationError:
+    if err_details.code == pgerrors.ERROR_NOT_NULL_VIOLATION:
         if err_details.table_name or err_details.column_name:
             return SchemaRequired
 
@@ -297,7 +260,7 @@ def static_interpret_backend_error(fields):
                 'unique link constraint violation')
 
     elif err_details.code in SCHEMA_CODES:
-        if err_details.code == PGErrorCode.InvalidDatetimeFormatError:
+        if err_details.code == pgerrors.ERROR_INVALID_DATETIME_FORMAT:
             hint = None
             if err_details.detail_json:
                 hint = err_details.detail_json.get('hint')
@@ -309,13 +272,13 @@ def static_interpret_backend_error(fields):
 
         return SchemaRequired
 
-    elif err_details.code == PGErrorCode.InvalidParameterValue:
+    elif err_details.code == pgerrors.ERROR_INVALID_PARAMETER_VALUE:
         return errors.InvalidValueError(
             err_details.message,
             details=err_details.detail if err_details.detail else None
         )
 
-    elif err_details.code == PGErrorCode.WrongObjectType:
+    elif err_details.code == pgerrors.ERROR_WRONG_OBJECT_TYPE:
         if err_details.column_name:
             return SchemaRequired
 
@@ -324,33 +287,33 @@ def static_interpret_backend_error(fields):
             details=err_details.detail if err_details.detail else None
         )
 
-    elif err_details.code == PGErrorCode.DivisionByZeroError:
+    elif err_details.code == pgerrors.ERROR_DIVISION_BY_ZERO:
         return errors.DivisionByZeroError(err_details.message)
 
-    elif err_details.code == PGErrorCode.IntervalFieldOverflow:
+    elif err_details.code == pgerrors.ERROR_INTERVAL_FIELD_OVERFLOW:
         return errors.NumericOutOfRangeError(err_details.message)
 
-    elif err_details.code == PGErrorCode.ReadOnlySQLTransactionError:
+    elif err_details.code == pgerrors.ERROR_READ_ONLY_SQL_TRANSACTION:
         return errors.TransactionError(
             'cannot execute query in a read-only transaction')
 
-    elif err_details.code == PGErrorCode.TransactionSerializationFailure:
+    elif err_details.code == pgerrors.ERROR_SERIALIZATION_FAILURE:
         return errors.TransactionSerializationError(err_details.message)
 
-    elif err_details.code == PGErrorCode.TransactionDeadlockDetected:
+    elif err_details.code == pgerrors.ERROR_DEADLOCK_DETECTED:
         return errors.TransactionDeadlockError(err_details.message)
 
-    elif err_details.code == PGErrorCode.InvalidCatalogNameError:
+    elif err_details.code == pgerrors.ERROR_INVALID_CATALOG_NAME:
         return errors.UnknownDatabaseError(err_details.message)
 
-    elif err_details.code == PGErrorCode.ObjectInUse:
+    elif err_details.code == pgerrors.ERROR_OBJECT_IN_USE:
         return errors.ExecutionError(err_details.message)
 
-    elif err_details.code == PGErrorCode.DuplicateDatabaseError:
+    elif err_details.code == pgerrors.ERROR_DUPLICATE_DATABASE:
         return errors.DuplicateDatabaseDefinitionError(err_details.message)
 
     elif (
-        err_details.code == PGErrorCode.CardinalityViolationError
+        err_details.code == pgerrors.ERROR_CARDINALITY_VIOLATION
         and err_details.constraint_name == 'std::assert_single'
     ):
         return errors.CardinalityViolationError(err_details.message)
@@ -367,7 +330,7 @@ def interpret_backend_error(schema, fields):
 
     # all generic errors are static and have been handled by this point
 
-    if err_details.code == PGErrorCode.NotNullViolationError:
+    if err_details.code == pgerrors.ERROR_NOT_NULL_VIOLATION:
         colname = err_details.column_name
         if colname:
             if colname.startswith('??'):
@@ -442,22 +405,22 @@ def interpret_backend_error(schema, fields):
                 msg = translate_pgtype(schema, err_details.message)
             return errors.InvalidValueError(msg)
 
-    elif err_details.code == PGErrorCode.InvalidTextRepresentation:
+    elif err_details.code == pgerrors.ERROR_INVALID_TEXT_REPRESENTATION:
         return errors.InvalidValueError(
             translate_pgtype(schema, err_details.message))
 
-    elif err_details.code == PGErrorCode.NumericValueOutOfRange:
+    elif err_details.code == pgerrors.ERROR_NUMERIC_VALUE_OUT_OF_RANGE:
         return errors.NumericOutOfRangeError(
             translate_pgtype(schema, err_details.message))
 
-    elif err_details.code in {PGErrorCode.InvalidDatetimeFormatError,
-                              PGErrorCode.DatetimeError}:
+    elif err_details.code in {pgerrors.ERROR_INVALID_DATETIME_FORMAT,
+                              pgerrors.ERROR_DATETIME_FIELD_OVERFLOW}:
         return errors.InvalidValueError(
             translate_pgtype(schema, err_details.message),
             hint=hint)
 
     elif (
-        err_details.code == PGErrorCode.WrongObjectType
+        err_details.code == pgerrors.ERROR_WRONG_OBJECT_TYPE
         and err_details.message == 'covariance error'
     ):
         ptr = schema.get_by_id(uuidgen.UUID(err_details.column_name))
