@@ -57,7 +57,7 @@ COMPILER: compiler.Compiler
 LAST_STATE: Optional[compiler.dbstate.CompilerConnectionState] = None
 STD_SCHEMA: s_schema.FlatSchema
 GLOBAL_SCHEMA: s_schema.FlatSchema
-SYSTEM_CONFIG: immutables.Map[str, config.SettingValue]
+INSTANCE_CONFIG: immutables.Map[str, config.SettingValue]
 
 # Abort the template process if more than MAX_WORKER_SPANWS new workers are
 # created continuously - it probably means the worker cannot start correctly
@@ -76,7 +76,7 @@ def __init_worker__(
     global COMPILER
     global STD_SCHEMA
     global GLOBAL_SCHEMA
-    global SYSTEM_CONFIG
+    global INSTANCE_CONFIG
 
     (
         dbs,
@@ -96,7 +96,7 @@ def __init_worker__(
     )
     STD_SCHEMA = std_schema
     GLOBAL_SCHEMA = global_schema
-    SYSTEM_CONFIG = system_config
+    INSTANCE_CONFIG = system_config
 
     COMPILER.initialize(
         std_schema, refl_schema, schema_class_layout,
@@ -113,7 +113,7 @@ def __sync__(
 ) -> state.DatabaseState:
     global DBS
     global GLOBAL_SCHEMA
-    global SYSTEM_CONFIG
+    global INSTANCE_CONFIG
 
     try:
         db = DBS.get(dbname)
@@ -149,7 +149,7 @@ def __sync__(
             GLOBAL_SCHEMA = pickle.loads(global_schema)
 
         if system_config is not None:
-            SYSTEM_CONFIG = pickle.loads(system_config)
+            INSTANCE_CONFIG = pickle.loads(system_config)
 
     except Exception as ex:
         raise state.FailedStateSync(
@@ -182,7 +182,7 @@ def compile(
         GLOBAL_SCHEMA,
         db.reflection_cache,
         db.database_config,
-        SYSTEM_CONFIG,
+        INSTANCE_CONFIG,
         *compile_args,
         **compile_kwargs
     )
@@ -231,7 +231,7 @@ def compile_notebook(
         GLOBAL_SCHEMA,
         db.reflection_cache,
         db.database_config,
-        SYSTEM_CONFIG,
+        INSTANCE_CONFIG,
         *compile_args,
         **compile_kwargs
     )
@@ -267,7 +267,7 @@ def compile_graphql(
         db.user_schema,
         GLOBAL_SCHEMA,
         db.database_config,
-        SYSTEM_CONFIG,
+        INSTANCE_CONFIG,
         *compile_args,
         **compile_kwargs
     )

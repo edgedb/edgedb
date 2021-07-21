@@ -655,15 +655,15 @@ class Server:
         self._dbindex.unregister_db(dbname)
 
     async def _on_system_config_add(self, setting_name, value):
-        # CONFIGURE SYSTEM INSERT ConfigObject;
+        # CONFIGURE INSTANCE INSERT ConfigObject;
         pass
 
     async def _on_system_config_rem(self, setting_name, value):
-        # CONFIGURE SYSTEM RESET ConfigObject;
+        # CONFIGURE INSTANCE RESET ConfigObject;
         pass
 
     async def _on_system_config_set(self, setting_name, value):
-        # CONFIGURE SYSTEM SET setting_name := value;
+        # CONFIGURE INSTANCE SET setting_name := value;
         if setting_name == 'listen_addresses':
             await self._restart_servers_new_addr(value, self._listen_port)
 
@@ -671,7 +671,7 @@ class Server:
             await self._restart_servers_new_addr(self._listen_host, value)
 
     async def _on_system_config_reset(self, setting_name):
-        # CONFIGURE SYSTEM RESET setting_name;
+        # CONFIGURE INSTANCE RESET setting_name;
         if setting_name == 'listen_addresses':
             await self._restart_servers_new_addr(
                 'localhost', self._listen_port)
@@ -681,21 +681,21 @@ class Server:
                 self._listen_host, defines.EDGEDB_PORT)
 
     async def _after_system_config_add(self, setting_name, value):
-        # CONFIGURE SYSTEM INSERT ConfigObject;
+        # CONFIGURE INSTANCE INSERT ConfigObject;
         if setting_name == 'auth':
             self._populate_sys_auth()
 
     async def _after_system_config_rem(self, setting_name, value):
-        # CONFIGURE SYSTEM RESET ConfigObject;
+        # CONFIGURE INSTANCE RESET ConfigObject;
         if setting_name == 'auth':
             self._populate_sys_auth()
 
     async def _after_system_config_set(self, setting_name, value):
-        # CONFIGURE SYSTEM SET setting_name := value;
+        # CONFIGURE INSTANCE SET setting_name := value;
         pass
 
     async def _after_system_config_reset(self, setting_name):
-        # CONFIGURE SYSTEM RESET setting_name;
+        # CONFIGURE INSTANCE RESET setting_name;
         pass
 
     async def _acquire_sys_pgcon(self):

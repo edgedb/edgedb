@@ -10,11 +10,11 @@ CONFIGURE
 
 .. eql:synopsis::
 
-    CONFIGURE {SESSION | CURRENT DATABASE | SYSTEM}
+    CONFIGURE {SESSION | CURRENT DATABASE | INSTANCE}
         SET <parameter> := <value> ;
-    CONFIGURE SYSTEM INSERT <parameter-class> <insert-shape> ;
-    CONFIGURE {SESSION | CURRENT DATABASE | SYSTEM} RESET <parameter> ;
-    CONFIGURE {CURRENT DATABASE | SYSTEM}
+    CONFIGURE INSTANCE INSERT <parameter-class> <insert-shape> ;
+    CONFIGURE {SESSION | CURRENT DATABASE | INSTANCE} RESET <parameter> ;
+    CONFIGURE {CURRENT DATABASE | INSTANCE}
         RESET <parameter-class> [ FILTER <filter-expr> ] ;
 
 
@@ -26,18 +26,18 @@ This command allows altering the server configuration.
 The effects of :eql:synopsis:`CONFIGURE SESSION` last until the end of the
 current session. Some configuration parameters cannot be modified by
 :eql:synopsis:`CONFIGURE SESSION` and can only be set by
-:eql:synopsis:`CONFIGURE SYSTEM`.
+:eql:synopsis:`CONFIGURE INSTANCE`.
 
 :eql:synopsis:`CONFIGURE CURRENT DATABASE` is used to configure an
 individual EdgeDB database within a server instance with the
 changes persisted across server restarts.
 
-:eql:synopsis:`CONFIGURE SYSTEM` is used to configure the entire EdgeDB
+:eql:synopsis:`CONFIGURE INSTANCE` is used to configure the entire EdgeDB
 instance with the changes persisted across server restarts.  This variant
 acts directly on the file system and cannot be rolled back, so it cannot
 be used in a transaction block.
 
-The :eql:synopsis:`CONFIGURE SYSTEM INSERT` variant is used for composite
+The :eql:synopsis:`CONFIGURE INSTANCE INSERT` variant is used for composite
 configuration parameters, such as ``Auth``.
 
 
@@ -66,7 +66,7 @@ Set the listen_addresses parameter:
 
 .. code-block:: edgeql
 
-    CONFIGURE SYSTEM SET listen_addresses := {'127.0.0.1', '::1'};
+    CONFIGURE INSTANCE SET listen_addresses := {'127.0.0.1', '::1'};
 
 Set the query_work_mem parameter for the duration of the session:
 
@@ -84,4 +84,4 @@ Remove all Trust authentication methods:
 
 .. code-block:: edgeql
 
-    CONFIGURE SYSTEM RESET Auth FILTER Auth.method IS Trust;
+    CONFIGURE INSTANCE RESET Auth FILTER Auth.method IS Trust;

@@ -1120,7 +1120,7 @@ cdef class EdgeConnection:
                     dbname=self.get_dbview().dbname,
                 ),
             )
-        if side_effects & dbview.SideEffects.SystemConfigChanges:
+        if side_effects & dbview.SideEffects.InstanceConfigChanges:
             self.server.create_task(
                 self.server._signal_sysevent(
                     'system-config-changes',
@@ -2480,9 +2480,9 @@ cdef class EdgeConnection:
                 try:
                     if query_unit.config_ops:
                         for op in query_unit.config_ops:
-                            if op.scope is config.ConfigScope.SYSTEM:
+                            if op.scope is config.ConfigScope.INSTANCE:
                                 raise errors.ProtocolError(
-                                    'CONFIGURE SYSTEM cannot be executed'
+                                    'CONFIGURE INSTANCE cannot be executed'
                                     ' in dump restore'
                                 )
 

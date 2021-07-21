@@ -740,7 +740,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_AlterSystem(self, node):
-        self.write('ALTER SYSTEM ')
+        self.write('ALTER INSTANCE ')
         if node.value is not None:
             self.write('SET ')
             self.write(common.quote_ident(node.name))

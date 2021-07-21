@@ -443,7 +443,7 @@ cdef class DatabaseConnectionView:
                 )
                 side_effects |= SideEffects.SchemaChanges
             if query_unit.system_config:
-                side_effects |= SideEffects.SystemConfigChanges
+                side_effects |= SideEffects.InstanceConfigChanges
             if query_unit.database_config:
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
@@ -481,7 +481,7 @@ cdef class DatabaseConnectionView:
                 )
                 side_effects |= SideEffects.SchemaChanges
             if self._in_tx_with_sysconfig:
-                side_effects |= SideEffects.SystemConfigChanges
+                side_effects |= SideEffects.InstanceConfigChanges
             if self._in_tx_with_dbconfig:
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
@@ -511,7 +511,7 @@ cdef class DatabaseConnectionView:
             if setting.backend_setting:
                 continue
 
-            if op.scope is config.ConfigScope.SYSTEM:
+            if op.scope is config.ConfigScope.INSTANCE:
                 await self._db._index.apply_system_config_op(conn, op)
             elif op.scope is config.ConfigScope.DATABASE:
                 self.set_database_config(

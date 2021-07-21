@@ -1453,11 +1453,11 @@ class Compiler:
             self._assert_not_in_migration_block(ctx, ql)
 
         if (
-            ql.scope is qltypes.ConfigScope.SYSTEM
+            ql.scope is qltypes.ConfigScope.INSTANCE
             and not current_tx.is_implicit()
         ):
             raise errors.QueryError(
-                'CONFIGURE SYSTEM cannot be executed in a transaction block')
+                'CONFIGURE INSTANCE cannot be executed in a transaction block')
 
         ir = qlcompiler.compile_ast_to_ir(
             ql,
@@ -1496,7 +1496,7 @@ class Compiler:
             )
             current_tx.update_database_config(database_config)
 
-        elif ql.scope is qltypes.ConfigScope.SYSTEM:
+        elif ql.scope is qltypes.ConfigScope.INSTANCE:
             try:
                 config_op = ireval.evaluate_to_config_op(ir, schema=schema)
             except ireval.UnsupportedExpressionError:
@@ -1779,11 +1779,11 @@ class Compiler:
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql += comp.sql
 
-                if comp.config_scope is qltypes.ConfigScope.SYSTEM:
+                if comp.config_scope is qltypes.ConfigScope.INSTANCE:
                     if (not ctx.state.current_tx().is_implicit() or
                             statements_len > 1):
                         raise errors.QueryError(
-                            'CONFIGURE SYSTEM cannot be executed in a '
+                            'CONFIGURE INSTANCE cannot be executed in a '
                             'transaction block')
 
                     unit.system_config = True

@@ -211,7 +211,7 @@ class TestServerOps(tb.TestCase):
             con = await sd.connect()
             try:
                 max_connections = await con.query_one(
-                    'SELECT cfg::SystemConfig.__pg_max_connections LIMIT 1'
+                    'SELECT cfg::InstanceConfig.__pg_max_connections LIMIT 1'
                 )  # TODO: remove LIMIT 1 after #2402
                 self.assertEqual(int(max_connections), actual)
             finally:
@@ -231,7 +231,10 @@ class TestServerOps(tb.TestCase):
                 con = await sd.connect()
                 try:
                     max_connections = await con.query_one(
-                        'SELECT cfg::SystemConfig.__pg_max_connections LIMIT 1'
+                        '''
+                        SELECT cfg::InstanceConfig.__pg_max_connections
+                        LIMIT 1
+                        '''
                     )  # TODO: remove LIMIT 1 after #2402
                     self.assertEqual(int(max_connections), actual)
                 finally:

@@ -246,7 +246,7 @@ class QueryUnit:
     in_type_id: bytes = sertypes.EMPTY_TUPLE_ID
     in_type_args: Optional[List[Param]] = None
 
-    # Set only when this unit contains a CONFIGURE SYSTEM command.
+    # Set only when this unit contains a CONFIGURE INSTANCE command.
     system_config: bool = False
     # Set only when this unit contains a CONFIGURE DATABASE command.
     database_config: bool = False

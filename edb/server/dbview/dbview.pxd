@@ -21,7 +21,7 @@ cpdef enum SideEffects:
 
     SchemaChanges = 1 << 0
     DatabaseConfigChanges = 1 << 1
-    SystemConfigChanges = 1 << 2
+    InstanceConfigChanges = 1 << 2
     RoleChanges = 1 << 3
     GlobalSchemaChanges = 1 << 4
 

@@ -136,7 +136,7 @@ def compile_ConfigInsert(
 
     info = _validate_op(expr, ctx=ctx)
 
-    if expr.scope is not qltypes.ConfigScope.SYSTEM:
+    if expr.scope is not qltypes.ConfigScope.INSTANCE:
         raise errors.UnsupportedFeatureError(
             f'CONFIGURE {expr.scope} INSERT is not supported'
         )
@@ -337,10 +337,10 @@ def _validate_op(
     else:
         affects_compilation = False
 
-    if system and expr.scope is not qltypes.ConfigScope.SYSTEM:
+    if system and expr.scope is not qltypes.ConfigScope.INSTANCE:
         raise errors.ConfigurationError(
             f'{name!r} is a system-level configuration parameter; '
-            f'use "CONFIGURE SYSTEM"')
+            f'use "CONFIGURE INSTANCE"')
 
     return SettingInfo(param_name=name,
                        param_type=cfg_type,

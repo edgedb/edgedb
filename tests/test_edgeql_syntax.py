@@ -5053,25 +5053,25 @@ aa';
 
     def test_edgeql_syntax_configure_01(self):
         """
-        CONFIGURE SYSTEM SET foo := (SELECT User);
+        CONFIGURE INSTANCE SET foo := (SELECT User);
         CONFIGURE SESSION SET foo := (SELECT User);
         CONFIGURE CURRENT DATABASE SET foo := (SELECT User);
-        CONFIGURE SYSTEM SET cfg::foo := (SELECT User);
+        CONFIGURE INSTANCE SET cfg::foo := (SELECT User);
         CONFIGURE SESSION SET cfg::foo := (SELECT User);
         CONFIGURE CURRENT DATABASE SET cfg::foo := (SELECT User);
-        CONFIGURE SYSTEM RESET foo;
+        CONFIGURE INSTANCE RESET foo;
         CONFIGURE SESSION RESET foo;
         CONFIGURE CURRENT DATABASE RESET foo;
-        CONFIGURE SYSTEM RESET cfg::foo;
+        CONFIGURE INSTANCE RESET cfg::foo;
         CONFIGURE SESSION RESET cfg::foo;
         CONFIGURE CURRENT DATABASE RESET cfg::foo;
-        CONFIGURE SYSTEM INSERT Foo {bar := (SELECT 1)};
+        CONFIGURE INSTANCE INSERT Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT Foo {bar := (SELECT 1)};
         CONFIGURE CURRENT DATABASE INSERT Foo {bar := (SELECT 1)};
-        CONFIGURE SYSTEM INSERT cfg::Foo {bar := (SELECT 1)};
+        CONFIGURE INSTANCE INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE CURRENT DATABASE INSERT cfg::Foo {bar := (SELECT 1)};
-        CONFIGURE SYSTEM RESET Foo FILTER (.bar = 2);
+        CONFIGURE INSTANCE RESET Foo FILTER (.bar = 2);
         CONFIGURE SESSION RESET Foo FILTER (.bar = 2);
         CONFIGURE CURRENT DATABASE RESET Foo FILTER (.bar = 2);
         """
@@ -5354,14 +5354,14 @@ aa';
 
     def test_edgeql_syntax_describe_05(self):
         """
-        DESCRIBE SYSTEM CONFIG;
+        DESCRIBE INSTANCE CONFIG;
 % OK %
-        DESCRIBE SYSTEM CONFIG AS DDL;
+        DESCRIBE INSTANCE CONFIG AS DDL;
         """
 
     def test_edgeql_syntax_describe_06(self):
         """
-        DESCRIBE SYSTEM CONFIG AS DDL;
+        DESCRIBE INSTANCE CONFIG AS DDL;
         """
 
     def test_edgeql_syntax_describe_07(self):
@@ -5374,4 +5374,11 @@ aa';
     def test_edgeql_syntax_describe_08(self):
         """
         DESCRIBE ROLES AS DDL;
+        """
+
+    def test_edgeql_syntax_describe_09(self):
+        """
+        DESCRIBE SYSTEM CONFIG;
+% OK %
+        DESCRIBE INSTANCE CONFIG AS DDL;
         """

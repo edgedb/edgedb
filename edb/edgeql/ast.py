@@ -75,7 +75,7 @@ class CardinalityModifier(s_enum.StrEnum):
 class DescribeGlobal(s_enum.StrEnum):
     Schema = 'SCHEMA'
     DatabaseConfig = 'DATABASE CONFIG'
-    SystemConfig = 'SYSTEM CONFIG'
+    InstanceConfig = 'INSTANCE CONFIG'
     Roles = 'ROLES'
 
     def to_edgeql(self) -> str:

@@ -111,7 +111,7 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
 
 CREATE TYPE cfg::Config EXTENDING cfg::AbstractConfig;
-CREATE TYPE cfg::SystemConfig EXTENDING cfg::AbstractConfig;
+CREATE TYPE cfg::InstanceConfig EXTENDING cfg::AbstractConfig;
 CREATE TYPE cfg::DatabaseConfig EXTENDING cfg::AbstractConfig;
 
 

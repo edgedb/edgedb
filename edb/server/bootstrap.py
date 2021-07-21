@@ -950,7 +950,7 @@ async def _configure(
 
     if insecure:
         scripts.append('''
-            CONFIGURE SYSTEM INSERT Auth {
+            CONFIGURE INSTANCE INSERT Auth {
                 priority := 0,
                 method := (INSERT Trust),
             };
