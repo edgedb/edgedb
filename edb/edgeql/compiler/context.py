@@ -443,8 +443,19 @@ class ContextLevel(compiler.ContextLevel):
     banned_paths: Set[irast.PathId]
     """A set of path ids that are considered invalid in this context."""
 
-    view_map: ChainMap[irast.PathId, irast.Set]
-    """Set translation map.  Used for views."""
+    view_map: ChainMap[irast.PathId, Tuple[irast.PathId, irast.Set]]
+    """Set translation map.  Used for mapping computable sources..
+
+    When compiling a computable, we need to be able to map references to
+    the source back to the correct source set.
+
+    This maps from a namespace-stripped source path_id to the expected
+    computable-internal path_id and the actual source set.
+
+    The namespace stripping is necessary to handle the case where
+    bindings have added more namespaces to the source set reference.
+    (See test_edgeql_scope_computables_13.)
+    """
 
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
