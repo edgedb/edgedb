@@ -2538,6 +2538,19 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_scope_computables_13(self):
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    title := (SELECT _ := User.name)
+                }
+                FILTER .title = 'Alice';
+            """,
+            [
+                {"title": "Alice"},
+            ]
+        )
+
     async def test_edgeql_scope_with_01(self):
         # Test that same symbol can be re-used in WITH block.
         await self.assert_query_result(

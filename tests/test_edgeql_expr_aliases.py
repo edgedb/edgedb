@@ -21,7 +21,6 @@ import json
 import os.path
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 import edgedb
 
@@ -372,15 +371,12 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             }]
         )
 
-    @test.xfail('''
-        edb.errors.InternalServerError: more than one row returned by
-        a subquery used as an expression
-    ''')
     async def test_edgeql_computable_nested_02(self):
         await self.assert_query_result(
             r'''
                 WITH C := Card { ava_owners := .<avatar }
                 SELECT C {
+                    name,
                     ava_owners: {
                         typename := (
                             WITH name := C.ava_owners.__type__.name
@@ -404,10 +400,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             }]
         )
 
-    @test.xfail('''
-        AssertionError: data shape differs: unexpected trailing
-        elements in set [path PATH: [0]["ava_owners"][0]["typename"]]
-    ''')
     async def test_edgeql_computable_nested_03(self):
         # This SHOULD be identical to the previous test case, except
         # for the cardinality being forced to be MULTI.

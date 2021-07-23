@@ -469,14 +469,22 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 scope_set = scoped_set(scope_set, ctx=subctx)
 
-        mapped = ctx.view_map.get(path_tip.path_id)
-        if mapped is not None:
-            path_tip = new_set(
-                path_id=mapped.path_id,
-                stype=get_set_type(path_tip, ctx=ctx),
-                expr=mapped.expr,
-                rptr=mapped.rptr,
-                ctx=ctx)
+        # We compile computables under namespaces, but we need to have
+        # the source of the computable *not* under that namespace (and
+        # potentially with the source's expr/rptr/etc?), so we need to
+        # do some remapping. This is a little fiddly, since we may have
+        # picked up *additional* namespaces.
+        key = path_tip.path_id.strip_namespace(path_tip.path_id.namespace)
+        if (entry := ctx.view_map.get(key)) is not None:
+            inner_path_id, mapped = entry
+            fixed_inner = inner_path_id.merge_namespace(ctx.path_id_namespace)
+            if fixed_inner == path_tip.path_id:
+                path_tip = new_set(
+                    path_id=mapped.path_id,
+                    stype=get_set_type(path_tip, ctx=ctx),
+                    expr=mapped.expr,
+                    rptr=mapped.rptr,
+                    ctx=ctx)
 
         if pathctx.path_is_banned(path_tip.path_id, ctx=ctx):
             dname = stype.get_displayname(ctx.env.schema)
@@ -1401,7 +1409,10 @@ def _get_computable_ctx(
             remapped_source = new_set_from_set(
                 rptr.source, rptr=rptr.source.rptr,
                 preserve_scope_ns=True, ctx=ctx)
-            subctx.view_map[inner_path_id] = remapped_source
+            key = inner_path_id.strip_namespace(inner_path_id.namespace)
+            assert key not in subctx.view_map
+            subctx.view_map[key] = (inner_path_id, remapped_source)
+
             yield subctx
 
     return newctx
