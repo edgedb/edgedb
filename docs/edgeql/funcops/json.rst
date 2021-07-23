@@ -99,7 +99,7 @@ JSON
 
 .. eql:operator:: JSONOBJDEST: json [ str ] -> json
 
-    JSON object destructuring.
+    JSON object property access.
 
     The fields of JSON *objects* can also be accessed via ``[]``:
 

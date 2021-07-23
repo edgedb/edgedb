@@ -129,3 +129,19 @@ std::`<` (l: std::bytes, r: std::bytes) -> std::bool {
     SET negator := 'std::>=';
     USING SQL OPERATOR '<';
 };
+
+CREATE INFIX OPERATOR
+std::`[]` (l: std::bytes, r: std::int64) -> std::bytes {
+    CREATE ANNOTATION std::identifier := 'index';
+    CREATE ANNOTATION std::description := 'Bytes indexing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+CREATE INFIX OPERATOR
+std::`[]` (l: std::bytes, r: tuple<std::int64, std::int64>) -> std::bytes {
+    CREATE ANNOTATION std::identifier := 'slice';
+    CREATE ANNOTATION std::description := 'Bytes slicing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};

@@ -160,6 +160,30 @@ std::`<` (l: std::json, r: std::json) -> std::bool {
     USING SQL OPERATOR '<';
 };
 
+CREATE INFIX OPERATOR
+std::`[]` (l: std::json, r: std::int64) -> std::json {
+    CREATE ANNOTATION std::identifier := 'index';
+    CREATE ANNOTATION std::description := 'JSON array/string indexing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+CREATE INFIX OPERATOR
+std::`[]` (l: std::json, r: tuple<std::int64, std::int64>) -> std::json {
+    CREATE ANNOTATION std::identifier := 'slice';
+    CREATE ANNOTATION std::description := 'JSON array/string slicing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+CREATE INFIX OPERATOR
+std::`[]` (l: std::json, r: std::str) -> std::json {
+    CREATE ANNOTATION std::identifier := 'destructure';
+    CREATE ANNOTATION std::description := 'JSON object property access.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
 
 ## CASTS
 
