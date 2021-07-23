@@ -94,10 +94,6 @@ String
 
         db> SELECT 'some text'[1];
         {'o'}
-        db> SELECT 'some text'[1:3];
-        {'om'}
-        db> SELECT 'some text'[-4:];
-        {'text'}
 
 
 ----------

@@ -45,7 +45,7 @@ a cast string literal:
 
     SELECT <int16>'1' = <int16>1;
     SELECT <float32>'1.23';
-    SELECT <duration>'1 day';
+    SELECT <duration>'3 hours';
     SELECT <decimal>'1.23' = 1.23n;
 
 
