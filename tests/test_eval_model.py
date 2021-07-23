@@ -509,3 +509,13 @@ class TestModelSmokeTests(unittest.TestCase):
             """,
             [36],
         )
+
+    def test_edgeql_result_alias_binding_01(self):
+        # Because of the result alias being a shorthand for a WITH binding,
+        # the two User refs should be in different subqueries
+        self.assert_test_query(
+            r"""
+            SELECT count((SELECT _ := User {name} FILTER User.name = 'Alice'));
+            """,
+            [4],
+        )
