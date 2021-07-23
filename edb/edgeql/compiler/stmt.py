@@ -1254,20 +1254,10 @@ def compile_result_clause(
             sctx.view_rptr = view_rptr
             # sctx.view_scls = view_scls
 
-        result_expr: qlast.Expr
-        shape: Optional[Sequence[qlast.ShapeElement]]
-
-        if isinstance(result, qlast.Shape):
-            result_expr = result.expr or qlutils.ANONYMOUS_SHAPE_EXPR
-            shape = result.elements
-        else:
-            result_expr = result
-            shape = None
-
         if result_alias:
             # `SELECT foo := expr` is equivalent to
             # `WITH foo := expr SELECT foo`
-            rexpr = astutils.ensure_ql_select(result_expr)
+            rexpr = astutils.ensure_ql_select(result)
             if (
                 sctx.implicit_limit
                 and rexpr.limit is None
@@ -1293,9 +1283,19 @@ def compile_result_clause(
                 ctx=sctx,
             )
 
-            result_expr = qlast.Path(
+            result = qlast.Path(
                 steps=[qlast.ObjectRef(name=result_alias)]
             )
+
+        result_expr: qlast.Expr
+        shape: Optional[Sequence[qlast.ShapeElement]]
+
+        if isinstance(result, qlast.Shape):
+            result_expr = result.expr or qlutils.ANONYMOUS_SHAPE_EXPR
+            shape = result.elements
+        else:
+            result_expr = result
+            shape = None
 
         if astutils.is_ql_empty_set(result_expr):
             expr = setgen.new_empty_set(

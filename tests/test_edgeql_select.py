@@ -6095,3 +6095,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
     async def test_edgeql_select_anonymous_shape_01(self):
         res = await self.con.query_one('SELECT {test := 1}')
         self.assertEqual(res.test, 1)
+
+    async def test_edgeql_select_result_alias_binding_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT _ := (User { tag := User.name }) ORDER BY _.name;
+            ''',
+            [{"tag": "Elvis"}, {"tag": "Yury"}]
+        )
+
+    async def test_edgeql_select_result_alias_binding_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            "object type or alias 'default::_' does not exist",
+        ):
+            await self.con.query(r'''
+                SELECT _ := (User { tag := _.name });
+            ''')
