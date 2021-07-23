@@ -189,30 +189,12 @@ class TestEdgeQLUserDDL(tb.DDLTestCase):
                 DROP TYPE std::Object;
             ''')
 
-    async def test_edgeql_userddl_14(self):
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                r'cannot delete.*module stdgraphql is read-only'):
-            await self.con.execute('''
-                DROP TYPE stdgraphql::Query;
-            ''')
-
     async def test_edgeql_userddl_15(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 r'cannot alter.*module std is read-only'):
             await self.con.execute('''
                 ALTER TYPE std::Object {
-                    CREATE PROPERTY foo_15 -> std::str;
-                };
-            ''')
-
-    async def test_edgeql_userddl_16(self):
-        with self.assertRaisesRegex(
-                edgedb.SchemaDefinitionError,
-                r'cannot alter.*module stdgraphql is read-only'):
-            await self.con.execute('''
-                ALTER TYPE stdgraphql::Query {
                     CREATE PROPERTY foo_15 -> std::str;
                 };
             ''')

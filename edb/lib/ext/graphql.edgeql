@@ -18,30 +18,3 @@
 
 
 CREATE EXTENSION PACKAGE graphql VERSION '1.0';
-
-CREATE MODULE stdgraphql;
-
-# these are just some placeholders for packaging GraphQL queries
-CREATE TYPE stdgraphql::Query EXTENDING std::BaseObject;
-ALTER TYPE stdgraphql::Query {
-    CREATE PROPERTY __typename := 'Query';
-};
-
-
-CREATE TYPE stdgraphql::Mutation EXTENDING std::BaseObject;
-ALTER TYPE stdgraphql::Mutation {
-    CREATE PROPERTY __typename := 'Mutation';
-};
-
-
-CREATE FUNCTION stdgraphql::short_name(name: str) -> str {
-    SET volatility := 'Immutable';
-    SET internal := true;
-    USING (
-        SELECT (
-            name[5:] IF name LIKE 'std::%' ELSE
-            name[9:] IF name LIKE 'default::%' ELSE
-            re_replace(r'(.+?)::(.+$)', r'\1__\2', name)
-        ) ++ '_Type'
-    );
-};
