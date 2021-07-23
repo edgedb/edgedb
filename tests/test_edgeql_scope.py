@@ -2786,7 +2786,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
         )
 
     async def test_edgeql_scope_reverse_lprop_01(self):
-        # try injecting something myself?
         await self.assert_query_result(
             """
             WITH X1 := (Card { z := (.<deck[IS User], .<deck[IS User]@count)}),
