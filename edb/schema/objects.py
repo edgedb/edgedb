@@ -249,8 +249,10 @@ class Field(struct.ProtoField, Generic[T]):
     __slots__ = ('name', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
                  'merge_fn', 'ephemeral',
-                 'allow_ddl_set', 'ddl_identity',
-                 'weak_ref', 'reflection_method')
+                 'allow_ddl_set', 'ddl_identity', 'special_ddl_syntax',
+                 'aux_cmd_data', 'describe_visibility',
+                 'weak_ref', 'reflection_method', 'reflection_proxy',
+                 'type_is_generic_self', 'is_reducible')
 
     #: Name of the field on the target class; assigned by ObjectMeta
     name: str
