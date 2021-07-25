@@ -27,7 +27,7 @@ from . import checked
 
 
 class ProtoField:
-    pass
+    __slots__ = ()
 
 
 class NoDefaultT(enum.Enum):
