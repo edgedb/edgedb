@@ -45,6 +45,9 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
         response = urllib.request.urlopen(
             req, json.dumps(req_data).encode(), context=self.tls_context
         )
+
+        self.assertIsNotNone(response.headers['EdgeDB-Protocol-Version'])
+
         resp_data = json.loads(response.read())
         return resp_data
 
