@@ -115,9 +115,9 @@ async def handle_request(
     except Exception as ex:
         return handle_error(request, response, ex)
     else:
-        response.body = b'{"kind": "results", "protocol_version": ' + \
-            json.dumps(CURRENT_PROTOCOL).encode() + \
-            b', "results":' + result + b'}'
+        response.headers['EdgeDB-Protocol-Version'] = \
+            f'{CURRENT_PROTOCOL[0]}.{CURRENT_PROTOCOL[1]}'
+        response.body = b'{"kind": "results", "results":' + result + b'}'
 
 
 async def heartbeat_check(db, server):

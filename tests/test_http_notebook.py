@@ -58,7 +58,6 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
             results,
             {
                 'kind': 'results',
-                'protocol_version': [0, 11],
                 'results': [
                     {
                         'kind': 'data',
@@ -93,7 +92,6 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
             results,
             {
                 'kind': 'results',
-                'protocol_version': [0, 11],
                 'results': [
                     {
                         'kind': 'data',
@@ -139,7 +137,6 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
             results,
             {
                 'kind': 'results',
-                'protocol_version': [0, 11],
                 'results': [
                     {
                         'kind': 'error',
@@ -176,7 +173,6 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
             results,
             {
                 'kind': 'results',
-                'protocol_version': [0, 11],
                 'results': [
                     {
                         'kind': 'data',
