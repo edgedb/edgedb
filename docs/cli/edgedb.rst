@@ -50,8 +50,9 @@ Options
 
 :cli:synopsis:`-I <name>, --instance=<name>`
     Specifies the named instance to connect to. The actual connection
-    parameters are stored in ``$HOME/.edgedb/credentials`` and are usually
-    created by ``edgedb server init`` or similar commands.
+    parameters are stored in ``$HOME/.edgedb/credentials`` and are
+    usually created by :ref:`ref_cli_edgedb_instance_create` or
+    similar commands.
 
     This option overrides host and port.
 

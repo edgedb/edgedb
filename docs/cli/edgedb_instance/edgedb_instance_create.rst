@@ -1,21 +1,21 @@
-.. _ref_cli_edgedb_server_init:
+.. _ref_cli_edgedb_instance_create:
 
 
-==================
-edgedb server init
-==================
+======================
+edgedb instance create
+======================
 
-Initialize a new EdgeDB server instance.
+Initialize a new EdgeDB instance.
 
 .. cli:synopsis::
 
-     edgedb server init [OPTIONS] <name>
+     edgedb instance create [OPTIONS] <name>
 
 
 Description
 ===========
 
-``edgedb server init`` is a terminal command for making a new EdgeDB
+``edgedb instance create`` is a terminal command for making a new EdgeDB
 instance and creating a corresponding credentials file in
 ``$HOME/.edgedb/credentials``.
 
@@ -66,5 +66,5 @@ Options
     Configures how the new instance should start: ``auto`` for
     automatic start with the system or user session, ``manual`` to
     turn that off so that the instance can be manually started with
-    :ref:`ref_cli_edgedb_server_start` on demand. Defaults to:
+    :ref:`ref_cli_edgedb_instance_start` on demand. Defaults to:
     ``auto``.

@@ -1,21 +1,21 @@
-.. _ref_cli_edgedb_server_status:
+.. _ref_cli_edgedb_instance_status:
 
 
-====================
-edgedb server status
-====================
+======================
+edgedb instance status
+======================
 
 Show instance information.
 
 .. cli:synopsis::
 
-     edgedb server status [OPTIONS] [<name>]
+     edgedb instance status [OPTIONS] [<name>]
 
 
 Description
 ===========
 
-``edgedb server status`` is a terminal command for displaying the
+``edgedb instance status`` is a terminal command for displaying the
 information about EdgeDB instances.
 
 

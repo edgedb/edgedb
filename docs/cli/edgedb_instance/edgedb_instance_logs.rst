@@ -1,21 +1,21 @@
-.. _ref_cli_edgedb_server_logs:
+.. _ref_cli_edgedb_instance_logs:
 
 
-==================
-edgedb server logs
-==================
+====================
+edgedb instance logs
+====================
 
 Show instance logs.
 
 .. cli:synopsis::
 
-     edgedb server logs [OPTIONS] <name>
+     edgedb instance logs [OPTIONS] <name>
 
 
 Description
 ===========
 
-``edgedb server logs`` is a terminal command for displaying the logs
+``edgedb instance logs`` is a terminal command for displaying the logs
 for a given EdgeDB instance.
 
 

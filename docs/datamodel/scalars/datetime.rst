@@ -14,6 +14,13 @@ EdgeDB has two classes of date/time types:
   timezone: :eql:type:`cal::local_datetime`, :eql:type:`cal::local_date`,
   and :eql:type:`cal::local_time`.
 
+There are also two different ways of measuring duration:
+
+* :eql:type:`duration` using absolute and unambiguous units;
+
+* :eql:type:`cal::relative_duration` using fuzzy units like years,
+  months and days in addition to the absolute units.
+
 All date/time :ref:`functions and operators <ref_eql_funcops_datetime>`
 and type casts are designed to maintain a strict separation between
 timezone-aware and "local" date/time values.
