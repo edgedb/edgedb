@@ -1,15 +1,15 @@
-.. _ref_cli_edgedb_server_revert:
+.. _ref_cli_edgedb_instance_revert:
 
 
-=====================
-edgedb server revert
-=====================
+======================
+edgedb instance revert
+======================
 
 Revert a major instance upgrade.
 
 .. cli:synopsis::
 
-     edgedb server revert [OPTIONS] <name>
+     edgedb instance revert [OPTIONS] <name>
 
 
 Description
@@ -17,7 +17,7 @@ Description
 
 When :ref:`ref_cli_edgedb_server_upgrade` performs a major version
 upgrade on an instance the old instance data is kept around. The
-``edgedb server revert`` command removes the new instance version and
+``edgedb instance revert`` command removes the new instance version and
 replaces it with the old copy. It also ensures that the previous
 version of EdgeDB server is used to run it.
 

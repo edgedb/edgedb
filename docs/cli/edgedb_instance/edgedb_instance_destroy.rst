@@ -1,21 +1,21 @@
-.. _ref_cli_edgedb_server_destroy:
+.. _ref_cli_edgedb_instance_destroy:
 
 
-=====================
-edgedb server destroy
-=====================
+=======================
+edgedb instance destroy
+=======================
 
 Remove an EdgeDB instance.
 
 .. cli:synopsis::
 
-     edgedb server destroy [OPTIONS] <name>
+     edgedb instance destroy [OPTIONS] <name>
 
 
 Description
 ===========
 
-``edgedb server destroy`` is a terminal command for removing an EdgeDB
+``edgedb instance destroy`` is a terminal command for removing an EdgeDB
 instance and all its data.
 
 

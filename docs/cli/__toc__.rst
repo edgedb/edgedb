@@ -20,5 +20,6 @@ CLI
     edgedb_self/index
     edgedb_database_create
     edgedb_server/index
+    edgedb_instance/index
     edgedb_connopts
     network

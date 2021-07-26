@@ -215,7 +215,7 @@ Second, let's create a new migration to this new schema state:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial create-migration
+    $ edgedb -I tutorial migration create
     did you make property 'last_name' of object type
     'default::Person' optional? [y,n,l,c,b,s,q,?]
     y
@@ -287,7 +287,7 @@ Create the migration to the updated schema and then apply it:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial create-migration
+    $ edgedb -I tutorial migration create
     did you create property 'name' of object type
     'default::Person'? [y,n,l,c,b,s,q,?]
     y

@@ -19,7 +19,7 @@ call it "tutorial":
 
 .. code-block:: bash
 
-    $ edgedb server init tutorial
+    $ edgedb instance create tutorial
 
 Now, lets launch the EdgeDB CLI and connect to the instance we've just
 created:
@@ -81,7 +81,7 @@ questions to make sure that EdgeDB correctly inferred the changes:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial create-migration
+    $ edgedb -I tutorial migration create
     did you create object type 'default::Person'? [y,n,l,c,b,s,q,?]
     ?
 

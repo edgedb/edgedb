@@ -21,11 +21,11 @@ To create a new EdgeDB instance:
 
 .. code-block:: bash
 
-    $ edgedb server init <instance-name>
+    $ edgedb instance create <instance-name>
 
 The server would then populate the specified directory with the initial
 databases: ``edgedb`` and ``<user>``, where *<user>* is the name of
-the OS user that has started the server (if different from ``edgedb``).
+the OS user that has started the instance (if different from ``edgedb``).
 Two corresponding user roles are also created: ``edgedb`` and ``<user>``,
 both with superuser privileges.
 
@@ -33,14 +33,14 @@ both with superuser privileges.
 Configuring Client Authentication
 =================================
 
-By default, ``edgedb server init`` saves authentication credentials into
-user's home directory.  To use the stored credentials from a client,
-specify the name of an instance when connecting (we use ``my_instance`` in
-the following examples):
+By default, :ref:`ref_cli_edgedb_instance_create` saves authentication
+credentials into user's home directory.  To use the stored credentials
+from a client, specify the name of an instance when connecting (we use
+``my_instance`` in the following examples):
 
 .. code-block:: bash
 
-   $ edgedb -Imy_instance
+   $ edgedb -I my_instance
 
 In Python:
 
@@ -68,5 +68,5 @@ method with the ``Trust`` method:
 
 .. code-block:: bash
 
-    $ edgedb -I<instance-name> --admin configure insert Auth \
+    $ edgedb -I <instance-name> --admin configure insert Auth \
              --method=Trust --priority=0

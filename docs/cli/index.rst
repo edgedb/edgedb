@@ -78,14 +78,14 @@ To also remove configuration files:
 If the command-line tool was installed by the user (recommended) then it
 will also remove the binary.
 
-If you've used ``edgedb server`` commands you can also delete
-:ref:`instances <ref_cli_edgedb_server_destroy>` and :ref:`server
+If you've used ``edgedb`` commands you can also delete
+:ref:`instances <ref_cli_edgedb_instance_destroy>` and :ref:`server
 <ref_cli_edgedb_server_uninstall>` packages, prior to removing the
 tool:
 
 .. code-block:: bash
 
-   $ edgedb server destroy <instance_name>
+   $ edgedb instance destroy <instance_name>
    $ edgedb server uninstall --version=<ver>
 
 To list instances and server versions use the following commands
@@ -93,7 +93,7 @@ respectively:
 
 .. code-block:: bash
 
-   $ edgedb server status
+   $ edgedb instance status
    $ edgedb server list-versions --installed
 
 

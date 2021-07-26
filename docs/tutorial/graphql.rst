@@ -33,7 +33,7 @@ new migration and apply it:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial create-migration
+    $ edgedb -I tutorial migration create
     did you create extension 'graphql'? [y,n,l,c,b,s,q,?]
     y
     Created ./dbschema/migrations/00004.edgeql, id:
@@ -162,7 +162,7 @@ Then we create a new migration and apply it:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial create-migration
+    $ edgedb -I tutorial migration create
     did you create alias 'default::PersonAlias'? [y,n,l,c,b,s,q,?]
     y
     Created ./dbschema/migrations/00005.edgeql, id:

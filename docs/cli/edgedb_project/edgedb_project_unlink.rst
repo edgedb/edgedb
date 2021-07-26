@@ -30,7 +30,7 @@ Options
 
 :cli:synopsis:`-D, --destroy-server-instance`
     If specified, the associated EdgeDB instance is destroyed by
-    running ``edgedb server destroy``.
+    running :ref:`ref_cli_edgedb_instance_destroy`.
 
 :cli:synopsis:`--non-interactive`
     Do not prompts user for input.
