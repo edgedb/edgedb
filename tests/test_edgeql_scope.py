@@ -2804,9 +2804,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ],
         )
 
-    @test.xfail('''
-        Returns ["Alice", "Bob", "Carol", "Dave"]!!
-    ''')
     async def test_edgeql_scope_source_rebind_01(self):
         await self.assert_query_result(
             """
