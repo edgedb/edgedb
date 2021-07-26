@@ -58,6 +58,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
             results,
             {
                 'kind': 'results',
+                'protocol_version': [0, 11],
                 'results': [
                     {
                         'kind': 'data',
@@ -92,6 +93,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
             results,
             {
                 'kind': 'results',
+                'protocol_version': [0, 11],
                 'results': [
                     {
                         'kind': 'data',
@@ -137,6 +139,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
             results,
             {
                 'kind': 'results',
+                'protocol_version': [0, 11],
                 'results': [
                     {
                         'kind': 'error',
@@ -173,6 +176,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
             results,
             {
                 'kind': 'results',
+                'protocol_version': [0, 11],
                 'results': [
                     {
                         'kind': 'data',
@@ -192,3 +196,11 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
                 ]
             }
         )
+
+    def test_http_notebook_06(self):
+        results = self.run_queries([
+            'SELECT {protocol := "notebook"}'
+        ])
+
+        self.assertEqual(results['kind'], 'results')
+        self.assertEqual(results['results'][0]['kind'], 'data')

@@ -1884,6 +1884,7 @@ class Compiler:
         database_config: Mapping[str, config.SettingValue],
         system_config: Mapping[str, config.SettingValue],
         queries: List[str],
+        protocol_version: tuple,
         implicit_limit: int = 0,
     ) -> List[dbstate.QueryUnit]:
 
@@ -1905,6 +1906,7 @@ class Compiler:
             inline_typenames=True,
             stmt_mode=enums.CompileStatementMode.SINGLE,
             json_parameters=False,
+            protocol_version=protocol_version
         )
 
         ctx.state.start_tx()
@@ -1929,7 +1931,8 @@ class Compiler:
                     inline_typenames=True,
                     stmt_mode=enums.CompileStatementMode.SINGLE,
                     json_parameters=False,
-                    source=source
+                    source=source,
+                    protocol_version=protocol_version
                 )
 
                 result.append(

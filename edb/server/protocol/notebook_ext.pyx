@@ -34,6 +34,8 @@ from edb.server import compiler
 from edb.server.compiler import IoFormat
 from edb.server.compiler import enums
 
+include "./consts.pxi"
+
 
 ALLOWED_CAPABILITIES = (
     enums.Capability.MODIFICATIONS |
@@ -55,7 +57,7 @@ cdef handle_error(
 
     response.body = json.dumps({
         'kind': 'error',
-        'error':{
+        'error': {
             'message': str(error),
             'type': er_type.__name__,
         }
@@ -113,7 +115,9 @@ async def handle_request(
     except Exception as ex:
         return handle_error(request, response, ex)
     else:
-        response.body = b'{"kind": "results", "results":' + result + b'}'
+        response.body = b'{"kind": "results", "protocol_version": ' + \
+            json.dumps(CURRENT_PROTOCOL).encode() + \
+            b', "results":' + result + b'}'
 
 
 async def heartbeat_check(db, server):
@@ -134,6 +138,7 @@ async def compile(db, server, list queries):
         db.db_config,
         server.get_compilation_system_config(),
         queries,
+        CURRENT_PROTOCOL,
         50,  # implicit limit
     )
 
