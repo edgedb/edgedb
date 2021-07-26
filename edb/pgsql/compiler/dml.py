@@ -1343,6 +1343,31 @@ def process_link_update(
             query=delqry,
         )
 
+        if shape_op is not qlast.ShapeOp.SUBTRACT:
+            # Correlate the deletion with INSERT to make sure
+            # link properties get erased properly and we aren't
+            # just ON CONFLICT UPDATE-ing the link rows.
+            # This basically just tacks on a
+            #    WHERE (SELECT count(*) FROM delcte) IS NOT NULL)
+            del_select = pgast.SelectStmt(
+                target_list=[
+                    pgast.ResTarget(
+                        val=pgast.FuncCall(
+                            name=['count'],
+                            args=[pgast.ColumnRef(name=[pgast.Star()])],
+                        ),
+                    ),
+                ],
+                from_clause=[
+                    pgast.RelRangeVar(relation=delcte),
+                ],
+            )
+
+            data_select.where_clause = astutils.extend_binop(
+                data_select.where_clause,
+                pgast.NullTest(arg=del_select, negated=True),
+            )
+
         pathctx.put_path_value_rvar(
             delcte.query, path_id.ptr_path(), target_rvar, env=ctx.env)
 

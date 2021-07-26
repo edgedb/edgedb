@@ -24,6 +24,7 @@ import uuid
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestUpdate(tb.QueryTestCase):
@@ -1257,7 +1258,8 @@ class TestUpdate(tb.QueryTestCase):
                 SET {
                     weighted_tags := (
                         SELECT Tag {
-                            @weight := len(Tag.name) % 2 + 1
+                            @weight := len(Tag.name) % 2 + 1,
+                            @note := Tag.name ++ '!',
                         } FILTER Tag.name IN {'wow', 'boring'}
                     )
                 };
@@ -1271,7 +1273,8 @@ class TestUpdate(tb.QueryTestCase):
                     name,
                     weighted_tags: {
                         name,
-                        @weight
+                        @weight,
+                        @note,
                     } ORDER BY @weight
                 } FILTER UpdateTest.name = 'update-test1';
             """,
@@ -1281,9 +1284,52 @@ class TestUpdate(tb.QueryTestCase):
                     'weighted_tags': [{
                         'name': 'boring',
                         '@weight': 1,
+                        '@note': 'boring!',
                     }, {
                         'name': 'wow',
                         '@weight': 2,
+                        '@note': 'wow!',
+                    }],
+                },
+            ]
+        )
+
+        # Check that reassignment erases the link properties.
+        await self.assert_query_result(
+            r"""
+                UPDATE UpdateTest
+                FILTER UpdateTest.name = 'update-test1'
+                SET {
+                    weighted_tags := .weighted_tags {
+                        @weight := len(.name) % 2 + 1,
+                    },
+                };
+            """,
+            [{}],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT UpdateTest {
+                    name,
+                    weighted_tags: {
+                        name,
+                        @weight,
+                        @note,
+                    } ORDER BY @weight
+                } FILTER UpdateTest.name = 'update-test1';
+            """,
+            [
+                {
+                    'name': 'update-test1',
+                    'weighted_tags': [{
+                        'name': 'boring',
+                        '@weight': 1,
+                        '@note': None,
+                    }, {
+                        'name': 'wow',
+                        '@weight': 2,
+                        '@note': None,
                     }],
                 },
             ]
@@ -1420,7 +1466,7 @@ class TestUpdate(tb.QueryTestCase):
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
-                    annotated_status: {
+                    annotated_status := .annotated_status {
                         @note := <str>{}
                     }
                 };
@@ -1907,6 +1953,7 @@ class TestUpdate(tb.QueryTestCase):
                 };
             ''')
 
+    @test.xfail("nested UPDATE not supported")
     async def test_edgeql_update_protect_readonly_03(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
@@ -2946,3 +2993,16 @@ class TestUpdate(tb.QueryTestCase):
                                      INSERT Status {name := x}))
                 }
             """)
+
+    async def test_edgeql_update_subnavigate_01(self):
+        with self.assertRaisesRegex(
+                edgedb.EdgeQLSyntaxError,
+                "unexpected ':'"):
+            await self.con.execute('''
+                UPDATE UpdateTest
+                SET {
+                    tags: {
+                        flag := 1
+                    } FILTER .name = 'Tag'
+                };
+            ''')

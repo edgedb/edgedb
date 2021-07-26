@@ -462,8 +462,8 @@ def _normalize_view_ptr_expr(
     ptrname = lexpr.ptr.name
 
     compexpr: Optional[qlast.Expr] = shape_el.compexpr
-    if compexpr is None and is_insert and shape_el.elements:
-        # Short shape form in INSERT, e.g
+    if compexpr is None and (is_insert or is_update) and shape_el.elements:
+        # Short shape form in INSERT or UPDATE, e.g
         #     INSERT Foo { bar: Spam { name := 'name' }}
         # is prohibited.
         raise errors.EdgeQLSyntaxError(
