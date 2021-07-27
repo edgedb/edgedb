@@ -233,7 +233,7 @@ async def _run_server(
 
 
 def _generate_cert(
-    cert_dir: pathlib.Path, listen_host: str
+    cert_dir: pathlib.Path, listen_host: Union[str, Iterable]
 ) -> Tuple[pathlib.Path, Optional[pathlib.Path]]:
     logger.info("Generating self-signed TLS certificate.")
 
@@ -251,6 +251,7 @@ def _generate_cert(
     subject = x509.Name(
         [x509.NameAttribute(oid.NameOID.COMMON_NAME, "EdgeDB Server")]
     )
+    alt_names = [listen_host] if isinstance(listen_host, str) else listen_host
     certificate = (
         x509.CertificateBuilder()
         .subject_name(subject)
@@ -264,7 +265,9 @@ def _generate_cert(
             datetime.datetime.today() + datetime.timedelta(weeks=1000)
         )
         .add_extension(
-            x509.SubjectAlternativeName([x509.DNSName(listen_host)]),
+            x509.SubjectAlternativeName(
+                [x509.DNSName(name) for name in alt_names if name != '0.0.0.0']
+            ),
             critical=False,
         )
         .sign(
