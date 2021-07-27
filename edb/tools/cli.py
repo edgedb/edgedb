@@ -54,6 +54,7 @@ def cli(args: list[str]):
             "authenticate",
             "_localdev",
             "--non-interactive",
+            "--quiet",
         ])
 
     if (
