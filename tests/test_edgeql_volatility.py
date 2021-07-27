@@ -57,7 +57,14 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             res = await q(*args, **kwargs)
             return serutils.serialize(res)
 
-        qs = [json_query, native_query]
+        async def native_query_typenames(*args, **kwargs):
+            res = await self.con._fetchall(*args, **kwargs, __typenames__=True)
+            if one:
+                assert len(res) == 1
+                res = res[0]
+            return serutils.serialize(res)
+
+        qs = [json_query, native_query, native_query_typenames]
         if n is None:
             n = len(qs)
         for i in range(n):
@@ -294,6 +301,74 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             ''',
         )
         self.assertEqual(len(set(res)), 1)
+
+    async def test_edgeql_volatility_for_11(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := ((FOR x in {(Obj { x := random() })} UNION (x.x))),
+                SELECT count(DISTINCT X)
+            ''',
+            [3],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH X := ((FOR x in {(Obj { x := random() })} UNION (x.x))),
+                SELECT count(X)
+            ''',
+            [3],
+        )
+
+    async def test_edgeql_volatility_for_12(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := ((FOR x in {(Obj { x := random() }).x} UNION (x))),
+                SELECT count(DISTINCT X)
+            ''',
+            [3],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH X := ((FOR x in {(Obj { x := random() }).x} UNION (x))),
+                SELECT count(X)
+            ''',
+            [3],
+        )
+
+    async def test_edgeql_volatility_with_and_use_01(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := (Obj { x := random() }).x,
+                SELECT count(DISTINCT X);
+            ''',
+            [3],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH X := (Obj { x := random() }).x,
+                SELECT count(X);
+            ''',
+            [3],
+        )
+
+    async def test_edgeql_volatility_with_and_use_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := (SELECT Obj { x := random() }).x,
+                SELECT count(DISTINCT X);
+            ''',
+            [3],
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH X := (SELECT Obj { x := random() }).x,
+                SELECT count(X);
+            ''',
+            [3],
+        )
 
     async def test_edgeql_volatility_select_clause_01a(self):
         # Spurious failure probability: 1/100!
@@ -614,6 +689,15 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
             nums = [row['m'] for row in res]
             self.assertEqual(nums, sorted(nums))
+
+    async def test_edgeql_volatility_select_with_objects_10(self):
+        for query in self.test_loop():
+            res = await query("""
+                WITH X := (Obj { m := random()},)
+                SELECT X.0;
+            """)
+
+            self.assertEqual(len(res), 3)
 
     async def test_edgeql_volatility_select_objects_optional_01(self):
         for _ in range(10):
@@ -1202,7 +1286,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_hack_01(self):
         await self.assert_query_result(r'''
-            SELECT (FOR x IN {1,2} UNION (SELECT Obj { m := vol_id(x) }))
+            SELECT (FOR x IN {1,2} UNION (SELECT Obj { m := x }))
             { n, m } ORDER BY .m THEN .n;
         ''', [
             {"m": 1, "n": 1},
@@ -1215,7 +1299,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_hack_02(self):
         await self.assert_query_result(r'''
-            WITH X := (FOR x IN {1,2} UNION (SELECT Obj { m := vol_id(x) }))
+            WITH X := (FOR x IN {1,2} UNION (SELECT Obj { m := x }))
             SELECT X { n, m } ORDER BY .m THEN .n;
         ''', [
             {"m": 1, "n": 1},
@@ -1228,7 +1312,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_hack_03a(self):
         await self.assert_query_result(r'''
-            WITH X := (WITH x := {1,2}, SELECT (x, Obj {m := vol_id(x)})).1
+            WITH X := (WITH x := {1,2}, SELECT (x, Obj {m := x})).1
             SELECT X { n, m } ORDER BY .m THEN .n;
         ''', [
             {"m": 1, "n": 1},
@@ -1241,7 +1325,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_hack_03b(self):
         await self.assert_query_result(r'''
-            WITH X := (WITH x := {1,2}, SELECT (x, Obj {m := vol_id(x)}).1)
+            WITH X := (WITH x := {1,2}, SELECT (x, Obj {m := x}).1)
             SELECT X { n, m } ORDER BY .m THEN .n;
         ''', [
             {"m": 1, "n": 1},
@@ -1254,7 +1338,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_hack_04a(self):
         await self.assert_query_result(r'''
-            SELECT (WITH x := {1,2}, SELECT (x, Obj {m := vol_id(x)})).1
+            SELECT (WITH x := {1,2}, SELECT (x, Obj {m := x})).1
             { n, m } ORDER BY .m THEN .n;
         ''', [
             {"m": 1, "n": 1},
@@ -1267,7 +1351,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     async def test_edgeql_volatility_hack_04b(self):
         await self.assert_query_result(r'''
-            SELECT (WITH x := {1,2}, SELECT (x, Obj {m := vol_id(x)}).1)
+            SELECT (WITH x := {1,2}, SELECT (x, Obj {m := x}).1)
             { n, m } ORDER BY .m THEN .n;
         ''', [
             {"m": 1, "n": 1},
@@ -1355,7 +1439,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             for obj in res:
                 self.assertEqual(obj['a']['x'], -obj['a']['y'])
 
-    @test.xfail("We produce too many rows")
     async def test_edgeql_volatility_for_hard_03(self):
         for query in self.test_loop():
             res = await query("""
@@ -1555,5 +1638,17 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                     SELECT ({1,2},
                             (FOR i in {1,2,3} UNION (
                                  INSERT Obj { n := i })))
+                    """
+                )
+
+        async with self._run_and_rollback():
+            with self.assertRaisesRegex(
+                    edgedb.QueryError,
+                    "can not take cross product of volatile operation"):
+                await self.con.execute(
+                    r"""
+                    WITH X := (WITH x := {1,2},
+                    SELECT (x, Obj {m := vol_id(x)})).1
+                    SELECT X;
                     """
                 )

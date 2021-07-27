@@ -1049,21 +1049,38 @@ def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
     shape_expr = shape.expr or qlutils.ANONYMOUS_SHAPE_EXPR
     with ctx.new() as subctx:
-        subctx.expr_exposed = False
-        expr = setgen.ensure_set(
-            dispatch.compile(shape_expr, ctx=subctx), ctx=subctx)
-    expr_stype = setgen.get_set_type(expr, ctx=ctx)
-    if not isinstance(expr_stype, s_objtypes.ObjectType):
-        raise errors.QueryError(
-            f'shapes cannot be applied to '
-            f'{expr_stype.get_verbosename(ctx.env.schema)}',
-            context=shape.context,
-        )
-    view_type = viewgen.process_view(
-        stype=expr_stype, path_id=expr.path_id,
-        elements=shape.elements, parser_context=shape.context, ctx=ctx)
+        subctx.qlstmt = astutils.ensure_qlstmt(shape)
+        subctx.stmt = stmt = irast.SelectStmt()
+        ctx.env.compiled_stmts[subctx.qlstmt] = stmt
+        subctx.class_view_overrides = subctx.class_view_overrides.copy()
 
-    return setgen.ensure_set(expr, type_override=view_type, ctx=ctx)
+        with ctx.new() as exposed_ctx:
+            exposed_ctx.expr_exposed = False
+            expr = setgen.ensure_set(
+                dispatch.compile(shape_expr, ctx=exposed_ctx), ctx=exposed_ctx)
+
+        expr_stype = setgen.get_set_type(expr, ctx=ctx)
+        if not isinstance(expr_stype, s_objtypes.ObjectType):
+            raise errors.QueryError(
+                f'shapes cannot be applied to '
+                f'{expr_stype.get_verbosename(ctx.env.schema)}',
+                context=shape.context,
+            )
+        view_type = viewgen.process_view(
+            stype=expr_stype, path_id=expr.path_id,
+            elements=shape.elements, parser_context=shape.context, ctx=subctx)
+
+        stmt.result = compile_query_subject(
+            expr,
+            view_scls=view_type,
+            compile_views=False,
+            ctx=subctx,
+            parser_context=expr.context)
+
+        ir_result = setgen.ensure_set(
+            stmt, type_override=view_type, ctx=subctx)
+
+    return ir_result
 
 
 def init_stmt(
@@ -1449,7 +1466,8 @@ def compile_query_subject(
         expr = setgen.ensure_set(expr, type_override=view_scls, ctx=ctx)
         expr_stype = view_scls
 
-    if compile_views:
+    if compile_views or (
+            view_scls and setgen.should_materialize_type(view_scls, ctx=ctx)):
         rptr = view_rptr.rptr if view_rptr is not None else None
         if is_update:
             with ctx.new() as subctx:

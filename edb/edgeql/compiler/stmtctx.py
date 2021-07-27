@@ -117,25 +117,7 @@ def fini_expression(
     ):
         ir = setgen.scoped_set(ir, ctx=ctx)
 
-    # Make sure that all materialized sets have their views compiled
-    children = ast_visitor.find_children(
-        ir, lambda n: isinstance(n, irast.Stmt))
-    for stmt in children:
-        for key in list(stmt.materialized_sets):
-            mat_set = stmt.materialized_sets[key]
-            ir_set = mat_set.materialized
-            if len(mat_set.uses) <= 1:
-                del stmt.materialized_sets[key]
-            else:
-                with ctx.new() as subctx:
-                    subctx.implicit_tid_in_shapes = False
-                    subctx.implicit_tname_in_shapes = False
-                    assert ir_set.path_scope_id is not None
-                    new_scope = ctx.env.scope_tree_nodes.get(
-                        ir_set.path_scope_id)
-                    assert new_scope
-                    subctx.path_scope = new_scope
-                    viewgen.compile_view_shapes(ir_set, ctx=subctx)
+    _fixup_materialized_sets(ir, ctx=ctx)
 
     # The inference context object will be shared between
     # cardinality and multiplicity inferrers.
@@ -263,6 +245,53 @@ def fini_expression(
         type_rewrites={s.typeref.id: s for s in ctx.type_rewrites.values()},
     )
     return result
+
+
+def _fixup_materialized_sets(
+    ir: irast.Base, *, ctx: context.ContextLevel
+) -> None:
+    # Make sure that all materialized sets have their views compiled
+    flt = lambda n: isinstance(n, irast.Stmt)
+    children = ast_visitor.find_children(ir, flt)
+    for nobe in ctx.source_map.values():
+        if nobe.irexpr:
+            children += ast_visitor.find_children(nobe.irexpr, flt)
+    for stmt in children:
+        for key in list(stmt.materialized_sets):
+            mat_set = stmt.materialized_sets[key]
+
+            if len(mat_set.uses) <= 1:
+                del stmt.materialized_sets[key]
+                continue
+
+            # Find the right set to compile by looking for the one
+            # with a matching rptr.
+            if not mat_set.materialized:
+                for use in mat_set.use_sets:
+                    if use.rptr and use.rptr.source == stmt.result:
+                        mat_set.materialized = use
+                        break
+                else:
+                    raise AssertionError(
+                        f"couldn't find the source for {mat_set.uses} on "
+                        f"{stmt.result}!")
+
+            # Compile the view shapes in the set
+            ir_set = mat_set.materialized
+            with ctx.new() as subctx:
+                subctx.implicit_tid_in_shapes = False
+                subctx.implicit_tname_in_shapes = False
+                assert ir_set.path_scope_id is not None
+                new_scope = ctx.env.scope_tree_nodes.get(
+                    ir_set.path_scope_id)
+                assert new_scope
+                subctx.path_scope = new_scope
+                viewgen.compile_view_shapes(ir_set, ctx=subctx)
+
+            assert (
+                not any(use.src_path() for use in mat_set.uses)
+                or mat_set.materialized.rptr
+            ), f"materialized ptr {mat_set.uses} missing rptr"
 
 
 class FindPathScopes(ast_visitor.NodeVisitor):

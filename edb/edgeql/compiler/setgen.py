@@ -1430,20 +1430,15 @@ def maybe_materialize(
 
         assert not isinstance(stype, s_pointers.PseudoPointer)
         if stype.id not in materialize_in_stmt.materialized_sets:
+            saved = (
+                None if isinstance(stype, s_pointers.Pointer) and not ir.rptr
+                else ir
+            )
             materialize_in_stmt.materialized_sets[stype.id] = (
-                irast.MaterializedSet(materialized=ir, use_sets=[]))
-        materialize_in_stmt.materialized_sets[stype.id].use_sets.append(ir)
+                irast.MaterializedSet(materialized=saved, use_sets=[]))
 
-        # When the source typeref doesn't match the source id, take the
-        # current ir to be the canonical one.
-        # Otherwise the volatility refs get broken.
-        # XXX: This is a hack, originally written to solve a different
-        # problem, and I don't really understand why it is needed to
-        # solve this one.
-        if ir.rptr:
-            if ir.rptr.source.typeref.id != ir.rptr.source.path_id.target.id:
-                mat_set = materialize_in_stmt.materialized_sets[stype.id]
-                mat_set.materialized = ir
+        mat_set = materialize_in_stmt.materialized_sets[stype.id]
+        mat_set.use_sets.append(ir)
 
 
 def force_materialized_volatile(

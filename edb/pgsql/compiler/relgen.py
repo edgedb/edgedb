@@ -1176,7 +1176,7 @@ def process_set_as_subquery(
         else:
             # Non-scalar computable pointer.  Check if path source is
             # visible in the outer scope.
-            outer_fence = ctx.scope_tree.parent_fence
+            outer_fence = ctx.scope_tree.parent_branch
             assert outer_fence is not None
             source_is_visible = outer_fence.is_visible(ir_source.path_id)
 

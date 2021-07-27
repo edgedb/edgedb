@@ -353,6 +353,15 @@ class ScopeTreeNode:
         return None
 
     @property
+    def parent_branch(self) -> Optional[ScopeTreeNode]:
+        """The nearest strict ancestor branch or fence."""
+        for ancestor in self.strict_ancestors:
+            if ancestor.path_id is None and not ancestor.computable_branch:
+                return ancestor
+
+        return None
+
+    @property
     def root(self) -> ScopeTreeNode:
         """The root of this tree."""
         node = self
