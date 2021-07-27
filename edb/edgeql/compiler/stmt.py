@@ -1049,9 +1049,9 @@ def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
     shape_expr = shape.expr or qlutils.ANONYMOUS_SHAPE_EXPR
     with ctx.new() as subctx:
-        subctx.qlstmt = shape
+        subctx.qlstmt = astutils.ensure_qlstmt(shape)
         subctx.stmt = stmt = irast.SelectStmt()
-        ctx.env.compiled_stmts[shape] = stmt
+        ctx.env.compiled_stmts[subctx.qlstmt] = stmt
         subctx.class_view_overrides = subctx.class_view_overrides.copy()
 
         with ctx.new() as exposed_ctx:
