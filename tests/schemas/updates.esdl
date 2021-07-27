@@ -47,6 +47,7 @@ type UpdateTest {
     multi link tags -> Tag;
     multi link weighted_tags -> Tag {
         property weight -> int64;
+        property note -> str;
         property readonly_note -> str {
             readonly := true;
         }

@@ -5769,7 +5769,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             UPDATE
                 Base
             SET {
-                foo: {
+                foo := .foo {
                     @bar := 'lp01'
                 }
             };
@@ -5800,7 +5800,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base {foo := (INSERT Child)};
             UPDATE Base
             SET {
-                foo: {@bar := 'lp02'},
+                foo := .foo { @bar := 'lp02' },
             };
         """)
 
@@ -5840,7 +5840,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base {foo := (INSERT Child)};
             UPDATE Base
             SET {
-                foo: {@bar := 3},
+                foo := .foo { @bar := 3 },
             };
         """)
 
@@ -5880,7 +5880,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base {foo := (INSERT Child)};
             UPDATE Base
             SET {
-                foo: {@bar := 'lp04'},
+                foo := .foo { @bar := 'lp04' },
             };
         """)
 
@@ -5920,7 +5920,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base {foo := (INSERT Child)};
             UPDATE Base
             SET {
-                foo: {@bar := 'lp05'},
+                foo := .foo { @bar := 'lp05' },
             };
         """)
 
@@ -5962,7 +5962,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Base {child := (INSERT Child)};
             UPDATE Base
             SET {
-                child: {
+                child := .child {
                     @foo := 'lp06',
                 },
             };
@@ -5983,8 +5983,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute(r"""
             UPDATE Base
             SET {
-                child: {
+                child := .child {
                     @bar := 111,
+                    @foo := 'lp06',
                 },
             };
         """)
@@ -6026,7 +6027,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Derived {child := (INSERT Child)};
             UPDATE Derived
             SET {
-                child: {
+                child := .child {
                     @foo := 'lp07',
                 },
             };
@@ -6080,7 +6081,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         await self.con.execute(r"""
             UPDATE Derived
             SET {
-                child: {
+                child := .child {
                     @foo := 'lp08',
                 },
             };
@@ -6147,7 +6148,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Derived {child := (INSERT Child)};
             UPDATE Derived
             SET {
-                child: {
+                child := .child {
                     @foo := 'lp09',
                 },
             };
@@ -6204,7 +6205,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Derived {child := (INSERT Child)};
             UPDATE Derived
             SET {
-                child: {
+                child := .child {
                     @foo := 'lp10',
                 },
             };
@@ -6265,7 +6266,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Owner {item := (INSERT Thing)};
             UPDATE Owner
             SET {
-                item: {
+                item := .item {
                     @foo := 'owner_lp11',
                 },
             };
@@ -6273,7 +6274,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Renter {item := (INSERT Thing)};
             UPDATE Renter
             SET {
-                item: {
+                item := .item {
                     @foo := 'renter_lp11',
                 },
             };
@@ -6346,7 +6347,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Owner {item := (INSERT Thing)};
             UPDATE Owner
             SET {
-                item: {
+                item := .item {
                     @foo := 'owner_lp11',
                 },
             };
@@ -6354,7 +6355,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             INSERT Renter {item := (INSERT Thing)};
             UPDATE Renter
             SET {
-                item: {
+                item := .item {
                     @bar := 'renter_lp11',
                 },
             };

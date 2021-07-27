@@ -1821,6 +1821,8 @@ class DumpTestCaseMixin:
             ],
         )
 
+        """XXX: uncomment the below once direct link property updates are
+                implemented
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -1872,6 +1874,7 @@ class DumpTestCaseMixin:
                         rol1: {@rolp11 := 1},
                     };
                     ''')
+        """
 
 
 class TestDump01(tb.StableDumpTestCase, DumpTestCaseMixin):
