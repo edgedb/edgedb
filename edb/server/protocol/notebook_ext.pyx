@@ -166,6 +166,10 @@ async def execute(db, server, queries: list):
                         errors.UnsupportedCapabilityError,
                     )
                 try:
+                    if query_unit.in_type_args:
+                        raise errors.QueryError(
+                            'cannot use query parameters in tutorial')
+
                     data = await pgcon.parse_execute_notebook(
                         query_unit.sql[0], dbver)
                 except Exception as ex:
