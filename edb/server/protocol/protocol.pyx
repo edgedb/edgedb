@@ -53,7 +53,7 @@ cdef class HttpResponse:
     def __cinit__(self):
         self.status = HTTPStatus.OK
         self.content_type = b'text/plain'
-        self.headers = {}
+        self.custom_headers = {}
         self.body = b''
         self.close_connection = False
 
@@ -205,7 +205,7 @@ cdef class HttpProtocol:
             self.transport.resume_reading()
 
     cdef _write(self, bytes req_version, bytes resp_status,
-                bytes content_type, dict headers, bytes body,
+                bytes content_type, dict custom_headers, bytes body,
                 bint close_connection):
         if self.transport is None:
             return
@@ -215,14 +215,14 @@ cdef class HttpProtocol:
             b'Content-Length: ', f'{len(body)}'.encode(), b'\r\n',
         ]
 
-        for key, value in headers.items():
+        for key, value in custom_headers.items():
             data.append(f'{key}: {value}\r\n'.encode())
 
         if debug.flags.http_inject_cors:
             data.append(b'Access-Control-Allow-Origin: *\r\n')
-            if headers:
+            if custom_headers:
                 data.append(b'Access-Control-Expose-Headers: ' + \
-                    ', '.join(headers.keys()).encode() + b'\r\n')
+                    ', '.join(custom_headers.keys()).encode() + b'\r\n')
 
         if close_connection:
             data.append(b'Connection: close\r\n')
@@ -237,7 +237,7 @@ cdef class HttpProtocol:
             request.version,
             f'{response.status.value} {response.status.phrase}'.encode(),
             response.content_type,
-            response.headers,
+            response.custom_headers,
             response.body,
             response.close_connection)
 

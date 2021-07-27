@@ -35,7 +35,7 @@ cdef class HttpResponse:
         public object status
         public bint close_connection
         public bytes content_type
-        public dict headers
+        public dict custom_headers
         public bytes body
 
 
@@ -58,7 +58,7 @@ cdef class HttpProtocol:
         HttpRequest current_request
 
     cdef _write(self, bytes req_version, bytes resp_status,
-                bytes content_type, dict headers, bytes body,
+                bytes content_type, dict custom_headers, bytes body,
                 bint close_connection)
 
     cdef write(self, HttpRequest request, HttpResponse response)
