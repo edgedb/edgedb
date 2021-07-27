@@ -1,0 +1,234 @@
+==========
+1.0 Beta 3
+==========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 beta 3 "Ross".
+
+
+Migrations
+==========
+
+We continue working on improving our schema and migration tools:
+
+* Prohibit mixing computed and regular links or properties
+  (:eql:gh:`#2099`).
+* Don't ask for conversion expressions when changing type of
+  computable (:eql:gh:`#2658`).
+* Fix some migration issues involving rebasing (:eql:gh:`#2536`).
+* Fix backlink processing in SDL schemas (:eql:gh:`#1824`).
+* Improve migration prompts (:eql:gh:`#2547`, :eql:gh:`#2591`).
+
+
+EdgeQL
+======
+
+* Add :ref:`anonymous objects <ref_datamodel_object_types_anonymous>`
+  (:eql:gh:`#2533`).
+
+  This construct provides a way to arbitrarily structure data without
+  providing a specific underlying object. It is easier to package data
+  that potentially contains empty sets this way, rather than using a
+  :eql:type:`tuple`:
+
+  .. code-block:: edgeql
+
+    WITH U := (SELECT User FILTER .name LIKE '%user%')
+    SELECT {
+        matches := U {name},
+        total := count(U),
+        total_users := count(User),
+    };
+
+* Add :eql:type:`cal::relative_duration`, which is similar to duration
+  but instead uses fuzzy units like years, months and days in addition
+  to the more standard units like seconds (:eql:gh:`#2559`).
+* Enforce :eql:type:`duration` constraints in SQL as opposed to only
+  during casting (:eql:gh:`#2539`).
+
+* Implement path-like syntax for accessing enum types' members
+  (:eql:gh:`#2625`):
+
+  .. code-block:: edgeql
+
+    SELECT Color.Red;
+
+  is equivalent to
+
+  .. code-block:: edgeql
+
+    SELECT <Color>'Red';
+
+* Allow removal and reordering of :eql:type:`enum` elements
+  (:eql:gh:`#2564`).
+
+* Implement :eql:func:`assert_single` which allows to perform a
+  cardinality check in run-time (:eql:gh:`#2695`):
+
+  .. code-block:: edgeql-repl
+
+    db> SELECT assert_single((SELECT User FILTER .name = "Unique"))
+    {default::User {id: ...}}
+
+    db> SELECT assert_single((SELECT User))
+    ERROR: CardinalityViolationError: assert_single violation: more than
+           one element returned by an expression
+
+* Adjust the precedence of :ref:`DETACHED <ref_eql_with_detached>` to
+  match that of :eql:op:`EXISTS` (:eql:gh:`#2638`).
+
+  This makes it apply to shapes in a more intuitive fashion:
+
+  .. code-block:: edgeql
+
+    SELECT DETACHED User {
+        exclamation := User.name ++ '!'
+    }
+
+  The above expression will now interpret the ``User`` inside that
+  shape as the same ``DETACHED`` User as mentioned at the root of the
+  shape.
+
+* Prohibit backlink syntax for computed links (:eql:gh:`#2619`).
+* Prohibit "$" as the first character in identifiers (:eql:gh:`#2595`).
+* Fix how :eql:op:`??<COALESCE>` works with :eql:type:`tuples <tuple>`
+  (:eql:gh:`#2602`).
+* Fix cardinality inference of computed links and properties
+  (:eql:gh:`#2585`).
+* Fix how :eql:op:`DISTINCT` applies to collections of shapes
+  (:eql:gh:`#2540`).
+* Fix some cases of nested ``UNLESS CONFLICT`` bugs (:eql:gh:`#2555`).
+* Fix how nested volatile computed expressions get executed
+  (:eql:gh:`#2545`).
+* Fix how ``USING`` expressions propagate to subtypes (:eql:gh:`#2543`).
+
+
+GraphQL
+=======
+
+* Remove the helper ``stdgraphql`` module as it is no loger needed
+  (:eql:gh:`#2692`).
+* Fix an issue with inline fragments (:eql:gh:`#1800`).
+
+
+TLS
+===
+
+We've implemented `RFC 1008: TLS and ALPN <rfc1008_>`_. With Transport
+Layer Security (TLS) Protocol enabled by default, it is possible to
+leverage the TLS Application-Layer Protocol Negotiation (ALPN)
+Extension for secure and reliable protocol selection on top of the TLS
+transport, allowing EdgeDB to multiplex different frontend protocols
+like the binary protocol and the HTTP-based protocol on the same port.
+
+
+Command-Line Tools
+==================
+
+We've changed some of the CLI `commands and groupings <rfc1006_>`_.
+There are some top-level "frequently used" commands such as
+:ref:`ref_cli_edgedb_dump`, :ref:`ref_cli_edgedb_restore`,
+:ref:`ref_cli_edgedb_database_create`, :ref:`ref_cli_edgedb_migrate`,
+as well as the new :ref:`ref_cli_edgedb_authenticate`. Other
+commands are grouped into categories:
+:ref:`ref_cli_edgedb_configure`, :ref:`ref_cli_edgedb_migration`,
+:ref:`ref_cli_edgedb_list`, :ref:`ref_cli_edgedb_server`,
+:ref:`ref_cli_edgedb_instance`, :ref:`ref_cli_edgedb_project`, and
+:ref:`ref_cli_edgedb_self`.
+
+Here's a more comprehensive list of the CLI commands:
+
+.. list-table::
+    :widths: auto
+    :header-rows: 1
+
+    * - SUBCOMMAND
+      - DESCRIPTION
+    * - ``authenticate``
+      - Authenticate to a remote instance
+    * - ``dump``
+      - Create a database backup
+    * - ``restore``
+      - Restore a database backup from file
+    * - ``configure``
+      - Modify database configuration
+    * - ``migration apply``
+      - Bring current database to the latest or a specified revision
+    * - ``migration create``
+      - Create a migration script
+    * - ``migration status``
+      - Show current migration state
+    * - ``migration log``
+      - Show all migration versions
+    * - ``migrate``
+      - An alias for edgedb migration apply
+    * - ``database create``
+      - Create a new DB
+    * - ``describe object``
+      - Describe a database object
+    * - ``describe schema``
+      - Describe schema of the current database
+    * - ``list``
+      - List matching database objects by name and type
+    * - ``server info``
+      - Show locally installed EdgeDB servers
+    * - ``server install``
+      - Install an EdgeDB server locally
+    * - ``server uninstall``
+      - Uninstall an EdgeDB server locally
+    * - ``server upgrade``
+      - Upgrade installations and instances
+    * - ``server list-versions``
+      - List available and installed versions of the server
+    * - ``instance create``
+      - Initialize a new server instance
+    * - ``instance status``
+      - Show statuses of all or of a matching instance
+    * - ``instance start``
+      - Start an instance
+    * - ``instance stop``
+      - Stop an instance
+    * - ``instance restart``
+      - Restart an instance
+    * - ``instance destroy``
+      - Destroy an instance and remove the data
+    * - ``instance logs``
+      - Show logs of an instance
+    * - ``instance revert``
+      - Revert a major instance upgrade
+    * - ``instance reset-auth``
+      - Reset password for a user in the instance
+    * - ``project init``
+      - Initialize a new or existing project
+    * - ``project unlink``
+      - Clean-up the project configuration
+    * - ``project info``
+      - Get various metadata about the project
+    * - ``project upgrade``
+      - Upgrade EdgeDB instance used for the current project
+    * - ``self upgrade``
+      - Upgrade this edgedb binary
+    * - ``self install``
+      - Install server
+
+
+Bindings
+========
+
+We've changed the location where EdgeDB stores credentials and other
+instance information, so all the bindings need to be updated to their
+latest versions in order to properly work with this release.
+
+* Implement `RFC 1008 <rfc1008_>`_ features for `edgedb-python
+  <https://github.com/edgedb/edgedb-python>`_ and release v0.16.0
+  driver.
+* Implement `RFC 1008 <rfc1008_>`_ features for `edgedb-js
+  <https://github.com/edgedb/edgedb-js>`_ and release v0.15.0 driver.
+* Implement `RFC 1008 <rfc1008_>`_ features for `edgedb-go
+  <https://github.com/edgedb/edgedb-go>`_ and release v0.7.0 driver.
+
+.. _rfc1006:
+    https://github.com/edgedb/rfcs/blob/master/text/1006-simplified-cli.rst
+
+.. _rfc1008:
+    https://github.com/edgedb/rfcs/blob/master/text/1008-tls-and-alpn.rst
