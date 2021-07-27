@@ -31,6 +31,8 @@ from edb.server import cluster as edgedb_cluster
 from edb.testbase import server as tb
 from edb.tools.edb import edbcommands
 
+from edgedb import platform
+
 
 class TestResult:
     def wasSuccessful(self):
@@ -64,8 +66,16 @@ def die(msg):
 
 @edbcommands.command()
 @click.option(
-    '-D', '--data-dir', type=str, default=str(pathlib.Path.home() / '.edgedb'),
-    help='database cluster directory')
+    '-D', '--data-dir',
+    type=str,
+    default=str(
+        pathlib.Path(os.environ.get(
+            "EDGEDB_SERVER_DEV_DIR",
+            platform.config_dir() / 'data' / '_localdev',
+        ))
+    ),
+    help='database cluster directory',
+)
 @click.option(
     '-t', '--tests-dir', type=str,
     default=str(pathlib.Path(__file__).parent.parent.parent.resolve() /
