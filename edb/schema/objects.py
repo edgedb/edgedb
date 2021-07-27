@@ -461,7 +461,7 @@ class Field(struct.ProtoField, Generic[T]):
 
 class SchemaField(Field[Type_T]):
 
-    __slots__ = ('default', 'hashable')
+    __slots__ = ('default', 'hashable', 'allow_ddl_set', 'index')
 
     #: The default value to use for the field.
     default: Any
