@@ -706,7 +706,7 @@ class ContextLevel(compiler.ContextLevel):
     def newscope(
         self,
         *,
-        fenced: bool = False,
+        fenced: bool,
     ) -> compiler.CompilerContextManager[ContextLevel]:
         if fenced:
             mode = ContextSwitchMode.NEWFENCE

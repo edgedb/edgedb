@@ -60,8 +60,12 @@ class ScopeTreeNode:
     computable_branch: bool
     """Whether this is a branch created to hide heads in a computable path"""
 
-    protect_parent: bool
-    """Whether the subtree represents a scope that must not affect parents."""
+    is_temporary: bool
+    """Whether the branch was created for a view processing.
+
+    Late in the compilation process we prune these nodes to clean up
+    the tree.
+    """
 
     unnest_fence: bool
     """Prevent unnesting in parents."""
@@ -108,7 +112,7 @@ class ScopeTreeNode:
         self.path_id = path_id
         self.fenced = fenced
         self.computable_branch = computable_branch
-        self.protect_parent = False
+        self.is_temporary = False
         self.unnest_fence = False
         self.factoring_fence = False
         self.factoring_allowlist = set()
