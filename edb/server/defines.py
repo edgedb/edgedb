@@ -19,8 +19,6 @@
 
 from __future__ import annotations
 
-import os
-
 
 EDGEDB_PORT = 5656
 EDGEDB_SUPERGROUP = 'edgedb_supergroup'
@@ -42,12 +40,8 @@ EDGEDB_CATALOG_VERSION = 2021_07_23_14_00
 # We try to bump the rlimit on server start if pemitted.
 EDGEDB_MIN_RLIMIT_NOFILE = 2048
 
-
-BACKEND_CONNECTIONS_MIN = 10
-BACKEND_CONNECTIONS_DEFAULT = 100
-
+BACKEND_CONNECTIONS_MIN = 4
 BACKEND_COMPILER_POOL_SIZE_MIN = 1
-BACKEND_COMPILER_POOL_SIZE_DEFAULT = max(os.cpu_count() or 0, 6) // 2
 
 _MAX_QUERIES_CACHE = 1000
 

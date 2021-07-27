@@ -327,7 +327,8 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
 
         cluster = pgcluster.get_local_pg_cluster(
             args.data_dir,
-            max_connections=pg_max_connections,
+            # Plus two below to account for system connections.
+            max_connections=pg_max_connections + 2,
             tenant_id=tenant_id,
         )
         default_runstate_dir = cluster.get_data_dir()

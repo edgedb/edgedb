@@ -38,7 +38,6 @@ from edb.schema import schema as s_schema
 
 from edb.server import compiler
 from edb.server import config
-from edb.server import defines
 from edb.server import pgcluster
 
 from edb.common import debug
@@ -59,9 +58,6 @@ STD_SCHEMA: s_schema.FlatSchema
 GLOBAL_SCHEMA: s_schema.FlatSchema
 INSTANCE_CONFIG: immutables.Map[str, config.SettingValue]
 
-# Abort the template process if more than MAX_WORKER_SPANWS new workers are
-# created continuously - it probably means the worker cannot start correctly
-MAX_WORKER_SPAWNS = defines.BACKEND_COMPILER_POOL_SIZE_DEFAULT * 2
 # "created continuously" means the interval between two consecutive spawns
 # is less than NUM_SPAWNS_RESET_INTERVAL seconds.
 NUM_SPAWNS_RESET_INTERVAL = 1
@@ -372,6 +368,11 @@ def main():
     numproc = int(args.numproc)
     assert numproc > 1
 
+    # Abort the template process if more than `max_worker_spawns`
+    # new workers are created continuously - it probably means the
+    # worker cannot start correctly.
+    max_worker_spawns = numproc * 2
+
     ql_parser.preload()
     gc.freeze()
 
@@ -405,7 +406,7 @@ def main():
                         continuous_num_spawns = 0
                     last_spawn_timestamp = now
                     continuous_num_spawns += 1
-                    if continuous_num_spawns > MAX_WORKER_SPAWNS:
+                    if continuous_num_spawns > max_worker_spawns:
                         # GOTCHA: we shouldn't return here because we need the
                         # exception handler below to clean up the workers
                         exit(os.EX_UNAVAILABLE)
