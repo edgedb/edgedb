@@ -470,6 +470,16 @@ class Cluster(BaseCluster):
             # we're using superuser only now (so all connections available),
             # and we don't support reserving connections for now
             'max_connections': str(self._instance_params.max_connections),
+            # From Postgres docs:
+            #
+            #   You might need to raise this value if you have queries that
+            #   touch many different tables in a single transaction, e.g.,
+            #   query of a parent table with many children.
+            #
+            # EdgeDB queries might touch _lots_ of tables, especially in deep
+            # inheritance hierarchies.  This is especially important in low
+            # `max_connections` scenarios.
+            'max_locks_per_transaction': 256,
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
