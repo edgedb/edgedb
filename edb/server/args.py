@@ -38,7 +38,8 @@ from . import buildmeta
 from . import defines
 
 
-BYTES_OF_MEM_PER_CONN = 100 * 1024 * 1024  # 100MiB
+MIB = 1024 * 1024
+RAM_MIB_PER_CONN = 100
 TLS_CERT_FILE_NAME = "edbtlscert.pem"
 TLS_KEY_FILE_NAME = "edbprivkey.pem"
 
@@ -139,9 +140,16 @@ def _validate_max_backend_connections(ctx, param, value):
     return value
 
 
-def compute_default_max_backend_connections():
+def compute_default_max_backend_connections() -> int:
     total_mem = psutil.virtual_memory().total
-    return max(int(total_mem / BYTES_OF_MEM_PER_CONN), 2)
+    total_mem_mb = total_mem // MIB
+    if total_mem_mb <= 1024:
+        return defines.BACKEND_CONNECTIONS_MIN
+    else:
+        return max(
+            total_mem_mb // RAM_MIB_PER_CONN,
+            defines.BACKEND_CONNECTIONS_MIN,
+        )
 
 
 def adjust_testmode_max_connections(max_conns):
@@ -159,6 +167,15 @@ def _validate_compiler_pool_size(ctx, param, value):
             f'the minimum value for the compiler pool size option '
             f'is {defines.BACKEND_COMPILER_POOL_SIZE_MIN}')
     return value
+
+
+def compute_default_compiler_pool_size() -> int:
+    total_mem = psutil.virtual_memory().total
+    total_mem_mb = total_mem // MIB
+    if total_mem_mb <= 1024:
+        return 1
+    else:
+        return max(psutil.cpu_count(logical=False) or 0, 2)
 
 
 def _validate_tenant_id(ctx, param, value):
@@ -298,7 +315,7 @@ _server_options = [
         callback=_validate_max_backend_connections),
     click.option(
         '--compiler-pool-size', type=int,
-        default=defines.BACKEND_COMPILER_POOL_SIZE_DEFAULT,
+        default=compute_default_compiler_pool_size(),
         callback=_validate_compiler_pool_size),
     click.option(
         '--echo-runtime-info', type=bool, default=False, is_flag=True,
