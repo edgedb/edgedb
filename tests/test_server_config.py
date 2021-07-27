@@ -17,6 +17,7 @@
 #
 
 
+import asyncio
 import dataclasses
 import json
 import textwrap
@@ -1040,3 +1041,21 @@ class TestServerConfig(tb.QueryTestCase):
             await self.con.execute('''
                 DROP TYPE Foo;
             ''')
+
+    async def test_server_proto_configure_listen_addresses(self):
+        async with tb.start_edgedb_server(auto_shutdown=True) as sd:
+            try:
+                con1 = await sd.connect()
+                await con1.execute("""
+                    CONFIGURE INSTANCE SET listen_addresses := {
+                        '127.0.0.2',
+                    };
+                """)
+
+                con2 = await sd.connect(host="127.0.0.2")
+
+                self.assertEqual(await con1.query_one("SELECT 1"), 1)
+                self.assertEqual(await con2.query_one("SELECT 2"), 2)
+
+            finally:
+                await asyncio.gather(con1.aclose(), con2.aclose())
