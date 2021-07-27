@@ -11,8 +11,8 @@ an object type is called an *object*.  All data in EdgeDB is represented by
 objects and by links between objects.
 
 Every object has a globally unique *identity* represented by a ``UUID``
-value. An object's identity is assigned upon creation and never changes. 
-Referring to its id property yields its identity as a 
+value. An object's identity is assigned upon creation and never changes.
+Referring to its id property yields its identity as a
 :eql:type:`uuid` value.  Once set, the value of the ``id`` property
 cannot be changed or masked with a different :ref:`computable
 <ref_datamodel_computables>` expression.
@@ -55,6 +55,48 @@ which is a subtype of ``std::BaseObject``.
     .. code-block:: sdl
 
         abstract type std::Object extending std::BaseObject;
+
+
+.. _ref_datamodel_object_types_anonymous:
+
+Anonymous Objects
+=================
+
+It is also possible to package data into an *anonymous object*.
+*Anonymous objects* are meant to be transient and used either to more
+efficiently store some intermediate results in a query or for
+re-shaping the output. The advantage of using *anonymous objects* over
+:eql:type:`tuples <tuple>` is that it is easier to package data that
+potentially contains empty sets as links or properties of the
+*anonymous object*.
+
+Consider the following query:
+
+.. code-block:: edgeql
+
+    WITH U := (SELECT User FILTER .name LIKE '%user%')
+    SELECT {
+        matches := U {name},
+        total := count(U),
+        total_users := count(User),
+    };
+
+The ``matches`` are potentially ``{}``, yet the query will always
+return a single *anonymous object* with ``resutls``, ``total``, and
+``total_users``. To achieve the same using a :eql:type:`named tuple
+<tuple>`, the query would have to be modified like this:
+
+.. code-block:: edgeql
+
+    WITH U := (SELECT User FILTER .name LIKE '%user%')
+    SELECT (
+        matches := array_agg(U {name}),
+        total := count(U),
+        total_users := count(User),
+    );
+
+Without the :eql:func:`array_agg` the above query would return ``{}``
+instead of the named tuple if no ``matches`` are found.
 
 
 See Also
