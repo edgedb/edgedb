@@ -220,11 +220,11 @@ class Environment:
 
     materialized_sets: Dict[
         Union[s_types.Type, s_pointers.PointerLike],
-        qlast.Statement,
+        Union[qlast.Shape, qlast.Statement],
     ]
     """A mapping of computed sets that must be computed only once."""
 
-    compiled_stmts: Dict[qlast.Statement, irast.Stmt]
+    compiled_stmts: Dict[Union[qlast.Shape, qlast.Statement], irast.Stmt]
     """A mapping of from input edgeql to compiled IR"""
 
     def __init__(
@@ -428,7 +428,7 @@ class ContextLevel(compiler.ContextLevel):
     stmt: Optional[irast.Stmt]
     """Statement node currently being built."""
 
-    qlstmt: Optional[qlast.Statement]
+    qlstmt: Optional[Union[qlast.Statement, qlast.Shape]]
     """Statement source node currently being built."""
 
     path_id_namespace: FrozenSet[str]

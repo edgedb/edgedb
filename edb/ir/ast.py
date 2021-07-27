@@ -423,6 +423,9 @@ class TupleIndirectionPointer(Pointer):
 class Expr(Base):
     __abstract_node__ = True
 
+    # Sets to materialize at this point, keyed by the type/ptr id.
+    materialized_sets: typing.Dict[uuid.UUID, MaterializedSet]
+
 
 class ImmutableExpr(Expr, ImmutableBase):
     __abstract_node__ = True
@@ -740,7 +743,7 @@ class TypeCast(ImmutableExpr):
 class MaterializedSet(Base):
     # Hide uses to reduce spew; we produce our own simpler uses
     __ast_hidden__ = {'use_sets'}
-    materialized: Set
+    materialized: typing.Optional[Set]
     # We really only want the *paths* of all the places it is used,
     # but we need to store the sets to take advantage of weak
     # namespace rewriting.
@@ -771,8 +774,6 @@ class Stmt(Expr):
     parent_stmt: typing.Optional[Stmt]
     iterator_stmt: typing.Optional[Set]
     bindings: typing.List[Set]
-    # Sets to materialize at this point, keyed by the type/ptr id.
-    materialized_sets: typing.Dict[uuid.UUID, MaterializedSet]
 
 
 class FilteredStmt(Stmt):

@@ -603,7 +603,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         """
         SELECT (SELECT User { multi m := 1 }) { m }
 % OK %
-        m: MANY
+        m: AT_LEAST_ONE
         """
 
     def test_edgeql_ir_card_inference_66(self):

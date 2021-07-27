@@ -153,6 +153,7 @@ def compile_materialized_exprs(
         for mat_set in stmt.materialized_sets.values():
             if len(mat_set.uses) <= 1:
                 continue
+            assert mat_set.materialized
             if relctx.find_rvar(
                     query, flavor='packed',
                     path_id=mat_set.materialized.path_id, ctx=matctx):

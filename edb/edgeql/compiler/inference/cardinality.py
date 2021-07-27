@@ -348,14 +348,14 @@ def _find_visible(
     ir: irast.Set,
     scope_tree: irast.ScopeTreeNode,
 ) -> Optional[irast.ScopeTreeNode]:
-    parent_fence = scope_tree.parent_fence
-    if parent_fence is not None:
+    parent_branch = scope_tree.parent_branch
+    if parent_branch is not None:
         if scope_tree.namespaces:
             path_id = ir.path_id.strip_namespace(scope_tree.namespaces)
         else:
             path_id = ir.path_id
 
-        return parent_fence.find_visible(path_id)
+        return parent_branch.find_visible(path_id)
     else:
         return None
 
@@ -489,10 +489,13 @@ def _update_cardinality_in_derived(
     children = env.pointer_derivation_map.get(ptrcls)
     if children:
         ptrcls_cardinality = ptrcls.get_cardinality(env.schema)
+        ptrcls_required = ptrcls.get_required(env.schema)
         assert ptrcls_cardinality.is_known()
         for child in children:
             env.schema = child.set_field_value(
                 env.schema, 'cardinality', ptrcls_cardinality)
+            env.schema = child.set_field_value(
+                env.schema, 'required', ptrcls_required)
             _update_cardinality_in_derived(child, env=env)
 
 
@@ -1012,6 +1015,7 @@ def _infer_matset_cardinality(
         if (len(mat_set.uses) <= 1
                 or mat_set.cardinality != qltypes.Cardinality.UNKNOWN):
             continue
+        assert mat_set.materialized
         # set it to something to prevent recursion
         mat_set.cardinality = MANY
         mat_set.cardinality = infer_cardinality(
