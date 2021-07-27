@@ -34,6 +34,8 @@ from edb.server import compiler
 from edb.server.compiler import IoFormat
 from edb.server.compiler import enums
 
+include "./consts.pxi"
+
 
 ALLOWED_CAPABILITIES = (
     enums.Capability.MODIFICATIONS |
@@ -55,7 +57,7 @@ cdef handle_error(
 
     response.body = json.dumps({
         'kind': 'error',
-        'error':{
+        'error': {
             'message': str(error),
             'type': er_type.__name__,
         }
@@ -113,6 +115,8 @@ async def handle_request(
     except Exception as ex:
         return handle_error(request, response, ex)
     else:
+        response.custom_headers['EdgeDB-Protocol-Version'] = \
+            f'{CURRENT_PROTOCOL[0]}.{CURRENT_PROTOCOL[1]}'
         response.body = b'{"kind": "results", "results":' + result + b'}'
 
 
@@ -134,6 +138,7 @@ async def compile(db, server, list queries):
         db.db_config,
         server.get_compilation_system_config(),
         queries,
+        CURRENT_PROTOCOL,
         50,  # implicit limit
     )
 
@@ -161,6 +166,10 @@ async def execute(db, server, queries: list):
                         errors.UnsupportedCapabilityError,
                     )
                 try:
+                    if query_unit.in_type_args:
+                        raise errors.QueryError(
+                            'cannot use query parameters in tutorial')
+
                     data = await pgcon.parse_execute_notebook(
                         query_unit.sql[0], dbver)
                 except Exception as ex:
