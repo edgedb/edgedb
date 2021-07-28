@@ -1164,7 +1164,10 @@ def range_for_material_objtype(
                 alias=pgast.Alias(aliasname=env.aliases.get('t'))
             )
             pathctx.put_path_id_map(sctx.rel, path_id, rewrite.path_id)
-            include_rvar(sctx.rel, cte_rvar, rewrite.path_id, ctx=sctx)
+            include_rvar(
+                sctx.rel, cte_rvar, rewrite.path_id, pull_namespace=False,
+                ctx=sctx,
+            )
             rvar = rvar_for_rel(sctx.rel, typeref=typeref, ctx=sctx)
     else:
         assert isinstance(typeref.name_hint, sn.QualName)

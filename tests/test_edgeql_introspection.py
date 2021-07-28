@@ -1380,3 +1380,27 @@ class TestIntrospection(tb.QueryTestCase):
                 }
             ]
         )
+
+    async def test_edgeql_default_injection_collision_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE schema
+                SELECT Pointer {
+                    name,
+                    required,
+                    [IS Link].pointers: {
+                      name,
+                      asdf := .required,
+                    } FILTER .name = 'value'
+                }
+                FILTER .source.name = 'schema::AnnotationSubject'
+                   AND .name = 'annotations';
+            """,
+            [
+                {
+                    "name": "annotations",
+                    "pointers": [{"name": "value", "asdf": False}],
+                    "required": False
+                }
+            ]
+        )
