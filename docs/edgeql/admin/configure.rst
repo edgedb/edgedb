@@ -80,6 +80,16 @@ Set the same parameter, but for the current database:
 
     CONFIGURE CURRENT DATABASE SET query_work_mem := '4MB';
 
+Add a Trust authentication method for "my_user":
+
+.. code-block:: edgeql
+
+    CONFIGURE INSTANCE INSERT Auth {
+        priority := 1,
+        method := (INSERT Trust),
+        user := 'my_user'
+    };
+
 Remove all Trust authentication methods:
 
 .. code-block:: edgeql
