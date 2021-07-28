@@ -68,5 +68,5 @@ method with the ``Trust`` method:
 
 .. code-block:: bash
 
-    $ edgedb -I <instance-name> --admin configure insert Auth \
-             --method=Trust --priority=0
+    $ edgedb -I <instance-name> -c "CONFIGURE INSTANCE INSERT \
+        Auth {priority := 0, method := (INSERT Trust)}"
