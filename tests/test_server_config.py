@@ -20,6 +20,7 @@
 import asyncio
 import dataclasses
 import json
+import platform
 import textwrap
 import typing
 import unittest
@@ -1042,7 +1043,14 @@ class TestServerConfig(tb.QueryTestCase):
                 DROP TYPE Foo;
             ''')
 
+    @unittest.skipIf(
+        platform.system() == "Darwin",
+        "loopback aliases aren't set up on macOS by default"
+    )
     async def test_server_proto_configure_listen_addresses(self):
+        con1 = None
+        con2 = None
+
         async with tb.start_edgedb_server(auto_shutdown=True) as sd:
             try:
                 con1 = await sd.connect()
@@ -1058,4 +1066,9 @@ class TestServerConfig(tb.QueryTestCase):
                 self.assertEqual(await con2.query_one("SELECT 2"), 2)
 
             finally:
-                await asyncio.gather(con1.aclose(), con2.aclose())
+                closings = []
+                if con1 is not None:
+                    closings.append(con1.aclose())
+                if con2 is not None:
+                    closings.append(con2.aclose())
+                await asyncio.gather(*closings)
