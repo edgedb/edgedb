@@ -366,7 +366,7 @@ def main():
     args = parser.parse_args()
 
     numproc = int(args.numproc)
-    assert numproc > 1
+    assert numproc >= 1
 
     # Abort the template process if more than `max_worker_spawns`
     # new workers are created continuously - it probably means the
