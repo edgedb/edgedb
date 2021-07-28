@@ -212,12 +212,15 @@ class Pool(amsg.ServerProtocol):
         self._workers[pid] = worker
         self._workers_queue.release(worker)
 
-        logger.debug("Worker with PID %s is ready.", pid)
+        logger.debug("started compiler worker process (PID %s)", pid)
         if (
             not self._ready_evt.is_set()
             and len(self._workers) == self._pool_size
         ):
-            logger.info("All %s compiler Workers are ready.", self._pool_size)
+            logger.info(
+                f"started {self._pool_size} compiler worker "
+                f"process{'es' if self._pool_size > 1 else ''}",
+            )
             self._ready_evt.set()
 
         return worker

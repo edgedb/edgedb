@@ -173,9 +173,12 @@ def compute_default_compiler_pool_size() -> int:
     total_mem = psutil.virtual_memory().total
     total_mem_mb = total_mem // MIB
     if total_mem_mb <= 1024:
-        return 1
+        return defines.BACKEND_COMPILER_POOL_SIZE_MIN
     else:
-        return max(psutil.cpu_count(logical=False) or 0, 2)
+        return max(
+            psutil.cpu_count(logical=False) or 0,
+            defines.BACKEND_COMPILER_POOL_SIZE_MIN,
+        )
 
 
 def _validate_tenant_id(ctx, param, value):
