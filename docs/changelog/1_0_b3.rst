@@ -196,7 +196,7 @@ Here's a more comprehensive list of the CLI commands:
       - Show logs of an instance
     * - ``instance revert``
       - Revert a major instance upgrade
-    * - ``instance reset-auth``
+    * - ``instance reset-password``
       - Reset password for a user in the instance
     * - ``project init``
       - Initialize a new or existing project
