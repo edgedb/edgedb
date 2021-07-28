@@ -959,15 +959,16 @@ class Server:
     async def _start_server(
         self, host: str, port: int
     ) -> asyncio.AbstractServer:
+        nethost = None
         if host == "localhost":
-            host = await _resolve_localhost()
+            nethost = await _resolve_localhost()
 
         return await self._loop.create_server(
             lambda: protocol.HttpProtocol(
                 self, self._sslctx,
                 allow_cleartext_connections=self._allow_cleartext_connections,
             ),
-            host=host, port=port)
+            host=nethost or host, port=port)
 
     async def _start_admin_server(self, port: int) -> asyncio.AbstractServer:
         admin_unix_sock_path = os.path.join(
