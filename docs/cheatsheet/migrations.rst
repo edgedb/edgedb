@@ -112,11 +112,11 @@ Migrate to a new schema using SDL:
         };
     };
 
-Create a ``dbschema`` directory, then put the above schema in it as an
-``.esdl`` file, e.g. ``dbschema/schema.esdl``.
+Find the ``dbschema`` directory created by
+:ref:`ref_cli_edgedb_project_init`, then put the above schema in the
+``dbschema/default.esdl`` (you can also rename the file to anything
+you like).
 
-Then create a new migration using :ref:`edgedb -I my_instance
-migration create <ref_cli_edgedb_migration_create>`.
+Then create a new migration using :ref:`ref_cli_edgedb_migration_create`.
 
-Apply the migration using :ref:`edgedb -I my_instance migrate
-<ref_cli_edgedb_migrate>`.
+Apply the migration using :ref:`ref_cli_edgedb_migrate`.

@@ -9,7 +9,7 @@ so let's start it up:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial
+    $ edgedb
 
 Now, let's add "Blade Runner 2049" to the database. It's
 possible to add movie, director and actor data all at once:
@@ -215,7 +215,7 @@ Second, let's create a new migration to this new schema state:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial migration create
+    $ edgedb migration create
     did you make property 'last_name' of object type
     'default::Person' optional? [y,n,l,c,b,s,q,?]
     y
@@ -226,7 +226,7 @@ Third and final step in this sequence is to apply the migration:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial migrate
+    $ edgedb migrate
     Applied m1k62y4xkmxbeer4rsrfysxhgibw7kjiedqcz6dxusces7ekx7g4ta
     (00002.edgeql)
 
@@ -287,13 +287,13 @@ Create the migration to the updated schema and then apply it:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial migration create
+    $ edgedb migration create
     did you create property 'name' of object type
     'default::Person'? [y,n,l,c,b,s,q,?]
     y
     Created ./dbschema/migrations/00003.edgeql, id:
     m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
-    $ edgedb -I tutorial migrate
+    $ edgedb migrate
     Applied m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
     (00003.edgeql)
 

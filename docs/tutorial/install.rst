@@ -29,15 +29,9 @@ ask you for your password.
 Once the ``edgedb`` CLI installation is successful,
 you might need to restart your terminal to be able to run ``edgedb`` commands.
 
-Now, let's install the EdgeDB server component:
-
-.. code-block:: bash
-
-    $ edgedb server install
-
-Depending on your OS, the native server packages might not yet be available,
-and you might need to install and run Docker to complete the EdgeDB server
-installation.
+Depending on your OS, and the availability of the native server
+packages you might need to install and run Docker to support the
+EdgeDB installation.
 
 We are now ready to
 :ref:`create a new database instance <ref_tutorial_createdb>`.
