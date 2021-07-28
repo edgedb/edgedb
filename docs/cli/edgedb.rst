@@ -45,6 +45,9 @@ Options
 :cli:synopsis:`-V, --version`
     Print version.
 
+:cli:synopsis:`--no-version-check`
+    Disable version check.
+
 :cli:synopsis:`-c <query>`
     Execute a query instead of starting REPL (alias to ``edgedb query``)
 

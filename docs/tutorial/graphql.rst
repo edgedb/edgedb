@@ -33,25 +33,35 @@ new migration and apply it:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial migration create
+    $ edgedb migration create
     did you create extension 'graphql'? [y,n,l,c,b,s,q,?]
     y
     Created ./dbschema/migrations/00004.edgeql, id:
     m12exapirxxcs227zb2sruf7byvupbt6klkyl5ib6nyklyg3xo5s7a
-    $ edgedb -I tutorial migrate
+    $ edgedb migrate
     Applied m12exapirxxcs227zb2sruf7byvupbt6klkyl5ib6nyklyg3xo5s7a
     (00004.edgeql)
 
 This will expose :ref:`GraphQL API <ref_graphql_index>` via ``http``.
-Each EdgeDB instance will be exposed on its corresponding port. Look
-at ``$HOME/.edgedb/credentials/tutorial.json`` file to find out the
-port for the tutorial instance. For the purpose of the example, we'll
-pretend that our tutorial instance is using port 5656 and so the
-GraphQL API is exposed on:
-``http://127.0.0.1:5656/db/edgedb/graphql``. Pointing your browser to
-``http://127.0.0.1:5656/db/edgedb/graphql/explore`` will bring up a
-`GraphiQL`_ interface to EdgeDB. This interface can be used to try out
-queries and explore the GraphQL capabilities.
+Each EdgeDB instance will be exposed on its corresponding port. To
+find out the port used by the tutorial instance run:
+
+.. code-block:: bash
+
+    $ edgedb instance status
+    ┌──────────────┬───────┬─────────┬─────────────┐
+    │     Name     │ Port  │ Version │   Status    │
+    ├──────────────┼───────┼─────────┼─────────────┤
+    │ tutorial     │ 10701 │ 1-beta3 │ running     │
+    └──────────────┴───────┴─────────┴─────────────┘
+
+For the purpose of the example, we'll assume that our tutorial
+instance is using port 10701 as shown by the
+:ref:`ref_cli_edgedb_instance_status` and so the GraphQL API is
+exposed on: ``http://127.0.0.1:10701/db/edgedb/graphql``. Pointing
+your browser to ``http://127.0.0.1:10701/db/edgedb/graphql/explore``
+will bring up a `GraphiQL`_ interface to EdgeDB. This interface can be
+used to try out queries and explore the GraphQL capabilities.
 
 .. _`GraphiQL`: https://github.com/graphql/graphiql
 
@@ -162,12 +172,12 @@ Then we create a new migration and apply it:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial migration create
+    $ edgedb migration create
     did you create alias 'default::PersonAlias'? [y,n,l,c,b,s,q,?]
     y
     Created ./dbschema/migrations/00005.edgeql, id:
     m1td3ogdzqhztdaivw5bem4sjl3otxfx6fmqngzayymqfwtwbolroa
-    $ edgedb -I tutorial migrate
+    $ edgedb migrate
     Applied m1td3ogdzqhztdaivw5bem4sjl3otxfx6fmqngzayymqfwtwbolroa
     (00005.edgeql)
 

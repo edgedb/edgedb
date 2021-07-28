@@ -13,20 +13,25 @@
     and `Vim <https://github.com/edgedb/edgedb-vim>`_.
 
 
-Once the EdgeDB server has been :ref:`installed <ref_tutorial_install>`
-on the system, it's time to create the first EdgeDB instance.  We'll
-call it "tutorial":
+Once the EdgeDB server has been :ref:`installed
+<ref_tutorial_install>` on the system, it's time to create the first
+EdgeDB project.  We'll call it "tutorial". Create a project directory
+called ``tutorial`` and run the following command from within in:
 
 .. code-block:: bash
 
-    $ edgedb instance create tutorial
+    $ edgedb project init
 
-Now, lets launch the EdgeDB CLI and connect to the instance we've just
-created:
+Follow the prompts, accepting the default suggestions. At the end of
+the process you'll have a ``tutotial`` EdgeDB instance created and
+ready to use.
+
+As long as you're running the commands from inside the project
+directory, you can start EdgeDB REPL by simply running:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial
+    $ edgedb
 
 Now we need to set up the schema. Let's create a schema for a movie
 database. It will have 2 types of objects: movies and people who
@@ -48,16 +53,11 @@ final :ref:`types <ref_eql_sdl_object_types>` and their
 the order of the definitions. This is also the format that the
 EdgeDB built-in migration tools are designed to use.
 
-Start by creating a directory which will contain the project's schema
-and migrations:
-
-.. code-block:: bash
-
-    $ mkdir dbschema
-
-Inside this directory create the schema file we'll be working with:
-``dbschema/schema.esdl``. Then using an editor of your choice add
-the following content to ``schema.esdl``:
+The project initialization script should have created ``dbschema``
+directory. That's where the schema and migrations files will reside.
+There's already an empty schema file in place that we will use for the
+tutorial. Using an editor of your choice add the following content to
+``dbschema/default.esdl``:
 
 .. code-block:: sdl
 
@@ -111,7 +111,7 @@ the database:
 
 .. code-block:: bash
 
-    $ edgedb -I tutorial migrate
+    $ edgedb migrate
     Applied m1la5u4qi33nsrhorvl6u7zdiiuvrx6y647mhk3c7suj7ex5jx5ija
     (00001.edgeql)
 
