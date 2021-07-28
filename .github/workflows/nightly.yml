@@ -484,7 +484,7 @@ jobs:
         name: edgedb/edgedb
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        tags: "nightly,nightly_cv${{ steps.describe.outputs.catalog-version }},nightly_${{ steps.describe.outputs.version-slot }}_cv${{ steps.describe.outputs.catalog-version }}"
+        tags: "nightly,nightly_${{ steps.describe.outputs.version-slot }}_cv${{ steps.describe.outputs.catalog-version }}"
         workdir: dockerfile
         buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=.nightly
     
