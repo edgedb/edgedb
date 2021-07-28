@@ -1,21 +1,21 @@
 .. _ref_cli_edgedb_instance_reset_auth:
 
 
-==========================
-edgedb instance reset-auth
-==========================
+==============================
+edgedb instance reset-password
+==============================
 
 Reset password for a user in the EdgeDB instance.
 
 .. cli:synopsis::
 
-     edgedb instance reset-auth [OPTIONS] <name>
+     edgedb instance reset-password [OPTIONS] <name>
 
 
 Description
 ===========
 
-``edgedb instance reset-auth`` is a terminal command for resetting
+``edgedb instance reset-password`` is a terminal command for resetting
 or updating the password for a user of an EdgeDB instance.
 
 

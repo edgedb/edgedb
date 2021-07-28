@@ -19,7 +19,7 @@ for managing EdgeDB instances.
     edgedb_instance_destroy
     edgedb_instance_logs
     edgedb_instance_revert
-    edgedb_instance_reset_auth
+    edgedb_instance_reset_password
 
 .. list-table::
     :class: funcoptable
