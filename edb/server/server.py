@@ -22,7 +22,6 @@ from typing import *
 
 import asyncio
 import binascii
-import collections
 import json
 import logging
 import os
@@ -103,7 +102,7 @@ class Server:
         internal_runstate_dir,
         max_backend_connections,
         compiler_pool_size,
-        nethost,
+        nethosts,
         netport,
         allow_cleartext_connections: bool = False,
         auto_shutdown_after: float = -1,
@@ -144,7 +143,7 @@ class Server:
         self._compiler_pool = None
         self._compiler_pool_size = compiler_pool_size
 
-        self._listen_host = nethost
+        self._listen_hosts = nethosts
         self._listen_port = netport
 
         self._sys_auth: Tuple[Any, ...] = tuple()
@@ -201,8 +200,8 @@ class Server:
 
             await asyncio.sleep(30)
 
-    def get_listen_host(self):
-        return self._listen_host
+    def get_listen_hosts(self):
+        return self._listen_hosts
 
     def get_listen_port(self):
         return self._listen_port
@@ -288,10 +287,10 @@ class Server:
 
             self._populate_sys_auth()
 
-            if not self._listen_host:
-                self._listen_host = (
+            if not self._listen_hosts:
+                self._listen_hosts = (
                     config.lookup('listen_addresses', sys_config)
-                    or 'localhost'
+                    or ('localhost',)
                 )
 
             if self._listen_port is None:
@@ -636,12 +635,12 @@ class Server:
     def get_roles(self):
         return self._roles
 
-    async def _restart_servers_new_addr(self, nethost, netport):
+    async def _restart_servers_new_addr(self, nethosts, netport):
         if not netport:
             raise RuntimeError('cannot restart without network port specified')
         old_servers = self._servers
-        self._servers, _ = await self._start_servers(nethost, netport)
-        self._listen_host = nethost
+        self._servers, _ = await self._start_servers(nethosts, netport)
+        self._listen_hosts = nethosts
         self._listen_port = netport
         await self._stop_servers(old_servers)
 
@@ -699,17 +698,17 @@ class Server:
             await self._restart_servers_new_addr(value, self._listen_port)
 
         elif setting_name == 'listen_port':
-            await self._restart_servers_new_addr(self._listen_host, value)
+            await self._restart_servers_new_addr(self._listen_hosts, value)
 
     async def _on_system_config_reset(self, setting_name):
         # CONFIGURE INSTANCE RESET setting_name;
         if setting_name == 'listen_addresses':
             await self._restart_servers_new_addr(
-                'localhost', self._listen_port)
+                ('localhost',), self._listen_port)
 
         elif setting_name == 'listen_port':
             await self._restart_servers_new_addr(
-                self._listen_host, defines.EDGEDB_PORT)
+                self._listen_hosts, defines.EDGEDB_PORT)
 
     async def _after_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
@@ -906,15 +905,15 @@ class Server:
         finally:
             await self._destroy_compiler_pool()
 
-    async def _start_servers(self, host, port):
-        nethost = await _fix_localhost(host)
+    async def _start_servers(self, hosts, port):
+        nethosts = await _fix_localhost(hosts)
 
         tcp_srv = await self._loop.create_server(
             lambda: protocol.HttpProtocol(
                 self, self._sslctx,
                 allow_cleartext_connections=self._allow_cleartext_connections,
             ),
-            host=nethost, port=port)
+            host=nethosts, port=port)
 
         if port == 0:
             port = tcp_srv.sockets[0].getsockname()[1]
@@ -934,10 +933,10 @@ class Server:
         servers = []
 
         servers.append(tcp_srv)
-        if len(nethost) > 1:
-            host_str = f"{{{', '.join(nethost)}}}"
+        if len(nethosts) > 1:
+            host_str = f"{{{', '.join(nethosts)}}}"
         else:
-            host_str = next(iter(nethost))
+            host_str = next(iter(nethosts))
 
         logger.info('Serving on %s:%s', host_str, port)
         servers.append(admin_unix_srv)
@@ -1028,7 +1027,7 @@ class Server:
             )
 
         self._servers, actual_port = await self._start_servers(
-            self._listen_host, self._listen_port)
+            self._listen_hosts, self._listen_port)
         if self._listen_port == 0:
             self._listen_port = actual_port
 
@@ -1117,17 +1116,13 @@ class Server:
             self._pg_unavailable_msg = msg
 
 
-async def _fix_localhost(host):
+async def _fix_localhost(host: Iterable[str]) -> List[str]:
     # On many systems 'localhost' resolves to _both_ IPv4 and IPv6
     # addresses, even if the system is not capable of handling
     # IPv6 connections.  Due to the common nature of this issue
     # we explicitly disable the AF_INET6 component of 'localhost'.
 
-    if (isinstance(host, str)
-            or not isinstance(host, collections.abc.Iterable)):
-        hosts = [host]
-    else:
-        hosts = list(host)
+    hosts = list(host)
 
     try:
         idx = hosts.index('localhost')
