@@ -195,7 +195,9 @@ def compile_ForQuery(
         with sctx.newscope(fenced=True) as bctx:
             stmt.result = setgen.scoped_set(
                 compile_result_clause(
-                    qlstmt.result,
+                    # Make sure it is a stmt, so that shapes inside the body
+                    # get resolved there.
+                    astutils.ensure_qlstmt(qlstmt.result),
                     view_scls=ctx.view_scls,
                     view_rptr=ctx.view_rptr,
                     result_alias=qlstmt.result_alias,
