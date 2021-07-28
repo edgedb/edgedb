@@ -639,6 +639,7 @@ class Server:
     async def _restart_servers_new_addr(self, nethosts, netport):
         if not netport:
             raise RuntimeError('cannot restart without network port specified')
+        nethosts = _fix_wildcard_host(nethosts)
         servers_to_stop = []
         servers = {}
         if self._listen_port == netport:
@@ -1107,7 +1108,8 @@ class Server:
             )
 
         self._servers, actual_port, listen_addrs = await self._start_servers(
-            self._listen_hosts, self._listen_port)
+            _fix_wildcard_host(self._listen_hosts), self._listen_port
+        )
         if self._listen_port == 0:
             self._listen_port = actual_port
 
@@ -1226,4 +1228,20 @@ async def _resolve_localhost() -> List[str]:
         addr, *_ = info[4]
         hosts.append(addr)
 
+    return hosts
+
+
+def _fix_wildcard_host(hosts: Sequence[str]) -> Sequence[str]:
+    # Even though it is sometimes not a conflict to bind on the same port of
+    # both the wildcard host 0.0.0.0 and some specific host at the same time,
+    # we're still discarding other hosts if 0.0.0.0 is present because it
+    # should behave the same and we could avoid potential conflicts.
+
+    if '0.0.0.0' in hosts:
+        if len(hosts) > 1:
+            logger.warning(
+                "0.0.0.0 found in listen_addresses; "
+                "discarding the other hosts."
+            )
+            hosts = ['0.0.0.0']
     return hosts
