@@ -36,7 +36,7 @@ the :eql:synopsis:`<expr>` set that are instances of
 - a name of an existing link or property of a type produced
   by :eql:synopsis:`<expr>`;
 
-- a declaration of a computable link or property in the form
+- a declaration of a computed link or property in the form
 
   .. eql:synopsis ::
 
@@ -119,9 +119,10 @@ Cardinality
 
 Typically the cardinality of an expression can be statically
 determined from the individual parts. Sometimes it is necessary to
-specify the cardinality explicitly. For example, when using
-computables in shapes it may be desirable to specify the cardinality
-of the computable because it affects serialization.
+specify the cardinality explicitly. For example, when using computed
+expressions in shapes it may be desirable to specify the cardinality
+of the computed link or property they represent because it affects
+serialization.
 
 .. code-block:: edgeql
 
@@ -134,7 +135,7 @@ of the computable because it affects serialization.
 
 Cardinality is normally statically inferred from the query, so
 overruling this inference may only be done to *relax* the cardinality,
-so it is not valid to specify the ``single`` qualifier for a computable
+so it is not valid to specify the ``single`` qualifier if the computed
 expression that may return multiple items.
 
 
@@ -176,7 +177,7 @@ shape annotation can be used to provide an alias for the link:
         }
     };
 
-When a simple path is used as the definition of a computable link,
+When a simple path is used as the definition of a computed link,
 that has the effect of aliasing the underlying link and thus
 preserving any link properties as well. For a path that has more than
 one step, it is always the *last* step that is aliased.

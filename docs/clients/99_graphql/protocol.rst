@@ -66,6 +66,6 @@ actually occurred.
     losslessly represented in JSON. However, JSON decoders in many
     languages will read all such numbers as some kind of of 32- or
     64-bit number type, which may result in errors or precision loss.
-    If such loss is unacceptable, then consider creating a computable
+    If such loss is unacceptable, then consider creating a computed
     property which casts the value into ``str`` and decoding it on the
     client side into a more appropriate type.

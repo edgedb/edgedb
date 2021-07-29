@@ -2248,7 +2248,7 @@ class TestInsert(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
                 "possibly more than one element returned by an expression "
-                "for a computable link 'foo' declared as 'single'"):
+                "for a computed link 'foo' declared as 'single'"):
             await self.con.query(r'''
                 WITH X := (
                         INSERT Person {name := "hello"}
@@ -2263,7 +2263,7 @@ class TestInsert(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
                 "possibly more than one element returned by an expression "
-                "for a computable link 'foo' declared as 'single'"):
+                "for a computed link 'foo' declared as 'single'"):
             await self.con.query(r'''
                 WITH X := (
                         INSERT Person {name := "hello"}
@@ -2278,7 +2278,7 @@ class TestInsert(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
                 "possibly an empty set returned by an expression for a "
-                "computable link 'foo' declared as 'required'"):
+                "computed link 'foo' declared as 'required'"):
             await self.con.query(r'''
                 WITH X := (
                         INSERT Person {name := "hello"}
@@ -2837,7 +2837,7 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_dependent_07(self):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
-                "mutations are invalid in a shape computable"):
+                "mutations are invalid in a shape's computed expression"):
             await self.con.execute(
                 r"""
                     SELECT Person {

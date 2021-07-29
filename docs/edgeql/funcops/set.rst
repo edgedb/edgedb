@@ -284,11 +284,12 @@ Set
 
     Check that the input set contains no more than one element.
 
-    If the input set contains more than one element, ``assert_single`` raises
-    a ``CardinalityViolationError``.  This function is useful as a runtime
-    cardinality assertion in queries and computables that should always return
-    sets with at most a single element, but where static cardinality inference
-    is not capable enough or outright impossible.
+    If the input set contains more than one element, ``assert_single``
+    raises a ``CardinalityViolationError``.  This function is useful
+    as a runtime cardinality assertion in queries and computed
+    expressions that should always return sets with at most a single
+    element, but where static cardinality inference is not capable
+    enough or outright impossible.
 
     .. code-block:: edgeql-repl
 

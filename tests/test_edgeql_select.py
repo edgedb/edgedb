@@ -420,7 +420,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly more than one element returned by an expression "
-                r"for a computable property 'foo' declared as 'single'",
+                r"for a computed property 'foo' declared as 'single'",
                 _position=166):
             await self.con.query("""\
                 SELECT Issue{
@@ -455,7 +455,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly more than one element returned by an expression "
-                r"for a computable property 'foo' declared as 'single'",
+                r"for a computed property 'foo' declared as 'single'",
                 _position=215):
             await self.con.query("""\
                 WITH
@@ -542,7 +542,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly an empty set returned by an expression for "
-                r"a computable property 'foo' declared as 'required'",
+                r"a computed property 'foo' declared as 'required'",
                 _position=78):
             await self.con.query("""\
                 SELECT Issue{
@@ -556,7 +556,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly an empty set returned by an expression for "
-                r"a computable property 'foo' declared as 'required'",
+                r"a computed property 'foo' declared as 'required'",
                 _position=78):
             await self.con.query("""\
                 SELECT Issue{
@@ -570,7 +570,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly an empty set returned by an expression for "
-                r"a computable property 'foo' declared as 'required'",
+                r"a computed property 'foo' declared as 'required'",
                 _position=78):
             await self.con.query("""\
                 SELECT Issue{
@@ -584,7 +584,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly more than one element returned by an expression "
-                r"for a computable property 'foo' declared as 'single'",
+                r"for a computed property 'foo' declared as 'single'",
                 _position=78):
             await self.con.query("""\
                 SELECT Issue{
@@ -598,7 +598,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly an empty set returned by an expression for "
-                r"a computable property 'foo' declared as 'required'",
+                r"a computed property 'foo' declared as 'required'",
                 _position=78):
             await self.con.query("""\
                 SELECT Issue{
@@ -612,7 +612,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly an empty set returned by an expression for "
-                r"a computable property 'foo' declared as 'required'",
+                r"a computed property 'foo' declared as 'required'",
                 _position=78):
             await self.con.query("""\
                 SELECT Issue{
@@ -626,7 +626,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly an empty set returned by an expression for "
-                r"a computable property 'foo' declared as 'required'",
+                r"a computed property 'foo' declared as 'required'",
                 _position=78):
             await self.con.query("""\
                 SELECT Issue{
@@ -671,7 +671,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"possibly an empty set returned by an expression for "
-                r"a computable link 'foo' declared as 'required'",
+                r"a computed link 'foo' declared as 'required'",
                 _position=78):
             await self.con.query("""\
                 SELECT Issue{
@@ -1993,7 +1993,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             "possibly more than one element returned by an expression for a "
-            "computable link 'priority' declared as 'single'",
+            "computed link 'priority' declared as 'single'",
             _position=52,
         ):
             await self.con.execute("""
@@ -2032,7 +2032,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             "possibly an empty set returned by an expression for a "
-            "computable link 'owner' declared as 'required'",
+            "computed link 'owner' declared as 'required'",
             _position=52,
         ):
             await self.con.execute("""
@@ -2445,7 +2445,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.SchemaError,
             "it is illegal to create a type union that causes "
-            "a computable property 'number' to mix with other "
+            "a computed property 'number' to mix with other "
             "versions of the same property 'number'"
         ):
             await self.con.execute(
@@ -2460,7 +2460,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.SchemaError,
             "it is illegal to create a type union that causes "
-            "a computable property 'number' to mix with other "
+            "a computed property 'number' to mix with other "
             "versions of the same property 'number'"
         ):
             await self.con.execute(
@@ -6056,7 +6056,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "it is illegal to create a type union that causes a "
-            "computable property 'z' to mix with other versions of the "
+            "computed property 'z' to mix with other versions of the "
             "same property 'z'"
         ):
             await self.con.execute("""

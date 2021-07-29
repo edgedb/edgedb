@@ -61,7 +61,7 @@ concrete property for a given object type or link.
 There are three forms of ``CREATE PROPERTY``, as shown in the syntax synopsis
 above.  The first form is the canonical definition form, the second
 form is a syntax shorthand for defining a
-:ref:`computable property <ref_datamodel_computables>`, and the third
+:ref:`computed property <ref_datamodel_computables>`, and the third
 is a form to define an abstract property item.  The abstract form
 allows creating the property in the specified
 :eql:synopsis:`<module>`.  Concrete property forms are always
@@ -108,9 +108,9 @@ Define a new link ``address`` on the ``User`` object type:
         CREATE PROPERTY address -> str
     };
 
-Define a new property ``number_of_connections`` as a
-:ref:`computable <ref_datamodel_computables>` on the ``User``
-object type counting the number of interests:
+Define a new :ref:`computed property <ref_datamodel_computables>`
+``number_of_connections`` on the ``User`` object type counting the
+number of interests:
 
 .. code-block:: edgeql
 
@@ -168,7 +168,7 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
       RESET CARDINALITY
       SET TYPE <typename> [USING (<conversion-expr)]
       RESET TYPE
-      USING (<computable-expr>)
+      USING (<computed-expr>)
       CREATE ANNOTATION <annotation-name> := <value>
       ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
@@ -268,9 +268,9 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     of the same name in supertypes.  It is an error to ``RESET TYPE`` on
     a property that is not inherited.
 
-:eql:synopsis:`USING (<computable-expr>)`
-    Change the expression of a :ref:`computable <ref_datamodel_computables>`
-    property.  Only valid for concrete properties.
+:eql:synopsis:`USING (<computed-expr>)`
+    Change the expression of a :ref:`computed property
+    <ref_datamodel_computables>`.  Only valid for concrete properties.
 
 :eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
     Alter property annotation :eql:synopsis:`<annotation-name>`.
@@ -333,7 +333,7 @@ Rename the property ``weight`` of link ``orderable`` to ``sort_by``:
         ALTER PROPERTY weight RENAME TO sort_by;
     };
 
-Redefine the :ref:`computable <ref_datamodel_computables>` property
+Redefine the :ref:`computed property <ref_datamodel_computables>`
 ``number_of_connections`` to be the number of friends:
 
 .. code-block:: edgeql

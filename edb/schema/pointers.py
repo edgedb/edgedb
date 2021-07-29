@@ -1170,7 +1170,7 @@ class PointerCommandOrFragment(
                 srcctx = self.get_attribute_source_context('target')
                 raise errors.SchemaDefinitionError(
                     f'the type inferred from the expression '
-                    f'of the computable {ptr_name} '
+                    f'of the computed {ptr_name} '
                     f'is {inferred_target_type.get_verbosename(mschema)}, '
                     f'which does not match the explicitly specified '
                     f'{spec_target_type.get_verbosename(schema)}',
@@ -1181,7 +1181,7 @@ class PointerCommandOrFragment(
             srcctx = self.get_attribute_source_context('target')
             raise errors.SchemaDefinitionError(
                 f'possibly an empty set returned by an '
-                f'expression for the computable '
+                f'expression for the computed '
                 f'{ptr_name} '
                 f"explicitly declared as 'required'",
                 context=srcctx
@@ -1194,7 +1194,7 @@ class PointerCommandOrFragment(
             srcctx = self.get_attribute_source_context('target')
             raise errors.SchemaDefinitionError(
                 f'possibly more than one element returned by an '
-                f'expression for the computable '
+                f'expression for the computed '
                 f'{ptr_name} '
                 f"explicitly declared as 'single'",
                 context=srcctx
@@ -1213,7 +1213,7 @@ class PointerCommandOrFragment(
             srcctx = self.get_attribute_source_context('target')
             raise errors.SchemaDefinitionError(
                 f'volatile functions are not permitted in schema-defined '
-                f'computables',
+                f'computed expressions',
                 context=srcctx
             )
 
@@ -1323,7 +1323,7 @@ class PointerCommandOrFragment(
             ptr_name = self.get_verbosename(parent=parent_vname)
             in_ddl_context_name = None
             if field.name == 'expr':
-                in_ddl_context_name = f'computable {ptr_name}'
+                in_ddl_context_name = f'computed {ptr_name}'
 
             return self._compile_expr(
                 schema,
@@ -1415,7 +1415,7 @@ class PointerCommand(
         if is_computable and is_owned:
             # Overloading with a computable
             raise errors.SchemaDefinitionError(
-                f'it is illegal for the computable '
+                f'it is illegal for the computed '
                 f'{scls.get_verbosename(schema, with_parent=True)} '
                 f'to overload an existing '
                 f'{scls.get_schema_class_displayname()}',
@@ -1426,7 +1426,7 @@ class PointerCommand(
                 raise errors.SchemaDefinitionError(
                     f'it is illegal for the '
                     f'{scls.get_verbosename(schema, with_parent=True)} '
-                    f'to extend both a computable and a non-computable '
+                    f'to extend both a computed and a non-computed '
                     f'{scls.get_schema_class_displayname()}',
                     context=self.source_context,
                 )
@@ -1434,7 +1434,7 @@ class PointerCommand(
                 raise errors.SchemaDefinitionError(
                     f'it is illegal for the '
                     f'{scls.get_verbosename(schema, with_parent=True)} '
-                    f'to extend more than one computable '
+                    f'to extend more than one computed '
                     f'{scls.get_schema_class_displayname()}',
                     context=self.source_context,
                 )
@@ -2665,7 +2665,7 @@ def get_or_create_union_pointer(
         p = components[0]
         raise errors.SchemaError(
             f'it is illegal to create a type union that causes '
-            f'a computable {p.get_verbosename(schema)} to mix '
+            f'a computed {p.get_verbosename(schema)} to mix '
             f'with other versions of the same {p.get_verbosename(schema)}',
         )
 

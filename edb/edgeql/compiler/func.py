@@ -165,7 +165,7 @@ def compile_FunctionCall(
             # DML is not allowed in the computable, but it may
             # be possible to refactor it.
             raise errors.QueryError(
-                f'mutations are invalid in a shape computable',
+                f"mutations are invalid in a shape's computed expression",
                 hint=(
                     f'To resolve this try to factor out the mutation '
                     f'expression into the top-level WITH block.'

@@ -106,7 +106,7 @@ Migrate to a new schema using SDL:
         };
 
         alias MovieAlias := Movie {
-            # A computable link for accessing all the
+            # A computed link for accessing all the
             # reviews for this movie.
             reviews := .<movie[IS Review]
         };

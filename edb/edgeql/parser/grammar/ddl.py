@@ -1385,13 +1385,13 @@ class CreateConcretePropertyStmt(Nonterm):
             if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
                     raise EdgeQLSyntaxError(
-                        f'computable property with more than one expression',
+                        f'computed property with more than one expression',
                         context=kids[3].context)
                 target = cmd.value
 
         if target is None:
             raise EdgeQLSyntaxError(
-                f'computable property without expression',
+                f'computed property without expression',
                 context=kids[3].context)
 
         self.val = qlast.CreateConcreteProperty(
@@ -1684,13 +1684,13 @@ class CreateConcreteLinkStmt(Nonterm):
             if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
                     raise EdgeQLSyntaxError(
-                        f'computable link with more than one expression',
+                        f'computed link with more than one expression',
                         context=kids[3].context)
                 target = cmd.value
 
         if target is None:
             raise EdgeQLSyntaxError(
-                f'computable link without expression',
+                f'computed link without expression',
                 context=kids[3].context)
 
         self.val = qlast.CreateConcreteLink(

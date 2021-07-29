@@ -682,7 +682,7 @@ def resolve_ptr(
                                                 with_parent=True)
                     raise errors.InvalidReferenceError(
                         f'cannot follow backlink {pointer_name!r} because '
-                        f'{vname} is computable',
+                        f'{vname} is computed',
                         context=source_context
                     )
 
@@ -1240,7 +1240,7 @@ def computable_ptr_set(
             if comp_expr is None:
                 ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
                 raise errors.InternalServerError(
-                    f'{ptrcls_sn!r} is not a computable pointer')
+                    f'{ptrcls_sn!r} is not a computed pointer')
 
             comp_qlexpr = qlparser.parse(comp_expr.text)
             assert isinstance(comp_qlexpr, qlast.Expr), 'expected qlast.Expr'

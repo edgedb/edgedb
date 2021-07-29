@@ -270,12 +270,12 @@ Known headers:
 
 * 0xFF02 ``IMPLICIT_TYPENAMES`` -- if set to "true" all returned objects have
   a ``__tname__`` property set to their type name (equivalent to having
-  an implicit "__tname__ := .__type__.name" computable.)  Note that specifying
-  this header might slow down queries.
+  an implicit "__tname__ := .__type__.name" computed property.)
+  Note that specifying this header might slow down queries.
 
 * 0xFF03 ``IMPLICIT_TYPEIDS`` -- if set to "true" all returned objects have
   a ``__tid__`` property set to their type ID (equivalent to having
-  an implicit "__tid__ := .__type__.id" computable.)
+  an implicit "__tid__ := .__type__.id" computed property.)
 
 * 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
   capabilities allowed for this query.  See RFC1004_ for more information.
@@ -440,12 +440,12 @@ Known headers:
 
 * 0xFF02 ``IMPLICIT_TYPENAMES`` -- if set to "true" all returned objects have
   a ``__tname__`` property set to their type name (equivalent to having
-  an implicit "__tname__ := .__type__.name" computable.)  Note that specifying
-  this header might slow down queries.
+  an implicit "__tname__ := .__type__.name" computed property.)
+  Note that specifying this header might slow down queries.
 
 * 0xFF03 ``IMPLICIT_TYPEIDS`` -- if set to "true" all returned objects have
   a ``__tid__`` property set to their type ID (equivalent to having
-  an implicit "__tid__ := .__type__.id" computable.)
+  an implicit "__tid__ := .__type__.id" computed property.)
 
 * 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
   capabilities allowed for this query.  See RFC1004_ for more information.

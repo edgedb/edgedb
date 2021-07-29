@@ -307,7 +307,7 @@ syntax can be used:
             # specific to User
             [IS User].avatar,
 
-            # a computable value tracking how many favorites
+            # a computed property tracking how many favorites
             # does my favorite User have?
             favorites_count := count(
                 # start the path at the root of the shape

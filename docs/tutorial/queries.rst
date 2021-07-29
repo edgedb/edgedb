@@ -159,7 +159,7 @@ Let's get more details about the ``Movie``:
     }
 
 Instead of listing the ``actors`` let's just count how many people are
-there in the ``actors`` by using a :ref:`computable
+there in the ``actors`` by using a :ref:`computed property
 <ref_datamodel_computables>`:
 
 .. code-block:: edgeql-repl
@@ -258,7 +258,7 @@ And we can update "Dune":
     {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
 For querying convenience let's update the schema so that a ``Person``
-will also have a :ref:`computable <ref_datamodel_computables>`
+will also have a :ref:`computed property <ref_datamodel_computables>`
 ``name`` that combines the ``first_name`` and ``last_name``
 properties. The new ``dbschema/schema.esdl`` should look like
 this:

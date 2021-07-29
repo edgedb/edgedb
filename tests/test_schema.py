@@ -88,7 +88,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
-                  "it is illegal for the computable property 'val' "
+                  "it is illegal for the computed property 'val' "
                   "of object type 'test::UniqueName_2' to overload "
                   "an existing property")
     def test_schema_overloaded_prop_04(self):
@@ -106,7 +106,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
-                  "it is illegal for the computable property 'val' "
+                  "it is illegal for the computed property 'val' "
                   "of object type 'test::UniqueName_2' to overload "
                   "an existing property")
     def test_schema_overloaded_prop_05(self):
@@ -125,8 +125,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "it is illegal for the property 'val' of object "
-                  "type 'test::UniqueName_3' to extend both a computable "
-                  "and a non-computable property")
+                  "type 'test::UniqueName_3' to extend both a computed "
+                  "and a non-computed property")
     def test_schema_overloaded_prop_06(self):
         """
             type UniqueName {
@@ -141,7 +141,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(errors.SchemaDefinitionError,
                   "it is illegal for the property 'val' of object "
                   "type 'test::UniqueName_3' to extend more than one "
-                  "computable property")
+                  "computed property")
     def test_schema_overloaded_prop_07(self):
         """
             type UniqueName {
@@ -157,8 +157,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "it is illegal for the property 'val' of object "
-                  "type 'test::UniqueName_4' to extend both a computable "
-                  "and a non-computable property")
+                  "type 'test::UniqueName_4' to extend both a computed "
+                  "and a non-computed property")
     def test_schema_overloaded_prop_08(self):
         """
             type UniqueName {
@@ -173,7 +173,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaError,
                   "it is illegal to create a type union that causes "
-                  "a computable property 'val' to mix with other "
+                  "a computed property 'val' to mix with other "
                   "versions of the same property 'val'")
     def test_schema_overloaded_prop_09(self):
         # Overloading implicitly via a type UNION.
@@ -189,7 +189,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaError,
                   "it is illegal to create a type union that causes "
-                  "a computable property 'val' to mix with other "
+                  "a computed property 'val' to mix with other "
                   "versions of the same property 'val'")
     def test_schema_overloaded_prop_10(self):
         # Overloading implicitly via a type UNION.
@@ -206,7 +206,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
-                  "it is illegal for the computable link 'foo' "
+                  "it is illegal for the computed link 'foo' "
                   "of object type 'test::UniqueName_2' to overload "
                   "an existing link")
     def test_schema_overloaded_link_01(self):
@@ -223,7 +223,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         """
 
     @tb.must_fail(errors.SchemaDefinitionError,
-                  "it is illegal for the computable link 'foo' "
+                  "it is illegal for the computed link 'foo' "
                   "of object type 'test::UniqueName_2' to overload "
                   "an existing link")
     def test_schema_overloaded_link_02(self):
@@ -243,8 +243,8 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "it is illegal for the link 'foo' of object "
-                  "type 'test::UniqueName_3' to extend both a computable "
-                  "and a non-computable link")
+                  "type 'test::UniqueName_3' to extend both a computed "
+                  "and a non-computed link")
     def test_schema_overloaded_link_03(self):
         """
             type Foo;
@@ -260,7 +260,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(errors.SchemaDefinitionError,
                   "it is illegal for the link 'foo' of object "
                   "type 'test::UniqueName_3' to extend more than one "
-                  "computable link")
+                  "computed link")
     def test_schema_overloaded_link_04(self):
         """
             type Foo;
@@ -481,7 +481,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly more than one element returned by an expression "
-                  "for the computable link 'ham' of object type 'test::Spam' "
+                  "for the computed link 'ham' of object type 'test::Spam' "
                   "explicitly declared as 'single'",
                   line=5, col=36)
     def test_schema_computable_cardinality_inference_03(self):
@@ -495,7 +495,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly more than one element returned by an expression "
-                  "for the computable property 'hams' of object type "
+                  "for the computed property 'hams' of object type "
                   "'test::Spam' explicitly declared as 'single'",
                   line=5, col=41)
     def test_schema_computable_cardinality_inference_04(self):
@@ -509,7 +509,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly an empty set returned by an expression for "
-                  "the computable property 'hams' of object type "
+                  "the computed property 'hams' of object type "
                   "'test::Spam' explicitly declared as 'required'",
                   line=5, col=43)
     def test_schema_computable_cardinality_inference_05(self):
@@ -559,7 +559,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.SchemaDefinitionError,
-        "the type inferred from the expression of the computable property "
+        "the type inferred from the expression of the computed property "
         "'title' of object type 'test::A' is scalar type 'std::int64', "
         "which does not match the explicitly specified scalar type 'std::str'",
         line=3, col=35)
@@ -574,7 +574,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.SchemaDefinitionError,
-        "the type inferred from the expression of the computable property "
+        "the type inferred from the expression of the computed property "
         "'title' of object type 'test::A' is collection "
         "'tuple<std::int64, std::int64>', which does not match the explicitly "
         "specified collection 'tuple<std::str, std::str>'",
@@ -590,7 +590,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.SchemaDefinitionError,
-        "the type inferred from the expression of the computable link "
+        "the type inferred from the expression of the computed link "
         "'foo' of object type 'test::C' is object type 'test::B', "
         "which does not match the explicitly specified object type 'test::A'",
         line=6, col=29)
@@ -2689,7 +2689,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # the real error.
         with self.assertRaisesRegex(
             errors.SchemaDefinitionError,
-            "mutations are invalid in computable property 'comp'"
+            "mutations are invalid in computed property 'comp'"
         ):
             schema = r'''
             type Foo {
@@ -2717,7 +2717,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # the real error.
         with self.assertRaisesRegex(
             errors.SchemaDefinitionError,
-            "mutations are invalid in computable property 'comp'"
+            "mutations are invalid in computed property 'comp'"
         ):
             schema = r'''
             type Foo {
@@ -6377,7 +6377,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         with self.assertRaisesRegex(
             errors.QueryError,
             "it is illegal to create a type union that causes a "
-            "computable property 'deleted' to mix with other versions of the "
+            "computed property 'deleted' to mix with other versions of the "
             "same property 'deleted'"
         ):
             self._assert_migration_equivalence([r"""
