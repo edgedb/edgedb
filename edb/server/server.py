@@ -22,7 +22,6 @@ from typing import *
 
 import asyncio
 import binascii
-import collections
 import json
 import logging
 import os
@@ -61,6 +60,7 @@ from edb.server.pgcon import errors as pgcon_errors
 from . import dbview
 
 
+ADMIN_PLACEHOLDER = "<edgedb:admin>"
 logger = logging.getLogger('edb.server')
 log_metrics = logging.getLogger('edb.server.metrics')
 
@@ -90,7 +90,7 @@ class Server:
     _schema_class_layout: s_refl.SchemaTypeLayout
 
     _sys_pgcon_waiter: asyncio.Lock
-    _servers: List[asyncio.AbstractServer]
+    _servers: Mapping[str, asyncio.AbstractServer]
 
     _task_group: Optional[taskgroup.TaskGroup]
     _binary_conns: Set[binary.EdgeConnection]
@@ -103,7 +103,7 @@ class Server:
         internal_runstate_dir,
         max_backend_connections,
         compiler_pool_size,
-        nethost,
+        nethosts,
         netport,
         allow_cleartext_connections: bool = False,
         auto_shutdown_after: float = -1,
@@ -144,7 +144,7 @@ class Server:
         self._compiler_pool = None
         self._compiler_pool_size = compiler_pool_size
 
-        self._listen_host = nethost
+        self._listen_hosts = nethosts
         self._listen_port = netport
 
         self._sys_auth: Tuple[Any, ...] = tuple()
@@ -174,7 +174,7 @@ class Server:
         self._binary_conns = set()
         self._accepting_connections = False
 
-        self._servers = []
+        self._servers = {}
 
         self._http_query_cache = cache.StatementsCache(
             maxsize=defines.HTTP_PORT_QUERY_CACHE_SIZE)
@@ -201,8 +201,8 @@ class Server:
 
             await asyncio.sleep(30)
 
-    def get_listen_host(self):
-        return self._listen_host
+    def get_listen_hosts(self):
+        return self._listen_hosts
 
     def get_listen_port(self):
         return self._listen_port
@@ -288,10 +288,10 @@ class Server:
 
             self._populate_sys_auth()
 
-            if not self._listen_host:
-                self._listen_host = (
+            if not self._listen_hosts:
+                self._listen_hosts = (
                     config.lookup('listen_addresses', sys_config)
-                    or 'localhost'
+                    or ('localhost',)
                 )
 
             if self._listen_port is None:
@@ -636,14 +636,64 @@ class Server:
     def get_roles(self):
         return self._roles
 
-    async def _restart_servers_new_addr(self, nethost, netport):
+    async def _restart_servers_new_addr(self, nethosts, netport):
         if not netport:
             raise RuntimeError('cannot restart without network port specified')
-        old_servers = self._servers
-        self._servers, _ = await self._start_servers(nethost, netport)
-        self._listen_host = nethost
+        nethosts = _fix_wildcard_host(nethosts)
+        servers_to_stop = []
+        servers = {}
+        if self._listen_port == netport:
+            hosts_to_start = [
+                host for host in nethosts if host not in self._servers
+            ]
+            for host, srv in self._servers.items():
+                if host == ADMIN_PLACEHOLDER or host in nethosts:
+                    servers[host] = srv
+                else:
+                    servers_to_stop.append(srv)
+            admin = False
+        else:
+            hosts_to_start = nethosts
+            servers_to_stop = self._servers.values()
+            admin = True
+
+        new_servers, *_ = await self._start_servers(
+            hosts_to_start, netport, admin
+        )
+        servers.update(new_servers)
+        self._servers = servers
+        self._listen_hosts = nethosts
         self._listen_port = netport
-        await self._stop_servers(old_servers)
+
+        addrs = []
+        unix_addr = None
+        port = None
+        for srv in servers_to_stop:
+            for s in srv.sockets:
+                addr = s.getsockname()
+                if isinstance(addr, tuple):
+                    addrs.append(addr)
+                    if port is None:
+                        port = addr[1]
+                    elif port != addr[1]:
+                        port = 0
+                else:
+                    unix_addr = addr
+        if len(addrs) > 1:
+            if port:
+                addr_str = f"{{{', '.join(addr[0] for addr in addrs)}}}:{port}"
+            else:
+                addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
+        elif addrs:
+            addr_str = "%s:%d" % addrs[0]
+        else:
+            addr_str = None
+        if addr_str:
+            logger.info('Stopping to serve on %s', addr_str)
+        if unix_addr:
+            logger.info('Stopping to serve admin on %s', unix_addr)
+
+        await self._stop_servers(servers_to_stop)
 
     async def _on_before_drop_db(
         self,
@@ -699,17 +749,17 @@ class Server:
             await self._restart_servers_new_addr(value, self._listen_port)
 
         elif setting_name == 'listen_port':
-            await self._restart_servers_new_addr(self._listen_host, value)
+            await self._restart_servers_new_addr(self._listen_hosts, value)
 
     async def _on_system_config_reset(self, setting_name):
         # CONFIGURE INSTANCE RESET setting_name;
         if setting_name == 'listen_addresses':
             await self._restart_servers_new_addr(
-                'localhost', self._listen_port)
+                ('localhost',), self._listen_port)
 
         elif setting_name == 'listen_port':
             await self._restart_servers_new_addr(
-                self._listen_host, defines.EDGEDB_PORT)
+                self._listen_hosts, defines.EDGEDB_PORT)
 
     async def _after_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
@@ -906,44 +956,75 @@ class Server:
         finally:
             await self._destroy_compiler_pool()
 
-    async def _start_servers(self, host, port):
-        nethost = await _fix_localhost(host)
+    async def _start_server(
+        self, host: str, port: int
+    ) -> asyncio.AbstractServer:
+        nethost = None
+        if host == "localhost":
+            nethost = await _resolve_localhost()
 
-        tcp_srv = await self._loop.create_server(
+        return await self._loop.create_server(
             lambda: protocol.HttpProtocol(
                 self, self._sslctx,
                 allow_cleartext_connections=self._allow_cleartext_connections,
             ),
-            host=nethost, port=port)
+            host=nethost or host, port=port)
 
-        if port == 0:
-            port = tcp_srv.sockets[0].getsockname()[1]
-
-        try:
-            admin_unix_sock_path = os.path.join(
-                self._runstate_dir, f'.s.EDGEDB.admin.{port}')
-            admin_unix_srv = await self._loop.create_unix_server(
-                lambda: binary.EdgeConnection(self, external_auth=True),
-                admin_unix_sock_path)
-            os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
-        except Exception:
-            tcp_srv.close()
-            await tcp_srv.wait_closed()
-            raise
-
-        servers = []
-
-        servers.append(tcp_srv)
-        if len(nethost) > 1:
-            host_str = f"{{{', '.join(nethost)}}}"
-        else:
-            host_str = next(iter(nethost))
-
-        logger.info('Serving on %s:%s', host_str, port)
-        servers.append(admin_unix_srv)
+    async def _start_admin_server(self, port: int) -> asyncio.AbstractServer:
+        admin_unix_sock_path = os.path.join(
+            self._runstate_dir, f'.s.EDGEDB.admin.{port}')
+        admin_unix_srv = await self._loop.create_unix_server(
+            lambda: binary.EdgeConnection(self, external_auth=True),
+            admin_unix_sock_path
+        )
+        os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
         logger.info('Serving admin on %s', admin_unix_sock_path)
+        return admin_unix_srv
 
-        return servers, port
+    async def _start_servers(self, hosts, port, admin=True):
+        servers = {}
+        try:
+            async with taskgroup.TaskGroup() as g:
+                for host in hosts:
+                    servers[host] = g.create_task(
+                        self._start_server(host, port)
+                    )
+        except Exception:
+            await self._stop_servers([
+                fut.result() for fut in servers.values()
+                if fut.done() and fut.exception() is None
+            ])
+            raise
+        servers = {host: fut.result() for host, fut in servers.items()}
+
+        addrs = []
+        for tcp_srv in servers.values():
+            for s in tcp_srv.sockets:
+                addrs.append(s.getsockname())
+
+        if len(addrs) > 1:
+            if port:
+                addr_str = f"{{{', '.join(addr[0] for addr in addrs)}}}:{port}"
+            else:
+                addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
+        elif addrs:
+            addr_str = "%s:%d" % addrs[0]
+            port = addrs[0][1]
+        else:
+            addr_str = None
+
+        if addr_str:
+            logger.info('Serving on %s', addr_str)
+
+        if admin and port:
+            try:
+                admin_unix_srv = await self._start_admin_server(port)
+            except Exception:
+                await self._stop_servers(servers.values())
+                raise
+            servers[ADMIN_PLACEHOLDER] = admin_unix_srv
+
+        return servers, port, addrs
 
     def init_tls(self, tls_cert_file, tls_key_file):
         assert self._sslctx is None
@@ -1027,8 +1108,9 @@ class Server:
                 script=self._startup_script.text,
             )
 
-        self._servers, actual_port = await self._start_servers(
-            self._listen_host, self._listen_port)
+        self._servers, actual_port, listen_addrs = await self._start_servers(
+            _fix_wildcard_host(self._listen_hosts), self._listen_port
+        )
         if self._listen_port == 0:
             self._listen_port = actual_port
 
@@ -1045,6 +1127,7 @@ class Server:
 
         if self._status_sink is not None:
             status = {
+                "listen_addrs": listen_addrs,
                 "port": self._listen_port,
                 "socket_dir": str(self._runstate_dir),
                 "main_pid": os.getpid(),
@@ -1061,8 +1144,8 @@ class Server:
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
 
-            await self._stop_servers(self._servers)
-            self._servers = []
+            await self._stop_servers(self._servers.values())
+            self._servers = {}
 
             for conn in self._binary_conns:
                 conn.stop()
@@ -1117,23 +1200,11 @@ class Server:
             self._pg_unavailable_msg = msg
 
 
-async def _fix_localhost(host):
+async def _resolve_localhost() -> List[str]:
     # On many systems 'localhost' resolves to _both_ IPv4 and IPv6
     # addresses, even if the system is not capable of handling
     # IPv6 connections.  Due to the common nature of this issue
     # we explicitly disable the AF_INET6 component of 'localhost'.
-
-    if (isinstance(host, str)
-            or not isinstance(host, collections.abc.Iterable)):
-        hosts = [host]
-    else:
-        hosts = list(host)
-
-    try:
-        idx = hosts.index('localhost')
-    except ValueError:
-        # No localhost, all good
-        return hosts
 
     loop = asyncio.get_running_loop()
     localhost = await loop.getaddrinfo(
@@ -1150,12 +1221,28 @@ async def _fix_localhost(host):
     if not infos:
         # "localhost" did not resolve to an IPv4 address,
         # let create_server handle the situation.
-        return hosts
+        return ["localhost"]
 
     # Replace 'localhost' with explicitly resolved AF_INET addresses.
-    hosts.pop(idx)
+    hosts = []
     for info in reversed(infos):
         addr, *_ = info[4]
-        hosts.insert(idx, addr)
+        hosts.append(addr)
 
+    return hosts
+
+
+def _fix_wildcard_host(hosts: Sequence[str]) -> Sequence[str]:
+    # Even though it is sometimes not a conflict to bind on the same port of
+    # both the wildcard host 0.0.0.0 and some specific host at the same time,
+    # we're still discarding other hosts if 0.0.0.0 is present because it
+    # should behave the same and we could avoid potential conflicts.
+
+    if '0.0.0.0' in hosts:
+        if len(hosts) > 1:
+            logger.warning(
+                "0.0.0.0 found in listen_addresses; "
+                "discarding the other hosts."
+            )
+            hosts = ['0.0.0.0']
     return hosts

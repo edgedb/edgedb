@@ -185,7 +185,7 @@ async def _run_server(
             internal_runstate_dir=internal_runstate_dir,
             max_backend_connections=args.max_backend_connections,
             compiler_pool_size=args.compiler_pool_size,
-            nethost=args.bind_address,
+            nethosts=args.bind_addresses,
             netport=args.port,
             auto_shutdown_after=args.auto_shutdown_after,
             echo_runtime_info=args.echo_runtime_info,
@@ -199,7 +199,7 @@ async def _run_server(
             ss.init_tls(
                 *_generate_cert(
                     args.data_dir or pathlib.Path(internal_runstate_dir),
-                    ss.get_listen_host(),
+                    ss.get_listen_hosts(),
                 )
             )
 
@@ -233,7 +233,7 @@ async def _run_server(
 
 
 def _generate_cert(
-    cert_dir: pathlib.Path, listen_host: str
+    cert_dir: pathlib.Path, listen_hosts: Iterable[str]
 ) -> Tuple[pathlib.Path, Optional[pathlib.Path]]:
     logger.info("Generating self-signed TLS certificate.")
 
@@ -264,7 +264,10 @@ def _generate_cert(
             datetime.datetime.today() + datetime.timedelta(weeks=1000)
         )
         .add_extension(
-            x509.SubjectAlternativeName([x509.DNSName(listen_host)]),
+            x509.SubjectAlternativeName(
+                [x509.DNSName(name) for name in listen_hosts
+                 if name != '0.0.0.0']
+            ),
             critical=False,
         )
         .sign(

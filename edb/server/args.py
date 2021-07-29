@@ -75,7 +75,7 @@ class ServerConfig(NamedTuple):
     default_database_user: Optional[str]
     devmode: bool
     testmode: bool
-    bind_address: str
+    bind_addresses: tuple[str]
     port: int
     background: bool
     pidfile_dir: pathlib.Path
@@ -288,8 +288,9 @@ _server_options = [
         help='enable or disable the test mode',
         default=False),
     click.option(
-        '-I', '--bind-address', type=str, default=None,
-        help='IP address to listen on'),
+        '-I', '--bind-address', type=str, multiple=True,
+        help='IP addresses to listen on, specify multiple times for more than '
+             'one address to listen on'),
     click.option(
         '-P', '--port', type=PortType(), default=None,
         help='port to listen on'),
@@ -383,6 +384,8 @@ def server_options(func):
 
 
 def parse_args(**kwargs: Any):
+    kwargs['bind_addresses'] = kwargs.pop('bind_address')
+
     if kwargs['echo_runtime_info']:
         warnings.warn(
             "The `--echo-runtime-info` option is deprecated, use "
