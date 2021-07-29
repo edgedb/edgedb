@@ -146,10 +146,10 @@ def _infer_shape(
             if expr_mult is MANY and irtyputils.is_object(ptrref.out_target):
                 raise errors.QueryError(
                     f'possibly not a strict set returned by an '
-                    f'expression for a computable '
+                    f'expression for a computed '
                     f'{ptrref.shortname.name}.',
                     hint=(
-                        f'Use DISTINCT for the entire computable expression '
+                        f'Use DISTINCT for the entire computed expression '
                         f'to resolve this.'
                     ),
                     context=shape_set.context

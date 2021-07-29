@@ -82,7 +82,7 @@ can be re-written like this:
 
     SELECT Person {
         name,
-        # let's use a computable here
+        # let's use a computed "shirts" expression here
         shirts := .<owner[IS Shirt] {
             description
         }
@@ -111,7 +111,7 @@ following schema:
     }
 
 It's possible to include both links ``owner`` and ``shirts`` to a
-schema, making one of them a :ref:`computable link
+schema, making one of them a :ref:`computed link
 <ref_datamodel_computables>` expressed in terms of the other.
 
 .. code-block:: sdl
@@ -120,7 +120,7 @@ schema, making one of them a :ref:`computable link
         required property name -> str {
             constraint exclusive;
         }
-        # A computable link used for convenience.
+        # A computed link used for convenience.
         multi link shirts := .<owner[IS Shirt];
     }
     type Shirt {
@@ -135,7 +135,7 @@ schema, making one of them a :ref:`computable link
 So fundamentally there's no difference in terms of the data for the
 two schemas specifying many-to-one or one-to-many relationship between
 ``Person`` and ``Shirt``. Nor is there any difference in terms of
-querying that data, because computable links can be added to the
+querying that data, because computed links can be added to the
 schema. Instead the difference is in how the data is modified or
 reasoned about. For example, expressing "Billie bought some yellow
 shirts" using the first and second version of the schema would look

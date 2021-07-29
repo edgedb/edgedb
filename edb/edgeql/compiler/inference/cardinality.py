@@ -437,7 +437,7 @@ def _infer_pointer_cardinality(
                 else:
                     raise errors.QueryError(
                         f'possibly an empty set returned by an '
-                        f'expression for a computable '
+                        f'expression for a computed '
                         f'{ptrcls.get_verbosename(env.schema)} '
                         f"declared as 'required'",
                         context=source_ctx
@@ -445,7 +445,7 @@ def _infer_pointer_cardinality(
             else:
                 raise errors.QueryError(
                     f'possibly more than one element returned by an '
-                    f'expression for a computable '
+                    f'expression for a computed '
                     f'{ptrcls.get_verbosename(env.schema)} '
                     f"declared as 'single'",
                     context=source_ctx

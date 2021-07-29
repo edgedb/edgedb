@@ -159,7 +159,7 @@ class AliasCommand(
             srcctx = self.get_attribute_source_context('expr')
             raise errors.SchemaDefinitionError(
                 f'volatile functions are not permitted in schema-defined '
-                f'computables',
+                f'computed expressions',
                 context=srcctx
             )
 
@@ -376,7 +376,7 @@ def compile_alias_expr(
     if ir.volatility == qltypes.Volatility.Volatile:
         raise errors.SchemaDefinitionError(
             f'volatile functions are not permitted in schema-defined '
-            f'computables',
+            f'computed expressions',
             context=parser_context,
         )
 

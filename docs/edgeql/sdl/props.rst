@@ -102,7 +102,7 @@ Description
 There are several forms of ``property`` declaration, as shown in the
 syntax synopsis above.  The first form is the canonical definition
 form, the second and third forms are used for defining a
-:ref:`computable property <ref_datamodel_computables>`, and the last
+:ref:`computed property <ref_datamodel_computables>`, and the last
 one is a form to define an ``abstract property``.  The abstract
 form allows declaring the property directly inside a :ref:`module
 <ref_eql_sdl_modules>`.  Concrete property forms are always used

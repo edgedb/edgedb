@@ -12,12 +12,12 @@ Example
 -------
 
 Declare a "UserAlias" that provides additional information for a "User"
-via a :ref:`computable link <ref_datamodel_computables>` "friend_of":
+via a :ref:`computed link <ref_datamodel_computables>` "friend_of":
 
 .. code-block:: sdl
 
     alias UserAlias := User {
-        # declare a computable link
+        # declare a computed link
         friend_of := User.<friends[IS User]
     };
 

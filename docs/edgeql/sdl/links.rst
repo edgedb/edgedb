@@ -113,7 +113,7 @@ Description
 There are several forms of ``link`` declaration, as shown in the
 syntax synopsis above.  The first form is the canonical definition
 form, the second and third forms are used for defining a
-:ref:`computable link <ref_datamodel_computables>`, and the last one
+:ref:`computed link <ref_datamodel_computables>`, and the last one
 is a form to define an ``abstract link``.  The abstract form
 allows declaring the link directly inside a :ref:`module
 <ref_eql_sdl_modules>`.  Concrete link forms are always used as

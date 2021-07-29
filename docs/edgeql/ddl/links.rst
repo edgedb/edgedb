@@ -64,7 +64,7 @@ a new concrete link for a given object type.
 There are three forms of ``CREATE LINK``, as shown in the syntax synopsis
 above.  The first form is the canonical definition form, the second
 form is a syntax shorthand for defining a
-:ref:`computable link <ref_datamodel_computables>`, and the third is a
+:ref:`computed link <ref_datamodel_computables>`, and the third is a
 form to define an abstract link item.  The abstract form allows creating
 the link in the specified :eql:synopsis:`<module>`.  Concrete link forms
 are always created in the same module as the containing object type.
@@ -126,9 +126,9 @@ Define a new link ``interests`` on the ``User`` object type:
         CREATE MULTI LINK friends -> User
     };
 
-Define a new link ``special_group`` as a
-:ref:`computable <ref_datamodel_computables>` on the ``User``
-object type, which contains all the friends from the same town:
+Define a new :ref:`computed link <ref_datamodel_computables>`
+``special_group`` on the ``User`` object type, which contains all the
+friends from the same town:
 
 .. code-block:: edgeql
 
@@ -194,7 +194,7 @@ Change the definition of a :ref:`link <ref_datamodel_links>`.
       RESET CARDINALITY
       SET TYPE <typename> [USING (<conversion-expr)]
       RESET TYPE
-      USING (<computable-expr>)
+      USING (<computed-expr>)
       CREATE ANNOTATION <annotation-name> := <value>
       ALTER ANNOTATION <annotation-name> := <value>
       DROP ANNOTATION <annotation-name>
@@ -287,9 +287,9 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     name in supertypes.  It is an error to ``RESET TYPE`` on a link that is
     not inherited.
 
-:eql:synopsis:`USING (<computable-expr>)`
-    Change the expression of a :ref:`computable <ref_datamodel_computables>`
-    link.  Only valid for concrete links.
+:eql:synopsis:`USING (<computed-expr>)`
+    Change the expression of a :ref:`computed link
+    <ref_datamodel_computables>`.  Only valid for concrete links.
 
 :eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
     Alter link annotation :eql:synopsis:`<annotation-name>`.
@@ -349,7 +349,7 @@ Rename the abstract link ``orderable`` to ``sorted``:
 
     ALTER ABSTRACT LINK orderable RENAME TO sorted;
 
-Redefine the :ref:`computable <ref_datamodel_computables>` link
+Redefine the :ref:`computed link <ref_datamodel_computables>`
 ``special_group`` to be those who have some shared interests:
 
 .. code-block:: edgeql

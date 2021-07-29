@@ -12,7 +12,7 @@ Aliases
 ----------
 
 
-Define an alias that merges some information from links as computable
+Define an alias that merges some information from links as computed
 properties, this is a way of flattening a nested structure:
 
 .. code-block:: sdl
@@ -34,7 +34,7 @@ Define an alias for traversing a :ref:`backlink
 .. code-block:: sdl
 
     alias MovieAlias := Movie {
-        # A computable link for accessing all the
+        # A computed link for accessing all the
         # reviews for this movie.
         reviews := .<movie[IS Review]
     }

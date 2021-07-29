@@ -22,7 +22,7 @@ Consider the following:
     }
 
     alias UserAlias := User {
-        # declare a computable link
+        # declare a computed link
         friend_of := User.<friends[IS User]
     };
 
@@ -44,7 +44,7 @@ more legible:
         .name = 'Alice';
 
 Another benefit is that this ``UserAlias`` can now be exposed via
-:ref:`GraphQL <ref_graphql_index>` providing access to the computable
+:ref:`GraphQL <ref_graphql_index>` providing access to the computed
 link ``friend_of``, that would otherwise be inexpressible in GraphQL:
 
 .. code-block:: graphql

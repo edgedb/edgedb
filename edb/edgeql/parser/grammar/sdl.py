@@ -620,13 +620,13 @@ class ConcretePropertyBlock(Nonterm):
             if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
-                        f'computable property with more than one expression',
+                        f'computed property with more than one expression',
                         context=context)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
-                f'computable property without expression',
+                f'computed property without expression',
                 context=context)
 
         return target, cmds
@@ -810,13 +810,13 @@ class ConcreteLinkBlock(Nonterm):
             if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
                     raise errors.EdgeQLSyntaxError(
-                        f'computable link with more than one expression',
+                        f'computed link with more than one expression',
                         context=context)
                 target = cmd.value
 
         if not overloaded and target is None:
             raise errors.EdgeQLSyntaxError(
-                f'computable link without expression',
+                f'computed link without expression',
                 context=context)
 
         return target, cmds

@@ -8866,7 +8866,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "it is illegal to create a type union that causes a "
-            "computable property 'deleted' to mix with other versions of the "
+            "computed property 'deleted' to mix with other versions of the "
             "same property 'deleted'"
         ):
             await self.migrate('''

@@ -2060,7 +2060,7 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             "possibly more than one element returned by an expression"
-            " for a computable link 'annotated_status' declared as 'single'",
+            " for a computed link 'annotated_status' declared as 'single'",
             _position=114,
         ):
             await self.con.execute("""

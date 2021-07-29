@@ -3010,7 +3010,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_07(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"mutations are invalid in computable link 'foo'"):
+                r"mutations are invalid in computed link 'foo'"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE Foo;
@@ -3023,7 +3023,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_08(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"mutations are invalid in computable link 'foo'"):
+                r"mutations are invalid in computed link 'foo'"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE Foo;
@@ -3039,7 +3039,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_bad_09(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                r"mutations are invalid in computable property 'foo'"):
+                r"mutations are invalid in computed property 'foo'"):
             async with self.con.transaction():
                 await self.con.execute(r"""
                     CREATE TYPE Foo;
@@ -8634,7 +8634,7 @@ type default::Foo {
     async def test_edgeql_ddl_prop_overload_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                "it is illegal for the computable property 'val' "
+                "it is illegal for the computed property 'val' "
                 "of object type 'default::UniqueName_2' to overload "
                 "an existing property"):
             await self.con.execute("""
@@ -8651,7 +8651,7 @@ type default::Foo {
     async def test_edgeql_ddl_prop_overload_02(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
-                "it is illegal for the computable property 'val' "
+                "it is illegal for the computed property 'val' "
                 "of object type 'default::UniqueName_2' to overload "
                 "an existing property"):
             await self.con.execute("""
@@ -8669,8 +8669,8 @@ type default::Foo {
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "it is illegal for the property 'val' of object "
-                "type 'default::UniqueName_3' to extend both a computable "
-                "and a non-computable property"):
+                "type 'default::UniqueName_3' to extend both a computed "
+                "and a non-computed property"):
             await self.con.execute("""
                 CREATE TYPE UniqueName {
                     CREATE PROPERTY val := 'ok';
@@ -8686,7 +8686,7 @@ type default::Foo {
                 edgedb.SchemaDefinitionError,
                 "it is illegal for the property 'val' of object "
                 "type 'default::UniqueName_3' to extend more than one "
-                "computable property"):
+                "computed property"):
             await self.con.execute("""
                 CREATE TYPE UniqueName {
                     CREATE PROPERTY val := 'ok';
@@ -8711,8 +8711,8 @@ type default::Foo {
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "it is illegal for the property 'val' of object "
-                "type 'default::UniqueName_3' to extend both a computable "
-                "and a non-computable property"):
+                "type 'default::UniqueName_3' to extend both a computed "
+                "and a non-computed property"):
             await self.con.execute("""
                 ALTER TYPE UniqueName {
                     ALTER PROPERTY val {
@@ -8738,8 +8738,8 @@ type default::Foo {
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "it is illegal for the property 'val' of object "
-                "type 'default::UniqueName_4' to extend both a computable "
-                "and a non-computable property"):
+                "type 'default::UniqueName_4' to extend both a computed "
+                "and a non-computed property"):
             await self.con.execute("""
                 ALTER TYPE UniqueName_4 EXTENDING UniqueName_3;
             """)
@@ -8759,8 +8759,8 @@ type default::Foo {
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
                 "it is illegal for the property 'val' of object "
-                "type 'default::UniqueName_4' to extend both a computable "
-                "and a non-computable property"):
+                "type 'default::UniqueName_4' to extend both a computed "
+                "and a non-computed property"):
             await self.con.execute("""
                 ALTER TYPE UniqueName_3 EXTENDING UniqueName_2;
             """)
@@ -11009,7 +11009,7 @@ type default::Foo {
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "volatile functions are not permitted in schema-defined "
-            "computables",
+            "computed expressions",
         ):
             await self.con.execute("""
                 CREATE TYPE Foo {
@@ -11020,7 +11020,7 @@ type default::Foo {
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "volatile functions are not permitted in schema-defined "
-            "computables",
+            "computed expressions",
         ):
             await self.con.execute("""
                 CREATE TYPE Foo {
@@ -11033,7 +11033,7 @@ type default::Foo {
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "volatile functions are not permitted in schema-defined "
-            "computables",
+            "computed expressions",
         ):
             await self.con.execute("""
                 CREATE TYPE Noob {
@@ -11047,7 +11047,7 @@ type default::Foo {
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "volatile functions are not permitted in schema-defined "
-            "computables",
+            "computed expressions",
         ):
             await self.con.execute("""
                 CREATE TYPE Noob {
@@ -11060,7 +11060,7 @@ type default::Foo {
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "volatile functions are not permitted in schema-defined "
-            "computables",
+            "computed expressions",
         ):
             await self.con.execute("""
                 CREATE ALIAS Asdf := Object { foo := random() };

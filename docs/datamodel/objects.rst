@@ -14,7 +14,7 @@ Every object has a globally unique *identity* represented by a ``UUID``
 value. An object's identity is assigned upon creation and never changes.
 Referring to its id property yields its identity as a
 :eql:type:`uuid` value.  Once set, the value of the ``id`` property
-cannot be changed or masked with a different :ref:`computable
+cannot be changed or masked with a different :ref:`computed
 <ref_datamodel_computables>` expression.
 
 Object types can *extend* other object types, in which case the
