@@ -34,8 +34,9 @@ The individual path components are:
 :eql:synopsis:`<step-direction>`
     It can be one of the following:
 
-    - ``.`` for an outgoing or "forward" link reference
-    - ``.<`` for an incoming or "backward" link reference
+    - ``.`` for an outgoing link reference
+    - ``.<`` for an incoming or :ref:`backlink <ref_datamodel_links>`
+      reference
     - ``@`` for a link property reference
 
 :eql:synopsis:`<pointer-name>`
@@ -74,7 +75,7 @@ And this represents all sources of the ``owner`` links that have a
 
     SELECT User.<owner;
 
-By default backward links don't infer any type information beyond the
+By default *backlinks* don't infer any type information beyond the
 fact that it's an :eql:type:`Object`. To ensure that this path
 specifically reaches ``Issue`` a :eql:op:`type intersection <ISINTERSECT>`
 operator must be used:

@@ -232,7 +232,7 @@ Set
     guarantees the type of the result set, all the links and properties
     associated with the specified type can now be used on the
     resulting expression. This is especially useful in combination
-    with :ref:`backward links <ref_eql_expr_paths>`.
+    with :ref:`backlinks <ref_datamodel_links>`.
 
     Consider the following types:
 
@@ -261,10 +261,10 @@ Set
 
         SELECT User.<owner;
 
-    By default backward links don't infer any type information beyond the
-    fact that it's an :eql:type:`Object`. To ensure that this path
-    specifically reaches ``Issue`` the type intersection operator must
-    be used:
+    By default :ref:`backlinks <ref_datamodel_links>` don't infer any
+    type information beyond the fact that it's an :eql:type:`Object`.
+    To ensure that this path specifically reaches ``Issue`` the type
+    intersection operator must be used:
 
     .. code-block:: edgeql
 

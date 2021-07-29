@@ -4,9 +4,10 @@
 Links
 =====
 
-Links define a specific relationship between two object types.
-Links have a direction, but can be traversed in both ways forward and
-:ref:`backward <ref_cookbook_links_bw>`.
+Links define a specific relationship between two object types. Links
+have a direction, and when traversed in the opposite direction from
+how they are defined they are called :ref:`backlinks
+<ref_cookbook_links_bw>`.
 
 
 Movie Example
@@ -66,8 +67,8 @@ You can find more information on aggregates in the
 
 .. _ref_cookbook_links_bw:
 
-Backward Links
---------------
+Backlinks
+---------
 
 In the movie example above, we have only shown a forward link traversal:
 
@@ -104,7 +105,7 @@ need to alias the field with ``:=``:
         }
     }}
 
-To find all movies that a person is starred in we use a **backward link**
+To find all movies that a person is starred in we use a *backlink*
 traversal ``.<`` operator:
 
 .. code-block:: edgeql-repl
@@ -121,12 +122,13 @@ traversal ``.<`` operator:
     }}
 
 You might also note that we've added ``[IS Movie]``, which we call
-:eql:op:`type intersection <ISINTERSECT>` operator. This is how backward link
-traversal works: EdgeDB fetches every object in the entire database having the
-field ``actors`` which is a ``Person``. So we narrow down the set of objects to
-``Movie`` and select a title from it.
+:eql:op:`type intersection <ISINTERSECT>` operator. This is how
+*backlink* traversal works: EdgeDB fetches every object in the
+entire database having the field ``actors`` which is a ``Person``.
+So we narrow down the set of objects to ``Movie`` and select a
+title from it.
 
-All other tools work on backward link:
+All other tools work on *backlink*:
 
 .. code-block:: edgeql-repl
 
@@ -175,7 +177,7 @@ himself. To fix it we can add a filter:
     .........     ),
     ......... } FILTER .first_name = 'Ryan';
 
-Note: we wrapped a backward link access by ``SELECT`` subquery to add a filter.
+Note: we wrapped a *backlink* access by ``SELECT`` subquery to add a filter.
 
 The last query can be rewritten in a nicer way using an alias:
 
