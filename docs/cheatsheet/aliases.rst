@@ -28,8 +28,8 @@ properties, this is a way of flattening a nested structure:
 ----------
 
 
-Define an alias for traversing a link backwards, this is especially
-useful for GraphQL access:
+Define an alias for traversing a :ref:`backlink
+<ref_datamodel_links>`, this is especially useful for GraphQL access:
 
 .. code-block:: sdl
 
@@ -41,9 +41,9 @@ useful for GraphQL access:
 
 .. note::
 
-    Aliases allow to use the full power of EdgeQL (expressions, aggregate
-    functions, backwards link navigation) from :ref:`GraphQL
-    <ref_graphql_index>`.
+    Aliases allow to use the full power of EdgeQL (expressions,
+    aggregate functions, :ref:`backlink <ref_datamodel_links>`
+    navigation) from :ref:`GraphQL <ref_graphql_index>`.
 
 The aliases defined above allow you to query ``MovieAlias`` with
 :ref:`GraphQL <ref_cheatsheet_graphql>`.

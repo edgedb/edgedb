@@ -29,6 +29,10 @@ same target via the :eql:constraint:`exclusive` constraint. Using
 these tools it's possible to specify common relationships between
 things: *many-to-one*, *one-to-one*, and *many-to-many*.
 
+It is possible to think of any link as going backwards from *target*
+to *source*. This is referred to as a *backlink* and we use the ``.<``
+:ref:`syntax <ref_eql_expr_paths>` to denote it.
+
 
 Many-to-One
 -----------
@@ -70,10 +74,9 @@ the following query:
     }
     FILTER .owner.name = 'Billie';
 
-It is possible to traverse any link backwards. When a *many-to-one*
-link is traversed backwards, the result represents a *one-to-many*
-relationship instead. For example, the previous query can be
-re-written like this:
+When a *many-to-one* link is treated as a *backlink* it becomes a
+*one-to-many* relationship instead. For example, the previous query
+can be re-written like this:
 
 .. code-block:: edgeql
 
@@ -203,7 +206,7 @@ either end. To get the assigned ``ReservedParking`` given an
     };
 
 The reverse lookup of who owns a particular ``ReservedParking`` spot
-can be done by using a backward link traversal like so:
+can be done by using a *backlink* traversal like so:
 
 .. code-block:: edgeql
 
@@ -214,8 +217,9 @@ can be done by using a backward link traversal like so:
         name
     };
 
-Backward link traversal requires to specify the original link's source
-type, but other than that it works the same way as forward traversal.
+In practice, *backlink* traversal requires to specify the original
+link's source type, but other than that it works the same way as
+forward traversal.
 
 
 Many-to-Many
@@ -242,9 +246,9 @@ relationship without any exclusivity. For example, ``Person`` and
 A ``Person`` can like multiple movies and each ``Movie`` can be liked
 by multiple people, thus making ``likes`` a *many-to-many*
 relationship. This type of relationship has the same symmetry as a
-*one-to-one* w.r.t. link traversal forward and backward, except that
-potentially multiple objects can reached in either direction. Here's
-the query for getting every ``Movie`` a given ``Person`` likes:
+*one-to-one* w.r.t. regular link and *backlink* traversal, except that
+potentially multiple objects can be reached in either direction.
+Here's the query for getting every ``Movie`` a given ``Person`` likes:
 
 .. code-block:: edgeql
 
@@ -255,7 +259,7 @@ the query for getting every ``Movie`` a given ``Person`` likes:
         title
     };
 
-The reverse lookup of who likes a particular ``Movie``:
+The *backlink* lookup of who likes a particular ``Movie``:
 
 .. code-block:: edgeql
 

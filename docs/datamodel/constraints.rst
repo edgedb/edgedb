@@ -200,7 +200,8 @@ The standard library defines the following constraints:
 
     * The expression can only contain references to the immediate
       properties or links of the type.
-    * No backward links or long paths are allowed.
+    * No :ref:`backlinks <ref_datamodel_links>` or long paths are
+      allowed.
     * Only ``Immutable`` functions are allowed in the constraint
       expression.
 
