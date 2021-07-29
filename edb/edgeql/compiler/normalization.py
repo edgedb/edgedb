@@ -64,13 +64,13 @@ def renormalize_compat(
 
     norm_aliases: Dict[Optional[str], str] = {}
     assert isinstance(norm_qltree, qlast.Command)
-    for alias in norm_qltree.aliases:
+    for alias in (norm_qltree.aliases or ()):
         if isinstance(alias, qlast.ModuleAliasDecl):
             norm_aliases[alias.alias] = alias.module
 
     if isinstance(orig_qltree, qlast.Command):
         orig_aliases: Dict[Optional[str], str] = {}
-        for alias in orig_qltree.aliases:
+        for alias in (orig_qltree.aliases or ()):
             if isinstance(alias, qlast.ModuleAliasDecl):
                 orig_aliases[alias.alias] = alias.module
 
@@ -164,7 +164,7 @@ def _normalize_with_block(
     modaliases = dict(modaliases)
     newaliases: List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]] = []
 
-    for alias in node.aliases:
+    for alias in (node.aliases or ()):
         if isinstance(alias, qlast.ModuleAliasDecl):
             if alias.alias:
                 modaliases[alias.alias] = alias.module

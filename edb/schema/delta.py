@@ -890,7 +890,7 @@ class Command(
         context: CommandContext,
     ) -> Dict[Optional[str], str]:
         modaliases = {}
-        if isinstance(astnode, qlast.DDLCommand):
+        if isinstance(astnode, qlast.DDLCommand) and astnode.aliases:
             for alias in astnode.aliases:
                 if isinstance(alias, qlast.ModuleAliasDecl):
                     modaliases[alias.alias] = alias.module
@@ -905,7 +905,7 @@ class Command(
         context: CommandContext,
     ) -> Set[str]:
         localnames: Set[str] = set()
-        if isinstance(astnode, qlast.DDLCommand):
+        if isinstance(astnode, qlast.DDLCommand) and astnode.aliases:
             for alias in astnode.aliases:
                 if isinstance(alias, qlast.AliasedExpr):
                     localnames.add(alias.alias)
@@ -1411,7 +1411,7 @@ class Query(Command):
         return cls(
             source_context=astnode.context,
             expr=s_expr.Expression.from_ast(
-                astnode,
+                astnode,  # type: ignore
                 schema=schema,
                 modaliases=context.modaliases,
                 localnames=context.localnames,
@@ -2023,7 +2023,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         if astnode.get_field('name'):
             name = context.early_renames.get(self.classname, self.classname)
-            op = astnode(
+            op = astnode(  # type: ignore
                 name=self._deparse_name(schema, context, name),
             )
         else:
@@ -3138,7 +3138,7 @@ class RenameObject(AlterObjectFragment[so.Object_T]):
         self._log_all_renames(context)
 
         if (orig_ref.module, orig_ref.name) != (ref.module, ref.name):
-            return astnode(new_name=ref)
+            return astnode(new_name=ref)  # type: ignore
         else:
             return None
 

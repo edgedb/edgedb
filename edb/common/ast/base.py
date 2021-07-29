@@ -50,6 +50,9 @@ class Field:
         self.meta = field_meta
 
 
+container_factory: Any = object()
+
+
 def _check_type_passthrough(type_, value, raise_error):
     pass
 
@@ -393,7 +396,7 @@ def _check_annotation(f_type, f_fullname, f_default):
             _check_annotation(t, f_fullname, f_default)
 
     elif typing_inspect.is_generic_type(f_type):
-        if f_default is not None:
+        if f_default is not None and f_default is not container_factory:
             raise RuntimeError(
                 f'invalid type annotation on {f_fullname}: '
                 f'default is defined for container type '

@@ -971,11 +971,11 @@ PointerLike = Union[Pointer, PseudoPointer]
 class ComputableRef:
     """A shell for a computed target type."""
 
-    expr: qlast.Base
+    expr: qlast.Expr
 
     def __init__(
         self,
-        expr: qlast.Base,
+        expr: qlast.Expr,
         specified_type: Optional[s_types.TypeShell[s_types.Type]] = None,
     ) -> None:
         self.expr = expr
@@ -1070,7 +1070,7 @@ class PointerCommandOrFragment(
 
     def _parse_computable(
         self,
-        expr: qlast.Base,
+        expr: qlast.Expr,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> Tuple[
@@ -1705,6 +1705,7 @@ class PointerCommand(
         if expr_cmd is not None:
             expr = expr_cmd.value
             if expr is not None:
+                assert isinstance(expr, qlast.Expr)
                 qlcompiler.normalize(
                     expr,
                     schema=schema,
@@ -2182,6 +2183,7 @@ class SetPointerType(
             return None
         else:
             assert isinstance(set_field, qlast.SetField)
+            assert not isinstance(set_field.value, qlast.Expr)
             return qlast.SetPointerType(
                 value=set_field.value,
                 cast_expr=(

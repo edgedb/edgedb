@@ -210,8 +210,10 @@ def compile_FunctionCall(
     func_initial_value: Optional[irast.Set]
 
     if matched_func_initial_value is not None:
+        frag = qlparser.parse_fragment(matched_func_initial_value.text)
+        assert isinstance(frag, qlast.Expr)
         iv_ql = qlast.TypeCast(
-            expr=qlparser.parse_fragment(matched_func_initial_value.text),
+            expr=frag,
             type=typegen.type_to_ql_typeref(matched_call.return_type, ctx=ctx),
         )
         func_initial_value = setgen.ensure_set(

@@ -598,7 +598,7 @@ def ptr_step_set(
         expr: Optional[qlast.Base],
         ptr_name: str,
         direction: PtrDir = PtrDir.Outbound,
-        source_context: parsing.ParserContext,
+        source_context: Optional[parsing.ParserContext],
         ignore_computable: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     ptrcls = resolve_ptr(

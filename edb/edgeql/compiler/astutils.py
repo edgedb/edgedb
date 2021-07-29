@@ -91,5 +91,8 @@ def is_nontrivial_shape_element(shape_el: qlast.ShapeElement) -> bool:
         or shape_el.offset
         or shape_el.limit
         or shape_el.compexpr
-        or any(is_nontrivial_shape_element(el) for el in shape_el.elements)
+        or (
+            shape_el.elements and
+            any(is_nontrivial_shape_element(el) for el in shape_el.elements)
+        )
     )

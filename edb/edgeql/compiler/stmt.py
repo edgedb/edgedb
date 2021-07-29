@@ -238,7 +238,7 @@ def compile_insert_unless_conflict_select(
     *,
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
-    parser_context: pctx.ParserContext,
+    parser_context: Optional[pctx.ParserContext],
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Synthesize a select of conflicting objects for UNLESS CONFLICT
@@ -1215,6 +1215,9 @@ def process_with_block(
         edgeql_tree: qlast.Statement, *,
         ctx: context.ContextLevel,
         parent_ctx: context.ContextLevel) -> List[irast.Set]:
+    if edgeql_tree.aliases is None:
+        return []
+
     had_materialized = False
     results = []
     for with_entry in edgeql_tree.aliases:
@@ -1285,7 +1288,7 @@ def compile_result_clause(
                 # make sure we don't mangle it with an implicit
                 # limit.
                 rexpr.limit = qlast.TypeCast(
-                    expr=qlast.Set(),
+                    expr=qlast.Set(elements=[]),
                     type=qlast.TypeName(
                         maintype=qlast.ObjectRef(
                             module='__std__',

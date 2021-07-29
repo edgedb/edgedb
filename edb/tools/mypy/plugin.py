@@ -469,6 +469,11 @@ class SchemaClassTransformer(BaseStructTransformer):
         return fields
 
 
+INIT_WHITELIST = {
+    'edb.edgeql',
+}
+
+
 class ASTClassTransformer(BaseTransformer):
 
     def _transform(self) -> List[Field]:
@@ -480,7 +485,8 @@ class ASTClassTransformer(BaseTransformer):
         #     to handle Optional fields (historically we've been
         #     initializing container fields with empty lists/tuples).
 
-        # self._synthesize_init(fields)
+        if any(self._ctx.cls.fullname.startswith(x) for x in INIT_WHITELIST):
+            self._synthesize_init(fields)
         return fields
 
     def _field_from_field_def(
@@ -491,6 +497,10 @@ class ASTClassTransformer(BaseTransformer):
     ) -> Optional[Field]:
 
         if sym.type is None:
+            # If the assignment has a type annotation but the symbol
+            # doesn't yet, we need to defer
+            if stmt.type:
+                raise DeferException
             # No type annotation?
             return None
         else:

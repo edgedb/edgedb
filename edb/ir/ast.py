@@ -93,7 +93,7 @@ class Base(ast.AST):
     __abstract_node__ = True
     __ast_hidden__ = {'context'}
 
-    context: parsing.ParserContext
+    context: typing.Optional[parsing.ParserContext] = None
 
     def __repr__(self) -> str:
         return (

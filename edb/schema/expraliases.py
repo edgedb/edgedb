@@ -124,7 +124,7 @@ class AliasCommand(
 
     def _compile_alias_expr(
         self,
-        expr: qlast.Base,
+        expr: qlast.Expr,
         classname: sn.QualName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -341,7 +341,7 @@ class DeleteAlias(
 
 
 def compile_alias_expr(
-    expr: qlast.Base,
+    expr: qlast.Expr,
     classname: sn.QualName,
     schema: s_schema.Schema,
     context: sd.CommandContext,

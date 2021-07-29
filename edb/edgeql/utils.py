@@ -76,11 +76,11 @@ def index_parameters(
 ) -> Dict[str, qlast.Base]:
 
     result: Dict[str, qlast.Base] = {}
-    varargs: Optional[List[qlast.Base]] = None
+    varargs: Optional[List[qlast.Expr]] = None
     variadic = parameters.find_variadic(schema)
     variadic_num = variadic.get_num(schema) if variadic else -1  # type: ignore
 
-    e: qlast.Base
+    e: qlast.Expr
     p: s_func.ParameterLike
     for (i, e), p in itertools.zip_longest(enumerate(ql_args),
                                            parameters.objects(schema),

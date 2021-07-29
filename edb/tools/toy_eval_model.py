@@ -629,7 +629,7 @@ def eval_UnaryOp(node: qlast.UnaryOp, ctx: EvalContext) -> Result:
 @_eval.register
 def eval_Call(node: qlast.FunctionCall, ctx: EvalContext) -> Result:
     assert isinstance(node.func, str)
-    return eval_func_or_op(node.func, node.args, 'func', ctx)
+    return eval_func_or_op(node.func, node.args or [], 'func', ctx)
 
 
 @_eval.register

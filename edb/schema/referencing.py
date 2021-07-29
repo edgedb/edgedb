@@ -624,7 +624,7 @@ class CreateReferencedObject(
     ) -> qlast.ObjectDDL:
         nref = cls.get_inherited_ref_name(schema, context, parent, refname)
         astnode_cls = cls.referenced_astnode
-        astnode = astnode_cls(name=nref)
+        astnode = astnode_cls(name=nref)  # type: ignore
         assert isinstance(astnode, qlast.ObjectDDL)
         return astnode
 
@@ -1391,7 +1391,7 @@ class RenameReferencedInheritingObject(
             sd.RenameObject, type(scls))
 
         def _ref_rename(alter_cmd: sd.Command, refname: sn.Name) -> None:
-            astnode = rename_cmdcls.astnode(
+            astnode = rename_cmdcls.astnode(  # type: ignore
                 new_name=utils.name_to_ast_ref(refname),
             )
 

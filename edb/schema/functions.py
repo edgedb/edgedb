@@ -1880,7 +1880,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                     context=astnode.context
                 )
 
-            nativecode_expr: Optional[qlast.Base] = None
+            nativecode_expr: Optional[qlast.Expr] = None
             if astnode.nativecode is not None:
                 nativecode_expr = astnode.nativecode
             elif astnode.code.code is not None:
