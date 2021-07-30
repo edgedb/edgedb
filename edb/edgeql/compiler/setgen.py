@@ -1099,12 +1099,6 @@ def scoped_set(
     return ir_set
 
 
-def lol_set(
-        expr: irast.Set, *,
-        ctx: context.ContextLevel) -> irast.Set:
-    return expr
-
-
 def ensure_set(
         expr: Union[irast.Set, irast.Expr], *,
         type_override: Optional[s_types.Type]=None,
