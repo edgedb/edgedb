@@ -851,8 +851,7 @@ def _normalize_view_ptr_expr(
         if not ctx.expr_exposed and irexpr:
             setgen.maybe_materialize(ptrcls, irexpr, ctx=ctx)
 
-    if qlexpr is None and not setgen.is_injected_computable_ptr(
-            ptrcls, ctx=ctx):
+    if qlexpr is None:
         # This is not a computable, just a pointer
         # to a nested shape.  Have it reuse the original
         # pointer name so that in `Foo.ptr.name` and
