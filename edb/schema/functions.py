@@ -1097,7 +1097,8 @@ class CreateCallableObject(
     ) -> None:
         super()._apply_fields_ast(schema, context, node)
         params = self._get_params_ast(schema, context, node)
-        node.params = [p[1] for p in params]
+        if isinstance(node, qlast.CallableObjectCommand):
+            node.params = [p[1] for p in params]
 
 
 class DeleteCallableObject(
@@ -1977,6 +1978,7 @@ class DeleteFunction(DeleteCallableObject[Function], FunctionCommand):
 
         params.sort(key=lambda e: e[0])
 
+        assert isinstance(node, qlast.CallableObjectCommand)
         node.params = [p[1] for p in params]
 
 

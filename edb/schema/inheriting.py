@@ -766,10 +766,11 @@ class CreateInheritingObject(
 
             if explicit_bases:
                 if isinstance(node, qlast.CreateObject):
-                    node.bases = [
-                        qlast.TypeName(maintype=utils.name_to_ast_ref(b))
-                        for b in explicit_bases
-                    ]
+                    if isinstance(node, qlast.BasesMixin):
+                        node.bases = [
+                            qlast.TypeName(maintype=utils.name_to_ast_ref(b))
+                            for b in explicit_bases
+                        ]
                 else:
                     node.commands.append(
                         qlast.AlterAddInherit(

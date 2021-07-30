@@ -860,7 +860,8 @@ def _register_item(
     op = orig_op = copy.copy(decl)
 
     if ctx.depstack:
-        op.sdl_alter_if_exists = True
+        if isinstance(op, qlast.CreateObject):
+            op.sdl_alter_if_exists = True
         top_parent = parent = copy.copy(ctx.depstack[0][0])
         _clear_nonessential_subcommands(parent)
         for entry, _ in ctx.depstack[1:]:
@@ -872,6 +873,7 @@ def _register_item(
         parent.commands.append(op)
         op = top_parent
     else:
+        assert isinstance(op, qlast.Command)
         op.aliases = [qlast.ModuleAliasDecl(alias=None, module=ctx.module)]
 
     assert isinstance(op, qlast.DDLCommand)
@@ -934,10 +936,12 @@ def _register_item(
 
             # indexes need to preserve their "on" expression
             if isinstance(decl, qlast.CreateIndex):
+                assert isinstance(alter_cmd, qlast.IndexCommand)
                 alter_cmd.expr = decl.expr
 
             # constraints need to preserve their "on" expression
             if isinstance(decl, qlast.CreateConcreteConstraint):
+                assert isinstance(alter_cmd, qlast.ConcreteConstraintOp)
                 alter_cmd.subjectexpr = decl.subjectexpr
                 alter_cmd.args = decl.args
 

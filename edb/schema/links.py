@@ -275,6 +275,7 @@ class LinkCommand(
             assert isinstance(node, (qlast.CreateConcreteLink,
                                      qlast.CreateLink))
             if node.name.name == '__type__':
+                assert isinstance(node, qlast.CreateConcretePointer)
                 node.is_required = True
         return node
 

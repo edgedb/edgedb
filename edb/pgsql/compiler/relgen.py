@@ -218,6 +218,8 @@ def get_set_rvar(
                                           rvars=rvars, ctx=subctx)
         elif not is_optional and is_empty_set:
             null_query = rvars.main.rvar.query
+            assert isinstance(
+                null_query, (pgast.SelectStmt, pgast.NullRelation))
             null_query.where_clause = pgast.BooleanConstant(val='FALSE')
 
         result_rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=subctx)

@@ -1045,7 +1045,7 @@ class CreateReferencedInheritingObject(
                     referrer_class = refctx.op.get_schema_metaclass()
                     refdict = referrer_class.get_refdict_for_class(objcls)
                     if refdict.requires_explicit_overloaded and implicit_bases:
-                        assert astnode is not None
+                        assert isinstance(astnode, qlast.CreateConcretePointer)
                         astnode.declared_overloaded = True
 
                 return astnode
