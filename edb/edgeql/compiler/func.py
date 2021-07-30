@@ -576,6 +576,7 @@ def compile_operator(
         context=qlexpr.context,
         typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
+        tuple_path_ids=[],
     )
 
     _check_anonymous_shape_op(node, ctx=ctx)
@@ -836,7 +837,7 @@ def finalize_args(
             arg = casts.compile_cast(
                 arg, paramtype, srcctx=None, ctx=ctx)
 
-        args.append(irast.CallArg(expr=arg, cardinality=None))
+        args.append(irast.CallArg(expr=arg))
 
         # If we have any logged paths left over and our enclosing
         # context is logging paths, propagate them up.

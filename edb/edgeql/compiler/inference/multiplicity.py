@@ -403,9 +403,8 @@ def _infer_stmt_multiplicity(
     # Inferring how the FILTER clause affects multiplicity is in
     # general impossible, but we still want to ensure that the FILTER
     # expression has valid multiplicity.
-    for part in ir.bindings + [ir.where]:
-        if part:
-            infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
+    for part in (ir.bindings or []) + ([ir.where] if ir.where else []):
+        infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
 
     return result
 
@@ -502,7 +501,8 @@ def __infer_select_stmt(
     # OFFSET, LIMIT and ORDER BY have already been validated to be
     # singletons, but their sub-expressions (if any) still need to be
     # validated.
-    for part in [ir.limit, ir.offset] + [sort.expr for sort in ir.orderby]:
+    for part in [ir.limit, ir.offset] + [
+            sort.expr for sort in (ir.orderby or ())]:
         if part:
             new_scope = cardinality._get_set_scope(part, scope_tree, ctx=ctx)
             infer_multiplicity(part, scope_tree=new_scope, ctx=ctx)

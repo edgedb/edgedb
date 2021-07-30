@@ -63,7 +63,8 @@ def compile_ConfigSet(
 ) -> irast.ConfigSet:
 
     info = _validate_op(expr, ctx=ctx)
-    param_val = dispatch.compile(expr.expr, ctx=ctx)
+    param_val = setgen.ensure_set(
+        dispatch.compile(expr.expr, ctx=ctx), ctx=ctx)
 
     try:
         ireval.evaluate(param_val, schema=ctx.env.schema)
@@ -117,7 +118,8 @@ def compile_ConfigReset(
         )
 
         ctx.modaliases[None] = 'cfg'
-        select_ir = dispatch.compile(select, ctx=ctx)
+        select_ir = setgen.ensure_set(
+            dispatch.compile(select, ctx=ctx), ctx=ctx)
 
     return irast.ConfigReset(
         name=info.param_name,

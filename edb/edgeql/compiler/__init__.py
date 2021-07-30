@@ -139,6 +139,7 @@ from edb import errors
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
+from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
 
 from edb.common import debug
@@ -263,9 +264,6 @@ def compile_ast_to_ir(
         debug.header('EdgeDB IR')
         debug.dump(ir_expr, schema=getattr(ir_expr, 'schema', None))
 
-    if isinstance(ir_expr, irast.Statement):
-        ir_expr.dml_exprs = ctx.env.dml_exprs
-
     return ir_expr
 
 
@@ -303,19 +301,34 @@ def compile_ast_fragment_to_ir(
     ctx = stmtctx_mod.init_context(schema=schema, options=options)
     ir_set = dispatch_mod.compile(tree, ctx=ctx)
 
-    result_type: Optional[s_types.Type]
+    result_type: s_types.Type
     try:
         result_type = inference_mod.infer_type(ir_set, ctx.env)
     except errors.QueryError:
         # Not all fragments can be resolved into a concrete type,
         # that's OK.
-        result_type = None
+        # XXX: Is it really? This doesn't come up in the tests at all.
+        result_type = cast(s_types.Type, None)
 
     return irast.Statement(
         expr=ir_set,
         schema=ctx.env.schema,
         stype=result_type,
         dml_exprs=ctx.env.dml_exprs,
+        views={},
+        params=[],
+        # These values are nonsensical, but ideally the caller does not care
+        cardinality=qltypes.Cardinality.UNKNOWN,
+        multiplicity=qltypes.Multiplicity.ZERO,
+        volatility=qltypes.Volatility.Volatile,
+        view_shapes={},
+        view_shapes_metadata={},
+        schema_refs=frozenset(),
+        schema_ref_exprs=None,
+        new_coll_types=frozenset(),
+        scope_tree=ctx.path_scope,
+        source_map={},
+        type_rewrites={},
     )
 
 

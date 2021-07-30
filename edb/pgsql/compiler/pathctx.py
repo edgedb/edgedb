@@ -614,6 +614,7 @@ def get_path_output_alias(
     if rptr is not None:
         alias_base = rptr.shortname.name
     elif path_id.is_collection_path():
+        assert path_id.target.collection is not None
         alias_base = path_id.target.collection
     else:
         alias_base = path_id.target_name_hint.name

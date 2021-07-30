@@ -1712,6 +1712,7 @@ def process_set_as_tuple(
                 ttypes[str(i)] = st
 
         for element in expr.elements:
+            assert element.path_id
             path_id = element.path_id
             if path_id != element.val.path_id:
                 pathctx.put_path_id_map(stmt, path_id, element.val.path_id)

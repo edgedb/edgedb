@@ -547,7 +547,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
     else:
         material_ptr = None
 
-    union_components: Set[irast.BasePointerRef] = set()
+    union_components: Optional[Set[irast.BasePointerRef]] = None
     union_of = ptrcls.get_union_of(schema)
     union_is_concrete = False
     if union_of:
@@ -573,7 +573,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
             ) for p in non_overlapping
         }
 
-    intersection_components: Set[irast.BasePointerRef] = set()
+    intersection_components: Optional[Set[irast.BasePointerRef]] = None
     intersection_of = ptrcls.get_intersection_of(schema)
     if intersection_of:
         intersection_ptrs = set()
@@ -879,7 +879,10 @@ def find_actual_ptrref(
     elif ptrref.dir_source.id != source_typeref.id:
         # We are updating a subtype, find the
         # correct descendant ptrref.
-        for dp in ptrref.union_components | ptrref.intersection_components:
+        for dp in (
+            (ptrref.union_components or set())
+            | (ptrref.intersection_components or set())
+        ):
             candidate = maybe_find_actual_ptrref(
                 source_typeref, dp, material=material)
             if candidate is not None:

@@ -47,7 +47,7 @@ def compile_SelectStmt(
         # Common setup.
         clauses.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
 
-        for binding in stmt.bindings:
+        for binding in (stmt.bindings or ()):
             # If something we are WITH binding contains DML, we want to
             # compile it *now*, in the context of its initial appearance
             # and not where the variable is used. This will populate
@@ -110,9 +110,10 @@ def compile_SelectStmt(
                         stmt.where, stmt.where_card, ctx=ctx))
 
             # The ORDER BY clause
-            with ctx.new() as ictx:
-                query.sort_clause = clauses.compile_orderby_clause(
-                    stmt.orderby, ctx=ictx)
+            if stmt.orderby is not None:
+                with ctx.new() as ictx:
+                    query.sort_clause = clauses.compile_orderby_clause(
+                        stmt.orderby, ctx=ictx)
 
         if outvar.nullable and query is ctx.toplevel_stmt:
             # A nullable var has bubbled up to the top,

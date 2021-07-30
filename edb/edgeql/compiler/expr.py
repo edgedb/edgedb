@@ -294,6 +294,8 @@ def try_fold_associative_binop(
                         context=opcall.context,
                         typeref=opcall.typeref,
                         typemod=opcall.typemod,
+                        tuple_path_ids=opcall.tuple_path_ids,
+                        volatility=opcall.volatility,
                     ),
                     schema=ctx.env.schema,
                 )
@@ -320,6 +322,8 @@ def try_fold_associative_binop(
                     context=opcall.context,
                     typeref=opcall.typeref,
                     typemod=opcall.typemod,
+                    tuple_path_ids=opcall.tuple_path_ids,
+                    volatility=opcall.volatility,
                 )
 
                 folded = setgen.ensure_set(folded_binop, ctx=ctx)
@@ -368,7 +372,10 @@ def compile_Tuple(
 @dispatch.compile.register(qlast.Array)
 def compile_Array(
         expr: qlast.Array, *, ctx: context.ContextLevel) -> irast.Set:
-    elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
+    elements = [
+        setgen.ensure_set(dispatch.compile(e, ctx=ctx), ctx=ctx)
+        for e in expr.elements
+    ]
     # check that none of the elements are themselves arrays
     for el, expr_el in zip(elements, expr.elements):
         if isinstance(inference.infer_type(el, ctx.env), s_abc.Array):
@@ -417,7 +424,7 @@ def compile_TypeCast(
 
     if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
             irtyputils.is_array(target_typeref)):
-        ir_expr = irast.Array()
+        ir_expr = irast.Array(elements=[], typeref=target_typeref)
 
     elif isinstance(expr.expr, qlast.Parameter):
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
