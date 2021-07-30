@@ -179,11 +179,11 @@ set of user favorites:
     }
     FILTER .id = <uuid>$id;
 
-This change makes the shape construct consistent with the paths syntax and
-removes potential confusion with the similarly looking computable shape
-expressions.
+This change makes the shape construct consistent with the paths syntax
+and removes potential confusion with the similarly looking computed
+expressions in shapes.
 
-Another change is related to backward link navigation. Starting with Alpha 2
+Another change is related to backlink navigation. Starting with Alpha 2
 it is required to use the :eql:op:`[IS ...] <ISINTERSECT>` operator in order
 to access target objects' properties and links:
 
@@ -296,7 +296,7 @@ specify what data to insert or how to update the existing data:
 Other Fixes and Enhancements
 ----------------------------
 
-* Fix backward links in aliases (:eql:gh:`#990`).
+* Fix backlinks in aliases (:eql:gh:`#990`).
 * Fix covariant types support (:eql:gh:`#709`).
 * Implement explicit handling of 64-bit integers, and arbitrary precision
   integers and decimals (:eql:gh:`#1138`).

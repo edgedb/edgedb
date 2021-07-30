@@ -14,7 +14,7 @@ We continue working on improving our schema and migration tools:
 * Prohibit mixing computed and regular links or properties
   (:eql:gh:`#2099`).
 * Don't ask for conversion expressions when changing type of
-  computable (:eql:gh:`#2658`).
+  computed link or property (:eql:gh:`#2658`).
 * Fix some migration issues involving rebasing (:eql:gh:`#2536`).
 * Fix backlink processing in SDL schemas (:eql:gh:`#1824`).
 * Improve migration prompts (:eql:gh:`#2547`, :eql:gh:`#2591`).

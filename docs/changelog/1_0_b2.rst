@@ -76,7 +76,7 @@ EdgeQL
 * Make :eql:func:`min` and :eql:func:`max` work more consistently
   across all supported types (:eql:gh:`#1920`).
 * Improve cardinality inference (:eql:gh:`#2097`).
-* Disallow use of ``VOLATILE`` functions in schema-defined computable
+* Disallow use of ``VOLATILE`` functions in schema-defined computed
   expressions (:eql:gh:`#2467`).
 * Fix handling of collection types of non-builtin scalars in dumps
   (:eql:gh:`#2349`).
@@ -87,7 +87,7 @@ EdgeQL
   <ref_eql_statements_update>` (:eql:gh:`#2455`).
 * Fix an issue with empty sets (i.e. ``{}``) inside set literals
   (:eql:gh:`#2154`).
-* Fix backward links when multiple types with the same link name exist
+* Fix backlinks when multiple types with the same link name exist
   (:eql:gh:`#2360`).
 * Fix :eql:op:`DISTINCT` on empty and nested tuples (:eql:gh:`#2333`).
 * Fix some serialization issues of shapes inside arrays and tuples
