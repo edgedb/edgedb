@@ -80,6 +80,8 @@ cdef class HttpProtocol:
         self.allow_insecure_http_clients = allow_insecure_http_clients
         self.respond_hsts = False  # redirect non-TLS HTTP clients to TLS URL
 
+        self.is_tls = False
+
     def connection_made(self, transport):
         self.transport = transport
 
@@ -96,10 +98,10 @@ cdef class HttpProtocol:
 
             # Detect if the client is speaking TLS in the "first" data using
             # the SSL library. This is not the official handshake as we only
-            # need to know "is_ssl"; the first data is used again for the true
-            # handshake if is_ssl = True. This is for further responding a nice
+            # need to know "is_tls"; the first data is used again for the true
+            # handshake if is_tls = True. This is for further responding a nice
             # error message to non-TLS clients.
-            is_ssl = True
+            is_tls = True
             try:
                 outgoing = ssl.MemoryBIO()
                 incoming = ssl.MemoryBIO()
@@ -111,9 +113,11 @@ cdef class HttpProtocol:
             except ssl.SSLWantReadError:
                 pass
             except ssl.SSLError:
-                is_ssl = False
+                is_tls = False
 
-            if is_ssl:
+            self.is_tls = is_tls
+
+            if is_tls:
                 # Most clients should arrive here to continue with TLS
                 self.transport.pause_reading()
                 self.loop.create_task(self._forward_first_data(data))
@@ -317,7 +321,7 @@ cdef class HttpProtocol:
                     b'\r\n'
                 )
             else:
-                msg = b'Request is missing header: Host\r\n'
+                msg = b'Request is missing a header: Host\r\n'
                 self.transport.write(
                     b'HTTP/1.1 400 Bad Request\r\n'
                     b'Content-Length: ' + str(len(msg)).encode() + b'\r\n'
@@ -326,6 +330,14 @@ cdef class HttpProtocol:
 
             self.close()
             return
+
+        if self.is_tls:
+            if self.allow_insecure_http_clients:
+                response.custom_headers['Strict-Transport-Security'] = \
+                    'max-age=0'
+            else:
+                response.custom_headers['Strict-Transport-Security'] = \
+                    'max-age=31536000'
 
         try:
             await self.handle_request(request, response)
