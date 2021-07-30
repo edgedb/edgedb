@@ -1435,7 +1435,8 @@ class _EdgeDBServer:
         runstate_dir: Optional[str] = None,
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
-        allow_cleartext_connections: bool = False,
+        allow_insecure_binary_clients: bool = False,
+        allow_insecure_http_clients: bool = False,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
@@ -1449,7 +1450,8 @@ class _EdgeDBServer:
         self.tenant_id = tenant_id
         self.proc = None
         self.data = None
-        self.allow_cleartext_connections = allow_cleartext_connections
+        self.allow_insecure_binary_clients = allow_insecure_binary_clients
+        self.allow_insecure_http_clients = allow_insecure_http_clients
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -1562,8 +1564,11 @@ class _EdgeDBServer:
         if self.tenant_id:
             cmd += ['--tenant-id', self.tenant_id]
 
-        if self.allow_cleartext_connections:
-            cmd += ['--allow-cleartext-connections']
+        if self.allow_insecure_binary_clients:
+            cmd += ['--allow-insecure-binary-clients']
+
+        if self.allow_insecure_http_clients:
+            cmd += ['--allow-insecure-http-clients']
 
         if self.debug:
             print(f'Starting EdgeDB cluster with the following params: {cmd}')
@@ -1615,7 +1620,8 @@ def start_edgedb_server(
     runstate_dir: Optional[str] = None,
     reset_auth: Optional[bool] = None,
     tenant_id: Optional[str] = None,
-    allow_cleartext_connections: bool = False,
+    allow_insecure_binary_clients: bool = False,
+    allow_insecure_http_clients: bool = False,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if postgres_dsn or adjacent_to:
@@ -1635,7 +1641,8 @@ def start_edgedb_server(
         tenant_id=tenant_id,
         runstate_dir=runstate_dir,
         reset_auth=reset_auth,
-        allow_cleartext_connections=allow_cleartext_connections,
+        allow_insecure_binary_clients=allow_insecure_binary_clients,
+        allow_insecure_http_clients=allow_insecure_http_clients,
     )
 
 

@@ -105,7 +105,8 @@ class Server:
         compiler_pool_size,
         nethosts,
         netport,
-        allow_cleartext_connections: bool = False,
+        allow_insecure_binary_clients: bool = False,
+        allow_insecure_http_clients: bool = False,
         auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
@@ -186,7 +187,9 @@ class Server:
         self._stop_evt = asyncio.Event()
         self._tls_cert_file = None
         self._sslctx = None
-        self._allow_cleartext_connections = allow_cleartext_connections
+
+        self._allow_insecure_binary_clients = allow_insecure_binary_clients
+        self._allow_insecure_http_clients = allow_insecure_http_clients
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -963,12 +966,14 @@ class Server:
         if host == "localhost":
             nethost = await _resolve_localhost()
 
+        proto_factory = lambda: protocol.HttpProtocol(
+            self, self._sslctx,
+            allow_insecure_binary_clients=self._allow_insecure_binary_clients,
+            allow_insecure_http_clients=self._allow_insecure_http_clients,
+        )
+
         return await self._loop.create_server(
-            lambda: protocol.HttpProtocol(
-                self, self._sslctx,
-                allow_cleartext_connections=self._allow_cleartext_connections,
-            ),
-            host=nethost or host, port=port)
+            proto_factory, host=nethost or host, port=port)
 
     async def _start_admin_server(self, port: int) -> asyncio.AbstractServer:
         admin_unix_sock_path = os.path.join(
