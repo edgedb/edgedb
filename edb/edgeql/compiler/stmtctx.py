@@ -106,7 +106,7 @@ def init_context(
 
 
 def fini_expression(
-    ir: irast.Base,
+    ir: irast.Set,
     *,
     ctx: context.ContextLevel,
 ) -> irast.Command:
@@ -143,11 +143,10 @@ def fini_expression(
 
     ctx.path_scope.validate_unique_ids()
 
-    if isinstance(ir, irast.Command):
-        if isinstance(ir, irast.ConfigCommand):
-            ir.scope_tree = ctx.path_scope
-        # IR is already a Command
-        return ir
+    # ConfigSet and ConfigReset don't like being part of a Set
+    if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
+        ir.expr.scope_tree = ctx.path_scope
+        return ir.expr
 
     volatility = inference.infer_volatility(ir, env=ctx.env)
 
@@ -511,7 +510,7 @@ def compile_anchor(
                 step.show_as_anchor = None
 
     elif isinstance(anchor, qlast.Base):
-        step = setgen.ensure_set(dispatch.compile(anchor, ctx=ctx), ctx=ctx)
+        step = dispatch.compile(anchor, ctx=ctx)
 
     elif isinstance(anchor, irast.Parameter):
         step = setgen.ensure_set(anchor, ctx=ctx)

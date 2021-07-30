@@ -336,7 +336,7 @@ def _compile_qlexpr(
     is_linkprop: bool,
 
     ctx: context.ContextLevel,
-) -> Tuple[Union[irast.Expr, irast.Set], context.ViewRPtr]:
+) -> Tuple[irast.Set, context.ViewRPtr]:
 
     is_mutation = is_insert or is_update
 
@@ -849,7 +849,6 @@ def _normalize_view_ptr_expr(
         ctx.env.materialized_sets[ptrcls] = ctx.qlstmt
 
         if not ctx.expr_exposed and irexpr:
-            irexpr = setgen.ensure_set(irexpr, ctx=ctx)
             setgen.maybe_materialize(ptrcls, irexpr, ctx=ctx)
 
     if qlexpr is None and not setgen.is_injected_computable_ptr(

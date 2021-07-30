@@ -209,11 +209,8 @@ def compile_ForQuery(
         # Inject an implicit limit if appropriate
         if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
                 and ctx.implicit_limit):
-            stmt.limit = setgen.ensure_set(
-                dispatch.compile(
-                    qlast.IntegerConstant(value=str(ctx.implicit_limit)),
-                    ctx=sctx,
-                ),
+            stmt.limit = dispatch.compile(
+                qlast.IntegerConstant(value=str(ctx.implicit_limit)),
                 ctx=sctx,
             )
 
@@ -410,8 +407,7 @@ def compile_insert_unless_conflict_on(
 
         # We compile the name here so we can analyze it, but we don't do
         # anything else with it.
-        cspec_res = setgen.ensure_set(dispatch.compile(
-            constraint_spec, ctx=constraint_ctx), ctx=constraint_ctx)
+        cspec_res = dispatch.compile(constraint_spec, ctx=constraint_ctx)
 
     # We accept a property, link, or a list of them in the form of a
     # tuple.
@@ -492,8 +488,8 @@ def compile_insert_unless_conflict_on(
         ctx.path_scope.factoring_allowlist.add(stmt.subject.path_id)
 
         # Compile else
-        else_ir = setgen.ensure_set(dispatch.compile(
-            astutils.ensure_qlstmt(else_branch), ctx=ctx), ctx=ctx)
+        else_ir = dispatch.compile(
+            astutils.ensure_qlstmt(else_branch), ctx=ctx)
         assert isinstance(else_ir, irast.Set)
 
     return irast.OnConflictClause(
@@ -1057,8 +1053,7 @@ def compile_Shape(
 
         with ctx.new() as exposed_ctx:
             exposed_ctx.expr_exposed = False
-            expr = setgen.ensure_set(
-                dispatch.compile(shape_expr, ctx=exposed_ctx), ctx=exposed_ctx)
+            expr = dispatch.compile(shape_expr, ctx=exposed_ctx)
 
         expr_stype = setgen.get_set_type(expr, ctx=ctx)
         if not isinstance(expr_stype, s_objtypes.ObjectType):
@@ -1329,8 +1324,7 @@ def compile_result_clause(
             with sctx.new() as ectx:
                 if shape is not None:
                     ectx.expr_exposed = False
-                expr = setgen.ensure_set(
-                    dispatch.compile(result_expr, ctx=ectx), ctx=ectx)
+                expr = dispatch.compile(result_expr, ctx=ectx)
 
         ctx.partial_path_prefix = expr
 

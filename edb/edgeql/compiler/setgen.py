@@ -446,8 +446,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             # works right.
             is_subquery = isinstance(step, qlast.Statement)
             with ctx.newscope(fenced=is_subquery) as subctx:
-                path_tip = ensure_set(
-                    dispatch.compile(step, ctx=subctx), ctx=subctx)
+                path_tip = dispatch.compile(step, ctx=subctx)
 
                 # If the head of the path is a direct object
                 # reference, wrap it in an expression set to give it a
@@ -904,14 +903,12 @@ def enum_indirection_set(
         env=ctx.env,
     )
 
-    ptr = casts.compile_cast(
+    return casts.compile_cast(
         irast.StringConstant(value=ptr_name, typeref=strref),
         source,
         srcctx=source_context,
         ctx=ctx,
     )
-
-    return ensure_set(ptr, ctx=ctx)
 
 
 def tuple_indirection_set(
@@ -1321,8 +1318,7 @@ def computable_ptr_set(
                 iterator_target=True,
             )
 
-        comp_ir_set = ensure_set(
-            dispatch.compile(qlexpr, ctx=subctx), ctx=subctx)
+        comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
     comp_ir_set = new_set_from_set(
         comp_ir_set, path_id=result_path_id, rptr=rptr, context=srcctx,

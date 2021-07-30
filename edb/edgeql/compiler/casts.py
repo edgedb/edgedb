@@ -550,13 +550,10 @@ def _cast_array(
                 ],
             )
 
-            enumerated = setgen.ensure_set(
-                dispatch.compile(
-                    qlast.FunctionCall(
-                        func=('__std__', 'enumerate'),
-                        args=[unpacked],
-                    ),
-                    ctx=subctx,
+            enumerated = dispatch.compile(
+                qlast.FunctionCall(
+                    func=('__std__', 'enumerate'),
+                    args=[unpacked],
                 ),
                 ctx=subctx,
             )

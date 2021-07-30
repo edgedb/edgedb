@@ -216,10 +216,7 @@ def compile_FunctionCall(
             expr=frag,
             type=typegen.type_to_ql_typeref(matched_call.return_type, ctx=ctx),
         )
-        func_initial_value = setgen.ensure_set(
-            dispatch.compile(iv_ql, ctx=ctx),
-            ctx=ctx,
-        )
+        func_initial_value = dispatch.compile(iv_ql, ctx=ctx)
     else:
         func_initial_value = None
 
@@ -308,9 +305,7 @@ def compile_operator(
             if conditional_args and ai in conditional_args:
                 fencectx.in_conditional = qlexpr.context
 
-            arg_ir = setgen.ensure_set(
-                dispatch.compile(qlarg, ctx=fencectx),
-                ctx=fencectx)
+            arg_ir = dispatch.compile(qlarg, ctx=fencectx)
 
             arg_ir = setgen.scoped_set(
                 setgen.ensure_stmt(arg_ir, ctx=fencectx),
@@ -654,13 +649,10 @@ def compile_call_arg(
         # matching.  We will remove it if necessary in `finalize_args()`.
         # Similarly, delay the decision to inject the implicit limit to
         # `finalize_args()`.
-        arg_ql = qlast.SelectQuery(result=arg_ql, implicit=True)
+        arg_ql = qlast.SelectQuery(
+            result=arg_ql, context=arg_ql.context, implicit=True)
         argctx.inhibit_implicit_limit = True
-        return setgen.ensure_set(
-            dispatch.compile(arg_ql, ctx=argctx),
-            srcctx=arg_ql.context,
-            ctx=argctx,
-        ), argctx
+        return dispatch.compile(arg_ql, ctx=argctx), argctx
 
 
 def compile_call_args(
@@ -807,11 +799,8 @@ def finalize_args(
                 and arg.expr.limit is None
                 and not ctx.inhibit_implicit_limit
             ):
-                arg.expr.limit = setgen.ensure_set(
-                    dispatch.compile(
-                        qlast.IntegerConstant(value=str(ctx.implicit_limit)),
-                        ctx=ctx,
-                    ),
+                arg.expr.limit = dispatch.compile(
+                    qlast.IntegerConstant(value=str(ctx.implicit_limit)),
                     ctx=ctx,
                 )
 
