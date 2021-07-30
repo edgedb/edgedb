@@ -16,14 +16,15 @@ EdgeQL
 * Allow explicit ``OPTIONAL`` qualifier for links and properties in
   DDL and SDL. In particular, use it in :eql:stmt:`DESCRIBE` command
   output. (:eql:gh:`#1342`).
-* Only show link properties on link computables that are aliases.
+* Only show link properties on computed links that are aliases.
 * :eql:stmt:`DESCRIBE` command now shows matches that are potentially
   masked by the user-defined types or functions (:eql:gh:`#1439`).
 * Add ``DESCRIBE ROLES`` and ``DESCRIBE INSTANCE CONFIG`` to the
   :eql:stmt:`DESCRIBE` command.
 * Allow underscore in numeric literals and forbids float and decimal
   constants to end in ``.`` (:eql:gh:`#920`).
-* Validate the ``REQUIRED`` flag on computables (:eql:gh:`#217`).
+* Validate the ``REQUIRED`` flag on computed links and properties
+  (:eql:gh:`#217`).
 * Forbid reference to link properties outside of a path expression
   (:eql:gh:`#1512`).
 * Allow annotations to be renamed (:eql:gh:`#762`).

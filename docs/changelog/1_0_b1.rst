@@ -283,7 +283,8 @@ EdgeQL
 * Fix issues with :eql:func:`enumerate` when applied to objects
   (:eql:gh:`#1815`) and results of function calls (:eql:gh:`#1816`).
 * Fix ``DROP PROPERTY`` for ``MULTI`` properties (:eql:gh:`#2059`).
-* Make sure computable pointers don't appear in dump (:eql:gh:`#2057`).
+* Make sure computed links and properties don't appear in dump
+  (:eql:gh:`#2057`).
 * Fix accessing links on objects that come from functions and other
   sources that aren't simple paths (:eql:gh:`#1887`).
 
