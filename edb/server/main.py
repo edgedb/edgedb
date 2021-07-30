@@ -191,7 +191,8 @@ async def _run_server(
             echo_runtime_info=args.echo_runtime_info,
             status_sink=args.status_sink,
             startup_script=args.startup_script,
-            allow_cleartext_connections=args.allow_cleartext_connections,
+            allow_insecure_binary_clients=args.allow_insecure_binary_clients,
+            allow_insecure_http_clients=args.allow_insecure_http_clients,
         )
         await sc.wait_for(ss.init())
 

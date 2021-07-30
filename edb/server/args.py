@@ -95,7 +95,9 @@ class ServerConfig(NamedTuple):
     tls_cert_file: Optional[pathlib.Path]
     tls_key_file: Optional[pathlib.Path]
     generate_self_signed_cert: bool
-    allow_cleartext_connections: bool
+
+    allow_insecure_binary_clients: bool
+    allow_insecure_http_clients: bool
 
 
 class PathPath(click.Path):
@@ -369,8 +371,14 @@ _server_options = [
              'no data dir. This option conflicts with --tls-cert-file and '
              '--tls-key-file, and defaults to True in dev mode.'),
     click.option(
-        '--allow-cleartext-connections', type=bool, is_flag=True, hidden=True,
-        help='Also allow client connections in cleartext in addition to TLS.'),
+        '--allow-insecure-binary-clients',
+        type=bool, is_flag=True, hidden=True,
+        help='Allow non-TLS client binary connections.'),
+    click.option(
+        '--allow-insecure-http-clients',
+        envvar="EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS",
+        type=bool, is_flag=True, hidden=True,
+        help='Allow non-TLS client HTTP connections.'),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
