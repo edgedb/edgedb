@@ -99,6 +99,8 @@ class ServerConfig(NamedTuple):
     allow_insecure_binary_clients: bool
     allow_insecure_http_clients: bool
 
+    instance_name: Optional[str]
+
 
 class PathPath(click.Path):
     name = 'path'
@@ -379,6 +381,11 @@ _server_options = [
         envvar="EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS",
         type=bool, is_flag=True, hidden=True,
         help='Allow non-TLS client HTTP connections.'),
+    click.option(
+        '--instance-name',
+        envvar="EDGEDB_SERVER_INSTANCE_NAME",
+        type=str, default=None, hidden=True,
+        help='Server instance name.'),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
