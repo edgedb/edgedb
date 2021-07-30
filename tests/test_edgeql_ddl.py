@@ -10358,13 +10358,13 @@ type default::Foo {
             CREATE ALIAS Bar := (<a>"", <b>"");
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 1)
+        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
 
         await self.con.execute(r"""
             ALTER ALIAS Bar USING ((<b>"", <a>""));
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 1)
+        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
 
         await self.con.execute(r"""
             DROP ALIAS Bar;

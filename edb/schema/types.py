@@ -809,6 +809,14 @@ class Collection(Type, s_abc.Collection):
         else:
             return s_name.unmangle_name(str(name))
 
+    def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
+        """Return collection type name generated from element types.
+
+        Unlike get_name(), which might return a custom name, this will always
+        return a name derived from the names of the collection element type(s).
+        """
+        raise NotImplementedError
+
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return any(st.is_polymorphic(schema)
                    for st in self.get_subtypes(schema))
@@ -943,14 +951,12 @@ class Collection(Type, s_abc.Collection):
         self: CollectionTypeT,
         schema: s_schema.Schema,
     ) -> sd.DeleteObject[CollectionTypeT]:
-        cmd = self.init_delta_command(
+        return self.init_delta_command(
             schema,
             sd.DeleteObject,
-            if_unused=not isinstance(self, CollectionExprAlias),
+            if_unused=True,
             if_exists=True,
         )
-
-        return cmd
 
 
 Dimensions = checked.FrozenCheckedList[int]
@@ -980,6 +986,34 @@ class CollectionExprAlias(QualifiedType, Collection):
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'expression alias'
+
+    @classmethod
+    def get_underlying_schema_class(cls) -> typing.Type[Collection]:
+        """Return the concrete collection class for this ExprAlias class."""
+        raise NotImplementedError
+
+    def as_underlying_type_delete_if_dead(
+        self,
+        schema: s_schema.Schema,
+    ) -> sd.DeleteObject[Type]:
+        """Return a conditional deletion command for the underlying type object
+        """
+        return sd.get_object_delta_command(
+            objtype=type(self).get_underlying_schema_class(),
+            cmdtype=sd.DeleteObject,
+            schema=schema,
+            name=self.get_generated_name(schema),
+            if_unused=True,
+            if_exists=True,
+        )
+
+    def as_type_delete_if_dead(
+        self: CollectionExprAliasT,
+        schema: s_schema.Schema,
+    ) -> sd.DeleteObject[CollectionExprAliasT]:
+        cmd = self.init_delta_command(schema, sd.DeleteObject, if_exists=True)
+        cmd.add_prerequisite(self.as_underlying_type_delete_if_dead(schema))
+        return cmd
 
 
 class Array(
@@ -1067,6 +1101,11 @@ class Array(
             )
 
         return schema, result
+
+    def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
+        return type(self).generate_name(
+            self.get_element_type(schema).get_name(schema),
+        )
 
     def contains_array_of_tuples(self, schema: s_schema.Schema) -> bool:
         return self.get_element_type(schema).is_tuple(schema)
@@ -1369,7 +1408,10 @@ class ArrayExprAlias(
 ):
     # N.B: Don't add any SchemaFields to this class, they won't be
     # reflected properly (since this inherits from the concrete Array).
-    pass
+
+    @classmethod
+    def get_underlying_schema_class(cls) -> typing.Type[Collection]:
+        return Array
 
 
 Tuple_T = typing.TypeVar('Tuple_T', bound='Tuple')
@@ -1465,6 +1507,10 @@ class Tuple(
             )
 
         return schema, result
+
+    def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
+        els = {n: st.get_name(schema) for n, st in self.iter_subtypes(schema)}
+        return type(self).generate_name(els, self.is_named(schema))
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
         if self.is_named(schema):
@@ -1912,25 +1958,45 @@ class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
         *,
         view_name: Optional[s_name.QualName] = None,
         attrs: Optional[Dict[str, Any]] = None,
-    ) -> sd.CommandGroup:
+    ) -> Union[CreateTuple, CreateTupleExprAlias]:
         ct: Union[CreateTuple, CreateTupleExprAlias]
-        cmd = sd.CommandGroup()
+
+        plain_tuple = self._as_plain_create_delta(schema)
         if view_name is None:
-            ct = CreateTuple(
-                classname=self.get_name(schema),
-                if_not_exists=True,
-            )
-            ct.set_attribute_value('id', self.get_id(schema))
+            ct = plain_tuple
         else:
-            ct = CreateTupleExprAlias(
-                classname=view_name,
-            )
+            ct = CreateTupleExprAlias(classname=view_name)
+            self._populate_create_delta(schema, ct, attrs=attrs)
 
         for el in self.subtypes.values():
-            if (isinstance(el, CollectionTypeShell)
-                    and schema.get_by_id(el.get_id(schema), None) is None):
-                cmd.add(el.as_create_delta(schema))
+            if isinstance(el, CollectionTypeShell):
+                ct.add_prerequisite(el.as_create_delta(schema))
 
+        if view_name is not None:
+            ct.add_prerequisite(plain_tuple)
+
+        return ct
+
+    def _as_plain_create_delta(
+        self,
+        schema: s_schema.Schema,
+    ) -> CreateTuple:
+        name = self.schemaclass.generate_name(
+            {n: st.get_name(schema) for n, st in self.subtypes.items()},
+            self.is_named(),
+        )
+        ct = CreateTuple(classname=name, if_not_exists=True)
+        ct.set_attribute_value('id', self.get_id(schema))
+        self._populate_create_delta(schema, ct)
+        return ct
+
+    def _populate_create_delta(
+        self,
+        schema: s_schema.Schema,
+        ct: Union[CreateTuple, CreateTupleExprAlias],
+        *,
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> None:
         named = self.is_named()
         ct.set_attribute_value('name', ct.classname)
         ct.set_attribute_value('named', named)
@@ -1942,10 +2008,6 @@ class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
             for k, v in attrs.items():
                 ct.set_attribute_value(k, v)
 
-        cmd.add(ct)
-
-        return cmd
-
 
 class TupleExprAlias(
     CollectionExprAlias,
@@ -1954,7 +2016,10 @@ class TupleExprAlias(
 ):
     # N.B: Don't add any SchemaFields to this class, they won't be
     # reflected properly (since this inherits from the concrete Tuple).
-    pass
+
+    @classmethod
+    def get_underlying_schema_class(cls) -> typing.Type[Collection]:
+        return Tuple
 
 
 def generate_type_id(id_str: str) -> uuid.UUID:
@@ -2231,7 +2296,16 @@ class DeleteCollectionExprAlias(
     CollectionExprAliasCommand[CollectionExprAliasT],
     DeleteCollectionType[CollectionExprAliasT],
 ):
-    pass
+
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: CollectionExprAliasT,
+    ) -> List[sd.Command]:
+        ops = super()._canonicalize(schema, context, scls)
+        ops.append(scls.as_underlying_type_delete_if_dead(schema))
+        return ops
 
 
 class CreateTuple(CreateCollectionType[Tuple]):

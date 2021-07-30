@@ -22,6 +22,7 @@ from typing import *
 
 import collections
 
+from edb import errors
 from edb.common import ordered
 from edb.common import topological
 
@@ -566,7 +567,16 @@ def _trace_op(
 
     if isinstance(op, (sd.DeleteObject, referencing.AlterOwned)):
         assert old_schema is not None
-        obj = get_object(old_schema, op)
+        try:
+            obj = get_object(old_schema, op)
+        except errors.InvalidReferenceError:
+            if isinstance(op, sd.DeleteObject) and op.if_exists:
+                # If this is conditional deletion and the object isn't there,
+                # then don't bother with analysis, since this command wouldn't
+                # get executed.
+                return
+            else:
+                raise
         refs = _get_referrers(old_schema, obj, strongrefs)
         for ref in refs:
             ref_name_str = str(ref.get_name(old_schema))

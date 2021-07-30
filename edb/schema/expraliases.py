@@ -326,18 +326,20 @@ class DeleteAlias(
 ):
     astnode = qlast.DropAlias
 
-    def _delete_begin(
+    def _canonicalize(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        if not context.canonical:
-            alias_type = self.scls.get_type(schema)
-            drop_type = alias_type.init_delta_command(
-                schema, sd.DeleteObject)
-            self.add_prerequisite(drop_type)
-
-        return super()._delete_begin(schema, context)
+        scls: Alias,
+    ) -> List[sd.Command]:
+        ops = super()._canonicalize(schema, context, scls)
+        alias_type = self.scls.get_type(schema)
+        drop_type = alias_type.init_delta_command(
+            schema, sd.DeleteObject)
+        subcmds = drop_type._canonicalize(schema, context, alias_type)
+        drop_type.update(subcmds)
+        ops.append(drop_type)
+        return ops
 
 
 def compile_alias_expr(
