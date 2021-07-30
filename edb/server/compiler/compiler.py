@@ -99,6 +99,7 @@ class CompileContext:
     output_format: enums.IoFormat
     expected_cardinality_one: bool
     stmt_mode: enums.CompileStatementMode
+    protocol_version: Tuple[int, int]
     json_parameters: bool = False
     schema_reflection_mode: bool = False
     implicit_limit: int = 0
@@ -110,7 +111,6 @@ class CompileContext:
     backend_runtime_params: Any = (
         pgcluster.get_default_runtime_params())
     compat_ver: Optional[verutils.Version] = None
-    protocol_version: Optional[tuple] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
     standalone_mode: bool = False
@@ -177,6 +177,7 @@ def new_compiler_context(
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
     standalone_mode: bool = False,
+    protocol_version: Tuple[int, int] = defines.CURRENT_PROTOCOL,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
 
@@ -203,6 +204,7 @@ def new_compiler_context(
             enums.CompileStatementMode.SINGLE
             if single_statement else enums.CompileStatementMode.ALL
         ),
+        protocol_version=protocol_version,
     )
 
     return ctx
@@ -1884,7 +1886,7 @@ class Compiler:
         database_config: Mapping[str, config.SettingValue],
         system_config: Mapping[str, config.SettingValue],
         queries: List[str],
-        protocol_version: tuple,
+        protocol_version: Tuple[int, int],
         implicit_limit: int = 0,
     ) -> List[dbstate.QueryUnit]:
 
@@ -1966,7 +1968,7 @@ class Compiler:
         inline_typeids: bool,
         inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
-        protocol_version: Optional[tuple] = None,
+        protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
         json_parameters: bool = False,
     ) -> Tuple[List[dbstate.QueryUnit],
@@ -2034,7 +2036,7 @@ class Compiler:
         inline_typeids: bool,
         inline_typenames: bool,
         stmt_mode: enums.CompileStatementMode,
-        protocol_version: tuple,
+        protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
     ) -> Tuple[List[dbstate.QueryUnit], dbstate.CompilerConnectionState]:
         state.sync_tx(txid)
@@ -2059,7 +2061,7 @@ class Compiler:
         user_schema: s_schema.Schema,
         global_schema: s_schema.Schema,
         database_config: immutables.Map[str, config.SettingValue],
-        protocol_version: tuple,
+        protocol_version: Tuple[int, int],
     ) -> DumpDescriptor:
         schema = s_schema.ChainedSchema(
             self._std_schema,
@@ -2126,7 +2128,7 @@ class Compiler:
         self,
         schema: s_schema.Schema,
         source: s_obj.Object,
-        protocol_version: tuple,
+        protocol_version: Tuple[int, int],
     ) -> List[DumpBlockDescriptor]:
 
         cols = []
@@ -2273,7 +2275,7 @@ class Compiler:
         schema_ddl: bytes,
         schema_ids: List[Tuple[str, str, bytes]],
         blocks: List[Tuple[bytes, bytes]],  # type_id, typespec
-        protocol_version: tuple,
+        protocol_version: Tuple[int, int],
     ) -> RestoreDescriptor:
         schema_object_ids = {
             (
