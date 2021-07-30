@@ -183,7 +183,7 @@ def compile_UpdateStmt(
         assert range_cte is not None
 
         toplevel = ctx.toplevel_stmt
-        toplevel.ctes.append(range_cte)
+        toplevel.append_cte(range_cte)
 
         for typeref, (update_cte, _) in parts.dml_ctes.items():
             # Process UPDATE body.
@@ -211,10 +211,10 @@ def compile_DeleteStmt(
 
         range_cte = parts.range_cte
         assert range_cte is not None
-        ctx.toplevel_stmt.ctes.append(range_cte)
+        ctx.toplevel_stmt.append_cte(range_cte)
 
         for delete_cte, _ in parts.dml_ctes.values():
-            ctx.toplevel_stmt.ctes.append(delete_cte)
+            ctx.toplevel_stmt.append_cte(delete_cte)
 
         # Wrap up.
         return dml.fini_dml_stmt(

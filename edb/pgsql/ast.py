@@ -54,8 +54,10 @@ class ImmutableBase(ast.ImmutableASTMixin, Base):
 class Alias(ImmutableBase):
     """Alias for a range variable."""
 
-    aliasname: str              # aliased relation name
-    colnames: typing.List[str]  # optional list of column aliases
+    # aliased relation name
+    aliasname: str
+    # optional list of column aliases
+    colnames: typing.Optional[typing.List[str]] = None
 
 
 class Keyword(ImmutableBase):
@@ -73,8 +75,8 @@ class BaseExpr(Base):
 
     __ast_meta__ = {'nullable'}
 
-    nullable: bool              # Whether the result can be NULL.
-    ser_safe: bool = False      # Whether the expr is serialization-safe.
+    nullable: typing.Optional[bool] = None  # Whether the result can be NULL.
+    ser_safe: bool = False  # Whether the expr is serialization-safe.
 
     def __init__(self, *, nullable: typing.Optional[bool]=None,
                  **kwargs) -> None:
@@ -126,27 +128,31 @@ class EdgeQLPathInfo(Base):
     }
 
     # The path id represented by the node.
-    path_id: irast.PathId
+    path_id: typing.Optional[irast.PathId] = None
 
     # Whether the node represents a distinct set.
     is_distinct: bool = True
 
     # A subset of paths necessary to perform joining.
-    path_scope: typing.Set[irast.PathId]
+    path_scope: typing.Set[irast.PathId] = ast.container_factory
 
     # Map of res target names corresponding to paths.
-    path_outputs: typing.Dict[typing.Tuple[irast.PathId, str], OutputVar]
+    path_outputs: typing.Dict[
+        typing.Tuple[irast.PathId, str], OutputVar
+    ] = ast.container_factory
 
     # Map of res target names corresponding to materialized paths.
-    packed_path_outputs: typing.Dict[
+    packed_path_outputs: typing.Optional[typing.Dict[
         typing.Tuple[irast.PathId, str],
         typing.Tuple[OutputVar, bool],
-    ]
+    ]] = None
 
-    path_id_mask: typing.Set[irast.PathId]
+    path_id_mask: typing.Set[irast.PathId] = ast.container_factory
 
     # Map of col refs corresponding to paths.
-    path_namespace: typing.Dict[typing.Tuple[irast.PathId, str], BaseExpr]
+    path_namespace: typing.Dict[
+        typing.Tuple[irast.PathId, str], BaseExpr
+    ] = ast.container_factory
 
 
 class BaseRangeVar(ImmutableBaseExpr):
@@ -154,7 +160,12 @@ class BaseRangeVar(ImmutableBaseExpr):
 
     __ast_meta__ = {'schema_object_id'}
 
-    alias: Alias
+    # This is a hack, since there is some code that relies on not
+    # having an alias on a range var (to refer to a CTE directly, for
+    # example, while other code depends on reading the alias name out
+    # of range vars. This is mostly disjoint code, so we hack around it
+    # with an empty aliasname.
+    alias: Alias = Alias(aliasname='')
 
     #: The id of the schema object this rvar represents
     schema_object_id: typing.Optional[uuid.UUID] = None
@@ -168,15 +179,15 @@ class BaseRangeVar(ImmutableBaseExpr):
 
 
 class BaseRelation(EdgeQLPathInfo, BaseExpr):
-    name: str
-    nullable: bool              # Whether the result can be NULL.
+    name: typing.Optional[str] = None
+    nullable: typing.Optional[bool] = None  # Whether the result can be NULL.
 
 
 class Relation(BaseRelation):
     """Regular relation."""
 
-    catalogname: str
-    schemaname: str
+    catalogname: typing.Optional[str] = None
+    schemaname: typing.Optional[str] = None
 
 
 class CommonTableExpr(Base):
@@ -184,15 +195,15 @@ class CommonTableExpr(Base):
     # Query name (unqualified)
     name: str
     # Whether the result can be NULL.
-    nullable: bool
+    nullable: typing.Optional[bool] = None
     # Optional list of column names
-    aliascolnames: list
+    aliascolnames: typing.Optional[list] = None
     # The CTE query
     query: Query
     # True if this CTE is recursive
-    recursive: bool
+    recursive: bool = False
     # If specified, determines if CTE is [NOT] MATERIALIZED
-    materialized: typing.Optional[bool]
+    materialized: typing.Optional[bool] = None
 
     def __repr__(self):
         return (
@@ -204,7 +215,7 @@ class CommonTableExpr(Base):
 class PathRangeVar(BaseRangeVar):
 
     #: The IR TypeRef this rvar represents (if any).
-    typeref: typing.Optional[irast.TypeRef]
+    typeref: typing.Optional[irast.TypeRef] = None
 
     @property
     def query(self) -> BaseRelation:
@@ -240,19 +251,19 @@ class IntersectionRangeVar(PathRangeVar):
 class TypeName(ImmutableBase):
     """Type in definitions and casts."""
 
-    name: typing.Tuple[str, ...]    # Type name
-    setof: bool                     # SET OF?
-    typmods: list                   # Type modifiers
-    array_bounds: list              # Array bounds
+    name: typing.Tuple[str, ...]                # Type name
+    setof: bool = False                         # SET OF?
+    typmods: typing.Optional[list] = None       # Type modifiers
+    array_bounds: typing.Optional[list] = None  # Array bounds
 
 
 class ColumnRef(OutputVar):
     """Specifies a reference to a column."""
 
     # Column name list.
-    name: typing.List[typing.Union[str, Star]]
+    name: typing.Sequence[typing.Union[str, Star]]
     # Whether the col is an optional path bond (i.e accepted when NULL)
-    optional: bool
+    optional: typing.Optional[bool] = None
 
     def __repr__(self):
         if hasattr(self, 'name'):
@@ -346,9 +357,9 @@ class ResTarget(ImmutableBaseExpr):
     """Query result target."""
 
     # Column name (optional)
-    name: str
+    name: typing.Optional[str] = None
     # subscripts, field names and '*'
-    indirection: list
+    indirection: typing.Optional[list] = None
     # value expression to compute
     val: BaseExpr
 
@@ -365,30 +376,30 @@ class UpdateTarget(ImmutableBaseExpr):
 class InferClause(ImmutableBaseExpr):
 
     # IndexElems to infer unique index
-    index_elems: list
+    index_elems: typing.Optional[list] = None
     # Partial-index predicate
-    where_clause: BaseExpr
+    where_clause: typing.Optional[BaseExpr] = None
     # Constraint name
-    conname: str
+    conname: typing.Optional[str] = None
 
 
 class OnConflictClause(ImmutableBaseExpr):
 
     action: str
-    infer: InferClause
-    target_list: list
-    where: BaseExpr
+    infer: typing.Optional[InferClause]
+    target_list: typing.Optional[list] = None
+    where: typing.Optional[BaseExpr] = None
 
 
 class ReturningQuery(BaseRelation):
 
-    target_list: typing.List[ResTarget]
+    target_list: typing.List[ResTarget] = ast.container_factory
 
 
 class NullRelation(ReturningQuery):
     """Special relation that produces nulls for all its attributes."""
 
-    where_clause: BaseExpr
+    where_clause: typing.Optional[BaseExpr] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -407,21 +418,36 @@ class Query(ReturningQuery):
     __ast_meta__ = {'path_rvar_map', 'path_packed_rvar_map',
                     'view_path_id_map', 'argnames', 'nullable'}
 
-    view_path_id_map: typing.Dict[irast.PathId, irast.PathId]
+    view_path_id_map: typing.Dict[
+        irast.PathId, irast.PathId
+    ] = ast.container_factory
     # Map of RangeVars corresponding to paths.
-    path_rvar_map: typing.Dict[typing.Tuple[irast.PathId, str], PathRangeVar]
+    path_rvar_map: typing.Dict[
+        typing.Tuple[irast.PathId, str], PathRangeVar
+    ] = ast.container_factory
     # Map of materialized RangeVars corresponding to paths.
-    path_packed_rvar_map: typing.Dict[
+    path_packed_rvar_map: typing.Optional[typing.Dict[
         typing.Tuple[irast.PathId, str],
         PathRangeVar,
-    ]
+    ]] = None
 
-    argnames: typing.Dict[str, Param]
+    argnames: typing.Optional[typing.Dict[str, Param]] = None
 
-    ctes: typing.List[CommonTableExpr]
+    ctes: typing.Optional[typing.List[CommonTableExpr]] = None
 
     def get_rvar_map(self, flavor: str) -> typing.Dict[
             typing.Tuple[irast.PathId, str], PathRangeVar]:
+        if flavor == 'packed':
+            if self.path_packed_rvar_map is None:
+                self.path_packed_rvar_map = {}
+            return self.path_packed_rvar_map
+        elif flavor == 'normal':
+            return self.path_rvar_map
+        else:
+            raise AssertionError(f'unexpected flavor "{flavor}"')
+
+    def maybe_get_rvar_map(self, flavor: str) -> typing.Optional[typing.Dict[
+            typing.Tuple[irast.PathId, str], PathRangeVar]]:
         if flavor == 'packed':
             return self.path_packed_rvar_map
         elif flavor == 'normal':
@@ -433,14 +459,19 @@ class Query(ReturningQuery):
     def ser_safe(self):
         return all(t.ser_safe for t in self.target_list)
 
+    def append_cte(self, cte: CommonTableExpr) -> None:
+        if self.ctes is None:
+            self.ctes = []
+        self.ctes.append(cte)
+
 
 class DMLQuery(Query):
     """Generic superclass for INSERT/UPDATE/DELETE statements."""
 
     # Target relation to perform the operation on.
-    relation: PathRangeVar
+    relation: typing.Optional[PathRangeVar] = None
     # List of expressions returned
-    returning_list: typing.List[ResTarget]
+    returning_list: typing.List[ResTarget] = ast.container_factory
 
     @property
     def target_list(self):
@@ -450,65 +481,65 @@ class DMLQuery(Query):
 class InsertStmt(DMLQuery):
 
     # (optional) list of target column names
-    cols: typing.List[ColumnRef]
+    cols: typing.Optional[typing.List[ColumnRef]] = None
     # source SELECT/VALUES or None
-    select_stmt: Query
+    select_stmt: typing.Optional[Query] = None
     # ON CONFLICT clause
-    on_conflict: OnConflictClause
+    on_conflict: typing.Optional[OnConflictClause] = None
 
 
 class UpdateStmt(DMLQuery):
 
     # The UPDATE target list
-    targets: typing.List[UpdateTarget]
+    targets: typing.List[UpdateTarget] = ast.container_factory
     # WHERE clause
-    where_clause: BaseExpr
+    where_clause: typing.Optional[BaseExpr] = None
     # optional FROM clause
-    from_clause: typing.List[BaseRangeVar]
+    from_clause: typing.List[BaseRangeVar] = ast.container_factory
 
 
 class DeleteStmt(DMLQuery):
     # WHERE clause
-    where_clause: BaseExpr
+    where_clause: typing.Optional[BaseExpr] = None
     # optional USING clause
-    using_clause: typing.List[BaseRangeVar]
+    using_clause: typing.List[BaseRangeVar] = ast.container_factory
 
 
 class SelectStmt(Query):
 
     # List of DISTINCT ON expressions, empty list for DISTINCT ALL
-    distinct_clause: list
+    distinct_clause: typing.Optional[list] = None
     # The target list
-    target_list: typing.List[ResTarget]
+    target_list: typing.List[ResTarget] = ast.container_factory
     # The FROM clause
-    from_clause: typing.List[BaseRangeVar]
+    from_clause: typing.List[BaseRangeVar] = ast.container_factory
     # The WHERE clause
-    where_clause: BaseExpr
+    where_clause: typing.Optional[BaseExpr] = None
     # GROUP BY clauses
-    group_clause: typing.List[Base]
+    group_clause: typing.Optional[typing.List[Base]] = None
     # HAVING expression
-    having: BaseExpr
+    having: typing.Optional[BaseExpr] = None
     # WINDOW window_name AS(...),
-    window_clause: typing.List[Base]
+    window_clause: typing.Optional[typing.List[Base]] = None
     # List of ImplicitRow's in a VALUES query
-    values: typing.List[Base]
+    values: typing.Optional[typing.List[Base]] = None
     # ORDER BY clause
-    sort_clause: typing.List[SortBy]
+    sort_clause: typing.Optional[typing.List[SortBy]] = None
     # OFFSET expression
-    limit_offset: typing.Optional[BaseExpr]
+    limit_offset: typing.Optional[BaseExpr] = None
     # LIMIT expression
-    limit_count: typing.Optional[BaseExpr]
+    limit_count: typing.Optional[BaseExpr] = None
     # FOR UPDATE clause
-    locking_clause: list
+    locking_clause: typing.Optional[list] = None
 
     # Set operation type
-    op: str
+    op: typing.Optional[str] = None
     # ALL modifier
-    all: bool
+    all: bool = False
     # Left operand of set op
-    larg: Query
+    larg: typing.Optional[Query] = None
     # Right operand of set op,
-    rarg: Query
+    rarg: typing.Optional[Query] = None
 
 
 class ExprKind(enum.IntEnum):
@@ -523,9 +554,9 @@ class Expr(ImmutableBaseExpr):
     # Possibly-qualified name of operator
     name: str
     # Left argument, if any
-    lexpr: BaseExpr
+    lexpr: typing.Optional[BaseExpr] = None
     # Right argument, if any
-    rexpr: BaseExpr
+    rexpr: typing.Optional[BaseExpr] = None
 
 
 class BaseConstant(ImmutableBaseExpr):
@@ -551,7 +582,7 @@ class NullConstant(BaseConstant):
 class ByteaConstant(BaseConstant):
     """An bytea string."""
 
-    val: bytes
+    val: str
 
 
 class NumericConstant(BaseConstant):
@@ -602,9 +633,9 @@ class ColumnDef(ImmutableBase):
     # type of column
     typename: TypeName
     # default value, if any
-    default_expr: BaseExpr
+    default_expr: typing.Optional[BaseExpr] = None
     # COLLATE clause, if any
-    coll_clause: BaseExpr
+    coll_clause: typing.Optional[BaseExpr] = None
 
 
 class FuncCall(ImmutableBaseExpr):
@@ -690,34 +721,34 @@ class SortBy(ImmutableBase):
     # expression to sort on
     node: BaseExpr
     # ASC/DESC/USING/default
-    dir: qlast.SortOrder
+    dir: typing.Optional[qlast.SortOrder] = None
     # NULLS FIRST/LAST
-    nulls: qlast.NonesOrder
+    nulls: typing.Optional[qlast.NonesOrder] = None
 
 
 class WindowDef(ImmutableBase):
     """WINDOW and OVER clauses."""
 
     # window name
-    name: str
+    name: typing.Optional[str] = None
     # referenced window name, if any
-    refname: str
+    refname: typing.Optional[str] = None
     # PARTITION BY expr list
-    partition_clause: typing.List[BaseExpr]
+    partition_clause: typing.Optional[typing.List[BaseExpr]] = None
     # ORDER BY
-    order_clause: typing.List[SortBy]
+    order_clause: typing.Optional[typing.List[SortBy]] = None
     # Window frame options
-    frame_options: list
+    frame_options: typing.Optional[list] = None
     # expression for starting bound, if any
-    start_offset: BaseExpr
+    start_offset: typing.Optional[BaseExpr] = None
     # expression for ending ound, if any
-    end_offset: BaseExpr
+    end_offset: typing.Optional[BaseExpr] = None
 
 
 class RangeSubselect(PathRangeVar):
     """Subquery appearing in FROM clauses."""
 
-    lateral: bool
+    lateral: bool = False
     subquery: Query
 
     @property
@@ -727,11 +758,11 @@ class RangeSubselect(PathRangeVar):
 
 class RangeFunction(BaseRangeVar):
 
-    lateral: bool
+    lateral: bool = False
     # WITH ORDINALITY
     with_ordinality: bool = False
     # ROWS FROM form
-    is_rowsfrom: bool
+    is_rowsfrom: bool = False
     functions: typing.List[FuncCall]
 
 
@@ -745,9 +776,9 @@ class JoinExpr(BaseRangeVar):
     # Right subtree
     rarg: BaseExpr
     # USING clause, if any
-    using_clause: typing.List[BaseExpr]
+    using_clause: typing.Optional[typing.List[BaseExpr]] = None
     # Qualifiers on join, if any
-    quals: BaseExpr
+    quals: typing.Optional[BaseExpr] = None
 
     def copy(self):
         result = self.__class__()
@@ -792,7 +823,7 @@ class ImplicitRowExpr(ImmutableBaseExpr):
     """A (a, b, c) expression."""
 
     # The fields.
-    args: typing.List[BaseExpr]
+    args: typing.Sequence[BaseExpr]
     # Row expressions, while may contain NULLs, are not NULL themselves.
     nullable: bool = False
 
@@ -810,7 +841,7 @@ class NullTest(ImmutableBaseExpr):
     # Input expression,
     arg: BaseExpr
     # NOT NULL?
-    negated: bool
+    negated: bool = False
     # NullTest is never NULL
     nullable: bool = False
 
@@ -826,11 +857,11 @@ class CaseWhen(ImmutableBase):
 class CaseExpr(ImmutableBaseExpr):
 
     # Equality comparison argument
-    arg: BaseExpr
+    arg: typing.Optional[BaseExpr] = None
     # List of WHEN clauses
     args: typing.List[CaseWhen]
     # ELSE clause
-    defresult: BaseExpr
+    defresult: typing.Optional[BaseExpr] = None
 
 
 SortAsc = qlast.SortAsc
@@ -844,7 +875,7 @@ NullsLast = qlast.NonesLast
 class AlterSystem(ImmutableBaseExpr):
 
     name: str
-    value: BaseExpr
+    value: typing.Optional[BaseExpr]
 
 
 class Set(ImmutableBaseExpr):

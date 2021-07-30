@@ -217,8 +217,7 @@ def unwrap_set(ir_set: irast.Set) -> irast.Set:
 def get_source_context_as_json(
     expr: irast.Base,
     exctype: Type[errors.EdgeDBError] = errors.InternalServerError,
-) -> Optional[str]:
-    details: Optional[str]
+) -> str:
     if expr.context:
         details = json.dumps({
             # TODO(tailhook) should we add offset, utf16column here?
@@ -229,7 +228,9 @@ def get_source_context_as_json(
         })
 
     else:
-        details = None
+        details = json.dumps({
+            'code': exctype.get_code(),
+        })
 
     return details
 

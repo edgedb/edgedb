@@ -430,7 +430,7 @@ def _check_annotation(f_type, f_fullname, f_default):
                 f'{f_type!r} is not a type')
 
         if typeutils.is_container_type(f_type):
-            if f_default is not None:
+            if f_default is not None and f_default is not container_factory:
                 raise RuntimeError(
                     f'invalid type annotation on {f_fullname}: '
                     f'default is defined for container type '

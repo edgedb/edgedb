@@ -134,7 +134,7 @@ def compile_ir_to_sql(
         debug.header('SQL Tree')
         debug.dump(qtree)
 
-    if isinstance(qtree, pgast.Query):
+    if isinstance(qtree, pgast.Query) and qtree.argnames:
         argmap = qtree.argnames
     else:
         argmap = {}

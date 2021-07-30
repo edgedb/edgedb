@@ -66,7 +66,7 @@ def compile_ConfigSet(
                     )
                 else:
                     val = pgast.TypeCast(
-                        arg=pgast.ArrayExpr(),
+                        arg=pgast.ArrayExpr(elements=[]),
                         type_name=pgast.TypeName(
                             name=('text[]',),
                         ),
@@ -319,6 +319,7 @@ def compile_ConfigReset(
                     name=ctx.env.aliases.get('res'),
                     val=target.val,
                 )
+                assert target.name is not None
 
             rvar = relctx.rvar_for_rel(selector, ctx=ctx)
 
@@ -474,6 +475,7 @@ def top_output_as_config_op(
                 name=env.aliases.get('v'),
                 val=stmt_res.val,
             )
+            assert stmt_res.name is not None
 
         result_row = pgast.RowExpr(
             args=[
