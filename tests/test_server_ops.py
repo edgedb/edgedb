@@ -26,6 +26,7 @@ import json
 import os.path
 import random
 import subprocess
+import ssl
 import sys
 import tempfile
 import time
@@ -403,6 +404,12 @@ class TestServerOps(tb.TestCase):
                 self.assertIn('location', resp_headers)
                 self.assertTrue(
                     resp_headers['location'].startswith('https://'))
+
+                self.assertIn('strict-transport-security', resp_headers)
+                # By default we enforce HTTPS via HSTS on all routes.
+                self.assertEqual(
+                    resp_headers['strict-transport-security'],
+                    'max-age=31536000')
             finally:
                 con.close()
 
@@ -448,6 +455,32 @@ class TestServerOps(tb.TestCase):
                 )
                 resp = con.getresponse()
                 self.assertEqual(resp.status, 404)
+            finally:
+                con.close()
+
+            tls_context = ssl.SSLContext()
+            tls_context.verify_mode = ssl.CERT_REQUIRED
+            tls_context.check_hostname = False
+            tls_context.load_verify_locations(cafile=sd.tls_cert_file)
+            con = http.client.HTTPSConnection(
+                sd.host, sd.port, context=tls_context)
+            con.connect()
+            try:
+                con.request(
+                    'GET',
+                    f'http://{sd.host}:{sd.port}/blah404'
+                )
+                resp = con.getresponse()
+                self.assertEqual(resp.status, 404)
+                resp_headers = {k.lower(): v.lower()
+                                for k, v in resp.getheaders()}
+
+                self.assertIn('strict-transport-security', resp_headers)
+                # When --allow-insecure-http-clients is passed, we set
+                # max-age to 0, to let browsers know that it's safe
+                # for the user to open http://
+                self.assertEqual(
+                    resp_headers['strict-transport-security'], 'max-age=0')
             finally:
                 con.close()
 
