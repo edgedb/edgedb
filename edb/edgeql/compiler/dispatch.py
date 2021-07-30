@@ -33,6 +33,6 @@ from . import context
 def compile(
     node: qlast.Base, *,
     ctx: context.ContextLevel
-) -> Union[irast.Expr, irast.Set]:
+) -> irast.Set:
     raise NotImplementedError(
         f'no EdgeQL compiler handler for {node.__class__}')

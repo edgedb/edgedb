@@ -378,7 +378,8 @@ def __infer_config_reset(
     ir: irast.ConfigReset,
     env: context.Environment,
 ) -> s_types.Type:
-    raise errors.QueryError('no type for ConfigReset')
+    # This is nonsense but we need to return /something/
+    return s_pseudo.PseudoType.get(env.schema, 'anytype')
 
 
 @_infer_type.register

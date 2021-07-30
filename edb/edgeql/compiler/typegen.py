@@ -85,8 +85,7 @@ def _ql_typeexpr_to_type(
         with ctx.new() as subctx:
             # Use an empty scope tree, to avoid polluting things pointlessly
             subctx.path_scope = irast.ScopeTreeNode()
-            ir_set = setgen.ensure_set(dispatch.compile(ql_t.expr, ctx=subctx),
-                                       ctx=subctx)
+            ir_set = dispatch.compile(ql_t.expr, ctx=subctx)
             stype = setgen.get_set_type(ir_set, ctx=subctx)
 
         return [stype]
