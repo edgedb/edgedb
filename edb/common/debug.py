@@ -85,6 +85,9 @@ class flags(metaclass=FlagsMeta):
     edgeql_compile = Flag(
         doc="Dump EdgeQL/IR/SQL ASTs.")
 
+    edgeql_compile_edgeql_text = Flag(
+        doc="Dump EdgeQL Text (subset of `edgeql_compile').")
+
     edgeql_compile_edgeql_ast = Flag(
         doc="Dump EdgeQL AST (subset of `edgeql_compile').")
 

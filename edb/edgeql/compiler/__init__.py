@@ -138,6 +138,7 @@ import functools
 from edb import errors
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import parser as qlparser
 
 from edb.common import debug
@@ -213,6 +214,10 @@ def compile_ast_to_ir(
     """
     if options is None:
         options = CompilerOptions()
+
+    if debug.flags.edgeql_compile or debug.flags.edgeql_compile_edgeql_text:
+        debug.header('EdgeQL Text')
+        debug.dump_code(qlcodegen.generate_source(tree, pretty=True))
 
     if debug.flags.edgeql_compile or debug.flags.edgeql_compile_edgeql_ast:
         debug.header('Compiler Options')
