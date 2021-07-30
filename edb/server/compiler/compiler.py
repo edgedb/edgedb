@@ -177,7 +177,7 @@ def new_compiler_context(
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
     standalone_mode: bool = False,
-    protocol_version: Tuple[int, int],
+    protocol_version: Tuple[int, int] = defines.CURRENT_PROTOCOL,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
 

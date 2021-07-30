@@ -22,8 +22,6 @@ from __future__ import annotations
 from . import protocol  # type: ignore
 
 HttpProtocol = protocol.HttpProtocol
-MIN_PROTOCOL = protocol.MIN_PROTOCOL
-CURRENT_PROTOCOL = protocol.CURRENT_PROTOCOL
 
 
-__all__ = ('HttpProtocol', 'MIN_PROTOCOL', 'CURRENT_PROTOCOL')
+__all__ = ('HttpProtocol',)
