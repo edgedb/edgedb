@@ -34,16 +34,20 @@ class tast:
         pass
 
     class BinOp(Base):
-        __fields = ['op', 'left', 'right']
+        op: typing.Any = None
+        left: typing.Any = None
+        right: typing.Any = None
 
     class UnaryOp(Base):
-        __fields = ['op', 'operand']
+        op: typing.Any = None
+        operand: typing.Any = None
 
     class FunctionCall(Base):
-        __fields = ['name', ('args', list)]
+        name: typing.Any = None
+        args: typing.List[int]
 
     class Constant(Base):
-        __fields = ['value']
+        value: typing.Any = None
 
 
 class tastmatch:
@@ -72,7 +76,7 @@ class ASTBaseTests(unittest.TestCase):
         assert ctree12.left.value == lconst.value
 
         class Dict(tast.Base):
-            __fields = [('node', dict)]
+            node: dict
 
         tree2 = tast.BinOp(
             left=tast.FunctionCall(args=[Dict(node={'lconst': lconst})]))
