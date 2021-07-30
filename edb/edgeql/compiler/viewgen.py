@@ -67,7 +67,7 @@ def process_view(
     is_insert: bool = False,
     is_update: bool = False,
     is_delete: bool = False,
-    parser_context: pctx.ParserContext,
+    parser_context: Optional[pctx.ParserContext],
     ctx: context.ContextLevel,
 ) -> s_objtypes.ObjectType:
 
@@ -114,13 +114,13 @@ def _process_view(
     stype: s_objtypes.ObjectType,
     path_id: irast.PathId,
     path_id_namespace: Optional[irast.Namespace] = None,
-    elements: List[qlast.ShapeElement],
+    elements: Optional[Sequence[qlast.ShapeElement]],
     view_rptr: Optional[context.ViewRPtr] = None,
     view_name: Optional[sn.QualName] = None,
     is_insert: bool = False,
     is_update: bool = False,
     is_delete: bool = False,
-    parser_context: pctx.ParserContext,
+    parser_context: Optional[pctx.ParserContext],
     ctx: context.ContextLevel,
 ) -> s_objtypes.ObjectType:
 
@@ -175,6 +175,7 @@ def _process_view(
 
     pointers = []
 
+    elements = elements or ()
     for shape_el in elements:
         with ctx.newscope(fenced=True) as scopectx:
             pointer = _normalize_view_ptr_expr(

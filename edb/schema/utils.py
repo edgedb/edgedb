@@ -593,7 +593,7 @@ def shell_to_ast(
         else:
             qlref = qlast.ObjectRef(
                 module='',
-                name=name,
+                name=name.name,
             )
         result = qlast.TypeName(
             name=_name,
@@ -1075,7 +1075,7 @@ def const_ast_from_python(val: Any) -> qlast.BaseConstant:
 def get_config_type_shape(
     schema: s_schema.Schema,
     stype: s_objtypes.ObjectType,
-    path: List[qlast.Base],
+    path: List[qlast.PathElement],
 ) -> List[qlast.ShapeElement]:
     from . import objtypes as s_objtypes
     shape = []
@@ -1091,7 +1091,7 @@ def get_config_type_shape(
             if pn in ('id', '__type__') or pn in seen:
                 continue
 
-            elem_path: List[qlast.Base] = []
+            elem_path: List[qlast.PathElement] = []
 
             if t != stype:
                 elem_path.append(

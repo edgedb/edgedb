@@ -362,38 +362,9 @@ class CreateLink(
                         node.target = utils.typeref_to_ast(schema, t)
             else:
                 assert isinstance(op.new_value, (so.Object, so.ObjectShell))
-                top_op = self.get_top_referrer_op(context)
-                conv_expr: Optional[qlast.Expr]
-                if (
-                    top_op is not None
-                    and (
-                        isinstance(top_op, sd.CreateObject)
-                        or (
-                            top_op.orig_cmd_type is not None
-                            and issubclass(
-                                top_op.orig_cmd_type, sd.CreateObject)
-                        )
-                    )
-                ):
-                    # This op is part of CREATE TYPE, so avoid tripping up
-                    # the DDL check on SET TYPE by generating an appropriate
-                    # conversion expression: USING (.foo[IS Type]).
-                    lname = sn.shortname_from_fullname(self.classname).name
-                    conv_expr = qlast.Path(
-                        partial=True,
-                        steps=[
-                            qlast.Ptr(ptr=qlast.ObjectRef(name=lname)),
-                            qlast.TypeIntersection(
-                                type=utils.typeref_to_ast(schema, op.new_value)
-                            )
-                        ],
-                    )
-                else:
-                    conv_expr = None
                 node.commands.append(
                     qlast.SetPointerType(
                         value=utils.typeref_to_ast(schema, op.new_value),
-                        expr=conv_expr,
                     )
                 )
         elif op.property == 'on_target_delete':
@@ -622,7 +593,7 @@ class AlterLink(
                 assert isinstance(op.new_value, so.ObjectShell)
                 node.commands.append(
                     qlast.SetPointerType(
-                        type=utils.typeref_to_ast(schema, op.new_value),
+                        value=utils.typeref_to_ast(schema, op.new_value),
                     ),
                 )
         elif op.property == 'computable':

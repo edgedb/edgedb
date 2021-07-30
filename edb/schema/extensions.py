@@ -158,7 +158,9 @@ class CreateExtensionPackage(
         if op.property == 'script':
             node.body = qlast.NestedQLBlock(
                 text=op.new_value,
-                commands=qlparser.parse_block(op.new_value),
+                commands=cast(
+                    List[qlast.DDLOperation],
+                    qlparser.parse_block(op.new_value)),
             )
         elif op.property == 'version':
             node.version = qlast.StringConstant(

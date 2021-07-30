@@ -580,7 +580,6 @@ def _cast_array(
                                     qlast.Ptr(
                                         ptr=qlast.ObjectRef(
                                             name='1',
-                                            direction='>',
                                         ),
                                     ),
                                 ],
@@ -599,7 +598,6 @@ def _cast_array(
                                         qlast.Ptr(
                                             ptr=qlast.ObjectRef(
                                                 name='0',
-                                                direction='>',
                                             ),
                                         ),
                                     ],

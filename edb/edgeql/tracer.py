@@ -331,7 +331,7 @@ class TracerContext:
 @contextmanager
 def alias_context(
     ctx: TracerContext,
-    aliases: List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]],
+    aliases: Optional[List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]]],
 ) -> Generator[TracerContext, None, None]:
     module = None
     modaliases: Dict[Optional[str], str] = {}
@@ -340,7 +340,7 @@ def alias_context(
     objects = dict(ctx.objects)
     ctx_changed = False
 
-    for alias in aliases:
+    for alias in (aliases or ()):
         # module and modalias in ctx needs to be amended
         if isinstance(alias, qlast.ModuleAliasDecl):
             ctx_changed = True
@@ -833,8 +833,9 @@ def trace_Shape(
 def trace_ShapeElement(node: qlast.ShapeElement, *,
                        ctx: TracerContext) -> None:
     trace(node.expr, ctx=ctx)
-    for element in node.elements:
-        trace(element, ctx=ctx)
+    if node.elements:
+        for element in node.elements:
+            trace(element, ctx=ctx)
     trace(node.where, ctx=ctx)
     if node.orderby:
         for sortexpr in node.orderby:

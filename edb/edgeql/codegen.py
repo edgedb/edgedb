@@ -1492,6 +1492,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             def after_name() -> None:
                 if type_cmd is not None:
                     self.write(' -> ')
+                    assert type_cmd.value
                     self.visit(type_cmd.value)
 
         keywords.append('PROPERTY')
@@ -1593,6 +1594,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self._ddl_visit_bases(inherit_cmd)
                 if type_cmd is not None:
                     self.write(' -> ')
+                    assert type_cmd.value
                     self.visit(type_cmd.value)
         else:
             after_name = None

@@ -59,7 +59,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
     def __init__(
         self,
         *args: Any,
-        _qlast: Optional[qlast_.Base] = None,
+        _qlast: Optional[qlast_.Expr] = None,
         _irast: Optional[irast_.Command] = None,
         **kwargs: Any
     ) -> None:
@@ -76,7 +76,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         }
 
     @property
-    def qlast(self) -> qlast_.Base:
+    def qlast(self) -> qlast_.Expr:
         if self._qlast is None:
             self._qlast = qlparser.parse_fragment(self.text)
         return self._qlast
@@ -109,7 +109,7 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
     @classmethod
     def from_ast(
         cls: Type[Expression],
-        qltree: qlast_.Base,
+        qltree: qlast_.Expr,
         schema: s_schema.Schema,
         modaliases: Optional[Mapping[Optional[str], str]] = None,
         localnames: AbstractSet[str] = frozenset(),
@@ -293,7 +293,7 @@ class ExpressionShell(so.Shell):
         *,
         text: str,
         refs: Optional[Iterable[so.ObjectShell[so.Object]]],
-        _qlast: Optional[qlast_.Base] = None,
+        _qlast: Optional[qlast_.Expr] = None,
         _irast: Optional[irast_.Command] = None,
     ) -> None:
         self.text = text
@@ -313,7 +313,7 @@ class ExpressionShell(so.Shell):
         )
 
     @property
-    def qlast(self) -> qlast_.Base:
+    def qlast(self) -> qlast_.Expr:
         if self._qlast is None:
             self._qlast = qlparser.parse_fragment(self.text)
         return self._qlast
@@ -396,18 +396,22 @@ def imprint_expr_context(
         return qltree
 
     if not isinstance(qltree, qlast_.Command):
+        assert isinstance(qltree, qlast_.Expr)
         qltree = qlast_.SelectQuery(result=qltree, implicit=True)
     else:
         qltree = copy.copy(qltree)
-        qltree.aliases = list(qltree.aliases)
+        qltree.aliases = (
+            list(qltree.aliases) if qltree.aliases is not None else None)
 
     existing_aliases: Dict[Optional[str], str] = {}
-    for alias in qltree.aliases:
+    for alias in (qltree.aliases or ()):
         if isinstance(alias, qlast_.ModuleAliasDecl):
             existing_aliases[alias.alias] = alias.module
 
     aliases_to_add = set(modaliases) - set(existing_aliases)
     for alias_name in aliases_to_add:
+        if qltree.aliases is None:
+            qltree.aliases = []
         qltree.aliases.append(
             qlast_.ModuleAliasDecl(
                 alias=alias_name,

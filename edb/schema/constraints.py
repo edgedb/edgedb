@@ -1387,6 +1387,7 @@ class AlterConstraint(
             ast = qlast.CreateConcreteConstraint(
                 name=qlast.ObjectRef(name=name.name, module=name.module),
                 subjectexpr=subjectexpr.qlast,
+                args=[],
             )
             quals = sn.quals_from_fullname(self.classname)
             new_name = self._classname_from_ast_and_referrer(

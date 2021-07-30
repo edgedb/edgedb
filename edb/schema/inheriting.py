@@ -1114,7 +1114,10 @@ class RebaseInheritingObject(
         if dropped:
             parent_node.commands.append(
                 qlast.AlterDropInherit(
-                    bases=[utils.typeref_to_ast(schema, b) for b in dropped],
+                    bases=[
+                        cast(qlast.TypeName, utils.typeref_to_ast(schema, b))
+                        for b in dropped
+                    ],
                 )
             )
 
@@ -1127,6 +1130,7 @@ class RebaseInheritingObject(
                 typ = utils.typeref_to_ast(schema, pos[1])
                 assert isinstance(typ, qlast.TypeName)
 
+                assert isinstance(typ.maintype, qlast.ObjectRef)
                 pos_node = qlast.Position(
                     position=pos[0],
                     ref=typ.maintype,
@@ -1137,7 +1141,10 @@ class RebaseInheritingObject(
 
             parent_node.commands.append(
                 qlast.AlterAddInherit(
-                    bases=[utils.typeref_to_ast(schema, b) for b in bases],
+                    bases=[
+                        cast(qlast.TypeName, utils.typeref_to_ast(schema, b))
+                        for b in bases
+                    ],
                     position=pos_node,
                 )
             )

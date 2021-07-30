@@ -929,8 +929,8 @@ def _register_item(
         if subcmds:
             assert isinstance(decl, qlast.ObjectDDL)
             alter_name = f"Alter{decl.__class__.__name__[len('Create'):]}"
-            alter_cls: Type[qlast.ObjectDDL] = getattr(qlast, alter_name)
-            alter_cmd = alter_cls(name=decl.name)
+            alter_cls = getattr(qlast, alter_name)
+            alter_cmd: qlast.ObjectDDL = alter_cls(name=decl.name)
 
             # indexes need to preserve their "on" expression
             if isinstance(decl, qlast.CreateIndex):
@@ -1151,7 +1151,7 @@ def _resolve_type_expr(
     if isinstance(texpr, qlast.TypeName):
         if texpr.subtypes:
             return qltracer.Type(
-                name=s_name.QualName(module='__coll__', name=texpr.name),
+                name=s_name.QualName(module='__coll__', name=texpr.name or ''),
             )
         else:
             return cast(
@@ -1269,7 +1269,7 @@ def _validate_schema_ref(
 def _resolve_schema_ref(
     name: s_name.Name,
     type: Type[s_obj.Object_T],
-    sourcectx: parsing.ParserContext,
+    sourcectx: Optional[parsing.ParserContext],
     *,
     ctx: LayoutTraceContext,
 ) -> s_obj.Object_T:

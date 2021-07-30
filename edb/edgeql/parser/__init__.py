@@ -40,17 +40,19 @@ def append_module_aliases(tree, aliases):
     return tree
 
 
-def parse_fragment(source: Union[qltokenizer.Source, str]) -> qlast.Base:
+def parse_fragment(source: Union[qltokenizer.Source, str]) -> qlast.Expr:
     if isinstance(source, str):
         source = qltokenizer.Source.from_string(source)
     parser = qlparser.EdgeQLExpressionParser()
-    return parser.parse(source)
+    res = parser.parse(source)
+    assert isinstance(res, qlast.Expr)
+    return res
 
 
 def parse(
     source: Union[qltokenizer.Source, str],
     module_aliases: Optional[Mapping[Optional[str], str]] = None,
-) -> qlast.Base:
+) -> qlast.Expr:
     tree = parse_fragment(source)
 
     if not isinstance(tree, qlast.Command):

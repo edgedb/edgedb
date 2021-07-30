@@ -151,7 +151,7 @@ class Environment:
     set_types: Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
 
-    type_origins: Dict[s_types.Type, parsing.ParserContext]
+    type_origins: Dict[s_types.Type, Optional[parsing.ParserContext]]
     """A dictionary of notable types and their source origins.
 
     This is used to trace where a particular type instance originated in
@@ -399,7 +399,7 @@ class ContextLevel(compiler.ContextLevel):
 
     must_use_views: Dict[
         s_types.Type,
-        Tuple[s_name.Name, parsing.ParserContext],
+        Tuple[s_name.Name, Optional[parsing.ParserContext]],
     ]
     """A set of views that *must* be used in an expression."""
 

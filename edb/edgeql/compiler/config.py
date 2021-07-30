@@ -199,6 +199,7 @@ def _inject_tname(
         if isinstance(el.compexpr, qlast.InsertQuery):
             _inject_tname(el.compexpr, ctx=ctx)
 
+    assert isinstance(insert_stmt.subject.steps[0], qlast.BaseObjectRef)
     insert_stmt.shape.append(
         qlast.ShapeElement(
             expr=qlast.Path(
