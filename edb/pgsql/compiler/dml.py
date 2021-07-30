@@ -200,6 +200,7 @@ def gen_dml_union(
                 larg=qry,
             )
 
+        assert qry.larg
         if ctx.enclosing_cte_iterator:
             pathctx.put_path_bond(qry.larg, ctx.enclosing_cte_iterator.path_id)
 
@@ -378,7 +379,7 @@ def fini_dml_stmt(
     union_cte, union_rvar = gen_dml_union(ir_stmt, parts, ctx=ctx)
 
     if len(parts.dml_ctes) > 1 or parts.else_cte:
-        ctx.toplevel_stmt.ctes.append(union_cte)
+        ctx.toplevel_stmt.append_cte(union_cte)
 
     relctx.include_rvar(ctx.rel, union_rvar, ir_stmt.subject.path_id, ctx=ctx)
 
@@ -392,7 +393,9 @@ def fini_dml_stmt(
         check_cte.materialized = True
         check = pgast.SelectStmt(
             target_list=[
-                pgast.FuncCall(name=('count',), args=[pgast.Star()]),
+                pgast.ResTarget(
+                    val=pgast.FuncCall(name=('count',), args=[pgast.Star()]),
+                )
             ],
             from_clause=[
                 relctx.rvar_for_rel(check_cte, ctx=ctx),
@@ -518,7 +521,7 @@ def compile_iterator_cte(
             query=ictx.rel,
             name=ctx.env.aliases.get('iter')
         )
-        ictx.toplevel_stmt.ctes.append(iterator_cte)
+        ictx.toplevel_stmt.append_cte(iterator_cte)
 
     ctx.dml_stmts[iterator_set] = iterator_cte
 
@@ -693,7 +696,7 @@ def process_insert_body(
             pathctx.put_path_bond(insert_stmt, iterator.path_id)
 
     toplevel = ctx.toplevel_stmt
-    toplevel.ctes.append(insert_cte)
+    toplevel.append_cte(insert_cte)
 
     # Process necessary updates to the link tables.
     for shape_el in external_inserts:
@@ -808,7 +811,7 @@ def compile_insert_else_body(
             query=ictx.rel,
             name=ctx.env.aliases.get('else')
         )
-        ictx.toplevel_stmt.ctes.append(else_select_cte)
+        ictx.toplevel_stmt.append_cte(else_select_cte)
 
     else_select_rvar = relctx.rvar_for_rel(else_select_cte, ctx=ctx)
 
@@ -833,7 +836,7 @@ def compile_insert_else_body(
             assert else_cte_rvar
             else_branch_cte = else_cte_rvar[0]
             else_branch_cte.query = ictx.rel
-            ictx.toplevel_stmt.ctes.append(else_branch_cte)
+            ictx.toplevel_stmt.append_cte(else_branch_cte)
 
     anti_cte_iterator = None
     if needs_conflict_cte:
@@ -876,7 +879,7 @@ def compile_insert_else_body(
                 query=ictx.rel,
                 name=ctx.env.aliases.get('non_conflict')
             )
-            ictx.toplevel_stmt.ctes.append(anti_cte)
+            ictx.toplevel_stmt.append_cte(anti_cte)
             anti_cte_iterator = pgast.IteratorCTE(
                 path_id=dummy_pathid, cte=anti_cte,
                 parent=ictx.enclosing_cte_iterator)
@@ -948,6 +951,7 @@ def process_update_body(
 
     external_updates = []
 
+    assert dml_parts.range_cte
     iterator = pgast.IteratorCTE(
         path_id=ir_stmt.subject.path_id,
         cte=dml_parts.range_cte,
@@ -1051,11 +1055,12 @@ def process_update_body(
     if not update_stmt.targets:
         # No updates directly to the set target table,
         # so convert the UPDATE statement into a SELECT.
+        assert update_stmt.relation
         from_clause: List[pgast.BaseRangeVar] = [update_stmt.relation]
         from_clause.extend(update_stmt.from_clause)
         update_cte.query = pgast.SelectStmt(
             ctes=update_stmt.ctes,
-            target_list=update_stmt.returning_list,
+            target_list=update_stmt.returning_list or [],
             from_clause=from_clause,
             where_clause=update_stmt.where_clause,
             path_namespace=update_stmt.path_namespace,
@@ -1066,7 +1071,7 @@ def process_update_body(
         )
 
     toplevel = ctx.toplevel_stmt
-    toplevel.ctes.append(update_cte)
+    toplevel.append_cte(update_cte)
 
     # Process necessary updates to the link tables.
     for expr, shape_op in external_updates:
@@ -1255,7 +1260,7 @@ def process_link_update(
         ctx=ctx,
     )
 
-    toplevel.ctes.append(data_cte)
+    toplevel.append_cte(data_cte)
 
     delqry: Optional[pgast.DeleteStmt]
 
@@ -1377,7 +1382,7 @@ def process_link_update(
         relctx.add_ptr_rel_overlay(
             ptrref, 'except', delcte, path_id=path_id,
             dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
-        toplevel.ctes.append(delcte)
+        toplevel.append_cte(delcte)
     else:
         delqry = None
 
@@ -1425,7 +1430,7 @@ def process_link_update(
                     ctx=subctx,
                 )
 
-                toplevel.ctes.append(check_cte)
+                toplevel.append_cte(check_cte)
 
             return check_cte
 
@@ -1556,7 +1561,7 @@ def process_link_update(
         path_id=path_id.ptr_path(),
         ctx=ctx)
 
-    toplevel.ctes.append(updcte)
+    toplevel.append_cte(updcte)
 
     return None
 
@@ -1667,7 +1672,7 @@ def process_link_values(
                 # have the correct context.
                 inner_iterator_cte = None
                 inner_iterator_path_id = ir_expr.expr.iterator_stmt.path_id
-                for cte in input_rel_ctx.toplevel_stmt.ctes:
+                for cte in (input_rel_ctx.toplevel_stmt.ctes or ()):
                     if cte.query.path_id == inner_iterator_path_id:
                         inner_iterator_cte = cte
                         break
@@ -1707,6 +1712,7 @@ def process_link_values(
 
     if isinstance(input_stmt, pgast.SelectStmt) and input_stmt.op is not None:
         # UNION
+        assert input_stmt.rarg
         input_stmt = input_stmt.rarg
 
     path_id = ir_expr.path_id

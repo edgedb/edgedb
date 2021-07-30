@@ -47,6 +47,8 @@ def fini_stmt(
 
     if stmt is ctx.toplevel_stmt:
         # Type rewrites go first.
+        if stmt.ctes is None:
+            stmt.ctes = []
         stmt.ctes[:0] = list(ctx.type_ctes.values())
 
         stmt.argnames = argmap = ctx.argmap
@@ -72,7 +74,7 @@ def fini_stmt(
                     )
                 )))
             if targets:
-                ctx.toplevel_stmt.ctes.append(
+                ctx.toplevel_stmt.append_cte(
                     pgast.CommonTableExpr(
                         name="__unused_vars",
                         query=pgast.SelectStmt(target_list=targets)
@@ -180,10 +182,13 @@ def compile_materialized_exprs(
                     materializing=True,
                     ctx=matctx)
 
+            if not mat_qry.target_list[0].name:
+                mat_qry.target_list[0].name = ctx.env.aliases.get('v')
+
             ref = pgast.ColumnRef(name=[mat_qry.target_list[0].name])
             for mat_id in mat_ids:
-                mat_qry.packed_path_outputs[mat_id, 'value'] = (
-                    ref, not is_singleton)
+                pathctx.put_path_packed_output(
+                    mat_qry, mat_id, ref, multi=not is_singleton)
 
             mat_rvar = relctx.rvar_for_rel(mat_qry, lateral=True, ctx=matctx)
             for mat_id in mat_ids:

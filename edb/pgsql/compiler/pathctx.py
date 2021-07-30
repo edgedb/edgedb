@@ -634,6 +634,7 @@ def get_rvar_path_var(
         if (
             (rptr := path_id.rptr()) is not None
             and rvar.typeref is not None
+            and rvar.query.path_id
             and rvar.query.path_id != path_id
             and (not rvar.query.path_id.is_type_intersection_path()
                  or rvar.query.path_id.src_path() != path_id)
@@ -714,13 +715,24 @@ def get_rvar_output_var_as_col_list(
     return cols
 
 
+def put_path_packed_output(
+        rel: pgast.EdgeQLPathInfo, path_id: irast.PathId,
+        val: pgast.OutputVar, *, multi: bool) -> None:
+    if rel.packed_path_outputs is None:
+        rel.packed_path_outputs = {}
+    rel.packed_path_outputs[path_id, 'value'] = (val, multi)
+
+
 def get_rvar_path_packed_output(
         rvar: pgast.PathRangeVar, path_id: irast.PathId, aspect: str, *,
         env: context.Environment) -> Tuple[pgast.OutputVar, bool]:
     """Return ColumnRef for a given *path_id* in a given *range var*."""
 
-    outvar = rvar.query.packed_path_outputs.get((path_id, aspect))
-    if outvar is None:
+    outvar = (
+        rvar.query.packed_path_outputs
+        and rvar.query.packed_path_outputs.get((path_id, aspect))
+    )
+    if not outvar:
         raise LookupError(
             f'there is no packed var for {path_id} {aspect} in {rvar.query}')
     return astutils.get_rvar_var(rvar, outvar[0]), outvar[1]
@@ -834,11 +846,12 @@ def maybe_get_path_rvar(
         flavor: str='normal',
         env: context.Environment) -> Optional[pgast.PathRangeVar]:
     rvar = env.external_rvars.get((path_id, aspect))
-    path_rvar_map = stmt.get_rvar_map(flavor)
-    if rvar is None:
-        rvar = path_rvar_map.get((path_id, aspect))
-    if rvar is None and aspect == 'identity':
-        rvar = path_rvar_map.get((path_id, 'value'))
+    path_rvar_map = stmt.maybe_get_rvar_map(flavor)
+    if path_rvar_map is not None:
+        if rvar is None and path_rvar_map:
+            rvar = path_rvar_map.get((path_id, aspect))
+        if rvar is None and aspect == 'identity':
+            rvar = path_rvar_map.get((path_id, 'value'))
     return rvar
 
 
@@ -932,7 +945,8 @@ def _get_rel_path_output(
                 f'invalid request for non-scalar path {path_id} {aspect}')
 
         if (path_id == rel.path_id or
-                (rel.path_id.is_type_intersection_path() and
+                (rel.path_id and
+                 rel.path_id.is_type_intersection_path() and
                  path_id == rel.path_id.src_path())):
 
             return _get_rel_object_id_output(
@@ -1324,7 +1338,7 @@ def get_path_output_or_null(
 
 def is_nullable(
         expr: pgast.BaseExpr, *,
-        env: context.Environment) -> bool:
+        env: context.Environment) -> Optional[bool]:
     try:
         return expr.nullable
     except AttributeError:

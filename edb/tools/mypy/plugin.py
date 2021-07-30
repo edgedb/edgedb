@@ -469,25 +469,11 @@ class SchemaClassTransformer(BaseStructTransformer):
         return fields
 
 
-INIT_WHITELIST = {
-    'edb.edgeql',
-    'edb.ir',
-}
-
-
 class ASTClassTransformer(BaseTransformer):
 
     def _transform(self) -> List[Field]:
         fields = self._collect_fields()
-
-        # NB: __init__ synthesis below brings up a vast number of
-        #     typing errors which require AST definitions to be
-        #     annotated with defaults properly and the code adjusted
-        #     to handle Optional fields (historically we've been
-        #     initializing container fields with empty lists/tuples).
-
-        if any(self._ctx.cls.fullname.startswith(x) for x in INIT_WHITELIST):
-            self._synthesize_init(fields)
+        self._synthesize_init(fields)
         return fields
 
     def _field_from_field_def(

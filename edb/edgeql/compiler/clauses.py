@@ -60,12 +60,13 @@ def compile_where_clause(
 
 
 def compile_orderby_clause(
-        sortexprs: Optional[Iterable[qlast.SortExpr]], *,
-        ctx: context.ContextLevel) -> List[irast.SortExpr]:
+        sortexprs: Optional[Sequence[qlast.SortExpr]], *,
+        ctx: context.ContextLevel) -> Optional[List[irast.SortExpr]]:
+
+    if not sortexprs:
+        return None
 
     result: List[irast.SortExpr] = []
-    if not sortexprs:
-        return result
 
     if ctx.partial_path_prefix:
         pathctx.register_set_in_scope(ctx.partial_path_prefix, ctx=ctx)

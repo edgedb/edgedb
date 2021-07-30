@@ -436,7 +436,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if not node.include_inherited:
             self.write(')')
 
-        if node.alias:
+        if node.alias and node.alias.aliasname:
             self.write(' AS ')
             self.visit(node.alias)
 
@@ -446,7 +446,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         self.visit(node.subquery)
 
-        if node.alias:
+        if node.alias and node.alias.aliasname:
             self.write(' AS ')
             self.visit(node.alias)
 
@@ -465,7 +465,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.with_ordinality:
             self.write(' WITH ORDINALITY ')
 
-        if node.alias:
+        if node.alias and node.alias.aliasname:
             self.write(' AS ')
             self.visit(node.alias)
 

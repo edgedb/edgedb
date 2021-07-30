@@ -370,6 +370,7 @@ def compile_operator(
             sql_oper = '!='
 
     elif str_func_name == 'std::EXISTS':
+        assert rexpr
         result = pgast.NullTest(arg=rexpr, negated=True)
 
     elif expr.sql_operator:

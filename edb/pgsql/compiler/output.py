@@ -160,7 +160,8 @@ def array_as_json_object(
         for i, st in enumerate(el_type.subtypes):
             if is_named:
                 colname = st.element_name
-                json_args.append(pgast.StringConstant(val=st.element_name))
+                assert colname
+                json_args.append(pgast.StringConstant(val=colname))
             else:
                 colname = str(i)
 
@@ -329,6 +330,7 @@ def named_tuple_as_json_object(
 
     if irtyputils.is_persistent_tuple(styperef):
         for el_type in styperef.subtypes:
+            assert el_type.element_name
             keyvals.append(pgast.StringConstant(val=el_type.element_name))
             val: pgast.BaseExpr = pgast.Indirection(
                 arg=expr,
@@ -355,6 +357,7 @@ def named_tuple_as_json_object(
         coldeflist = []
 
         for el_type in styperef.subtypes:
+            assert el_type.element_name
             keyvals.append(pgast.StringConstant(val=el_type.element_name))
 
             coldeflist.append(pgast.ColumnDef(
@@ -601,6 +604,7 @@ def aggregate_json_output(
             name=env.aliases.get('v'),
             val=stmt_res.val,
         )
+        assert stmt_res.name is not None
 
     new_val = pgast.CoalesceExpr(
         args=[
@@ -652,6 +656,7 @@ def wrap_script_stmt(
             name=env.aliases.get('v'),
             val=stmt_res.val,
         )
+        assert stmt_res.name is not None
 
     count_val = pgast.FuncCall(
         name=('count',),

@@ -68,6 +68,7 @@ def _pull_path_namespace(
     if astutils.is_set_op_query(squery):
         # Set op query
         squery = cast(pgast.SelectStmt, squery)
+        assert squery.larg and squery.rarg
         source_qs = [squery, squery.larg, squery.rarg]
     else:
         source_qs = [squery]
@@ -83,9 +84,11 @@ def _pull_path_namespace(
                 s_paths.update(source_q.path_rvar_map)
         elif flavor == 'packed':
             if hasattr(source_q, 'packed_path_outputs'):
-                s_paths.update(source_q.packed_path_outputs)
+                if source_q.packed_path_outputs:
+                    s_paths.update(source_q.packed_path_outputs)
             if isinstance(source_q, pgast.Query):
-                s_paths.update(source_q.path_packed_rvar_map)
+                if source_q.path_packed_rvar_map:
+                    s_paths.update(source_q.path_packed_rvar_map)
         else:
             raise AssertionError(f'unexpected flavor "{flavor}"')
 
@@ -1023,8 +1026,9 @@ def unpack_rvar(
             sub_packed_stmt = pgast.SelectStmt(
                 target_list=[pgast.ResTarget(name=colname, val=cref)],
             )
-            sub_packed_stmt.packed_path_outputs[el_id, 'value'] = (
-                pgast.ColumnRef(name=[colname]), el.multi,
+            pathctx.put_path_packed_output(
+                sub_packed_stmt, el_id,
+                val=pgast.ColumnRef(name=[colname]), multi=el.multi,
             )
 
             sub_rvar = rvar_for_rel(sub_packed_stmt, lateral=True, ctx=ctx)
@@ -1222,7 +1226,7 @@ def range_for_material_objtype(
                 relation=cte,
                 typeref=typeref,
                 alias=pgast.Alias(
-                    aliasname=env.aliases.get(hint=cte.name)
+                    aliasname=env.aliases.get(hint=cte.name or '')
                 )
             )
 
@@ -1239,7 +1243,7 @@ def range_for_material_objtype(
             qry_rvar = pgast.RangeSubselect(
                 subquery=qry,
                 alias=pgast.Alias(
-                    aliasname=env.aliases.get(hint=cte.name)
+                    aliasname=env.aliases.get(hint=cte.name or '')
                 )
             )
 
@@ -1376,6 +1380,7 @@ def wrap_set_op_query(
                 )
             )
             for col in astutils.get_leftmost_query(qry).target_list
+            if col.name
         ]
 
         pull_path_namespace(target=nqry, source=rvar, ctx=ctx)
@@ -1579,7 +1584,7 @@ def range_for_ptrref(
                 rvar = pgast.RelRangeVar(
                     relation=cte,
                     alias=pgast.Alias(
-                        aliasname=ctx.env.aliases.get(cte.name)
+                        aliasname=ctx.env.aliases.get(cte.name or '')
                     )
                 )
 
@@ -1664,7 +1669,7 @@ def rvar_for_rel(
             typeref=typeref,
         )
     else:
-        alias = ctx.env.aliases.get(rel.name)
+        alias = ctx.env.aliases.get(rel.name or '')
 
         rvar = pgast.RelRangeVar(
             relation=rel,
