@@ -37,7 +37,6 @@ from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
 from edb.server import pgcluster
 from edb.server import pgconnparams
-from edb.server import protocol
 
 from edb.pgsql import common as pgcommon
 from edb.pgsql.common import quote_ident as qi
@@ -290,7 +289,6 @@ async def _get_dbs_and_roles(
         single_statement=True,
         output_format=edbcompiler.IoFormat.JSON,
         bootstrap_mode=True,
-        protocol_version=protocol.CURRENT_PROTOCOL,
     )
 
     _, get_databases_sql = edbcompiler.compile_edgeql_script(

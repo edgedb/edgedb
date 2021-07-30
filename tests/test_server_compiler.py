@@ -28,7 +28,6 @@ import tempfile
 from edb.testbase import lang as tb
 from edb.testbase import server as tbs
 from edb.server import compiler as edbcompiler
-from edb.server import protocol
 from edb.server.compiler_pool import amsg
 from edb.server.compiler_pool import pool
 from edb.server.dbview import dbview
@@ -52,7 +51,6 @@ class TestServerCompiler(tb.BaseSchemaLoadTest):
         context = edbcompiler.new_compiler_context(
             user_schema=self.schema,
             modaliases={None: 'default'},
-            protocol_version=protocol.CURRENT_PROTOCOL,
         )
 
         edbcompiler.compile_edgeql_script(

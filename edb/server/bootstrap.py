@@ -56,8 +56,6 @@ from edb.server import config
 from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef
 from edb.server import pgcluster
-from edb.server import protocol
-
 
 from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
@@ -379,7 +377,6 @@ def compile_bootstrap_script(
         json_parameters=True,
         output_format=output_format,
         bootstrap_mode=True,
-        protocol_version=protocol.CURRENT_PROTOCOL,
     )
 
     return edbcompiler.compile_edgeql_script(compiler, ctx, eql)
@@ -496,7 +493,6 @@ async def _make_stdlib(
     compilerctx = edbcompiler.new_compiler_context(
         user_schema=reflschema.get_top_schema(),
         global_schema=schema.get_global_schema(),
-        protocol_version=protocol.CURRENT_PROTOCOL,
         bootstrap_mode=True,
     )
 
@@ -512,7 +508,6 @@ async def _make_stdlib(
         global_schema=schema.get_global_schema(),
         bootstrap_mode=True,
         internal_schema_mode=True,
-        protocol_version=protocol.CURRENT_PROTOCOL,
     )
     compiler._compile_schema_storage_in_delta(
         ctx=compilerctx,
@@ -527,7 +522,6 @@ async def _make_stdlib(
         global_schema=schema.get_global_schema(),
         schema_reflection_mode=True,
         output_format=edbcompiler.IoFormat.JSON_ELEMENTS,
-        protocol_version=protocol.CURRENT_PROTOCOL,
     )
 
     # The introspection query bits are returned in chunks
@@ -615,8 +609,7 @@ async def _amend_stdlib(
     )
 
     compilerctx = edbcompiler.new_compiler_context(
-        user_schema=schema,
-        protocol_version=protocol.CURRENT_PROTOCOL,
+        user_schema=schema
     )
     for plan in plans:
         compiler._compile_schema_storage_in_delta(
