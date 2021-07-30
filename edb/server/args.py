@@ -374,6 +374,7 @@ _server_options = [
              '--tls-key-file, and defaults to True in dev mode.'),
     click.option(
         '--allow-insecure-binary-clients',
+        envvar='EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS',
         type=bool, is_flag=True, hidden=True,
         help='Allow non-TLS client binary connections.'),
     click.option(
