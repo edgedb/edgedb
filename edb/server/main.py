@@ -300,10 +300,13 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
 
     ver = buildmeta.get_version()
 
+    info_details = f'version: {ver}'
+    if args.instance_name:
+        info_details = f'instance-name: {args.instance_name!r}, {info_details}'
     if devmode.is_in_dev_mode():
-        logger.info(f'EdgeDB server ({ver}) starting in DEV mode.')
+        logger.info(f'EdgeDB server ({info_details}) is starting in DEV mode.')
     else:
-        logger.info(f'EdgeDB server ({ver}) starting.')
+        logger.info(f'EdgeDB server ({info_details}) is starting.')
 
     _init_parsers()
 
