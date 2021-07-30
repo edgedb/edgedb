@@ -384,12 +384,12 @@ def _is_optional(type_):
 
 def _check_annotation(f_type, f_fullname, f_default):
     if typing_inspect.is_tuple_type(f_type):
-        if f_default is not None:
+        if f_default is not None and f_default != ():
             raise RuntimeError(
                 f'invalid type annotation on {f_fullname}: '
                 f'default is defined for tuple type')
 
-        f_default = tuple
+        f_default = ()
 
     elif typing_inspect.is_union_type(f_type):
         for t in typing_inspect.get_args(f_type, evaluate=True):

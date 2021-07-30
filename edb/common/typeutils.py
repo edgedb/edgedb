@@ -19,8 +19,22 @@
 
 from __future__ import annotations
 
+from typing import *
+
 import collections.abc
 import functools
+
+T = TypeVar('T')
+
+
+def downcast(x: Any, typ: Type[T]) -> T:
+    assert isinstance(x, typ)
+    return x
+
+
+def not_none(x: Optional[T]) -> T:
+    assert x is not None
+    return x
 
 
 @functools.lru_cache(1024)

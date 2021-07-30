@@ -30,6 +30,7 @@ from edb import errors
 
 from edb.common import levenshtein
 from edb.common import parsing
+from edb.common.typeutils import downcast, not_none
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
@@ -97,7 +98,7 @@ def new_set(
             subctx.expr_exposed = False
             subctx.path_scope = subctx.env.path_scope.root
             # Put a placeholder to prevent recursion.
-            subctx.type_rewrites[stype] = irast.Set()
+            subctx.type_rewrites[stype] = irast.Set()  # type: ignore
             filtered_set = dispatch.compile(qry, ctx=subctx)
             assert isinstance(filtered_set, irast.Set)
             subctx.type_rewrites[stype] = filtered_set
@@ -176,7 +177,8 @@ def new_tuple_set(
         named: bool,
         ctx: context.ContextLevel) -> irast.Set:
 
-    tup = irast.Tuple(elements=elements, named=named)
+    dummy_typeref = cast(irast.TypeRef, None)
+    tup = irast.Tuple(elements=elements, named=named, typeref=dummy_typeref)
     stype = inference.infer_type(tup, env=ctx.env)
     result_path_id = pathctx.get_expression_path_id(stype, ctx=ctx)
 
@@ -198,11 +200,12 @@ def new_tuple_set(
 
 
 def new_array_set(
-        elements: Sequence[irast.Base], *,
+        elements: Sequence[irast.Set], *,
         ctx: context.ContextLevel,
         srcctx: Optional[parsing.ParserContext]=None) -> irast.Set:
 
-    arr = irast.Array(elements=elements)
+    dummy_typeref = cast(irast.TypeRef, None)
+    arr = irast.Array(elements=elements, typeref=dummy_typeref)
     if elements:
         stype = inference.infer_type(arr, env=ctx.env)
     else:
@@ -771,7 +774,7 @@ def extend_path(
         source=source_set,
         target=target_set,
         direction=direction,
-        ptrref=path_id.rptr(),
+        ptrref=not_none(path_id.rptr()),
     )
 
     target_set.rptr = ptr
@@ -932,8 +935,8 @@ def tuple_indirection_set(
     ptr = irast.TupleIndirectionPointer(
         source=path_tip,
         target=ti_set,
-        ptrref=path_id.rptr(),
-        direction=path_id.rptr_dir(),
+        ptrref=downcast(path_id.rptr(), irast.TupleIndirectionPointerRef),
+        direction=not_none(path_id.rptr_dir()),
     )
 
     ti_set.rptr = ptr
@@ -1015,8 +1018,8 @@ def type_intersection_set(
     ptr = irast.TypeIntersectionPointer(
         source=source_set,
         target=poly_set,
-        ptrref=ptrref,
-        direction=poly_set.path_id.rptr_dir(),
+        ptrref=downcast(ptrref, irast.TypeIntersectionPointerRef),
+        direction=not_none(poly_set.path_id.rptr_dir()),
         optional=optional,
     )
 
@@ -1180,7 +1183,7 @@ def computable_ptr_set(
         source_set = new_set_from_set(
             source_set, stype=source_set_stype,
             preserve_scope_ns=True, ctx=ctx)
-        source_set.shape = []
+        source_set.shape = ()
         if source_set.rptr is not None:
             source_rptrref = source_set.rptr.ptrref
             if source_rptrref.base_ptr is not None:
@@ -1427,6 +1430,8 @@ def maybe_materialize(
     mat_qlstmt = ctx.env.materialized_sets.get(stype)
     if mat_qlstmt is not None:
         materialize_in_stmt = ctx.env.compiled_stmts[mat_qlstmt]
+        if materialize_in_stmt.materialized_sets is None:
+            materialize_in_stmt.materialized_sets = {}
 
         assert not isinstance(stype, s_pointers.PseudoPointer)
         if stype.id not in materialize_in_stmt.materialized_sets:

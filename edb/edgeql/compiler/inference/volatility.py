@@ -261,7 +261,8 @@ def __infer_select_stmt(
     if ir.limit is not None:
         components.append(ir.limit)
 
-    components.extend(ir.bindings)
+    if ir.bindings is not None:
+        components.extend(ir.bindings)
 
     return _common_volatility(components, env)
 

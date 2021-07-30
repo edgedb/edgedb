@@ -471,6 +471,7 @@ class SchemaClassTransformer(BaseStructTransformer):
 
 INIT_WHITELIST = {
     'edb.edgeql',
+    'edb.ir',
 }
 
 

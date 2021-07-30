@@ -168,7 +168,7 @@ class Clause(Base):
 class SortExpr(Clause):
     path: Expr
     direction: typing.Optional[SortOrder] = None
-    nones_order: typing.Optional[str] = None
+    nones_order: typing.Optional[NonesOrder] = None
 
 
 class BaseAlias(Clause):

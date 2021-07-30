@@ -221,11 +221,14 @@ def fini_expression(
             context=srcctx,
         )
 
+    assert isinstance(ir, irast.Set)
+    source_map = {k: v for k, v in ctx.source_map.items()
+                  if isinstance(k, s_pointers.Pointer)}
     result = irast.Statement(
         expr=ir,
         params=list(ctx.env.query_parameters.values()),
         views=ctx.view_nodes,
-        source_map=ctx.source_map,
+        source_map=source_map,
         scope_tree=ctx.env.path_scope,
         cardinality=cardinality,
         volatility=volatility,
@@ -234,6 +237,7 @@ def fini_expression(
         view_shapes={
             src: [ptr for ptr, op in ptrs if op != qlast.ShapeOp.MATERIALIZE]
             for src, ptrs in ctx.env.view_shapes.items()
+            if isinstance(src, s_obj.Object)
         },
         view_shapes_metadata=ctx.env.view_shapes_metadata,
         schema=ctx.env.schema,
@@ -245,6 +249,7 @@ def fini_expression(
             if isinstance(t, s_types.Collection) and t != expr_type
         ),
         type_rewrites={s.typeref.id: s for s in ctx.type_rewrites.values()},
+        dml_exprs=ctx.env.dml_exprs,
     )
     return result
 
@@ -254,11 +259,13 @@ def _fixup_materialized_sets(
 ) -> None:
     # Make sure that all materialized sets have their views compiled
     flt = lambda n: isinstance(n, irast.Stmt)
-    children = ast_visitor.find_children(ir, flt)
+    children: List[irast.Stmt] = ast_visitor.find_children(ir, flt)
     for nobe in ctx.source_map.values():
         if nobe.irexpr:
             children += ast_visitor.find_children(nobe.irexpr, flt)
     for stmt in children:
+        if not stmt.materialized_sets:
+            continue
         for key in list(stmt.materialized_sets):
             mat_set = stmt.materialized_sets[key]
 

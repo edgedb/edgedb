@@ -40,7 +40,7 @@ from . import relgen
 
 def compile_shape(
         ir_set: irast.Set,
-        shape: List[Tuple[irast.Set, qlast.ShapeOp]], *,
+        shape: Sequence[Tuple[irast.Set, qlast.ShapeOp]], *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
     elements = []
 

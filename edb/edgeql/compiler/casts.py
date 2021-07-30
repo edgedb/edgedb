@@ -33,7 +33,6 @@ from edb.ir import utils as irutils
 
 from edb.schema import casts as s_casts
 from edb.schema import functions as s_func
-from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import types as s_types
 
@@ -209,8 +208,6 @@ def _cast_to_ir(
         to_type=new_typeref,
         cardinality_mod=cardinality_mod,
         cast_name=cast_name,
-        cast_module_id=ctx.env.schema.get_global(
-            s_mod.Module, cast_name.module).id,
         sql_function=cast.get_from_function(ctx.env.schema),
         sql_cast=cast.get_from_cast(ctx.env.schema),
         sql_expr=bool(cast.get_code(ctx.env.schema)),
@@ -360,9 +357,10 @@ def _find_cast(
         else:
             return None
 
+    dummy_set = irast.EmptySet()  # type: ignore
     args = [
-        (orig_stype, irast.EmptySet()),
-        (new_stype, irast.EmptySet()),
+        (orig_stype, dummy_set),
+        (new_stype, dummy_set),
     ]
 
     matched = polyres.find_callable(
@@ -670,6 +668,7 @@ def _cast_array_literal(
             from_type=orig_typeref,
             to_type=new_typeref,
             sql_cast=True,
+            sql_expr=False,
         )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)

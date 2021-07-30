@@ -65,6 +65,7 @@ def compile_ir_to_sql_tree(
             type_rewrites = ir_expr.type_rewrites
             ir_expr = ir_expr.expr
         elif isinstance(ir_expr, irast.ConfigCommand):
+            assert ir_expr.scope_tree
             scope_tree = ir_expr.scope_tree
         else:
             scope_tree = irast.new_scope_tree()

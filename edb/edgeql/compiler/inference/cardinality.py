@@ -1006,11 +1006,14 @@ def _analyse_filter_clause(
 
 
 def _infer_matset_cardinality(
-    materialized_sets: Dict[uuid.UUID, irast.MaterializedSet],
+    materialized_sets: Optional[Dict[uuid.UUID, irast.MaterializedSet]],
     *,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> None:
+    if not materialized_sets:
+        return
+
     for mat_set in materialized_sets.values():
         if (len(mat_set.uses) <= 1
                 or mat_set.cardinality != qltypes.Cardinality.UNKNOWN):
@@ -1060,8 +1063,9 @@ def __infer_select_stmt(
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
 
-    for x in ir.bindings:
-        ctx.bindings[x.path_id] = scope_tree
+    if ir.bindings:
+        for x in ir.bindings:
+            ctx.bindings[x.path_id] = scope_tree
 
     if ir.iterator_stmt:
         iter_card = infer_cardinality(
@@ -1070,7 +1074,8 @@ def __infer_select_stmt(
 
     stmt_card = _infer_stmt_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
-    for part in [ir.limit, ir.offset] + [sort.expr for sort in ir.orderby]:
+    for part in [ir.limit, ir.offset] + [
+            sort.expr for sort in (ir.orderby or ())]:
         if part:
             new_scope = _get_set_scope(part, scope_tree, ctx=ctx)
             card = infer_cardinality(part, scope_tree=new_scope, ctx=ctx)

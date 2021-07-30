@@ -492,8 +492,8 @@ def compile_insert_unless_conflict_on(
         ctx.path_scope.factoring_allowlist.add(stmt.subject.path_id)
 
         # Compile else
-        else_ir = dispatch.compile(
-            astutils.ensure_qlstmt(else_branch), ctx=ctx)
+        else_ir = setgen.ensure_set(dispatch.compile(
+            astutils.ensure_qlstmt(else_branch), ctx=ctx), ctx=ctx)
         assert isinstance(else_ir, irast.Set)
 
     return irast.OnConflictClause(
@@ -637,10 +637,11 @@ def compile_UpdateQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt(context=expr.context)
+        stmt = irast.UpdateStmt(
+            context=expr.context,
+            dunder_type_ptrref=_get_dunder_type_ptrref(ctx),
+        )
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
-
-        stmt.dunder_type_ptrref = _get_dunder_type_ptrref(ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
         assert isinstance(subject, irast.Set)
@@ -1192,7 +1193,7 @@ def fini_stmt(
         result = setgen.new_set_from_set(
             result, context=irstmt.context, ctx=ctx)
 
-    if isinstance(irstmt, irast.Stmt):
+    if isinstance(irstmt, irast.Stmt) and irstmt.bindings:
         # If a binding is in a branched-but-not-fenced subnode, we
         # want to hoist it up to the current scope. This is important
         # for materialization-related cases where WITH+tuple is being

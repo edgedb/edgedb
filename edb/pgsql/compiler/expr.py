@@ -229,6 +229,7 @@ def compile_TypeCast(
             func_name = common.get_cast_backend_name(
                 expr.cast_name, aspect='function')
         else:
+            assert expr.sql_function
             func_name = tuple(expr.sql_function.split('.'))
 
         res = pgast.FuncCall(
@@ -298,11 +299,11 @@ def compile_SliceIndirection(
         subctx.expr_exposed = False
         subj = dispatch.compile(expr.expr, ctx=subctx)
         if expr.start is None:
-            start = pgast.NullConstant()
+            start: pgast.BaseExpr = pgast.NullConstant()
         else:
             start = dispatch.compile(expr.start, ctx=subctx)
         if expr.stop is None:
-            stop = pgast.NullConstant()
+            stop: pgast.BaseExpr = pgast.NullConstant()
         else:
             stop = dispatch.compile(expr.stop, ctx=subctx)
 
@@ -508,6 +509,7 @@ def compile_Tuple(
         telem = telems[i]
         ttype = ttypes[telem]
         val = dispatch.compile(e.val, ctx=ctx)
+        assert e.path_id
         elements.append(pgast.TupleElement(path_id=e.path_id, val=val))
 
     result = pgast.TupleVar(elements=elements, typeref=ttype)
@@ -605,7 +607,7 @@ def _compile_set(
 
 def _compile_shape(
         ir_set: irast.Set,
-        shape: List[Tuple[irast.Set, qlast.ShapeOp]],
+        shape: Sequence[Tuple[irast.Set, qlast.ShapeOp]],
         *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
 
