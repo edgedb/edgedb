@@ -107,7 +107,6 @@ else:
 class AST:
     # These use type comments because type annotations are interpreted
     # by the AST system and so annotating them would interfere!
-    __fields = []  # type: List[str]
     __ast_frozen_fields__ = frozenset()  # type: AbstractSet[str]
 
     # Class setup stuff:
@@ -152,13 +151,6 @@ class AST:
                      if k in dct['__annotations__']}
 
             module_name = cls.__module__
-            fields_attrname = f'_{cls.__name__}__fields'
-
-            if fields_attrname in dct:
-                raise RuntimeError(
-                    'cannot combine class annotations and '
-                    'legacy __fields attribute in '
-                    f'{cls.__module__}.{cls.__qualname__}')
 
             hidden = ()
             if '__ast_hidden__' in dct:
@@ -186,10 +178,11 @@ class AST:
                 f_hidden = f_name in hidden
                 f_meta = f_name in meta
 
-                fields.append((f_name, f_type, f_default,
-                               True, None, f_hidden, f_meta))
+                fields.append(Field(
+                    f_name, f_type, f_default, True, None, f_hidden, f_meta
+                ))
 
-            setattr(cls, fields_attrname, fields)
+            cls._direct_fields = fields
 
         return cls
 
@@ -201,41 +194,9 @@ class AST:
         fields = collections.OrderedDict()
 
         for parent in reversed(cls.__mro__):
-            lst = getattr(cls, '_' + parent.__name__ + '__fields', [])
+            lst = getattr(parent, '_direct_fields', [])
             for field in lst:
-                field_name = field
-                field_type = None
-                field_default = None
-                field_traverse = True
-                field_child_traverse = None
-                field_hidden = False
-                field_meta = False
-
-                if isinstance(field, tuple):
-                    field_name = field[0]
-
-                    if len(field) > 1:
-                        field_type = field[1]
-                    if len(field) > 2:
-                        field_default = field[2]
-                    else:
-                        field_default = field_type
-
-                    if len(field) > 3:
-                        field_traverse = field[3]
-
-                    if len(field) > 4:
-                        field_child_traverse = field[4]
-
-                    if len(field) > 5:
-                        field_hidden = field[5]
-
-                    if len(field) > 6:
-                        field_meta = field[6]
-
-                fields[field_name] = Field(
-                    field_name, field_type, field_default, field_traverse,
-                    field_child_traverse, field_hidden, field_meta)
+                fields[field.name] = field
 
         cls._fields = fields
 
@@ -292,11 +253,8 @@ class AST:
             if name in self.__ast_frozen_fields__:
                 raise TypeError(f'cannot set immutable {name} on {self!r}')
 
-    def __setattr__(self, name, value):
-        object.__setattr__(self, name, value)
-
     if __debug__ and _check_type is _check_type_real:
-        __setattr__ = _checked_setattr  # NoQA: F811
+        __setattr__ = _checked_setattr
 
     def check_field_type(self, field, value):
         def raise_error(field_type_name, value):
@@ -321,11 +279,14 @@ class ImmutableASTMixin:
         super().__init__(**kwargs)
         self.__frozen = True
 
-    def __setattr__(self, name, value):
-        if self.__frozen and name not in self.__ast_mutable_fields__:
-            raise TypeError(f'cannot set {name} on immutable {self!r}')
-        else:
-            super().__setattr__(name, value)
+    # mypy gets mad about this if there isn't a __setattr__ in AST.
+    # I don't know why.
+    if not TYPE_CHECKING:
+        def __setattr__(self, name, value):
+            if self.__frozen and name not in self.__ast_mutable_fields__:
+                raise TypeError(f'cannot set {name} on immutable {self!r}')
+            else:
+                super().__setattr__(name, value)
 
 
 @markup.serializer.serializer.register(AST)

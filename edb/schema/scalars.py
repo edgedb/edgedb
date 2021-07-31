@@ -453,6 +453,7 @@ class CreateScalarType(
         elif op.property == 'bases':
             enum_values = self.get_attribute_value('enum_values')
             if enum_values:
+                assert isinstance(node, qlast.BasesMixin)
                 node.bases = [
                     qlast.TypeName(
                         maintype=qlast.ObjectRef(name='enum'),

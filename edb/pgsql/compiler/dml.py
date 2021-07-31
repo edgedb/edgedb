@@ -268,6 +268,7 @@ def gen_dml_cte(
 
         # Auxiliary relations are always joined via the WHERE
         # clause due to the structure of the UPDATE/DELETE SQL statements.
+        assert isinstance(dml_stmt, (pgast.UpdateStmt, pgast.DeleteStmt))
         dml_stmt.where_clause = astutils.new_binop(
             lexpr=pgast.ColumnRef(name=[
                 dml_stmt.relation.alias.aliasname,

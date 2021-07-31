@@ -2130,7 +2130,7 @@ def _fix_parent_links(node: qlast.Base) -> qlast.Base:
     # Using AST.parent is an anti-pattern. Instead write code
     # that uses singledispatch and maintains a proper context.
 
-    node._parent = None
+    node._parent = None  # type: ignore
 
     for _field, value in base.iter_fields(node):
         if isinstance(value, dict):

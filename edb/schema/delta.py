@@ -2764,6 +2764,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     ) -> Optional[qlast.DDLOperation]:
         node = super()._get_ast(schema, context, parent_node=parent_node)
         if node is not None and self.if_not_exists:
+            assert isinstance(node, qlast.CreateObject)
             node.create_if_not_exists = True
         return node
 

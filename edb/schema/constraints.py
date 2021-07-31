@@ -1426,6 +1426,7 @@ class DeleteConstraint(
     ) -> None:
         if op.property == 'args':
             assert isinstance(op.old_value, s_expr.ExpressionList)
+            assert isinstance(node, qlast.DropConcreteConstraint)
             node.args = [arg.qlast for arg in op.old_value]
             return
 
