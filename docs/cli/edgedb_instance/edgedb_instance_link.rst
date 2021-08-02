@@ -1,21 +1,21 @@
-.. _ref_cli_edgedb_authenticate:
+.. _ref_cli_edgedb_instance_link:
 
-===================
-edgedb authenticate
-===================
+=====================
+edgedb ionstance link
+=====================
 
 Authenticate a connection to a remote EdgeDB instance and assign an
 instance name to simplify future connections.
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...] authenticate [OPTIONS] <name>
+    edgedb instance link [OPTIONS] <name>
 
 
 Description
 ===========
 
-``edgedb authenticate`` is a terminal command used to bind a set of
+``edgedb instance link`` is a terminal command used to bind a set of
 connection credentials to an instance name. This is typically used as
 a way to simplify connecting to remote EdgeDB database instances.
 Usually there's no need to do this for local instances as

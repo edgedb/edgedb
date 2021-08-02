@@ -51,10 +51,10 @@ def cli(args: list[str]):
             sys.executable,
             "-m",
             "edb.cli",
-            "authenticate",
-            "_localdev",
+            "instance",
+            "link",
             "--non-interactive",
-            "--quiet",
+            "_localdev",
         ])
 
     if (

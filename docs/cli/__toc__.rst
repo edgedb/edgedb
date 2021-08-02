@@ -14,7 +14,6 @@ CLI
     edgedb_project/index
     edgedb_migration/index
     edgedb_migrate
-    edgedb_authenticate
     edgedb_describe/index
     edgedb_list
     edgedb_self/index

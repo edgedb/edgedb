@@ -128,9 +128,8 @@ Command-Line Tools
 We've changed some of the CLI `commands and groupings <rfc1006_>`_.
 There are some top-level "frequently used" commands such as
 :ref:`ref_cli_edgedb_dump`, :ref:`ref_cli_edgedb_restore`,
-:ref:`ref_cli_edgedb_database_create`, :ref:`ref_cli_edgedb_migrate`,
-as well as the new :ref:`ref_cli_edgedb_authenticate`. Other
-commands are grouped into categories:
+:ref:`ref_cli_edgedb_database_create`, and :ref:`ref_cli_edgedb_migrate`,
+Other commands are grouped into categories:
 :ref:`ref_cli_edgedb_configure`, :ref:`ref_cli_edgedb_migration`,
 :ref:`ref_cli_edgedb_list`, :ref:`ref_cli_edgedb_server`,
 :ref:`ref_cli_edgedb_instance`, :ref:`ref_cli_edgedb_project`, and
@@ -144,8 +143,6 @@ Here's a more comprehensive list of the CLI commands:
 
     * - SUBCOMMAND
       - DESCRIPTION
-    * - ``authenticate``
-      - Authenticate to a remote instance
     * - ``dump``
       - Create a database backup
     * - ``restore``
@@ -182,6 +179,8 @@ Here's a more comprehensive list of the CLI commands:
       - List available and installed versions of the server
     * - ``instance create``
       - Initialize a new server instance
+    * - ``instance link``
+      - Authenticate to a remote instance
     * - ``instance status``
       - Show statuses of all or of a matching instance
     * - ``instance start``
