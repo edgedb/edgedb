@@ -656,7 +656,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         """
 
     def test_edgeql_ir_card_inference_73(self):
-        # Make sure that a union of anonymous shapes still ends up
+        # Make sure that a union of free shapes still ends up
         # with cardinality AT_LEAST_ONE.
         """
         FOR x IN {0, 1} UNION {a := x}

@@ -6052,7 +6052,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_select_banned_anonymous_01(self):
+    async def test_edgeql_select_banned_free_shape_01(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "it is illegal to create a type union that causes a "
@@ -6065,7 +6065,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
-            "cannot use DISTINCT on anonymous shape",
+            "cannot use DISTINCT on free shape",
         ):
             await self.con.execute("""
                 SELECT DISTINCT { z := 1 } = { z := 2 };
@@ -6092,7 +6092,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         for row in res:
             self.assertEqual(row[0].__tname__, "std::Object")
 
-    async def test_edgeql_select_anonymous_shape_01(self):
+    async def test_edgeql_select_free_shape_01(self):
         res = await self.con.query_one('SELECT {test := 1}')
         self.assertEqual(res.test, 1)
 

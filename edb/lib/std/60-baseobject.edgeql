@@ -44,9 +44,9 @@ CREATE ABSTRACT TYPE std::Object EXTENDING std::BaseObject {
         'Root object type for user-defined types';
 };
 
-CREATE TYPE std::VirtualObject EXTENDING std::BaseObject {
+CREATE TYPE std::FreeObject EXTENDING std::BaseObject {
     CREATE ANNOTATION std::description :=
-        'Object type for anonymous shapes';
+        'Object type for free shapes';
 };
 
 # 'USING SQL EXPRESSION' creates an EdgeDB Operator for purposes of

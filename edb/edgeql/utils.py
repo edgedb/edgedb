@@ -30,9 +30,9 @@ from edb.schema import functions as s_func
 from . import ast as qlast
 
 
-ANONYMOUS_SHAPE_EXPR = qlast.DetachedExpr(
+FREE_SHAPE_EXPR = qlast.DetachedExpr(
     expr=qlast.Path(
-        steps=[qlast.ObjectRef(module='std', name='VirtualObject')],
+        steps=[qlast.ObjectRef(module='std', name='FreeObject')],
     ),
 )
 
