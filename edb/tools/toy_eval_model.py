@@ -536,9 +536,9 @@ def eval_ShapeElement(el: qlast.ShapeElement, ctx: EvalContext) -> Result:
     return eval(fake_select, ctx=ctx)
 
 
-ANONYMOUS_SHAPE_EXPR = qlast.DetachedExpr(
+FREE_SHAPE_EXPR = qlast.DetachedExpr(
     expr=qlast.Path(
-        steps=[qlast.ObjectRef(name='VirtualObject')],
+        steps=[qlast.ObjectRef(name='FreeObject')],
     ),
 )
 
@@ -551,7 +551,7 @@ def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> Result:
     qil = ctx.query_input_list + [subq_ipath]
 
     # XXX: do we need to do extra_subqs??
-    expr = node.expr or ANONYMOUS_SHAPE_EXPR
+    expr = node.expr or FREE_SHAPE_EXPR
     shape_vals = eval(expr, ctx=ctx)
 
     out = []
@@ -1419,8 +1419,8 @@ PersonT = "Person"
 NoteT = "Note"
 FooT = "Foo"
 DB1 = mk_db([
-    # VirtualObject
-    {"id": bsid(0x01), "__type__": "VirtualObject"},
+    # FreeObject
+    {"id": bsid(0x01), "__type__": "FreeObject"},
 
     # Person
     {"id": bsid(0x10), "__type__": PersonT,

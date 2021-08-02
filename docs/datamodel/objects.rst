@@ -57,18 +57,18 @@ which is a subtype of ``std::BaseObject``.
         abstract type std::Object extending std::BaseObject;
 
 
-.. _ref_datamodel_object_types_anonymous:
+.. _ref_datamodel_object_types_free:
 
-Anonymous Objects
-=================
+Free Objects
+============
 
-It is also possible to package data into an *anonymous object*.
-*Anonymous objects* are meant to be transient and used either to more
+It is also possible to package data into a *free object*.
+*Free objects* are meant to be transient and used either to more
 efficiently store some intermediate results in a query or for
-re-shaping the output. The advantage of using *anonymous objects* over
+re-shaping the output. The advantage of using *free objects* over
 :eql:type:`tuples <tuple>` is that it is easier to package data that
 potentially contains empty sets as links or properties of the
-*anonymous object*.
+*free object*.
 
 Consider the following query:
 
@@ -82,7 +82,7 @@ Consider the following query:
     };
 
 The ``matches`` are potentially ``{}``, yet the query will always
-return a single *anonymous object* with ``resutls``, ``total``, and
+return a single *free object* with ``resutls``, ``total``, and
 ``total_users``. To achieve the same using a :eql:type:`named tuple
 <tuple>`, the query would have to be modified like this:
 

@@ -574,32 +574,32 @@ def compile_operator(
         tuple_path_ids=[],
     )
 
-    _check_anonymous_shape_op(node, ctx=ctx)
+    _check_free_shape_op(node, ctx=ctx)
 
     return setgen.ensure_set(node, typehint=rtype, ctx=ctx)
 
 
-# These ops are all footguns when used with anonymous shapes,
+# These ops are all footguns when used with free shapes,
 # so we ban them
-INVALID_ANONYMOUS_SHAPE_OPS: Final = {
+INVALID_FREE_SHAPE_OPS: Final = {
     sn.QualName('std', x) for x in [
         'DISTINCT', '=', '!=', '?=', '?!=', 'IN', 'NOT IN'
     ]
 }
 
 
-def _check_anonymous_shape_op(
+def _check_free_shape_op(
         ir: irast.Call, *, ctx: context.ContextLevel) -> None:
-    if ir.func_shortname not in INVALID_ANONYMOUS_SHAPE_OPS:
+    if ir.func_shortname not in INVALID_FREE_SHAPE_OPS:
         return
 
     virt_obj = ctx.env.schema.get(
-        'std::VirtualObject', type=s_objtypes.ObjectType)
+        'std::FreeObject', type=s_objtypes.ObjectType)
     for arg in ir.args:
         typ = inference.infer_type(arg.expr, ctx.env)
         if typ.issubclass(ctx.env.schema, virt_obj):
             raise errors.QueryError(
-                f'cannot use {ir.func_shortname.name} on anonymous shape',
+                f'cannot use {ir.func_shortname.name} on free shape',
                 context=ir.context)
 
 

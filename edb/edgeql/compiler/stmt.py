@@ -1044,7 +1044,7 @@ def compile_DescribeStmt(
 @dispatch.compile.register(qlast.Shape)
 def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
-    shape_expr = shape.expr or qlutils.ANONYMOUS_SHAPE_EXPR
+    shape_expr = shape.expr or qlutils.FREE_SHAPE_EXPR
     with ctx.new() as subctx:
         subctx.qlstmt = astutils.ensure_qlstmt(shape)
         subctx.stmt = stmt = irast.SelectStmt()
@@ -1307,7 +1307,7 @@ def compile_result_clause(
         shape: Optional[Sequence[qlast.ShapeElement]]
 
         if isinstance(result, qlast.Shape):
-            result_expr = result.expr or qlutils.ANONYMOUS_SHAPE_EXPR
+            result_expr = result.expr or qlutils.FREE_SHAPE_EXPR
             shape = result.elements
         else:
             result_expr = result

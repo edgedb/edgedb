@@ -926,7 +926,7 @@ async def _init_defaults(schema, compiler, conn):
 
 async def _populate_data(schema, compiler, conn):
     script = '''
-        INSERT std::VirtualObject;
+        INSERT std::FreeObject;
     '''
 
     schema, sql = compile_bootstrap_script(compiler, schema, script)

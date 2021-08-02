@@ -305,11 +305,11 @@ class TypedShape(Nonterm):
         )
 
 
-class AnonShape(Nonterm):
-    def reduce_LBRACE_AnonComputableShapePointerList_RBRACE(self, *kids):
+class FreeShape(Nonterm):
+    def reduce_LBRACE_FreeComputableShapePointerList_RBRACE(self, *kids):
         self.val = qlast.Shape(elements=kids[1].val)
 
-    def reduce_LBRACE_AnonComputableShapePointerList_COMMA_RBRACE(self, *kids):
+    def reduce_LBRACE_FreeComputableShapePointerList_COMMA_RBRACE(self, *kids):
         self.val = qlast.Shape(elements=kids[1].val)
 
 
@@ -391,12 +391,12 @@ class SimpleShapePointer(Nonterm):
         )
 
 
-# Shape pointers in anonymous shapes are not allowed to be link
+# Shape pointers in free shapes are not allowed to be link
 # properties. This is because we need to be able to distinguish
-# anonymous shapes from set literals with only one token of lookahead
+# free shapes from set literals with only one token of lookahead
 # (since this is an LL(1) parser) and seeing the := after @ident would
 # require two tokens of lookahead.
-class AnonSimpleShapePointer(Nonterm):
+class FreeSimpleShapePointer(Nonterm):
 
     def reduce_VerySimpleShapePath(self, *kids):
         self.val = qlast.ShapeElement(
@@ -616,9 +616,9 @@ class ComputableShapePointer(Nonterm):
 
 
 # This is the same as the above ComputableShapePointer, except using
-# AnonSimpleShapePointer and not allowing +=/-=.
-class AnonComputableShapePointer(Nonterm):
-    def reduce_OPTIONAL_AnonSimpleShapePointer_ASSIGN_Expr(self, *kids):
+# FreeSimpleShapePointer and not allowing +=/-=.
+class FreeComputableShapePointer(Nonterm):
+    def reduce_OPTIONAL_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.required = False
@@ -627,7 +627,7 @@ class AnonComputableShapePointer(Nonterm):
             context=kids[2].context,
         )
 
-    def reduce_REQUIRED_AnonSimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_REQUIRED_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.required = True
@@ -636,7 +636,7 @@ class AnonComputableShapePointer(Nonterm):
             context=kids[2].context,
         )
 
-    def reduce_MULTI_AnonSimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.cardinality = qltypes.SchemaCardinality.Many
@@ -645,7 +645,7 @@ class AnonComputableShapePointer(Nonterm):
             context=kids[2].context,
         )
 
-    def reduce_SINGLE_AnonSimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[1].val
         self.val.compexpr = kids[3].val
         self.val.cardinality = qltypes.SchemaCardinality.One
@@ -654,7 +654,7 @@ class AnonComputableShapePointer(Nonterm):
             context=kids[2].context,
         )
 
-    def reduce_OPTIONAL_MULTI_AnonSimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_OPTIONAL_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = False
@@ -664,7 +664,7 @@ class AnonComputableShapePointer(Nonterm):
             context=kids[3].context,
         )
 
-    def reduce_OPTIONAL_SINGLE_AnonSimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_OPTIONAL_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = False
@@ -674,7 +674,7 @@ class AnonComputableShapePointer(Nonterm):
             context=kids[3].context,
         )
 
-    def reduce_REQUIRED_MULTI_AnonSimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_REQUIRED_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
@@ -684,7 +684,7 @@ class AnonComputableShapePointer(Nonterm):
             context=kids[3].context,
         )
 
-    def reduce_REQUIRED_SINGLE_AnonSimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_REQUIRED_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[2].val
         self.val.compexpr = kids[4].val
         self.val.required = True
@@ -694,7 +694,7 @@ class AnonComputableShapePointer(Nonterm):
             context=kids[3].context,
         )
 
-    def reduce_AnonSimpleShapePointer_ASSIGN_Expr(self, *kids):
+    def reduce_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
         self.val = kids[0].val
         self.val.compexpr = kids[2].val
         self.val.operation = qlast.ShapeOperation(
@@ -703,8 +703,8 @@ class AnonComputableShapePointer(Nonterm):
         )
 
 
-class AnonComputableShapePointerList(ListNonterm,
-                                     element=AnonComputableShapePointer,
+class FreeComputableShapePointerList(ListNonterm,
+                                     element=FreeComputableShapePointer,
                                      separator=tokens.T_COMMA):
     pass
 
@@ -877,7 +877,7 @@ class Expr(Nonterm):
     def reduce_Expr_Shape(self, *kids):
         self.val = qlast.Shape(expr=kids[0].val, elements=kids[1].val)
 
-    def reduce_AnonShape(self, *kids):
+    def reduce_FreeShape(self, *kids):
         self.val = kids[0].val
 
     def reduce_Constant(self, *kids):
