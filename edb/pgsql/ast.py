@@ -134,12 +134,12 @@ class EdgeQLPathInfo(Base):
     is_distinct: bool = True
 
     # A subset of paths necessary to perform joining.
-    path_scope: typing.Set[irast.PathId] = ast.container_factory
+    path_scope: typing.Set[irast.PathId] = ast.field(factory=set)
 
     # Map of res target names corresponding to paths.
     path_outputs: typing.Dict[
         typing.Tuple[irast.PathId, str], OutputVar
-    ] = ast.container_factory
+    ] = ast.field(factory=dict)
 
     # Map of res target names corresponding to materialized paths.
     packed_path_outputs: typing.Optional[typing.Dict[
@@ -147,12 +147,12 @@ class EdgeQLPathInfo(Base):
         typing.Tuple[OutputVar, bool],
     ]] = None
 
-    path_id_mask: typing.Set[irast.PathId] = ast.container_factory
+    path_id_mask: typing.Set[irast.PathId] = ast.field(factory=set)
 
     # Map of col refs corresponding to paths.
     path_namespace: typing.Dict[
         typing.Tuple[irast.PathId, str], BaseExpr
-    ] = ast.container_factory
+    ] = ast.field(factory=dict)
 
 
 class BaseRangeVar(ImmutableBaseExpr):
@@ -393,7 +393,7 @@ class OnConflictClause(ImmutableBaseExpr):
 
 class ReturningQuery(BaseRelation):
 
-    target_list: typing.List[ResTarget] = ast.container_factory
+    target_list: typing.List[ResTarget] = ast.field(factory=list)
 
 
 class NullRelation(ReturningQuery):
@@ -420,11 +420,11 @@ class Query(ReturningQuery):
 
     view_path_id_map: typing.Dict[
         irast.PathId, irast.PathId
-    ] = ast.container_factory
+    ] = ast.field(factory=dict)
     # Map of RangeVars corresponding to paths.
     path_rvar_map: typing.Dict[
         typing.Tuple[irast.PathId, str], PathRangeVar
-    ] = ast.container_factory
+    ] = ast.field(factory=dict)
     # Map of materialized RangeVars corresponding to paths.
     path_packed_rvar_map: typing.Optional[typing.Dict[
         typing.Tuple[irast.PathId, str],
@@ -471,7 +471,7 @@ class DMLQuery(Query):
     # Target relation to perform the operation on.
     relation: typing.Optional[PathRangeVar] = None
     # List of expressions returned
-    returning_list: typing.List[ResTarget] = ast.container_factory
+    returning_list: typing.List[ResTarget] = ast.field(factory=list)
 
     @property
     def target_list(self):
@@ -491,18 +491,18 @@ class InsertStmt(DMLQuery):
 class UpdateStmt(DMLQuery):
 
     # The UPDATE target list
-    targets: typing.List[UpdateTarget] = ast.container_factory
+    targets: typing.List[UpdateTarget] = ast.field(factory=list)
     # WHERE clause
     where_clause: typing.Optional[BaseExpr] = None
     # optional FROM clause
-    from_clause: typing.List[BaseRangeVar] = ast.container_factory
+    from_clause: typing.List[BaseRangeVar] = ast.field(factory=list)
 
 
 class DeleteStmt(DMLQuery):
     # WHERE clause
     where_clause: typing.Optional[BaseExpr] = None
     # optional USING clause
-    using_clause: typing.List[BaseRangeVar] = ast.container_factory
+    using_clause: typing.List[BaseRangeVar] = ast.field(factory=list)
 
 
 class SelectStmt(Query):
@@ -510,9 +510,9 @@ class SelectStmt(Query):
     # List of DISTINCT ON expressions, empty list for DISTINCT ALL
     distinct_clause: typing.Optional[list] = None
     # The target list
-    target_list: typing.List[ResTarget] = ast.container_factory
+    target_list: typing.List[ResTarget] = ast.field(factory=list)
     # The FROM clause
-    from_clause: typing.List[BaseRangeVar] = ast.container_factory
+    from_clause: typing.List[BaseRangeVar] = ast.field(factory=list)
     # The WHERE clause
     where_clause: typing.Optional[BaseExpr] = None
     # GROUP BY clauses

@@ -1057,7 +1057,7 @@ class GraphQLTranslator:
 
                 if value:
                     # empty set to clear the value
-                    return qlast.Set()
+                    return qlast.Set(elements=[])
 
             elif fname == 'increment':
                 return qlast.BinOp(

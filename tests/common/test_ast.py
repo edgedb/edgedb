@@ -103,16 +103,19 @@ class ASTBaseTests(unittest.TestCase):
             pass
 
         class Node(Base):
-            field_list: list
-            field_typing_list: typing.List[Base]
-            field_typing_tuple: typing.Tuple[Base, ...]
+            field_list: list = ast.field(factory=list)
+            field_typing_list: typing.List[Base] = ast.field(factory=list)
+            field_typing_tuple: typing.Tuple[Base, ...] = ()
             field_typing_union: typing.Union[str, bytes]
-            field_typing_union_list: typing.List[typing.Union[str, bytes]]
+            field_typing_union_list: typing.List[
+                typing.Union[str, bytes]] = ast.field(factory=list)
             field_typing_str: str
             field_typing_optional_str: typing.Optional[str]
-            field_typing_mapping: typing.Dict[int, str]
+            field_typing_mapping: typing.Dict[
+                int, str] = ast.field(factory=dict)
             field_typing_mapping_opt_key: \
-                typing.Dict[typing.Optional[int], str]
+                typing.Dict[
+                    typing.Optional[int], str] = ast.field(factory=dict)
 
         self.assertEqual(Node().field_list, [])
         self.assertEqual(Node().field_typing_list, [])
@@ -176,26 +179,6 @@ class ASTBaseTests(unittest.TestCase):
         Node().field3 = 'aaa'
         self.assertEqual(Node().field1, None)
         self.assertEqual(Node().field3, 123)
-
-    def test_common_ast_type_anno(self):
-        with self.assertRaisesRegex(RuntimeError, r"1 is not a type"):
-            class Node1(ast.AST):
-                field: 1
-
-        with self.assertRaisesRegex(RuntimeError,
-                                    r"Mapping.*is not supported"):
-            class Node3(ast.AST):
-                field: typing.Mapping[int, str]
-
-        with self.assertRaisesRegex(RuntimeError,
-                                    r"default is defined for.*List"):
-            class Node4(ast.AST):
-                field: typing.List[int] = [1]
-
-        with self.assertRaisesRegex(RuntimeError,
-                                    r"default is defined for.*list"):
-            class Node5(ast.AST):
-                field: list = list
 
 
 class ASTMatchTests(unittest.TestCase):

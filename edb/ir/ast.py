@@ -199,7 +199,8 @@ class BasePointerRef(ImmutableBase):
     source_ptr: typing.Optional[PointerRef] = None
     base_ptr: typing.Optional[BasePointerRef] = None
     material_ptr: typing.Optional[BasePointerRef] = None
-    children: typing.FrozenSet[BasePointerRef] = ast.container_factory
+    # XXX: FIX
+    children: typing.FrozenSet[BasePointerRef] = ast.field(factory=frozenset)
     union_components: typing.Optional[typing.Set[BasePointerRef]] = None
     intersection_components: typing.Optional[typing.Set[BasePointerRef]] = None
     union_is_concrete: bool = False

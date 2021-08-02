@@ -122,7 +122,7 @@ class Flag(OptionValue):
 
 class Options(Base):
 
-    options: typing.Dict[str, OptionValue]
+    options: typing.Dict[str, OptionValue] = ast.field(factory=dict)
 
     def get_flag(self, k: str) -> Flag:
         try:
@@ -288,8 +288,8 @@ class WindowSpec(Clause, OrderByMixin):
 
 class FunctionCall(Expr):
     func: typing.Union[tuple, str]
-    args: typing.List[Expr] = ast.container_factory
-    kwargs: typing.Dict[str, Expr] = ast.container_factory
+    args: typing.List[Expr] = ast.field(factory=list)
+    kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
     window: typing.Optional[WindowSpec] = None
 
 
@@ -617,7 +617,7 @@ class Position(DDL):
 
 class DDLOperation(DDL):
     __abstract_node__ = True
-    commands: typing.List[DDLOperation] = ast.container_factory
+    commands: typing.List[DDLOperation] = ast.field(factory=list)
 
 
 class DDLCommand(Command, DDLOperation):
@@ -1025,7 +1025,7 @@ class DropConcreteLink(DropObject, LinkCommand):
 class CallableObjectCommand(ObjectDDL):
 
     __abstract_node__ = True
-    params: typing.List[FuncParam]
+    params: typing.List[FuncParam] = ast.field(factory=list)
 
 
 class ConstraintCommand(ObjectDDL):
