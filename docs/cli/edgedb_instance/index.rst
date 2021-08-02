@@ -12,6 +12,7 @@ for managing EdgeDB instances.
     :hidden:
 
     edgedb_instance_create
+    edgedb_instance_link
     edgedb_instance_status
     edgedb_instance_start
     edgedb_instance_stop
@@ -26,6 +27,8 @@ for managing EdgeDB instances.
 
     * - :ref:`ref_cli_edgedb_instance_create`
       - Initialize a new server instance
+    * - :ref:`ref_cli_edgedb_instance_link`
+      - Authenticate to a remote server instance
     * - :ref:`ref_cli_edgedb_instance_status`
       - Show statuses of all or of a matching instance
     * - :ref:`ref_cli_edgedb_instance_start`
