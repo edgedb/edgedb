@@ -22,7 +22,7 @@ Then create a new migration and apply it using
 :ref:`ref_cli_edgedb_migrate`, respectively.
 
 ``http://127.0.0.1:<instance-port>/db/<database-name>/edgeql`` will
-expose GraphQL API. Check the credentials file for your instance at
+expose EdgeQL API. Check the credentials file for your instance at
 ``$HOME/.edgedb/credentials`` to find out which port the instance is
 using.
 
