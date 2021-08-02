@@ -28,7 +28,6 @@ from typing import *
 
 from edb.common import debug
 from edb.common import markup
-from edb.common import typeutils
 from edb.common import typing_inspect
 
 
@@ -160,8 +159,6 @@ class AST:
             annos = {k: v for k, v in annos.items()
                      if k in dct['__annotations__']}
 
-            module_name = cls.__module__
-
             hidden = ()
             if '__ast_hidden__' in dct:
                 hidden = set(dct['__ast_hidden__'])
@@ -172,15 +169,11 @@ class AST:
 
             fields = []
             for f_name, f_type in annos.items():
-                f_fullname = f'{module_name}.{cls.__qualname__}.{f_name}'
-
                 if f_type is object:
                     f_type = None
 
-                has_default = False
                 factory = None
                 if f_name in dct:
-                    has_default = True
                     f_default = dct[f_name]
                     if isinstance(f_default, _FieldSpec):
                         factory = f_default.factory
