@@ -28,21 +28,24 @@ from typing import *
 
 from edb.common import debug
 from edb.common import markup
-from edb.common import typeutils
 from edb.common import typing_inspect
+
+
+T = TypeVar('T')
 
 
 class ASTError(Exception):
     pass
 
 
-class Field:
+class _Field:
     def __init__(
-            self, name, type_, default, traverse, child_traverse=None,
+            self, name, type_, default, factory, traverse, child_traverse=None,
             field_hidden=False, field_meta=False):
         self.name = name
         self.type = type_
         self.default = default
+        self.factory = factory
         self.traverse = traverse
         self.child_traverse = \
             child_traverse if child_traverse is not None else traverse
@@ -50,7 +53,13 @@ class Field:
         self.meta = field_meta
 
 
-container_factory: Any = object()
+class _FieldSpec:
+    def __init__(self, factory):
+        self.factory = factory
+
+
+def field(*, factory: Callable[[], T]) -> T:
+    return cast(T, _FieldSpec(factory=factory))
 
 
 def _check_type_passthrough(type_, value, raise_error):
@@ -150,8 +159,6 @@ class AST:
             annos = {k: v for k, v in annos.items()
                      if k in dct['__annotations__']}
 
-            module_name = cls.__module__
-
             hidden = ()
             if '__ast_hidden__' in dct:
                 hidden = set(dct['__ast_hidden__'])
@@ -162,24 +169,25 @@ class AST:
 
             fields = []
             for f_name, f_type in annos.items():
-                f_fullname = f'{module_name}.{cls.__qualname__}.{f_name}'
-
                 if f_type is object:
                     f_type = None
 
+                factory = None
                 if f_name in dct:
                     f_default = dct[f_name]
-                    delattr(cls, f_name)
+                    if isinstance(f_default, _FieldSpec):
+                        factory = f_default.factory
+                        f_default = None
+                        delattr(cls, f_name)
                 else:
                     f_default = None
-
-                f_default = _check_annotation(f_type, f_fullname, f_default)
 
                 f_hidden = f_name in hidden
                 f_meta = f_name in meta
 
-                fields.append(Field(
-                    f_name, f_type, f_default, True, None, f_hidden, f_meta
+                fields.append(_Field(
+                    f_name, f_type, f_default, factory,
+                    True, None, f_hidden, f_meta
                 ))
 
             cls._direct_fields = fields
@@ -215,13 +223,10 @@ class AST:
         for field_name, field in self.__class__._fields.items():
             if field_name in kwargs:
                 value = kwargs[field_name]
-            elif field.default is not None:
-                if callable(field.default):
-                    value = field.default()
-                else:
-                    value = field.default
+            elif field.factory is not None:
+                value = field.factory()
             else:
-                value = None
+                value = field.default
 
             if should_check_types:
                 self.check_field_type(field, value)
@@ -329,8 +334,8 @@ def iter_fields(node, *, include_meta=True, exclude_unset=False):
         if field_val is _marker:
             continue
         if exclude_unset:
-            if callable(field.default):
-                default = field.default()
+            if field.factory:
+                default = field.factory()
             else:
                 default = field.default
             if field_val == default:
@@ -341,71 +346,6 @@ def iter_fields(node, *, include_meta=True, exclude_unset=False):
 def _is_optional(type_):
     return (typing_inspect.is_union_type(type_) and
             type(None) in typing_inspect.get_args(type_, evaluate=True))
-
-
-def _check_annotation(f_type, f_fullname, f_default):
-    if typing_inspect.is_tuple_type(f_type):
-        if f_default is not None and f_default != ():
-            raise RuntimeError(
-                f'invalid type annotation on {f_fullname}: '
-                f'default is defined for tuple type')
-
-        f_default = ()
-
-    elif typing_inspect.is_union_type(f_type):
-        for t in typing_inspect.get_args(f_type, evaluate=True):
-            _check_annotation(t, f_fullname, f_default)
-
-    elif typing_inspect.is_generic_type(f_type):
-        if f_default is not None and f_default is not container_factory:
-            raise RuntimeError(
-                f'invalid type annotation on {f_fullname}: '
-                f'default is defined for container type '
-                f'{f_type!r}')
-
-        ot = typing_inspect.get_origin(f_type)
-        if ot is None:
-            raise RuntimeError(
-                f'cannot find origin of a generic type {f_type}')
-
-        if ot in (list, List, collections.abc.Sequence):
-            f_default = list
-        elif ot in (set, Set):
-            f_default = set
-        elif ot in (frozenset, FrozenSet):
-            f_default = frozenset
-        elif ot in (dict, Dict):
-            f_default = dict
-        else:
-            raise RuntimeError(
-                f'invalid type annotation on {f_fullname}: '
-                f'{f_type!r} is not supported')
-
-    elif f_type is not None:
-        if f_type is Any:
-            f_type = object
-
-        if not isinstance(f_type, type):
-            raise RuntimeError(
-                f'invalid type annotation on {f_fullname}: '
-                f'{f_type!r} is not a type')
-
-        if typeutils.is_container_type(f_type):
-            if f_default is not None and f_default is not container_factory:
-                raise RuntimeError(
-                    f'invalid type annotation on {f_fullname}: '
-                    f'default is defined for container type '
-                    f'{f_type!r}')
-            # Make sure that we can actually construct an empty
-            # version of this type before we decide it is the default.
-            try:
-                f_type()
-            except TypeError:
-                pass
-            else:
-                f_default = f_type
-
-    return f_default
 
 
 def _check_container_type(type_, value, raise_error, instance_type):
