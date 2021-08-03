@@ -207,6 +207,19 @@ class AST:
                 fields[field.name] = field
 
         cls._fields = fields
+        cls._field_factories = tuple(
+            (k, v.factory) for k, v in fields.items()
+            if v.factory and not isinstance(getattr(cls, k, None), property)
+        )
+
+        # Push the default values down in the MRO
+        for k, v in cls._fields.items():
+            if (
+                not v.factory
+                and not isinstance(getattr(cls, k, None), property)
+                and k not in cls.__dict__
+            ):
+                setattr(cls, k, v.default)
 
     @classmethod
     def get_field(cls, name):
@@ -219,24 +232,17 @@ class AST:
                 f'cannot instantiate abstract AST node '
                 f'{self.__class__.__name__!r}')
 
+        # Make kwargs directly into our __dict__
+        for field_name, factory in self._field_factories:
+            if field_name not in kwargs:
+                kwargs[field_name] = factory()
+
         should_check_types = __debug__ and _check_type is _check_type_real
-        for field_name, field in self.__class__._fields.items():
-            if field_name in kwargs:
-                value = kwargs[field_name]
-            elif field.factory is not None:
-                value = field.factory()
-            else:
-                value = field.default
+        if should_check_types:
+            for k, v in kwargs.items():
+                self.check_field_type(self._fields[k], v)
 
-            if should_check_types:
-                self.check_field_type(field, value)
-
-            # Bypass overloaded setattr
-            try:
-                object.__setattr__(self, field_name, value)
-            except AttributeError:
-                # Field overriden as a property in a subclass.
-                pass
+        self.__dict__ = kwargs
 
     def __copy__(self):
         copied = self.__class__()
