@@ -80,7 +80,7 @@ up your first EdgeDB instance. You should see something like this:
     project [default: edgedb_quickstart]:
     > edgedb_quickstart
 
-    How would you like to run EdgeDB fer this project?
+    How would you like to run EdgeDB for this project?
     1. Local (native package)
     2. Docker
     Type a number to choose an option:
@@ -88,8 +88,8 @@ up your first EdgeDB instance. You should see something like this:
 
     Checking EdgeDB versions...
     Specify the version of EdgeDB to use with this project
-    [default: 1-beta2]:
-    > 1-beta2
+    [default: 1-beta3]:
+    > 1-beta3
     ┌─────────────────────┬───────────────────────────────────────────────┐
     │ Project directory   │ ~/path/to/edgedb-quickstart                 │
     │ Project config      │ ~/path/to/edgedb-quickstart/edgedb.toml     │
@@ -133,7 +133,7 @@ running on your computer! Try executing a simple query:
     edgedb> SELECT 1 + 1;
     {2}
 
-Run ``\quit`` to exit the REPL. More interesting queries are coming soon,
+Run ``\q`` to exit the REPL. More interesting queries are coming soon,
 promise! But first we need to set up a schema.
 
 .. _ref_quickstart_createdb_sdl:
@@ -285,8 +285,8 @@ Looking good! Now let's add some data to the database!
 
 For this tutorial we'll just use the REPL tool to execute queries. In
 practice, you'll probably be using one of EdgeDB's client libraries for
-`JavaScript <https://github.com/edgedb/edgedb-js>`_, `Go <https://github.com
-edgedb/edgedb-go>`_, or `Python <https://github.com/edgedb/edgedb-python>`_.
+`JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__, `Go <https://github.com
+edgedb/edgedb-go>`__, or `Python <https://github.com/edgedb/edgedb-python>`__.
 
 Open the REPL:
 
@@ -391,8 +391,8 @@ We have to use ``LIMIT 1`` for this query to be valid. In EdgeDB, the result
 of a query is a **set** (in the "set theory" sense). Since we're assigning to
 ``Movie.director`` (a singular/"to-one" relation) , we need to provide a
 guarantee that our query set will only contain a single element. To do that we
-need to either use ``LIMIT 1`` or ``FILTER`` by ``.id`` or another property
-with a uniqueness constraint.
+need to either 1) use ``LIMIT 1`` or 2) ``FILTER`` by ``.id`` (or another
+property with a uniqueness constraint).
 
 .. _ref_quickstart_queries:
 
@@ -429,9 +429,9 @@ the query shape. Note that the ``year`` for Dune is given as ``{}`` (the
 empty set). This is the equivalent of a ``NULL`` value in SQL.
 
 Let's narrow down the ``Movie`` search to "blade runner" using
-:eql:op:`ILIKE` (simple case-insensitive pattern matching). With the %
-at the end anything after ``blade runner`` will match (Blade Runner,
-Blade Runner 2049, BLaDE runnER the Video Game...).
+:eql:op:`ILIKE` (case-insensitive pattern matching). With the %
+at the end, anything after ``blade runner`` will match: "Blade Runner",
+"Blade Runner 2049", "BlAdE RUnnEr 2: Electric Boogaloo", etc....
 
 .. code-block:: edgeql-repl
 
@@ -535,7 +535,7 @@ Then we'll create a new migration and apply it:
 
 .. code-block:: bash
 
-    $ edgedb create-migration
+    $ edgedb migration create
     did you make property 'last_name' of object type
     'default::Person' optional? [y,n,l,c,b,s,q,?]
     y
@@ -552,25 +552,6 @@ Now back in our REPL we can add Zendaya:
     .......     first_name := 'Zendaya'
     ....... };
     {default::Person {id: 65fce84c-54dd-11e9-8c54-5f000ca496c9}}
-
-.. Finally let's update the cast of "Dune":
-
-.. .. code-block:: edgeql-repl
-
-..     edgeql> UPDATE Movie
-..     ....... FILTER Movie.title = 'Dune'
-..     ....... SET {
-..     .......     actors := (
-..     .......         SELECT Person
-..     .......         FILTER .first_name IN {
-..     .......             'Jason',
-..     .......             'Zendaya',
-..     .......             'Oscar'
-..     .......         }
-..     .......     )
-..     ....... };
-..     {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
-
 
 .. _ref_quickstart_computables:
 
@@ -618,22 +599,20 @@ properties of ``Person``. Let's update ``dbschema/default.esdl``:
           }
       };
 
-Then run create an run another migration:
-
+Then create and run another migration:
 
 .. code-block:: bash
 
-    $ edgedb create-migration
+    $ edgedb migration create
     did you create property 'name' of object type
     'default::Person'? [y,n,l,c,b,s,q,?]
-    y
+    > y
     Created ./dbschema/migrations/00003.edgeql, id:
     m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
 
     $ edgedb migrate
     Applied m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
     (00003.edgeql)
-
 
 Now we can easily fetch ``full_name`` just like any other property!
 
@@ -669,6 +648,10 @@ You now know the basics of EdgeDB! You've installed the CLI and database, set
 up a local project, created an initial schema, added and queried data, and run
 a schema migration.
 
+- For guided tours of major concepts, check out the
+  showcase pages for `Data Modeling </showcase/data-modeling>`_,
+  `EdgeQL </showcase/edgeql>`_, and `Migrations </showcase/migrations>`_.
+
 - For a deep dive into the EdgeQL query language, check out the
   `Interactive Tutorial </tutorial>`_.
 
@@ -677,8 +660,10 @@ a schema migration.
   total beginner through EdgeDB, from the basics all the way through advanced
   concepts.
 
-- For a quick survey of EdgeDB features, check out the showcase pages for
-  `Data Modeling </showcase/data-modeling>`_, `EdgeQL </showcase/edgeql>`_,
-  and `Migrations </showcase/migrations>`_
+- To start building an application using the language of your choice, check
+  out our client libraries for
+  `JavaScript/TypeScript </docs/clients/01_js/index>`__,
+  `Python </docs/clients/00_python/index>`__, and
+  `Go </docs/clients/02_go/index>`__.
 
 - Or just jump into the `docs </docs>`_!
