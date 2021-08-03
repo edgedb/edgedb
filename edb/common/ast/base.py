@@ -237,12 +237,12 @@ class AST:
             if field_name not in kwargs:
                 kwargs[field_name] = factory()
 
-        self.__dict__ = kwargs
-
         should_check_types = __debug__ and _check_type is _check_type_real
         if should_check_types:
             for k, v in kwargs.items():
                 self.check_field_type(self._fields[k], v)
+
+        self.__dict__ = kwargs
 
     def __copy__(self):
         copied = self.__class__()
