@@ -16,8 +16,7 @@ Description
 ===========
 
 ``edgedb instance create`` is a terminal command for making a new EdgeDB
-instance and creating a corresponding credentials file in
-``$HOME/.edgedb/credentials``.
+instance and creating a corresponding credentials file in ``<edgedb_config_dir>/credentials``. Run ``edgedb info`` to see the path to ``<edgedb_config_dir>`` on your machine.
 
 
 Options
