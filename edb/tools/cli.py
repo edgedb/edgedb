@@ -54,6 +54,9 @@ def cli(args: list[str]):
             "instance",
             "link",
             "--non-interactive",
+            "--trust-tls-cert",
+            "--overwrite",
+            "--quiet",
             "_localdev",
         ])
 
