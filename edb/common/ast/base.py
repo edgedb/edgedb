@@ -232,14 +232,12 @@ class AST:
                 f'cannot instantiate abstract AST node '
                 f'{self.__class__.__name__!r}')
 
-        # Put things directly into __dict__, as an optimization
-        d = self.__dict__
-
+        # Make kwargs directly into our __dict__
         for field_name, factory in self._field_factories:
             if field_name not in kwargs:
-                d[field_name] = factory()
+                kwargs[field_name] = factory()
 
-        d.update(kwargs)
+        self.__dict__ = kwargs
 
         should_check_types = __debug__ and _check_type is _check_type_real
         if should_check_types:
