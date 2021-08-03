@@ -24,7 +24,8 @@ Then create a new migration and apply it using
 ``http://127.0.0.1:<instance-port>/db/<database-name>/edgeql`` will
 expose EdgeQL API. Check the credentials file for your instance at
 ``<edgedb_config_dir>/credentials`` to find out which port the instance is
-using. Run ``edgedb info`` to see the path to ``<edgedb_config_dir>`` on your machine.
+using. Run ``edgedb info`` to see the path to ``<edgedb_config_dir>`` on your
+machine.
 
 .. toctree::
     :maxdepth: 2
