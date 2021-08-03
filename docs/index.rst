@@ -15,7 +15,6 @@ Welcome to the EdgeDB |version| documentation.
 
     intro
     quickstart
-    tutorial/index
     cheatsheet/index
     datamodel/index
     edgeql/index
