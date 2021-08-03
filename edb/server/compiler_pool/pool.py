@@ -250,6 +250,7 @@ class Pool(amsg.ServerProtocol):
         )
         return init_args
 
+    @functools.lru_cache(maxsize=None)
     def _get_pickled_init_args(self):
         return pickle.dumps(self._get_init_args(), -1)
 
