@@ -236,8 +236,8 @@ class AST:
         d = self.__dict__
 
         for field_name, factory in self._field_factories:
-            value = factory()
-            d[field_name] = value
+            if field_name not in kwargs:
+                d[field_name] = factory()
 
         d.update(kwargs)
 
