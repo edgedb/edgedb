@@ -248,17 +248,14 @@ class Pool(amsg.ServerProtocol):
             self._dbindex.get_global_schema(),
             self._dbindex.get_compilation_system_config(),
         )
-        return init_args
-
-    def _get_pickled_init_args(self):
-        return pickle.dumps(self._get_init_args(), -1)
+        pickled_args = pickle.dumps(init_args, -1)
+        return init_args, pickled_args
 
     def worker_connected(self, pid):
         logger.debug("Worker with PID %s connected, sending init args.", pid)
+        args, pickled_args = self._get_init_args()
         self._loop.create_task(
-            self._attach_worker(
-                pid, self._get_init_args(), self._get_pickled_init_args()
-            )
+            self._attach_worker(pid, args, pickled_args)
         )
 
     def worker_disconnected(self, pid):
