@@ -139,7 +139,7 @@ friends from the same town:
         )
     };
 
-Define a new abstract link ``orderable``, and then a concrete link
+Define a new abstract link ``orderable`` and a concrete link
 ``interests`` that extends it, inheriting its ``weight`` property:
 
 .. code-block:: edgeql
@@ -266,8 +266,8 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     valid for concrete links.
 
 :eql:synopsis:`SET MULTI`
-    Change the link set's maximum cardinality to fit any natural number ( *greater than or equal to one* ).
-    Only valid for concrete links;
+    Change the link set's maximum cardinality to fit any natural number 
+    ( *greater than or equal to one* ). Only valid for concrete links.
 
 :eql:synopsis:`RESET CARDINALITY`
     Reset the link set's maximum cardinality to the default value
@@ -282,8 +282,10 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     if there is no implicit or assignment cast from old to new type.
 
 :eql:synopsis:`RESET TYPE`
-    For a given type,`T`, that owns links to a set of data, `L`, where `L = { link_1, link_2, ... , link_t }`, 
-    redefine `L`'s members to have the type defined on `T`'s supertype, provided that the names of the links match.
+    For a given type ``T`` that owns a set of links ``L``, with 
+    ``L = { link_1, link_2, ... , link_t }``, ``RESET TYPE`` morphs the type signature on
+    ``L``'s elements to become the kind allocated on ``T``'s supertype (provided that they
+    share the same name).
     It is an error to ``RESET TYPE`` on a link that is not inherited.
 
 :eql:synopsis:`USING (<computed-expr>)`
@@ -333,13 +335,13 @@ valid subcommands for ``ALTER LINK`` block.
 Examples
 --------
 
-Set the ``title`` annotation of link ``friends`` of object type ``User`` to
+On the object type ``User``, set the ``title`` annotation of its ``friends`` link to
 ``"Friends"``:
 
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        ALTER LINK interests CREATE ANNOTATION title := "Interests";
+        ALTER LINK friends CREATE ANNOTATION title := "Friends";
     };
 
 Rename the abstract link ``orderable`` to ``sorted``:
