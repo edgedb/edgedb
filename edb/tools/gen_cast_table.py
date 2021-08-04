@@ -19,13 +19,11 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 import sys
 
 from edb.tools.edb import edbcommands
-
-from edb.server import defines as edgedb_defines
-
-import edgedb
 
 
 # Hardcode the scalar types (and the order of their appearance in
@@ -88,31 +86,19 @@ def is_reachable(source, target, impl_cast):
         return reachable
 
 
-def get_all_casts(con):
-    # Read the casts.
-    casts = con.query('''
-        WITH MODULE schema
-        SELECT Cast {
-            source := .from_type.name,
-            target := .to_type.name,
-            allow_assignment,
-            allow_implicit,
-        }
-        FILTER .from_type IS ScalarType AND .to_type IS ScalarType
-    ''')
-
+def get_all_casts(casts):
     # Calculate the explicit, assignment, and implicit cast tables.
     expl_cast = {}
     assn_cast = {}
     impl_cast = {}
     for cast in casts:
-        source = cast.source
-        target = cast.target
+        source = cast['source']
+        target = cast['target']
         if source in SCALAR_SET and target in SCALAR_SET:
             expl_cast[(source, target)] = True
-            if cast.allow_assignment:
+            if cast['allow_assignment']:
                 assn_cast[(source, target)] = True
-            if cast.allow_implicit:
+            if cast['allow_implicit']:
                 assn_cast[(source, target)] = True
                 impl_cast[(source, target)] = True
 
@@ -125,8 +111,8 @@ def get_all_casts(con):
     return (expl_cast, assn_cast, impl_cast)
 
 
-def main(con):
-    expl_cast, assn_cast, impl_cast = get_all_casts(con)
+def main(casts):
+    expl_cast, assn_cast, impl_cast = get_all_casts(casts)
 
     # Top row with all the scalars listed
     code = []
@@ -161,14 +147,28 @@ def gen_cast_table():
     NAME - at the moment there's only one option 'edgeql'
     """
 
-    con = None
     try:
-        con = edgedb.connect(user=edgedb_defines.EDGEDB_SUPERUSER,
-                             database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-                             port=5656)
-        main(con)
+        res = subprocess.run([
+            'edb',
+            'cli',
+            'query',
+            '-Fjson',
+
+            r"""
+            WITH MODULE schema
+            SELECT Cast {
+                source := .from_type.name,
+                target := .to_type.name,
+                allow_assignment,
+                allow_implicit,
+            }
+            FILTER .from_type IS ScalarType AND .to_type IS ScalarType
+            """,
+        ], capture_output=True)
+
+        if res.returncode != 0:
+            die('Could not connect to the dev EdgeDB instance')
+
+        main(json.loads(res.stdout))
     except Exception as ex:
         die(str(ex))
-    finally:
-        if con is not None:
-            con.close()
