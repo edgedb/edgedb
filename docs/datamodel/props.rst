@@ -16,23 +16,75 @@ Every property is declared to have a specific
 :ref:`collection type <ref_datamodel_collection_types>` based on a scalar.
 
 There are two kinds of property item declarations: *abstract properties*,
-and *concrete properties*.  Abstract properties are defined on the module 
-level and are not tied to any particular object type or link.  Typically 
-this is done to set some :ref:`annotations <ref_datamodel_annotations>`, 
-or define :ref:`constraints <ref_datamodel_constraints>`.  Concrete 
+and *concrete properties*.  Abstract properties are defined on the module
+level and are not tied to any particular object type or link.  Typically
+this is done to set some :ref:`annotations <ref_datamodel_annotations>`,
+or define :ref:`constraints <ref_datamodel_constraints>`.  Concrete
 properties are defined on specific object types.
 
 Similar to :ref:`links <ref_datamodel_links>`, properties have a
-*source* (the object on which they are defined) and one or more
-*targets* (the values that property can have). The number of targets
-is specified by the keywords :ref:`required <ref_eql_ddl_props_syntax>`,
+*source* (the object type or link on which they are defined) and one
+or more *targets* (the values that property can have).
+
+
+Object properties
+-----------------
+
+Properties defined on object types have the number of targets
+specified by the keywords :ref:`required <ref_eql_ddl_props_syntax>`,
 :ref:`single <ref_eql_ddl_props_syntax>`, and :ref:`multi
 <ref_eql_ddl_props_syntax>`.  It is also possible to restrict how many
-source objects can link to the same target via the
+source objects can have the same property value via the
 :eql:constraint:`exclusive` constraint.  For the purpose of figuring
 out the number of property targets, a :ref:`collection type
 <ref_datamodel_collection_types>` target by itself is considered a
 *single* target.
+
+For example, here's an object type with a *single required exclusive*
+property ``name`` and an *optional multi* property ``favorite_tags``:
+
+.. code-block:: sdl
+
+    type Person {
+        required property name -> str {
+            constraint exclusive;
+        }
+        multi property favorite_tags -> str;
+    }
+
+
+Link properties
+---------------
+
+Properties defined on links are a little more restricted than the ones
+defined on object types. They can never be :ref:`required
+<ref_eql_ddl_props_syntax>`, so that a link can exist just fine
+without them. They also have to be :ref:`single
+<ref_eql_ddl_props_syntax>`.
+
+Typically link properties are used to indicate some flavor or strength
+of a particular relationship, such as ordering or total count:
+
+.. code-block:: sdl
+
+    type Person {
+        required property name -> str {
+            constraint exclusive;
+        }
+        multi link shirts -> Shirt {
+            constraint exclusive;
+            # This is a good way of keeping track of
+            # identical Shirts, since creating identical
+            # Shirts would violate the exclusivity
+            # constraint of the description.
+            property count -> int64;
+        }
+    }
+    type Shirt {
+        required property description -> str {
+            constraint exclusive;
+        }
+    }
 
 
 See Also
