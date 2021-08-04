@@ -49,18 +49,41 @@ type User extending Named {
     }
 }
 
+type Bot extending User;
+
 type Card extending Named {
     required property element -> str;
     required property cost -> int64;
-    multi link owners := __source__.<deck[IS User];
+    multi link owners := .<deck[IS User];
     # computable property
     property elemental_cost := <str>.cost ++ ' ' ++ .element;
+    multi link awards -> Award;
+    multi link good_awards := (SELECT .awards FILTER .name != '3rd');
 }
 
 type SpecialCard extending Card;
 
 type Award extending Named;
 
+alias AirCard := (
+    SELECT Card
+    FILTER Card.element = 'Air'
+);
+
+alias WaterCard := (
+    SELECT Card
+    FILTER Card.element = 'Water'
+);
+
+alias EarthCard := (
+    SELECT Card
+    FILTER Card.element = 'Earth'
+);
+
+alias FireCard := (
+    SELECT Card
+    FILTER Card.element = 'Fire'
+);
 
 alias WaterOrEarthCard := (
     SELECT Card {
@@ -69,11 +92,64 @@ alias WaterOrEarthCard := (
     FILTER .element = 'Water' OR .element = 'Earth'
 );
 
-
 alias EarthOrFireCard {
     using (SELECT Card FILTER .element = 'Fire' OR .element = 'Earth')
 };
 
+alias AliceCard := (
+    SELECT Card
+    FILTER Card.<deck[IS User].name = 'Alice'
+);
+
+alias BobCard := (
+    SELECT Card
+    FILTER Card.<deck[IS User].name = 'Bob'
+);
+
+alias CarolCard := (
+    SELECT Card
+    FILTER Card.<deck[IS User].name = 'Carol'
+);
+
+alias DaveCard := (
+    SELECT Card
+    FILTER Card.<deck[IS User].name = 'Dave'
+);
+
+alias AliasedFriends := (
+    SELECT User { my_friends := User.friends, my_name := User.name }
+);
+
+alias AwardAlias := (
+    Award {
+        # this should be a single link, because awards are exclusive
+        winner := Award.<awards[IS User] {
+            name_upper := str_upper(.name)
+        }
+    }
+);
+
+# This expression is unnecessarily deep, but that shouldn't have
+# any impact as compared to AwardAlias.
+alias AwardAlias2 := (
+    SELECT Award {
+        winner := Award.<awards[IS User] {
+            deck: {
+                id
+            }
+        }
+    }
+);
+
+# This alias includes ordering
+alias UserAlias := (
+    SELECT User {
+        deck: {
+            id
+        } ORDER BY User.deck.cost DESC
+          LIMIT 1,
+    }
+);
 
 alias SpecialCardAlias := SpecialCard {
     el_cost := (.element, .cost)

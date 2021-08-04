@@ -25,7 +25,7 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'Get the *nth* bit of the *bytes* value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT get_bit("bytes", "num"::int)::bigint
     $$;
@@ -38,7 +38,9 @@ std::bytes_get_bit(bytes: std::bytes, num: int64) -> std::int64
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
@@ -47,14 +49,19 @@ std::`=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
@@ -63,21 +70,28 @@ std::`!=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::bytes, r: OPTIONAL std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`++` (l: std::bytes, r: std::bytes) -> std::bytes {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'concat';
+    CREATE ANNOTATION std::description := 'Bytes concatenation.';
+    SET volatility := 'Immutable';
     USING SQL OPERATOR r'||';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
     USING SQL OPERATOR '>=';
@@ -86,7 +100,9 @@ std::`>=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
     USING SQL OPERATOR '>';
@@ -95,7 +111,9 @@ std::`>` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
     USING SQL OPERATOR '<=';
@@ -104,8 +122,26 @@ std::`<=` (l: std::bytes, r: std::bytes) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::bytes, r: std::bytes) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
     USING SQL OPERATOR '<';
+};
+
+CREATE INFIX OPERATOR
+std::`[]` (l: std::bytes, r: std::int64) -> std::bytes {
+    CREATE ANNOTATION std::identifier := 'index';
+    CREATE ANNOTATION std::description := 'Bytes indexing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+CREATE INFIX OPERATOR
+std::`[]` (l: std::bytes, r: tuple<std::int64, std::int64>) -> std::bytes {
+    CREATE ANNOTATION std::identifier := 'slice';
+    CREATE ANNOTATION std::description := 'Bytes slicing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
 };

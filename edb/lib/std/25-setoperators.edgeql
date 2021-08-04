@@ -27,8 +27,11 @@
 CREATE INFIX OPERATOR
 std::`IN` (e: anytype, s: SET OF anytype) -> std::bool
 {
+    CREATE ANNOTATION std::identifier := 'in';
+    CREATE ANNOTATION std::description :=
+        'Test the membership of an element in a set.';
     USING SQL EXPRESSION;
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET derivative_of := 'std::=';
 };
 
@@ -36,36 +39,48 @@ std::`IN` (e: anytype, s: SET OF anytype) -> std::bool
 CREATE INFIX OPERATOR
 std::`NOT IN` (e: anytype, s: SET OF anytype) -> std::bool
 {
+    CREATE ANNOTATION std::identifier := 'not_in';
+    CREATE ANNOTATION std::description :=
+        'Test the membership of an element in a set.';
     USING SQL EXPRESSION;
-    SET volatility := 'IMMUTABLE';
-    SET derivative_of := 'std::!=';
+    SET volatility := 'Immutable';
+    SET derivative_of := 'std::=';
 };
 
 
 CREATE PREFIX OPERATOR
 std::`EXISTS` (s: SET OF anytype) -> bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'exists';
+    CREATE ANNOTATION std::description := 'Test whether a set is not empty.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE PREFIX OPERATOR
 std::`DISTINCT` (s: SET OF anytype) -> SET OF anytype {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'distinct';
+    CREATE ANNOTATION std::description :=
+        'Return a set without repeating any elements.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`UNION` (s1: SET OF anytype, s2: SET OF anytype) -> SET OF anytype {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'union';
+    CREATE ANNOTATION std::description := 'Merge two sets.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coalesce';
+    CREATE ANNOTATION std::description := 'Coalesce.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
@@ -73,6 +88,9 @@ std::`??` (l: OPTIONAL anytype, r: SET OF anytype) -> SET OF anytype {
 CREATE TERNARY OPERATOR
 std::`IF` (if_true: SET OF anytype, condition: bool,
            if_false: SET OF anytype) -> SET OF anytype {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'if_else';
+    CREATE ANNOTATION std::description :=
+        'Conditionally provide one or the other result.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };

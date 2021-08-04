@@ -23,6 +23,11 @@ pygments:
 		echo "$$out" > edb/edgeql/pygments/meta.py
 
 
+casts:
+	out=$$(edb gen-cast-table) && \
+		echo "$$out" > docs/datamodel/scalars/casts.csv
+
+
 build:
 	pip install -Ue .[docs,test]
 

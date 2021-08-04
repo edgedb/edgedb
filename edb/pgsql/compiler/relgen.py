@@ -115,6 +115,33 @@ class OptionalRel(NamedTuple):
     marker: str
 
 
+def _lookup_set_rvar(
+        ir_set: irast.Set, *,
+        scope_stmt: Optional[pgast.SelectStmt]=None,
+        ctx: context.CompilerContextLevel) -> Optional[pgast.PathRangeVar]:
+    path_id = ir_set.path_id
+
+    rvar = relctx.find_rvar(ctx.rel, source_stmt=scope_stmt,
+                            path_id=path_id, ctx=ctx)
+
+    if rvar is not None:
+        return rvar
+
+    # We couldn't find a regular rvar, but maybe we can find a packed one?
+    packed_rvar = relctx.find_rvar(ctx.rel, flavor='packed',
+                                   source_stmt=scope_stmt,
+                                   path_id=path_id, ctx=ctx)
+
+    if packed_rvar is not None:
+        rvar = relctx.unpack_rvar(
+            scope_stmt or ctx.rel,
+            path_id, packed_rvar=packed_rvar, ctx=ctx)
+
+        return rvar
+
+    return None
+
+
 def get_set_rvar(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
@@ -125,10 +152,7 @@ def get_set_rvar(
     path_id = ir_set.path_id
 
     scope_stmt = relctx.maybe_get_scope_stmt(path_id, ctx=ctx)
-    rvar = relctx.find_rvar(ctx.rel, source_stmt=scope_stmt,
-                            path_id=path_id, ctx=ctx)
-
-    if rvar is not None:
+    if rvar := _lookup_set_rvar(ir_set, scope_stmt=scope_stmt, ctx=ctx):
         return rvar
 
     if ctx.toplevel_stmt is context.NO_STMT:
@@ -163,6 +187,7 @@ def get_set_rvar(
         path_scope = relctx.get_scope(ir_set, ctx=subctx)
         new_scope = path_scope or subctx.scope_tree
         is_optional = (
+            subctx.scope_tree.is_optional(path_id) or
             new_scope.is_optional(path_id) or
             path_id in subctx.force_optional
         )
@@ -179,6 +204,13 @@ def get_set_rvar(
                 subctx.path_scope[path_id] = scope_stmt
             relctx.update_scope(ir_set, stmt, ctx=subctx)
 
+        # If the set is a binding, we need to treat it as exposed
+        # because we don't know at this point whether it will be
+        # reused in an exposed context.
+        # (We could avoid this with some more analysis, probably.)
+        if ir_set.is_binding:
+            subctx.expr_exposed = None
+
         rvars = _get_set_rvar(ir_set, ctx=subctx)
 
         if optional_wrapping:
@@ -186,6 +218,8 @@ def get_set_rvar(
                                           rvars=rvars, ctx=subctx)
         elif not is_optional and is_empty_set:
             null_query = rvars.main.rvar.query
+            assert isinstance(
+                null_query, (pgast.SelectStmt, pgast.NullRelation))
             null_query.where_clause = pgast.BooleanConstant(val='FALSE')
 
         result_rvar = _include_rvars(rvars, scope_stmt=scope_stmt, ctx=subctx)
@@ -312,6 +346,20 @@ def _get_set_rvar(
                         ir_set, stmt, ctx=ctx)
                 else:
                     rvars = process_set_as_enumerate(ir_set, stmt, ctx=ctx)
+
+            elif str(expr.func_shortname) == 'std::assert_single':
+                # Cardinality assertion
+                rvars = process_set_as_singleton_assertion(
+                    ir_set, stmt, ctx=ctx)
+
+            elif str(expr.func_shortname) == 'std::min' and expr.func_sql_expr:
+                # Generic std::min
+                rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
+
+            elif str(expr.func_shortname) == 'std::max' and expr.func_sql_expr:
+                # Generic std::max
+                rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
+
             elif any(
                 pm is qltypes.TypeModifier.SetOfType
                 for pm in expr.params_typemods
@@ -436,6 +484,7 @@ def set_as_subquery(
 
 def set_to_array(
         ir_set: irast.Set, query: pgast.Query, *,
+        materializing: bool=False,
         ctx: context.CompilerContextLevel) -> pgast.Query:
     """Collapse a set into an array."""
     subrvar = pgast.RangeSubselect(
@@ -460,6 +509,10 @@ def set_to_array(
             value_var, path_id=ir_set.path_id, env=ctx.env)
         pathctx.put_path_serialized_var(
             result, ir_set.path_id, val, force=True, env=ctx.env)
+
+    if isinstance(val, pgast.TupleVarBase):
+        val = output.serialize_expr(
+            val, path_id=ir_set.path_id, env=ctx.env)
 
     pg_type = output.get_pg_type(ir_set.typeref, ctx=ctx)
     orig_val = val
@@ -497,8 +550,9 @@ def set_to_array(
 
     result.target_list = [
         pgast.ResTarget(
+            name=ctx.env.aliases.get('v'),
             val=agg_expr,
-            ser_safe=array_agg.ser_safe,
+            ser_safe=agg_expr.ser_safe,
         )
     ]
 
@@ -626,36 +680,6 @@ def finalize_optional_rel(
                     arg=lvar, negated=True
                 )
             )
-
-        if isinstance(lvar, pgast.TupleVar):
-            # Make sure we have a correct TupleVar in place for the empty rvar,
-            # otherwise _get_rel_path_output() will try to inject a NULL in its
-            # place, breaking the UNION balance.
-            null_rvar = pathctx.get_path_rvar(
-                optrel.emptyrel, ir_set.path_id,
-                aspect='value', env=subctx.env)
-
-            def _ensure_empty_tvar(tvar: pgast.TupleVar,
-                                   path_id: irast.PathId) -> None:
-                tvarels = []
-                for element in tvar.elements:
-                    if isinstance(element.val, pgast.TupleVar):
-                        _ensure_empty_tvar(element.val, element.path_id)
-                    tvarels.append(pgast.TupleElementBase(
-                        path_id=element.path_id))
-                pathctx.put_path_value_var(
-                    optrel.emptyrel,
-                    path_id,
-                    pgast.TupleVarBase(
-                        elements=tvarels,
-                        typeref=tvar.typeref,
-                    ),
-                    env=subctx.env,
-                )
-                pathctx.put_path_source_rvar(
-                    optrel.emptyrel, path_id, null_rvar, env=subctx.env)
-
-            _ensure_empty_tvar(lvar, ir_set.path_id)
 
     unionrel = optrel.unionrel
     union_rvar = relctx.rvar_for_rel(unionrel, lateral=True, ctx=ctx)
@@ -931,13 +955,13 @@ def process_set_as_path(
             ctx=ctx)
 
     ptr_info = pg_types.get_ptrref_storage_info(
-        ptrref, resolve_type=False, link_bias=False)
+        ptrref, resolve_type=False, link_bias=False, allow_missing=True)
 
     # Path is a link property.
     is_linkprop = ptrref.source_ptr is not None
-    # Path is a reference to a relationship stored in the source table.
-    is_inline_ref = ptr_info.table_type == 'ObjectType'
     is_primitive_ref = not irtyputils.is_object(ptrref.out_target)
+    # Path is a reference to a relationship stored in the source table.
+    is_inline_ref = bool(ptr_info and ptr_info.table_type == 'ObjectType')
     is_inline_primitive_ref = is_inline_ref and is_primitive_ref
     is_id_ref_to_inline_source = False
 
@@ -952,11 +976,17 @@ def process_set_as_path(
     semi_join = (
         not source_is_visible and
         ir_set.path_id not in ctx.disable_semi_join and
-        not (is_linkprop or is_primitive_ref)
+        not (is_linkprop or is_primitive_ref) and
+        # This is an optimization for when we are inside of a semi-join on
+        # a computable: process_set_as_subquery will have included an
+        # rvar for the computable source, and we want to join on it
+        # instead of semi-joining.
+        not relctx.find_rvar(stmt, path_id=ir_source.path_id, ctx=ctx)
     )
 
     source_rptr = ir_source.rptr
     if (irtyputils.is_id_ptrref(ptrref) and source_rptr is not None
+            and isinstance(source_rptr.ptrref, irast.PointerRef)
             and not irtyputils.is_inbound_ptrref(source_rptr.ptrref)
             and not irtyputils.is_computable_ptrref(source_rptr.ptrref)
             and not irutils.is_type_intersection_reference(ir_set)):
@@ -981,9 +1011,10 @@ def process_set_as_path(
             # __type__[IS Array].id, or if Foo is not visible in
             # this scope.
             source_ptr_info = pg_types.get_ptrref_storage_info(
-                source_rptr.ptrref, resolve_type=False, link_bias=False)
-            is_id_ref_to_inline_source = (
-                source_ptr_info.table_type == 'ObjectType')
+                source_rptr.ptrref, resolve_type=False, link_bias=False,
+                allow_missing=True)
+            is_id_ref_to_inline_source = bool(
+                source_ptr_info and source_ptr_info.table_type == 'ObjectType')
 
     if semi_join:
         with ctx.subrel() as srcctx:
@@ -1113,10 +1144,27 @@ def process_set_as_path(
     return SetRVars(main=main_rvar, new=rvars)
 
 
+def _new_subquery_stmt_set_rvar(
+    ir_set: irast.Set,
+    stmt: pgast.Query,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    aspects = pathctx.list_path_aspects(
+        stmt, ir_set.path_id, env=ctx.env)
+    if ir_set.path_id.is_tuple_path():
+        # If we are wrapping a tuple expression, make sure not to
+        # over-represent it in terms of the exposed aspects.
+        aspects -= {'serialized'}
+
+    return new_stmt_set_rvar(
+        ir_set, stmt, aspects=aspects, ctx=ctx)
+
+
 def process_set_as_subquery(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
-    is_scalar_path = ir_set.path_id.is_scalar_path()
+    is_objtype_path = ir_set.path_id.is_objtype_path()
 
     expr = ir_set.expr
     assert isinstance(expr, irast.Stmt)
@@ -1125,12 +1173,12 @@ def process_set_as_subquery(
 
     if ir_set.rptr is not None:
         ir_source = ir_set.rptr.source
-        if is_scalar_path:
+        if not is_objtype_path:
             source_is_visible = True
         else:
             # Non-scalar computable pointer.  Check if path source is
             # visible in the outer scope.
-            outer_fence = ctx.scope_tree.parent_fence
+            outer_fence = ctx.scope_tree.parent_branch
             assert outer_fence is not None
             source_is_visible = outer_fence.is_visible(ir_source.path_id)
 
@@ -1146,14 +1194,8 @@ def process_set_as_subquery(
         inner_id = inner_set.path_id
         semi_join = False
 
-        if inner_id != outer_id:
-            pathctx.put_path_id_map(ctx.rel, outer_id, inner_id)
-
         if ir_source is not None:
-            if (
-                is_scalar_path
-                and ir_source.path_id != ctx.current_insert_path_id
-            ):
+            if ir_source.path_id != ctx.current_insert_path_id:
                 # This is a computable pointer.  In order to ensure that
                 # the volatile functions in the pointer expression are called
                 # the necessary number of times, we must inject a
@@ -1165,22 +1207,45 @@ def process_set_as_subquery(
                 # skip it based on the current_insert_path_id check.
                 path_id = ir_source.path_id
                 newctx.volatility_ref += (
-                    lambda: relctx.maybe_get_path_var(
+                    lambda xctx: relctx.maybe_get_path_var(
                         stmt, path_id=path_id, aspect='identity',
-                        ctx=ctx),)
-            elif not is_scalar_path and not source_is_visible:
-                path_scope = relctx.get_scope(ir_set, ctx=newctx)
-                if (path_scope is None or
-                        path_scope.find_descendant(ir_source.path_id) is None):
-                    # Non-scalar computable semi-join.
-                    semi_join = True
+                        ctx=xctx),)
 
-                    with newctx.subrel() as _, _.newscope() as subctx:
-                        get_set_rvar(ir_source, ctx=subctx)
-                        subrel = subctx.rel
+            if is_objtype_path and not source_is_visible:
+                # Non-scalar computable semi-join.
+                semi_join = True
 
-                    pathctx.get_path_identity_output(
-                        subrel, path_id=ir_source.path_id, env=ctx.env)
+                # We need to compile the source and include it in,
+                # since we need to do the semi-join deduplication here
+                # on the outside, and not when the source is used in a
+                # path inside the computable.
+                # (See test_edgeql_scope_computables_09 for an example.)
+                with newctx.subrel() as _, _.newscope() as subctx:
+                    get_set_rvar(ir_source, ctx=subctx)
+                    subrvar = relctx.rvar_for_rel(subctx.rel, ctx=subctx)
+
+                relctx.include_rvar(
+                    stmt, subrvar, ir_source.path_id, ctx=ctx)
+
+        # If we are looking at a materialized computable, running
+        # get_set_rvar on the source above may have made it show
+        # up. So try to lookup the rvar again, and if we find it,
+        # skip compiling the computable.
+        if ir_source and (new_rvar := _lookup_set_rvar(ir_set, ctx=ctx)):
+            if semi_join:
+                # We need to use DISTINCT, instead of doing an actual
+                # semi-join, unfortunately: we need to extract data
+                # out from stmt, which we can't do with a semi-join.
+                value_var = pathctx.get_rvar_path_var(
+                    new_rvar, outer_id, aspect='value', env=ctx.env)
+                stmt.distinct_clause = (
+                    pathctx.get_rvar_output_var_as_col_list(
+                        subrvar, value_var, aspect='value', env=ctx.env))
+
+            return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+        if inner_id != outer_id:
+            pathctx.put_path_id_map(ctx.rel, outer_id, inner_id)
 
         if (isinstance(ir_set.expr, irast.MutatingStmt)
                 and ir_set.expr in ctx.dml_stmts):
@@ -1195,31 +1260,22 @@ def process_set_as_subquery(
             dispatch.visit(ir_set.expr, ctx=newctx)
 
         if semi_join:
-            assert ir_source is not None
-            src_ref = pathctx.maybe_get_path_identity_var(
-                stmt, path_id=ir_source.path_id, env=ctx.env)
+            set_rvar = relctx.new_root_rvar(ir_set, ctx=newctx)
+            tgt_ref = pathctx.get_rvar_path_identity_var(
+                set_rvar, ir_set.path_id, env=ctx.env)
 
-            cond_expr: pgast.BaseExpr
-            if src_ref is not None:
-                cond_expr = astutils.new_binop(src_ref, subrel, 'IN')
-            else:
-                # The link expression does not refer to the source,
-                # so simply check it's not empty.
-                cond_expr = pgast.SubLink(
-                    type=pgast.SubLinkType.EXISTS,
-                    expr=subrel
-                )
+            pathctx.get_path_identity_output(
+                stmt, ir_set.path_id, env=ctx.env)
+            cond_expr = astutils.new_binop(tgt_ref, stmt, 'IN')
 
+            # Make a new stmt, join in the new root, and semi join on
+            # the original statement.
+            stmt = pgast.SelectStmt()
+            relctx.include_rvar(stmt, set_rvar, ir_set.path_id, ctx=ctx)
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause, cond_expr)
 
-    aspects = pathctx.list_path_aspects(stmt, inner_id, env=ctx.env)
-    if inner_id.is_tuple_path():
-        # If we are wrapping a tuple expression, make sure not to
-        # over-represent it in terms of the exposed aspects.
-        aspects -= {'serialized'}
-
-    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
+    return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_membership_expr(
@@ -1232,7 +1288,7 @@ def process_set_as_membership_expr(
         left_arg, right_arg = (a.expr for a in expr.args)
 
         newctx.expr_exposed = False
-        left_expr = dispatch.compile(left_arg, ctx=newctx)
+        left_out = dispatch.compile(left_arg, ctx=newctx)
 
         right_arg = irutils.unwrap_set(right_arg)
         # If the right operand of [NOT] IN is an array_unpack call,
@@ -1246,37 +1302,39 @@ def process_set_as_membership_expr(
         else:
             is_array_unpack = False
 
-        with newctx.subrel() as _, _.newscope() as subctx:
-            dispatch.compile(right_arg, ctx=subctx)
-            pathctx.get_path_value_output(
-                subctx.rel, right_arg.path_id,
-                env=subctx.env)
+        # We compile `x [NOT] IN y` into essentially
+        # `[NOT] EXISTS (SELECT ... WHERE x = y)`.
+        # We use this approach instead of using ANY/ALL or IN directly
+        # because those subquery-based approaches are finnicky in
+        # their treatment of tuples, which this approach sidesteps.
 
-            right_rel = subctx.rel
+        with newctx.subrel() as _, _.newscope() as subctx:
+            right_out = dispatch.compile(right_arg, ctx=subctx)
 
             if is_array_unpack:
-                right_rel = pgast.TypeCast(
-                    arg=right_rel,
-                    type_name=pgast.TypeName(
-                        name=pg_types.pg_type_from_ir_typeref(
-                            right_arg.typeref)
+                right_out = pgast.SubLink(
+                    type=pgast.SubLinkType.ANY,
+                    expr=pgast.TypeCast(
+                        arg=right_out,
+                        type_name=pgast.TypeName(
+                            name=pg_types.pg_type_from_ir_typeref(
+                                right_arg.typeref)
+                        )
                     )
                 )
 
-    negated = str(expr.func_shortname) == 'std::NOT IN'
-    sublink_type = pgast.SubLinkType.ALL if negated else pgast.SubLinkType.ANY
+            cond = exprcomp.compile_operator(
+                expr,
+                [left_out, right_out],
+                ctx=subctx,
+            )
 
-    set_expr = exprcomp.compile_operator(
-        expr,
-        [
-            left_expr,
-            pgast.SubLink(
-                type=sublink_type,
-                expr=right_rel,
-            ),
-        ],
-        ctx=ctx,
-    )
+            subctx.rel.where_clause = astutils.extend_binop(
+                subctx.rel.where_clause, cond)
+
+    negated = str(expr.func_shortname) == 'std::NOT IN'
+    cmd = 'NOT EXISTS' if negated else 'EXISTS'
+    set_expr = astutils.new_unop(cmd, subctx.rel)
 
     pathctx.put_path_value_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
@@ -1315,7 +1373,10 @@ def process_set_as_setop(
         subqry.rarg = rarg
 
         union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
-        relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
+        # No pull_namespace because we don't want the union arguments to
+        # escape, just the final result.
+        relctx.include_rvar(
+            stmt, union_rvar, ir_set.path_id, pull_namespace=False, ctx=subctx)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -1341,6 +1402,11 @@ def process_set_as_distinct(
 
     stmt.distinct_clause = pathctx.get_rvar_output_var_as_col_list(
         subrvar, value_var, aspect='value', env=ctx.env)
+    # If there aren't any columns, we are doing DISTINCT on empty
+    # tuples. All empty tuples are equivalent, so we can just compile
+    # this by adding a LIMIT 1.
+    if not stmt.distinct_clause:
+        stmt.limit_count = pgast.NumericConstant(val="1")
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -1399,12 +1465,14 @@ def process_set_as_ifelse(
 
         rvar = pathctx.get_path_value_var(
             stmt, path_id=ir_set.path_id, env=ctx.env)
-        stmt.where_clause = astutils.extend_binop(
-            stmt.where_clause,
-            pgast.NullTest(
-                arg=rvar, negated=True
+        # We need to NULL filter both the result and the input condition
+        for var in [rvar, condref]:
+            stmt.where_clause = astutils.extend_binop(
+                stmt.where_clause,
+                pgast.NullTest(
+                    arg=var, negated=True
+                )
             )
-        )
 
     else:
         with ctx.subrel() as _, _.newscope() as subctx:
@@ -1450,7 +1518,10 @@ def process_set_as_coalesce(
         newctx.expr_exposed = False
         left_ir, right_ir = (a.expr for a in expr.args)
         left_card, right_card = (a.cardinality for a in expr.args)
-        is_object = ir_set.path_id.is_objtype_path()
+        is_object = (
+            ir_set.path_id.is_objtype_path()
+            or ir_set.path_id.is_tuple_path()
+        )
 
         # The cardinality optimziations below apply to non-object
         # expressions only, because we don't want to have to deal
@@ -1544,10 +1615,7 @@ def process_set_as_coalesce(
                         larg = scopectx.rel
                         pathctx.put_path_id_map(
                             larg, ir_set.path_id, left_ir.path_id)
-                        dispatch.visit(left_ir, ctx=scopectx)
-
-                        lvar = pathctx.get_path_value_var(
-                            larg, path_id=left_ir.path_id, env=scopectx.env)
+                        lvar = dispatch.compile(left_ir, ctx=scopectx)
 
                         if lvar.nullable:
                             # The left var is still nullable, which may be the
@@ -1564,7 +1632,13 @@ def process_set_as_coalesce(
                         rarg = scopectx.rel
                         pathctx.put_path_id_map(
                             rarg, ir_set.path_id, right_ir.path_id)
-                        dispatch.visit(right_ir, ctx=scopectx)
+                        rvar = dispatch.compile(right_ir, ctx=scopectx)
+
+                        if rvar.nullable:
+                            rarg.where_clause = astutils.extend_binop(
+                                rarg.where_clause,
+                                pgast.NullTest(arg=rvar, negated=True)
+                            )
 
                     marker = sub2ctx.env.aliases.get('m')
 
@@ -1610,8 +1684,11 @@ def process_set_as_coalesce(
 
             subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=newctx)
 
+            # No pull_namespace because we don't want the coalesce arguments to
+            # escape, just the final result.
             relctx.include_rvar(
-                stmt, subrvar, path_id=ir_set.path_id, ctx=newctx)
+                stmt, subrvar, path_id=ir_set.path_id,
+                pull_namespace=False, ctx=newctx)
 
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause,
@@ -1637,12 +1714,21 @@ def process_set_as_tuple(
                 ttypes[str(i)] = st
 
         for element in expr.elements:
+            assert element.path_id
             path_id = element.path_id
             if path_id != element.val.path_id:
                 pathctx.put_path_id_map(stmt, path_id, element.val.path_id)
 
-            dispatch.visit(element.val, ctx=subctx)
+            tvar = dispatch.compile(element.val, ctx=subctx)
             elements.append(pgast.TupleElementBase(path_id=path_id))
+
+            # We need to filter out NULLs at tuple creation time, to
+            # prevent having tuples that are part-NULL.
+            if tvar.nullable:
+                stmt.where_clause = astutils.extend_binop(
+                    stmt.where_clause,
+                    pgast.NullTest(arg=tvar, negated=True)
+                )
 
             var = pathctx.maybe_get_path_var(
                 stmt, element.val.path_id,
@@ -1660,6 +1746,17 @@ def process_set_as_tuple(
     relctx.ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
     pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
 
+    # This is an unfortunate hack. If any of those types that we
+    # contain are an object, then force the computation of the
+    # serialized output now. This avoids issues where there may be
+    # references to tuple elements with the same path id but different
+    # shapes, and the delaying induced by a TupleBaseVar can cause the
+    # wrong one to be output. (See test_edgeql_scope_shape_03 for an example
+    # where this can come up.)
+    # (We only do it for objects as an optimization.)
+    if any(irtyputils.is_object(x) for x in ir_set.typeref.subtypes):
+        pathctx.get_path_serialized_output(stmt, ir_set.path_id, env=ctx.env)
+
     return new_stmt_set_rvar(
         ir_set, stmt, aspects=['value', 'source'], ctx=ctx)
 
@@ -1674,6 +1771,10 @@ def process_set_as_tuple_indirection(
     with ctx.new() as subctx:
         subctx.expr_exposed = False
         rvar = get_set_rvar(tuple_set, ctx=subctx)
+
+        # Check if unpack_rvar has found our answer for us.
+        if ret_rvar := _lookup_set_rvar(ir_set, ctx=ctx):
+            return new_simple_set_rvar(ir_set, ret_rvar, aspects=('value',))
 
         source_rvar = relctx.maybe_get_path_rvar(
             stmt, tuple_set.path_id, aspect='source', ctx=subctx)
@@ -1818,6 +1919,91 @@ def process_set_as_expr(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+def process_set_as_singleton_assertion(
+    ir_set: irast.Set,
+    stmt: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    with ctx.subrel() as newctx:
+        ir_arg = expr.args[0].expr
+        arg_ref = dispatch.compile(ir_arg, ctx=newctx)
+        arg_val = output.output_as_value(arg_ref, env=newctx.env)
+
+        # Generate a singleton set assertion as the following SQL:
+        #
+        #    SELECT
+        #        <target_set>,
+        #        raise_on_null(NULLIF(row_number() OVER (), 2)) AS _sentinel
+        #    ORDER BY
+        #        _sentinel
+        #
+        # This effectively raises an error whenever the row counter reaches 2.
+        check_expr = pgast.FuncCall(
+            name=('nullif',),
+            args=[
+                pgast.FuncCall(
+                    name=('row_number',),
+                    args=[],
+                    over=pgast.WindowDef()
+                ),
+                pgast.NumericConstant(
+                    val='2',
+                ),
+            ],
+        )
+
+        maybe_raise = pgast.FuncCall(
+            name=('edgedb', 'raise_on_null'),
+            args=[
+                check_expr,
+                pgast.StringConstant(val='cardinality_violation'),
+                pgast.NamedFuncArg(
+                    name='msg',
+                    val=pgast.StringConstant(
+                        val='assert_single violation: more than one element '
+                            'returned by an expression',
+                    ),
+                ),
+                pgast.NamedFuncArg(
+                    name='constraint',
+                    val=pgast.StringConstant(val='std::assert_single'),
+                ),
+            ],
+        )
+
+        # Force Postgres to actually evaluate the result target
+        # by putting it into an ORDER BY.
+        newctx.rel.target_list.append(
+            pgast.ResTarget(
+                name="_sentinel",
+                val=maybe_raise,
+            ),
+        )
+
+        if newctx.rel.sort_clause is None:
+            newctx.rel.sort_clause = []
+        newctx.rel.sort_clause.append(
+            pgast.SortBy(node=pgast.ColumnRef(name=["_sentinel"])),
+        )
+
+        pathctx.put_path_var_if_not_exists(
+            newctx.rel, ir_set.path_id, arg_val, aspect='value', env=ctx.env)
+
+        pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg.path_id)
+
+    aspects = ('value', 'source')
+
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
+                        pull_namespace=False, aspects=aspects, ctx=ctx)
+
+    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
+
+
 def process_set_as_enumerate(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -1856,7 +2042,8 @@ def process_set_as_enumerate(
                     val=arg_val,
                 ),
             ],
-            named=named_tuple
+            named=named_tuple,
+            typeref=ir_set.typeref,
         )
 
         for element in set_expr.elements:
@@ -1872,6 +2059,68 @@ def process_set_as_enumerate(
 
         pathctx.put_path_var_if_not_exists(
             newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
+
+    aspects = ('value', 'source')
+
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
+                        pull_namespace=False, aspects=aspects, ctx=ctx)
+
+    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
+
+
+def process_set_as_std_min_max(
+    ir_set: irast.Set,
+    stmt: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    # Postgres implements min/max aggregates for only a specific
+    # subset of scalars and their respective arrays. However, in
+    # EdgeDB every type is orderable (supports < and >) and so to
+    # accommodate that we must choose between the native Postgres
+    # aggregate and the generic fallback implementation (the native
+    # implementation being faster).
+    #
+    # Since the fallback implementation is not mapped onto the same
+    # polymorphic function in Postgres as the implementation for
+    # supported types, we cannot rely on Postgres to always correctly
+    # pick the polymorphic function to call, instead we use static
+    # type inference to determine whether we'll delegate this to
+    # Postgres (e.g. for anyreal) or we'll use the slower
+    # one-size-fits-all fallback which then gets compiled differently.
+    # In particular this means that when used inside a body of another
+    # polymorphic (anytype) function, the slower generic version of
+    # min/max will be used regardless of the actual concrete input
+    # type.
+
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    with ctx.subrel() as newctx:
+        ir_arg = expr.args[0].expr
+        dispatch.visit(ir_arg, ctx=newctx)
+
+        arg_ref = pathctx.get_path_value_var(
+            newctx.rel, ir_arg.path_id, env=newctx.env)
+
+        arg_val = output.output_as_value(arg_ref, env=newctx.env)
+
+        if newctx.rel.sort_clause is None:
+            newctx.rel.sort_clause = []
+        newctx.rel.sort_clause.append(
+            pgast.SortBy(
+                node=arg_val,
+                dir=(
+                    pgast.SortAsc
+                    if str(expr.func_shortname) == 'std::min'
+                    else pgast.SortDesc
+                ),
+            ),
+        )
+        newctx.rel.limit_count = pgast.NumericConstant(val='1')
+
+        pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg.path_id)
 
     aspects = ('value', 'source')
 
@@ -1920,8 +2169,10 @@ def _process_set_func_with_ordinality(
         colnames = [ctx.env.aliases.get('v')]
         coldeflist = []
 
-    if expr.sql_func_has_out_params:
+    if (expr.sql_func_has_out_params
+            or irtyputils.is_persistent_tuple(inner_rtype)):
         # SQL functions declared with OUT params reject column definitions.
+        # Also persistent tuple types
         coldeflist = []
 
     fexpr = pgast.FuncCall(name=func_name, args=args, coldeflist=coldeflist)
@@ -2214,14 +2465,27 @@ def process_set_as_func_expr(
                 ]
             )
 
+        if expr.force_return_cast:
+            # The underlying function has a return value type
+            # different from that of the EdgeQL function declaration,
+            # so we need to make an explicit cast here.
+            set_expr = pgast.TypeCast(
+                arg=set_expr,
+                type_name=pgast.TypeName(
+                    name=pg_types.pg_type_from_ir_typeref(expr.typeref)
+                )
+            )
+
         func_rel = newctx.rel
 
     return _compile_func_epilogue(
         ir_set, set_expr=set_expr, func_rel=func_rel, stmt=stmt, ctx=ctx)
 
 
-def process_set_as_agg_expr(
+def process_set_as_agg_expr_inner(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        aspect: str,
+        wrapper: Optional[pgast.SelectStmt],
         ctx: context.CompilerContextLevel) -> SetRVars:
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
@@ -2237,6 +2501,8 @@ def process_set_as_agg_expr(
                 group_rvar = relctx.rvar_for_rel(group_rel, ctx=ctx)
                 relctx.include_rvar(stmt, group_rvar, path_id=path_id, ctx=ctx)
                 ref = pathctx.get_path_identity_var(stmt, path_id, env=ctx.env)
+                if stmt.group_clause is None:
+                    stmt.group_clause = []
                 stmt.group_clause.append(ref)
                 newctx.path_scope[s_path_id] = stmt
 
@@ -2258,7 +2524,7 @@ def process_set_as_agg_expr(
                 dispatch.visit(ir_arg, ctx=argctx)
 
                 arg_ref: pgast.BaseExpr
-                if output.in_serialization_ctx(ctx=argctx):
+                if aspect == 'serialized':
                     arg_ref = pathctx.get_path_serialized_or_value_var(
                         argctx.rel, ir_arg.path_id, env=argctx.env)
 
@@ -2313,7 +2579,7 @@ def process_set_as_agg_expr(
                         query = qrvar.query
                         assert isinstance(query, pgast.SelectStmt)
 
-                        for i, sortref in enumerate(query.sort_clause):
+                        for i, sortref in enumerate(query.sort_clause or ()):
                             alias = argctx.env.aliases.get(f's{i}')
 
                             query.target_list.append(
@@ -2352,7 +2618,7 @@ def process_set_as_agg_expr(
 
         set_expr = pgast.FuncCall(
             name=name, args=args, agg_order=agg_sort, agg_filter=agg_filter,
-            ser_safe=serialization_safe)
+            ser_safe=serialization_safe and all(x.ser_safe for x in args))
 
         if expr.error_on_null_result:
             set_expr = pgast.FuncCall(
@@ -2386,32 +2652,74 @@ def process_set_as_agg_expr(
     if expr.func_initial_value is not None:
         iv_ir = expr.func_initial_value.expr
 
-        if newctx.expr_exposed and serialization_safe:
+        if serialization_safe and aspect == 'serialized':
             # Serialization has changed the output type.
             with newctx.new() as ivctx:
-                ivctx.expr_exposed = True
                 iv = dispatch.compile(iv_ir, ctx=ivctx)
+
                 iv = output.serialize_expr_if_needed(
                     iv, path_id=ir_set.path_id, ctx=ctx)
                 set_expr = output.serialize_expr_if_needed(
                     set_expr, path_id=ir_set.path_id, ctx=ctx)
         else:
-            iv = dispatch.compile(iv_ir, ctx=newctx)
+            with newctx.new() as ivctx:
+                iv = dispatch.compile(iv_ir, ctx=ivctx)
 
-        pathctx.put_path_value_var(stmt, ir_set.path_id, set_expr, env=ctx.env)
-        pathctx.get_path_value_output(stmt, ir_set.path_id, env=ctx.env)
+        pathctx.put_path_var(
+            stmt, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
+        pathctx.get_path_output(
+            stmt, ir_set.path_id, aspect=aspect, env=ctx.env)
 
-        with ctx.subrel() as subctx:
-            wrapper = subctx.rel
-            set_expr = pgast.CoalesceExpr(
-                args=[stmt, iv], ser_safe=serialization_safe)
+        assert wrapper
+        set_expr = pgast.CoalesceExpr(
+            args=[stmt, iv], ser_safe=serialization_safe)
 
-            pathctx.put_path_value_var(
-                wrapper, ir_set.path_id, set_expr, env=ctx.env)
-            stmt = wrapper
+        pathctx.put_path_var(
+            wrapper, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
+        stmt = wrapper
 
-    pathctx.put_path_value_var_if_not_exists(
-        stmt, ir_set.path_id, set_expr, env=ctx.env)
+    pathctx.put_path_var_if_not_exists(
+        stmt, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
+
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
+def process_set_as_agg_expr(
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    # If the func has an initial val, we need to do the interesting
+    # work in subrels and provide a wrapper to put the coalesces in
+    wrapper = None
+    if expr.func_initial_value is not None:
+        wrapper = stmt
+
+    # When in a serialization context, we need to compute both a value
+    # version and a serialized version of the aggregate function call,
+    # since we may need both (Consider `WITH X := array_agg(User), ...`).
+
+    cctx = ctx.subrel() if wrapper else ctx.new()
+    with cctx as xctx:
+        xctx.expr_exposed = False
+        process_set_as_agg_expr_inner(
+            ir_set, xctx.rel, aspect='value', wrapper=wrapper,
+            ctx=xctx)
+
+    # Though if the result type is a scalar, the value should be good
+    # enough, so don't generate a bunch of unnessecary code to produce
+    # a serialized value when we can use value.
+    if (
+        output.in_serialization_ctx(ctx=ctx)
+        and not irtyputils.is_scalar(ir_set.typeref)
+    ):
+        cctx = ctx.subrel() if wrapper else ctx.new()
+        with cctx as xctx:
+            xctx.expr_exposed = True
+            process_set_as_agg_expr_inner(
+                ir_set, xctx.rel, aspect='serialized', wrapper=wrapper,
+                ctx=xctx)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -2515,7 +2823,8 @@ def process_set_as_array_expr(
         stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     if serializing:
-        s_set_expr = astutils.safe_array_expr(s_elements, ser_safe=True)
+        s_set_expr = astutils.safe_array_expr(
+            s_elements, ser_safe=all(x.ser_safe for x in s_elements))
 
         if irutils.is_empty_array_expr(expr):
             s_set_expr = pgast.TypeCast(

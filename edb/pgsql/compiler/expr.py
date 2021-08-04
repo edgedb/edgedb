@@ -101,11 +101,7 @@ def _compile_set_impl(
         pathctx.put_path_value_var(ctx.rel, ir_set.path_id, value, env=ctx.env)
         if (output.in_serialization_ctx(ctx) and ir_set.shape
                 and not ctx.env.ignore_object_shapes):
-            _compile_shape(
-                ir_set,
-                shape=[expr for expr, _ in ir_set.shape],
-                ctx=ctx,
-            )
+            _compile_shape(ir_set, ir_set.shape, ctx=ctx)
 
     elif ir_set.path_scope_id is not None and not is_toplevel:
         # This Set is behind a scope fence, so compute it
@@ -233,6 +229,7 @@ def compile_TypeCast(
             func_name = common.get_cast_backend_name(
                 expr.cast_name, aspect='function')
         else:
+            assert expr.sql_function
             func_name = tuple(expr.sql_function.split('.'))
 
         res = pgast.FuncCall(
@@ -302,11 +299,11 @@ def compile_SliceIndirection(
         subctx.expr_exposed = False
         subj = dispatch.compile(expr.expr, ctx=subctx)
         if expr.start is None:
-            start = pgast.NullConstant()
+            start: pgast.BaseExpr = pgast.NullConstant()
         else:
             start = dispatch.compile(expr.start, ctx=subctx)
         if expr.stop is None:
-            stop = pgast.NullConstant()
+            stop: pgast.BaseExpr = pgast.NullConstant()
         else:
             stop = dispatch.compile(expr.stop, ctx=subctx)
 
@@ -373,6 +370,7 @@ def compile_operator(
             sql_oper = '!='
 
     elif str_func_name == 'std::EXISTS':
+        assert rexpr
         result = pgast.NullTest(arg=rexpr, negated=True)
 
     elif expr.sql_operator:
@@ -512,6 +510,7 @@ def compile_Tuple(
         telem = telems[i]
         ttype = ttypes[telem]
         val = dispatch.compile(e.val, ctx=ctx)
+        assert e.path_id
         elements.append(pgast.TupleElement(path_id=e.path_id, val=val))
 
     result = pgast.TupleVar(elements=elements, typeref=ttype)
@@ -594,24 +593,43 @@ def _compile_set(
 
     if (output.in_serialization_ctx(ctx) and ir_set.shape
             and not ctx.env.ignore_object_shapes):
-        _compile_shape(
-            ir_set,
-            shape=[expr for expr, _ in ir_set.shape],
-            ctx=ctx,
-        )
+        _compile_shape(ir_set, ir_set.shape, ctx=ctx)
+    elif ir_set.shape and ir_set in ctx.shapes_needed_by_dml:
+        # If this shape is needed for DML purposes (because it is
+        # populating link properties), compile it and populate its
+        # elements as *values*, so that process_link_values can pick
+        # them up and insert them.
+        shape_tuple = shapecomp.compile_shape(ir_set, ir_set.shape, ctx=ctx)
+        for element in shape_tuple.elements:
+            pathctx.put_path_var_if_not_exists(
+                ctx.rel, element.path_id, element.val,
+                aspect='value', env=ctx.env)
 
 
 def _compile_shape(
-        ir_set: irast.Set, shape: List[irast.Set], *,
+        ir_set: irast.Set,
+        shape: Sequence[Tuple[irast.Set, qlast.ShapeOp]],
+        *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
 
     result = shapecomp.compile_shape(ir_set, shape, ctx=ctx)
 
     for element in result.elements:
-        # The ref might have already been added by the nested shape
-        # processing, so add it conditionally.
-        pathctx.put_path_serialized_var_if_not_exists(
-            ctx.rel, element.path_id, element.val, env=ctx.env)
+        # We want to force, because the path id might already exist
+        # serialized with a different shape, and we need ours to be
+        # visible. (Anything needing the old one needs to have pulled
+        # it already: see the "unfortunate hack" in
+        # process_set_as_tuple.)
+        pathctx.put_path_serialized_var(
+            ctx.rel, element.path_id, element.val, force=True, env=ctx.env)
+
+    # When we compile a shape during materialization, stash the
+    # set away so we can consume it in unpack_rvar.
+    if (
+        ctx.materializing
+        and ir_set.typeref.id not in ctx.env.materialized_views
+    ):
+        ctx.env.materialized_views[ir_set.typeref.id] = ir_set
 
     ser_elements = []
     for el in result.elements:

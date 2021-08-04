@@ -26,60 +26,46 @@ nested in their respective modules.
 Since SDL is declarative in nature, the specific order of
 declarations of module blocks or individual items does not matter.
 
-SDL is used to specify a :ref:`migration <ref_eql_ddl_migrations>` to a to a
-specific schema state. For example:
+The built-in :ref:`migration tools<ref_cli_edgedb_migration>` expect
+the schema to be given in SDL format. For example:
 
-.. code-block:: edgeql-repl
+.. code-block:: sdl
 
-    db> START MIGRATION TO {
-    ...     # "default" module block
-    ...     module default {
-    ...         type Movie {
-    ...             required property title -> str;
-    ...             # the year of release
-    ...             property year -> int64;
-    ...             required link director -> Person;
-    ...             required multi link actors -> Person;
-    ...         }
-    ...         type Person {
-    ...             required property first_name -> str;
-    ...             required property last_name -> str;
-    ...         }
-    ...     }
-    ... };
-    START MIGRATION
-    db> POPULATE MIGRATION;
-    POPULATE MIGRATION
-    db> COMMIT MIGRATION;
-    COMMIT MIGRATION
+    # "default" module block
+    module default {
+        type Movie {
+            required property title -> str;
+            # the year of release
+            property year -> int64;
+            required link director -> Person;
+            required multi link actors -> Person;
+        }
+        type Person {
+            required property first_name -> str;
+            required property last_name -> str;
+        }
+    }
 
 It is possible to also omit the module blocks, but then individual
 declarations must use :ref:`fully-qualified names
 <ref_eql_fundamentals_name_resolution>` so that they can be assigned
-to their respective modules. For example the following is equivalent
+to their respective modules. For example, the following is equivalent
 to the previous migration:
 
-.. code-block:: edgeql-repl
+.. code-block:: sdl
 
-    db> START MIGRATION TO {
-    ...     # no module block
-    ...     type default::Movie {
-    ...         required property title -> str;
-    ...         # the year of release
-    ...         property year -> int64;
-    ...         required link director -> default::Person;
-    ...         required multi link actors -> default::Person;
-    ...     }
-    ...     type default::Person {
-    ...         required property first_name -> str;
-    ...         required property last_name -> str;
-    ...     }
-    ... };
-    START MIGRATION
-    db> POPULATE MIGRATION;
-    POPULATE MIGRATION
-    db> COMMIT MIGRATION;
-    COMMIT MIGRATION
+    # no module block
+    type default::Movie {
+        required property title -> str;
+        # the year of release
+        property year -> int64;
+        required link director -> default::Person;
+        required multi link actors -> default::Person;
+    }
+    type default::Person {
+        required property first_name -> str;
+        required property last_name -> str;
+    }
 
 .. toctree::
     :maxdepth: 3
@@ -95,3 +81,4 @@ to the previous migration:
     constraints
     functions
     annotations
+    extensions

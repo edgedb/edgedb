@@ -47,7 +47,7 @@ type Review {
     required link author -> User;
     required link movie -> Movie;
 
-    required property creation_time -> local_datetime;
+    required property creation_time -> cal::local_datetime;
 }
 
 type Movie {
@@ -98,7 +98,7 @@ FILTER .id = <uuid>$id
 
 # Status
 
-EdgeDB is currently in alpha. See our
+EdgeDB is currently in beta. See our
 [Issues](https://github.com/edgedb/edgedb/issues) for a list of features
 planned or in development.
 

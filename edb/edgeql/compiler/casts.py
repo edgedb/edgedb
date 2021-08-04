@@ -33,7 +33,6 @@ from edb.ir import utils as irutils
 
 from edb.schema import casts as s_casts
 from edb.schema import functions as s_func
-from edb.schema import modules as s_mod
 from edb.schema import name as sn
 from edb.schema import types as s_types
 
@@ -100,6 +99,14 @@ def compile_cast(
         return _cast_tuple(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
+    elif (
+        orig_stype.is_array()
+        and not s_types.is_type_compatible(
+            orig_stype, new_stype, schema=ctx.env.schema)
+    ):
+        return _cast_array(
+            ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+
     elif orig_stype.issubclass(ctx.env.schema, new_stype):
         # The new type is a supertype of the old type,
         # and is always a wider domain, so we simply reassign
@@ -114,10 +121,6 @@ def compile_cast(
         return _inheritance_cast_to_ir(
             ir_set, orig_stype, new_stype,
             cardinality_mod=cardinality_mod, ctx=ctx)
-
-    elif orig_stype.is_array():
-        return _cast_array(
-            ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
     else:
         json_t = ctx.env.get_track_schema_type(
@@ -205,8 +208,6 @@ def _cast_to_ir(
         to_type=new_typeref,
         cardinality_mod=cardinality_mod,
         cast_name=cast_name,
-        cast_module_id=ctx.env.schema.get_global(
-            s_mod.Module, cast_name.module).id,
         sql_function=cast.get_from_function(ctx.env.schema),
         sql_cast=cast.get_from_cast(ctx.env.schema),
         sql_expr=bool(cast.get_code(ctx.env.schema)),
@@ -340,6 +341,12 @@ def _find_cast(
         srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> Optional[s_casts.Cast]:
 
+    # Don't try to pick up casts when there is a direct subtyping
+    # relationship.
+    if (orig_stype.issubclass(ctx.env.schema, new_stype)
+            or new_stype.issubclass(ctx.env.schema, orig_stype)):
+        return None
+
     casts = ctx.env.schema.get_casts_to_type(new_stype)
     if not casts and isinstance(new_stype, s_types.InheritingType):
         ancestors = new_stype.get_ancestors(ctx.env.schema)
@@ -350,9 +357,10 @@ def _find_cast(
         else:
             return None
 
+    dummy_set = irast.EmptySet()  # type: ignore
     args = [
-        (orig_stype, irast.EmptySet()),
-        (new_stype, irast.EmptySet()),
+        (orig_stype, dummy_set),
+        (new_stype, dummy_set),
     ]
 
     matched = polyres.find_callable(
@@ -542,13 +550,10 @@ def _cast_array(
                 ],
             )
 
-            enumerated = setgen.ensure_set(
-                dispatch.compile(
-                    qlast.FunctionCall(
-                        func=('__std__', 'enumerate'),
-                        args=[unpacked],
-                    ),
-                    ctx=subctx,
+            enumerated = dispatch.compile(
+                qlast.FunctionCall(
+                    func=('__std__', 'enumerate'),
+                    args=[unpacked],
                 ),
                 ctx=subctx,
             )
@@ -570,7 +575,6 @@ def _cast_array(
                                     qlast.Ptr(
                                         ptr=qlast.ObjectRef(
                                             name='1',
-                                            direction='>',
                                         ),
                                     ),
                                 ],
@@ -589,7 +593,6 @@ def _cast_array(
                                         qlast.Ptr(
                                             ptr=qlast.ObjectRef(
                                                 name='0',
-                                                direction='>',
                                             ),
                                         ),
                                     ],
@@ -662,6 +665,7 @@ def _cast_array_literal(
             from_type=orig_typeref,
             to_type=new_typeref,
             sql_cast=True,
+            sql_expr=False,
         )
 
     return setgen.ensure_set(cast_ir, ctx=ctx)

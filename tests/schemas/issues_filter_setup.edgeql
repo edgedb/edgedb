@@ -17,34 +17,28 @@
 #
 
 
-WITH MODULE test
 INSERT Status {
     name := 'Open'
 };
 
-WITH MODULE test
 INSERT Status {
     name := 'Closed'
 };
 
 
-WITH MODULE test
 INSERT User {
     name := 'Elvis'
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Yury'
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Victor'
 };
 
 
-WITH MODULE test
 INSERT Issue {
     number := '1',
     name := 'Implicit path existence',
@@ -54,7 +48,6 @@ INSERT Issue {
     time_estimate := 9001,
 };
 
-WITH MODULE test
 INSERT Issue {
     number := '2',
     name := 'NOT EXISTS problem',
@@ -64,7 +57,6 @@ INSERT Issue {
     due_date := <datetime>'2020-01-15T00:00:00+00:00',
 };
 
-WITH MODULE test
 INSERT Issue {
     number := '3',
     name := 'EdgeQL to SQL translator',
@@ -75,7 +67,6 @@ INSERT Issue {
     due_date := <datetime>'2020-01-15T00:00:00+00:00',
 };
 
-WITH MODULE test
 INSERT Issue {
     number := '4',
     name := 'Translator optimization',

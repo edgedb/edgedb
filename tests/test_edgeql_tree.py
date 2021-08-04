@@ -32,22 +32,22 @@ class TestTree(tb.QueryTestCase):
 
     async def test_edgeql_tree_delete_01(self):
         await self.con.execute(r"""
-            DELETE test::Tree;
+            DELETE Tree;
         """)
         await self.assert_query_result(
             r"""
-                SELECT test::Tree;
+                SELECT Tree;
             """,
             [],
         )
 
     async def test_edgeql_tree_delete_02(self):
         await self.con.execute(r"""
-            DELETE test::Eert FILTER .val = '0';
+            DELETE Eert FILTER .val = '0';
         """)
         await self.assert_query_result(
             r"""
-                SELECT test::Eert FILTER .val = '0';
+                SELECT Eert FILTER .val = '0';
             """,
             [],
         )
@@ -55,7 +55,7 @@ class TestTree(tb.QueryTestCase):
     @test.xfail('''
         This test fails with the following error:
 
-        edgedb.errors.QueryError: invalid reference to test::Tree:
+        edgedb.errors.QueryError: invalid reference to Tree:
         self-referencing INSERTs are not allowed
 
         This test is part of several versions of how nested INSERT
@@ -66,7 +66,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_insert_01(self):
         # Test nested insert of a tree branch.
         await self.con.execute(r"""
-            WITH MODULE test
             INSERT Tree {
                 val := 'i2',
                 parent := (
@@ -83,7 +82,6 @@ class TestTree(tb.QueryTestCase):
         """)
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree {
                     val,
                     children: {
@@ -123,7 +121,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_insert_02(self):
         # Test nested insert of a tree branch.
         await self.con.execute(r"""
-            WITH MODULE test
             INSERT Eert {
                 val := 'i0',
                 children := (
@@ -140,7 +137,6 @@ class TestTree(tb.QueryTestCase):
         """)
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert {
                     val,
                     children: {
@@ -184,7 +180,6 @@ class TestTree(tb.QueryTestCase):
         # Test nested insert of a tree branch.
         await self.con.execute(r"""
             WITH
-                MODULE test,
                 T1 := Tree,
                 T2 := Tree,
             INSERT Tree {
@@ -203,7 +198,6 @@ class TestTree(tb.QueryTestCase):
         """)
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree {
                     val,
                     children: {
@@ -232,7 +226,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_select_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree {
                     val,
                     children: {
@@ -281,7 +274,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_select_02(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert {
                     val,
                     children: {
@@ -330,7 +322,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_select_03(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree.parent.parent.val;
             """,
             ['0'],
@@ -339,7 +330,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_select_04(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert.parent.parent.val;
             """,
             ['0'],
@@ -348,7 +338,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_select_05(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert.<children[IS Eert].<children[IS Eert].val;
             """,
             ['0'],
@@ -358,7 +347,6 @@ class TestTree(tb.QueryTestCase):
         # 1098
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert.children.children.val;
             """,
             {'000', '010'},
@@ -367,7 +355,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_select_07(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree.children.children.val;
             """,
             {'000', '010'},
@@ -376,7 +363,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_select_08(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree.<parent[IS Tree].<parent[IS Tree].val;
             """,
             {'000', '010'},
@@ -385,7 +371,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_select_09(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree {val}
                 FILTER
                     .children.children.val = '000'
@@ -397,7 +382,6 @@ class TestTree(tb.QueryTestCase):
     async def test_edgeql_tree_select_10(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert {val}
                 FILTER
                     .children.children.val = '000'
@@ -410,7 +394,6 @@ class TestTree(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := '010',
                 SELECT Tree {
                     val,
@@ -458,7 +441,6 @@ class TestTree(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := '12',
                 SELECT Tree {
                     val,
@@ -498,7 +480,6 @@ class TestTree(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := '010',
                 SELECT Eert {
                     val,
@@ -546,7 +527,6 @@ class TestTree(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := '12',
                 SELECT Eert {
                     val,
@@ -587,7 +567,6 @@ class TestTree(tb.QueryTestCase):
         # vals.
         await self.con.execute(
             r"""
-                WITH MODULE test
                 UPDATE Tree
                 SET {
                     val := array_join(
@@ -603,7 +582,6 @@ class TestTree(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree {
                     val,
                     children: {
@@ -654,7 +632,6 @@ class TestTree(tb.QueryTestCase):
         # vals.
         await self.con.execute(
             r"""
-                WITH MODULE test
                 UPDATE Eert
                 SET {
                     val := array_join(
@@ -670,7 +647,6 @@ class TestTree(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert {
                     val,
                     children: {
@@ -721,7 +697,6 @@ class TestTree(tb.QueryTestCase):
         # val.
         await self.con.execute(
             r"""
-                WITH MODULE test
                 UPDATE Tree
                 SET {
                     val := .val ++ '_p' ++ (('_' ++ .parent.val) ?? '')
@@ -731,7 +706,6 @@ class TestTree(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree {val}
                 ORDER BY .val;
             """,
@@ -755,7 +729,6 @@ class TestTree(tb.QueryTestCase):
         # val.
         await self.con.execute(
             r"""
-                WITH MODULE test
                 UPDATE Eert
                 SET {
                     val := .val ++ '_p' ++ (('_' ++ .parent.val) ?? '')
@@ -765,7 +738,6 @@ class TestTree(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert {val}
                 ORDER BY .val;
             """,
@@ -793,7 +765,6 @@ class TestTree(tb.QueryTestCase):
         await self.con.execute(
             r"""
                 WITH
-                    MODULE test,
                     # start with node '00'
                     T00 := (
                         SELECT Tree
@@ -813,7 +784,6 @@ class TestTree(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree {
                     val,
                     children: {
@@ -871,7 +841,6 @@ class TestTree(tb.QueryTestCase):
         await self.con.execute(
             r"""
                 WITH
-                    MODULE test,
                     # start with node '00'
                     T00 := (
                         SELECT Eert
@@ -912,7 +881,6 @@ class TestTree(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert {
                     val,
                     children: {
@@ -958,7 +926,6 @@ class TestTree(tb.QueryTestCase):
         await self.con.execute(
             r"""
                 WITH
-                    MODULE test,
                     # start with node '000', get its parent
                     TP := (
                         SELECT Tree
@@ -977,7 +944,6 @@ class TestTree(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Tree {
                     val,
                     children: {
@@ -1029,7 +995,6 @@ class TestTree(tb.QueryTestCase):
         await self.con.execute(
             r"""
                 WITH
-                    MODULE test,
                     # start with node '000'
                     T000 := (
                         SELECT Eert
@@ -1065,7 +1030,6 @@ class TestTree(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT Eert {
                     val,
                     children: {

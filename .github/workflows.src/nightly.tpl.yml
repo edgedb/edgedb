@@ -10,14 +10,30 @@ on:
       - nightly
 
 jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      branch: ${{ steps.whichver.outputs.branch }}
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Determine package version
+      shell: bash
+      run: |
+        branch=${GITHUB_REF#refs/heads/}
+        echo ::set-output name=branch::"${branch}"
+      id: whichver
+
 <% for tgt in targets.linux %>
   build-<< tgt.name >>:
     runs-on: ubuntu-latest
+    needs: prep
 
     steps:
     - name: Build
       uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
       env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
@@ -32,6 +48,7 @@ jobs:
 <% for tgt in targets.macos %>
   build-<< tgt.name >>:
     runs-on: macos-latest
+    needs: prep
 
     steps:
     - uses: actions/checkout@v2
@@ -79,6 +96,7 @@ jobs:
 
     - name: Build
       env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
         PKG_REVISION: "<current-date>"
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
@@ -109,6 +127,9 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
 
 <% endfor %>
 <% for tgt in targets.macos %>
@@ -177,12 +198,12 @@ jobs:
         ref: master
         path: dockerfile
     - name: Publish Docker Image
-      uses: elgohr/Publish-Docker-Github-Action@2.6
+      uses: elgohr/Publish-Docker-Github-Action@3.04
       with:
-        name: edgedb/edgedb:nightly
+        name: edgedb/edgedb
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
-        snapshot: true
+        tags: "nightly,nightly_${{ steps.describe.outputs.version-slot }}_cv${{ steps.describe.outputs.catalog-version }}"
         workdir: dockerfile
         buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=.nightly
     <% endif %>

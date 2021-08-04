@@ -9,9 +9,21 @@ Various EdgeDB terminal tools such as :ref:`ref_cli_edgedb` repl,
 and :ref:`ref_cli_edgedb_restore` use the following connection options:
 
 :cli:synopsis:`-I <name>, --instance=<name>`
-    Specifies the named instance to connect too. The actual connection
+    Specifies the named instance to connect to. The actual connection
     parameters are stored in ``$HOME/.edgedb/credentials`` and are usually
-    created by ``edgedb server init`` or similar commands.
+    created by :ref:`ref_cli_edgedb_instance_create` or similar commands.
+
+    This option overrides host and port.
+
+:cli:synopsis:`-d <dbname>, --database=<dbname>`
+    Specifies the name of the database to connect to.  Default to the value
+    of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
+    the calculated value of :cli:synopsis:`<username>`.
+
+:cli:synopsis:`--dsn=<dsn>`
+    Specifies the DSN for EdgeDB to connect to.
+
+    This option overrides all other options except password.
 
 :cli:synopsis:`-H <hostname>, --host=<hostname>`
     Specifies the host name of the machine on which the server is running.
@@ -25,21 +37,6 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
     on which the server is listening for connections.  Defaults to the value
     of the ``EDGEDB_PORT`` environment variable or, if not set, to ``5656``.
 
-:cli:synopsis:`-u <username>, --user=<username>`
-    Connect to the database as the user :cli:synopsis:`<username>`.
-    Defaults to the value of the ``EDGEDB_USER`` environment variable, or,
-    if not set, to the login name of the current OS user.
-
-:cli:synopsis:`-d <dbname>, --database=<dbname>`
-    Specifies the name of the database to connect to.  Default to the value
-    of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
-    the calculated value of :cli:synopsis:`<username>`.
-
-:cli:synopsis:`--admin`
-    If specified, attempt to connect to the server via the administrative
-    Unix-domain socket.  The user must have permission to access the socket,
-    but no other authentication checks are performed.
-
 :cli:synopsis:`--password | --no-password`
     If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
     for a password before connecting to the database.  This is usually not
@@ -50,3 +47,20 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
 
 :cli:synopsis:`--password-from-stdin`
     Use the first line of standard input as the password.
+
+:cli:synopsis:`-u <username>, --user=<username>`
+    Connect to the database as the user :cli:synopsis:`<username>`.
+    Defaults to the value of the ``EDGEDB_USER`` environment variable, or,
+    if not set, to the login name of the current OS user.
+
+:cli:synopsis:`--connect-timeout=<timeout>`
+    Specifies a :cli:synopsis:`<timeout>` period. In case EdgeDB
+    doesn't respond for this period the command will fail (or retry if
+    :cli:synopsis:`--wait-until-available` is also specified). The
+    :cli:synopsis:`<timeout>` value must be given using time units
+    (e.g. ``hr``, ``min``, ``sec``, ``ms``, etc.). The default
+    value is ``10s``.
+
+:cli:synopsis:`--wait-until-available=<wait_time>`
+    In case EdgeDB connection can't be established, keep retrying up
+    to :cli:synopsis:`<wait_time>` (e.g. ``30s``).

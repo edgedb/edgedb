@@ -35,7 +35,13 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def run_test(self, *, source, spec, expected):
         qltree = qlparser.parse(source)
-        ir = compiler.compile_ast_to_ir(qltree, self.schema)
+        ir = compiler.compile_ast_to_ir(
+            qltree,
+            self.schema,
+            options=compiler.CompilerOptions(
+                modaliases={None: 'default'},
+            ),
+        )
 
         expected_volatility = qltypes.Volatility(
             textwrap.dedent(expected).strip(' \n'))
@@ -44,75 +50,63 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_volatility_inference_00(self):
         """
-        WITH MODULE test
         SELECT Card
 % OK %
-        STABLE
+        Stable
         """
 
     def test_edgeql_ir_volatility_inference_01(self):
         """
         WITH
-            MODULE test,
             foo := random()
         SELECT
             foo
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_02(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card
         FILTER
             random() > 0.9
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_03(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card
         ORDER BY
             random()
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_04(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card
         LIMIT
             <int64>random()
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_05(self):
         """
-        WITH
-            MODULE test
         SELECT
             Card
         OFFSET
             <int64>random()
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_06(self):
         """
-        WITH
-            MODULE test
         INSERT
             Card {
                 name := 'foo',
@@ -120,28 +114,24 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
                 cost := 1,
             }
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_07(self):
         """
-        WITH
-            MODULE test
         UPDATE
             Card
         SET {
                 name := 'foo',
         }
 % OK %
-        VOLATILE
+        Volatile
         """
 
     def test_edgeql_ir_volatility_inference_08(self):
         """
-        WITH
-            MODULE test
         DELETE
             Card
 % OK %
-        VOLATILE
+        Volatile
         """

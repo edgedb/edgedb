@@ -12,7 +12,7 @@ Aliases
 ----------
 
 
-Define an alias that merges some information from links as computable
+Define an alias that merges some information from links as computed
 properties, this is a way of flattening a nested structure:
 
 .. code-block:: sdl
@@ -28,22 +28,22 @@ properties, this is a way of flattening a nested structure:
 ----------
 
 
-Define an alias for traversing a link backwards, this is especially
-useful for GraphQL access:
+Define an alias for traversing a :ref:`backlink
+<ref_datamodel_links>`, this is especially useful for GraphQL access:
 
 .. code-block:: sdl
 
     alias MovieAlias := Movie {
-        # A computable link for accessing all the
+        # A computed link for accessing all the
         # reviews for this movie.
         reviews := .<movie[IS Review]
     }
 
 .. note::
 
-    Aliases allow to use the full power of EdgeQL (expressions, aggregate
-    functions, backwards link navigation) from :ref:`GraphQL
-    <ref_graphql_index>`.
+    Aliases allow to use the full power of EdgeQL (expressions,
+    aggregate functions, :ref:`backlink <ref_datamodel_links>`
+    navigation) from :ref:`GraphQL <ref_graphql_index>`.
 
 The aliases defined above allow you to query ``MovieAlias`` with
 :ref:`GraphQL <ref_cheatsheet_graphql>`.

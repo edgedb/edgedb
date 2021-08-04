@@ -30,8 +30,14 @@ class UnresolvedReferenceError(Exception):
 
 
 class CycleError(Exception):
-    def __init__(self, msg: str, path: Optional[List[Any]] = None) -> None:
+    def __init__(
+        self,
+        msg: str,
+        item: Optional[Any] = None,
+        path: Optional[List[Any]] = None,
+    ) -> None:
         super().__init__(msg)
+        self.item = item
         self.path = path
 
 
@@ -137,9 +143,10 @@ def sort_ex(
     ) -> None:
         if item in visiting:
             raise CycleError(
-                f"dependency cycle between {list(visiting)[1]!r} "
+                f"dependency cycle between {list(visiting)[-1]!r} "
                 f"and {item!r}",
                 path=list(visiting)[1:],
+                item=item,
             )
         if item not in visited:
             visiting.add(item)

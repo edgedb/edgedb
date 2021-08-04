@@ -53,11 +53,13 @@ cdef enum EdgeConnectionStatus:
 @cython.final
 cdef class QueryRequestInfo:
     cdef public object source  # edgeql.Source
+    cdef public tuple protocol_version
     cdef public object io_format
     cdef public bint expect_one
     cdef public int implicit_limit
     cdef public bint inline_typeids
     cdef public bint inline_typenames
+    cdef public bint inline_objectids
     cdef public uint64_t allow_capabilities
 
     cdef int cached_hash
@@ -83,7 +85,8 @@ cdef class EdgeConnection:
         object server
 
         object loop
-        readonly dbview.DatabaseConnectionView dbview
+        readonly dbview.DatabaseConnectionView _dbview
+        str dbname
 
         ReadBuffer buffer
 
@@ -103,7 +106,6 @@ cdef class EdgeConnection:
 
         tuple protocol_version
         tuple max_protocol
-        object timer
 
         object last_state
 
@@ -113,6 +115,10 @@ cdef class EdgeConnection:
         int _get_pgcon_cc
 
         bint _cancelled
+        bint _stop_requested
+        bint _pgcon_released
+
+    cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
     cdef parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
@@ -122,6 +128,8 @@ cdef class EdgeConnection:
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
     cdef abort(self)
+
+    cdef abort_pinned_pgcon(self)
 
     cdef fallthrough(self)
 

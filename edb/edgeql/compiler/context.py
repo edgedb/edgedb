@@ -26,6 +26,7 @@ import collections
 import dataclasses
 import enum
 import uuid
+import weakref
 
 from edb.common import compiler
 from edb.common import parsing
@@ -55,9 +56,7 @@ class ContextSwitchMode(enum.Enum):
     NEW = enum.auto()
     SUBQUERY = enum.auto()
     NEWSCOPE = enum.auto()
-    NEWSCOPE_TEMP = enum.auto()
     NEWFENCE = enum.auto()
-    NEWFENCE_TEMP = enum.auto()
     DETACHED = enum.auto()
 
 
@@ -121,6 +120,12 @@ class PointerRefCache(Dict[irtyputils.PtrRefCacheKey, irast.BasePointerRef]):
         return self._rcache.get(ref)
 
 
+# Volatility inference computes two volatility results:
+# A basic one, and one for consumption by materialization
+InferredVolatility = Union[
+    qltypes.Volatility, Tuple[qltypes.Volatility, qltypes.Volatility]]
+
+
 class Environment:
     """Compilation environment."""
 
@@ -146,7 +151,7 @@ class Environment:
     set_types: Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
 
-    type_origins: Dict[s_types.Type, parsing.ParserContext]
+    type_origins: Dict[s_types.Type, Optional[parsing.ParserContext]]
     """A dictionary of notable types and their source origins.
 
     This is used to trace where a particular type instance originated in
@@ -158,7 +163,7 @@ class Environment:
 
     inferred_volatility: Dict[
         irast.Base,
-        qltypes.Volatility]
+        InferredVolatility]
     """A dictionary of expressions and their inferred volatility."""
 
     inferred_multiplicity: Dict[
@@ -210,6 +215,18 @@ class Environment:
     #: A list of bindings that should be assumed to be singletons.
     singletons: List[irast.PathId]
 
+    scope_tree_nodes: MutableMapping[int, irast.ScopeTreeNode]
+    """Map from unique_id to nodes."""
+
+    materialized_sets: Dict[
+        Union[s_types.Type, s_pointers.PointerLike],
+        qlast.Statement,
+    ]
+    """A mapping of computed sets that must be computed only once."""
+
+    compiled_stmts: Dict[qlast.Statement, irast.Stmt]
+    """A mapping of from input edgeql to compiled IR"""
+
     def __init__(
         self,
         *,
@@ -246,6 +263,9 @@ class Environment:
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
         self.singletons = []
+        self.scope_tree_nodes = weakref.WeakValueDictionary()
+        self.materialized_sets = {}
+        self.compiled_stmts = {}
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
@@ -379,7 +399,7 @@ class ContextLevel(compiler.ContextLevel):
 
     must_use_views: Dict[
         s_types.Type,
-        Tuple[s_name.Name, parsing.ParserContext],
+        Tuple[s_name.Name, Optional[parsing.ParserContext]],
     ]
     """A set of views that *must* be used in an expression."""
 
@@ -408,6 +428,9 @@ class ContextLevel(compiler.ContextLevel):
     stmt: Optional[irast.Stmt]
     """Statement node currently being built."""
 
+    qlstmt: Optional[qlast.Statement]
+    """Statement source node currently being built."""
+
     path_id_namespace: FrozenSet[str]
     """A namespace to use for all path ids."""
 
@@ -420,8 +443,19 @@ class ContextLevel(compiler.ContextLevel):
     banned_paths: Set[irast.PathId]
     """A set of path ids that are considered invalid in this context."""
 
-    view_map: ChainMap[irast.PathId, irast.Set]
-    """Set translation map.  Used for views."""
+    view_map: ChainMap[irast.PathId, Tuple[irast.PathId, irast.Set]]
+    """Set translation map.  Used for mapping computable sources..
+
+    When compiling a computable, we need to be able to map references to
+    the source back to the correct source set.
+
+    This maps from a namespace-stripped source path_id to the expected
+    computable-internal path_id and the actual source set.
+
+    The namespace stripping is necessary to handle the case where
+    bindings have added more namespaces to the source set reference.
+    (See test_edgeql_scope_computables_13.)
+    """
 
     path_scope: irast.ScopeTreeNode
     """Path scope tree, with per-lexical-scope levels."""
@@ -484,9 +518,6 @@ class ContextLevel(compiler.ContextLevel):
     in_conditional: Optional[parsing.ParserContext]
     """Whether currently in a conditional branch."""
 
-    in_temp_scope: bool
-    """Whether currently in a temporary scope."""
-
     disable_shadowing: Set[Union[s_obj.Object, s_pointers.PseudoPointer]]
     """A set of schema objects for which the shadowing rewrite should be
        disabled."""
@@ -525,6 +556,7 @@ class ContextLevel(compiler.ContextLevel):
 
             self.toplevel_stmt = None
             self.stmt = None
+            self.qlstmt = None
             self.path_id_namespace = frozenset()
             self.pending_stmt_own_path_id_namespace = frozenset()
             self.pending_stmt_full_path_id_namespace = frozenset()
@@ -552,7 +584,6 @@ class ContextLevel(compiler.ContextLevel):
             self.defining_view = None
             self.compiling_update_shape = False
             self.in_conditional = None
-            self.in_temp_scope = False
             self.disable_shadowing = set()
             self.path_log = None
             self.recompiling_schema_alias = False
@@ -600,7 +631,6 @@ class ContextLevel(compiler.ContextLevel):
             self.defining_view = prevlevel.defining_view
             self.compiling_update_shape = prevlevel.compiling_update_shape
             self.in_conditional = prevlevel.in_conditional
-            self.in_temp_scope = prevlevel.in_temp_scope
             self.disable_shadowing = prevlevel.disable_shadowing
             self.path_log = prevlevel.path_log
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
@@ -619,6 +649,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_rptr = None
                 self.view_scls = None
                 self.stmt = None
+                self.qlstmt = None
 
                 self.view_rptr = None
                 self.toplevel_result_view_name = None
@@ -643,6 +674,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.view_rptr = None
                 self.view_scls = None
                 self.stmt = prevlevel.stmt
+                self.qlstmt = prevlevel.qlstmt
 
                 self.partial_path_prefix = None
 
@@ -656,27 +688,16 @@ class ContextLevel(compiler.ContextLevel):
                 self.class_view_overrides = prevlevel.class_view_overrides
 
                 self.stmt = prevlevel.stmt
+                self.qlstmt = prevlevel.qlstmt
 
                 self.view_rptr = prevlevel.view_rptr
                 self.toplevel_result_view_name = \
                     prevlevel.toplevel_result_view_name
 
-            if mode in {ContextSwitchMode.NEWFENCE_TEMP,
-                        ContextSwitchMode.NEWSCOPE_TEMP}:
-                # Make a copy of the entire tree and set path_scope to
-                # be the copy of the current node. Stash the root in
-                # an attribute to keep it from being freed, since
-                # scope tree parent pointers are weak pointers.
-                self._stash, self.path_scope = self.path_scope.copy_all()
-                self.in_temp_scope = True
-                self.view_sets = self.view_sets.copy()
-
-            if mode in {ContextSwitchMode.NEWFENCE,
-                        ContextSwitchMode.NEWFENCE_TEMP}:
+            if mode == ContextSwitchMode.NEWFENCE:
                 self.path_scope = self.path_scope.attach_fence()
 
-            if mode in {ContextSwitchMode.NEWSCOPE,
-                        ContextSwitchMode.NEWSCOPE_TEMP}:
+            if mode == ContextSwitchMode.NEWSCOPE:
                 self.path_scope = self.path_scope.attach_branch()
 
     def subquery(self) -> compiler.CompilerContextManager[ContextLevel]:
@@ -685,14 +706,9 @@ class ContextLevel(compiler.ContextLevel):
     def newscope(
         self,
         *,
-        temporary: bool = False,
-        fenced: bool = False,
+        fenced: bool,
     ) -> compiler.CompilerContextManager[ContextLevel]:
-        if temporary and fenced:
-            mode = ContextSwitchMode.NEWFENCE_TEMP
-        elif temporary:
-            mode = ContextSwitchMode.NEWSCOPE_TEMP
-        elif fenced:
+        if fenced:
             mode = ContextSwitchMode.NEWFENCE
         else:
             mode = ContextSwitchMode.NEWSCOPE

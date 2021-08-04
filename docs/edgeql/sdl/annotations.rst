@@ -28,6 +28,7 @@ Specify the value of an annotation for a type:
         }
     }
 
+.. _ref_eql_sdl_annotations_syntax:
 
 Syntax
 ------
@@ -37,16 +38,45 @@ commands <ref_eql_ddl_annotations>`.
 
 .. sdl:synopsis::
 
-    [ abstract ] [ inheritable ] annotation <name>
+    # Abstract annotation form:
+    abstract [ inheritable ] annotation <name>
     [ "{" <annotation-declarations>; [...] "}" ] ;
+
+    # Concrete annotation (same as <annotation-declarations>) form:
+    annotation <name> := <value> ;
 
 
 Description
 -----------
 
-The core of the declaration is identical to
-:eql:stmt:`CREATE ABSTRACT ANNOTATION`, while the valid SDL
-sub-declarations are listed below:
+There are two forms of annotation declarations: abstract and concrete.
+The *abstract annotation* form is used for declaring new kinds of
+annotation in a module. The *concrete annotation* declarations are
+used as sub-declarations for all other declarations in order to
+actually annotate them.
+
+The annotation declaration options are as follows:
+
+:eql:synopsis:`abstract`
+    If specified, the annotation will be *abstract*.
+
+:eql:synopsis:`inheritable`
+    If specified, the annotation will be *inheritable*. The
+    annotations are non-inheritable by default. That is, if a schema
+    item has an annotation defined on it, the descendants of that
+    schema item will not automatically inherit the annotation. Normal
+    inheritance behavior can be turned on by declaring the annotation
+    with the ``inheritable`` qualifier. This is only valid for *abstract
+    annotation*.
+
+:eql:synopsis:`<name>`
+    The name (optionally module-qualified) of the annotation.
+
+:eql:synopsis:`<value>`
+    Any string value that the specified annotation is intended to have
+    for the given context.
+
+The only valid SDL sub-declarations are *concrete annotations*:
 
 :sdl:synopsis:`<annotation-declarations>`
     Annotations can also have annotations. Set the *annotation* of the

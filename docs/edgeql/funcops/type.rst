@@ -212,7 +212,7 @@ Types
                 Text[IS Issue].name IF Text IS Issue ELSE
                 <str>{},
                 # the cast to str is necessary here, because
-                # the type of the computable must be defined
+                # the type of the computed expression must be defined
             body,
         };
 
@@ -226,8 +226,8 @@ Types
             name,
             friends := <User>{}
             # the cast is the only way to indicate that the
-            # computable 'friends' is supposed to be a set of
-            # Users
+            # computed link 'friends' is supposed to refer to
+            # a set of Users
         };
 
 

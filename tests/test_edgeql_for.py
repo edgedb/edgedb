@@ -39,7 +39,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
                  'Giant turtle', 'Golem', 'Imp', 'Sprite']
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR C IN {Card}
                 # C and Card are not related here
                 UNION (C.name, Card.name);
@@ -51,7 +50,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_cross_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR C IN {Card}
                 # C and Card are not related here, so count(Card) should be 9
                 UNION (C.name, count(Card));
@@ -73,7 +71,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_cross_03(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR Card IN {Card}
                 # Card is shadowed here
                 UNION (Card.name, count(Card));
@@ -95,7 +92,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_cross_04(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR C IN {Card}
                 # C and Card are not related here, so count(Card) should be 9
                 UNION (count(C), count(Card));
@@ -108,7 +104,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_mix_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR X IN {Card.name, User.name}
                 UNION X;
             ''',
@@ -132,7 +127,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_mix_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR X IN {Card.name, User.name}
                 # both Card and User should be independent of X
                 UNION (X, count(Card), count(User));
@@ -159,7 +153,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # should be the same result as above
-                WITH MODULE test
                 FOR X IN {Card.name, User.name}
                 UNION (X, count(Card FILTER TRUE), count(User FILTER TRUE));
             ''',
@@ -184,7 +177,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_mix_04(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 FOR X IN {Card.name, User.name}
                 # this should be just [3] for each name (9 + 4 of names)
                 UNION count(User.friends);
@@ -195,7 +187,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_limit_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT X := (
                     FOR X IN {User.name}
                     UNION X
@@ -212,7 +203,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_filter_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT X := (
                     FOR X IN {Card.name}
                     UNION X
@@ -236,7 +226,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_filter_03(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (
                     # get a combination of names from different object types
                     FOR X IN {Card.name, User.name}
@@ -265,7 +254,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_in_computable_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT User {
                     select_deck := (
                         FOR letter IN {'I', 'B'}
@@ -296,7 +284,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_in_computable_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT User {
                     select_deck := (
                         SELECT _ := (
@@ -332,7 +319,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_in_computable_03(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT User {
                     select_deck := (
                         SELECT _ := (
@@ -387,7 +373,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
         # SELECT tup.1 {<shape>};
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT User {
                     select_deck := (
                         WITH
@@ -421,13 +406,254 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ]
         )
 
+    @test.xfail('''
+        The second query fails with
+            cannot redefine link 'select_deck' of object type 'User'
+            as scalar type 'std::str'
+
+        I think because viewgen is too eager to decide that the first
+        subshape it sees is the actual result type.
+    ''')
+    async def test_edgeql_for_in_computable_05(self):
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    select_deck := (
+                        FOR letter IN {'X'}
+                        UNION (
+                            (SELECT .deck.name)
+                        )
+                    )
+                } FILTER .name = 'Alice';
+            ''',
+            [{"select_deck":
+              ["Bog monster", "Dragon", "Giant turtle", "Imp"]}],
+            sort={
+                'select_deck': lambda x: x,
+            }
+        )
+
+        # This one caused a totally nonsense type error.
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    select_deck := (
+                        FOR letter IN {'X'}
+                        UNION (
+                            ((SELECT .deck).name)
+                        )
+                    )
+                } FILTER .name = 'Alice';
+            ''',
+            [{"select_deck":
+              ["Bog monster", "Dragon", "Giant turtle", "Imp"]}],
+            sort={
+                'select_deck': lambda x: x,
+            }
+        )
+
+    async def test_edgeql_for_in_computable_06(self):
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+                select_deck := (
+                    WITH ps := (FOR x IN {"!", "?"} UNION (x)),
+                    FOR letter IN {'I', 'B'}
+                    UNION (
+                        SELECT .deck {
+                            name,
+                            letter := letter ++ "!" ++ ps,
+                        }
+                        FILTER User.deck.name[0] = letter
+                    )
+                )
+            } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    "select_deck": [
+                        {"letter": {"B!!", "B!?"}, "name": "Bog monster"},
+                        {"letter": {"I!!", "I!?"}, "name": "Imp"},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x["name"],
+            }
+        )
+
+    async def test_edgeql_for_in_computable_07(self):
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+                select_deck := (
+                    WITH ps := (FOR x IN {"!", "?"} UNION (
+                        SELECT { z := x }).z),
+                    FOR letter IN {'I', 'B'}
+                    UNION (
+                        SELECT .deck {
+                            name,
+                            letter := letter ++ "!" ++ ps,
+                        }
+                        FILTER User.deck.name[0] = letter
+                    )
+                )
+            } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    "select_deck": [
+                        {"letter": ["B!!", "B!?"], "name": "Bog monster"},
+                        {"letter": ["I!!", "I!?"], "name": "Imp"},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x["name"],
+            }
+        )
+
+    async def test_edgeql_for_in_computable_08(self):
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+                select_deck := (
+                    WITH ps := (FOR x in {"!", "?"} UNION (x++""))
+                    FOR letter IN {'I', 'B'}
+                    UNION (
+                        SELECT .deck {
+                            name,
+                            letter := letter ++ "!" ++ ps,
+                            correlated := (ps, ps),
+                            uncorrelated := ((SELECT ps), (SELECT ps)),
+                        }
+                        FILTER User.deck.name[0] = letter
+                    )
+                )
+            } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    "select_deck": [
+                        {
+                            "name": "Bog monster",
+                            "letter": {"B!!", "B!?"},
+                            "correlated": {("!", "!"), ("?", "?")},
+                            "uncorrelated": {("!", "!"), ("!", "?"),
+                                             ("?", "!"), ("?", "?")}
+                        },
+                        {
+                            "name": "Imp",
+                            "letter": {"I!!", "I!?"},
+                            "correlated": {("!", "!"), ("?", "?")},
+                            "uncorrelated": {("!", "!"), ("!", "?"),
+                                             ("?", "!"), ("?", "?")}
+                        },
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x["name"],
+            }
+        )
+
+    @test.xfail("'letter' does not exist")
+    async def test_edgeql_for_in_computable_09(self):
+        # This is basically test_edgeql_for_in_computable_01 but with
+        # a WITH binding in front of the whole shape
+        await self.assert_query_result(
+            r'''
+                WITH
+                    U := (
+                        SELECT User {
+                            select_deck := (
+                                FOR letter IN {'I', 'B'}
+                                UNION (
+                                    SELECT User.deck {
+                                        name,
+                                        # just define an ad-hoc link prop
+                                        @letter := letter
+                                    }
+                                    FILTER User.deck.name[0] = letter
+                                )
+                            )
+                        } FILTER .name = 'Alice'
+                   ),
+                SELECT U { name, select_deck: { name, @letter } };
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', '@letter': 'B'},
+                        {'name': 'Imp', '@letter': 'I'},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x['name'],
+            }
+        )
+
+    @test.xfail("""
+        This outputs ["I", "B"] as letter for both objects.
+    """)
+    async def test_edgeql_for_in_computable_10(self):
+        # This is basically test_edgeql_for_in_computable_01 but with
+        # a WITH binding inside the computable and no link prop
+
+        # If we just drop the WITH Z binding, we get
+        # `letter does not exist`.
+        # If we replace the WITH Z part with an extra SELECT,
+        # we get the same buggy behavior.
+        await self.assert_query_result(
+            r'''
+            SELECT (SELECT User {
+                select_deck := (
+                    WITH Z := (
+                        FOR letter IN {'I', 'B'}
+                        UNION (
+                            SELECT .deck {
+                                name,
+                                # just define an ad-hoc link prop
+                                letter := letter
+                            }
+                            FILTER User.deck.name[0] = letter
+                        )
+                    ),
+                    SELECT Z
+                )
+            } FILTER .name = 'Alice') { select_deck: {name, letter} };
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', '@letter': 'B'},
+                        {'name': 'Imp', '@letter': 'I'},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x['name'],
+            }
+        )
+
+    async def test_edgeql_for_and_computable_01(self):
+        await self.assert_query_result(
+            r'''
+                WITH X := (SELECT (FOR x IN {1,2} UNION (
+                    SELECT User { m := x }))),
+                SELECT count(X.m);
+            ''',
+            [8],
+        )
+
     async def test_edgeql_for_correlated_01(self):
         await self.assert_query_result(
             r'''
                 SELECT count((
                     WITH X := {1, 2}
                     SELECT (X, (FOR x in {X} UNION (SELECT x)))
-               ));
+                ));
             ''',
             [2],
         )
@@ -437,7 +663,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 SELECT count((
                     WITH X := {1, 2}
                     SELECT ((FOR x in {X} UNION (SELECT x)), X)
-               ));
+                ));
             ''',
             [2],
         )
@@ -445,7 +671,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_correlated_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT count((Card.name,
                               (FOR x in {Card} UNION (SELECT x.name)),
                 ));
@@ -456,7 +681,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_correlated_03(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT count(((FOR x in {Card} UNION (SELECT x.name)),
                                Card.name,
                 ));

@@ -25,7 +25,8 @@ std::datetime_current() -> std::datetime
 {
     CREATE ANNOTATION std::description :=
         'Return the current server date and time.';
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'clock_timestamp';
 };
 
@@ -35,7 +36,8 @@ std::datetime_of_transaction() -> std::datetime
 {
     CREATE ANNOTATION std::description :=
         'Return the date and time of the start of the current transaction.';
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'transaction_timestamp';
 };
 
@@ -45,7 +47,8 @@ std::datetime_of_statement() -> std::datetime
 {
     CREATE ANNOTATION std::description :=
         'Return the date and time of the start of the current statement.';
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'statement_timestamp';
 };
 
@@ -56,7 +59,7 @@ std::datetime_get(dt: std::datetime, el: std::str) -> std::float64
     CREATE ANNOTATION std::description :=
         'Extract a specific element of input datetime by name.';
     # date_part of timestamptz is STABLE in PostgreSQL
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT CASE WHEN "el" IN (
             'century', 'day', 'decade', 'dow', 'doy', 'hour',
@@ -92,18 +95,18 @@ std::datetime_truncate(dt: std::datetime, unit: std::str) -> std::datetime
     CREATE ANNOTATION std::description :=
         'Truncate the input datetime to a particular precision.';
     # date_trunc of timestamptz is STABLE in PostgreSQL
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT CASE WHEN "unit" IN (
             'microseconds', 'milliseconds', 'seconds',
             'minutes', 'hours', 'days', 'weeks', 'months',
             'years', 'decades', 'centuries')
-        THEN date_trunc("unit", "dt")
+        THEN date_trunc("unit", "dt")::edgedb.timestamptz_t
         WHEN "unit" = 'quarters'
-        THEN date_trunc('quarter', "dt")
+        THEN date_trunc('quarter', "dt")::edgedb.timestamptz_t
         ELSE
             edgedb.raise(
-                NULL::timestamptz,
+                NULL::edgedb.timestamptz_t,
                 'invalid_datetime_format',
                 msg => (
                     'invalid unit for std::datetime_truncate: '
@@ -125,14 +128,14 @@ std::duration_truncate(dt: std::duration, unit: std::str) -> std::duration
 {
     CREATE ANNOTATION std::description :=
         'Truncate the input duration to a particular precision.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT CASE WHEN "unit" in ('microseconds', 'milliseconds',
                                 'seconds', 'minutes', 'hours')
-        THEN date_trunc("unit", "dt")
+        THEN date_trunc("unit", "dt")::edgedb.duration_t
         ELSE
             edgedb.raise(
-                NULL::interval,
+                NULL::edgedb.duration_t,
                 'invalid_datetime_format',
                 msg => (
                     'invalid unit for std::duration_truncate: '
@@ -153,7 +156,7 @@ std::duration_to_seconds(dur: std::duration) -> std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return duration as total number of seconds in interval.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT EXTRACT(epoch FROM date_trunc('minute', dur))::bigint::decimal +
            '0.000001'::decimal*EXTRACT(microsecond FROM dur)::decimal
@@ -168,103 +171,139 @@ std::duration_to_seconds(dur: std::duration) -> std::decimal
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::datetime, r: std::datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
-    USING SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=(timestamptz,timestamptz)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::datetime, r: OPTIONAL std::datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::datetime, r: std::datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
-    USING SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>(timestamptz,timestamptz)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::datetime, r: OPTIONAL std::datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::datetime, r: std::datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
-    USING SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>(timestamptz,timestamptz)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::datetime, r: std::datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
-    USING SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=(timestamptz,timestamptz)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::datetime, r: std::datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
-    USING SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<(timestamptz,timestamptz)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::datetime, r: std::datetime) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
-    USING SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=(timestamptz,timestamptz)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::datetime, r: std::duration) -> std::datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     # operators on timestamptz are STABLE in PostgreSQL
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL $$
+        SELECT ("l" + "r")::edgedb.timestamptz_t
+    $$
 };
 
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::datetime) -> std::datetime {
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
     # operators on timestamptz are STABLE in PostgreSQL
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL $$
+        SELECT ("l" + "r")::edgedb.timestamptz_t
+    $$
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::duration) -> std::datetime {
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
     # operators on timestamptz are STABLE in PostgreSQL
-    SET volatility := 'STABLE';
-    USING SQL OPERATOR r'-';
+    SET volatility := 'Stable';
+    USING SQL $$
+        SELECT ("l" - "r")::edgedb.timestamptz_t
+    $$
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
+    SET volatility := 'Immutable';
     USING SQL $$
-        SELECT EXTRACT(epoch FROM "l" - "r")::text::interval
+        SELECT EXTRACT(epoch FROM "l" - "r")::text::edgedb.duration_t
     $$
 };
 
@@ -273,26 +312,33 @@ std::`-` (l: std::datetime, r: std::datetime) -> std::duration {
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::duration, r: std::duration) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
-    USING SQL OPERATOR r'=';
+    USING SQL OPERATOR r'=(interval,interval)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::duration, r: OPTIONAL std::duration) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::duration, r: std::duration) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
-    USING SQL OPERATOR r'<>';
+    USING SQL OPERATOR r'<>(interval,interval)';
 };
 
 
@@ -301,66 +347,92 @@ std::`?!=` (
         l: OPTIONAL std::duration,
         r: OPTIONAL std::duration
 ) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::duration, r: std::duration) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
-    USING SQL OPERATOR r'>';
+    USING SQL OPERATOR r'>(interval,interval)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::duration, r: std::duration) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
-    USING SQL OPERATOR r'>=';
+    USING SQL OPERATOR r'>=(interval,interval)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::duration, r: std::duration) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
-    USING SQL OPERATOR r'<';
+    USING SQL OPERATOR r'<(interval,interval)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::duration, r: std::duration) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
-    USING SQL OPERATOR r'<=';
+    USING SQL OPERATOR r'<=(interval,interval)';
 };
 
 
 CREATE INFIX OPERATOR
 std::`+` (l: std::duration, r: std::duration) -> std::duration {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'plus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time addition.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::+';
-    USING SQL OPERATOR r'+';
+    USING SQL $$
+    SELECT ("l"::interval + "r"::interval)::edgedb.duration_t;
+    $$;
 };
 
 
 CREATE INFIX OPERATOR
 std::`-` (l: std::duration, r: std::duration) -> std::duration {
-    SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR r'-';
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT ("l"::interval - "r"::interval)::edgedb.duration_t;
+    $$;
 };
 
 
 CREATE PREFIX OPERATOR
 std::`-` (v: std::duration) -> std::duration {
-    SET volatility := 'IMMUTABLE';
-    USING SQL OPERATOR r'-';
+    CREATE ANNOTATION std::identifier := 'minus';
+    CREATE ANNOTATION std::description :=
+        'Time interval and date/time subtraction.';
+    SET volatility := 'Immutable';
+    USING SQL $$
+    SELECT (-"v"::interval)::edgedb.duration_t;
+    $$;
 };
 
 
@@ -371,13 +443,13 @@ std::`-` (v: std::duration) -> std::duration {
 # prohibit usage of timezone for non-timezone-aware types are actually
 # IMMUTABLE (as the corresponding casts from those types to text).
 CREATE CAST FROM std::str TO std::datetime {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL FUNCTION 'edgedb.datetime_in';
 };
 
 
 CREATE CAST FROM std::str TO std::duration {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL FUNCTION 'edgedb.duration_in';
 };
 
@@ -388,7 +460,7 @@ CREATE CAST FROM std::str TO std::duration {
 # and uses ' ' instead of 'T' as a separator between date
 # and time.
 CREATE CAST FROM std::datetime TO std::str {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     USING SQL $$
     SELECT trim(to_json(val)::text, '"');
     $$;
@@ -396,7 +468,7 @@ CREATE CAST FROM std::datetime TO std::str {
 
 
 CREATE CAST FROM std::duration TO std::str {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT regexp_replace(val::text, '[[:<:]]mon(?=s?[[:>:]])', 'month');
     $$;

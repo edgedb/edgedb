@@ -746,7 +746,7 @@ class DumpTestCaseMixin:
                 '2018-05-07T20:01:22.306916',
                 '2018-05-07',
                 '20:01:22.306916',
-                '20:00:00',
+                'PT20H',
             ]]
         )
 
@@ -817,8 +817,8 @@ class DumpTestCaseMixin:
                     '20:02:22.306916',
                 },
                 'str_duration': {
-                    '20:00:00',
-                    '00:00:20',
+                    'PT20H',
+                    'PT20S',
                 },
             }]
         )
@@ -1821,6 +1821,8 @@ class DumpTestCaseMixin:
             ],
         )
 
+        """XXX: uncomment the below once direct link property updates are
+                implemented
         # validate read-only
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -1872,12 +1874,13 @@ class DumpTestCaseMixin:
                         rol1: {@rolp11 := 1},
                     };
                     ''')
+        """
 
 
 class TestDump01(tb.StableDumpTestCase, DumpTestCaseMixin):
 
-    SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'dump01_test.esdl')
+    SCHEMA_TEST = os.path.join(os.path.dirname(__file__), 'schemas',
+                               'dump01_test.esdl')
     SCHEMA_DEFAULT = os.path.join(os.path.dirname(__file__), 'schemas',
                                   'dump01_default.esdl')
 

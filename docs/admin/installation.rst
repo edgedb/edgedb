@@ -13,7 +13,7 @@ command:
 
 .. code-block:: bash
 
-    $ curl --proto '=https' --tlsv1.2 https://sh.edgedb.com -sSf | sh
+    $ curl --proto '=https' -sSf1 https://sh.edgedb.com | sh
 
 Follow the script instructions to complete the CLI installation.
 

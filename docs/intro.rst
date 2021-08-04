@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: megaphone
+.. eql:section-intro-page:: introduction
 
 Introduction
 ============

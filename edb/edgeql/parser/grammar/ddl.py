@@ -219,6 +219,14 @@ class UnqualifiedPointerName(Nonterm):
         self.val = kids[0].val
 
 
+class OptIfNotExists(Nonterm):
+    def reduce_IF_NOT_EXISTS(self, *kids):
+        self.val = True
+
+    def reduce_empty(self, *kids):
+        self.val = False
+
+
 class ProductionTpl:
     def _passthrough(self, cmd):
         self.val = cmd.val
@@ -427,6 +435,16 @@ class AlterAnnotationValueStmt(Nonterm):
             name=kids[2].val,
             value=kids[4].val,
         )
+
+    def reduce_ALTER_ANNOTATION_NodeName_DROP_OWNED(self, *kids):
+        self.val = qlast.AlterAnnotationValue(
+            name=kids[2].val,
+        )
+        self.val.commands = [qlast.SetField(
+            name='owned',
+            value=qlast.BooleanConstant(value='false'),
+            special_syntax=True,
+        )]
 
 
 class DropAnnotationValueStmt(Nonterm):
@@ -838,12 +856,13 @@ class OptSuperuser(Nonterm):
 class CreateRoleStmt(Nonterm):
     def reduce_CreateRoleStmt(self, *kids):
         r"""%reduce CREATE OptSuperuser ROLE ShortNodeName
-                    OptShortExtending OptCreateRoleCommandsBlock
+                    OptShortExtending OptIfNotExists OptCreateRoleCommandsBlock
         """
         self.val = qlast.CreateRole(
             name=kids[3].val,
             bases=kids[4].val,
-            commands=kids[5].val,
+            create_if_not_exists=kids[5].val,
+            commands=kids[6].val,
             superuser=kids[1].val,
         )
 
@@ -1305,10 +1324,22 @@ class DropPropertyStmt(Nonterm):
 # CREATE LINK ... { CREATE PROPERTY
 #
 
+class SetRequiredInCreateStmt(Nonterm):
+
+    def reduce_SET_REQUIRED_OptAlterUsingClause(self, *kids):
+        self.val = qlast.SetPointerOptionality(
+            name='required',
+            value=qlast.BooleanConstant.from_python(True),
+            special_syntax=True,
+            fill_expr=kids[2].val,
+        )
+
+
 commands_block(
     'CreateConcreteProperty',
     UsingStmt,
     SetFieldStmt,
+    SetRequiredInCreateStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     CreateConcreteConstraintStmt
@@ -1354,13 +1385,13 @@ class CreateConcretePropertyStmt(Nonterm):
             if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
                     raise EdgeQLSyntaxError(
-                        f'computable property with more than one expression',
+                        f'computed property with more than one expression',
                         context=kids[3].context)
                 target = cmd.value
 
         if target is None:
             raise EdgeQLSyntaxError(
-                f'computable property without expression',
+                f'computed property without expression',
                 context=kids[3].context)
 
         self.val = qlast.CreateConcreteProperty(
@@ -1606,6 +1637,7 @@ commands_block(
     'CreateConcreteLink',
     UsingStmt,
     SetFieldStmt,
+    SetRequiredInCreateStmt,
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     CreateConcreteConstraintStmt,
@@ -1652,13 +1684,13 @@ class CreateConcreteLinkStmt(Nonterm):
             if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
                 if target is not None:
                     raise EdgeQLSyntaxError(
-                        f'computable link with more than one expression',
+                        f'computed link with more than one expression',
                         context=kids[3].context)
                 target = cmd.value
 
         if target is None:
             raise EdgeQLSyntaxError(
-                f'computable link without expression',
+                f'computed link without expression',
                 context=kids[3].context)
 
         self.val = qlast.CreateConcreteLink(
@@ -1924,19 +1956,12 @@ class DropAliasStmt(Nonterm):
 # CREATE MODULE
 #
 class CreateModuleStmt(Nonterm):
-    def reduce_CREATE_MODULE_ModuleName_OptCreateCommandsBlock(
+    def reduce_CREATE_MODULE_ModuleName_OptIfNotExists_OptCreateCommandsBlock(
             self, *kids):
         self.val = qlast.CreateModule(
             name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val)),
-            commands=kids[3].val
-        )
-
-    def reduce_CREATE_MODULE_ModuleName_IF_NOT_EXISTS_OptCreateCommandsBlock(
-            self, *kids):
-        self.val = qlast.CreateModule(
-            name=qlast.ObjectRef(module=None, name='.'.join(kids[2].val)),
-            create_if_not_exists=True,
-            commands=kids[6].val
+            create_if_not_exists=kids[3].val,
+            commands=kids[4].val
         )
 
 

@@ -1048,6 +1048,17 @@ aa';
         SELECT ``::Bar;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=2, col=16)
+    def test_edgeql_syntax_name_27(self):
+        """
+        SELECT `$event`;
+        """
+
+    def test_edgeql_syntax_name_28(self):
+        """
+        SELECT `ok$event`;
+        """
+
     def test_edgeql_syntax_shape_01(self):
         """
         SELECT Foo {bar};
@@ -1176,8 +1187,6 @@ aa';
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected ':='", line=3, col=18)
     def test_edgeql_syntax_shape_14(self):
         """
         SELECT {
@@ -1203,34 +1212,34 @@ aa';
     def test_edgeql_syntax_shape_19(self):
         """
             SELECT
-                test::Issue {
+                Issue {
                     number
                 }
             FILTER
-                (((test::Issue)).number) = '1';
+                (((Issue)).number) = '1';
 
             SELECT
-                (test::Issue) {
+                (Issue) {
                     number
                 }
             FILTER
-                (((test::Issue)).number) = '1';
+                (((Issue)).number) = '1';
 
 % OK %
 
             SELECT
-                test::Issue {
+                Issue {
                     number
                 }
             FILTER
-                (test::Issue.number = '1');
+                (Issue.number = '1');
 
             SELECT
-                test::Issue {
+                Issue {
                     number
                 }
             FILTER
-                (test::Issue.number = '1');
+                (Issue.number = '1');
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -1455,7 +1464,10 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'foo'", line=3, col=27)
+                  r'Unexpected token:.+foo',
+                  hint=r"It appears that a ',' is missing in a shape "
+                       r"before 'foo'",
+                  line=3, col=27)
     def test_edgeql_syntax_shape_44(self):
         """
         SELECT Foo {
@@ -1499,6 +1511,200 @@ aa';
         SET {
             foo -= Bar
         };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+name',
+                  hint=r"It appears that a ',' is missing in a shape "
+                       r"before 'name'",
+                  line=4, col=13)
+    def test_edgeql_syntax_shape_49(self):
+        """
+        SELECT Foo {
+            id
+            name
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+name',
+                  hint=r"It appears that a ',' is missing in a shape "
+                       r"before 'name'",
+                  line=6, col=13)
+    def test_edgeql_syntax_shape_50(self):
+        """
+        SELECT Foo {
+            bar: {
+                id
+            }
+            name
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+name',
+                  hint=r"It appears that a ',' is missing in a shape "
+                       r"before 'name'",
+                  line=4, col=13)
+    def test_edgeql_syntax_shape_51(self):
+        """
+        SELECT Foo {
+            bar := .id
+            name
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+name',
+                  hint=r"It appears that a ',' is missing in a shape "
+                       r"before 'name'",
+                  line=5, col=17)
+    def test_edgeql_syntax_shape_52(self):
+        """
+        SELECT Foo {
+            bar: {
+                @linkprop
+                name
+            }
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected 'Bar'", line=3, col=18)
+    def test_edgeql_syntax_shape_53(self):
+        """
+        INSERT Foo {
+            bar: Bar {
+                val := 1
+            }
+        };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+Foo',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before 'Foo'",
+                  line=2, col=19)
+    def test_edgeql_syntax_shape_54(self):
+        """
+        SELECT (1 Foo {
+            foo
+            bar
+        });
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+bar',
+                  hint=r"It appears that a ',' is missing in a shape "
+                       r"before 'bar'",
+                  line=4, col=13)
+    def test_edgeql_syntax_shape_55(self):
+        """
+        SELECT (Foo {
+            foo
+            bar
+        } 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+Foo',
+                  hint=r"It appears that a ',' is missing in an array "
+                       r"before 'Foo'",
+                  line=2, col=19)
+    def test_edgeql_syntax_shape_56(self):
+        """
+        SELECT [1 Foo {
+            foo
+            bar := .foo + 1
+        }.bar];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+bar',
+                  hint=r"It appears that a ',' is missing in a shape "
+                       r"before 'bar'",
+                  line=4, col=13)
+    def test_edgeql_syntax_shape_57(self):
+        """
+        SELECT [Foo {
+            foo
+            bar := .foo + 1
+        }.bar 2];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+Foo',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before 'Foo'",
+                  line=2, col=27)
+    def test_edgeql_syntax_shape_58(self):
+        """
+        SELECT somefunc(1 Foo {
+            foo
+            bar
+        });
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+bar',
+                  hint=r"It appears that a ',' is missing in a shape "
+                       r"before 'bar'",
+                  line=4, col=13)
+    def test_edgeql_syntax_shape_59(self):
+        """
+        SELECT somefunc(Foo {
+            foo
+            bar
+        } 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before '2'",
+                  line=2, col=25)
+    def test_edgeql_syntax_shape_60(self):
+        """
+        SELECT (Foo{id} 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+bar',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before 'bar'",
+                  line=2, col=25)
+    def test_edgeql_syntax_shape_61(self):
+        """
+        SELECT (Foo{id} bar);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in an array "
+                       r"before '2'",
+                  line=2, col=25)
+    def test_edgeql_syntax_shape_62(self):
+        """
+        SELECT [Foo{id} 2];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+bar',
+                  hint=r"It appears that a ',' is missing in an array "
+                       r"before 'bar'",
+                  line=2, col=25)
+    def test_edgeql_syntax_shape_63(self):
+        """
+        SELECT [Foo{id} bar];
+        """
+
+    def test_edgeql_syntax_shape_64(self):
+        """
+        SELECT sys::Database{};
+
+% OK %
+
+        SELECT sys::Database;
         """
 
     def test_edgeql_syntax_struct_01(self):
@@ -1966,6 +2172,104 @@ aa';
         SELECT (get_nested_obj())['a']['b']['c'];
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+User',
+                  hint=r"It appears that a ',' is missing in an array "
+                       r"before 'User'",
+                  line=4, col=13)
+    def test_edgeql_syntax_array_06(self):
+        """
+        SELECT [
+            1
+            User
+        ];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+1',
+                  hint=r"It appears that a ',' is missing in an array "
+                       r"before '1'",
+                  line=4, col=13)
+    def test_edgeql_syntax_array_07(self):
+        """
+        SELECT [
+            User
+            1
+        ];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+True',
+                  hint=r"It appears that a ',' is missing in an array "
+                       r"before 'True'",
+                  line=4, col=13)
+    def test_edgeql_syntax_array_08(self):
+        """
+        SELECT [
+            False
+            True
+        ];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+b',
+                  hint=r'''It appears that a ',' is missing in an array '''
+                       r'''before "'b'"''',
+                  line=4, col=13)
+    def test_edgeql_syntax_array_09(self):
+        """
+        SELECT [
+            'a'
+            'b'
+        ];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+x',
+                  hint=r"It appears that a ':' is missing in an array "
+                       r"slice before 'x'",
+                  line=3, col=28)
+    def test_edgeql_syntax_array_10(self):
+        """
+        WITH x := 2
+        SELECT [1, 2, 3][1 x];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+1',
+                  hint=r"It appears that a ':' is missing in an array "
+                       r"slice before '1'",
+                  line=3, col=28)
+    def test_edgeql_syntax_array_11(self):
+        """
+        WITH x := 2
+        SELECT [1, 2, 3][x 1];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before '2'",
+                  line=2, col=31)
+    def test_edgeql_syntax_array_12(self):
+        """
+        SELECT [1, 2, 3][x (1 2).1];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '\('", line=2, col=24)
+    def test_edgeql_syntax_array_13(self):
+        """
+        SELECT [(1, 2) (2, 3)];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '\('", line=2, col=24)
+    def test_edgeql_syntax_array_14(self):
+        """
+        SELECT [([1],) ([2],)];
+        """
+
     def test_edgeql_syntax_cast_01(self):
         """
         SELECT <float64> (SELECT User.age);
@@ -2041,7 +2345,6 @@ aa';
     def test_edgeql_syntax_with_01(self):
         """
         WITH
-            MODULE test,
             extra AS MODULE lib.extra,
             foo := Bar.foo,
             baz := (SELECT extra::Foo.baz)
@@ -2051,29 +2354,26 @@ aa';
         } FILTER (foo = 'special');
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=6, col=9)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=5, col=9)
     def test_edgeql_syntax_with_02(self):
         """
         WITH
-            MODULE test,
             foo := Bar.foo,
             baz := (SELECT Foo.baz)
         COMMIT;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=16)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=16)
     def test_edgeql_syntax_with_03(self):
         """
-        WITH
-            MODULE test
+        WITH MODULE welp
         CREATE DATABASE sample;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, line=4, col=14)
+    @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=14)
     def test_edgeql_syntax_with_04(self):
         """
-        WITH
-            MODULE test
+        WITH MODULE welp
         DROP DATABASE sample;
         """
 
@@ -2165,7 +2465,7 @@ aa';
 
 % OK %
 
-        SELECT (DETACHED Foo).bar;
+        SELECT DETACHED Foo.bar;
         """
 
     def test_edgeql_syntax_detached_05(self):
@@ -2174,7 +2474,16 @@ aa';
 
 % OK %
 
-        SELECT (DETACHED mod::Foo).bar;
+        SELECT DETACHED mod::Foo.bar;
+        """
+
+    def test_edgeql_syntax_detached_06(self):
+        """
+        SELECT (DETACHED Foo).bar;
+
+% OK %
+
+        SELECT (DETACHED Foo).bar;
         """
 
     def test_edgeql_syntax_select_01(self):
@@ -2234,30 +2543,22 @@ aa';
 
     def test_edgeql_syntax_select_05(self):
         """
-        WITH MODULE test
         SELECT 42;
-        WITH MODULE test
         SELECT User{name};
-        WITH MODULE test
         SELECT User{name}
             FILTER (User.age > 42);
-        WITH MODULE test
         SELECT User{name}
             ORDER BY User.name ASC;
-        WITH MODULE test
         SELECT User{name}
             OFFSET 2;
-        WITH MODULE test
         SELECT User{name}
             LIMIT 5;
-        WITH MODULE test
         SELECT User{name}
             OFFSET 2 LIMIT 5;
         """
 
     def test_edgeql_syntax_select_06(self):
         """
-        WITH MODULE test
         SELECT
             User.name
         FILTER
@@ -2275,7 +2576,6 @@ aa';
 
     def test_edgeql_syntax_select_08(self):
         """
-        WITH MODULE test
         SELECT User{name} ORDER BY User.name ASC;
         SELECT User{name} ORDER BY User.name ASC;
         SELECT User{name} OFFSET 2;
@@ -2301,6 +2601,15 @@ aa';
         SELECT User.name OFFSET Foo.bar;
         SELECT User.name LIMIT (Foo.bar * 10);
         SELECT User.name OFFSET Foo.bar LIMIT (Foo.bar * 10);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bar', hint=None, line=3, col=24)
+    def test_edgeql_syntax_select_12(self):
+        """
+        SELECT (
+            SELECT Foo bar
+        );
         """
 
     def test_edgeql_syntax_group_01(self):
@@ -2425,13 +2734,11 @@ aa';
 
     def test_edgeql_syntax_insert_03(self):
         """
-        WITH MODULE test
         INSERT Foo;
         """
 
     def test_edgeql_syntax_insert_04(self):
         """
-        WITH MODULE test
         INSERT Foo{bar := 42};
         """
 
@@ -2551,6 +2858,15 @@ aa';
         } UNLESS CONFLICT ELSE (SELECT Foo);
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bar', hint=None, line=3, col=24)
+    def test_edgeql_syntax_insert_22(self):
+        """
+        SELECT (
+            INSERT Foo bar
+        );
+        """
+
     def test_edgeql_syntax_delete_01(self):
         """
         DELETE Foo;
@@ -2558,7 +2874,6 @@ aa';
 
     def test_edgeql_syntax_delete_02(self):
         """
-        WITH MODULE test
         DELETE Foo;
         """
 
@@ -2576,7 +2891,6 @@ aa';
 
     def test_edgeql_syntax_delete_05(self):
         """
-        WITH MODULE test
         DELETE
             User.name
         FILTER
@@ -2584,6 +2898,15 @@ aa';
         ORDER BY
             User.name ASC
         OFFSET 2 LIMIT 5;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bar', hint=None, line=3, col=24)
+    def test_edgeql_syntax_delete_06(self):
+        """
+        SELECT (
+            DELETE Foo bar
+        );
         """
 
     def test_edgeql_syntax_update_01(self):
@@ -2594,9 +2917,7 @@ aa';
 
     def test_edgeql_syntax_update_02(self):
         """
-        WITH MODULE test
         UPDATE Foo SET {bar := 42};
-        WITH MODULE test
         UPDATE Foo FILTER (Foo.bar = 24) SET {bar := 42};
         """
 
@@ -2624,6 +2945,20 @@ aa';
                 taste := 'yummy'
             }
         };
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bad', hint=None, line=4, col=25)
+    def test_edgeql_syntax_update_08(self):
+        """
+        WITH x := (
+            UPDATE Foo
+            FILTER .bar bad = 24
+            SET {
+                bar := 42,
+            };
+        )
+        SELECT x
         """
 
     def test_edgeql_syntax_insertfor_01(self):
@@ -2683,6 +3018,41 @@ aa';
                 (.last_name = x.1)
             )
         );
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"missing '{' before.+array_unpack",
+                  line=2, col=26)
+    def test_edgeql_syntax_selectfor_02(self):
+        """
+        SELECT (FOR s IN array_unpack([1, 2, 3]) UNION s);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"missing '{' before.+array_unpack",
+                  line=3, col=22)
+    def test_edgeql_syntax_selectfor_03(self):
+        """
+        WITH x := (
+            FOR s IN array_unpack([1, 2, 3]) UNION s
+        )
+        SELECT x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected.+bad', hint=None, line=3, col=56)
+    def test_edgeql_syntax_selectfor_04(self):
+        """
+        WITH x := (
+            FOR s IN {array_unpack([1, 2, 3])} UNION s bad
+        )
+        SELECT x;
+        """
+
+    def test_edgeql_syntax_selectfor_05(self):
+        """
+        FOR x IN {1, 2, 3}
+        UNION y := (x + 2);
         """
 
     def test_edgeql_syntax_deletefor_01(self):
@@ -2764,7 +3134,10 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected '1'", line=2, col=26)
+                  r'Unexpected token:.+1',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before '1'",
+                  line=2, col=26)
     def test_edgeql_syntax_function_05(self):
         """
         SELECT count(ALL 1);
@@ -2810,6 +3183,205 @@ aa';
         SELECT baz(age := User.age, of := User.name, `select` := 1);
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+User',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before 'User'",
+                  line=2, col=22)
+    def test_edgeql_syntax_function_10(self):
+        """
+        SELECT foo(1 User);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+y',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before 'y'",
+                  line=2, col=34)
+    def test_edgeql_syntax_function_11(self):
+        """
+        SELECT baz(x := User.age y := User.name);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token',
+                  hint=r"Statement used as an expression must be enclosed "
+                       r"in a set of parentheses",
+                  line=2, col=22)
+    def test_edgeql_syntax_function_12(self):
+        """
+        SELECT count(SELECT 1);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token',
+                  hint=r"Statement used as an expression must be enclosed "
+                       r"in a set of parentheses",
+                  line=2, col=22)
+    def test_edgeql_syntax_function_13(self):
+        """
+        SELECT count(INSERT Foo);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token',
+                  hint=r"Statement used as an expression must be enclosed "
+                       r"in a set of parentheses",
+                  line=2, col=22)
+    def test_edgeql_syntax_function_14(self):
+        """
+        SELECT count(UPDATE Foo SET {bar := 1});
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token',
+                  hint=r"Statement used as an expression must be enclosed "
+                       r"in a set of parentheses",
+                  line=2, col=22)
+    def test_edgeql_syntax_function_15(self):
+        """
+        SELECT count(DELETE Foo);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token',
+                  hint=r"Statement used as an expression must be enclosed "
+                       r"in a set of parentheses",
+                  line=2, col=22)
+    def test_edgeql_syntax_function_16(self):
+        """
+        SELECT count(FOR X IN {Foo} UNION X);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token',
+                  hint=r"Statement used as an expression must be enclosed "
+                       r"in a set of parentheses",
+                  line=2, col=22)
+    def test_edgeql_syntax_function_17(self):
+        """
+        SELECT count(WITH X := 1 SELECT Foo FILTER .bar = X);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token',
+                  hint=r"Statement used as an expression must be enclosed "
+                       r"in a set of parentheses",
+                  line=2, col=23)
+    def test_edgeql_syntax_function_18(self):
+        """
+        SELECT (count(SELECT 1) 1);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token',
+                  hint=r"Statement used as an expression must be enclosed "
+                       r"in a set of parentheses",
+                  line=2, col=26)
+    def test_edgeql_syntax_function_19(self):
+        """
+        SELECT ((((count(SELECT 1)))));
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+1',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before '1'",
+                  line=2, col=30)
+    def test_edgeql_syntax_function_20(self):
+        """
+        SELECT ((((count(foo 1)))));
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+bar',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before 'bar'",
+                  line=2, col=35)
+    def test_edgeql_syntax_function_21(self):
+        """
+        SELECT ((((count(foo, 1)) bar)));
+        """
+
+    def test_edgeql_syntax_function_22(self):
+        """
+        SELECT count((((((((((SELECT 1))))))))));
+
+% OK %
+
+        SELECT count((SELECT 1));
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before '2'",
+                  line=2, col=35)
+    def test_edgeql_syntax_function_23(self):
+        """
+        SELECT (count((SELECT 1)) 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in an array "
+                       r"before '2'",
+                  line=2, col=35)
+    def test_edgeql_syntax_function_24(self):
+        """
+        SELECT [count((SELECT 1)) 2];
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before '2'",
+                  line=2, col=29)
+    def test_edgeql_syntax_function_25(self):
+        """
+        SELECT count((0, 1) 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+foo',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before 'foo'",
+                  line=2, col=29)
+    def test_edgeql_syntax_function_26(self):
+        """
+        SELECT count((0, 1) foo);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before '2'",
+                  line=2, col=29)
+    def test_edgeql_syntax_function_27(self):
+        """
+        SELECT count([0, 1] 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+foo',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before 'foo'",
+                  line=2, col=29)
+    def test_edgeql_syntax_function_28(self):
+        """
+        SELECT count([0, 1] foo);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a list of "
+                       r"arguments before '2'",
+                  line=2, col=28)
+    def test_edgeql_syntax_function_29(self):
+        """
+        SELECT count(([1]) 2);
+        """
+
     def test_edgeql_syntax_tuple_01(self):
         """
         SELECT ('foo', 42).0;
@@ -2825,6 +3397,147 @@ aa';
     def test_edgeql_syntax_tuple_03(self):
         """
         SELECT ();
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+User',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before 'User'",
+                  line=4, col=13)
+    def test_edgeql_syntax_tuple_04(self):
+        """
+        SELECT (
+            1
+            User
+        );
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+1',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before '1'",
+                  line=4, col=13)
+    def test_edgeql_syntax_tuple_05(self):
+        """
+        SELECT (
+            User
+            1
+        );
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+True',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before 'True'",
+                  line=4, col=13)
+    def test_edgeql_syntax_tuple_06(self):
+        """
+        SELECT (
+            False
+            True
+        );
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+b',
+                  hint=r'''It appears that a ',' is missing in a tuple '''
+                       r'''before "'b'"''',
+                  line=4, col=13)
+    def test_edgeql_syntax_tuple_07(self):
+        """
+        SELECT (
+            'a'
+            'b'
+        );
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before '2'",
+                  line=2, col=22)
+    def test_edgeql_syntax_tuple_08(self):
+        """
+        SELECT ((((1 2))));
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '\('", line=2, col=24)
+    def test_edgeql_syntax_tuple_09(self):
+        """
+        SELECT ((1, 2) (3, 4));
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '\('", line=2, col=19)
+    def test_edgeql_syntax_tuple_10(self):
+        """
+        SELECT (0 (1, 2));
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected '\('", line=2, col=19)
+    def test_edgeql_syntax_tuple_11(self):
+        """
+        SELECT (0 (((1 2) 3)) 4);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before '2'",
+                  line=2, col=25)
+    def test_edgeql_syntax_tuple_12(self):
+        """
+        SELECT (0, (((1 2) 3)) 4);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+3',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before '3'",
+                  line=2, col=29)
+    def test_edgeql_syntax_tuple_13(self):
+        """
+        SELECT (0, (((1, 2) 3)) 4);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+4',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before '4'",
+                  line=2, col=34)
+    def test_edgeql_syntax_tuple_14(self):
+        """
+        SELECT (0, (((1, 2), 3)) 4);
+        """
+
+    def test_edgeql_syntax_tuple_15(self):
+        """
+        SELECT (0, (((1, 2), 3)), 4);
+
+% OK %
+
+        SELECT (0, ((1, 2), 3), 4);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Unexpected token:.+2',
+                  hint=r"It appears that a ',' is missing in a tuple "
+                       r"before '2'",
+                  line=2, col=26)
+    def test_edgeql_syntax_tuple_16(self):
+        """
+        SELECT (foo (((1 2) 3)) 4);
+        """
+
+    def test_edgeql_syntax_tuple_17(self):
+        """
+        SELECT ((((1, 2))));
+
+% OK %
+
+        SELECT (1, 2);
         """
 
     def test_edgeql_syntax_introspect_01(self):
@@ -2961,9 +3674,19 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_role_08(self):
+        """
+        CREATE ROLE username IF NOT EXISTS;
+        CREATE SUPERUSER ROLE username IF NOT EXISTS;
+        CREATE ROLE username EXTENDING generic IF NOT EXISTS;
+        CREATE ROLE username EXTENDING generic IF NOT EXISTS {
+            SET password := 'secret';
+        };
+        """
+
     def test_edgeql_syntax_ddl_delta_02(self):
         """
-        START MIGRATION TO {type test::Foo;};
+        START MIGRATION TO {type default::Foo;};
         ALTER MIGRATION m1231231231fd
             SET message := 'foo';
         COMMIT MIGRATION;
@@ -2982,7 +3705,7 @@ aa';
                   "Unexpected 'BadLang'", line=2, col=28)
     def test_edgeql_syntax_ddl_delta_04(self):
         """
-        START MIGRATION TO BadLang $$type test::Foo$$;
+        START MIGRATION TO BadLang $$type Foo$$;
         """
 
     def test_edgeql_syntax_ddl_delta_05(self):
@@ -3319,14 +4042,14 @@ aa';
 
     def test_edgeql_syntax_ddl_constraint_08(self):
         """
-        CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
+        CREATE ABSTRACT CONSTRAINT len_fail(f: std::str) {
             USING (__subject__ <= f);
             SET subjectexpr := len(__subject__);
         };
 
 % OK %
 
-        CREATE ABSTRACT CONSTRAINT test::len_fail(f: std::str) {
+        CREATE ABSTRACT CONSTRAINT len_fail(f: std::str) {
             USING ((__subject__ <= f));
             SET subjectexpr := (len(__subject__));
         };
@@ -3395,6 +4118,12 @@ aa';
         """
         ALTER ABSTRACT CONSTRAINT my_constraint
         RESET errmessage;
+        """
+
+    def test_edgeql_syntax_ddl_constraint_13(self):
+        """
+        ALTER ABSTRACT CONSTRAINT not_bad
+            USING (((__subject__ != 'bad') and (__subject__ != 'terrible')));
         """
 
     def test_edgeql_syntax_ddl_function_01(self):
@@ -3537,7 +4266,7 @@ aa';
     def test_edgeql_syntax_ddl_function_26(self):
         """
         CREATE FUNCTION foo() -> std::str {
-            SET volatility := 'VOLATILE';
+            SET volatility := 'Volatile';
             CREATE ANNOTATION description := 'aaaa';
             USING SQL $a$SELECT $$foo$$$a$;
         };
@@ -3816,11 +4545,24 @@ aa';
             std::int64 USING SQL FUNCTION 'aaa';
         """
 
+    def test_edgeql_syntax_ddl_function_53(self):
+        """
+        ALTER FUNCTION foo() USING ('no');
+        """
+
+    def test_edgeql_syntax_ddl_function_54(self):
+        """
+        ALTER FUNCTION foo() {
+            SET volatility := 'volatile';
+            USING ('no');
+        };
+        """
+
     def test_edgeql_syntax_ddl_operator_01(self):
         """
         CREATE INFIX OPERATOR
         std::`OR` (a: std::bool, b: std::bool) -> std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL $$
             SELECT ("a" OR "b") AND ("a"::int | "b"::int)::bool
             $$;
@@ -3831,7 +4573,7 @@ aa';
         """
         CREATE INFIX OPERATOR
         std::`AND` (a: std::bool, b: std::bool) -> std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL EXPRESSION;
         };
         """
@@ -3840,7 +4582,7 @@ aa';
         """
         CREATE INFIX OPERATOR
         std::`=` (l: std::bool, r: std::bool) -> std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             SET commutator := 'std::=';
             SET negator := 'std::!=';
             USING SQL OPERATOR '=';
@@ -3851,7 +4593,7 @@ aa';
         """
         CREATE INFIX OPERATOR
         std::`>` (l: std::int32, r: std::float32) -> std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             SET commutator := 'std::<';
             SET negator := 'std::<=';
             USING SQL OPERATOR '>(float8,float8)';
@@ -3879,7 +4621,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_01(self):
         """
         CREATE CAST FROM std::str TO std::bool {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL FUNCTION 'edgedb.str_to_bool';
         };
         """
@@ -3887,7 +4629,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_02(self):
         """
         CREATE CAST FROM std::bool TO std::str {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL CAST;
         };
         """
@@ -3895,7 +4637,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_03(self):
         """
         CREATE CAST FROM std::json TO std::bigint {
-            SET volatility := 'STABLE';
+            SET volatility := 'Stable';
             USING SQL $$
             SELECT edgedb.str_to_bigint(
                 edgedb.jsonb_extract_scalar(val, 'number')
@@ -3907,7 +4649,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_04(self):
         """
         CREATE CAST FROM std::int32 TO std::int64 {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL CAST;
             ALLOW IMPLICIT;
         };
@@ -3916,7 +4658,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_05(self):
         """
         CREATE CAST FROM std::int64 TO std::int16 {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL CAST;
             ALLOW ASSIGNMENT;
         };
@@ -3925,7 +4667,7 @@ aa';
     def test_edgeql_syntax_ddl_cast_06(self):
         """
         CREATE CAST FROM std::BaseObject TO std::json {
-            SET volatility := 'IMMUTABLE';
+            SET volatility := 'Immutable';
             USING SQL EXPRESSION;
         };
         """
@@ -4032,6 +4774,11 @@ aa';
     def test_edgeql_syntax_ddl_module_05(self):
         """
         CREATE MODULE `__std__`;
+        """
+
+    def test_edgeql_syntax_ddl_module_06(self):
+        """
+        CREATE MODULE foo IF NOT EXISTS;
         """
 
     def test_edgeql_syntax_ddl_type_01(self):
@@ -4235,6 +4982,44 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_type_19(self):
+        """
+        ALTER TYPE Foo {
+            CREATE PROPERTY bar -> str {
+                USING (4);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_20(self):
+        """
+        ALTER TYPE Foo {
+            ALTER PROPERTY bar {
+                SET TYPE str;
+                USING (4);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_21(self):
+        """
+        ALTER TYPE Foo {
+            CREATE LINK bar -> Object {
+                USING (SELECT Object);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_type_22(self):
+        """
+        ALTER TYPE Foo {
+            ALTER LINK bar {
+                SET TYPE Object;
+                USING (SELECT Object);
+            };
+        };
+        """
+
     def test_edgeql_syntax_set_command_01(self):
         """
         SET MODULE default;
@@ -4268,25 +5053,25 @@ aa';
 
     def test_edgeql_syntax_configure_01(self):
         """
-        CONFIGURE SYSTEM SET foo := (SELECT User);
+        CONFIGURE INSTANCE SET foo := (SELECT User);
         CONFIGURE SESSION SET foo := (SELECT User);
         CONFIGURE CURRENT DATABASE SET foo := (SELECT User);
-        CONFIGURE SYSTEM SET cfg::foo := (SELECT User);
+        CONFIGURE INSTANCE SET cfg::foo := (SELECT User);
         CONFIGURE SESSION SET cfg::foo := (SELECT User);
         CONFIGURE CURRENT DATABASE SET cfg::foo := (SELECT User);
-        CONFIGURE SYSTEM RESET foo;
+        CONFIGURE INSTANCE RESET foo;
         CONFIGURE SESSION RESET foo;
         CONFIGURE CURRENT DATABASE RESET foo;
-        CONFIGURE SYSTEM RESET cfg::foo;
+        CONFIGURE INSTANCE RESET cfg::foo;
         CONFIGURE SESSION RESET cfg::foo;
         CONFIGURE CURRENT DATABASE RESET cfg::foo;
-        CONFIGURE SYSTEM INSERT Foo {bar := (SELECT 1)};
+        CONFIGURE INSTANCE INSERT Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT Foo {bar := (SELECT 1)};
         CONFIGURE CURRENT DATABASE INSERT Foo {bar := (SELECT 1)};
-        CONFIGURE SYSTEM INSERT cfg::Foo {bar := (SELECT 1)};
+        CONFIGURE INSTANCE INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE SESSION INSERT cfg::Foo {bar := (SELECT 1)};
         CONFIGURE CURRENT DATABASE INSERT cfg::Foo {bar := (SELECT 1)};
-        CONFIGURE SYSTEM RESET Foo FILTER (.bar = 2);
+        CONFIGURE INSTANCE RESET Foo FILTER (.bar = 2);
         CONFIGURE SESSION RESET Foo FILTER (.bar = 2);
         CONFIGURE CURRENT DATABASE RESET Foo FILTER (.bar = 2);
         """
@@ -4569,14 +5354,14 @@ aa';
 
     def test_edgeql_syntax_describe_05(self):
         """
-        DESCRIBE SYSTEM CONFIG;
+        DESCRIBE INSTANCE CONFIG;
 % OK %
-        DESCRIBE SYSTEM CONFIG AS DDL;
+        DESCRIBE INSTANCE CONFIG AS DDL;
         """
 
     def test_edgeql_syntax_describe_06(self):
         """
-        DESCRIBE SYSTEM CONFIG AS DDL;
+        DESCRIBE INSTANCE CONFIG AS DDL;
         """
 
     def test_edgeql_syntax_describe_07(self):
@@ -4589,4 +5374,11 @@ aa';
     def test_edgeql_syntax_describe_08(self):
         """
         DESCRIBE ROLES AS DDL;
+        """
+
+    def test_edgeql_syntax_describe_09(self):
+        """
+        DESCRIBE SYSTEM CONFIG;
+% OK %
+        DESCRIBE INSTANCE CONFIG AS DDL;
         """

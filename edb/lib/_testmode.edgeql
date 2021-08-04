@@ -42,7 +42,7 @@ CREATE TYPE cfg::Subclass2 EXTENDING cfg::Base {
 };
 
 
-CREATE TYPE cfg::TestSystemConfig {
+CREATE TYPE cfg::TestInstanceConfig {
     CREATE REQUIRED PROPERTY name -> std::str {
         CREATE CONSTRAINT std::exclusive;
     };
@@ -55,7 +55,7 @@ ALTER TYPE cfg::AbstractConfig {
     CREATE MULTI LINK sessobj -> cfg::TestSessionConfig {
         CREATE ANNOTATION cfg::internal := 'true';
     };
-    CREATE MULTI LINK sysobj -> cfg::TestSystemConfig {
+    CREATE MULTI LINK sysobj -> cfg::TestInstanceConfig {
         CREATE ANNOTATION cfg::internal := 'true';
     };
 
@@ -97,6 +97,12 @@ ALTER TYPE cfg::AbstractConfig {
         CREATE ANNOTATION cfg::internal := 'true';
         SET default := '';
     };
+
+    CREATE PROPERTY __pg_max_connections -> std::str {
+        CREATE ANNOTATION cfg::internal := 'true';
+        CREATE ANNOTATION cfg::backend_setting := '"max_connections"';
+        SET default := '';
+    };
 };
 
 
@@ -108,7 +114,7 @@ std::_gen_series(
     stop: std::int64
 ) -> SET OF std::int64
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'generate_series';
 };
 
@@ -119,7 +125,7 @@ std::_gen_series(
     step: std::int64
 ) -> SET OF std::int64
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'generate_series';
 };
 
@@ -129,7 +135,8 @@ std::_gen_series(
     stop: std::bigint
 ) -> SET OF std::bigint
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'generate_series';
 };
 
@@ -140,7 +147,8 @@ std::_gen_series(
     step: std::bigint
 ) -> SET OF std::bigint
 {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'generate_series';
 };
 
@@ -149,9 +157,9 @@ CREATE FUNCTION
 sys::_sleep(duration: std::float64) -> std::bool
 {
     CREATE ANNOTATION std::description :=
-        'Make the current session sleep for *duration* time.';
+        'Make the current session sleep for *duration* seconds.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT pg_sleep("duration") IS NOT NULL;
     $$;
@@ -163,7 +171,7 @@ sys::_sleep(duration: std::duration) -> std::bool
     CREATE ANNOTATION std::description :=
         'Make the current session sleep for *duration* time.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT pg_sleep_for("duration") IS NOT NULL;
     $$;
@@ -176,7 +184,7 @@ sys::_advisory_lock(key: std::int64) -> std::bool
     CREATE ANNOTATION std::description :=
         'Obtain an exclusive session-level advisory lock.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
@@ -193,7 +201,7 @@ sys::_advisory_unlock(key: std::int64) -> std::bool
     CREATE ANNOTATION std::description :=
         'Release an exclusive session-level advisory lock.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT CASE WHEN "key" < 0 THEN
         edgedb.raise(NULL::bool, msg => 'lock key cannot be negative')
@@ -210,8 +218,40 @@ sys::_advisory_unlock_all() -> std::bool
     CREATE ANNOTATION std::description :=
         'Release all session-level advisory locks held by the current session.';
     # This function has side-effect.
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL $$
     SELECT pg_advisory_unlock_all() IS NOT NULL;
+    $$;
+};
+
+
+CREATE FUNCTION
+std::_datetime_range_buckets(
+    low: std::datetime,
+    high: std::datetime,
+    granularity: str,
+) -> SET OF tuple<std::datetime, std::datetime>
+{
+    CREATE ANNOTATION std::description :=
+        'Generate a set of datetime buckets for a given time period '
+        ++ 'and a given granularity';
+    # date_trunc of timestamptz is STABLE in PostgreSQL
+    SET volatility := 'Stable';
+    USING SQL $$
+    SELECT
+        lo::edgedb.timestamptz_t,
+        hi::edgedb.timestamptz_t
+    FROM
+        (SELECT
+            series AS lo,
+            lead(series) OVER () AS hi
+        FROM
+            generate_series(
+                "low",
+                "high",
+                "granularity"::interval
+            ) AS series) AS q
+    WHERE
+        hi IS NOT NULL
     $$;
 };

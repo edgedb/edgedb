@@ -9,10 +9,11 @@ there are two exceptions:
 
 1. When the command-line tool starts, it checks if its version is up to
    date. :ref:`Details <ref_cli_edgedb_version_check>`
-2. The ``edgedb server`` family of commands and ``edgedb self-update``
-   discover package versions and docker images and also invoke package
-   managers and the docker engine to do :ref:`index updates and
-   related data. <ref_cli_edgedb_net_server>`
+2. The :ref:`ref_cli_edgedb_server` family of commands and
+   :ref:`ref_cli_edgedb_self_upgrade` discover package versions and
+   docker images and also invoke package managers and the docker
+   engine to do :ref:`index updates and related data.
+   <ref_cli_edgedb_net_server>`
 
 
 .. _ref_cli_edgedb_version_check:
@@ -64,8 +65,8 @@ logging facility can be used::
 
 .. _ref_cli_edgedb_net_server:
 
-``edgedb server`` and ``edgedb self-update``
-============================================
+``edgedb server`` and ``edgedb self upgrade``
+=============================================
 
 Generally these commands do requests with exactly the headers
 like :ref:`version check <ref_cli_edgedb_version_check>`.
@@ -88,6 +89,6 @@ Data sources that can be used indirectly:
    system.
 
 To avoid reaching these hosts, avoid using: ``edgedb server`` and
-``edgedb self-update`` subcommands. These commands only simplify
+``edgedb self upgrade`` subcommands. These commands only simplify
 installation and maintenance of the installations. All EdgeDB features
 are available without using them.

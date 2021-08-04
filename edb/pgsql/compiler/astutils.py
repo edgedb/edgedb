@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 def tuple_element_for_shape_el(
     shape_el: irast.Set,
-    value: Optional[pgast.BaseExpr],
+    value: Optional[pgast.BaseExpr]=None,
     *,
     ctx: context.CompilerContextLevel
 ) -> pgast.TupleElementBase:
@@ -146,6 +146,7 @@ def get_leftmost_query(query: pgast.Query) -> pgast.Query:
     result = query
     while is_set_op_query(result):
         result = cast(pgast.SelectStmt, result)
+        assert result.larg
         result = result.larg
     return result
 
@@ -156,6 +157,7 @@ def for_each_query_in_set(
 ) -> List[Any]:
     if is_set_op_query(qry):
         qry = cast(pgast.SelectStmt, qry)
+        assert qry.larg and qry.rarg
         result = for_each_query_in_set(qry.larg, cb)
         result.extend(for_each_query_in_set(qry.rarg, cb))
     else:

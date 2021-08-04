@@ -25,8 +25,6 @@ import textwrap
 from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 
-from edb.server import defines
-
 from . import base
 from . import ddl
 
@@ -41,7 +39,6 @@ class Database(base.DBObject):
         encoding: Optional[str] = None,
         lc_collate: Optional[str] = None,
         lc_ctype: Optional[str] = None,
-        template: Optional[str] = None,
         metadata: Optional[Mapping[str, Any]] = None,
     ) -> None:
         super().__init__(metadata=metadata)
@@ -51,7 +48,6 @@ class Database(base.DBObject):
         self.encoding = encoding
         self.lc_collate = lc_collate
         self.lc_ctype = lc_ctype
-        self.template = template or defines.EDGEDB_TEMPLATE_DB
 
     def get_type(self):
         return 'DATABASE'
@@ -94,6 +90,10 @@ class DatabaseExists(base.Condition):
 
 class CreateDatabase(ddl.CreateObject, ddl.NonTransactionalDDLOperation):
 
+    def __init__(self, object, *, template: str, **kwargs):
+        super().__init__(object, **kwargs)
+        self.template = template
+
     def code(self, block: base.PLBlock) -> str:
         extra = ''
 
@@ -101,8 +101,8 @@ class CreateDatabase(ddl.CreateObject, ddl.NonTransactionalDDLOperation):
             extra += f' OWNER={ql(self.object.owner)}'
         if self.object.is_template:
             extra += f' IS_TEMPLATE = TRUE'
-        if self.object.template:
-            extra += f' TEMPLATE={ql(self.object.template)}'
+        if self.template:
+            extra += f' TEMPLATE={ql(self.template)}'
         if self.object.encoding:
             extra += f' ENCODING={ql(self.object.encoding)}'
         if self.object.lc_collate:

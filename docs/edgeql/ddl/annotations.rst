@@ -41,8 +41,10 @@ has an annotation defined on it, the descendants of that schema item will
 not automatically inherit the annotation.  Normal inheritance behavior can
 be turned on by declaring the annotation with the *INHERITABLE* qualifier.
 
-The following subcommands are allowed in the
-``CREATE ABSTRACT ANNOTATION`` block:
+Most sub-commands and options of this command are identical to the
+:ref:`SDL annotation declaration <ref_eql_sdl_annotations_syntax>`.
+There's only one subcommand that is allowed in the ``CREATE
+ANNOTATION`` block:
 
 :eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
     Annotations can also have annotations. Set the

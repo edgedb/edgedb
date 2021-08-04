@@ -1,29 +1,29 @@
 .. _ref_datamodel_computables:
 
-===========
-Computables
-===========
+=============================
+Computed Links and Properties
+=============================
 
 :ref:`Links <ref_datamodel_links>` and :ref:`properties <ref_datamodel_props>`
-may be declared as *computable*.
+may be declared as *computed* by an expression.
 
-The values of computable properties and links are not persisted in the
-database and are computed using the specified expression every time they
-are referenced in a query.  The type of the property or link is determined
-from the expression.  Other than that, computables behave exactly like their
-non-computable counterparts.
+The values of computed properties and links are not persisted in the
+database and are computed using the specified expression every time
+they are referenced in a query.  The type of the property or link is
+determined from the expression.  Other than that, computed properties
+and links behave exactly like their static counterparts.
 
 Links and properties have a *source* and one or more *targets*.  The
 *source* is always the object on which the link is defined. *Targets*
 are either the objects to which the link points or the property
-values.  The computable expressions define one or more *targets* and
-can refer to the *source* as ``__source__``.
+values.  The expressions of computed links or properties define one or
+more *targets* and can refer to the *source* as ``__source__``.
 
 Computables are useful in the situations where there is a frequent need for
 some value that is derived from the values of existing properties and links.
 
 For example, here we define the ``User`` type to contain the
-``fullname`` computable property that is derived from user's first and
+``fullname`` computed property that is derived from user's first and
 last name:
 
 .. code-block:: sdl
@@ -36,7 +36,7 @@ last name:
              __source__.lastname);
     }
 
-If the computable expression is simple (i.e. not a subquery), shortcut
+If the computed expression is simple (i.e. not a subquery), shortcut
 paths may also be used instead of explicit references to ``__source__``:
 
 .. code-block:: sdl
@@ -50,7 +50,7 @@ paths may also be used instead of explicit references to ``__source__``:
 
 Computables are also often used in :ref:`aliases <ref_datamodel_aliases>`.
 For example, using the ``User`` from the above example, a ``UserAlias``
-can be defined with a ``lastname_first`` computable which lists the
+can be defined with a computed ``lastname_first`` which lists the
 full name in the format which is often used in formal alphabetized
 lists:
 

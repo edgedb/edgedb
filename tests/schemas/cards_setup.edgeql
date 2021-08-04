@@ -16,109 +16,89 @@
 # limitations under the License.
 #
 
+FOR award in {'1st', '2nd', '3rd'} UNION (
+    INSERT Award { name := award }
+);
 
-WITH MODULE test
 INSERT Card {
     name := 'Imp',
     element := 'Fire',
-    cost := 1
+    cost := 1,
+    awards := (SELECT Award FILTER .name = '2nd'),
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Dragon',
     element := 'Fire',
-    cost := 5
+    cost := 5,
+    awards := (SELECT Award FILTER .name = '1st'),
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Bog monster',
     element := 'Water',
     cost := 2
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Giant turtle',
     element := 'Water',
     cost := 3
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Dwarf',
     element := 'Earth',
     cost := 1
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Golem',
     element := 'Earth',
     cost := 3
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Sprite',
     element := 'Air',
     cost := 1
 };
 
-WITH MODULE test
 INSERT Card {
     name := 'Giant eagle',
     element := 'Air',
     cost := 2
 };
 
-WITH MODULE test
 INSERT SpecialCard {
     name := 'Djinn',
     element := 'Air',
-    cost := 4
-};
-
-
-WITH MODULE test
-INSERT Award {
-    name := '1st'
-};
-
-
-WITH MODULE test
-INSERT Award {
-    name := '2nd'
+    cost := 4,
+    awards := (SELECT Award FILTER .name = '3rd'),
 };
 
 
 # create players & decks
-WITH MODULE test
 INSERT User {
     name := 'Alice',
     deck := (
         SELECT Card {@count := len(Card.element) - 2}
         FILTER .element IN {'Fire', 'Water'}
     ),
-    awards := Award,
+    awards := (SELECT Award FILTER .name IN {'1st', '2nd'}),
     avatar := (
         SELECT Card {@text := 'Best'} FILTER .name = 'Dragon'
     ),
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Bob',
     deck := (
         SELECT Card {@count := 3} FILTER .element IN {'Earth', 'Water'}
     ),
-    awards := (INSERT Award {
-        name := '3rd'
-    })
+    awards := (SELECT Award FILTER .name = '3rd'),
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Carol',
     deck := (
@@ -126,18 +106,19 @@ INSERT User {
     )
 };
 
-WITH MODULE test
-INSERT User {
+INSERT Bot {
     name := 'Dave',
     deck := (
         SELECT Card {@count := 4 IF Card.cost = 1 ELSE 1}
         FILTER .element = 'Air' OR .cost != 1
-    )
+    ),
+    avatar := (
+        SELECT Card {@text := 'Wow'} FILTER .name = 'Djinn'
+    ),
 };
 
 # update friends list
 WITH
-    MODULE test,
     U2 := DETACHED User
 UPDATE User
 FILTER User.name = 'Alice'
@@ -153,7 +134,6 @@ SET {
 };
 
 WITH
-    MODULE test,
     U2 := DETACHED User
 UPDATE User
 FILTER User.name = 'Dave'

@@ -79,9 +79,6 @@ class Trigger(tables.InheritableTableObject):
         if deferred and not is_constraint:
             raise ValueError('only constraint triggers can be deferred')
 
-    def rename(self, new_name):
-        self.name = new_name
-
     def get_type(self):
         return 'TRIGGER'
 
@@ -272,33 +269,6 @@ class CreateTrigger(ddl.CreateObject):
                 || ' ON ' || {table_name} || ' IS '
                 || quote_literal({desc_var}.metadata::text)
                 ;
-        ''')
-
-
-class AlterTriggerRenameTo(ddl.RenameObject):
-    def __init__(self, object, *, conditional=False, **kwargs):
-        super().__init__(object, **kwargs)
-        self.trigger = object
-        if conditional:
-            self.conditions.add(
-                TriggerExists(self.trigger.name, self.trigger.table_name))
-
-    def code(self, block: base.PLBlock) -> str:
-        return (f'ALTER TRIGGER {qi(self.trigger.name)} '
-                f'ON {qn(*self.trigger.table_name)} '
-                f'RENAME TO {qi(self.new_name)}')
-
-    def pl_code(self, desc_var: str, block: base.PLBlock) -> str:
-        table_name = (
-            f"(quote_ident({desc_var}.table_name[1])"
-            f" || '.' || quote_ident({desc_var}.table_name[2]))"
-        )
-
-        return textwrap.dedent(f'''\
-            EXECUTE
-                'ALTER TRIGGER ' || quote_ident({desc_var}.name)
-                || ' ON ' || {table_name}
-                || ' RENAME TO {qi(self.new_name)}';
         ''')
 
 

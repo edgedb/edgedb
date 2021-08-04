@@ -111,8 +111,9 @@
 0x_05_02_00_03   MissingRequiredError
 
 0x_05_03_00_00   TransactionError
-0x_05_03_00_01   TransactionSerializationError  #SHOULD_RETRY
-0x_05_03_00_02   TransactionDeadlockError  #SHOULD_RETRY
+0x_05_03_01_00   TransactionConflictError  #SHOULD_RETRY
+0x_05_03_01_01   TransactionSerializationError
+0x_05_03_01_02   TransactionDeadlockError
 
 
 ####
@@ -125,6 +126,13 @@
 0x_07_00_00_00   AccessError
 
 0x_07_01_00_00   AuthenticationError
+
+
+####
+
+0x_08_00_00_00   AvailabilityError
+
+0x_08_00_00_01   BackendUnavailableError  #SHOULD_RETRY
 
 
 ####

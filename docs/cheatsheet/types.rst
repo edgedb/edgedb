@@ -31,7 +31,10 @@ Define a type extending from the abstract:
 .. code-block:: sdl
 
     type User extending HasImage {
-        required property name -> str;
+        required property name -> str {
+            # Ensure unique name for each User.
+            constraint exclusive;
+        }
     }
 
 
@@ -119,7 +122,7 @@ Define an abstract links:
 ----------
 
 
-Define a type using abstract links and a computable property that
+Define a type using abstract links and a computed property that
 aggregates values from another linked type:
 
 .. code-block:: sdl

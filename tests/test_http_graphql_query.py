@@ -125,7 +125,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
 
             self.assertEqual(status, 400)
             self.assertEqual(headers['connection'], 'close')
-            self.assertIn(b'invalid HTTP method', data)
+            self.assertIn(b'HttpParserInvalidMethodError', data)
 
             with self.assertRaises(OSError):
                 self.http_con_request(con, {}, path='non-existant')
@@ -556,6 +556,28 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 ]
             }],
         })
+
+    def test_graphql_functional_query_19(self):
+        # Test built-in object types, by making sure we can query them
+        # and get some results.
+        res = self.graphql_query(r"""
+            {
+                Object {id}
+            }
+        """)
+        self.assertTrue(len(res) > 0,
+                        'querying "Object" returned no results')
+
+    def test_graphql_functional_query_20(self):
+        # Test built-in object types, by making sure we can query them
+        # and get some results.
+        res = self.graphql_query(r"""
+            {
+                BaseObject {id}
+            }
+        """)
+        self.assertTrue(len(res) > 0,
+                        'querying "BaseObject" returned no results')
 
     def test_graphql_functional_alias_01(self):
         self.assert_graphql_query_result(
@@ -1399,6 +1421,21 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }]
         })
 
+    def test_graphql_functional_enums_04(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r'String cannot represent a non string value: admin',
+                _line=4, _col=51):
+            self.graphql_query(r"""
+                query {
+                    # enum supplied instead of a string
+                    UserGroup(filter: {name: {eq: admin}}) {
+                        id,
+                        name,
+                    }
+                }
+            """)
+
     def test_graphql_functional_fragment_01(self):
         self.assert_graphql_query_result(r"""
             fragment groupFrag on UserGroup {
@@ -1824,6 +1861,194 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
+    def test_graphql_functional_fragment_type_13(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... on User {
+                        active
+                        profile {
+                            value
+                        }
+                    }
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
+    def test_graphql_functional_fragment_type_14(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            fragment userFrag on User {
+                active
+                profile {
+                    value
+                }
+            }
+
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... userFrag
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
+    def test_graphql_functional_fragment_type_15(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... on User {
+                        active
+                        profile(filter: {name: {eq: "Alice profile"}}) {
+                            value
+                        }
+                    }
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
+        self.assert_graphql_query_result(r"""
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... on User {
+                        active
+                        profile(filter: {name: {eq: "no such profile"}}) {
+                            value
+                        }
+                    }
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': None,
+            }],
+        })
+
+    def test_graphql_functional_fragment_type_16(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            fragment userFrag on User {
+                active
+                profile(filter: {name: {eq: "Alice profile"}}) {
+                    value
+                }
+            }
+
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... userFrag
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
+        self.assert_graphql_query_result(r"""
+            fragment userFrag on User {
+                active
+                profile(filter: {name: {eq: "no such profile"}}) {
+                    value
+                }
+            }
+
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... userFrag
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': None,
+            }],
+        })
+
+    def test_graphql_functional_fragment_type_17(self):
+        # ISSUE #1800
+        #
+        # After using a typed inline fragment the nested fields or
+        # fields following after the fragment are erroneously using
+        # the type intersection.
+        self.assert_graphql_query_result(r"""
+            query {
+                NamedObject(filter: {name: {eq: "Alice"}}) {
+                    ... on User {
+                        ... {
+                            active
+                            profile {
+                                value
+                            }
+                        }
+                    }
+                    name
+                }
+            }
+        """, {
+            'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
     def test_graphql_functional_directives_01(self):
         self.assert_graphql_query_result(r"""
             query {
@@ -2092,7 +2317,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 'p_local_datetime': '2018-05-07T20:01:22.306916',
                 'p_local_date': '2018-05-07',
                 'p_local_time': '20:01:22.306916',
-                'p_duration': '20:00:00',
+                'p_duration': 'PT20H',
                 'p_int16': 12345,
                 'p_int32': 1234567890,
                 'p_int64': 1234567890123,
@@ -2993,20 +3218,44 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                 }
             """, variables={"f": {"name": {"eq": "Alice"}}})
 
-    def test_graphql_functional_enum_01(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r'String cannot represent a non string value: admin',
-                _line=4, _col=51):
-            self.graphql_query(r"""
-                query {
-                    # enum supplied instead of a string
-                    UserGroup(filter: {name: {eq: admin}}) {
-                        id,
-                        name,
+    def test_graphql_functional_variables_44(self):
+        self.assert_graphql_query_result(
+            r"""
+                query foo($color: other__ColorEnum!) {
+                    other__Foo(
+                        filter: {color: {eq: $color}},
+                    ) {
+                        select
+                        color
                     }
                 }
-            """)
+            """, {
+                "other__Foo": [{
+                    "select": "a",
+                    "color": "RED",
+                }]
+            },
+            variables={"color": "RED"},
+        )
+
+    def test_graphql_functional_variables_45(self):
+        self.assert_graphql_query_result(
+            r"""
+                query foo($color: other__ColorEnum! = GREEN) {
+                    other__Foo(
+                        filter: {color: {eq: $color}},
+                    ) {
+                        select
+                        color
+                    }
+                }
+            """, {
+                "other__Foo": [{
+                    "select": "b",
+                    "color": "GREEN",
+                }]
+            },
+        )
 
     def test_graphql_functional_inheritance_01(self):
         # ISSUE: #709

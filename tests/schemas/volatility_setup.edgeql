@@ -17,49 +17,66 @@
 #
 
 
-CREATE FUNCTION test::vol_immutable() -> float64 {
-    SET volatility := 'IMMUTABLE';
+CREATE FUNCTION vol_immutable() -> float64 {
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT random();
     $$;
 };
 
-CREATE FUNCTION test::vol_stable() -> float64 {
-    SET volatility := 'STABLE';
+CREATE FUNCTION vol_stable() -> float64 {
+    SET volatility := 'Stable';
     USING SQL $$
         SELECT random();
     $$;
 };
 
-CREATE FUNCTION test::vol_volatile() -> float64 {
-    SET volatility := 'VOLATILE';
+CREATE FUNCTION vol_volatile() -> float64 {
+    SET volatility := 'Volatile';
     USING SQL $$
         SELECT random();
     $$;
 };
 
-CREATE FUNCTION test::err_immutable() -> float64 {
-    SET volatility := 'IMMUTABLE';
+CREATE FUNCTION err_immutable() -> float64 {
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT random()/0;
     $$;
 };
 
-CREATE FUNCTION test::err_stable() -> float64 {
-    SET volatility := 'STABLE';
+CREATE FUNCTION err_stable() -> float64 {
+    SET volatility := 'Stable';
     USING SQL $$
         SELECT random()/0;
     $$;
 };
 
-CREATE FUNCTION test::err_volatile() -> float64 {
-    SET volatility := 'VOLATILE';
+CREATE FUNCTION err_volatile() -> float64 {
+    SET volatility := 'Volatile';
     USING SQL $$
         SELECT random()/0;
     $$;
 };
 
+CREATE FUNCTION rand_int(top: int64) -> int64 {
+    USING (<int64>(random() * top))
+};
 
-INSERT test::Obj { n := 1 };
-INSERT test::Obj { n := 2 };
-INSERT test::Obj { n := 3 };
+CREATE FUNCTION vol_id(x: int64) -> int64 {
+    SET volatility := 'Volatile';
+    USING (x)
+};
+
+CREATE SCALAR TYPE TestCounter extending std::sequence;
+CREATE FUNCTION next() -> int64 USING (
+	SELECT sequence_next(INTROSPECT TestCounter)
+);
+
+INSERT Tgt { n := 1 };
+INSERT Tgt { n := 2 };
+INSERT Tgt { n := 3 };
+INSERT Tgt { n := 4 };
+INSERT Obj { n := 1, tgt := (SELECT Tgt FILTER .n IN {1, 2}) };
+INSERT Obj { n := 2, tgt := (SELECT Tgt FILTER .n IN {2, 3}) };
+INSERT Obj { n := 3, tgt := (SELECT Tgt FILTER .n IN {3, 4}) };

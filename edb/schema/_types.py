@@ -58,4 +58,6 @@ TYPE_IDS = {
         UUID('00000000-0000-0000-0000-00000000010c'),
     sn.name_from_string('cal::local_time'):
         UUID('00000000-0000-0000-0000-00000000010d'),
+    sn.name_from_string('cal::relative_duration'):
+        UUID('00000000-0000-0000-0000-000000000111'),
 }

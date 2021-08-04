@@ -26,6 +26,7 @@ from typing import *
 
 from edb.edgeql import compiler as qlcompiler
 from edb.ir import staeval
+from edb.schema import name as sn
 
 from . import types
 
@@ -157,12 +158,14 @@ def load_spec_from_schema(schema):
             pn,
             type=pytype,
             set_of=set_of,
-            internal=attributes.get('cfg::internal', False),
-            system=attributes.get('cfg::system', False),
-            requires_restart=attributes.get('cfg::requires_restart', False),
-            backend_setting=attributes.get('cfg::backend_setting', None),
+            internal=attributes.get(sn.QualName('cfg', 'internal'), False),
+            system=attributes.get(sn.QualName('cfg', 'system'), False),
+            requires_restart=attributes.get(
+                sn.QualName('cfg', 'requires_restart'), False),
+            backend_setting=attributes.get(
+                sn.QualName('cfg', 'backend_setting'), None),
             affects_compilation=attributes.get(
-                'cfg::affects_compilation', False),
+                sn.QualName('cfg', 'affects_compilation'), False),
             default=deflt,
         )
 

@@ -19,9 +19,13 @@
 
 from __future__ import annotations
 
-# Maximum length of column name in Postgres. This limits the database
-# name length and affects column name mangling.
-MAX_NAME_LENGTH = 63
+# Maximum length of Postgres tenant ID.
+MAX_TENANT_ID_LENGTH = 10
+
+# Maximum length of names that are reflected 1:1 to Postgres:
+MAX_NAME_LENGTH = 63 - MAX_TENANT_ID_LENGTH - 1 - 1
+#                 ^                           ^   ^
+#    max Postgres name len     tenant_id scheme   tenant_id separator
 
 # Maximum number of arguments supported by SQL functions.
 MAX_FUNC_ARG_COUNT = 100

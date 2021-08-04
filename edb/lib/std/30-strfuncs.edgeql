@@ -21,7 +21,9 @@
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::str, r: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
@@ -30,14 +32,19 @@ std::`=` (l: std::str, r: std::str) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::str, r: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
@@ -46,7 +53,10 @@ std::`!=` (l: std::str, r: std::str) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
@@ -54,42 +64,58 @@ std::`?!=` (l: OPTIONAL std::str, r: OPTIONAL std::str) -> std::bool {
 # Concatenation.
 CREATE INFIX OPERATOR
 std::`++` (l: std::str, r: std::str) -> std::str {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'concat';
+    CREATE ANNOTATION std::description := 'String concatenation.';
+    SET volatility := 'Immutable';
     USING SQL OPERATOR '||';
 };
 
 
 CREATE INFIX OPERATOR
 std::`LIKE` (string: std::str, pattern: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'like';
+    CREATE ANNOTATION std::description :=
+        'Case-sensitive simple string matching.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`ILIKE` (string: std::str, pattern: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'ilike';
+    CREATE ANNOTATION std::description :=
+        'Case-insensitive simple string matching.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`NOT LIKE` (string: std::str, pattern: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'not_like';
+    CREATE ANNOTATION std::description :=
+        'Case-sensitive simple string matching.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`NOT ILIKE` (string: std::str, pattern: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'not_ilike';
+    CREATE ANNOTATION std::description :=
+        'Case-insensitive simple string matching.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::str, r: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
     USING SQL OPERATOR r'<';
@@ -98,7 +124,9 @@ std::`<` (l: std::str, r: std::str) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::str, r: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
     USING SQL OPERATOR r'<=';
@@ -107,7 +135,9 @@ std::`<=` (l: std::str, r: std::str) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::str, r: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
     USING SQL OPERATOR r'>';
@@ -116,10 +146,28 @@ std::`>` (l: std::str, r: std::str) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::str, r: std::str) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
     USING SQL OPERATOR r'>=';
+};
+
+CREATE INFIX OPERATOR
+std::`[]` (l: std::str, r: std::int64) -> std::str {
+    CREATE ANNOTATION std::identifier := 'index';
+    CREATE ANNOTATION std::description := 'String indexing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+CREATE INFIX OPERATOR
+std::`[]` (l: std::str, r: tuple<std::int64, std::int64>) -> std::str {
+    CREATE ANNOTATION std::identifier := 'slice';
+    CREATE ANNOTATION std::description := 'String slicing.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
 };
 
 
@@ -131,7 +179,7 @@ std::str_repeat(s: std::str, n: std::int64) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Repeat the input *string* *n* times.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT repeat("s", "n"::int4)
     $$;
@@ -143,7 +191,7 @@ std::str_lower(s: std::str) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return a lowercase copy of the input *string*.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'lower';
 };
 
@@ -153,7 +201,7 @@ std::str_upper(s: std::str) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return an uppercase copy of the input *string*.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'upper';
 };
 
@@ -163,7 +211,7 @@ std::str_title(s: std::str) -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return a titlecase copy of the input *string*.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'initcap';
 };
 
@@ -173,7 +221,7 @@ std::str_pad_start(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return the input string padded at the start to the length *n*.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT lpad("s", "n"::int4, "fill")
     $$;
@@ -189,7 +237,7 @@ std::str_lpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
         'This function is deprecated and is scheduled \
          to be removed before 1.0.\n\
          Use std::str_pad_start() instead.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING (std::str_pad_start(s, n, fill));
 };
 
@@ -199,7 +247,7 @@ std::str_pad_end(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
 {
     CREATE ANNOTATION std::description :=
         'Return the input string padded at the end to the length *n*.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT rpad("s", "n"::int4, "fill")
     $$;
@@ -215,7 +263,7 @@ std::str_rpad(s: std::str, n: std::int64, fill: std::str=' ') -> std::str
         'This function is deprecated and is scheduled \
          to be removed before 1.0.\n\
          Use std::str_pad_end() instead.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING (std::str_pad_end(s, n, fill));
 };
 
@@ -226,7 +274,7 @@ std::str_trim_start(s: std::str, tr: std::str=' ') -> std::str
     CREATE ANNOTATION std::description :=
         'Return the input string with all *trim* characters removed from \
          its start.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'ltrim';
 };
 
@@ -240,7 +288,7 @@ std::str_ltrim(s: std::str, tr: std::str=' ') -> std::str
         'This function is deprecated and is scheduled \
          to be removed before 1.0.\n\
          Use std::str_trim_start() instead.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING (std::str_trim_start(s, tr));
 };
 
@@ -251,7 +299,7 @@ std::str_trim_end(s: std::str, tr: std::str=' ') -> std::str
     CREATE ANNOTATION std::description :=
         'Return the input string with all *trim* characters removed from \
          its end.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'rtrim';
 };
 
@@ -265,7 +313,7 @@ std::str_rtrim(s: std::str, tr: std::str=' ') -> std::str
         'This function is deprecated and is scheduled \
          to be removed before 1.0.\n\
          Use std::str_trim_end() instead.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING (std::str_trim_end(s, tr));
 };
 
@@ -276,7 +324,7 @@ std::str_trim(s: std::str, tr: std::str=' ') -> std::str
     CREATE ANNOTATION std::description :=
         'Return the input string with *trim* characters removed from \
          both ends.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL FUNCTION 'btrim';
 };
 
@@ -286,7 +334,7 @@ std::str_split(s: std::str, delimiter: std::str) -> array<std::str>
 {
     CREATE ANNOTATION std::description :=
         'Split string into array elements using the supplied delimiter.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
         SELECT (
             CASE WHEN "delimiter" != ''

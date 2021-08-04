@@ -160,7 +160,7 @@ class ConstraintMech:
 
     @classmethod
     def schema_constraint_to_backend_constraint(
-            cls, subject, constraint, schema, context):
+            cls, subject, constraint, schema, context, source_context):
         assert constraint.get_subject(schema) is not None
 
         constraint_origin = cls._get_constraint_origin(schema, constraint)
@@ -188,8 +188,12 @@ class ConstraintMech:
         ref_tables = get_ref_storage_info(ir.schema, terminal_refs)
 
         if len(ref_tables) > 1:
-            raise ValueError(
-                'backend: multi-table constraints are not currently supported')
+            raise errors.InvalidConstraintDefinitionError(
+                f'Constraint {constraint.get_displayname(schema)} on '
+                f'{subject.get_displayname(schema)} is not supported '
+                f'because it would depend on multiple objects',
+                context=source_context,
+            )
         elif ref_tables:
             subject_db_name, _ = next(iter(ref_tables.items()))
         else:
@@ -305,20 +309,6 @@ class SchemaDomainConstraint:
 
         return ops
 
-    def rename_ops(self, orig_constr):
-        ops = dbops.CommandGroup()
-
-        domconstr = self._domain_constraint(self)
-        orig_domconstr = self._domain_constraint(orig_constr)
-
-        add_constr = dbops.AlterDomainRenameConstraint(
-            name=domconstr.get_subject_name(quote=False),
-            constraint=orig_domconstr, new_constraint=domconstr)
-
-        ops.add_command(add_constr)
-
-        return ops
-
     def alter_ops(self, orig_constr):
         ops = dbops.CommandGroup()
         return ops
@@ -364,27 +354,13 @@ class SchemaTableConstraint:
         return constr
 
     def create_ops(self):
-        ops = dbops.CommandGroup()
+        ops = dbops.CommandGroup(priority=1)
 
         tabconstr = self._table_constraint(self)
         add_constr = deltadbops.AlterTableAddConstraint(
             name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
 
         ops.add_command(add_constr)
-
-        return ops
-
-    def rename_ops(self, orig_constr):
-        ops = dbops.CommandGroup()
-
-        tabconstr = self._table_constraint(self)
-        orig_tabconstr = self._table_constraint(orig_constr)
-
-        rename_constr = deltadbops.AlterTableRenameConstraint(
-            name=tabconstr.get_subject_name(quote=False),
-            constraint=orig_tabconstr, new_constraint=tabconstr)
-
-        ops.add_command(rename_constr)
 
         return ops
 

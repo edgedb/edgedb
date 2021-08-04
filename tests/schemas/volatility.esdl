@@ -19,4 +19,9 @@
 
 type Obj {
     required property n -> int64;
+    multi link tgt -> Tgt;
+}
+
+type Tgt {
+    required property n -> int64;
 }

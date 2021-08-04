@@ -27,35 +27,6 @@ CREATE ABSTRACT INHERITABLE ANNOTATION cfg::affects_compilation;
 
 CREATE ABSTRACT TYPE cfg::ConfigObject EXTENDING std::BaseObject;
 
-CREATE TYPE cfg::Port EXTENDING cfg::ConfigObject {
-    CREATE REQUIRED PROPERTY port -> std::int64 {
-        CREATE CONSTRAINT std::exclusive;
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED PROPERTY protocol -> std::str {
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED PROPERTY database -> std::str {
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED PROPERTY concurrency -> std::int64 {
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED PROPERTY user -> std::str {
-        SET readonly := true;
-    };
-
-    CREATE REQUIRED MULTI PROPERTY address -> std::str {
-        SET readonly := true;
-        SET default := {'localhost'};
-    };
-};
-
-
 CREATE ABSTRACT TYPE cfg::AuthMethod EXTENDING cfg::ConfigObject;
 CREATE TYPE cfg::Trust EXTENDING cfg::AuthMethod;
 CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod;
@@ -92,10 +63,6 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         CREATE ANNOTATION cfg::system := 'true';
     };
 
-    CREATE MULTI LINK ports -> cfg::Port {
-        CREATE ANNOTATION cfg::system := 'true';
-    };
-
     CREATE MULTI LINK auth -> cfg::Auth {
         CREATE ANNOTATION cfg::system := 'true';
     };
@@ -103,6 +70,7 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     CREATE PROPERTY allow_dml_in_functions -> std::bool {
         SET default := false;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
+        CREATE ANNOTATION cfg::internal := 'true';
     };
 
     # Exposed backend settings follow.
@@ -143,7 +111,7 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
 
 
 CREATE TYPE cfg::Config EXTENDING cfg::AbstractConfig;
-CREATE TYPE cfg::SystemConfig EXTENDING cfg::AbstractConfig;
+CREATE TYPE cfg::InstanceConfig EXTENDING cfg::AbstractConfig;
 CREATE TYPE cfg::DatabaseConfig EXTENDING cfg::AbstractConfig;
 
 
@@ -167,7 +135,7 @@ cfg::get_config_json(
 CREATE FUNCTION
 cfg::_quote(text: std::str) -> std::str
 {
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET internal := true;
     USING SQL $$
         SELECT replace(quote_literal(text), '''''', '\\''')
@@ -178,7 +146,7 @@ CREATE FUNCTION
 cfg::_describe_system_config_as_ddl() -> str
 {
     # The results won't change within a single statement.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_system_config_as_ddl';
 };
@@ -188,7 +156,7 @@ CREATE FUNCTION
 cfg::_describe_database_config_as_ddl() -> str
 {
     # The results won't change within a single statement.
-    SET volatility := 'STABLE';
+    SET volatility := 'Stable';
     SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_database_config_as_ddl';
 };

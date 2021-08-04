@@ -551,7 +551,7 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
             Ok((tokens.bconst.clone_ref(py),
                 PyString::new(py, value),
                 PyBytes::new(py,
-                    &unquote_bytes(&value[2..value.len()-1])
+                    &unquote_bytes(value)
                     .map_err(|s| TokenizerError::new(py,
                         (s, py_pos(py, &token.start))))?)
                    .into_object()))
@@ -654,7 +654,20 @@ impl<'a> From<SpannedToken<'a>> for CowToken<'a> {
     }
 }
 
-fn unquote_bytes<'a>(s: &'a str) -> Result<Vec<u8>, String> {
+fn unquote_bytes<'a>(value: &'a str) -> Result<Vec<u8>, String> {
+    let idx = value.find(|c| c == '\'' || c == '"')
+        .ok_or_else(|| "invalid bytes literal: missing quotes".to_string())?;
+    let prefix = &value[..idx];
+    match prefix {
+        "br" | "rb" => Ok(value[3..value.len() -1].as_bytes().to_vec()),
+        "b" => Ok(_unquote_bytes(&value[2..value.len()-1])?.into()),
+        _ => return Err(format_args!(
+                "prefix {:?} is not allowed for bytes, allowed: `b`, `rb`",
+                prefix).to_string()),
+    }
+}
+
+fn _unquote_bytes<'a>(s: &'a str) -> Result<Vec<u8>, String> {
     let mut res = Vec::with_capacity(s.len());
     let mut bytes = s.as_bytes().iter();
     while let Some(&c) = bytes.next() {
@@ -712,32 +725,56 @@ fn unquote_bytes<'a>(s: &'a str) -> Result<Vec<u8>, String> {
 
 #[test]
 fn simple_bytes() {
-    assert_eq!(unquote_bytes(r#"\x09"#).unwrap(), b"\x09");
-    assert_eq!(unquote_bytes(r#"\x0A"#).unwrap(), b"\x0A");
-    assert_eq!(unquote_bytes(r#"\x0D"#).unwrap(), b"\x0D");
-    assert_eq!(unquote_bytes(r#"\x20"#).unwrap(), b"\x20");
+    assert_eq!(_unquote_bytes(r#"\x09"#).unwrap(), b"\x09");
+    assert_eq!(_unquote_bytes(r#"\x0A"#).unwrap(), b"\x0A");
+    assert_eq!(_unquote_bytes(r#"\x0D"#).unwrap(), b"\x0D");
+    assert_eq!(_unquote_bytes(r#"\x20"#).unwrap(), b"\x20");
+    assert_eq!(unquote_bytes(r#"b'\x09'"#).unwrap(), b"\x09");
+    assert_eq!(unquote_bytes(r#"b'\x0A'"#).unwrap(), b"\x0A");
+    assert_eq!(unquote_bytes(r#"b'\x0D'"#).unwrap(), b"\x0D");
+    assert_eq!(unquote_bytes(r#"b'\x20'"#).unwrap(), b"\x20");
+    assert_eq!(unquote_bytes(r#"br'\x09'"#).unwrap(), b"\\x09");
+    assert_eq!(unquote_bytes(r#"br'\x0A'"#).unwrap(), b"\\x0A");
+    assert_eq!(unquote_bytes(r#"br'\x0D'"#).unwrap(), b"\\x0D");
+    assert_eq!(unquote_bytes(r#"br'\x20'"#).unwrap(), b"\\x20");
 }
 
 #[test]
 fn newline_escaping_bytes() {
-    assert_eq!(unquote_bytes(r"hello \
+    assert_eq!(_unquote_bytes(r"hello \
                                 world").unwrap(), b"hello world");
+    assert_eq!(unquote_bytes(r"br'hello \
+                                world'").unwrap(),
+        b"hello \\\n                                world");
 
-    assert_eq!(unquote_bytes(r"bb\
+    assert_eq!(_unquote_bytes(r"bb\
 aa \
             bb").unwrap(), b"bbaa bb");
-    assert_eq!(unquote_bytes(r"bb\
+    assert_eq!(unquote_bytes(r"rb'bb\
+aa \
+            bb'").unwrap(), b"bb\\\naa \\\n            bb");
+    assert_eq!(_unquote_bytes(r"bb\
 
         aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes(r"bb\
+    assert_eq!(unquote_bytes(r"br'bb\
+
+        aa'").unwrap(), b"bb\\\n\n        aa");
+    assert_eq!(_unquote_bytes(r"bb\
         \
         aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes("bb\\\r   aa").unwrap(), b"bbaa");
-    assert_eq!(unquote_bytes("bb\\\r\n   aa").unwrap(), b"bbaa");
+    assert_eq!(unquote_bytes(r"rb'bb\
+        \
+        aa'").unwrap(), b"bb\\\n        \\\n        aa");
+    assert_eq!(_unquote_bytes("bb\\\r   aa").unwrap(), b"bbaa");
+    assert_eq!(unquote_bytes("br'bb\\\r   aa'").unwrap(), b"bb\\\r   aa");
+    assert_eq!(_unquote_bytes("bb\\\r\n   aa").unwrap(), b"bbaa");
+    assert_eq!(unquote_bytes("rb'bb\\\r\n   aa'").unwrap(), b"bb\\\r\n   aa");
 }
 
 #[test]
 fn complex_bytes() {
-    assert_eq!(unquote_bytes(r#"\x09 hello \x0A there"#).unwrap(),
+    assert_eq!(_unquote_bytes(r#"\x09 hello \x0A there"#).unwrap(),
         b"\x09 hello \x0A there");
+    assert_eq!(unquote_bytes(r#"br'\x09 hello \x0A there'"#).unwrap(),
+        b"\\x09 hello \\x0A there");
 }

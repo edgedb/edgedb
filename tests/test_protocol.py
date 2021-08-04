@@ -17,7 +17,11 @@
 #
 
 
-from edb.testbase import protocol
+import asyncio
+import edgedb
+
+from edb.server import compiler
+from edb import protocol
 from edb.testbase.protocol.test import ProtocolTestCase
 
 
@@ -122,7 +126,7 @@ class TestProtocol(ProtocolTestCase):
             protocol.Prepare(
                 headers=[],
                 io_format=protocol.IOFormat.BINARY,
-                expected_cardinality=protocol.Cardinality.ONE,
+                expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
                 statement_name=b'',
                 command='SEL ECT 1',
             )
@@ -143,7 +147,7 @@ class TestProtocol(ProtocolTestCase):
             protocol.Prepare(
                 headers=[],
                 io_format=protocol.IOFormat.BINARY,
-                expected_cardinality=protocol.Cardinality.ONE,
+                expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
                 statement_name=b'',
                 command='SELECT 1',
             ),
@@ -151,7 +155,7 @@ class TestProtocol(ProtocolTestCase):
         )
         await self.con.recv_match(
             protocol.PrepareComplete,
-            cardinality=protocol.Cardinality.ONE,
+            cardinality=compiler.Cardinality.AT_MOST_ONE,
         )
 
         # Test that Flush has completed successfully -- the
@@ -172,3 +176,76 @@ class TestProtocol(ProtocolTestCase):
             protocol.ReadyForCommand,
             transaction_state=protocol.TransactionState.NOT_IN_TRANSACTION,
         )
+
+    async def test_proto_connection_lost_cancel_query(self):
+        # This test is occasionally hanging - adding a timeout to find out why
+        await asyncio.wait_for(
+            self._test_proto_connection_lost_cancel_query(), 30
+        )
+
+    async def _test_proto_connection_lost_cancel_query(self):
+        # Prepare the test data
+        con2 = await edgedb.async_connect(**self.get_connect_args())
+        try:
+            await con2.execute(
+                'CREATE TYPE tclcq { CREATE PROPERTY p -> str }'
+            )
+            try:
+                await con2.execute("INSERT tclcq { p := 'initial' }")
+
+                # Ready the nested connection
+                await self.con.connect()
+
+                # Use an implicit transaction in the nested connection: lock
+                # the row with an UPDATE, and then hold the transaction for 10
+                # seconds, which is long enough for the upcoming cancellation
+                await self.con.send(
+                    protocol.ExecuteScript(
+                        headers=[],
+                        script="""\
+                        UPDATE tclcq SET { p := 'inner' };
+                        SELECT sys::_sleep(10);
+                        """,
+                    )
+                )
+
+                # Sanity check - we shouldn't get anything here
+                with self.assertRaises(asyncio.TimeoutError):
+                    await asyncio.wait_for(
+                        self.con.recv_match(
+                            protocol.CommandComplete,
+                            status='UPDATE'
+                        ),
+                        0.1,
+                    )
+
+                # Close the nested connection without waiting for the result;
+                # the server is supposed to cancel the pending query.
+                await self.con.aclose()
+
+                # In the outer connection, let's wait until the lock is
+                # released by either an expected cancellation, or an unexpected
+                # commit after 10 seconds.
+                tx = con2.raw_transaction()
+                await tx.start()
+                try:
+                    await tx.execute("UPDATE tclcq SET { p := 'lock' }")
+                except edgedb.TransactionSerializationError:
+                    # In case the nested transaction succeeded, we'll meet an
+                    # concurrent update error here, which can be safely ignored
+                    pass
+                finally:
+                    await tx.rollback()
+
+                # Let's check what's in the row - if the cancellation didn't
+                # happen, the test will fail with value "inner".
+                val = await con2.query_one('SELECT tclcq.p LIMIT 1')
+                self.assertEqual(val, 'initial')
+
+            finally:
+                # Clean up
+                await con2.execute(
+                    "DROP TYPE tclcq"
+                )
+        finally:
+            await con2.aclose()

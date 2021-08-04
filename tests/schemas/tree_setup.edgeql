@@ -17,7 +17,6 @@
 #
 
 
-SET MODULE test;
 
 INSERT Tree {val := '0'};
 INSERT Tree {

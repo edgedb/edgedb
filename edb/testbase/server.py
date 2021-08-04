@@ -24,7 +24,6 @@ from typing import *
 
 import asyncio
 import atexit
-import collections
 import contextlib
 import decimal
 import functools
@@ -37,6 +36,8 @@ import pathlib
 import pprint
 import random
 import re
+import secrets
+import socket
 import subprocess
 import sys
 import tempfile
@@ -46,16 +47,13 @@ import uuid
 
 from datetime import timedelta
 
-import click.testing
-
 import edgedb
-
-from edb import cli
 
 from edb.edgeql import quote as qlquote
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
+from edb.common import devmode
 from edb.common import taskgroup
 
 from edb.testbase import serutils
@@ -77,7 +75,7 @@ def _add_test(result, test):
 
 
 def get_test_cases(tests):
-    result = collections.OrderedDict()
+    result = {}
 
     for test in tests:
         if isinstance(test, unittest.TestSuite):
@@ -130,13 +128,16 @@ class TestCaseMeta(type(unittest.TestCase)):
                 except (edgedb.TransactionSerializationError,
                         edgedb.TransactionDeadlockError):
                     if (
-                        try_no == 3
+                        try_no == 6
                         # Only do a retry loop when we have a transaction
                         or not getattr(self, 'TRANSACTION_ISOLATION', False)
                     ):
                         raise
                     else:
                         self.loop.run_until_complete(self.xact.rollback())
+                        self.loop.run_until_complete(asyncio.sleep(
+                            (2 ** try_no) * 0.1 + random.randrange(100) * 0.001
+                        ))
                         self.xact = self.con.transaction()
                         self.loop.run_until_complete(self.xact.start())
 
@@ -373,7 +374,11 @@ class _TryRunner:
 _default_cluster = None
 
 
-def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings=None):
+def _init_cluster(data_dir=None, postgres_dsn=None, *,
+                  cleanup_atexit=True, init_settings=None):
+    if data_dir is not None and postgres_dsn is not None:
+        raise ValueError(
+            "data_dir and postgres_dsn cannot be set at the same time")
     if init_settings is None:
         init_settings = {}
     if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
@@ -382,7 +387,11 @@ def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings=None):
     else:
         _env = {}
 
-    if data_dir is None:
+    if postgres_dsn:
+        cluster = edgedb_cluster.TempClusterWithRemotePg(
+            postgres_dsn, env=_env, testmode=True, log_level='s')
+        destroy = True
+    elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
             env=_env, testmode=True, log_level='s')
         destroy = True
@@ -394,7 +403,7 @@ def _init_cluster(data_dir=None, *, cleanup_atexit=True, init_settings=None):
     if cluster.get_status() == 'not-initialized':
         cluster.init(server_settings=init_settings)
 
-    cluster.start(port='dynamic')
+    cluster.start(port=0)
     cluster.set_superuser_password('test')
 
     if cleanup_atexit:
@@ -412,9 +421,13 @@ def _start_cluster(*, cleanup_atexit=True):
             conn_spec = json.loads(cluster_addr)
             _default_cluster = edgedb_cluster.RunningCluster(**conn_spec)
         else:
+            # This branch is not usually used - `edb test` will call
+            # _init_cluster() separately and set EDGEDB_TEST_CLUSTER_ADDR
             data_dir = os.environ.get('EDGEDB_TEST_DATA_DIR')
+            postgres_dsn = os.environ.get('EDGEDB_TEST_POSTGRES_DSN')
             _default_cluster = _init_cluster(
-                data_dir=data_dir, cleanup_atexit=cleanup_atexit)
+                data_dir=data_dir, postgres_dsn=postgres_dsn,
+                cleanup_atexit=cleanup_atexit)
 
     return _default_cluster
 
@@ -431,11 +444,13 @@ def _shutdown_cluster(cluster, *, destroy=True):
 class ClusterTestCase(TestCase):
 
     BASE_TEST_CLASS = True
+    postgres_dsn: Optional[str] = None
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         cls.cluster = _start_cluster(cleanup_atexit=True)
+        cls.postgres_dsn = os.environ.get('EDGEDB_TEST_POSTGRES_DSN')
 
     @classmethod
     def get_connect_args(cls, *,
@@ -486,7 +501,6 @@ class ConnectedTestCaseMixin:
         conargs = self.get_connect_args()
 
         cmd = [
-            # TODO: switch to 'edgedb' when it understands EDGEDB_PASSWORD
             'python', '-m', 'edb.cli',
             '--host', conargs['host'],
             '--port', str(conargs['port']),
@@ -513,14 +527,19 @@ class ConnectedTestCaseMixin:
                                   exp_result_json,
                                   exp_result_binary=...,
                                   *,
-                                  msg=None, sort=None, variables=None):
+                                  msg=None, sort=None, implicit_limit=0,
+                                  variables=None):
         fetch_args = variables if isinstance(variables, tuple) else ()
         fetch_kw = variables if isinstance(variables, dict) else {}
         try:
             tx = self.con.transaction()
             await tx.start()
             try:
-                res = await self.con.query_json(query, *fetch_args, **fetch_kw)
+                res = await self.con._fetchall_json(
+                    query,
+                    *fetch_args,
+                    __limit__=implicit_limit,
+                    **fetch_kw)
             finally:
                 await tx.rollback()
 
@@ -545,6 +564,7 @@ class ConnectedTestCaseMixin:
                 *fetch_args,
                 __typenames__=typenames,
                 __typeids__=typeids,
+                __limit__=implicit_limit,
                 **fetch_kw
             )
             res = serutils.serialize(res)
@@ -702,7 +722,7 @@ class ConnectedTestCaseMixin:
                 else:
                     shape = shape.value
 
-            if isinstance(shape, list):
+            if isinstance(shape, (list, tuple)):
                 return _assert_list_shape(path, data, shape)
             elif isinstance(shape, set):
                 return _assert_set_shape(path, data, shape)
@@ -711,7 +731,7 @@ class ConnectedTestCaseMixin:
             elif isinstance(shape, type):
                 return _assert_type_shape(path, data, shape)
             elif isinstance(shape, float):
-                if not math.isclose(data, shape, rel_tol=1e-04):
+                if not math.isclose(data, shape, rel_tol=1e-04, abs_tol=1e-15):
                     self.fail(
                         f'{message}: not isclose({data}, {shape}) '
                         f'{_format_path(path)}')
@@ -721,7 +741,8 @@ class ConnectedTestCaseMixin:
                     self.fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
-            elif isinstance(shape, (str, int, timedelta, decimal.Decimal)):
+            elif isinstance(shape, (str, int, timedelta, decimal.Decimal,
+                                    edgedb.RelativeDuration)):
                 if data != shape:
                     self.fail(
                         f'{message}: {data!r} != {shape!r} '
@@ -738,30 +759,6 @@ class ConnectedTestCaseMixin:
         return _assert_generic_shape((), data, shape)
 
 
-class OldCLITestCaseMixin:
-
-    def run_cli(self, *args, input: Optional[str]=None):
-        conn_args = self.get_connect_args()
-
-        cmd_args = (
-            '--host', conn_args['host'],
-            '--port', conn_args['port'],
-            '--user', conn_args['user'],
-        ) + args
-
-        if conn_args['password']:
-            cmd_args = ('--password-from-stdin',) + cmd_args
-            if input is not None:
-                input = f"{conn_args['password']}\n{input}"
-            else:
-                input = f"{conn_args['password']}\n"
-
-        runner = click.testing.CliRunner()
-        return runner.invoke(
-            cli.cli, args=cmd_args, input=input,
-            catch_exceptions=False)
-
-
 class CLITestCaseMixin:
 
     def run_cli(self, *args, input: Optional[str] = None) -> None:
@@ -775,6 +772,7 @@ class CLITestCaseMixin:
         cmd_args = [
             '--host', conn_args['host'],
             '--port', str(conn_args['port']),
+            '--tls-ca-file', conn_args['tls_ca_file']
         ]
         if conn_args.get('user'):
             cmd_args += ['--user', conn_args['user']]
@@ -794,9 +792,11 @@ class CLITestCaseMixin:
                 capture_output=True,
             )
         except subprocess.CalledProcessError as e:
+            output = '\n'.join(getattr(out, 'decode', out.__str__)()
+                               for out in [e.output, e.stderr] if out)
             raise AssertionError(
                 f'command {cmd} returned non-zero exit status {e.returncode}'
-                f'\n{e.output}'
+                f'\n{output}'
             ) from e
 
 
@@ -828,7 +828,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SETUP: Optional[Union[str, List[str]]] = None
     TEARDOWN: Optional[str] = None
     SCHEMA: Optional[Union[str, pathlib.Path]] = None
-    DEFAULT_MODULE: str = 'test'
+    DEFAULT_MODULE: str = 'default'
 
     SETUP_METHOD: Optional[str] = None
     TEARDOWN_METHOD: Optional[str] = None
@@ -855,18 +855,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     # syntax like USING SQL and similar. It allows modifying standard
     # library (e.g. declaring casts).
     INTERNAL_TESTMODE = True
-
-    # If True, the tearDownClass method will retry `DROP DATABASE`
-    # if it raises ExecutionError(database X is being accessed by other users).
-    # This helps to mask issues in some of the concurrent DDL tests we have,
-    # specifically where we cancel open EdgeDB connections with a TaskGroup.
-    # Cancellations like that act rather abruptly -- the connection is killed,
-    # but it might take some time for the server to actually shut it down.
-    # Which leads to the situation where the client side thinks that there are
-    # no open connections to some particular DB, whereas the server is actually
-    # still closing them down; if the client want some database dropped, it
-    # would get the aforementioned ExecutionError.
-    RETRY_DROP_DATABASE = False
 
     BASE_TEST_CLASS = True
 
@@ -901,7 +889,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
                 if self.con.is_in_transaction():
                     self.loop.run_until_complete(
-                        self.con.execute('ROLLBACK'))
+                        self.con.query('ROLLBACK'))
                     raise AssertionError(
                         'test connection is still in transaction '
                         '*after* the test')
@@ -942,6 +930,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             else:
                 orig_testmode = orig_testmode[0]
 
+            # Enable testmode to unblock the template database syntax below.
             if not orig_testmode:
                 cls.loop.run_until_complete(
                     cls.admin_conn.execute(
@@ -950,14 +939,23 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 )
 
             base_db_name, _, _ = dbname.rpartition('_')
-            cls.loop.run_until_complete(
-                cls.admin_conn.execute(
-                    f'''
-                        CREATE DATABASE {qlquote.quote_ident(dbname)}
-                        FROM {qlquote.quote_ident(base_db_name)}
-                    ''',
-                ),
-            )
+
+            # The retry here allows the test to survive a concurrent testing
+            # EdgeDB server (e.g. async with tb.start_edgedb_server()) whose
+            # introspection holds a lock on the base_db here
+            async def create_db():
+                async for tr in cls.try_until_succeeds(
+                    ignore=edgedb.ExecutionError,
+                    timeout=30,
+                ):
+                    async with tr:
+                        await cls.admin_conn.execute(
+                            f'''
+                                CREATE DATABASE {qlquote.quote_ident(dbname)}
+                                FROM {qlquote.quote_ident(base_db_name)}
+                            ''',
+                        )
+            cls.loop.run_until_complete(create_db())
 
             if not orig_testmode:
                 cls.loop.run_until_complete(
@@ -993,20 +991,27 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 if not class_set_up or cls.uses_database_copies():
                     dbname = qlquote.quote_ident(cls.get_database_name())
 
+                    # The retry loop below masks connection abort races.
+                    # The current implementation of edgedb-python aborts
+                    # connections when it gets a CancelledError.  This creates
+                    # a situation in which the server might still have not
+                    # realized that the connection went away, and will raise
+                    # an ExecutionError on DROP DATABASE below complaining
+                    # about the database still being in use.
+                    #
+                    # A better fix would be for edgedb-python to learn to
+                    # aclose() gracefully or implement protocol-level
+                    # cancellation that guarantees consensus on the server
+                    # connection state.
                     async def drop_db():
-                        if cls.RETRY_DROP_DATABASE:
-                            async for tr in cls.try_until_succeeds(
-                                ignore=edgedb.ExecutionError,
-                                timeout=5
-                            ):
-                                async with tr:
-                                    await cls.admin_conn.execute(
-                                        f'DROP DATABASE {dbname};'
-                                    )
-                        else:
-                            await cls.admin_conn.execute(
-                                f'DROP DATABASE {dbname};'
-                            )
+                        async for tr in cls.try_until_succeeds(
+                            ignore=edgedb.ExecutionError,
+                            timeout=30
+                        ):
+                            async with tr:
+                                await cls.admin_conn.execute(
+                                    f'DROP DATABASE {dbname};'
+                                )
 
                     cls.loop.run_until_complete(drop_db())
 
@@ -1128,7 +1133,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             finally:
                 await tx.rollback()
 
-    async def migrate(self, migration, *, module: str = 'test'):
+    async def migrate(self, migration, *, module: str = 'default'):
         async with self.con.transaction():
             await self.con.execute(f"""
                 START MIGRATION TO {{
@@ -1304,10 +1309,11 @@ def setup_test_cases(cases, conn, num_jobs, verbose=False):
     setup = get_test_cases_setup(cases)
 
     async def _run():
+        stats = []
         if num_jobs == 1:
             # Special case for --jobs=1
             for _case, dbname, setup_script in setup:
-                await _setup_database(dbname, setup_script, conn)
+                await _setup_database(dbname, setup_script, conn, stats)
                 if verbose:
                     print(f' -> {dbname}: OK', flush=True)
         else:
@@ -1326,12 +1332,14 @@ def setup_test_cases(cases, conn, num_jobs, verbose=False):
 
                 for _case, dbname, setup_script in setup:
                     g.create_task(controller(
-                        _setup_database, dbname, setup_script, conn))
+                        _setup_database, dbname, setup_script, conn, stats))
+        return stats
 
     return asyncio.run(_run())
 
 
-async def _setup_database(dbname, setup_script, conn_args):
+async def _setup_database(dbname, setup_script, conn_args, stats):
+    start_time = time.monotonic()
     default_args = {
         'user': edgedb_defines.EDGEDB_SUPERUSER,
         'password': 'test',
@@ -1374,6 +1382,8 @@ async def _setup_database(dbname, setup_script, conn_args):
     finally:
         await dbconn.aclose()
 
+    elapsed = time.monotonic() - start_time
+    stats.append(('setup::' + dbname, {'running-time': elapsed}))
     return dbname
 
 
@@ -1390,7 +1400,22 @@ class _EdgeDBServerData(NamedTuple):
 
     host: str
     port: int
+    password: str
     server_data: Any
+    tls_cert_file: str
+
+    async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
+        conn_args = dict(
+            user='edgedb',
+            password=self.password,
+            host=self.host,
+            port=self.port,
+            tls_ca_file=self.tls_cert_file,
+        )
+
+        conn_args.update(kwargs)
+
+        return await edgedb.async_connect(**conn_args)
 
 
 class _EdgeDBServer:
@@ -1403,9 +1428,15 @@ class _EdgeDBServer:
         bootstrap_command: Optional[str],
         auto_shutdown: bool,
         adjacent_to: Optional[edgedb.AsyncIOConnection],
-        max_allowed_connections: int,
+        max_allowed_connections: Optional[int],
         compiler_pool_size: int,
         debug: bool,
+        postgres_dsn: Optional[str] = None,
+        runstate_dir: Optional[str] = None,
+        reset_auth: Optional[bool] = None,
+        tenant_id: Optional[str] = None,
+        allow_insecure_binary_clients: bool = False,
+        allow_insecure_http_clients: bool = False,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
@@ -1413,28 +1444,49 @@ class _EdgeDBServer:
         self.max_allowed_connections = max_allowed_connections
         self.compiler_pool_size = compiler_pool_size
         self.debug = debug
+        self.postgres_dsn = postgres_dsn
+        self.runstate_dir = runstate_dir
+        self.reset_auth = reset_auth
+        self.tenant_id = tenant_id
         self.proc = None
+        self.data = None
+        self.allow_insecure_binary_clients = allow_insecure_binary_clients
+        self.allow_insecure_http_clients = allow_insecure_http_clients
 
-    async def _read_runtime_info(self, stdout: asyncio.StreamReader):
+    async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
-            line = await stdout.readline()
+            line = await stream.readline()
             if self.debug:
                 print(line.decode())
             if not line:
                 raise RuntimeError("EdgeDB server terminated")
-            if line.startswith(b'EDGEDB_SERVER_DATA:'):
+            if line.startswith(b'READY='):
                 break
 
-        dataline = line.decode().split('EDGEDB_SERVER_DATA:', 1)[1]
-        data = json.loads(dataline)
-        return data
+        _, _, dataline = line.decode().partition('=')
+        return json.loads(dataline)
 
-    async def _shutdown(self):
+    async def kill_process(self, proc: asyncio.Process):
+        proc.terminate()
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=20)
+        except TimeoutError:
+            proc.kill()
+
+    async def _shutdown(self, exc: Optional[Exception] = None):
         if self.proc is None:
             return
+
         if self.proc.returncode is None:
-            self.proc.kill()
-        await self.proc.wait()
+            if self.auto_shutdown and exc is None:
+                try:
+                    await asyncio.wait_for(self.proc.wait(), timeout=60 * 5)
+                except TimeoutError:
+                    self.proc.kill()
+                    raise AssertionError(
+                        'server did not auto-shutdown in 5 minutes')
+            else:
+                await self.kill_process(self.proc)
 
         # asyncio, hello?
         # Workaround SubprocessProtocol.__del__ weirdly
@@ -1444,16 +1496,30 @@ class _EdgeDBServer:
         self.proc = None
 
     async def __aenter__(self):
+        status_r, status_w = socket.socketpair()
+
         cmd = [
             sys.executable, '-m', 'edb.server.main',
             '--port', 'auto',
             '--testmode',
-            '--echo-runtime-info',
+            '--emit-server-status', f'fd://{status_w.fileno()}',
             '--compiler-pool-size', str(self.compiler_pool_size),
-            '--max-backend-connections', str(self.max_allowed_connections),
+            '--generate-self-signed-cert',
         ]
 
-        if self.adjacent_to is not None:
+        reset_auth = self.reset_auth
+
+        if self.debug:
+            cmd.extend(['--log-level', 'd'])
+        if self.max_allowed_connections is not None:
+            cmd.extend([
+                '--max-backend-connections', str(self.max_allowed_connections),
+            ])
+        if self.postgres_dsn is not None:
+            cmd.extend([
+                '--postgres-dsn', self.postgres_dsn,
+            ])
+        elif self.adjacent_to is not None:
             settings = self.adjacent_to.get_settings()
             pgaddr = settings.get('pgaddr')
             if pgaddr is None:
@@ -1469,24 +1535,56 @@ class _EdgeDBServer:
         else:
             cmd += ['--temp-dir']
 
+            if reset_auth is None:
+                reset_auth = True
+
+        if not reset_auth:
+            password = None
+            bootstrap_command = ''
+        else:
+            password = secrets.token_urlsafe()
+            bootstrap_command = f"""\
+                ALTER ROLE edgedb {{
+                    SET password := '{password}';
+                }};
+                """
+
         if self.bootstrap_command is not None:
-            cmd += [
-                '--bootstrap-command', self.bootstrap_command,
-            ]
+            bootstrap_command += self.bootstrap_command
+
+        if bootstrap_command:
+            cmd += ['--bootstrap-command', bootstrap_command]
 
         if self.auto_shutdown:
-            cmd += ['--auto-shutdown']
+            cmd += ['--auto-shutdown-after', '0']
 
-        # Note: for debug comment "stderr=subprocess.PIPE".
+        if self.runstate_dir:
+            cmd += ['--runstate-dir', self.runstate_dir]
+
+        if self.tenant_id:
+            cmd += ['--tenant-id', self.tenant_id]
+
+        if self.allow_insecure_binary_clients:
+            cmd += ['--allow-insecure-binary-clients']
+
+        if self.allow_insecure_http_clients:
+            cmd += ['--allow-insecure-http-clients']
+
+        if self.debug:
+            print(f'Starting EdgeDB cluster with the following params: {cmd}')
+
+        stat_reader, stat_writer = await asyncio.open_connection(sock=status_r)
+
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
-            stderr=subprocess.PIPE if not self.debug else None,
-            stdout=subprocess.PIPE,
+            stdout=None if self.debug else subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+            pass_fds=(status_w.fileno(),),
         )
 
         try:
-            data = await asyncio.wait_for(
-                self._read_runtime_info(self.proc.stdout),
+            self.data = data = await asyncio.wait_for(
+                self.wait_for_server_readiness(stat_reader),
                 timeout=240,
             )
         except (Exception, asyncio.CancelledError):
@@ -1494,93 +1592,194 @@ class _EdgeDBServer:
                 await self._shutdown()
             finally:
                 raise
+        finally:
+            stat_writer.close()
+            status_w.close()
 
         return _EdgeDBServerData(
-            host=data['runstate_dir'],
+            host='127.0.0.1',
             port=data['port'],
-            server_data=data
+            password=password,
+            server_data=data,
+            tls_cert_file=data['tls_cert_file'],
         )
 
-    async def __aexit__(self, *exc):
-        await self._shutdown()
+    async def __aexit__(self, exc_type, exc, tb):
+        await self._shutdown(exc)
 
 
 def start_edgedb_server(
     *,
     auto_shutdown: bool=False,
     bootstrap_command: Optional[str]=None,
-    max_allowed_connections: int=10,
+    max_allowed_connections: Optional[int]=10,
     compiler_pool_size: int=2,
     adjacent_to: Optional[edgedb.AsyncIOConnection]=None,
     debug: bool=False,
+    postgres_dsn: Optional[str] = None,
+    runstate_dir: Optional[str] = None,
+    reset_auth: Optional[bool] = None,
+    tenant_id: Optional[str] = None,
+    allow_insecure_binary_clients: bool = False,
+    allow_insecure_http_clients: bool = False,
 ):
+    if not devmode.is_in_dev_mode() and not runstate_dir:
+        if postgres_dsn or adjacent_to:
+            # We don't want to implicitly "fix the issue" for the test author
+            print('WARNING: starting an EdgeDB server with the default '
+                  'runstate_dir; the test is likely to fail or hang. '
+                  'Consider specifying the runstate_dir parameter.')
+
     return _EdgeDBServer(
         auto_shutdown=auto_shutdown,
         bootstrap_command=bootstrap_command,
         max_allowed_connections=max_allowed_connections,
         adjacent_to=adjacent_to,
         compiler_pool_size=compiler_pool_size,
-        debug=debug
+        debug=debug,
+        postgres_dsn=postgres_dsn,
+        tenant_id=tenant_id,
+        runstate_dir=runstate_dir,
+        reset_auth=reset_auth,
+        allow_insecure_binary_clients=allow_insecure_binary_clients,
+        allow_insecure_http_clients=allow_insecure_http_clients,
     )
 
 
-def get_cases_by_shard(cases, current_shard, total_shards, verbosity, stats):
+def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     if total_shards <= 1:
         return cases
 
-    current_shard -= 1
-    new_test_est = 0.1
-    tests_with_est = []
-    new_tests = []
+    selected_shard -= 1  # starting from 0
+    new_test_est = 0.1  # default estimate if test is not found in stats
+    new_setup_est = 1  # default estimate if setup is not found in stats
+
+    # For logging
     total_tests = 0
     selected_tests = 0
-    for tests in cases.values():
-        for test in tests:
-            total_tests += 1
-            est = stats.get(str(test))
-            if est:
-                heapq.heappush(tests_with_est, (-est[0], test))
-            else:
-                new_tests.append(test)
-    shard_est = (
-        sum(-est[0] for est in tests_with_est) + new_test_est * len(new_tests)
-    ) / total_shards
-    shards_est = [0] * total_shards
-    available = list(range(total_shards))
-    current = 0
-    cases = collections.OrderedDict()
-    while tests_with_est:
-        est, test = heapq.heappop(tests_with_est)
-        shard = available[current]
-        est_acc = shards_est[shard] = shards_est[shard] - est
-        if shard == current_shard:
-            _add_test(cases, test)
-            selected_tests += 1
-        if est_acc >= shard_est:
-            if shard == current_shard:
-                break
-            del available[current]
+    total_est = 0
+    selected_est = 0
+
+    # Priority queue of tests grouped by setup script ordered by estimated
+    # running time of the groups. Order of tests within cases is preserved.
+    tests_by_setup = []
+
+    # Priority queue of individual tests ordered by estimated running time.
+    tests_with_est = []
+
+    # Prepare the source heaps
+    setup_count = 0
+    for case, tests in cases.items():
+        setup_script = getattr(case, 'get_setup_script', lambda: None)()
+        if setup_script and tests:
+            tests_per_setup = []
+            est_per_setup = setup_est = stats.get(
+                'setup::' + case.get_database_name(), (new_setup_est, 0),
+            )[0]
+            for test in tests:
+                total_tests += 1
+                est = stats.get(str(test), (new_test_est, 0))[0]
+                est_per_setup += est
+                tests_per_setup.append((est, test))
+            heapq.heappush(
+                tests_by_setup,
+                (-est_per_setup, setup_count, setup_est, tests_per_setup),
+            )
+            setup_count += 1
+            total_est += est_per_setup
         else:
-            current += 1
-        current %= len(available)
-    else:
-        offset = 0
-        while len(available) > 1:
-            shard = available.pop(0)
-            needs = int(round((shard_est - shards_est[shard]) / new_test_est))
-            if shard == current_shard:
-                for test in new_tests[offset:offset + needs]:
-                    _add_test(cases, test)
-                    selected_tests += 1
-                break
+            for test in tests:
+                total_tests += 1
+                est = stats.get(str(test), (new_test_est, 0))[0]
+                total_est += est
+                heapq.heappush(tests_with_est, (-est, total_tests, test))
+
+    target_est = total_est / total_shards  # target running time of one shard
+    shards_est = [(0, shard, set()) for shard in range(total_shards)]
+    cases = {}  # output
+    setup_to_alloc = set(range(setup_count))  # tracks first run of each setup
+
+    # Assign per-setup tests first
+    while tests_by_setup:
+        remaining_est, setup_id, setup_est, tests = heapq.heappop(
+            tests_by_setup,
+        )
+        est_acc, current, setups = heapq.heappop(shards_est)
+
+        # Add setup time
+        if setup_id not in setups:
+            setups.add(setup_id)
+            est_acc += setup_est
+            if current == selected_shard:
+                selected_est += setup_est
+            if setup_id in setup_to_alloc:
+                setup_to_alloc.remove(setup_id)
             else:
-                offset += needs
-        else:
-            for test in new_tests[offset:]:
+                # This means one more setup for the overall test run
+                target_est += setup_est / total_shards
+
+        # Add as much tests from this group to current shard as possible
+        while tests:
+            est, test = tests.pop(0)
+            est_acc += est  # est is a positive number
+            remaining_est += est  # remaining_est is a negative number
+
+            if current == selected_shard:
+                # Add the test to the result
                 _add_test(cases, test)
                 selected_tests += 1
+                selected_est += est
+
+            if est_acc >= target_est and -remaining_est > setup_est * 2:
+                # Current shard is full and the remaining tests would take more
+                # time than their setup, then add the tests back to the heap so
+                # that we could add them to another shard
+                heapq.heappush(
+                    tests_by_setup,
+                    (remaining_est, setup_id, setup_est, tests),
+                )
+                break
+
+        heapq.heappush(shards_est, (est_acc, current, setups))
+
+    # Assign all non-setup tests, but leave the last shard for everything else
+    setups = set()
+    while tests_with_est and len(shards_est) > 1:
+        est, _, test = heapq.heappop(tests_with_est)  # est is negative
+        est_acc, current, setups = heapq.heappop(shards_est)
+        est_acc -= est
+
+        if current == selected_shard:
+            # Add the test to the result
+            _add_test(cases, test)
+            selected_tests += 1
+            selected_est -= est
+
+        if est_acc >= target_est:
+            # The current shard is full
+            if current == selected_shard:
+                # End early if the selected shard is full
+                break
+        else:
+            # Only add the current shard back to the heap if it's not full
+            heapq.heappush(shards_est, (est_acc, current, setups))
+
+    else:
+        # Add all the remaining tests to the first remaining shard if any
+        while shards_est:
+            est_acc, current, setups = heapq.heappop(shards_est)
+            if current == selected_shard:
+                for est, _, test in tests_with_est:
+                    _add_test(cases, test)
+                    selected_tests += 1
+                    selected_est -= est
+                break
+            tests_with_est.clear()  # should always be empty already here
 
     if verbosity >= 1:
-        print(f'Running {selected_tests}/{total_tests} for shard '
-              f'#{current_shard + 1} out of {total_shards} shards.')
+        print(f'Running {selected_tests}/{total_tests} tests for shard '
+              f'#{selected_shard + 1} out of {total_shards} shards, '
+              f'estimate: {int(selected_est / 60)}m {int(selected_est % 60)}s'
+              f' / {int(total_est / 60)}m {int(total_est % 60)}s, '
+              f'{len(setups)}/{setup_count} databases to setup.')
     return cases

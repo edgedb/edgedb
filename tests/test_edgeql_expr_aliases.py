@@ -22,6 +22,8 @@ import os.path
 
 from edb.testbase import server as tb
 
+import edgedb
+
 
 class TestEdgeQLExprAliases(tb.QueryTestCase):
     '''The scope is to test expression aliases.'''
@@ -30,14 +32,11 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                           'cards.esdl')
 
     SETUP = [os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards_setup.edgeql'),
-             os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards_aliases_setup.edgeql')]
+                          'cards_setup.edgeql')]
 
     async def test_edgeql_aliases_basic_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT AirCard {
                     name,
                     owners: {
@@ -63,7 +62,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
     async def test_edgeql_aliases_basic_02(self):
         await self.con.execute('''
-            CREATE ALIAS test::expert_map := (
+            CREATE ALIAS expert_map := (
                 SELECT {
                     ('Alice', 'pro'),
                     ('Bob', 'noob'),
@@ -75,7 +74,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT expert_map
                 ORDER BY expert_map;
             ''',
@@ -88,12 +86,12 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
         )
 
         await self.con.execute('''
-            DROP ALIAS test::expert_map;
+            DROP ALIAS expert_map;
         ''')
 
     async def test_edgeql_aliases_basic_03(self):
         await self.con.execute('''
-            CREATE ALIAS test::scores := (
+            CREATE ALIAS scores := (
                 SELECT {
                     (name := 'Alice', score := 100, games := 10),
                     (name := 'Bob', score := 11, games := 2),
@@ -105,7 +103,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT scores ORDER BY scores.name;
             ''',
             [
@@ -118,7 +115,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT <tuple<str, int64, int64>>scores
                 ORDER BY scores.name;
             ''',
@@ -132,7 +128,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT <tuple<name: str, points: int64, plays: int64>>scores
                 ORDER BY scores.name;
             ''',
@@ -145,25 +140,24 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
         )
 
         await self.con.execute('''
-            DROP ALIAS test::scores;
+            DROP ALIAS scores;
         ''')
 
     async def test_edgeql_aliases_basic_04(self):
         await self.con.execute('''
-            CREATE ALIAS test::levels := {'pro', 'casual', 'noob'};
+            CREATE ALIAS levels := {'pro', 'casual', 'noob'};
         ''')
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test SELECT levels;
+                SELECT levels;
             ''',
             {'pro', 'casual', 'noob'},
         )
 
     async def test_edgeql_aliases_create_01(self):
         await self.con.execute(r'''
-            CREATE ALIAS test::DCard := (
-                WITH MODULE test
+            CREATE ALIAS DCard := (
                 SELECT Card {
                     # This is an identical computable to the one
                     # present in the type, but it must be legal to
@@ -180,7 +174,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT DCard {
                     name,
                     owners: {
@@ -207,12 +200,11 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ],
         )
 
-        await self.con.execute('DROP ALIAS test::DCard;')
+        await self.con.execute('DROP ALIAS DCard;')
 
         # Check that we can recreate the alias.
         await self.con.execute(r'''
-            CREATE ALIAS test::DCard := (
-                WITH MODULE test
+            CREATE ALIAS DCard := (
                 SELECT Card {
                     owners := (
                         SELECT Card.<deck[IS User] {
@@ -228,7 +220,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                 WITH
                     MODULE schema,
                     DCardT := (SELECT ObjectType
-                               FILTER .name = 'test::DCard'),
+                               FILTER .name = 'default::DCard'),
                     DCardOwners := (SELECT DCardT.links
                                     FILTER .name = 'owners')
                 SELECT
@@ -243,7 +235,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ''',
             [{
                 'target': {
-                    'name': 'test::__DCard__owners',
+                    'name': 'default::__DCard__owners',
                     'pointers': [
                         {
                             'name': 'name_upper',
@@ -256,7 +248,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_filter_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT FireCard {name}
                 FILTER FireCard = DaveCard
                 ORDER BY FireCard.name;
@@ -267,7 +258,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_filter02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT AirCard {name}
                 FILTER AirCard NOT IN (SELECT Card FILTER Card.name LIKE 'D%')
                 ORDER BY AirCard.name;
@@ -281,7 +271,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_computable_link_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Card {
                     owners: {
                         name
@@ -300,7 +289,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_computable_link_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT User {
                     name,
                     deck_cost
@@ -330,7 +318,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_computable_aliased_link_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT AliasedFriends {
                     my_name,
                     my_friends: {
@@ -358,7 +345,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_computable_nested_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT Card {
                     name,
                     owned := (
@@ -385,10 +371,69 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_computable_nested_02(self):
+        await self.assert_query_result(
+            r'''
+                WITH C := Card { ava_owners := .<avatar }
+                SELECT C {
+                    name,
+                    ava_owners: {
+                        typename := (
+                            WITH name := C.ava_owners.__type__.name
+                            SELECT name
+                        )
+                    }
+                }
+                FILTER EXISTS .ava_owners
+                ORDER BY .name
+            ''',
+            [{
+                'name': 'Djinn',
+                'ava_owners': [{
+                    'typename': 'default::Bot'
+                }],
+            }, {
+                'name': 'Dragon',
+                'ava_owners': [{
+                    'typename': 'default::User'
+                }],
+            }]
+        )
+
+    async def test_edgeql_computable_nested_03(self):
+        # This SHOULD be identical to the previous test case, except
+        # for the cardinality being forced to be MULTI.
+        await self.assert_query_result(
+            r'''
+                WITH C := Card { ava_owners := .<avatar }
+                SELECT C {
+                    name,
+                    ava_owners: {
+                        multi typename := (
+                            WITH name := C.ava_owners.__type__.name
+                            SELECT name
+                        )
+                    }
+                }
+                FILTER EXISTS .ava_owners
+                ORDER BY .name;
+            ''',
+            [{
+                'name': 'Djinn',
+                'ava_owners': [{
+                    'typename': {'default::Bot'}
+                }],
+            }, {
+                'name': 'Dragon',
+                'ava_owners': [{
+                    'typename': {'default::User'}
+                }],
+            }]
+        )
+
     async def test_edgeql_aliases_shape_propagation_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT _ := {
                     (SELECT User FILTER .name = 'Alice').deck,
                     (SELECT User FILTER .name = 'Bob').deck
@@ -410,7 +455,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_shape_propagation_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 # the alias should be propagated through _ := DISTINCT since it
                 # maps `any` to `any`
                 SELECT _ := DISTINCT {
@@ -432,7 +476,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_shape_propagation_03(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 # the alias should be propagated through _ := DETACHED
                 SELECT _ := DETACHED {
                     (SELECT User FILTER .name = 'Alice').deck,
@@ -455,7 +498,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_shape_propagation_04(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 # the alias should be propagated through _ := DETACHED
                 SELECT _ := DETACHED ({
                     (SELECT User FILTER .name = 'Alice').deck,
@@ -478,7 +520,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_if_else_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     _ := 'yes' IF Card.cost > 4 ELSE 'no'
                 ORDER BY _;
@@ -490,7 +531,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # working with singletons
-                WITH MODULE test
                 SELECT
                     _ := 'ok' IF User.deck_cost < 19 ELSE User.deck.name
                 ORDER BY _;
@@ -512,7 +552,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # either result is a set, but the condition is a singleton
-                WITH MODULE test
                 SELECT
                     _ := User.deck.element IF User.deck_cost < 19
                          ELSE User.deck.name
@@ -556,7 +595,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             r"""
                 # get the data that this test relies upon in a format
                 # that's easy to analyze
-                WITH MODULE test
                 SELECT _ := User.deck.element
                 ORDER BY _;
             """,
@@ -565,7 +603,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT _ := <str>User.deck.cost
                 ORDER BY _;
             """,
@@ -574,7 +611,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT _ := {User.name[0] = 'A', EXISTS User.friends}
                 ORDER BY _;
             """,
@@ -584,7 +620,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # results and conditions are sets
-                WITH MODULE test
                 SELECT _ :=
                     User.deck.element
                     # because the elements of {} are treated as SET OF,
@@ -599,7 +634,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_if_else_04(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     1   IF User.name[0] = 'A' ELSE
                     10  IF User.name[0] = 'B' ELSE
@@ -611,7 +645,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     User.name,
                     sum(
@@ -628,7 +661,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_if_else_05(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     (Card.name, 'yes' IF Card.cost > 4 ELSE 'no')
                 ORDER BY .0;
@@ -648,7 +680,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     (Card.name, 'yes') IF Card.cost > 4 ELSE (Card.name, 'no')
                 ORDER BY .0;
@@ -669,7 +700,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_nested_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT AwardAlias {
                     name,
                     winner: {
@@ -687,8 +717,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_nested_02(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
-                SELECT stdgraphql::Query {
+                SELECT {
                     foo := (
                         SELECT AwardAlias {
                             name,
@@ -713,7 +742,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_nested_03(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT AwardAlias {
                     winner: {
                         name_upper
@@ -731,7 +759,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_deep_01(self):
         # fetch the result we will compare to
         res = await self.con.query_json(r"""
-            WITH MODULE test
             SELECT AwardAlias {
                 winner: {
                     deck: {
@@ -748,7 +775,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
         # functionally identical
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT AwardAlias2 {
                     winner: {
                         deck: {
@@ -764,7 +790,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_clauses_01(self):
         # fetch the result we will compare to
         res = await self.con.query_json(r"""
-            WITH MODULE test
             SELECT User {
                 deck: {
                     id
@@ -779,7 +804,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
         # functionally identical
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT UserAlias {
                     deck,
                 }
@@ -791,7 +815,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_limit_01(self):
         # Test interaction of aliases and the LIMIT clause
         await self.con.execute("""
-            WITH MODULE test
             CREATE ALIAS FirstUser := (
                 SELECT User {
                     name_upper := str_upper(User.name)
@@ -803,7 +826,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT FirstUser {
                     name_upper,
                 }
@@ -817,7 +839,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
     async def test_edgeql_aliases_ignore_alias(self):
         await self.con.execute('''
-            SET MODULE test;
 
             CREATE ALIAS UserAlias2 := (
                 SELECT User {
@@ -837,7 +858,7 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT test::UserAlias2 {
+                SELECT default::UserAlias2 {
                     deck,
                 }
                 FILTER .name = 'Alice';
@@ -852,7 +873,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_esdl_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT WaterOrEarthCard {
                     name,
                     owned_by_alice,
@@ -874,7 +894,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT EarthOrFireCard {
                     name,
                 }
@@ -894,7 +913,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_collection_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT SpecialCardAlias {
                     name,
                     el_cost,
@@ -911,7 +929,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_collection_02(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT SpecialCardAlias.el_cost;
             """,
             [
@@ -923,7 +940,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     X := SpecialCard {
                         el_cost := (.element, .cost)
                     }
@@ -937,7 +953,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_collection_04(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     SpecialCard {
                         el_cost := (.element,)
@@ -952,7 +967,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_collection_05(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT (
                     SpecialCard {
                         el_cost := [.element]
@@ -967,7 +981,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_subqueries_01(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT count((
                     (SELECT EarthOrFireCard.name),
                     (EarthOrFireCard.name)
@@ -979,7 +992,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_subqueries_02(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT count((
                     (EarthOrFireCard.name),
                     (SELECT EarthOrFireCard.name)
@@ -991,7 +1003,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_subqueries_03(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT count((
                     (EarthOrFireCard.name),
                     (EarthOrFireCard.name)
@@ -1003,7 +1014,6 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
     async def test_edgeql_aliases_subqueries_04(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT count((
                     (SELECT EarthOrFireCard.name),
                     (SELECT EarthOrFireCard.name)
@@ -1019,16 +1029,16 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                 SELECT Type {
                     name
                 }
-                FILTER .from_alias AND .name LIKE 'test::Air%'
+                FILTER .from_alias AND .name LIKE 'default::Air%'
                 ORDER BY .name
             """,
             [{
-                'name': 'test::AirCard',
+                'name': 'default::AirCard',
             }]
         )
 
         await self.con.execute('''
-            CREATE ALIAS test::tuple_alias := ('foo', 10);
+            CREATE ALIAS tuple_alias := ('foo', 10);
         ''')
 
         await self.assert_query_result(
@@ -1042,11 +1052,11 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                 }
                 FILTER
                     .from_alias
-                    AND .name = 'test::tuple_alias'
+                    AND .name = 'default::tuple_alias'
                 ORDER BY .name
             """,
             [{
-                'name': 'test::tuple_alias',
+                'name': 'default::tuple_alias',
                 'element_types': [{
                     'name': 'std::str',
                 }, {
@@ -1054,3 +1064,21 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
                 }]
             }]
         )
+
+    async def test_edgeql_aliases_backlinks_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            "cannot follow backlink 'owners'",
+        ):
+            await self.con.execute("""
+                SELECT User.<owners[Is Card];
+            """)
+
+    async def test_edgeql_aliases_backlinks_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            "cannot follow backlink 'owners'",
+        ):
+            await self.con.execute("""
+                SELECT User.<owners;
+            """)

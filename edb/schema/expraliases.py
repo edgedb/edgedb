@@ -20,6 +20,9 @@
 from __future__ import annotations
 from typing import *
 
+from edb import errors
+from edb.common import parsing
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
@@ -30,7 +33,6 @@ from . import delta as sd
 from . import name as sn
 from . import objects as so
 from . import types as s_types
-from . import utils as s_utils
 
 
 if TYPE_CHECKING:
@@ -107,9 +109,22 @@ class AliasCommand(
             ),
         )
 
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            # XXX: this is imprecise
+            return s_expr.Expression(text='std::Object')
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
+
     def _compile_alias_expr(
         self,
-        expr: qlast.Base,
+        expr: qlast.Expr,
         classname: sn.QualName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -140,149 +155,63 @@ class AliasCommand(
             ),
         )
 
+        if ir.volatility == qltypes.Volatility.Volatile:
+            srcctx = self.get_attribute_source_context('expr')
+            raise errors.SchemaDefinitionError(
+                f'volatile functions are not permitted in schema-defined '
+                f'computed expressions',
+                context=srcctx
+            )
+
         context.cache_value((expr, classname), ir)
 
         return ir  # type: ignore
 
     def _handle_alias_op(
         self,
+        *,
         expr: s_expr.Expression,
         classname: sn.QualName,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         is_alter: bool = False,
-    ) -> Tuple[sd.Command, sd.ObjectCommand[Alias]]:
-        from . import ordering as s_ordering
+        parser_context: Optional[parsing.ParserContext] = None,
+    ) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type], s_expr.Expression]:
+        ir = compile_alias_expr(
+            expr.qlast,
+            classname,
+            schema,
+            context,
+            parser_context=parser_context,
+        )
 
-        ir = self._compile_alias_expr(expr.qlast, classname, schema, context)
-        new_schema = ir.schema
         expr = s_expr.Expression.from_ir(expr, ir, schema=schema)
 
-        coll_expr_aliases: List[s_types.Collection] = []
-        prev_coll_expr_aliases: List[s_types.Collection] = []
-        expr_aliases: List[s_types.Type] = []
-        prev_expr_aliases: List[s_types.Type] = []
-        prev_ir: Optional[irast.Statement] = None
-        old_schema: Optional[s_schema.Schema] = None
-
-        for vt in ir.views.values():
-            if isinstance(vt, s_types.Collection):
-                coll_expr_aliases.append(vt)
-            elif is_alter or not schema.has_object(vt.id):
-                new_schema = vt.set_field_value(
-                    new_schema, 'alias_is_persistent', True)
-
-                expr_aliases.append(vt)
-
-        if is_alter:
-            prev = cast(s_types.Type, schema.get(classname))
+        if not is_alter:
+            prev_expr = None
+        else:
+            prev = schema.get(classname, type=s_types.Type)
             prev_expr = prev.get_expr(schema)
             assert prev_expr is not None
-            prev_ir = self._compile_alias_expr(
-                prev_expr.qlast, classname, schema, context)
-            old_schema = prev_ir.schema
-            for vt in prev_ir.views.values():
-                if isinstance(vt, s_types.Collection):
-                    prev_coll_expr_aliases.append(vt)
-                else:
-                    prev_expr_aliases.append(vt)
-
-        derived_delta = sd.DeltaRoot()
-
-        for ref in ir.new_coll_types:
-            colltype_shell = ref.as_shell(new_schema)
-            # not "new_schema", because that already contains this
-            # collection type.
-            derived_delta.add(colltype_shell.as_create_delta(schema))
-
-        if is_alter:
-            assert old_schema is not None
-            derived_delta.add(
-                sd.delta_objects(
-                    prev_expr_aliases,
-                    expr_aliases,
-                    sclass=s_types.Type,
-                    old_schema=old_schema,
-                    new_schema=new_schema,
-                    context=so.ComparisonContext(),
-                )
-            )
-        else:
-            for expr_alias in expr_aliases:
-                derived_delta.add(
-                    expr_alias.as_create_delta(
-                        schema=new_schema,
-                        context=so.ComparisonContext(),
-                    )
-                )
-
-        if prev_ir is not None:
-            assert old_schema
-            for vt in prev_coll_expr_aliases:
-                dt = vt.as_colltype_delete_delta(
-                    old_schema,
-                    expiring_refs={self.scls},
-                    view_name=classname,
-                )
-                derived_delta.prepend(dt)
-            for vt in prev_ir.new_coll_types:
-                dt = vt.as_colltype_delete_delta(
-                    old_schema,
-                    expiring_refs={self.scls},
-                    if_exists=True,
-                )
-                derived_delta.prepend(dt)
-
-        for vt in coll_expr_aliases:
-            new_schema = vt.set_field_value(new_schema, 'expr', expr)
-            new_schema = vt.set_field_value(
-                new_schema, 'alias_is_persistent', True)
-            ct = vt.as_shell(new_schema).as_create_delta(
-                # not "new_schema", to ensure the nested collection types
-                # are picked up properly.
+            prev_ir = compile_alias_expr(
+                prev_expr.qlast,
+                classname,
                 schema,
-                view_name=classname,
-                attrs={
-                    'expr': expr,
-                    'alias_is_persistent': True,
-                    'expr_type': s_types.ExprType.Select,
-                },
+                context,
+                parser_context=parser_context,
             )
-            derived_delta.add(ct)
+            prev_expr = s_expr.Expression.from_ir(
+                prev_expr, prev_ir, schema=schema)
 
-        derived_delta = s_ordering.linearize_delta(
-            derived_delta, old_schema=schema, new_schema=new_schema)
+        cmd, type_shell = define_alias(
+            expr=expr,
+            prev_expr=prev_expr,
+            classname=classname,
+            schema=schema,
+            parser_context=parser_context,
+        )
 
-        real_cmd: Optional[sd.ObjectCommand[Alias]] = None
-        for op in derived_delta.get_subcommands():
-            assert isinstance(op, sd.ObjectCommand)
-            if (
-                op.classname == classname
-                and not isinstance(op, sd.DeleteObject)
-            ):
-                real_cmd = op
-                break
-
-        if real_cmd is None:
-            assert is_alter
-            for expr_alias in expr_aliases:
-                if expr_alias.get_name(new_schema) == classname:
-                    real_cmd = expr_alias.init_delta_command(
-                        new_schema,
-                        sd.AlterObject,
-                    )
-                    derived_delta.add(real_cmd)
-                    break
-            else:
-                raise RuntimeError(
-                    'view delta does not contain the expected '
-                    'view Create/Alter command')
-
-        real_cmd.set_attribute_value('expr', expr)
-
-        result = sd.CommandGroup()
-        result.update(derived_delta.get_subcommands())
-        return result, real_cmd
+        return cmd, type_shell, expr
 
 
 class CreateAlias(
@@ -300,25 +229,21 @@ class CreateAlias(
             alias_name = sn.shortname_from_fullname(self.classname)
             assert isinstance(alias_name, sn.QualName), \
                 "expected qualified name"
-            type_cmd, cmd = self._handle_alias_op(
-                self.get_attribute_value('expr'),
-                alias_name,
-                schema,
-                context,
+            type_cmd, type_shell, expr = self._handle_alias_op(
+                expr=self.get_attribute_value('expr'),
+                classname=alias_name,
+                schema=schema,
+                context=context,
+                parser_context=self.get_attribute_source_context('expr'),
             )
             self.add_prerequisite(type_cmd)
             self.set_attribute_value(
                 'expr',
-                cmd.get_attribute_value('expr'),
+                expr,
             )
             self.set_attribute_value(
                 'type',
-                s_utils.ast_objref_to_object_shell(
-                    s_utils.name_to_ast_ref(cmd.classname),
-                    metaclass=cmd.get_schema_metaclass(),
-                    modaliases={},
-                    schema=schema,
-                )
+                type_shell,
             )
 
         return super()._create_begin(schema, context)
@@ -363,28 +288,34 @@ class AlterAlias(
                 alias_name = sn.shortname_from_fullname(self.classname)
                 assert isinstance(alias_name, sn.QualName), \
                     "expected qualified name"
-                type_cmd, cmd = self._handle_alias_op(
-                    expr,
-                    alias_name,
-                    schema,
-                    context,
+                type_cmd, type_shell, expr = self._handle_alias_op(
+                    expr=expr,
+                    classname=alias_name,
+                    schema=schema,
+                    context=context,
                     is_alter=True,
+                    parser_context=self.get_attribute_source_context('expr'),
                 )
                 self.add_prerequisite(type_cmd)
 
                 self.set_attribute_value(
                     'expr',
-                    cmd.get_attribute_value('expr'),
+                    expr,
                 )
 
                 self.set_attribute_value(
                     'type',
-                    so.ObjectShell(
-                        name=cmd.classname,
-                        origname=cmd.classname,
-                        schemaclass=cmd.get_schema_metaclass(),
-                    )
+                    type_shell,
                 )
+
+                # Clear out the type field in the schema *now*,
+                # before we call the parent _alter_begin, which will
+                # run prerequisites. This prevents the type reference
+                # from interferring with deletion. (And the deletion of
+                # the type has to be done as a prereq, since it needs
+                # to precede the creation of the replacement type
+                # with the same name.)
+                schema = schema.unset_obj_field(self.scls, 'type')
 
         return super()._alter_begin(schema, context)
 
@@ -395,14 +326,201 @@ class DeleteAlias(
 ):
     astnode = qlast.DropAlias
 
-    def _delete_begin(
+    def _canonicalize(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        if not context.canonical:
-            alias_type = self.scls.get_type(schema)
-            drop_type = alias_type.init_delta_command(schema, sd.DeleteObject)
-            self.add_prerequisite(drop_type)
+        scls: Alias,
+    ) -> List[sd.Command]:
+        ops = super()._canonicalize(schema, context, scls)
+        alias_type = self.scls.get_type(schema)
+        drop_type = alias_type.init_delta_command(
+            schema, sd.DeleteObject)
+        subcmds = drop_type._canonicalize(schema, context, alias_type)
+        drop_type.update(subcmds)
+        ops.append(drop_type)
+        return ops
 
-        return super()._delete_begin(schema, context)
+
+def compile_alias_expr(
+    expr: qlast.Expr,
+    classname: sn.QualName,
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    parser_context: Optional[parsing.ParserContext] = None,
+) -> irast.Statement:
+    cached: Optional[irast.Statement] = (
+        context.get_cached((expr, classname)))
+    if cached is not None:
+        return cached
+
+    if not isinstance(expr, qlast.Statement):
+        expr = qlast.SelectQuery(result=expr)
+
+    existing = schema.get(classname, type=s_types.Type, default=None)
+    if existing is not None:
+        drop_cmd = existing.init_delta_command(schema, sd.DeleteObject)
+        with context.suspend_dep_verification():
+            schema = drop_cmd.apply(schema, context)
+
+    ir = qlcompiler.compile_ast_to_ir(
+        expr,
+        schema,
+        options=qlcompiler.CompilerOptions(
+            derived_target_module=classname.module,
+            result_view_name=classname,
+            modaliases=context.modaliases,
+            schema_view_mode=True,
+            in_ddl_context_name='alias definition',
+        ),
+    )
+
+    if ir.volatility == qltypes.Volatility.Volatile:
+        raise errors.SchemaDefinitionError(
+            f'volatile functions are not permitted in schema-defined '
+            f'computed expressions',
+            context=parser_context,
+        )
+
+    context.cache_value((expr, classname), ir)
+
+    return ir  # type: ignore
+
+
+def define_alias(
+    *,
+    expr: s_expr.Expression,
+    prev_expr: Optional[s_expr.Expression] = None,
+    classname: sn.QualName,
+    schema: s_schema.Schema,
+    parser_context: Optional[parsing.ParserContext] = None,
+) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type]]:
+    from edb.ir import ast as irast
+    from . import ordering as s_ordering
+
+    assert isinstance(expr.irast, irast.Statement)
+    ir = expr.irast
+    new_schema = ir.schema
+
+    coll_expr_aliases: List[s_types.Collection] = []
+    prev_coll_expr_aliases: List[s_types.Collection] = []
+    expr_aliases: List[s_types.Type] = []
+    prev_expr_aliases: List[s_types.Type] = []
+    prev_ir: Optional[irast.Statement] = None
+    old_schema: Optional[s_schema.Schema] = None
+
+    for vt in ir.views.values():
+        if isinstance(vt, s_types.Collection):
+            coll_expr_aliases.append(vt)
+        elif prev_expr is not None or not schema.has_object(vt.id):
+            new_schema = vt.set_field_value(
+                new_schema, 'alias_is_persistent', True)
+
+            expr_aliases.append(vt)
+
+    if prev_expr is not None:
+        assert isinstance(prev_expr.irast, irast.Statement)
+        prev_ir = prev_expr.irast
+        old_schema = prev_ir.schema
+        for vt in prev_ir.views.values():
+            if isinstance(vt, s_types.Collection):
+                prev_coll_expr_aliases.append(vt)
+            else:
+                prev_expr_aliases.append(vt)
+
+    derived_delta = sd.DeltaRoot()
+
+    for ref in ir.new_coll_types:
+        colltype_shell = ref.as_shell(new_schema)
+        # not "new_schema", because that already contains this
+        # collection type.
+        derived_delta.add(colltype_shell.as_create_delta(schema))
+
+    if prev_expr is not None:
+        assert old_schema is not None
+        derived_delta.add(
+            sd.delta_objects(
+                prev_expr_aliases,
+                expr_aliases,
+                sclass=s_types.Type,
+                old_schema=old_schema,
+                new_schema=new_schema,
+                context=so.ComparisonContext(),
+            )
+        )
+    else:
+        for expr_alias in expr_aliases:
+            derived_delta.add(
+                expr_alias.as_create_delta(
+                    schema=new_schema,
+                    context=so.ComparisonContext(),
+                )
+            )
+
+    if prev_ir is not None:
+        assert old_schema
+        for vt in prev_coll_expr_aliases:
+            dt = vt.as_type_delete_if_dead(old_schema)
+            derived_delta.prepend(dt)
+        for vt in prev_ir.new_coll_types:
+            dt = vt.as_type_delete_if_dead(old_schema)
+            derived_delta.prepend(dt)
+
+    for vt in coll_expr_aliases:
+        new_schema = vt.set_field_value(new_schema, 'expr', expr)
+        new_schema = vt.set_field_value(
+            new_schema, 'alias_is_persistent', True)
+        ct = vt.as_shell(new_schema).as_create_delta(
+            # not "new_schema", to ensure the nested collection types
+            # are picked up properly.
+            schema,
+            view_name=classname,
+            attrs={
+                'expr': expr,
+                'alias_is_persistent': True,
+                'expr_type': s_types.ExprType.Select,
+            },
+        )
+        derived_delta.add(ct)
+
+    derived_delta = s_ordering.linearize_delta(
+        derived_delta, old_schema=schema, new_schema=new_schema)
+
+    existing_type_cmd = None
+    for op in derived_delta.get_subcommands():
+        assert isinstance(op, sd.ObjectCommand)
+        if (
+            op.classname == classname
+            and not isinstance(op, sd.DeleteObject)
+        ):
+            existing_type_cmd = op
+            break
+
+    if existing_type_cmd is not None:
+        type_cmd = existing_type_cmd
+    else:
+        assert prev_expr is not None
+        for expr_alias in expr_aliases:
+            if expr_alias.get_name(new_schema) == classname:
+                type_cmd = expr_alias.init_delta_command(
+                    new_schema,
+                    sd.AlterObject,
+                )
+                derived_delta.add(type_cmd)
+                break
+        else:
+            raise RuntimeError(
+                'view delta does not contain the expected '
+                'view Create/Alter command')
+
+    type_cmd.set_attribute_value('expr', expr)
+
+    result = sd.CommandGroup()
+    result.update(derived_delta.get_subcommands())
+    type_shell = s_types.TypeShell(
+        name=classname,
+        origname=classname,
+        schemaclass=type_cmd.get_schema_metaclass(),
+        sourcectx=parser_context,
+    )
+    return result, type_shell

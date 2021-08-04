@@ -25,6 +25,7 @@ from edb.testbase import server as tb
 
 
 class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
+    DEFAULT_MODULE = 'test'
 
     TRANSACTION_ISOLATION = False
 

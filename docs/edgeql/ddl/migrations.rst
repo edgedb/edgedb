@@ -6,6 +6,12 @@ Migrations
 
 This section describes the DDL commands pertaining to migrations.
 
+.. note::
+
+    Like all DDL commands, ``START MIGRATION`` and other migration
+    commands are considered low-level. Users are encouraged to use the
+    built-in :ref:`migration tools <ref_cli_edgedb_migration>`
+    instead.
 
 START MIGRATION
 ===============

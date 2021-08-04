@@ -28,16 +28,20 @@ import contextlib
 
 from edb import errors
 
+from edb.common import levenshtein
 from edb.common import parsing
+from edb.common.typeutils import downcast, not_none
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
+from edb.schema import scalars as s_scalars
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
@@ -47,6 +51,7 @@ from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
 
 from . import astutils
+from . import casts
 from . import context
 from . import dispatch
 from . import inference
@@ -91,13 +96,9 @@ def new_set(
 
         with ctx.detached() as subctx:
             subctx.expr_exposed = False
-            # This is a global rewrite operation that is done once
-            # per type, and so we don't really care if we're in a
-            # temporary scope or not.
             subctx.path_scope = subctx.env.path_scope.root
-            subctx.in_temp_scope = False
             # Put a placeholder to prevent recursion.
-            subctx.type_rewrites[stype] = irast.Set()
+            subctx.type_rewrites[stype] = irast.Set()  # type: ignore
             filtered_set = dispatch.compile(qry, ctx=subctx)
             assert isinstance(filtered_set, irast.Set)
             subctx.type_rewrites[stype] = filtered_set
@@ -176,7 +177,8 @@ def new_tuple_set(
         named: bool,
         ctx: context.ContextLevel) -> irast.Set:
 
-    tup = irast.Tuple(elements=elements, named=named)
+    dummy_typeref = cast(irast.TypeRef, None)
+    tup = irast.Tuple(elements=elements, named=named, typeref=dummy_typeref)
     stype = inference.infer_type(tup, env=ctx.env)
     result_path_id = pathctx.get_expression_path_id(stype, ctx=ctx)
 
@@ -198,11 +200,12 @@ def new_tuple_set(
 
 
 def new_array_set(
-        elements: Sequence[irast.Base], *,
+        elements: Sequence[irast.Set], *,
         ctx: context.ContextLevel,
         srcctx: Optional[parsing.ParserContext]=None) -> irast.Set:
 
-    arr = irast.Array(elements=elements)
+    dummy_typeref = cast(irast.TypeRef, None)
+    arr = irast.Array(elements=elements, typeref=dummy_typeref)
     if elements:
         stype = inference.infer_type(arr, env=ctx.env)
     else:
@@ -258,13 +261,21 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     step,
                     condition=lambda o: (
                         isinstance(o, s_types.Type)
-                        and (o.is_object_type() or o.is_view(ctx.env.schema))
+                        and (
+                            o.is_object_type() or
+                            o.is_view(ctx.env.schema) or
+                            o.is_enum(ctx.env.schema)
+                        )
                     ),
                     label='object type or alias',
                     item_type=s_types.QualifiedType,
                     srcctx=step.context,
                     ctx=ctx,
                 )
+
+                if (stype.is_enum(ctx.env.schema) and
+                        not stype.is_view(ctx.env.schema)):
+                    return compile_enum_path(expr, source=stype, ctx=ctx)
 
                 if (stype.get_expr_type(ctx.env.schema) is not None and
                         stype.get_name(ctx.env.schema) not in ctx.view_nodes):
@@ -283,6 +294,9 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                         is_binding=True,
                         ctx=ctx,
                     )
+
+                    maybe_materialize(stype, path_tip, ctx=ctx)
+
                 else:
                     path_tip = class_set(stype, ctx=ctx)
 
@@ -365,6 +379,19 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             else:
                 source = get_set_type(path_tip, ctx=ctx)
 
+            # If this is followed by type intersections, collect
+            # them up, since we need them in ptr_step_set.
+            upcoming_intersections = []
+            for j in range(i + 1, len(expr.steps)):
+                nstep = expr.steps[j]
+                if (isinstance(nstep, qlast.TypeIntersection)
+                        and isinstance(nstep.type, qlast.TypeName)):
+                    upcoming_intersections.append(
+                        schemactx.get_schema_type(
+                            nstep.type.maintype, ctx=ctx))
+                else:
+                    break
+
             if isinstance(source, s_types.Tuple):
                 path_tip = tuple_indirection_set(
                     path_tip, source=source, ptr_name=ptr_name,
@@ -374,6 +401,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 path_tip = ptr_step_set(
                     path_tip, expr=step, source=source, ptr_name=ptr_name,
                     direction=direction,
+                    upcoming_intersections=upcoming_intersections,
                     ignore_computable=True,
                     source_context=step.context, ctx=ctx)
 
@@ -418,8 +446,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             # works right.
             is_subquery = isinstance(step, qlast.Statement)
             with ctx.newscope(fenced=is_subquery) as subctx:
-                path_tip = ensure_set(
-                    dispatch.compile(step, ctx=subctx), ctx=subctx)
+                path_tip = dispatch.compile(step, ctx=subctx)
 
                 # If the head of the path is a direct object
                 # reference, wrap it in an expression set to give it a
@@ -444,16 +471,22 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 scope_set = scoped_set(scope_set, ctx=subctx)
 
-        for key_path_id in path_tip.path_id.iter_weak_namespace_prefixes():
-            mapped = ctx.view_map.get(key_path_id)
-            if mapped is not None:
+        # We compile computables under namespaces, but we need to have
+        # the source of the computable *not* under that namespace (and
+        # potentially with the source's expr/rptr/etc?), so we need to
+        # do some remapping. This is a little fiddly, since we may have
+        # picked up *additional* namespaces.
+        key = path_tip.path_id.strip_namespace(path_tip.path_id.namespace)
+        if (entry := ctx.view_map.get(key)) is not None:
+            inner_path_id, mapped = entry
+            fixed_inner = inner_path_id.merge_namespace(ctx.path_id_namespace)
+            if fixed_inner == path_tip.path_id:
                 path_tip = new_set(
                     path_id=mapped.path_id,
                     stype=get_set_type(path_tip, ctx=ctx),
                     expr=mapped.expr,
                     rptr=mapped.rptr,
                     ctx=ctx)
-                break
 
         if pathctx.path_is_banned(path_tip.path_id, ctx=ctx):
             dname = stype.get_displayname(ctx.env.schema)
@@ -493,12 +526,12 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     # }
     #
     # Note that we use an unfenced BRANCH node to isolate the path head,
-    # to make sure it is still properly factorable.  We temporarily flip
-    # the branch to be a full fence for the compilation of the computable.
-    fence_points = frozenset(c.path_id for c in computables)
+    # to make sure it is still properly factorable.
+    # The branch insertion is handled automatically by attach_path, and
+    # we temporarily flip the branch to be a full fence for the compilation
+    # of the computable.
     fences = pathctx.register_set_in_scope(
         path_tip,
-        fence_points=fence_points,
         ctx=ctx,
     )
 
@@ -508,8 +541,10 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     for ir_set in computables:
         scope = ctx.path_scope.find_descendant(ir_set.path_id)
         if scope is None:
-            # The path is already in the scope, no point
-            # in recompiling the computable expression.
+            scope = ctx.path_scope.find_visible(ir_set.path_id)
+        # We skip recompiling if we can't find a scope for it.
+        # This whole mechanism seems a little sketchy, unfortunately.
+        if scope is None:
             continue
 
         with ctx.new() as subctx:
@@ -560,16 +595,18 @@ def resolve_special_anchor(
 
 def ptr_step_set(
         path_tip: irast.Set, *,
+        upcoming_intersections: Sequence[s_types.Type] = (),
         source: s_obj.Object,
         expr: Optional[qlast.Base],
         ptr_name: str,
         direction: PtrDir = PtrDir.Outbound,
-        source_context: parsing.ParserContext,
+        source_context: Optional[parsing.ParserContext],
         ignore_computable: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     ptrcls = resolve_ptr(
         source,
         ptr_name,
+        upcoming_intersections=upcoming_intersections,
         track_ref=expr,
         direction=direction,
         source_context=source_context,
@@ -584,6 +621,7 @@ def resolve_ptr(
     near_endpoint: s_obj.Object,
     pointer_name: str,
     *,
+    upcoming_intersections: Sequence[s_types.Type] = (),
     far_endpoints: Iterable[s_obj.Object] = (),
     direction: s_pointers.PointerDirection = (
         s_pointers.PointerDirection.Outbound
@@ -616,10 +654,37 @@ def resolve_ptr(
                                       sources=far_endpoints)
         if ptrs:
             if track_ref is not False:
-                for p in ptrs:
+                # If this reverse pointer access is followed by
+                # intersections, we filter out any pointers that
+                # couldn't be picked up by the intersections. This avoids
+                # creating spurious dependencies when reverse
+                # links are used in schemas.
+                dep_ptrs = {
+                    ptr for ptr in ptrs
+                    if (src := ptr.get_source(ctx.env.schema))
+                    and all(
+                        src.issubclass(ctx.env.schema, typ)
+                        or any(
+                            dsrc.issubclass(ctx.env.schema, typ)
+                            for dsrc in src.descendants(ctx.env.schema)
+                        )
+                        for typ in upcoming_intersections
+                    )
+                }
+
+                for p in dep_ptrs:
                     ctx.env.add_schema_ref(
                         p.get_nearest_non_derived_parent(ctx.env.schema),
                         track_ref)
+            for ptr in ptrs:
+                if ptr.is_pure_computable(ctx.env.schema):
+                    vname = ptr.get_verbosename(ctx.env.schema,
+                                                with_parent=True)
+                    raise errors.InvalidReferenceError(
+                        f'cannot follow backlink {pointer_name!r} because '
+                        f'{vname} is computed',
+                        context=source_context
+                    )
 
             opaque = not far_endpoints
             ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(
@@ -708,7 +773,7 @@ def extend_path(
         source=source_set,
         target=target_set,
         direction=direction,
-        ptrref=path_id.rptr(),
+        ptrref=not_none(path_id.rptr()),
     )
 
     target_set.rptr = ptr
@@ -725,6 +790,18 @@ def extend_path(
     return target_set
 
 
+def is_injected_computable_ptr(
+    ptrcls: s_pointers.PointerLike,
+    *,
+    ctx: context.ContextLevel,
+) -> bool:
+    return (
+        ctx.env.options.apply_query_rewrites
+        and ptrcls not in ctx.disable_shadowing
+        and bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
+    )
+
+
 def _is_computable_ptr(
     ptrcls: s_pointers.PointerLike,
     *,
@@ -739,11 +816,98 @@ def _is_computable_ptr(
 
     return (
         ptrcls.is_pure_computable(ctx.env.schema)
-        or (
-            ctx.env.options.apply_query_rewrites
-            and ptrcls not in ctx.disable_shadowing
-            and bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
+        or is_injected_computable_ptr(ptrcls, ctx=ctx)
+    )
+
+
+def compile_enum_path(
+        expr: qlast.Path,
+        *,
+        source: s_types.Type,
+        ctx: context.ContextLevel) -> irast.Set:
+
+    assert isinstance(source, s_scalars.ScalarType)
+    enum_values = source.get_enum_values(ctx.env.schema)
+    assert enum_values
+
+    nsteps = len(expr.steps)
+    if nsteps == 1:
+        raise errors.QueryError(
+            f"'{source.get_displayname(ctx.env.schema)}' enum "
+            f"path expression lacks an enum member name, as in "
+            f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
+            context=expr.steps[0].context,
         )
+
+    step2 = expr.steps[1]
+    if not isinstance(step2, qlast.Ptr):
+        raise errors.QueryError(
+            f"an enum member name must follow enum type name in the path, "
+            f"as in "
+            f"'{source.get_displayname(ctx.env.schema)}.{enum_values[0]}'",
+            context=step2.context,
+        )
+
+    ptr_name = step2.ptr.name
+
+    step2_direction = s_pointers.PointerDirection.Outbound
+    if step2.direction is not None:
+        step2_direction = s_pointers.PointerDirection(step2.direction)
+    if step2_direction is not s_pointers.PointerDirection.Outbound:
+        raise errors.QueryError(
+            f"enum types do not support backlink navigation",
+            context=step2.context,
+        )
+    if step2.type == 'property':
+        raise errors.QueryError(
+            f"unexpected reference to link property '{ptr_name}' "
+            f"outside of a path expression",
+            context=step2.context,
+        )
+
+    if nsteps > 2:
+        raise errors.QueryError(
+            f"invalid property reference on a primitive type expression",
+            context=expr.steps[2].context,
+        )
+
+    if ptr_name not in enum_values:
+        rec_name = sorted(
+            enum_values,
+            key=lambda name: levenshtein.distance(name, ptr_name)
+        )[0]
+        src_name = source.get_displayname(ctx.env.schema)
+        raise errors.InvalidReferenceError(
+            f"'{src_name}' enum has no member called {ptr_name!r}",
+            hint=f"did you mean {rec_name!r}?",
+            context=step2.context,
+        )
+
+    return enum_indirection_set(
+        source=source,
+        ptr_name=step2.ptr.name,
+        source_context=expr.context,
+        ctx=ctx,
+    )
+
+
+def enum_indirection_set(
+        *,
+        source: s_types.Type,
+        ptr_name: str,
+        source_context: Optional[parsing.ParserContext],
+        ctx: context.ContextLevel) -> irast.Set:
+
+    strref = typegen.type_to_typeref(
+        ctx.env.get_track_schema_type(s_name.QualName('std', 'str')),
+        env=ctx.env,
+    )
+
+    return casts.compile_cast(
+        irast.StringConstant(value=ptr_name, typeref=strref),
+        source,
+        srcctx=source_context,
+        ctx=ctx,
     )
 
 
@@ -768,8 +932,8 @@ def tuple_indirection_set(
     ptr = irast.TupleIndirectionPointer(
         source=path_tip,
         target=ti_set,
-        ptrref=path_id.rptr(),
-        direction=path_id.rptr_dir(),
+        ptrref=downcast(path_id.rptr(), irast.TupleIndirectionPointerRef),
+        direction=not_none(path_id.rptr_dir()),
     )
 
     ti_set.rptr = ptr
@@ -846,14 +1010,13 @@ def type_intersection_set(
         typeref_cache=ctx.env.type_ref_cache,
     )
 
-    poly_set.path_id = source_set.path_id.extend(
-        schema=ctx.env.schema, ptrref=ptrref,)
+    poly_set.path_id = source_set.path_id.extend(ptrref=ptrref)
 
     ptr = irast.TypeIntersectionPointer(
         source=source_set,
         target=poly_set,
-        ptrref=ptrref,
-        direction=poly_set.path_id.rptr_dir(),
+        ptrref=downcast(ptrref, irast.TypeIntersectionPointerRef),
+        direction=not_none(poly_set.path_id.rptr_dir()),
         optional=optional,
     )
 
@@ -941,6 +1104,7 @@ def ensure_set(
         type_override: Optional[s_types.Type]=None,
         typehint: Optional[s_types.Type]=None,
         path_id: Optional[irast.PathId]=None,
+        srcctx: Optional[parsing.ParserContext]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
     if not isinstance(expr, irast.Set):
@@ -957,6 +1121,10 @@ def ensure_set(
             ir_set, stype=type_override, preserve_scope_ns=True, ctx=ctx)
 
         stype = type_override
+
+    if srcctx is not None:
+        ir_set = new_set_from_set(
+            ir_set, preserve_scope_ns=True, context=srcctx, ctx=ctx)
 
     if (isinstance(ir_set, irast.EmptySet)
             and (stype is None or stype.is_any(ctx.env.schema))
@@ -1000,6 +1168,8 @@ def computable_ptr_set(
     ptrcls = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
     source_set = rptr.source
     source_scls = get_set_type(source_set, ctx=ctx)
+    ptrcls_to_shadow = None
+
     # process_view() may generate computable pointer expressions
     # in the form "self.linkname".  To prevent infinite recursion,
     # self must resolve to the parent type of the view NOT the view
@@ -1010,7 +1180,7 @@ def computable_ptr_set(
         source_set = new_set_from_set(
             source_set, stype=source_set_stype,
             preserve_scope_ns=True, ctx=ctx)
-        source_set.shape = []
+        source_set.shape = ()
         if source_set.rptr is not None:
             source_rptrref = source_set.rptr.ptrref
             if source_rptrref.base_ptr is not None:
@@ -1059,11 +1229,18 @@ def computable_ptr_set(
                     op='??',
                 )
 
+                # Is this is a view, we want to shadow the underlying
+                # ptrcls, since otherwise we will generate this default
+                # code *twice*.
+                if rptr.ptrref.base_ptr:
+                    ptrcls_to_shadow = typegen.ptrcls_from_ptrref(
+                        rptr.ptrref.base_ptr, ctx=ctx)
+
         if schema_qlexpr is None:
             if comp_expr is None:
                 ptrcls_sn = ptrcls.get_shortname(ctx.env.schema)
                 raise errors.InternalServerError(
-                    f'{ptrcls_sn!r} is not a computable pointer')
+                    f'{ptrcls_sn!r} is not a computed pointer')
 
             comp_qlexpr = qlparser.parse(comp_expr.text)
             assert isinstance(comp_qlexpr, qlast.Expr), 'expected qlast.Expr'
@@ -1120,6 +1297,8 @@ def computable_ptr_set(
     base_object = ctx.env.schema.get('std::BaseObject', type=s_types.Type)
     with newctx() as subctx:
         subctx.disable_shadowing.add(ptrcls)
+        if ptrcls_to_shadow:
+            subctx.disable_shadowing.add(ptrcls_to_shadow)
         if result_stype != base_object:
             subctx.view_scls = result_stype
         subctx.view_rptr = context.ViewRPtr(
@@ -1127,6 +1306,11 @@ def computable_ptr_set(
         subctx.anchors[qlast.Source().name] = source_set
         subctx.empty_result_type_hint = ptrcls.get_target(ctx.env.schema)
         subctx.partial_path_prefix = source_set
+        # On a mutation, make the expr_exposed. This corresponds with
+        # a similar check on is_mutation in _normalize_view_ptr_expr.
+        if (source_scls.get_expr_type(ctx.env.schema)
+                != s_types.ExprType.Select):
+            subctx.expr_exposed = True
 
         if isinstance(qlexpr, qlast.Statement):
             subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
@@ -1134,14 +1318,15 @@ def computable_ptr_set(
                 iterator_target=True,
             )
 
-        comp_ir_set = ensure_set(
-            dispatch.compile(qlexpr, ctx=subctx), ctx=subctx)
+        comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
     comp_ir_set = new_set_from_set(
         comp_ir_set, path_id=result_path_id, rptr=rptr, context=srcctx,
         ctx=ctx)
 
     rptr.target = comp_ir_set
+
+    maybe_materialize(ptrcls, comp_ir_set, ctx=ctx)
 
     return comp_ir_set
 
@@ -1152,7 +1337,7 @@ def _get_computable_ctx(
     source: irast.Set,
     source_scls: s_types.Type,
     inner_source_path_id: Optional[irast.PathId],
-    path_id_ns: Optional[irast.WeakNamespace],
+    path_id_ns: Optional[irast.Namespace],
     same_scope: bool,
     qlctx: context.ContextLevel,
     ctx: context.ContextLevel
@@ -1182,9 +1367,7 @@ def _get_computable_ctx(
             if path_id_ns is not None:
                 subctx.path_id_namespace |= {path_id_ns}
 
-            pending_pid_ns: Set[irast.AnyNamespace] = {
-                irast.WeakNamespace(ctx.aliases.get('ns')),
-            }
+            pending_pid_ns = {ctx.aliases.get('ns')}
 
             if path_id_ns is not None and same_scope:
                 pending_pid_ns.add(path_id_ns)
@@ -1225,7 +1408,88 @@ def _get_computable_ctx(
             remapped_source = new_set_from_set(
                 rptr.source, rptr=rptr.source.rptr,
                 preserve_scope_ns=True, ctx=ctx)
-            subctx.view_map[inner_path_id] = remapped_source
+            key = inner_path_id.strip_namespace(inner_path_id.namespace)
+            assert key not in subctx.view_map
+            subctx.view_map[key] = (inner_path_id, remapped_source)
+
             yield subctx
 
     return newctx
+
+
+def maybe_materialize(
+    stype: Union[s_types.Type, s_pointers.PointerLike],
+    ir: irast.Set,
+    *,
+    ctx: context.ContextLevel,
+) -> None:
+    mat_qlstmt = ctx.env.materialized_sets.get(stype)
+    if mat_qlstmt is not None:
+        materialize_in_stmt = ctx.env.compiled_stmts[mat_qlstmt]
+        if materialize_in_stmt.materialized_sets is None:
+            materialize_in_stmt.materialized_sets = {}
+
+        assert not isinstance(stype, s_pointers.PseudoPointer)
+        if stype.id not in materialize_in_stmt.materialized_sets:
+            saved = (
+                None if isinstance(stype, s_pointers.Pointer) and not ir.rptr
+                else ir
+            )
+            materialize_in_stmt.materialized_sets[stype.id] = (
+                irast.MaterializedSet(materialized=saved, use_sets=[]))
+
+        mat_set = materialize_in_stmt.materialized_sets[stype.id]
+        mat_set.use_sets.append(ir)
+
+
+def force_materialized_volatile(
+    ir: irast.Base, *, ctx: context.ContextLevel
+) -> None:
+    vol = inference.infer_volatility(ir, ctx.env)
+    ctx.env.inferred_volatility[ir] = (vol, qltypes.Volatility.Volatile)
+
+
+def should_materialize(
+    ir: irast.Base, *,
+    binding_pessimism: bool=False,
+    skipped_bindings: AbstractSet[irast.PathId]=frozenset(),
+    ctx: context.ContextLevel,
+) -> bool:
+    volatility = inference.infer_volatility(
+        ir, ctx.env, for_materialization=True)
+    if volatility is qltypes.Volatility.Volatile:
+        return True
+
+    if not isinstance(ir, irast.Set):
+        return False
+
+    typ = get_set_type(ir, ctx=ctx)
+
+    # For shape elements, we need to materialize when they reference bindings
+    # TODO: this is pretty pessimistic, we should be able to detect
+    # cases where it isn't necessary afterwards in stmtctx and clean
+    # them up.
+    if binding_pessimism and irutils.contains_binding(ir, skipped_bindings):
+        return True
+
+    return should_materialize_type(typ, ctx=ctx)
+
+
+def should_materialize_type(
+    typ: s_types.Type, *, ctx: context.ContextLevel
+) -> bool:
+    schema = ctx.env.schema
+    if isinstance(
+            typ, (s_objtypes.ObjectType, s_pointers.Pointer)):
+        for pointer in typ.get_pointers(schema).objects(schema):
+            if (
+                pointer in ctx.source_map
+                and ctx.source_map[pointer].should_materialize
+            ):
+                return True
+    elif isinstance(typ, s_types.Collection):
+        for sub in typ.get_subtypes(schema):
+            if should_materialize_type(sub, ctx=ctx):
+                return True
+
+    return False

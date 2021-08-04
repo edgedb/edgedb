@@ -23,6 +23,7 @@ import functools
 from typing import *
 
 from edb import errors
+from edb.common.typeutils import not_none
 
 from edb.schema import abc as s_abc
 from edb.schema import name as s_name
@@ -297,7 +298,7 @@ def __infer_typeref(
                 named = True
 
             if named:
-                eltypes = {st.element_name: infer_type(st, env)
+                eltypes = {not_none(st.element_name): infer_type(st, env)
                            for st in ir.subtypes}
             else:
                 eltypes = {str(i): infer_type(st, env)
@@ -362,6 +363,23 @@ def __infer_config_insert(
     env: context.Environment,
 ) -> s_types.Type:
     return infer_type(ir.expr, env)
+
+
+@_infer_type.register
+def __infer_config_set(
+    ir: irast.ConfigSet,
+    env: context.Environment,
+) -> s_types.Type:
+    return infer_type(ir.expr, env)
+
+
+@_infer_type.register
+def __infer_config_reset(
+    ir: irast.ConfigReset,
+    env: context.Environment,
+) -> s_types.Type:
+    # This is nonsense but we need to return /something/
+    return s_pseudo.PseudoType.get(env.schema, 'anytype')
 
 
 @_infer_type.register

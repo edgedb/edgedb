@@ -157,8 +157,12 @@ class TestTaskGroup(tb.TestCase):
 
             NUM += 10
 
-        with self.assertRaisesRegex(taskgroup.TaskGroupError,
-                                    r'3 sub errors: \(ZeroDivisionError\)'):
+        # The 3 foo1 sub tasks can be racy when the host is busy - if the
+        # cancellation happens in the middle, we'll see partial sub errors here
+        with self.assertRaisesRegex(
+            taskgroup.TaskGroupError,
+            r'(1|2|3) sub errors: \(ZeroDivisionError\)',
+        ):
             await self.loop.create_task(runner())
 
         self.assertEqual(NUM, 0)

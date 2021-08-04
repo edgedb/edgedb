@@ -75,7 +75,7 @@ class CardinalityModifier(s_enum.StrEnum):
 class DescribeGlobal(s_enum.StrEnum):
     Schema = 'SCHEMA'
     DatabaseConfig = 'DATABASE CONFIG'
-    SystemConfig = 'SYSTEM CONFIG'
+    InstanceConfig = 'INSTANCE CONFIG'
     Roles = 'ROLES'
 
     def to_edgeql(self) -> str:
@@ -85,27 +85,27 @@ class DescribeGlobal(s_enum.StrEnum):
 class Base(ast.AST):
     __abstract_node__ = True
     __ast_hidden__ = {'context'}
-    context: parsing.ParserContext
+    context: typing.Optional[parsing.ParserContext] = None
     # System-generated comment.
-    system_comment: str
+    system_comment: typing.Optional[str] = None
 
     # parent: typing.Optional[Base]
 
 
 class OffsetLimitMixin(Base):
     __abstract_node__ = True
-    offset: typing.Optional[Expr]
-    limit: typing.Optional[Expr]
+    offset: typing.Optional[Expr] = None
+    limit: typing.Optional[Expr] = None
 
 
 class OrderByMixin(Base):
     __abstract_node__ = True
-    orderby: typing.Optional[typing.List[SortExpr]]
+    orderby: typing.Optional[typing.List[SortExpr]] = None
 
 
 class FilterMixin(Base):
     __abstract_node__ = True
-    where: typing.Optional[Expr]
+    where: typing.Optional[Expr] = None
 
 
 class OptionValue(Base):
@@ -122,7 +122,7 @@ class Flag(OptionValue):
 
 class Options(Base):
 
-    options: typing.Dict[str, OptionValue]
+    options: typing.Dict[str, OptionValue] = ast.field(factory=dict)
 
     def get_flag(self, k: str) -> Flag:
         try:
@@ -167,8 +167,8 @@ class Clause(Base):
 
 class SortExpr(Clause):
     path: Expr
-    direction: typing.Optional[SortOrder]
-    nones_order: typing.Optional[str]
+    direction: typing.Optional[SortOrder] = None
+    nones_order: typing.Optional[NonesOrder] = None
 
 
 class BaseAlias(Clause):
@@ -224,8 +224,8 @@ class BaseObjectRef(Base):
 
 class ObjectRef(BaseObjectRef):
     name: str
-    module: typing.Optional[str]
-    itemclass: typing.Optional[qltypes.SchemaObjectClass]
+    module: typing.Optional[str] = None
+    itemclass: typing.Optional[qltypes.SchemaObjectClass] = None
 
 
 class PseudoObjectRef(BaseObjectRef):
@@ -288,9 +288,9 @@ class WindowSpec(Clause, OrderByMixin):
 
 class FunctionCall(Expr):
     func: typing.Union[tuple, str]
-    args: typing.List[Expr]
-    kwargs: typing.Dict[str, Expr]
-    window: typing.Optional[WindowSpec]
+    args: typing.List[Expr] = ast.field(factory=list)
+    kwargs: typing.Dict[str, Expr] = ast.field(factory=dict)
+    window: typing.Optional[WindowSpec] = None
 
 
 class BaseConstant(Expr):
@@ -357,7 +357,7 @@ class UnaryOp(Expr):
 
 
 class TypeExpr(Base):
-    name: str  # name is used for types in named tuples
+    name: typing.Optional[str] = None  # name is used for types in named tuples
 
 
 class TypeOf(TypeExpr):
@@ -371,8 +371,8 @@ class TypeExprLiteral(TypeExpr):
 
 class TypeName(TypeExpr):
     maintype: BaseObjectRef
-    subtypes: typing.Optional[typing.List[TypeExpr]]
-    dimensions: typing.Optional[typing.List[int]]
+    subtypes: typing.Optional[typing.List[TypeExpr]] = None
+    dimensions: typing.Optional[typing.List[int]] = None
 
 
 class TypeOp(TypeExpr):
@@ -386,7 +386,7 @@ class FuncParam(Base):
     type: TypeExpr
     typemod: qltypes.TypeModifier = qltypes.TypeModifier.SingletonType
     kind: qltypes.ParameterKind
-    default: typing.Optional[Expr]
+    default: typing.Optional[Expr] = None
 
 
 class IsOp(Expr):
@@ -401,19 +401,22 @@ class TypeIntersection(Base):
 
 class Ptr(Base):
     ptr: ObjectRef
-    direction: typing.Optional[str]
-    type: typing.Optional[str]
+    direction: typing.Optional[str] = None
+    type: typing.Optional[str] = None
+
+
+PathElement = typing.Union[Expr, Ptr, TypeIntersection, ObjectRef]
 
 
 class Path(Expr):
-    steps: typing.List[typing.Union[Expr, Ptr, TypeIntersection, ObjectRef]]
+    steps: typing.List[PathElement]
     partial: bool = False
 
 
 class TypeCast(Expr):
     expr: Expr
     type: TypeExpr
-    cardinality_mod: typing.Optional[CardinalityModifier]
+    cardinality_mod: typing.Optional[CardinalityModifier] = None
 
 
 class Introspect(Expr):
@@ -470,7 +473,8 @@ class GroupBuiltin(ByExprBase):
 
 class Command(Base):
     __abstract_node__ = True
-    aliases: typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]
+    aliases: typing.Optional[
+        typing.List[typing.Union[AliasedExpr, ModuleAliasDecl]]] = None
 
 
 class Statement(Command, Expr):
@@ -480,13 +484,13 @@ class Statement(Command, Expr):
 class SubjectMixin(Base):
     __abstract_node__ = True
     subject: Expr
-    subject_alias: typing.Optional[str]
+    subject_alias: typing.Optional[str] = None
 
 
 class ReturningMixin(Base):
     __abstract_node__ = True
     result: Expr
-    result_alias: typing.Optional[str]
+    result_alias: typing.Optional[str] = None
 
 
 class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
@@ -499,6 +503,7 @@ class ShapeOp(s_enum.StrEnum):
     APPEND = 'APPEND'
     SUBTRACT = 'SUBTRACT'
     ASSIGN = 'ASSIGN'
+    MATERIALIZE = 'MATERIALIZE'  # This is an internal implementation artifact
 
 
 # Need indirection over ShapeOp to preserve the source context.
@@ -509,15 +514,15 @@ class ShapeOperation(Base):
 
 class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
     expr: Path
-    elements: typing.List[ShapeElement]
-    compexpr: typing.Optional[Expr]
-    cardinality: typing.Optional[qltypes.SchemaCardinality]
+    elements: typing.Optional[typing.List[ShapeElement]] = None
+    compexpr: typing.Optional[Expr] = None
+    cardinality: typing.Optional[qltypes.SchemaCardinality] = None
     required: bool = False
     operation: ShapeOperation = ShapeOperation(op=ShapeOp.ASSIGN)
 
 
 class Shape(Expr):
-    expr: Expr
+    expr: typing.Optional[Expr]
     elements: typing.List[ShapeElement]
 
 
@@ -539,7 +544,7 @@ class InsertQuery(Query, SubjectMixin):
     subject: Path
     shape: typing.List[ShapeElement]
     unless_conflict: typing.Optional[
-        typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]]
+        typing.Tuple[typing.Optional[Expr], typing.Optional[Expr]]] = None
 
 
 class UpdateQuery(Query, SubjectMixin, FilterMixin):
@@ -606,13 +611,13 @@ class BasesMixin(DDL):
 
 
 class Position(DDL):
-    ref: typing.Optional[ObjectRef]
+    ref: typing.Optional[ObjectRef] = None
     position: str
 
 
 class DDLOperation(DDL):
     __abstract_node__ = True
-    commands: typing.List[DDLOperation]
+    commands: typing.List[DDLOperation] = ast.field(factory=list)
 
 
 class DDLCommand(Command, DDLOperation):
@@ -620,7 +625,7 @@ class DDLCommand(Command, DDLOperation):
 
 
 class AlterAddInherit(DDLOperation, BasesMixin):
-    position: typing.Optional[Position]
+    position: typing.Optional[Position] = None
 
 
 class AlterDropInherit(DDLOperation, BasesMixin):
@@ -645,20 +650,20 @@ class SetField(DDLOperation):
 class SetPointerType(SetField):
     name: str = 'target'
     special_syntax: bool = True
-    value: TypeExpr
-    cast_expr: typing.Optional[Expr]
+    value: typing.Optional[TypeExpr]
+    cast_expr: typing.Optional[Expr] = None
 
 
 class SetPointerCardinality(SetField):
     name: str = 'cardinality'
     special_syntax: bool = True
-    conv_expr: typing.Optional[Expr]
+    conv_expr: typing.Optional[Expr] = None
 
 
 class SetPointerOptionality(SetField):
     name: str = 'required'
     special_syntax: bool = True
-    fill_expr: typing.Optional[Expr]
+    fill_expr: typing.Optional[Expr] = None
 
 
 class NamedDDL(DDLCommand):
@@ -753,7 +758,12 @@ class DropMigration(DropObject, MigrationCommand):
     pass
 
 
-class GlobalObjectCommand(ObjectDDL):
+class UnqualifiedObjectCommand(ObjectDDL):
+
+    __abstract_node__ = True
+
+
+class GlobalObjectCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
 
@@ -798,7 +808,8 @@ class DropExtensionPackage(DropObject, ExtensionPackageCommand):
     pass
 
 
-class ExtensionCommand(ObjectDDL):
+class ExtensionCommand(UnqualifiedObjectCommand):
+
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.EXTENSION)
@@ -813,22 +824,22 @@ class DropExtension(DropObject, ExtensionCommand):
     pass
 
 
-class ModuleCommand(ObjectDDL):
+class ModuleCommand(UnqualifiedObjectCommand):
 
     __abstract_node__ = True
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.MODULE)
 
 
-class CreateModule(CreateObject, ModuleCommand):
+class CreateModule(ModuleCommand, CreateObject):
     pass
 
 
-class AlterModule(AlterObject, ModuleCommand):
+class AlterModule(ModuleCommand, AlterObject):
     pass
 
 
-class DropModule(DropObject, ModuleCommand):
+class DropModule(ModuleCommand, DropObject):
     pass
 
 
@@ -1014,7 +1025,7 @@ class DropConcreteLink(DropObject, LinkCommand):
 class CallableObjectCommand(ObjectDDL):
 
     __abstract_node__ = True
-    params: typing.List[FuncParam]
+    params: typing.List[FuncParam] = ast.field(factory=list)
 
 
 class ConstraintCommand(ObjectDDL):
@@ -1048,15 +1059,15 @@ class ConcreteConstraintOp(ConstraintCommand):
     subjectexpr: typing.Optional[Expr]
 
 
-class CreateConcreteConstraint(CreateObject, ConcreteConstraintOp):
+class CreateConcreteConstraint(ConcreteConstraintOp, CreateObject):
     delegated: bool = False
 
 
-class AlterConcreteConstraint(AlterObject, ConcreteConstraintOp):
+class AlterConcreteConstraint(ConcreteConstraintOp, AlterObject):
     pass
 
 
-class DropConcreteConstraint(DropObject, ConcreteConstraintOp):
+class DropConcreteConstraint(ConcreteConstraintOp, DropObject):
     pass
 
 
@@ -1068,27 +1079,27 @@ class IndexCommand(ObjectDDL):
         qltypes.SchemaObjectClass.INDEX)
 
 
-class CreateIndex(CreateObject, IndexCommand):
+class CreateIndex(IndexCommand, CreateObject):
     pass
 
 
-class AlterIndex(AlterObject, IndexCommand):
+class AlterIndex(IndexCommand, AlterObject):
     pass
 
 
-class DropIndex(DropObject, IndexCommand):
+class DropIndex(IndexCommand, DropObject):
     pass
 
 
-class CreateAnnotationValue(CreateObject, AnnotationCommand):
+class CreateAnnotationValue(AnnotationCommand, CreateObject):
     value: Expr
 
 
-class AlterAnnotationValue(AlterObject, AnnotationCommand):
-    value: Expr
+class AlterAnnotationValue(AnnotationCommand, AlterObject):
+    value: typing.Optional[Expr]
 
 
-class DropAnnotationValue(DropObject, AnnotationCommand):
+class DropAnnotationValue(AnnotationCommand, DropObject):
     pass
 
 
@@ -1098,11 +1109,11 @@ class Language(s_enum.StrEnum):
 
 
 class FunctionCode(Clause):
-    language: Language
-    code: typing.Optional[str]
-    nativecode: typing.Optional[Expr]
-    from_function: typing.Optional[str]
-    from_expr: bool
+    language: Language = Language.EdgeQL
+    code: typing.Optional[str] = None
+    nativecode: typing.Optional[Expr] = None
+    from_function: typing.Optional[str] = None
+    from_expr: bool = False
 
 
 class FunctionCommand(CallableObjectCommand):
@@ -1123,7 +1134,7 @@ class CreateFunction(CreateObject, FunctionCommand):
 
 class AlterFunction(AlterObject, FunctionCommand):
 
-    code: FunctionCode
+    code: FunctionCode = FunctionCode  # type: ignore
     nativecode: typing.Optional[Expr]
 
 
@@ -1134,9 +1145,9 @@ class DropFunction(DropObject, FunctionCommand):
 class OperatorCode(Clause):
     language: Language
     from_operator: typing.Optional[typing.Tuple[str, ...]]
-    from_function: str
+    from_function: typing.Optional[str]
     from_expr: bool
-    code: str
+    code: typing.Optional[str]
 
 
 class OperatorCommand(CallableObjectCommand):
@@ -1288,12 +1299,19 @@ def get_ddl_field_value(
     return cmd.value if cmd is not None else None
 
 
+def get_ddl_subcommand(
+    ddlcmd: DDLOperation,
+    cmdtype: typing.Type[DDLOperation],
+) -> typing.Optional[DDLOperation]:
+    for cmd in ddlcmd.commands:
+        if isinstance(cmd, cmdtype):
+            return cmd
+    else:
+        return None
+
+
 def has_ddl_subcommand(
     ddlcmd: DDLOperation,
     cmdtype: typing.Type[DDLOperation],
 ) -> bool:
-    for cmd in ddlcmd.commands:
-        if isinstance(cmd, cmdtype):
-            return True
-    else:
-        return False
+    return bool(get_ddl_subcommand(ddlcmd, cmdtype))

@@ -17,7 +17,6 @@
 #
 
 
-WITH MODULE test
 INSERT Test {
     p_bool := True,
     p_str := 'Hello',
@@ -36,7 +35,6 @@ INSERT Test {
 };
 
 
-WITH MODULE test
 INSERT JSONTest {
     j_bool := <json>True,
     j_str := <json>'Hello',

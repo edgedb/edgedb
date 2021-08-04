@@ -29,6 +29,7 @@ import tempfile
 import unittest
 
 import click
+import psutil
 
 import edb
 from edb.common import devmode
@@ -64,8 +65,10 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='enable or disable warnings (enabled by default)',
               default=True)
 @click.option('-j', '--jobs', type=int,
-              default=lambda: (os.cpu_count() or 0) // 2,
-              help='number of parallel processes to use')
+              default=0,
+              help='number of parallel processes to use, default is 0, which '
+                   'means choose automatically based on the number of '
+                   'available CPU cores')
 @click.option('-s', '--shard', type=str,
               default='1/1',
               help='run tests in shards (current/total)')
@@ -88,9 +91,12 @@ __all__ = ('not_implemented', 'xfail', 'skip')
               help='Maintain a running time log file at FILEPATH')
 @click.option('--list', 'list_tests', is_flag=True,
               help='list all the tests and exit')
+@click.option('--postgres-dsn', type=str,
+              help='Use the specified Postgres cluster instead of starting a '
+                   'temporary local one.')
 def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
          output_format, warnings, failfast, shuffle, cov, repeat,
-         running_times_log_file, list_tests):
+         running_times_log_file, list_tests, postgres_dsn):
     """Run EdgeDB test suite.
 
     Discovers and runs tests in the specified files or directories.
@@ -106,6 +112,9 @@ def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
         verbosity = 2
     else:
         verbosity = 1
+
+    if jobs == 0:
+        jobs = psutil.cpu_count(logical=False)
 
     mproc_fixes.patch_multiprocessing(debug=debug)
 
@@ -138,12 +147,12 @@ def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
             sys.exit(1)
 
     try:
-        current_shard, total_shards = map(int, shard.split('/'))
+        selected_shard, total_shards = map(int, shard.split('/'))
     except Exception:
         click.secho(f'Error: --shard {shard} must match format e.g. 2/5')
         sys.exit(1)
 
-    if current_shard < 1 or current_shard > total_shards:
+    if selected_shard < 1 or selected_shard > total_shards:
         click.secho(f'Error: --shard {shard} is out of bound')
         sys.exit(1)
 
@@ -159,10 +168,11 @@ def test(*, files, jobs, shard, include, exclude, verbose, quiet, debug,
         failfast=failfast,
         shuffle=shuffle,
         repeat=repeat,
-        current_shard=current_shard,
+        selected_shard=selected_shard,
         total_shards=total_shards,
         running_times_log_file=running_times_log_file,
         list_tests=list_tests,
+        postgres_dsn=postgres_dsn,
     )
 
     if cov:
@@ -214,16 +224,16 @@ def _coverage_wrapper(paths):
             main_cov.stop()
             main_cov.save()
 
-            data = coverage.CoverageData()
+            covfile = str(pathlib.Path(td) / '.coverage')
+            data = coverage.CoverageData(covfile)
 
             with os.scandir(td) as it:
                 for entry in it:
-                    new_data = coverage.CoverageData()
-                    new_data.read_file(entry.path)
+                    new_data = coverage.CoverageData(entry.path)
+                    new_data.read()
                     data.update(new_data)
 
-            covfile = str(pathlib.Path(td) / '.coverage')
-            data.write_file(covfile)
+            data.write()
             report_cov = cov_config.new_custom_coverage_object(
                 config_file=str(cov_rc),
                 data_file=covfile,
@@ -237,8 +247,8 @@ def _coverage_wrapper(paths):
 
 
 def _run(*, include, exclude, verbosity, files, jobs, output_format,
-         warnings, failfast, shuffle, repeat, current_shard, total_shards,
-         running_times_log_file, list_tests):
+         warnings, failfast, shuffle, repeat, selected_shard, total_shards,
+         running_times_log_file, list_tests, postgres_dsn):
     suite = unittest.TestSuite()
 
     total = 0
@@ -297,10 +307,10 @@ def _run(*, include, exclude, verbosity, files, jobs, output_format,
         test_runner = runner.ParallelTextTestRunner(
             verbosity=verbosity, output_format=output_format,
             warnings=warnings, num_workers=jobs,
-            failfast=failfast, shuffle=shuffle)
+            failfast=failfast, shuffle=shuffle, postgres_dsn=postgres_dsn)
 
         result = test_runner.run(
-            suite, current_shard, total_shards, running_times_log_file,
+            suite, selected_shard, total_shards, running_times_log_file,
         )
 
         if not result.wasSuccessful():

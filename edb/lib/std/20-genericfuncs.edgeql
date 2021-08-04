@@ -19,6 +19,20 @@
 ## Fundamental polymorphic functions
 
 
+# std::assert_single -- runtime cardinality assertion
+# ---------------------------------------------------
+
+CREATE FUNCTION
+std::assert_single(input: SET OF anytype) -> anytype
+{
+    CREATE ANNOTATION std::description :=
+        "Check that the input set contains at most one element, raise
+         CardinalityViolationError otherwise.";
+    SET volatility := 'Stable';
+    USING SQL EXPRESSION;
+};
+
+
 # std::len
 # --------
 
@@ -27,7 +41,7 @@ std::len(str: std::str) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'A polymorphic function to calculate a "length" of its first argument.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT char_length("str")::bigint
     $$;
@@ -39,7 +53,7 @@ std::len(bytes: std::bytes) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'A polymorphic function to calculate a "length" of its first argument.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT length("bytes")::bigint
     $$;
@@ -51,7 +65,7 @@ std::len(array: array<anytype>) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'A polymorphic function to calculate a "length" of its first argument.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT cardinality("array")::bigint
     $$;
@@ -66,7 +80,7 @@ std::sum(s: SET OF std::bigint) -> std::bigint
 {
     CREATE ANNOTATION std::description :=
         'Return the sum of the set of numbers.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := 0;
     SET force_return_cast := true;
     USING SQL FUNCTION 'sum';
@@ -78,7 +92,7 @@ std::sum(s: SET OF std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description :=
         'Return the sum of the set of numbers.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := 0;
     USING SQL FUNCTION 'sum';
 };
@@ -89,7 +103,7 @@ std::sum(s: SET OF std::int32) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'Return the sum of the set of numbers.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := 0;
     SET force_return_cast := true;
     USING SQL FUNCTION 'sum';
@@ -101,7 +115,7 @@ std::sum(s: SET OF std::int64) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'Return the sum of the set of numbers.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := 0;
     SET force_return_cast := true;
     USING SQL FUNCTION 'sum';
@@ -113,7 +127,7 @@ std::sum(s: SET OF std::float32) -> std::float32
 {
     CREATE ANNOTATION std::description :=
         'Return the sum of the set of numbers.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := 0;
     USING SQL FUNCTION 'sum';
 };
@@ -124,7 +138,7 @@ std::sum(s: SET OF std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return the sum of the set of numbers.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := 0;
     USING SQL FUNCTION 'sum';
 };
@@ -138,7 +152,7 @@ std::count(s: SET OF anytype) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'Return the number of elements in a set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := 0;
     USING SQL FUNCTION 'count';
 };
@@ -152,7 +166,7 @@ std::random() -> std::float64
 {
     CREATE ANNOTATION std::description :=
         'Return a pseudo-random number in the range `0.0 <= x < 1.0`';
-    SET volatility := 'VOLATILE';
+    SET volatility := 'Volatile';
     USING SQL FUNCTION 'random';
 };
 
@@ -165,7 +179,71 @@ std::min(vals: SET OF anytype) -> OPTIONAL anytype
 {
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
+    SET fallback := true;
+    USING SQL EXPRESSION;
+};
+
+
+# Postgres only implements min and max for specific scalars and their
+# respective arrays, but in EdgeDB every type is orderable and so
+# minimum and maximum value can be determined for all types. The
+# general catch-all using `anytype` above is valid for all types, but
+# it is somewhat slower than the specialized natively implemented min
+# and max aggregates. So for the types that Postgres supports, we want
+# to use the more specialized implementation.
+#
+# Turns out that the min/max implementation for arrays is not
+# noticeably faster than the fallback we use, so there's no
+# specialized version of it in the polymorphic implementations.
+CREATE FUNCTION
+std::min(vals: SET OF anyreal) -> OPTIONAL anyreal
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF anyenum) -> OPTIONAL anyenum
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF str) -> OPTIONAL str
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF datetime) -> OPTIONAL datetime
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'Immutable';
+    SET force_return_cast := true;
+    USING SQL FUNCTION 'min';
+};
+
+
+CREATE FUNCTION
+std::min(vals: SET OF duration) -> OPTIONAL duration
+{
+    CREATE ANNOTATION std::description :=
+        'Return the smallest value of the input set.';
+    SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -178,7 +256,71 @@ std::max(vals: SET OF anytype) -> OPTIONAL anytype
 {
     CREATE ANNOTATION std::description :=
         'Return the greatest value of the input set.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
+    SET fallback := true;
+    USING SQL EXPRESSION;
+};
+
+
+# Postgres only implements min and max for specific scalars and their
+# respective arrays, but in EdgeDB every type is orderable and so
+# minimum and maximum value can be determined for all types. The
+# general catch-all using `anytype` above is valid for all types, but
+# it is somewhat slower than the specialized natively implemented min
+# and max aggregates. So for the types that Postgres supports, we want
+# to use the more specialized implementation.
+#
+# Turns out that the min/max implementation for arrays is not
+# noticeably faster than the fallback we use, so there's no
+# specialized version of it in the polymorphic implementations.
+CREATE FUNCTION
+std::max(vals: SET OF anyreal) -> OPTIONAL anyreal
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF anyenum) -> OPTIONAL anyenum
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF str) -> OPTIONAL str
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF datetime) -> OPTIONAL datetime
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'Immutable';
+    SET force_return_cast := true;
+    USING SQL FUNCTION 'max';
+};
+
+
+CREATE FUNCTION
+std::max(vals: SET OF duration) -> OPTIONAL duration
+{
+    CREATE ANNOTATION std::description :=
+        'Return the greatest value of the input set.';
+    SET volatility := 'Immutable';
+    SET force_return_cast := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -191,7 +333,7 @@ std::all(vals: SET OF std::bool) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'Generalized boolean `AND` applied to the set of *values*.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := True;
     USING SQL FUNCTION 'bool_and';
 };
@@ -205,7 +347,7 @@ std::any(vals: SET OF std::bool) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'Generalized boolean `OR` applied to the set of *values*.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     SET initial_value := False;
     USING SQL FUNCTION 'bool_or';
 };
@@ -221,7 +363,7 @@ std::enumerate(
 {
     CREATE ANNOTATION std::description :=
         'Return a set of tuples of the form `(index, element)`.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
@@ -233,7 +375,7 @@ CREATE FUNCTION
 std::round(val: std::int64) -> std::int64
 {
     CREATE ANNOTATION std::description := 'Round to the nearest value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT "val"
     $$;
@@ -244,7 +386,7 @@ CREATE FUNCTION
 std::round(val: std::float64) -> std::float64
 {
     CREATE ANNOTATION std::description := 'Round to the nearest value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT round("val")
     $$;
@@ -255,7 +397,7 @@ CREATE FUNCTION
 std::round(val: std::bigint) -> std::bigint
 {
     CREATE ANNOTATION std::description := 'Round to the nearest value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT "val";
     $$;
@@ -266,7 +408,7 @@ CREATE FUNCTION
 std::round(val: std::decimal) -> std::decimal
 {
     CREATE ANNOTATION std::description := 'Round to the nearest value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT round("val");
     $$;
@@ -277,7 +419,7 @@ CREATE FUNCTION
 std::round(val: std::decimal, d: std::int64) -> std::decimal
 {
     CREATE ANNOTATION std::description := 'Round to the nearest value.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT round("val", "d"::int4)
     $$;
@@ -292,7 +434,7 @@ std::contains(haystack: std::str, needle: std::str) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'A polymorphic function to test if a sequence contains a certain element.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         -- There was a regression in 12.0 (fixed in 12.1): strpos
@@ -314,7 +456,7 @@ std::contains(haystack: std::bytes, needle: std::bytes) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'A polymorphic function to test if a sequence contains a certain element.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT position("needle" in "haystack") != 0
     $$;
@@ -326,7 +468,7 @@ std::contains(haystack: array<anytype>, needle: anytype) -> std::bool
 {
     CREATE ANNOTATION std::description :=
         'A polymorphic function to test if a sequence contains a certain element.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT
         CASE
@@ -345,7 +487,7 @@ std::find(haystack: std::str, needle: std::str) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'A polymorphic function to find index of an element in a sequence.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (
         -- There was a regression in 12.0 (fixed in 12.1): strpos
@@ -367,7 +509,7 @@ std::find(haystack: std::bytes, needle: std::bytes) -> std::int64
 {
     CREATE ANNOTATION std::description :=
         'A polymorphic function to find index of an element in a sequence.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT (position("needle" in "haystack") - 1)::int8
     $$;
@@ -380,7 +522,7 @@ std::find(haystack: array<anytype>, needle: anytype,
 {
     CREATE ANNOTATION std::description :=
         'A polymorphic function to find index of an element in a sequence.';
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL $$
     SELECT COALESCE(
         array_position("haystack", "needle", ("from_pos"::int4 + 1)::int4) - 1,
@@ -394,7 +536,9 @@ std::find(haystack: array<anytype>, needle: anytype,
 
 CREATE INFIX OPERATOR
 std::`=` (l: anytuple, r: anytuple) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::=';
     SET negator := 'std::!=';
@@ -404,7 +548,10 @@ std::`=` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
     SET recursive := true;
 };
@@ -412,7 +559,9 @@ std::`?=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`!=` (l: anytuple, r: anytuple) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::!=';
     SET negator := 'std::=';
@@ -422,7 +571,10 @@ std::`!=` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
     SET recursive := true;
 };
@@ -430,7 +582,9 @@ std::`?!=` (l: OPTIONAL anytuple, r: OPTIONAL anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>=` (l: anytuple, r: anytuple) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::<=';
     SET negator := 'std::<';
@@ -440,7 +594,9 @@ std::`>=` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: anytuple, r: anytuple) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::<';
     SET negator := 'std::<=';
@@ -450,7 +606,9 @@ std::`>` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: anytuple, r: anytuple) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::>=';
     SET negator := 'std::>';
@@ -460,7 +618,9 @@ std::`<=` (l: anytuple, r: anytuple) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: anytuple, r: anytuple) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
+    SET volatility := 'Immutable';
     SET recursive := true;
     SET commutator := 'std::>';
     SET negator := 'std::>=';

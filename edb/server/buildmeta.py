@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import datetime
 import functools
 import hashlib
 import json
@@ -32,11 +33,14 @@ import subprocess
 import tempfile
 
 import immutables as immu
+from importlib.util import find_spec
 
 import edb
 from edb.common import devmode
 from edb.common import verutils
 from edb.common import debug
+
+from . import defines
 
 try:
     import setuptools_scm
@@ -107,7 +111,7 @@ def get_shared_data_dir_path() -> pathlib.Path:
 def hash_dirs(
     dirs: Sequence[Tuple[str, str]],
     *,
-    extra_files: Optional[Sequence[str]]=None
+    extra_files: Optional[Sequence[Union[str, pathlib.Path]]]=None
 ) -> bytes:
     def hash_dir(dirname, ext, paths):
         with os.scandir(dirname) as it:
@@ -122,7 +126,10 @@ def hash_dirs(
         hash_dir(dirname, ext, paths)
 
     if extra_files:
-        paths.extend(extra_files)
+        for extra_file in extra_files:
+            if isinstance(extra_file, pathlib.Path):
+                extra_file = str(extra_file.resolve())
+            paths.append(extra_file)
 
     h = hashlib.sha1()  # sha1 is the fastest one.
     for path in sorted(paths):
@@ -134,7 +141,7 @@ def hash_dirs(
 
 def read_data_cache(
     cache_key: bytes,
-    path: os.PathLike,
+    path: str,
     *,
     pickled: bool=True,
     source_dir: Optional[pathlib.Path] = None,
@@ -160,7 +167,7 @@ def read_data_cache(
 def write_data_cache(
     obj: Any,
     cache_key: bytes,
-    path: os.PathLike,
+    path: str,
     *,
     pickled: bool = True,
     target_dir: Optional[pathlib.Path] = None,
@@ -197,6 +204,7 @@ def get_version() -> verutils.Version:
         version = setuptools_scm.get_version(
             root=str(root),
             version_scheme=functools.partial(scm_version_scheme, root),
+            local_scheme=functools.partial(scm_local_scheme, root),
         )
         version = verutils.parse_version(version)
     else:
@@ -316,3 +324,39 @@ def scm_version_scheme(root, version):
 
     incremented_ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
     return f'{incremented_ver}.dev{commits_on_branch}'
+
+
+def scm_local_scheme(root, version):
+    pretend = os.environ.get('SETUPTOOLS_SCM_PRETEND_VERSION')
+    if pretend:
+        return ''
+
+    proc = subprocess.run(
+        ['git', 'rev-parse', '--verify', '--quiet', 'HEAD'],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+        cwd=root,
+    )
+
+    curdate = datetime.datetime.now(tz=datetime.timezone.utc)
+    curdate_str = curdate.strftime(r'%Y%m%d%H')
+    commitish = proc.stdout.strip()
+    catver = defines.EDGEDB_CATALOG_VERSION
+    return f'+d{curdate_str}.g{commitish[:9]}.cv{catver}'
+
+
+def get_cache_src_dirs():
+    edgeql = pathlib.Path(find_spec('edb.edgeql').origin).parent
+    return (
+        (pathlib.Path(find_spec('edb.schema').origin).parent, '.py'),
+        (edgeql / 'compiler', '.py'),
+        (edgeql / 'parser', '.py'),
+        (pathlib.Path(find_spec('edb.lib').origin).parent, '.edgeql'),
+        (pathlib.Path(find_spec('edb.pgsql.metaschema').origin).parent, '.py'),
+    )
+
+
+def get_default_tenant_id() -> str:
+    catver = defines.EDGEDB_CATALOG_VERSION
+    return f'V{catver:x}'

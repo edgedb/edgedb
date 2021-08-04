@@ -47,6 +47,8 @@ def fini_stmt(
 
     if stmt is ctx.toplevel_stmt:
         # Type rewrites go first.
+        if stmt.ctes is None:
+            stmt.ctes = []
         stmt.ctes[:0] = list(ctx.type_ctes.values())
 
         stmt.argnames = argmap = ctx.argmap
@@ -72,7 +74,7 @@ def fini_stmt(
                     )
                 )))
             if targets:
-                ctx.toplevel_stmt.ctes.append(
+                ctx.toplevel_stmt.append_cte(
                     pgast.CommonTableExpr(
                         name="__unused_vars",
                         query=pgast.SelectStmt(target_list=targets)
@@ -82,7 +84,7 @@ def fini_stmt(
 
 def get_volatility_ref(
         path_id: irast.PathId, *,
-        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+        ctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
     """Produce an appropriate volatility_ref from a path_id."""
 
     ref: Optional[pgast.BaseExpr] = relctx.maybe_get_path_var(
@@ -105,7 +107,7 @@ def get_volatility_ref(
             )
             ref = pgast.ColumnRef(name=[rvar.alias.aliasname, name])
         else:
-            ref = relctx.get_path_var(
+            ref = relctx.maybe_get_path_var(
                 ctx.rel, path_id, aspect='value', ctx=ctx)
 
     return ref
@@ -126,13 +128,74 @@ def setup_iterator_volatility(
     # We use a callback scheme here to avoid inserting volatility ref
     # columns unless there is actually a volatile operation that
     # requires it.
-    def get_ref() -> pgast.BaseExpr:
+    def get_ref(
+            xctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
         nonlocal ref
         if ref is None:
-            ref = get_volatility_ref(path_id, ctx=ctx)
+            ref = get_volatility_ref(path_id, ctx=xctx)
         return ref
 
     ctx.volatility_ref = old + (get_ref,)
+
+
+def compile_materialized_exprs(
+        query: pgast.SelectStmt, stmt: irast.Stmt, *,
+        ctx: context.CompilerContextLevel) -> None:
+    if not stmt.materialized_sets:
+        return
+
+    if stmt in ctx.materializing:
+        return
+
+    with context.output_format(ctx, context.OutputFormat.NATIVE), (
+            ctx.new()) as matctx:
+        matctx.materializing |= {stmt}
+        matctx.expr_exposed = True
+
+        for mat_set in stmt.materialized_sets.values():
+            if len(mat_set.uses) <= 1:
+                continue
+            assert mat_set.materialized
+            if relctx.find_rvar(
+                    query, flavor='packed',
+                    path_id=mat_set.materialized.path_id, ctx=matctx):
+                continue
+
+            mat_ids = set(mat_set.uses)
+
+            # We pack optional things into arrays also, since it works.
+            # TODO: use NULL?
+            card = mat_set.cardinality
+            is_singleton = card.is_single() and not card.can_be_zero()
+
+            matctx.path_scope = matctx.path_scope.new_child()
+            for mat_id in mat_ids:
+                matctx.path_scope[mat_id] = None
+            mat_qry = relgen.set_as_subquery(
+                mat_set.materialized, as_value=True, ctx=matctx
+            )
+
+            if not is_singleton:
+                mat_qry = relgen.set_to_array(
+                    ir_set=mat_set.materialized,
+                    query=mat_qry,
+                    materializing=True,
+                    ctx=matctx)
+
+            if not mat_qry.target_list[0].name:
+                mat_qry.target_list[0].name = ctx.env.aliases.get('v')
+
+            ref = pgast.ColumnRef(name=[mat_qry.target_list[0].name])
+            for mat_id in mat_ids:
+                pathctx.put_path_packed_output(
+                    mat_qry, mat_id, ref, multi=not is_singleton)
+
+            mat_rvar = relctx.rvar_for_rel(mat_qry, lateral=True, ctx=matctx)
+            for mat_id in mat_ids:
+                relctx.include_rvar(
+                    query, mat_rvar, path_id=mat_id,
+                    flavor='packed', pull_namespace=False, ctx=matctx,
+                )
 
 
 def compile_iterator_expr(
@@ -170,9 +233,6 @@ def compile_output(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> pgast.OutputVar:
     with ctx.new() as newctx:
-        if newctx.expr_exposed is None:
-            newctx.expr_exposed = True
-
         dispatch.visit(ir_set, ctx=newctx)
 
         path_id = ir_set.path_id

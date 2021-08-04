@@ -26,11 +26,12 @@ import uuid
 from edb.edgeql import qltypes
 
 from edb.schema import links as s_links
-from edb.schema import lproperties as s_props
+from edb.schema import properties as s_props
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
+from edb.schema import objtypes as s_objtypes
 from edb.schema import utils as s_utils
 
 from . import ast as irast
@@ -546,7 +547,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
     else:
         material_ptr = None
 
-    union_components: Set[irast.BasePointerRef] = set()
+    union_components: Optional[Set[irast.BasePointerRef]] = None
     union_of = ptrcls.get_union_of(schema)
     union_is_concrete = False
     if union_of:
@@ -572,7 +573,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
             ) for p in non_overlapping
         }
 
-    intersection_components: Set[irast.BasePointerRef] = set()
+    intersection_components: Optional[Set[irast.BasePointerRef]] = None
     intersection_of = ptrcls.get_intersection_of(schema)
     if intersection_of:
         intersection_ptrs = set()
@@ -621,7 +622,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
         material_ptr is None
         and isinstance(ptrcls, s_pointers.Pointer)
     ):
-        descendants = frozenset(
+        children = frozenset(
             ptrref_from_ptrcls(
                 ptrcls=child,
                 direction=direction,
@@ -633,7 +634,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
             if not child.get_is_derived(schema)
         )
     else:
-        descendants = frozenset()
+        children = frozenset()
 
     kwargs.update(dict(
         out_source=out_source,
@@ -646,7 +647,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
         source_ptr=source_ptr,
         base_ptr=base_ptr,
         material_ptr=material_ptr,
-        descendants=descendants,
+        children=children,
         is_derived=ptrcls.get_is_derived(schema),
         is_computable=ptrcls.get_computable(schema),
         union_components=union_components,
@@ -662,10 +663,31 @@ def ptrref_from_ptrcls(  # NoQA: F811
     if cache is not None:
         cache[ptrcls, direction] = ptrref
 
+        # This is kind of unfortunate, but if we are caching, update the
+        # base_ptr with this child
+        if base_ptr and not material_ptr and ptrref not in base_ptr.children:
+            base_ptr.children = base_ptr.children | frozenset([ptrref])
+
     return ptrref
 
 
+@overload
 def ptrcls_from_ptrref(
+    ptrref: irast.PointerRef, *,
+    schema: s_schema.Schema,
+) -> Tuple[s_schema.Schema, s_pointers.Pointer]:
+    ...
+
+
+@overload
+def ptrcls_from_ptrref(  # NoQA: F811
+    ptrref: irast.BasePointerRef, *,
+    schema: s_schema.Schema,
+) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
+    ...
+
+
+def ptrcls_from_ptrref(  # NoQA: F811
     ptrref: irast.BasePointerRef, *,
     schema: s_schema.Schema,
 ) -> Tuple[s_schema.Schema, s_pointers.PointerLike]:
@@ -819,11 +841,13 @@ def type_contains(
 def find_actual_ptrref(
     source_typeref: irast.TypeRef,
     parent_ptrref: irast.BasePointerRef,
+    *,
+    material: bool=True,
 ) -> irast.BasePointerRef:
-    if source_typeref.material_type:
+    if material and source_typeref.material_type:
         source_typeref = source_typeref.material_type
 
-    if parent_ptrref.material_ptr:
+    if material and parent_ptrref.material_ptr:
         parent_ptrref = parent_ptrref.material_ptr
 
     ptrref = parent_ptrref
@@ -836,13 +860,14 @@ def find_actual_ptrref(
         if link_ptr.dir_source.id != source_typeref.id:
             # We are updating a subtype, find the
             # correct descendant ptrref.
-            for dp in ptrref.descendants:
+            for dp in ptrref.children:
                 assert dp.source_ptr is not None
                 if dp.source_ptr.dir_source.id == source_typeref.id:
                     actual_ptrref = dp
                     break
                 else:
-                    candidate = maybe_find_actual_ptrref(source_typeref, dp)
+                    candidate = maybe_find_actual_ptrref(
+                        source_typeref, dp, material=material)
                     if candidate is not None:
                         actual_ptrref = candidate
                         break
@@ -854,18 +879,23 @@ def find_actual_ptrref(
     elif ptrref.dir_source.id != source_typeref.id:
         # We are updating a subtype, find the
         # correct descendant ptrref.
-        for dp in ptrref.union_components | ptrref.intersection_components:
-            candidate = maybe_find_actual_ptrref(source_typeref, dp)
+        for dp in (
+            (ptrref.union_components or set())
+            | (ptrref.intersection_components or set())
+        ):
+            candidate = maybe_find_actual_ptrref(
+                source_typeref, dp, material=material)
             if candidate is not None:
                 actual_ptrref = candidate
                 break
         else:
-            for dp in ptrref.descendants:
+            for dp in ptrref.children:
                 if dp.dir_source.id == source_typeref.id:
                     actual_ptrref = dp
                     break
                 else:
-                    candidate = maybe_find_actual_ptrref(source_typeref, dp)
+                    candidate = maybe_find_actual_ptrref(
+                        source_typeref, dp, material=material)
                     if candidate is not None:
                         actual_ptrref = candidate
                         break
@@ -881,9 +911,12 @@ def find_actual_ptrref(
 def maybe_find_actual_ptrref(
     source_typeref: irast.TypeRef,
     parent_ptrref: irast.BasePointerRef,
+    *,
+    material: bool=True,
 ) -> Optional[irast.BasePointerRef]:
     try:
-        return find_actual_ptrref(source_typeref, parent_ptrref)
+        return find_actual_ptrref(
+            source_typeref, parent_ptrref, material=material)
     except LookupError:
         return None
 
@@ -896,3 +929,29 @@ def get_typeref_descendants(typeref: irast.TypeRef) -> List[irast.TypeRef]:
             result.extend(get_typeref_descendants(child))
 
     return result
+
+
+def maybe_lookup_obj_pointer(
+    schema: s_schema.Schema,
+    name: s_name.QualName,
+    ptr_name: s_name.UnqualName,
+) -> Optional[s_pointers.Pointer]:
+    base_object = schema.get(name, type=s_objtypes.ObjectType, default=None)
+    if not base_object:
+        return None
+    ptr = base_object.maybe_get_ptr(schema, ptr_name)
+    return ptr
+
+
+def lookup_obj_ptrref(
+    schema: s_schema.Schema,
+    name: s_name.QualName,
+    ptr_name: s_name.UnqualName,
+    cache: Optional[Dict[PtrRefCacheKey, irast.BasePointerRef]] = None,
+    typeref_cache: Optional[Dict[TypeRefCacheKey, irast.TypeRef]] = None,
+) -> irast.PointerRef:
+    ptr = maybe_lookup_obj_pointer(schema, name, ptr_name)
+    assert ptr
+    return ptrref_from_ptrcls(
+        ptrcls=ptr, schema=schema, cache=cache, typeref_cache=typeref_cache,
+    )

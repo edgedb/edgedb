@@ -76,11 +76,6 @@ class Index(tables.InheritableTableObject):
         if self.name_in_catalog != self.name:
             self.add_metadata('fullname', self.name)
 
-    def rename(self, new_name):
-        self.name = new_name
-        if self.name_in_catalog != self.name:
-            self.add_metadata('fullname', self.name)
-
     @property
     def name_in_catalog(self):
         return common.edgedb_name_to_pg_name(
@@ -290,50 +285,6 @@ class CreateIndex(ddl.CreateObject):
     @classmethod
     def pl_code(cls, index_desc_var: str, block: base.PLBlock) -> str:
         return Index.creation_pl_code(index_desc_var, block)
-
-
-class RenameIndex(ddl.RenameObject):
-    def __init__(self, index, *, new_name, conditional=False, **kwargs):
-        super().__init__(index, new_name=new_name, **kwargs)
-        if conditional:
-            self.conditions.add(
-                IndexExists((index.table_name[0], index.name_in_catalog)))
-
-    def code(self, block: base.PLBlock) -> str:
-        name = qn(self.object.table_name[0], self.object.name_in_catalog)
-        new_name = qi(self.altered_object.name_in_catalog)
-        return f'ALTER INDEX {name} RENAME TO {new_name}'
-
-    @classmethod
-    def pl_code(cls, index_desc_var: str, block: base.PLBlock) -> str:
-        index_name = (
-            f"(quote_ident({index_desc_var}.table_name[0])"
-            f" || '.' || quote_ident({index_desc_var}.name))"
-        )
-        new_name = (
-            f"quote_ident({index_desc_var}.name)"
-        )
-
-        return (
-            f"EXECUTE 'ALTER INDEX ' || {index_name} "
-            f"|| ' RENAME TO ' || {new_name};"
-        )
-
-
-class RenameIndexSimple(ddl.DDLOperation):
-    def __init__(self, old_name, new_name, **kwargs):
-        super().__init__(**kwargs)
-        self.old_name = old_name
-        self.new_name = new_name
-
-    def code(self, block: base.PLBlock) -> str:
-        return (f'ALTER INDEX {qn(*self.old_name)} '
-                f'RENAME TO {qi(self.new_name)}')
-
-    def __repr__(self):
-        return '<{}.{} {} to {!r}>'.format(
-            self.__class__.__module__, self.__class__.__name__,
-            qn(*self.old_name), self.new_name)
 
 
 class DropIndex(ddl.DropObject):

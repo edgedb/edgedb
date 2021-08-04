@@ -34,7 +34,7 @@ from . import delta as sd
 from . import expr as s_expr
 from . import inheriting
 from . import links
-from . import lproperties
+from . import properties
 from . import name as sn
 from . import objects as so
 from . import pointers
@@ -171,6 +171,9 @@ class ObjectType(
                 )
             )
 
+        for intersection in self.get_intersection_of(schema).objects(schema):
+            ptrs.update(intersection.getrptrs(schema, name, sources=sources))
+
         unions = schema.get_referrers(
             self, scls_type=ObjectType, field_name='union_of')
 
@@ -276,6 +279,26 @@ class ObjectType(
         refdict: so.RefDict,
     ) -> bool:
         return not self.is_view(schema) or refdict.attr == 'pointers'
+
+    def as_type_delete_if_dead(
+        self,
+        schema: s_schema.Schema,
+    ) -> Optional[sd.DeleteObject[ObjectType]]:
+        # References to aliases can only occur inside other aliases,
+        # so when they go, we need to delete the reference also.
+        # Compound types also need to be deleted when their last
+        # referrer goes.
+        if (
+            self.is_view(schema)
+            and self.get_alias_is_persistent(schema)
+        ) or self.is_compound_type(schema):
+            return self.init_delta_command(
+                schema,
+                sd.DeleteObject,
+                if_unused=True,
+            )
+        else:
+            return None
 
 
 def get_or_create_union_type(
@@ -385,7 +408,7 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext[ObjectType],
                                constraints.ConsistencySubjectCommandContext,
                                s_anno.AnnotationSubjectCommandContext,
                                links.LinkSourceCommandContext,
-                               lproperties.PropertySourceContext):
+                               properties.PropertySourceContext):
     pass
 
 
@@ -396,7 +419,18 @@ class ObjectTypeCommand(
     links.LinkSourceCommand[ObjectType],
     context_class=ObjectTypeCommandContext,
 ):
-    pass
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text=f'SELECT std::Object LIMIT 1')
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
 
 
 class CreateObjectType(
@@ -444,6 +478,52 @@ class RebaseObjectType(ObjectTypeCommand,
 class AlterObjectType(ObjectTypeCommand,
                       inheriting.AlterInheritingObject[ObjectType]):
     astnode = qlast.AlterObjectType
+
+    def _alter_finalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+
+        if not context.canonical:
+            # If this type is contained in any unions, we need to
+            # update them with any additions or alterations made to
+            # this type. (Deletions are already handled in DeletePointer.)
+            unions = schema.get_referrers(
+                self.scls, scls_type=ObjectType, field_name='union_of')
+
+            orig_disable = context.disable_dep_verification
+
+            for union in unions:
+                if union.get_is_opaque_union(schema):
+                    continue
+
+                delete = union.init_delta_command(schema, sd.DeleteObject)
+
+                context.disable_dep_verification = True
+                nschema = delete.apply(schema, context)
+                context.disable_dep_verification = orig_disable
+
+                nschema, nunion = utils.get_union_type(
+                    nschema,
+                    types=union.get_union_of(schema).objects(schema),
+                    opaque=union.get_is_opaque_union(schema),
+                    module=union.get_name(schema).module,
+                )
+                assert isinstance(nunion, ObjectType)
+
+                diff = union.as_alter_delta(
+                    other=nunion,
+                    self_schema=schema,
+                    other_schema=nschema,
+                    confidence=1.0,
+                    context=so.ComparisonContext(),
+                )
+
+                schema = diff.apply(schema, context)
+                self.add(diff)
+
+        return super()._alter_finalize(schema, context)
 
 
 class DeleteObjectType(

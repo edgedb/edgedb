@@ -29,7 +29,7 @@ Configure passwordless access (such as to a local development database):
 
 .. code-block:: edgeql-repl
 
-    db> CONFIGURE SYSTEM INSERT Auth {
+    db> CONFIGURE INSTANCE INSERT Auth {
     ...     # Human-oriented comment helps figuring out
     ...     # what authentication methods have been setup
     ...     # and makes it easier to identify them.
@@ -37,7 +37,7 @@ Configure passwordless access (such as to a local development database):
     ...     priority := 1,
     ...     method := (INSERT Trust),
     ... };
-    CONFIGURE SYSTEM
+    CONFIGURE INSTANCE
 
 
 ----------
@@ -59,12 +59,12 @@ Configure access that checks password (with a higher priority):
 
 .. code-block:: edgeql-repl
 
-    db> CONFIGURE SYSTEM INSERT Auth {
+    db> CONFIGURE INSTANCE INSERT Auth {
     ...     comment := 'password is required',
     ...     priority := 0,
     ...     method := (INSERT SCRAM),
     ... };
-    CONFIGURE SYSTEM
+    CONFIGURE INSTANCE
 
 
 ----------
@@ -74,47 +74,9 @@ Remove a specific authentication method:
 
 .. code-block:: edgeql-repl
 
-    db> CONFIGURE SYSTEM RESET Auth
+    db> CONFIGURE INSTANCE RESET Auth
     ... FILTER .comment = 'password is required';
-    CONFIGURE SYSTEM
-
-
-----------
-
-
-Configure a port for accessing ``my_new_project`` database using EdgeQL:
-
-.. code-block:: edgeql-repl
-
-    db> CONFIGURE SYSTEM INSERT Port {
-    ...     protocol := "edgeql+http",
-    ...     database := "my_new_project",
-    ...     address := "127.0.0.1",
-    ...     port := 8889,
-    ...     user := "http",
-    ...     concurrency := 4,
-    ... };
-    CONFIGURE SYSTEM
-
-
-----------
-
-
-.. _ref_cheatsheet_admin_graphql:
-
-Configure a port for accessing ``my_new_project`` database using GraphQL:
-
-.. code-block:: edgeql-repl
-
-    db> CONFIGURE SYSTEM INSERT Port {
-    ...     protocol := "graphql+http",
-    ...     database := "my_new_project",
-    ...     address := "127.0.0.1",
-    ...     port := 8888,
-    ...     user := "http",
-    ...     concurrency := 4,
-    ... };
-    CONFIGURE SYSTEM
+    CONFIGURE INSTANCE
 
 
 ----------

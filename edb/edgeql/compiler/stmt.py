@@ -36,7 +36,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
-from edb.schema import lproperties as s_lprops
+from edb.schema import properties as s_props
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
@@ -74,6 +74,10 @@ def compile_SelectQuery(
             sctx.partial_path_prefix = ctx.partial_path_prefix
             stmt.implicit_wrapper = True
 
+        # If there is an offset or a limit, this query was a wrapper
+        # around something else, and we need to forward_rptr
+        forward_rptr = bool(expr.offset or expr.limit)
+
         if (
             (ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
             and ctx.implicit_limit
@@ -88,6 +92,7 @@ def compile_SelectQuery(
             view_rptr=ctx.view_rptr,
             result_alias=expr.result_alias,
             view_name=ctx.toplevel_result_view_name,
+            forward_rptr=forward_rptr,
             ctx=sctx)
 
         clauses.compile_where_clause(
@@ -156,9 +161,6 @@ def compile_ForQuery(
                 context=ctx.env.type_origins.get(anytype),
             )
 
-        if iterator_ctx is not None and iterator_ctx.stmt is not None:
-            iterator_ctx.stmt.hoisted_iterators.append(iterator_stmt)
-
         view_scope_info = sctx.path_scope_map[iterator_view]
 
         pathctx.register_set_in_scope(
@@ -207,11 +209,8 @@ def compile_ForQuery(
         # Inject an implicit limit if appropriate
         if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
                 and ctx.implicit_limit):
-            stmt.limit = setgen.ensure_set(
-                dispatch.compile(
-                    qlast.IntegerConstant(value=str(ctx.implicit_limit)),
-                    ctx=sctx,
-                ),
+            stmt.limit = dispatch.compile(
+                qlast.IntegerConstant(value=str(ctx.implicit_limit)),
                 ctx=sctx,
             )
 
@@ -236,7 +235,7 @@ def compile_insert_unless_conflict_select(
     *,
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
-    parser_context: pctx.ParserContext,
+    parser_context: Optional[pctx.ParserContext],
     ctx: context.ContextLevel,
 ) -> irast.Set:
     """Synthesize a select of conflicting objects for UNLESS CONFLICT
@@ -408,58 +407,77 @@ def compile_insert_unless_conflict_on(
 
         # We compile the name here so we can analyze it, but we don't do
         # anything else with it.
-        cspec_res = setgen.ensure_set(dispatch.compile(
-            constraint_spec, ctx=constraint_ctx), ctx=constraint_ctx)
+        cspec_res = dispatch.compile(constraint_spec, ctx=constraint_ctx)
 
-    if not cspec_res.rptr:
-        raise errors.QueryError(
-            'UNLESS CONFLICT argument must be a property',
-            context=constraint_spec.context,
-        )
+    # We accept a property, link, or a list of them in the form of a
+    # tuple.
+    if cspec_res.rptr is None and isinstance(cspec_res.expr, irast.Tuple):
+        cspec_args = [elem.val for elem in cspec_res.expr.elements]
+    else:
+        cspec_args = [cspec_res]
 
-    if cspec_res.rptr.source.path_id != stmt.subject.path_id:
-        raise errors.QueryError(
-            'UNLESS CONFLICT argument must be a property of the '
-            'type being inserted',
-            context=constraint_spec.context,
-        )
+    for cspec_arg in cspec_args:
+        if not cspec_arg.rptr:
+            raise errors.QueryError(
+                'UNLESS CONFLICT argument must be a property, link, '
+                'or tuple of properties and links',
+                context=constraint_spec.context,
+            )
+
+        if cspec_arg.rptr.source.path_id != stmt.subject.path_id:
+            raise errors.QueryError(
+                'UNLESS CONFLICT argument must be a property of the '
+                'type being inserted',
+                context=constraint_spec.context,
+            )
 
     schema = ctx.env.schema
     schema, typ = typeutils.ir_typeref_to_type(schema, stmt.subject.typeref)
     assert isinstance(typ, s_objtypes.ObjectType)
     real_typ = typ.get_nearest_non_derived_parent(schema)
 
-    schema, ptr = (
-        typeutils.ptrcls_from_ptrref(cspec_res.rptr.ptrref,
-                                     schema=schema))
-    if not isinstance(ptr, s_pointers.Pointer):
-        raise errors.QueryError(
-            'UNLESS CONFLICT property must be a property',
-            context=constraint_spec.context,
-        )
-
-    ptr = ptr.get_nearest_non_derived_parent(schema)
-    ptr_card = ptr.get_cardinality(schema)
-    if not ptr_card.is_single():
-        raise errors.QueryError(
-            'UNLESS CONFLICT property must be a SINGLE property',
-            context=constraint_spec.context,
-        )
-
+    ptrs = []
     exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
-    ex_cnstrs = [c for c in ptr.get_constraints(schema).objects(schema)
-                 if c.issubclass(schema, exclusive_constr)]
+    for cspec_arg in cspec_args:
+        assert cspec_arg.rptr is not None
+        schema, ptr = (
+            typeutils.ptrcls_from_ptrref(cspec_arg.rptr.ptrref, schema=schema))
+        if not isinstance(ptr, s_pointers.Pointer):
+            raise errors.QueryError(
+                'UNLESS CONFLICT property must be a property',
+                context=constraint_spec.context,
+            )
 
-    if len(ex_cnstrs) != 1:
+        ptr = ptr.get_nearest_non_derived_parent(schema)
+        ptr_card = ptr.get_cardinality(schema)
+        if not ptr_card.is_single():
+            raise errors.QueryError(
+                'UNLESS CONFLICT property must be a SINGLE property',
+                context=constraint_spec.context,
+            )
+
+        ptrs.append(ptr)
+
+    obj_constrs = inference.cardinality.get_object_exclusive_constraints(
+        real_typ, set(ptrs), ctx.env)
+
+    field_constrs = []
+    if len(ptrs) == 1:
+        field_constrs = [
+            c for c in ptrs[0].get_constraints(schema).objects(schema)
+            if c.issubclass(schema, exclusive_constr)]
+
+    all_constrs = list(obj_constrs) + field_constrs
+    if len(all_constrs) != 1:
         raise errors.QueryError(
             'UNLESS CONFLICT property must have a single exclusive constraint',
             context=constraint_spec.context,
         )
 
-    field_name = cspec_res.rptr.ptrref.shortname
-    ds = {field_name.name: (ptr, ex_cnstrs)}
+    ds = {ptr.get_shortname(schema).name: (ptr, field_constrs)
+          for ptr in ptrs}
     select_ir = compile_insert_unless_conflict_select(
-        stmt, insert_subject, real_typ, constrs=ds, obj_constrs=[],
+        stmt, insert_subject, real_typ, constrs=ds, obj_constrs=obj_constrs,
         parser_context=stmt.context, ctx=ctx)
 
     # Compile an else branch
@@ -475,7 +493,7 @@ def compile_insert_unless_conflict_on(
         assert isinstance(else_ir, irast.Set)
 
     return irast.OnConflictClause(
-        constraint=irast.ConstraintRef(id=ex_cnstrs[0].id),
+        constraint=irast.ConstraintRef(id=all_constrs[0].id),
         select_ir=select_ir,
         else_ir=else_ir
     )
@@ -568,17 +586,19 @@ def compile_InsertQuery(
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        # If we have an ELSE clause, we need to compile_query_subject
-        # *again* on the outer query, in order to produce a view for
-        # the joined output, which we need to have to generate the
-        # proper type descriptor.
-        # This feels like somewhat of a hack; I think it might be
-        # possible to do something more general elsewhere.
-        if expr.unless_conflict and expr.unless_conflict[1]:
+        # If we have an ELSE clause, and this is a toplevel statement,
+        # we need to compile_query_subject *again* on the outer query,
+        # in order to produce a view for the joined output, which we
+        # need to have to generate the proper type descriptor.  This
+        # feels like somewhat of a hack; I think it might be possible
+        # to do something more general elsewhere.
+        if (
+            expr.unless_conflict
+            and expr.unless_conflict[1]
+            and ictx.stmt is ctx.toplevel_stmt
+        ):
             with ictx.new() as resultctx:
-                if ictx.stmt is ctx.toplevel_stmt:
-                    resultctx.expr_exposed = True
-
+                resultctx.expr_exposed = True
                 result = compile_query_subject(
                     result,
                     view_name=ctx.toplevel_result_view_name,
@@ -587,6 +607,16 @@ def compile_InsertQuery(
                     parser_context=result.context)
 
     return result
+
+
+def _get_dunder_type_ptrref(ctx: context.ContextLevel) -> irast.PointerRef:
+    return typeutils.lookup_obj_ptrref(
+        ctx.env.schema,
+        s_name.QualName('std', 'BaseObject'),
+        s_name.UnqualName('__type__'),
+        cache=ctx.env.ptr_ref_cache,
+        typeref_cache=ctx.env.type_ref_cache,
+    )
 
 
 @dispatch.compile.register(qlast.UpdateQuery)
@@ -603,7 +633,10 @@ def compile_UpdateQuery(
     ctx.env.dml_exprs.append(expr)
 
     with ctx.subquery() as ictx:
-        stmt = irast.UpdateStmt(context=expr.context)
+        stmt = irast.UpdateStmt(
+            context=expr.context,
+            dunder_type_ptrref=_get_dunder_type_ptrref(ctx),
+        )
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
         subject = dispatch.compile(expr.subject, ctx=ictx)
@@ -770,8 +803,13 @@ def compile_DescribeStmt(
 
         if ql.object is qlast.DescribeGlobal.Schema:
             if ql.language is qltypes.DescribeLanguage.DDL:
-                # DESCRIBE SCHEMA
+                # DESCRIBE SCHEMA AS DDL
                 text = s_ddl.ddl_text_from_schema(
+                    ctx.env.schema,
+                )
+            elif ql.language is qltypes.DescribeLanguage.SDL:
+                # DESCRIBE SCHEMA AS SDL
+                text = s_ddl.sdl_text_from_schema(
                     ctx.env.schema,
                 )
             else:
@@ -802,7 +840,7 @@ def compile_DescribeStmt(
                 raise errors.QueryError(
                     f'cannot describe config as {ql.language}')
 
-        elif ql.object is qlast.DescribeGlobal.SystemConfig:
+        elif ql.object is qlast.DescribeGlobal.InstanceConfig:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 function_call = dispatch.compile(
                     qlast.FunctionCall(
@@ -938,7 +976,7 @@ def compile_DescribeStmt(
             elif ql.language is qltypes.DescribeLanguage.TEXT:
                 method = s_ddl.descriptive_text_from_schema
                 if not verbose.val:
-                    referenced_classes = [s_links.Link, s_lprops.Property]
+                    referenced_classes = [s_links.Link, s_props.Property]
             else:
                 raise errors.InternalServerError(
                     f'cannot handle describe language {ql.language}'
@@ -1006,31 +1044,54 @@ def compile_DescribeStmt(
 @dispatch.compile.register(qlast.Shape)
 def compile_Shape(
         shape: qlast.Shape, *, ctx: context.ContextLevel) -> irast.Set:
-    expr = setgen.ensure_set(dispatch.compile(shape.expr, ctx=ctx), ctx=ctx)
-    expr_stype = setgen.get_set_type(expr, ctx=ctx)
-    if not isinstance(expr_stype, s_objtypes.ObjectType):
-        raise errors.QueryError(
-            f'shapes cannot be applied to '
-            f'{expr_stype.get_verbosename(ctx.env.schema)}',
-            context=shape.context,
-        )
-    view_type = viewgen.process_view(
-        stype=expr_stype, path_id=expr.path_id,
-        elements=shape.elements, parser_context=shape.context, ctx=ctx)
+    shape_expr = shape.expr or qlutils.FREE_SHAPE_EXPR
+    with ctx.new() as subctx:
+        subctx.qlstmt = astutils.ensure_qlstmt(shape)
+        subctx.stmt = stmt = irast.SelectStmt()
+        ctx.env.compiled_stmts[subctx.qlstmt] = stmt
+        subctx.class_view_overrides = subctx.class_view_overrides.copy()
 
-    return setgen.ensure_set(expr, type_override=view_type, ctx=ctx)
+        with ctx.new() as exposed_ctx:
+            exposed_ctx.expr_exposed = False
+            expr = dispatch.compile(shape_expr, ctx=exposed_ctx)
+
+        expr_stype = setgen.get_set_type(expr, ctx=ctx)
+        if not isinstance(expr_stype, s_objtypes.ObjectType):
+            raise errors.QueryError(
+                f'shapes cannot be applied to '
+                f'{expr_stype.get_verbosename(ctx.env.schema)}',
+                context=shape.context,
+            )
+        view_type = viewgen.process_view(
+            stype=expr_stype, path_id=expr.path_id,
+            elements=shape.elements, parser_context=shape.context, ctx=subctx)
+
+        stmt.result = compile_query_subject(
+            expr,
+            view_scls=view_type,
+            compile_views=False,
+            ctx=subctx,
+            parser_context=expr.context)
+
+        ir_result = setgen.ensure_set(
+            stmt, type_override=view_type, ctx=subctx)
+
+    return ir_result
 
 
 def init_stmt(
         irstmt: irast.Stmt, qlstmt: qlast.Statement, *,
         ctx: context.ContextLevel, parent_ctx: context.ContextLevel) -> None:
 
+    ctx.env.compiled_stmts[qlstmt] = irstmt
+
     if isinstance(irstmt, irast.MutatingStmt):
         # This is some kind of mutation, so we need to check if it is
         # allowed.
         if ctx.env.options.in_ddl_context_name is not None:
             raise errors.SchemaDefinitionError(
-                f'invalid mutation in {ctx.env.options.in_ddl_context_name}',
+                f'mutations are invalid in '
+                f'{ctx.env.options.in_ddl_context_name}',
                 context=qlstmt.context,
             )
         elif ((dv := ctx.defining_view) is not None and
@@ -1040,7 +1101,7 @@ def init_stmt(
             # DML is not allowed in the computable, but it may
             # be possible to refactor it.
             raise errors.QueryError(
-                f'invalid mutation in a shape computable',
+                f"mutations are invalid in a shape's computed expression",
                 hint=(
                     f'To resolve this try to factor out the mutation '
                     f'expression into the top-level WITH block.'
@@ -1049,6 +1110,7 @@ def init_stmt(
             )
 
     ctx.stmt = irstmt
+    ctx.qlstmt = qlstmt
     if ctx.toplevel_stmt is None:
         parent_ctx.toplevel_stmt = ctx.toplevel_stmt = irstmt
 
@@ -1069,15 +1131,15 @@ def init_stmt(
         if metadata.iterator_target:
             ctx.iterator_ctx = ctx
 
-    if isinstance(irstmt, irast.MutatingStmt):
-        ctx.path_scope.factoring_fence = True
-        parent_ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
-        ctx.iterator_ctx = None
-
     irstmt.parent_stmt = parent_ctx.stmt
 
     irstmt.bindings = process_with_block(
         qlstmt, ctx=ctx, parent_ctx=parent_ctx)
+
+    if isinstance(irstmt, irast.MutatingStmt):
+        ctx.path_scope.factoring_fence = True
+        parent_ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
+        ctx.iterator_ctx = None
 
 
 def fini_stmt(
@@ -1126,6 +1188,19 @@ def fini_stmt(
         result = setgen.new_set_from_set(
             result, context=irstmt.context, ctx=ctx)
 
+    if isinstance(irstmt, irast.Stmt) and irstmt.bindings:
+        # If a binding is in a branched-but-not-fenced subnode, we
+        # want to hoist it up to the current scope. This is important
+        # for materialization-related cases where WITH+tuple is being
+        # used like FOR.
+        # See test_edgeql_volatility_hack_0{3,4}b
+        # XXX: To be honest I do not 100% remember why this makes sense.
+        for binding in irstmt.bindings:
+            if node := ctx.path_scope.find_child(
+                    binding.path_id, in_branches=True):
+                node.remove()
+                ctx.path_scope.attach_subtree(node)
+
     if view is not None:
         parent_ctx.view_sets[view] = result
 
@@ -1136,6 +1211,10 @@ def process_with_block(
         edgeql_tree: qlast.Statement, *,
         ctx: context.ContextLevel,
         parent_ctx: context.ContextLevel) -> List[irast.Set]:
+    if edgeql_tree.aliases is None:
+        return []
+
+    had_materialized = False
     results = []
     for with_entry in edgeql_tree.aliases:
         if isinstance(with_entry, qlast.ModuleAliasDecl):
@@ -1144,18 +1223,33 @@ def process_with_block(
         elif isinstance(with_entry, qlast.AliasedExpr):
             with ctx.new() as scopectx:
                 scopectx.expr_exposed = False
-                results.append(
-                    stmtctx.declare_view(
-                        with_entry.expr,
-                        s_name.UnqualName(with_entry.alias),
-                        must_be_used=True,
-                        ctx=scopectx,
-                    ),
+                binding = stmtctx.declare_view(
+                    with_entry.expr,
+                    s_name.UnqualName(with_entry.alias),
+                    must_be_used=True,
+                    ctx=scopectx,
                 )
+                results.append(binding)
+
+                if setgen.should_materialize(binding, ctx=ctx):
+                    had_materialized = True
+                    typ = setgen.get_set_type(binding, ctx=ctx)
+                    ctx.env.materialized_sets[typ] = edgeql_tree
+                    assert binding.expr
+                    setgen.force_materialized_volatile(binding.expr, ctx=ctx)
+                    setgen.maybe_materialize(typ, binding, ctx=ctx)
 
         else:
             raise RuntimeError(
                 f'unexpected expression in WITH block: {with_entry}')
+
+    if had_materialized:
+        # If we had to materialize, put the body of the statement into
+        # its own fence, to avoid potential spurious factoring when we
+        # compile view sets for materialized sets.
+        # (We could just *always* do this, but don't, to avoid cluttering
+        # up the scope tree more.)
+        ctx.path_scope = ctx.path_scope.attach_fence()
 
     return results
 
@@ -1176,20 +1270,10 @@ def compile_result_clause(
             sctx.view_rptr = view_rptr
             # sctx.view_scls = view_scls
 
-        result_expr: qlast.Expr
-        shape: Optional[Sequence[qlast.ShapeElement]]
-
-        if isinstance(result, qlast.Shape):
-            result_expr = result.expr
-            shape = result.elements
-        else:
-            result_expr = result
-            shape = None
-
         if result_alias:
             # `SELECT foo := expr` is equivalent to
             # `WITH foo := expr SELECT foo`
-            rexpr = astutils.ensure_ql_select(result_expr)
+            rexpr = astutils.ensure_ql_select(result)
             if (
                 sctx.implicit_limit
                 and rexpr.limit is None
@@ -1200,7 +1284,7 @@ def compile_result_clause(
                 # make sure we don't mangle it with an implicit
                 # limit.
                 rexpr.limit = qlast.TypeCast(
-                    expr=qlast.Set(),
+                    expr=qlast.Set(elements=[]),
                     type=qlast.TypeName(
                         maintype=qlast.ObjectRef(
                             module='__std__',
@@ -1215,9 +1299,19 @@ def compile_result_clause(
                 ctx=sctx,
             )
 
-            result_expr = qlast.Path(
+            result = qlast.Path(
                 steps=[qlast.ObjectRef(name=result_alias)]
             )
+
+        result_expr: qlast.Expr
+        shape: Optional[Sequence[qlast.ShapeElement]]
+
+        if isinstance(result, qlast.Shape):
+            result_expr = result.expr or qlutils.FREE_SHAPE_EXPR
+            shape = result.elements
+        else:
+            result_expr = result
+            shape = None
 
         if astutils.is_ql_empty_set(result_expr):
             expr = setgen.new_empty_set(
@@ -1227,13 +1321,16 @@ def compile_result_clause(
                 srcctx=result_expr.context,
             )
         else:
-            expr = setgen.ensure_set(
-                dispatch.compile(result_expr, ctx=sctx), ctx=sctx)
+            with sctx.new() as ectx:
+                if shape is not None:
+                    ectx.expr_exposed = False
+                expr = dispatch.compile(result_expr, ctx=ectx)
 
         ctx.partial_path_prefix = expr
 
         ir_result = compile_query_subject(
             expr, shape=shape, view_rptr=view_rptr, view_name=view_name,
+            forward_rptr=forward_rptr,
             result_alias=result_alias,
             view_scls=view_scls,
             compile_views=ctx.stmt is ctx.toplevel_stmt,
@@ -1256,6 +1353,7 @@ def compile_query_subject(
         is_insert: bool=False,
         is_update: bool=False,
         is_delete: bool=False,
+        forward_rptr: bool=False,
         parser_context: Optional[pctx.ParserContext]=None,
         ctx: context.ContextLevel) -> irast.Set:
 
@@ -1294,19 +1392,47 @@ def compile_query_subject(
             view_rptr.base_ptrcls = base_ptrcls
             view_rptr.ptrcls_is_alias = True
 
+    is_mutation = is_insert or is_update or is_delete
+
     if (
-        ctx.expr_exposed
-        and viewgen.has_implicit_type_computables(
-            expr_stype,
-            is_mutation=is_insert or is_update or is_delete,
-            ctx=ctx,
+        (
+            (
+                ctx.expr_exposed
+                and expr_stype.is_object_type()
+                and not forward_rptr
+                and (
+                    viewgen.has_implicit_type_computables(
+                        expr_stype,
+                        is_mutation=is_mutation,
+                        ctx=ctx,
+                    )
+                    or expr_stype in ctx.env.materialized_sets
+                )
+            )
+            or is_mutation
         )
         and shape is None
-        and expr_stype not in ctx.env.view_shapes
+        and (
+            expr_stype not in ctx.env.view_shapes
+            or expr_stype in ctx.env.materialized_sets
+        )
     ):
-        # Force the subject to be compiled as a view if a __tid__
-        # insertion is anticipated (the actual decision is taken
-        # by the compile_view_shapes() flow).
+        # Force the subject to be compiled as a view in these cases:
+        # a) a __tid__ insertion is anticipated (the actual
+        #    decision about this is taken by the
+        #    compile_view_shapes() flow);
+        #    we also skip doing this when forward_rptr is true, because
+        #    generating an extra type in those cases can cause issues,
+        #    and we can just do the insertion on whatever the inner thing is
+        # b) this is a mutation without an explicit shape,
+        #    such as a DELETE, because mutation subjects are
+        #    always expected to be derived types.
+        # c) this is a use of a type we think we are materializing,
+        #    which hacks around issues like
+        #    test_edgeql_volatility_select_hard_objects_09 where we
+        #    can't rely on the serialization done at an inner location.
+        #    (This is a hack, because I don't think it can generalize
+        #     to tuples/arrays containing objects)
         shape = []
 
     if shape is not None and view_scls is None:
@@ -1338,7 +1464,8 @@ def compile_query_subject(
         expr = setgen.ensure_set(expr, type_override=view_scls, ctx=ctx)
         expr_stype = view_scls
 
-    if compile_views:
+    if compile_views or (
+            view_scls and setgen.should_materialize_type(view_scls, ctx=ctx)):
         rptr = view_rptr.rptr if view_rptr is not None else None
         if is_update:
             with ctx.new() as subctx:

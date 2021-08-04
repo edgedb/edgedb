@@ -31,6 +31,8 @@ from edb.server import cluster as edgedb_cluster
 from edb.testbase import server as tb
 from edb.tools.edb import edbcommands
 
+from edgedb import platform
+
 
 class TestResult:
     def wasSuccessful(self):
@@ -46,11 +48,12 @@ class TestRunner:
         return TestResult()
 
 
-def execute(tests_dir, conn, num_workers):
+def execute(tests_dir, conn, num_workers, include):
     runner = TestRunner()
+    include = [x for pat in include for x in ['-k', pat]]
     unittest.main(
         module=None,
-        argv=['unittest', 'discover', '-s', tests_dir],
+        argv=['unittest', 'discover', '-s', tests_dir, *include],
         testRunner=runner, exit=False)
 
     tb.setup_test_cases(runner.cases, conn, num_workers)
@@ -63,9 +66,16 @@ def die(msg):
 
 @edbcommands.command()
 @click.option(
-    '-D', '--data-dir', type=str, envvar='EDGEDB_DATADIR',
-    default=str(pathlib.Path.home() / '.edgedb'),
-    help='database cluster directory')
+    '-D', '--data-dir',
+    type=str,
+    default=str(
+        pathlib.Path(os.environ.get(
+            "EDGEDB_SERVER_DEV_DIR",
+            platform.config_dir() / 'data' / '_localdev',
+        ))
+    ),
+    help='database cluster directory',
+)
 @click.option(
     '-t', '--tests-dir', type=str,
     default=str(pathlib.Path(__file__).parent.parent.parent.resolve() /
@@ -74,7 +84,9 @@ def die(msg):
 @click.option('-j', '--jobs', type=int,
               default=lambda: round((os.cpu_count() or 1) * 0.75),
               help='number of parallel processes to use')
-def inittestdb(*, data_dir, jobs, tests_dir):
+@click.option('-k', '--include', type=str, multiple=True, metavar='REGEXP',
+              help='only use tests which match the given regular expression')
+def inittestdb(*, data_dir, jobs, tests_dir, include):
     if os.path.exists(data_dir):
         if not os.path.isdir(data_dir):
             die(f'{data_dir!r} exists and is not a directory')
@@ -89,7 +101,7 @@ def inittestdb(*, data_dir, jobs, tests_dir):
 
     try:
         cluster.init()
-        cluster.start(port='dynamic')
+        cluster.start(port=0)
         cluster.trust_local_connections()
     except BaseException:
         if os.path.exists(data_dir):
@@ -100,7 +112,7 @@ def inittestdb(*, data_dir, jobs, tests_dir):
     destroy_cluster = False
 
     try:
-        execute(tests_dir, conn, num_workers=jobs)
+        execute(tests_dir, conn, num_workers=jobs, include=include)
         print(f'Initialized and populated test EdgeDB instance in {data_dir}')
     except BaseException:
         destroy_cluster = True

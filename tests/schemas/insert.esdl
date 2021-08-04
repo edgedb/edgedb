@@ -73,6 +73,8 @@ type Person2 {
 type Person2a extending Person2 {
     required single property last -> std::str;
     constraint exclusive on ((__subject__.first, __subject__.last));
+    single link bff -> Person;
+    constraint exclusive on ((.first, .bff));
 }
 
 type Person2b extending Person2 {
@@ -194,6 +196,7 @@ type SelfRef {
 
 type CollectionTest {
     property some_tuple -> tuple<str, int64>;
+    multi property some_multi_tuple -> tuple<str, int64>;
     property str_array -> array<str>;
     property float_array -> array<float32>;
 }

@@ -816,10 +816,10 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 'SELECT <cal::local_time>"20:01:22.306916+01:00"')
 
     async def test_edgeql_casts_str_09(self):
-        # Canonical duration is a bit weird.
+        # Canonical duration
         await self.assert_query_result(
             r'''
-                WITH x := '20:01:22.306916'
+                WITH x := 'PT20H1M22.306916S'
                 SELECT <str><duration>x = x;
             ''',
             [True],
@@ -829,6 +829,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             # non-canonical
             r'''
                 WITH x := {
+                    '20:01:22.306916',
                     '20h 1m 22.306916s',
                     '20 hours 1 minute 22.306916 seconds',
                     '72082.306916',  # the duration in seconds
@@ -836,21 +837,22 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 }
                 SELECT <str><duration>x = x;
             ''',
-            [False, False, False, False],
+            [False, False, False, False, False],
         )
 
         await self.assert_query_result(
             # validating that these are all in fact the same duration
             r'''
                 WITH x := {
+                    '20:01:22.306916',
                     '20h 1m 22.306916s',
                     '20 hours 1 minute 22.306916 seconds',
                     '72082.306916',  # the duration in seconds
                     '0.834285959675926 days',
                 }
-                SELECT <duration>x = <duration>'20:01:22.306916';
+                SELECT <duration>x = <duration>'PT20H1M22.306916S';
             ''',
-            [True, True, True, True],
+            [True, True, True, True, True],
         )
 
     async def test_edgeql_casts_str_10(self):
@@ -1008,7 +1010,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         # of the json values.
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <uuid><str>T.id = T.id;
             ''',
             [True],
@@ -1016,7 +1018,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <bool><str>T.p_bool = T.p_bool;
             ''',
             [True],
@@ -1024,7 +1026,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <str><str>T.p_str = T.p_str;
             ''',
             [True],
@@ -1032,7 +1034,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <datetime><str>T.p_datetime = T.p_datetime;
             ''',
             [True],
@@ -1040,7 +1042,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <cal::local_datetime><str>T.p_local_datetime =
                     T.p_local_datetime;
             ''',
@@ -1049,7 +1051,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <cal::local_date><str>T.p_local_date = T.p_local_date;
             ''',
             [True],
@@ -1057,7 +1059,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <cal::local_time><str>T.p_local_time = T.p_local_time;
             ''',
             [True],
@@ -1065,7 +1067,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <duration><str>T.p_duration = T.p_duration;
             ''',
             [True],
@@ -1073,7 +1075,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <int16><str>T.p_int16 = T.p_int16;
             ''',
             [True],
@@ -1081,7 +1083,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <int32><str>T.p_int32 = T.p_int32;
             ''',
             [True],
@@ -1089,7 +1091,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <int64><str>T.p_int64 = T.p_int64;
             ''',
             [True],
@@ -1097,7 +1099,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <float32><str>T.p_float32 = T.p_float32;
             ''',
             [True],
@@ -1105,7 +1107,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <float64><str>T.p_float64 = T.p_float64;
             ''',
             [True],
@@ -1113,7 +1115,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <bigint><str>T.p_bigint = T.p_bigint;
             ''',
             [True],
@@ -1121,7 +1123,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <decimal><str>T.p_decimal = T.p_decimal;
             ''',
             [True],
@@ -1611,7 +1613,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_json_02(self):
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <bool><json>T.p_bool = T.p_bool;
             ''',
             [True],
@@ -1619,7 +1621,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <str><json>T.p_str = T.p_str;
             ''',
             [True],
@@ -1627,7 +1629,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <datetime><json>T.p_datetime = T.p_datetime;
             ''',
             [True],
@@ -1635,7 +1637,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <cal::local_datetime><json>T.p_local_datetime =
                     T.p_local_datetime;
             ''',
@@ -1644,7 +1646,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <cal::local_date><json>T.p_local_date = T.p_local_date;
             ''',
             [True],
@@ -1652,7 +1654,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <cal::local_time><json>T.p_local_time = T.p_local_time;
             ''',
             [True],
@@ -1660,7 +1662,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <duration><json>T.p_duration = T.p_duration;
             ''',
             [True],
@@ -1668,7 +1670,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <int16><json>T.p_int16 = T.p_int16;
             ''',
             [True],
@@ -1676,7 +1678,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <int32><json>T.p_int32 = T.p_int32;
             ''',
             [True],
@@ -1684,7 +1686,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <int64><json>T.p_int64 = T.p_int64;
             ''',
             [True],
@@ -1692,7 +1694,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <float32><json>T.p_float32 = T.p_float32;
             ''',
             [True],
@@ -1700,7 +1702,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <float64><json>T.p_float64 = T.p_float64;
             ''',
             [True],
@@ -1708,7 +1710,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <bigint><json>T.p_bigint = T.p_bigint;
             ''',
             [True],
@@ -1716,7 +1718,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH T := (SELECT test::Test FILTER .p_str = 'Hello')
+                WITH T := (SELECT Test FILTER .p_str = 'Hello')
                 SELECT <decimal><json>T.p_decimal = T.p_decimal;
             ''',
             [True],
@@ -1726,7 +1728,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <bool>J.j_bool = T.p_bool;
@@ -1737,7 +1738,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <str>J.j_str = T.p_str;
@@ -1748,7 +1748,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <datetime>J.j_datetime = T.p_datetime;
@@ -1759,7 +1758,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <cal::local_datetime>J.j_local_datetime =
@@ -1771,7 +1769,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <cal::local_date>J.j_local_date = T.p_local_date;
@@ -1782,7 +1779,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <cal::local_time>J.j_local_time = T.p_local_time;
@@ -1793,7 +1789,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <duration>J.j_duration = T.p_duration;
@@ -1804,7 +1799,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <int16>J.j_int16 = T.p_int16;
@@ -1815,7 +1809,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <int32>J.j_int32 = T.p_int32;
@@ -1826,7 +1819,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <int64>J.j_int64 = T.p_int64;
@@ -1837,7 +1829,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <float32>J.j_float32 = T.p_float32;
@@ -1848,7 +1839,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <float64>J.j_float64 = T.p_float64;
@@ -1859,7 +1849,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <bigint>J.j_bigint = T.p_bigint;
@@ -1870,7 +1859,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     T := (SELECT Test FILTER .p_str = 'Hello'),
                     J := (SELECT JSONTest FILTER .j_str = <json>'Hello')
                 SELECT <decimal>J.j_decimal = T.p_decimal;
@@ -2333,7 +2321,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_assignment_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
-                SET MODULE test;
 
                 # int64 is assignment castable or implicitly castable
                 # into any other numeric type
@@ -2374,7 +2361,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_assignment_02(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""
-                SET MODULE test;
 
                 # float64 is assignment castable to float32
                 INSERT ScalarTest {
@@ -2406,7 +2392,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 for numtype in {'bigint', 'decimal'}:
 
                     query = f'''
-                        INSERT test::ScalarTest {{
+                        INSERT ScalarTest {{
                             p_{typename} := <{numtype}>3,
                             p_{numtype} := 1001,
                         }};
@@ -2418,7 +2404,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                         await self.con.execute(query + f'''
                             # clean up, so other tests can proceed
                             DELETE (
-                                SELECT test::ScalarTest
+                                SELECT ScalarTest
                                 FILTER .p_{numtype} = 1001
                             );
                         ''')
@@ -2426,7 +2412,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_custom_scalar_01(self):
         await self.assert_query_result(
             '''
-                SELECT <test::custom_str_t>'ABC'
+                SELECT <custom_str_t>'ABC'
             ''',
             ['ABC']
         )
@@ -2435,7 +2421,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 edgedb.ConstraintViolationError,
                 'invalid custom_str_t'):
             await self.con.query(
-                "SELECT <test::custom_str_t>'123'")
+                "SELECT <custom_str_t>'123'")
 
     async def test_edgeql_casts_prohibit_tuple_query_params_01(self):
         async with self.assertRaisesRegexTx(
@@ -2444,7 +2430,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         ):
             await self.con.query(
                 r'''
-                WITH MODULE test
                 SELECT Test {
                     id,
                     num := (<tuple<int64, float64, str, bytes>>$tup).0,

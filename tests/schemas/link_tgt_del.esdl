@@ -65,3 +65,11 @@ type ObjectType4 {
 type ObjectType5 {
     link foo -> Target1;
 }
+
+abstract type AbsSource1 extending Named {
+    link tgt1_del_source -> Target1 {
+        on target delete delete source;
+    }
+}
+
+type ChildSource1 extending AbsSource1;

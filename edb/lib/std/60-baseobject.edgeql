@@ -44,6 +44,11 @@ CREATE ABSTRACT TYPE std::Object EXTENDING std::BaseObject {
         'Root object type for user-defined types';
 };
 
+CREATE TYPE std::FreeObject EXTENDING std::BaseObject {
+    CREATE ANNOTATION std::description :=
+        'Object type for free shapes';
+};
+
 # 'USING SQL EXPRESSION' creates an EdgeDB Operator for purposes of
 # introspection and validation by the EdgeQL compiler. However, no
 # object is created in Postgres and the EdgeQL->SQL compiler is expected
@@ -60,7 +65,9 @@ CREATE ABSTRACT TYPE std::Object EXTENDING std::BaseObject {
 # clashing with the operators for uuid in Postgres.
 CREATE INFIX OPERATOR
 std::`=` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
@@ -70,14 +77,19 @@ std::`?=` (
     l: OPTIONAL std::BaseObject,
     r: OPTIONAL std::BaseObject
 ) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
@@ -87,41 +99,52 @@ std::`?!=` (
     l: OPTIONAL std::BaseObject,
     r: OPTIONAL std::BaseObject
 ) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::BaseObject, r: std::BaseObject) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 # The only possible Object cast is into json.
 CREATE CAST FROM std::BaseObject TO std::json {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };

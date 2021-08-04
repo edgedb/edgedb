@@ -17,79 +17,66 @@
 #
 
 
-WITH MODULE test
 INSERT Priority {
     name := 'High'
 };
 
-WITH MODULE test
 INSERT Priority {
     name := 'Low'
 };
 
-WITH MODULE test
 INSERT Status {
     name := 'Open'
 };
 
-WITH MODULE test
 INSERT Status {
     name := 'Closed'
 };
 
 
-WITH MODULE test
 INSERT User {
     name := 'Elvis'
 };
 
-WITH MODULE test
 INSERT URL {
     name := 'edgedb.com',
     address := 'https://edgedb.com'
 };
 
-WITH MODULE test
 INSERT File {
     name := 'screenshot.png'
 };
 
-WITH MODULE test
 INSERT LogEntry {
     owner := (SELECT User FILTER User.name = 'Elvis'),
     spent_time := -1,
     body := 'Dummy'
 };
 
-WITH MODULE test
 INSERT LogEntry {
     owner := (SELECT User FILTER User.name = 'Elvis'),
     spent_time := 60,
     body := 'Log1'
 };
 
-WITH MODULE test
 INSERT LogEntry {
     owner := (SELECT User FILTER User.name = 'Elvis'),
     spent_time := 90,
     body := 'Log2'
 };
 
-WITH MODULE test
 INSERT LogEntry {
     owner := (SELECT User FILTER User.name = 'Elvis'),
     spent_time := 60,
     body := 'Log3'
 };
 
-WITH MODULE test
 INSERT LogEntry {
     owner := (SELECT User FILTER User.name = 'Elvis'),
     spent_time := 30,
     body := 'Log4'
 };
 
-WITH MODULE test
 INSERT Issue {
     number := '1',
     name := 'Issue 1',
@@ -100,7 +87,6 @@ INSERT Issue {
     time_spent_log := (SELECT LogEntry FILTER LogEntry.body = 'Log1'),
 };
 
-WITH MODULE test
 INSERT Issue {
     number := '2',
     name := 'Issue 2',
@@ -111,7 +97,6 @@ INSERT Issue {
     time_spent_log := (SELECT LogEntry FILTER LogEntry.body = 'Log2'),
 };
 
-WITH MODULE test
 INSERT Issue {
     number := '3',
     name := 'Issue 3',
@@ -123,7 +108,6 @@ INSERT Issue {
         SELECT LogEntry FILTER LogEntry.body IN {'Log3','Log4'}),
 };
 
-WITH MODULE test
 INSERT Issue {
     number := '4',
     name := 'Issue 4',
@@ -133,7 +117,6 @@ INSERT Issue {
 };
 
 WITH
-    MODULE test,
     I := DETACHED Issue
 INSERT Issue {
     number := '5',
@@ -145,7 +128,6 @@ INSERT Issue {
 };
 
 WITH
-    MODULE test,
     I := DETACHED Issue
 INSERT Issue {
     number := '6',

@@ -18,6 +18,7 @@ from __future__ import annotations
 from typing import *
 
 import dataclasses
+import enum
 import getpass
 import os
 import pathlib
@@ -29,13 +30,30 @@ import urllib.parse
 import warnings
 
 
+class SSLMode(enum.IntEnum):
+    disable = 0
+    allow = 1
+    prefer = 2
+    require = 3
+    verify_ca = 4
+    verify_full = 5
+
+    @classmethod
+    def parse(cls, sslmode: Union[SSLMode, str]) -> SSLMode:
+        if isinstance(sslmode, SSLMode):
+            rv = sslmode
+        else:
+            rv = getattr(cls, sslmode.replace('-', '_'))
+        return rv
+
+
 @dataclasses.dataclass
 class ConnectionParameters:
     user: Optional[str] = None
     password: Optional[str] = None
     database: Optional[str] = None
     ssl: Optional[ssl_module.SSLContext] = None
-    ssl_is_advisory: Optional[bool] = None
+    sslmode: Optional[SSLMode] = None
     server_settings: Dict[str, str] = dataclasses.field(default_factory=dict)
 
 
@@ -237,7 +255,7 @@ def parse_dsn(
     password = None
     passfile = None
     database = None
-    sslmode = None
+    sslmode_str = None
     server_settings: Dict[str, str] = {}
 
     parsed = urllib.parse.urlparse(dsn)
@@ -319,7 +337,7 @@ def parse_dsn(
             passfile = query.pop('passfile')
 
         if 'sslmode' in query:
-            sslmode = query.pop('sslmode')
+            sslmode_str = query.pop('sslmode')
 
         if query:
             server_settings = query
@@ -408,49 +426,30 @@ def parse_dsn(
         raise ValueError(
             'could not determine the database address to connect to')
 
-    if sslmode is None:
-        sslmode = os.getenv('PGSSLMODE')
+    if sslmode_str is None:
+        sslmode_str = os.getenv('PGSSLMODE', 'prefer')
 
-    # ssl_is_advisory is only allowed to come from the sslmode parameter.
-    ssl_is_advisory = None
-    if sslmode:
-        SSLMODES = {
-            'disable': 0,
-            'allow': 1,
-            'prefer': 2,
-            'require': 3,
-            'verify-ca': 4,
-            'verify-full': 5,
-        }
+    if sslmode_str:
         try:
-            sslmode_key = SSLMODES[sslmode]
-        except KeyError:
-            modes = ', '.join(SSLMODES.keys())
+            sslmode = SSLMode.parse(sslmode_str)
+        except AttributeError:
+            modes = ', '.join(m.name.replace('_', '-') for m in SSLMode)
             raise ValueError(
                 '`sslmode` parameter must be one of: {}'.format(modes))
 
-        # sslmode 'allow' is currently handled as 'prefer' because we're
-        # missing the "retry with SSL" behavior for 'allow', but do have the
-        # "retry without SSL" behavior for 'prefer'.
-        # Not changing 'allow' to 'prefer' here would be effectively the same
-        # as changing 'allow' to 'disable'.
-        if sslmode_key == SSLMODES['allow']:
-            sslmode_key = SSLMODES['prefer']
-
         # docs at https://www.postgresql.org/docs/10/static/libpq-connect.html
         # Not implemented: sslcert & sslkey & sslrootcert & sslcrl params.
-        if sslmode_key <= SSLMODES['allow']:
+        if sslmode < SSLMode.allow:
             ssl = None
-            ssl_is_advisory = sslmode_key >= SSLMODES['allow']
         else:
             ssl = ssl_module.create_default_context()
-            ssl.check_hostname = sslmode_key >= SSLMODES['verify-full']
+            ssl.check_hostname = sslmode >= SSLMode.verify_full
             ssl.verify_mode = ssl_module.CERT_REQUIRED
-            if sslmode_key <= SSLMODES['require']:
+            if sslmode <= SSLMode.require:
                 ssl.verify_mode = ssl_module.CERT_NONE
-            ssl_is_advisory = sslmode_key <= SSLMODES['prefer']
     else:
         ssl = None
+        sslmode = SSLMode.disable
 
     if ssl:
         for addr in addrs:
@@ -473,7 +472,7 @@ def parse_dsn(
         password=password,
         database=database,
         ssl=ssl,
-        ssl_is_advisory=ssl_is_advisory,
+        sslmode=sslmode,
         server_settings=server_settings,
     )
 

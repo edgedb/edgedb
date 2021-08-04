@@ -50,6 +50,7 @@ from . import inference
 from . import options as coptions
 from . import pathctx
 from . import setgen
+from . import viewgen
 from . import schemactx
 
 
@@ -105,7 +106,7 @@ def init_context(
 
 
 def fini_expression(
-    ir: irast.Base,
+    ir: irast.Set,
     *,
     ctx: context.ContextLevel,
 ) -> irast.Command:
@@ -116,36 +117,36 @@ def fini_expression(
     ):
         ir = setgen.scoped_set(ir, ctx=ctx)
 
-    cardinality = qltypes.Cardinality.AT_MOST_ONE
-    if ctx.path_scope is not None:
-        # The inference context object will be shared between
-        # cardinality and multiplicity inferrers.
-        inf_ctx = inference.make_ctx(env=ctx.env)
-        # Simple expressions have no scope.
-        cardinality = inference.infer_cardinality(
+    _fixup_materialized_sets(ir, ctx=ctx)
+
+    # The inference context object will be shared between
+    # cardinality and multiplicity inferrers.
+    inf_ctx = inference.make_ctx(env=ctx.env)
+    cardinality = inference.infer_toplevel_cardinality(
+        ir,
+        scope_tree=ctx.path_scope,
+        source_map=ctx.source_map,
+        ctx=inf_ctx,
+    )
+    multiplicity: Optional[qltypes.Multiplicity] = None
+    if ctx.env.options.validate_multiplicity:
+        multiplicity = inference.infer_multiplicity(
             ir,
             scope_tree=ctx.path_scope,
             ctx=inf_ctx,
         )
-        multiplicity: Optional[qltypes.Multiplicity] = None
-        if ctx.env.options.validate_multiplicity:
-            multiplicity = inference.infer_multiplicity(
-                ir,
-                scope_tree=ctx.path_scope,
-                ctx=inf_ctx,
-            )
 
     # Fix up weak namespaces
     _rewrite_weak_namespaces(ir, ctx)
 
-    if ctx.path_scope is not None:
-        ctx.path_scope.validate_unique_ids()
+    _prune_temp_namespaces(ir, ctx)
 
-    if isinstance(ir, irast.Command):
-        if isinstance(ir, irast.ConfigCommand):
-            ir.scope_tree = ctx.path_scope
-        # IR is already a Command
-        return ir
+    ctx.path_scope.validate_unique_ids()
+
+    # ConfigSet and ConfigReset don't like being part of a Set
+    if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
+        ir.expr.scope_tree = ctx.path_scope
+        return ir.expr
 
     volatility = inference.infer_volatility(ir, env=ctx.env)
 
@@ -219,19 +220,23 @@ def fini_expression(
             context=srcctx,
         )
 
+    assert isinstance(ir, irast.Set)
+    source_map = {k: v for k, v in ctx.source_map.items()
+                  if isinstance(k, s_pointers.Pointer)}
     result = irast.Statement(
         expr=ir,
         params=list(ctx.env.query_parameters.values()),
         views=ctx.view_nodes,
-        source_map=ctx.source_map,
+        source_map=source_map,
         scope_tree=ctx.env.path_scope,
         cardinality=cardinality,
         volatility=volatility,
         multiplicity=multiplicity,
         stype=expr_type,
         view_shapes={
-            src: [ptr for ptr, _ in ptrs]
+            src: [ptr for ptr, op in ptrs if op != qlast.ShapeOp.MATERIALIZE]
             for src, ptrs in ctx.env.view_shapes.items()
+            if isinstance(src, s_obj.Object)
         },
         view_shapes_metadata=ctx.env.view_shapes_metadata,
         schema=ctx.env.schema,
@@ -243,8 +248,58 @@ def fini_expression(
             if isinstance(t, s_types.Collection) and t != expr_type
         ),
         type_rewrites={s.typeref.id: s for s in ctx.type_rewrites.values()},
+        dml_exprs=ctx.env.dml_exprs,
     )
     return result
+
+
+def _fixup_materialized_sets(
+    ir: irast.Base, *, ctx: context.ContextLevel
+) -> None:
+    # Make sure that all materialized sets have their views compiled
+    flt = lambda n: isinstance(n, irast.Stmt)
+    children: List[irast.Stmt] = ast_visitor.find_children(ir, flt)
+    for nobe in ctx.source_map.values():
+        if nobe.irexpr:
+            children += ast_visitor.find_children(nobe.irexpr, flt)
+    for stmt in children:
+        if not stmt.materialized_sets:
+            continue
+        for key in list(stmt.materialized_sets):
+            mat_set = stmt.materialized_sets[key]
+
+            if len(mat_set.uses) <= 1:
+                del stmt.materialized_sets[key]
+                continue
+
+            # Find the right set to compile by looking for the one
+            # with a matching rptr.
+            if not mat_set.materialized:
+                for use in mat_set.use_sets:
+                    if use.rptr and use.rptr.source == stmt.result:
+                        mat_set.materialized = use
+                        break
+                else:
+                    raise AssertionError(
+                        f"couldn't find the source for {mat_set.uses} on "
+                        f"{stmt.result}!")
+
+            # Compile the view shapes in the set
+            ir_set = mat_set.materialized
+            with ctx.new() as subctx:
+                subctx.implicit_tid_in_shapes = False
+                subctx.implicit_tname_in_shapes = False
+                assert ir_set.path_scope_id is not None
+                new_scope = ctx.env.scope_tree_nodes.get(
+                    ir_set.path_scope_id)
+                assert new_scope
+                subctx.path_scope = new_scope
+                viewgen.compile_view_shapes(ir_set, ctx=subctx)
+
+            assert (
+                not any(use.src_path() for use in mat_set.uses)
+                or mat_set.materialized.rptr
+            ), f"materialized ptr {mat_set.uses} missing rptr"
 
 
 class FindPathScopes(ast_visitor.NodeVisitor):
@@ -298,9 +353,11 @@ def _try_namespace_fix(
         replacement = scope.find_visible(prefix)
         if (
             replacement and replacement.path_id
-            and replacement.path_id != prefix
+            and replacement.path_id.namespace != obj.path_id.namespace
         ):
-            new = obj.path_id.replace_prefix(prefix, replacement.path_id)
+            new = obj.path_id.strip_namespace(
+                obj.path_id.namespace - replacement.path_id.namespace)
+
             obj.path_id = new
             break
 
@@ -322,9 +379,6 @@ def _rewrite_weak_namespaces(
     don't appear in the binding.
     """
 
-    if ctx.path_scope is None:
-        return None
-
     tree = ctx.path_scope
 
     for node in tree.strict_descendants:
@@ -338,8 +392,16 @@ def _rewrite_weak_namespaces(
         if path_scope_id is not None:
             # Some entries in set_types are from compiling views
             # in temporary scopes, so we need to just skip those.
-            if scope := tree.find_by_unique_id(path_scope_id):
+            if scope := ctx.env.scope_tree_nodes.get(path_scope_id):
                 _try_namespace_fix(scope, ir_set)
+
+
+def _prune_temp_namespaces(
+    ir: irast.Base, ctx: context.ContextLevel
+) -> None:
+    for node in ctx.path_scope.descendants:
+        if node.is_temporary:
+            node.remove()
 
 
 def _elide_derived_ancestors(
@@ -448,7 +510,7 @@ def compile_anchor(
                 step.show_as_anchor = None
 
     elif isinstance(anchor, qlast.Base):
-        step = setgen.ensure_set(dispatch.compile(anchor, ctx=ctx), ctx=ctx)
+        step = dispatch.compile(anchor, ctx=ctx)
 
     elif isinstance(anchor, irast.Parameter):
         step = setgen.ensure_set(anchor, ctx=ctx)
@@ -495,7 +557,7 @@ def declare_view(
             cached_view_set = ctx.expr_view_cache.get((expr, alias))
             # Detach the view namespace and record the prefix
             # in the parent statement's fence node.
-            view_path_id_ns = irast.WeakNamespace(ctx.aliases.get('ns'))
+            view_path_id_ns = ctx.aliases.get('ns')
             subctx.path_id_namespace |= {view_path_id_ns}
             ctx.path_scope.add_namespaces({view_path_id_ns})
         else:
@@ -580,69 +642,10 @@ def declare_view_from_schema(
 
         vc = subctx.aliased_views[viewcls_name]
         assert vc is not None
-        if not ctx.in_temp_scope:
-            ctx.env.schema_view_cache[viewcls] = vc
+        ctx.env.schema_view_cache[viewcls] = vc
         ctx.source_map.update(subctx.source_map)
         ctx.aliased_views[viewcls_name] = subctx.aliased_views[viewcls_name]
         ctx.view_nodes[vc.get_name(ctx.env.schema)] = vc
         ctx.view_sets[vc] = subctx.view_sets[vc]
 
-        # XXX: The current cardinality inference machine does not look
-        # into unreferenced expression parts, which includes computables
-        # that may be declared on an alias that another alias is referencing,
-        # leaving Unknown cardinalities in place.  To fix this, copy
-        # cardinalities for computed pointers from the alias object in the
-        # schema.
-        view_type = setgen.get_set_type(view_set, ctx=subctx)
-        if isinstance(view_type, s_objtypes.ObjectType):
-            assert isinstance(viewcls, s_objtypes.ObjectType)
-            _fixup_cardinalities(
-                view_type,
-                viewcls,
-                ctx=ctx,
-            )
-
     return vc
-
-
-def _fixup_cardinalities(
-    subj_source: s_sources.Source,
-    tpl_source: s_sources.Source,
-    *,
-    ctx: context.ContextLevel,
-) -> None:
-    """Copy pointer cardinalities from *tpl_source* to *subj_source*."""
-
-    subj_ptrs = subj_source.get_pointers(ctx.env.schema).items(ctx.env.schema)
-    tpl_ptrs = dict(
-        tpl_source.get_pointers(ctx.env.schema).items(ctx.env.schema))
-
-    for pn, ptrcls in subj_ptrs:
-        card = ptrcls.get_cardinality(ctx.env.schema)
-        tpl_ptrcls = tpl_ptrs.get(pn)
-        if tpl_ptrcls is None:
-            raise AssertionError(
-                f'expected to find {pn!r} in template source object'
-            )
-
-        if not card.is_known():
-            tpl_card = tpl_ptrcls.get_cardinality(ctx.env.schema)
-            if not tpl_card.is_known():
-                raise AssertionError(
-                    f'{pn!r} cardinality in template source is unknown'
-                )
-
-            ctx.env.schema = ptrcls.set_field_value(
-                ctx.env.schema,
-                'cardinality',
-                tpl_card,
-            )
-
-        subj_target = ptrcls.get_target(ctx.env.schema)
-        if (
-            isinstance(subj_target, s_sources.Source)
-            and subj_target.is_view(ctx.env.schema)
-        ):
-            tpl_target = tpl_ptrcls.get_target(ctx.env.schema)
-            assert isinstance(tpl_target, s_sources.Source)
-            _fixup_cardinalities(subj_target, tpl_target, ctx=ctx)

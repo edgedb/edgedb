@@ -94,7 +94,7 @@ class GraphQLTranslatorContext:
         self.fields = []
         self.path = []
         self.filter = None
-        self.include_base = [False]
+        self.include_base = []
         self.gqlcore = gqlcore
         self.query = query
         self.document_ast = document_ast
@@ -306,11 +306,14 @@ class GraphQLTranslator:
         self._context.vars = {
             name: Var(val=val, defn=None, critical=False)
             for name, val in self._context.variables.items()}
+        self._context.include_base.append(False)
+
         opname = None
         if node.name:
             opname = node.name.value
 
         if opname != self._context.operation_name:
+            self._context.include_base.pop()
             return None
 
         if (node.operation is None or
@@ -330,6 +333,8 @@ class GraphQLTranslator:
         defvars = {name: var.val for name, var in self._context.vars.items()
                    if var.defn is not None}
 
+        self._context.include_base.pop()
+
         return Operation(
             name=opname,
             stmt=stmt,
@@ -343,19 +348,14 @@ class GraphQLTranslator:
             self.visit(node.variable_definitions)
 
         # base Query needs to be configured specially
-        base = self._context.gqlcore.get('stdgraphql::Query')
+        base = self._context.gqlcore.get('__graphql__::Query')
 
         # special treatment of the selection_set, different from inner
         # recursion
         query = qlast.SelectQuery(
             result=qlast.Shape(
-                expr=qlast.Path(
-                    steps=[qlast.ObjectRef(name='Query',
-                                           module='stdgraphql')]
-                ),
                 elements=[]
-            ),
-            limit=qlast.IntegerConstant(value='1')
+            )
         )
 
         self._context.fields.append({})
@@ -372,19 +372,14 @@ class GraphQLTranslator:
             self.visit(node.variable_definitions)
 
         # base Mutation needs to be configured specially
-        base = self._context.gqlcore.get('stdgraphql::Mutation')
+        base = self._context.gqlcore.get('__graphql__::Mutation')
 
         # special treatment of the selection_set, different from inner
         # recursion
         query = qlast.SelectQuery(
             result=qlast.Shape(
-                expr=qlast.Path(
-                    steps=[qlast.ObjectRef(name='Mutation',
-                                           module='stdgraphql')]
-                ),
                 elements=[]
-            ),
-            limit=qlast.IntegerConstant(value='1')
+            )
         )
 
         self._context.fields.append({})
@@ -605,6 +600,7 @@ class GraphQLTranslator:
                 cardinality=qltypes.SchemaCardinality.Many,
             )
 
+        self._context.include_base.append(False)
         # INSERT mutations have different arguments from queries
         if not is_shadowed and node.name.value.startswith('insert_'):
             # a single recursion target, so we can process
@@ -698,6 +694,7 @@ class GraphQLTranslator:
             # shell for the shape paths.
             self._context.path.pop()
 
+        self._context.include_base.pop()
         return spec
 
     def visit_InlineFragmentNode(self, node):
@@ -705,6 +702,8 @@ class GraphQLTranslator:
         result = self.visit(node.selection_set)
         if node.type_condition is not None:
             self._context.path.pop()
+            self._context.include_base.pop()
+
         return result
 
     def visit_FragmentSpreadNode(self, node):
@@ -716,6 +715,10 @@ class GraphQLTranslator:
 
         result = self.visit(selection_set)
         self._context.path.pop()
+
+        if frag.type_condition is not None:
+            self._context.include_base.pop()
+
         return result
 
     def _validate_fragment_type(self, frag, spread):
@@ -1054,7 +1057,7 @@ class GraphQLTranslator:
 
                 if value:
                     # empty set to clear the value
-                    return qlast.Set()
+                    return qlast.Set(elements=[])
 
             elif fname == 'increment':
                 return qlast.BinOp(
@@ -1303,10 +1306,23 @@ class GraphQLTranslator:
             prefix = [qlast.ObjectRef(name=base_step.eql_alias)]
         else:
             prefix = [base_step.type.edb_base_name_ast]
-        prefix.extend(
-            qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
-            for step in path
-        )
+
+        for step in path:
+            if isinstance(step.name, gql_ast.NamedTypeNode):
+                # This is coming from a fragment, so we need to add a
+                # type intersection.
+                base = step.type
+                prefix.append(
+                    qlast.TypeIntersection(
+                        type=qlast.TypeName(
+                            maintype=base.edb_base_name_ast
+                        )
+                    )
+                )
+            else:
+                prefix.append(
+                    qlast.Ptr(ptr=qlast.ObjectRef(name=step.name))
+                )
 
         return prefix
 
@@ -1515,6 +1531,8 @@ class GraphQLTranslator:
     def visit_VariableNode(self, node):
         varname = node.name.value
         var = self._context.vars[varname]
+        err_msg = (f"Only scalar input variables are allowed. "
+                   f"Variable {varname!r} has non-scalar value.")
 
         vartype = var.defn.type
         optional = True
@@ -1522,15 +1540,25 @@ class GraphQLTranslator:
             vartype = vartype.type
             optional = False
 
-        if vartype.name.value not in gt.GQL_TO_EDB_SCALARS_MAP:
-            raise errors.QueryError(
-                f"Only scalar input variables are allowed. "
-                f"Variable {varname!r} has non-scalar value.")
+        if self.is_list_type(vartype):
+            raise errors.QueryError(err_msg)
 
-        casttype = qlast.TypeName(
-            maintype=qlast.ObjectRef(
+        if vartype.name.value in gt.GQL_TO_EDB_SCALARS_MAP:
+            castname = qlast.ObjectRef(
                 name=gt.GQL_TO_EDB_SCALARS_MAP[vartype.name.value])
-        )
+        else:
+            try:
+                vtype = self.get_type(
+                    self._context.gqlcore.gql_to_edb_name(vartype.name.value))
+            except AssertionError:
+                raise errors.QueryError(err_msg)
+
+            if vtype.is_enum:
+                castname = vtype.edb_base_name_ast
+            else:
+                raise errors.QueryError(err_msg)
+
+        casttype = qlast.TypeName(maintype=castname)
         # potentially this is an array
         if self.is_list_type(vartype):
             casttype = qlast.TypeName(
@@ -1789,7 +1817,9 @@ def convert_default(
     node: gql_ast.ValueNode,
     varname: str
 ) -> Union[str, float, int, bool]:
-    if isinstance(node, (gql_ast.StringValueNode, gql_ast.BooleanValueNode)):
+    if isinstance(node, (gql_ast.StringValueNode,
+                         gql_ast.BooleanValueNode,
+                         gql_ast.EnumValueNode)):
         return node.value
     elif isinstance(node, gql_ast.IntValueNode):
         return int(node.value)

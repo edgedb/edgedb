@@ -37,7 +37,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := (
                         # User is simply employed as an object to be augmented
                         SELECT User {
@@ -54,7 +53,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := (
                         # User is simply employed as an object to be augmented
                         SELECT User {
@@ -71,7 +69,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE test,
                     x := (
                         # User is simply employed as an object to be augmented
                         SELECT User {
@@ -253,7 +250,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
             await self.con.query(r"""
-                WITH MODULE test
                 SELECT array_agg(
                     [<str>Issue.number, Issue.status.name]
                     ORDER BY Issue.number);
@@ -262,7 +258,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_11(self):
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT array_agg(
                     (<str>Issue.number, Issue.status.name)
                     ORDER BY Issue.number
@@ -274,8 +269,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_12(self):
         await self.assert_query_result(
             r'''
-                WITH
-                    MODULE test
                 SELECT
                     array_agg(User{name} ORDER BY User.name);
             ''',
@@ -283,8 +276,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
         result = await self.con.query(r'''
-            WITH
-                MODULE test
             SELECT
                 array_agg(User{name} ORDER BY User.name);
         ''')
@@ -295,8 +286,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_13(self):
         await self.assert_query_result(
             r'''
-                WITH
-                    MODULE test
                 SELECT
                     Issue {
                         number,
@@ -319,14 +308,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 edgedb.UnsupportedFeatureError,
                 r"nested arrays are not supported"):
             await self.con.query(r'''
-                WITH MODULE test
                 SELECT array_agg(array_agg(User.name));
             ''')
 
     async def test_edgeql_functions_array_agg_15(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT array_agg(
                     ([([User.name],)],) ORDER BY User.name
                 );
@@ -341,7 +328,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_16(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT array_agg(   # outer array
                     (               # tuple
                         array_agg(  # array
@@ -372,6 +358,25 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             await self.con.execute(
                 '''SELECT array_agg({})''',
             )
+
+    async def test_edgeql_functions_array_agg_19(self):
+        await self.assert_query_result(
+            r'''FOR X in {array_agg(0)} UNION (SELECT array_unpack(X));''',
+            [0],
+        )
+
+        await self.assert_query_result(
+            r'''
+                FOR X in {array_agg((0, 1))}
+                UNION (SELECT array_unpack(X));
+            ''',
+            [[0, 1]],
+        )
+
+        await self.assert_query_result(
+            r'''FOR X in {array_agg((0, 1))} UNION (X);''',
+            [[[0, 1]]],
+        )
 
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(
@@ -405,7 +410,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # array_agg and array_unpack are inverses of each other
-                WITH MODULE test
                 SELECT array_unpack(array_agg(Issue.number));
             ''',
             {'1', '2', '3', '4'},
@@ -415,7 +419,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 # array_agg and array_unpack are inverses of each other
-                WITH MODULE test
                 SELECT array_unpack(array_agg(Issue)){number};
             ''',
             [
@@ -431,6 +434,45 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT array_unpack([(1,)]).0;''',
             [1],
+        )
+
+    async def test_edgeql_functions_array_unpack_06(self):
+        # We have a special case optimization for "IN array_unpack" so
+        # it's worth testing it.
+
+        await self.assert_query_result(
+            r'''SELECT 1 IN array_unpack([1]);''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 2 IN array_unpack([1]);''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 2 NOT IN array_unpack([1]);''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 1 IN array_unpack({[1,2,3], [4,5,6]});''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 0 IN array_unpack({[1,2,3], [4,5,6]});''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 1 NOT IN array_unpack({[1,2,3], [4,5,6]});''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 0 NOT IN array_unpack({[1,2,3], [4,5,6]});''',
+            [True],
         )
 
     async def test_edgeql_functions_enumerate_01(self):
@@ -491,8 +533,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
     async def test_edgeql_functions_enumerate_03(self):
-        await self.con.execute('SET MODULE test')
-
         await self.assert_query_result(
             r'''SELECT enumerate((SELECT User.name ORDER BY User.name));''',
             [[0, 'Elvis'], [1, 'Yury']],
@@ -526,13 +566,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_enumerate_05(self):
         await self.assert_query_result(
-            r'''SELECT enumerate(test::User { name } ORDER BY .name);''',
+            r'''SELECT enumerate(User { name } ORDER BY .name);''',
             [[0, {"name": "Elvis"}],
              [1, {"name": "Yury"}]],
         )
 
         await self.assert_query_result(
-            r'''SELECT enumerate(test::User ORDER BY .name).1.name;''',
+            r'''SELECT enumerate(User ORDER BY .name).1.name;''',
             ["Elvis", "Yury"],
         )
 
@@ -564,8 +604,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
     async def test_edgeql_functions_array_get_02(self):
-        await self.con.execute('SET MODULE test')
-
         await self.assert_query_result(
             r'''
                 SELECT array_get(array_agg(
@@ -898,13 +936,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_re_replace_02(self):
         await self.assert_query_result(
-            r'''SELECT re_replace('[aeiou]', '~', test::User.name);''',
+            r'''SELECT re_replace('[aeiou]', '~', User.name);''',
             {'Elv~s', 'Y~ry'},
         )
 
         await self.assert_query_result(
             r'''
-                SELECT re_replace('[aeiou]', '~', test::User.name,
+                SELECT re_replace('[aeiou]', '~', User.name,
                                   flags := 'g');
             ''',
             {'Elv~s', 'Y~ry'},
@@ -912,7 +950,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT re_replace('[aeiou]', '~', test::User.name,
+                SELECT re_replace('[aeiou]', '~', User.name,
                                   flags := 'i');
             ''',
             {'~lvis', 'Y~ry'},
@@ -920,7 +958,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                SELECT re_replace('[aeiou]', '~', test::User.name,
+                SELECT re_replace('[aeiou]', '~', User.name,
                                   flags := 'gi');
             ''',
             {'~lv~s', 'Y~ry'},
@@ -1007,6 +1045,15 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             'SELECT <str>to_datetime(517795200.00n);'
         )
         self.assertEqual('1986-05-30T00:00:00+00:00', dt)
+
+    async def test_edgeql_functions_unix_to_datetime_05(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "'std::datetime' value out of range"
+        ):
+            await self.con.query_one(
+                'SELECT to_datetime(999999999999)'
+            )
 
     async def test_edgeql_functions_datetime_current_01(self):
         # make sure that datetime as a str gets serialized to a
@@ -1369,7 +1416,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'hours');
             ''',
-            {'15:00:00'},
+            {'PT15H'},
         )
 
         await self.assert_query_result(
@@ -1377,7 +1424,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'minutes');
             ''',
-            {'15:01:00'},
+            {'PT15H1M'},
         )
 
         await self.assert_query_result(
@@ -1385,7 +1432,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'seconds');
             ''',
-            {'15:01:22'},
+            {'PT15H1M22S'},
         )
 
         await self.assert_query_result(
@@ -1393,7 +1440,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'milliseconds');
             ''',
-            {'15:01:22.306'},
+            {'PT15H1M22.306S'},
         )
 
         # Currently no-op but may be useful if precision is improved
@@ -1402,7 +1449,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT <str>duration_truncate(
                 <duration>'15:01:22.306916', 'microseconds');
             ''',
-            {'15:01:22.306916'},
+            {'PT15H1M22.306916S'},
         )
 
     async def test_edgeql_functions_duration_trunc_02(self):
@@ -1508,6 +1555,31 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                         to_datetime('2019/01/01 00:00:00');
                 ''')
 
+    async def test_edgeql_functions_to_datetime_06(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT to_datetime(10000, 1, 1, 1, 1, 1, 'UTC');
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT to_datetime(0, 1, 1, 1, 1, 1, 'UTC');
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT to_datetime(-1, 1, 1, 1, 1, 1, 'UTC');
+            ''')
+
     async def test_edgeql_functions_to_local_datetime_01(self):
         await self.assert_query_result(
             r'''
@@ -1588,6 +1660,31 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                         cal::to_local_datetime('2019/01/01 00:00:00 0715');
                 ''')
 
+    async def test_edgeql_functions_to_local_datetime_07(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT cal::to_local_datetime(10000, 1, 1, 1, 1, 1);
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT cal::to_local_datetime(0, 1, 1, 1, 1, 1);
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT cal::to_local_datetime(-1, 1, 1, 1, 1, 1);
+            ''')
+
     async def test_edgeql_functions_to_local_date_01(self):
         await self.assert_query_result(
             r'''
@@ -1631,8 +1728,33 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 # including too much
                 await self.con.query(r'''
                     SELECT
-                        cal::to_local_datetime('2019/01/01 00:00:00 0715');
+                        cal::to_local_date('2019/01/01 00:00:00 0715');
                 ''')
+
+    async def test_edgeql_functions_to_local_date_05(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT cal::to_local_date(10000, 1, 1);
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT cal::to_local_date(0, 1, 1);
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT cal::to_local_date(-1, 1, 1);
+            ''')
 
     async def test_edgeql_functions_to_local_time_01(self):
         await self.assert_query_result(
@@ -1680,30 +1802,39 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                         cal::to_local_datetime('00:00:00 0715');
                 ''')
 
+    async def test_edgeql_functions_to_local_time_05(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.query(r'''
+                SELECT cal::to_local_datetime(10000, 1, 1, 1, 1, 1);
+            ''')
+
     async def test_edgeql_functions_to_duration_01(self):
         await self.assert_query_result(
             r'''SELECT <str>to_duration(hours:=20);''',
-            ['20:00:00'],
+            ['PT20H'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(minutes:=20);''',
-            ['00:20:00'],
+            ['PT20M'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(seconds:=20);''',
-            ['00:00:20'],
+            ['PT20S'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(seconds:=20.15);''',
-            ['00:00:20.15'],
+            ['PT20.15S'],
         )
 
         await self.assert_query_result(
             r'''SELECT <str>to_duration(microseconds:=100);''',
-            ['00:00:00.0001'],
+            ['PT0.0001S'],
         )
 
     async def test_edgeql_functions_to_duration_02(self):
@@ -2680,13 +2811,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     '11:12:22',
                 });
             ''',
-            ['11:01:22'],
+            ['PT11H1M22S'],
         )
 
     async def test_edgeql_functions_min_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT min(User.name);
             ''',
             ['Elvis'],
@@ -2694,7 +2824,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT min(Issue.time_estimate);
             ''',
             [3000],
@@ -2702,10 +2831,18 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT min(<int64>Issue.number);
             ''',
             [{}],
+        )
+
+    async def test_edgeql_functions_min_03(self):
+        # Objects are valid inputs to "min" and are ordered by their .id.
+        await self.assert_query_result(
+            r'''
+            SELECT min(User).id = min(User.id);
+            ''',
+            [True],
         )
 
     async def test_edgeql_functions_max_01(self):
@@ -2816,13 +2953,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                     '11:12:22',
                 });
             ''',
-            ['16:01:22'],
+            ['PT16H1M22S'],
         )
 
     async def test_edgeql_functions_max_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT max(User.name);
             ''',
             ['Yury'],
@@ -2830,7 +2966,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT max(Issue.time_estimate);
             ''',
             [3000],
@@ -2838,10 +2973,18 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT max(<int64>Issue.number);
             ''',
             [4],
+        )
+
+    async def test_edgeql_functions_max_03(self):
+        # Objects are valid inputs to "max" and are ordered by their .id.
+        await self.assert_query_result(
+            r'''
+            SELECT max(User).id = max(User.id);
+            ''',
+            [True],
         )
 
     async def test_edgeql_functions_all_01(self):
@@ -2903,7 +3046,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_all_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT all(len(User.name) = 4);
             ''',
             [False],
@@ -2911,7 +3053,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT all(
                     (
                         FOR I IN {Issue}
@@ -2924,7 +3065,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT all(Issue.number != '');
                 ''',
             [True],
@@ -2989,7 +3129,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_any_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(len(User.name) = 4);
             ''',
             [True],
@@ -2997,7 +3136,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(
                     (
                         FOR I IN {Issue}
@@ -3010,7 +3148,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(Issue.number != '');
             ''',
             [True],
@@ -3019,7 +3156,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_any_03(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(len(User.name) = 4) =
                     NOT all(NOT (len(User.name) = 4));
             ''',
@@ -3028,7 +3164,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(
                     (
                         FOR I IN {Issue}
@@ -3046,7 +3181,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT any(Issue.number != '') = NOT all(Issue.number = '');
             ''',
             [True],
@@ -3230,7 +3364,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_round_04(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT _ := round(<int64>Issue.number / 2)
                 ORDER BY _;
             ''',
@@ -3239,7 +3372,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT _ := round(<decimal>Issue.number / 2)
                 ORDER BY _;
             ''',
@@ -4025,7 +4157,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 WITH
                     MODULE math,
-                    A := len(test::Named.name)
+                    A := len(default::Named.name)
                 # the difference between sum and mean * count is due to
                 # rounding errors, but it should be small
                 SELECT abs(sum(A) - count(A) * mean(A)) < 1e-10;
@@ -4038,7 +4170,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 WITH
                     MODULE math,
-                    A := <float64>len(test::Named.name)
+                    A := <float64>len(default::Named.name)
                 # the difference between sum and mean * count is due to
                 # rounding errors, but it should be small
                 SELECT abs(sum(A) - count(A) * mean(A)) < 1e-10;
@@ -4165,12 +4297,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_math_stddev_pop_01(self):
         await self.assert_query_result(
             r'''SELECT math::stddev_pop(1);''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
             r'''SELECT math::stddev_pop({1, 1, 1});''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
@@ -4180,7 +4312,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT math::stddev_pop({0.1, 0.1, 0.1});''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
@@ -4359,12 +4491,12 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_math_var_pop_01(self):
         await self.assert_query_result(
             r'''SELECT math::var_pop(1);''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
             r'''SELECT math::var_pop({1, 1, 1});''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
@@ -4374,7 +4506,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT math::var_pop({0.1, 0.1, 0.1});''',
-            {0},
+            {0.0},
         )
 
         await self.assert_query_result(
@@ -4419,7 +4551,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 WITH
                     MODULE math,
                     X := {1, 2, 1, 2}
-                SELECT var_pop(X) = stddev_pop(X) ^ 2;
+                SELECT abs(var_pop(X) - stddev_pop(X) ^ 2) < 1.0e-15;
             ''',
             {True},
         )
@@ -4429,7 +4561,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                 WITH
                     MODULE math,
                     X := {0.1, 0.2, 0.1, 0.2}
-                SELECT var_pop(X) = stddev_pop(X) ^ 2;
+                SELECT abs(var_pop(X) - stddev_pop(X) ^ 2) < 1.0e-15;
             ''',
             {True},
         )
@@ -4470,4 +4602,79 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT _gen_series(1n, 10n, 2n)
             ''',
             [1, 3, 5, 7, 9]
+        )
+
+    async def test_edgeql_functions_sequence_next_reset(self):
+        await self.con.execute('''
+            CREATE SCALAR TYPE my_seq_01 EXTENDING std::sequence;
+        ''')
+
+        result = await self.con.query_one('''
+            SELECT sequence_next(INTROSPECT my_seq_01)
+        ''')
+
+        self.assertEqual(result, 1)
+
+        result = await self.con.query_one('''
+            SELECT sequence_next(INTROSPECT my_seq_01)
+        ''')
+
+        self.assertEqual(result, 2)
+
+        await self.con.execute('''
+            SELECT sequence_reset(INTROSPECT my_seq_01)
+        ''')
+
+        result = await self.con.query_one('''
+            SELECT sequence_next(INTROSPECT my_seq_01)
+        ''')
+
+        self.assertEqual(result, 1)
+
+        await self.con.execute('''
+            SELECT sequence_reset(INTROSPECT my_seq_01, 20)
+        ''')
+
+        result = await self.con.query_one('''
+            SELECT sequence_next(INTROSPECT my_seq_01)
+        ''')
+
+        self.assertEqual(result, 21)
+
+    async def test_edgeql_functions__datetime_range_buckets(self):
+        await self.assert_query_result(
+            '''
+            SELECT <tuple<str, str>>std::_datetime_range_buckets(
+                <datetime>'2021-01-01T00:00:00Z',
+                <datetime>'2021-04-01T00:00:00Z',
+                '1 month');
+            ''',
+            [
+                ('2021-01-01T00:00:00+00:00', '2021-02-01T00:00:00+00:00'),
+                ('2021-02-01T00:00:00+00:00', '2021-03-01T00:00:00+00:00'),
+                ('2021-03-01T00:00:00+00:00', '2021-04-01T00:00:00+00:00'),
+            ],
+        )
+
+        await self.assert_query_result(
+            '''
+            SELECT <tuple<str, str>>std::_datetime_range_buckets(
+                <datetime>'2021-04-01T00:00:00Z',
+                <datetime>'2021-04-01T00:00:00Z',
+                '1 month');
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            '''
+            SELECT <tuple<str, str>>std::_datetime_range_buckets(
+                <datetime>'2021-01-01T00:00:00Z',
+                <datetime>'2021-04-01T00:00:00Z',
+                '1.5 months');
+            ''',
+            [
+                ('2021-01-01T00:00:00+00:00', '2021-02-16T00:00:00+00:00'),
+                ('2021-02-16T00:00:00+00:00', '2021-03-31T00:00:00+00:00'),
+            ],
         )

@@ -65,6 +65,7 @@ singletons. Examples of aggregate functions include built-ins such as
     json
     bytes
     math
+    sequence
     sys
     uuid
     deprecated

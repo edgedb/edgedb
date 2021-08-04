@@ -84,7 +84,7 @@ def evaluate_SelectStmt(
         ir_stmt: irast.SelectStmt,
         schema: s_schema.Schema) -> irast.ConstExpr:
 
-    if irutils.is_trivial_select(ir_stmt):
+    if irutils.is_trivial_select(ir_stmt) and not ir_stmt.result.is_binding:
         return evaluate(ir_stmt.result, schema)
     else:
         raise UnsupportedExpressionError(
@@ -166,20 +166,32 @@ def evaluate_OperatorCall(
 
 def _evaluate_union(
         opcall: irast.OperatorCall,
-        schema: s_schema.Schema) -> irast.ConstantSet:
+        schema: s_schema.Schema) -> irast.ConstExpr:
 
-    elements: List[irast.ConstExpr] = []
+    elements: List[irast.BaseConstant] = []
     for arg in opcall.args:
         val = evaluate(arg.expr, schema=schema)
         if isinstance(val, irast.ConstantSet):
             elements.extend(val.elements)
-        else:
+        elif isinstance(val, irast.EmptySet):
+            empty_set = val
+        elif isinstance(val, irast.BaseConstant):
             elements.append(val)
+        else:
+            raise UnsupportedExpressionError(
+                f'{val!r} not supported in UNION',
+                context=opcall.context)
 
-    return irast.ConstantSet(
-        elements=tuple(elements),
-        typeref=next(iter(elements)).typeref,
-    )
+    if elements:
+        return irast.ConstantSet(
+            elements=tuple(elements),
+            typeref=next(iter(elements)).typeref,
+        )
+    else:
+        # We get an empty set if the UNION was exclusivly empty set
+        # literals. If that happens, grab one of the empty sets
+        # that we saw and return it.
+        return empty_set
 
 
 @functools.singledispatch
@@ -257,7 +269,12 @@ def cast_const_to_python(
     schema, stype = irtyputils.ir_typeref_to_type(schema, ir.to_type)
     pytype = scalar_type_to_python_type(stype, schema)
     sval = evaluate_to_python_val(ir.expr, schema=schema)
-    return pytype(sval)
+    if sval is None:
+        return None
+    elif isinstance(sval, tuple):
+        return tuple(pytype(elem) for elem in sval)
+    else:
+        return pytype(sval)
 
 
 def schema_type_to_python_type(

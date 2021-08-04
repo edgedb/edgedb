@@ -178,6 +178,17 @@ def _build_object_mutation_shape(
     if lprop_fields is None:
         lprop_fields = {}
 
+    # XXX: This is a hack around the fact that _update_lprops works by
+    # removing all the links and recreating them. Since that will lose
+    # data in situations where not every lprop attribute is specified,
+    # merge AlterOwned props up into the enclosing command. (This avoids
+    # trouble with annotations, which is the main place where we have
+    # multiple interesting lprops at once.)
+    if isinstance(cmd, s_ref.AlterOwned):
+        return '', {}
+    for sub in cmd.get_subcommands(type=s_ref.AlterOwned):
+        props.update(sub.get_resolved_attributes(schema, context))
+
     assignments = []
     variables: Dict[str, str] = {}
     if isinstance(cmd, sd.CreateObject):
@@ -401,13 +412,21 @@ def _build_object_mutation_shape(
 
     if isinstance(cmd, sd.CreateObject):
         if (
-            issubclass(mcls, s_scalars.ScalarType)
+            issubclass(mcls, (s_scalars.ScalarType, s_types.Collection))
+            and not issubclass(mcls, s_types.CollectionExprAlias)
             and not cmd.get_attribute_value('abstract')
         ):
-            assignments.append(
-                f'backend_id := sys::_get_pg_type_for_scalar_type('
-                f'<uuid>$__{var_prefix}id)'
-            )
+            if issubclass(mcls, s_types.Array):
+                assignments.append(
+                    f'backend_id := sys::_get_pg_type_for_edgedb_type('
+                    f'<uuid>$__{var_prefix}id, '
+                    f'<uuid>$__{var_prefix}element_type)'
+                )
+            else:
+                assignments.append(
+                    f'backend_id := sys::_get_pg_type_for_edgedb_type('
+                    f'<uuid>$__{var_prefix}id, <uuid>{{}})'
+                )
             variables[f'__{var_prefix}id'] = json.dumps(
                 str(cmd.get_attribute_value('id')))
 
@@ -758,7 +777,6 @@ def _update_lprops(
                 f'cannot find link target in ddl_identity of a command for '
                 f'schema class reflected as link: {cmd!r}'
             )
-        target_ref = target_obj.get_name(schema)
         target_clsname = target_field.type.__name__
     else:
         referrer_cls = refop.get_schema_metaclass()
@@ -769,7 +787,7 @@ def _update_lprops(
             target_type = target_field.type
         target_clsname = target_type.__name__
         target_link = refdict.attr
-        target_ref = cmd.classname
+        target_obj = cmd.scls
 
     shape, append_variables = _build_object_mutation_shape(
         cmd,
@@ -784,13 +802,15 @@ def _update_lprops(
 
     if shape:
         parent_variables = {}
-        parent_variables[f'__{target_link}'] = json.dumps(str(target_ref))
+        parent_variables[f'__{target_link}'] = json.dumps(str(target_obj.id))
         ref_name = context.get_referrer_name(refctx)
         parent_variables['__parent_classname'] = json.dumps(str(ref_name))
 
         # XXX: we have to do a -= followed by a += because
         # support for filtered nested link property updates
         # is currently broken.
+        # This is fragile! If not all of the lprops are specified,
+        # we will drop them.
 
         assignments = []
 
@@ -798,7 +818,7 @@ def _update_lprops(
             f'''\
             {refdict.attr} -= (
                 SELECT DETACHED (schema::{target_clsname})
-                FILTER .name__internal = <str>$__{target_link}
+                FILTER .id = <uuid>$__{target_link}
             )'''
         ))
 
@@ -834,7 +854,7 @@ def _update_lprops(
             f'''\
             {refdict.attr} += (
                 SELECT schema::{target_clsname} {{{shape}
-                }} FILTER .name__internal = <str>$__{target_link}
+                }} FILTER .id = <uuid>$__{target_link}
             )'''
         ))
 
@@ -963,16 +983,8 @@ def write_meta_delete_object(
             if layout_entry.reflection_proxy
         ]
 
-        operations = []
-        if proxy_links:
-            # Link deletion triggers apparently don't work for the
-            # schema tables, and so we need to clear out the proxy
-            # links manually before we delete them.
-            sets = [f'{link} := {{}}' for link in proxy_links]
-            operations.append(f'(UPDATE D SET {{ {", ".join(sets)} }})')
-
         to_delete = ['D'] + [f'D.{link}' for link in proxy_links]
-        operations += [f'(DELETE {x})' for x in to_delete]
+        operations = [f'(DELETE {x})' for x in to_delete]
         query = f'''
             WITH D := (SELECT schema::{mcls.__name__}
                        FILTER .name__internal = <str>$__classname),
@@ -994,8 +1006,8 @@ def write_meta_rename_object(
     stdmode: bool,
 ) -> None:
     # Delegate to the more general function, and then record the rename.
-    write_meta_alter_object(  # type: ignore
-        cmd,  # type: ignore
+    write_meta_alter_object(
+        cmd,
         classlayout=classlayout,
         schema=schema,
         context=context,

@@ -47,7 +47,7 @@ def compile_SelectStmt(
         # Common setup.
         clauses.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
 
-        for binding in stmt.bindings:
+        for binding in (stmt.bindings or ()):
             # If something we are WITH binding contains DML, we want to
             # compile it *now*, in the context of its initial appearance
             # and not where the variable is used. This will populate
@@ -59,21 +59,21 @@ def compile_SelectStmt(
 
         query = ctx.stmt
 
-        iterators = irutils.get_iterator_sets(stmt)
+        iterator_set = stmt.iterator_stmt
         last_iterator: Optional[irast.Set] = None
-        if iterators and irutils.contains_dml(stmt):
+        if iterator_set and irutils.contains_dml(stmt):
             # If we have iterators and we contain nested DML
             # statements, we need to hoist the iterators into CTEs and
             # then explicitly join them back into the query.
-            iterator = dml.compile_iterator_ctes(iterators, ctx=ctx)
+            iterator = dml.compile_iterator_cte(iterator_set, ctx=ctx)
             ctx.path_scope = ctx.path_scope.new_child()
             dml.merge_iterator(iterator, ctx.rel, ctx=ctx)
 
             ctx.enclosing_cte_iterator = iterator
-            last_iterator = iterators[-1]
+            last_iterator = stmt.iterator_stmt
 
         else:
-            for iterator_set in iterators:
+            if iterator_set:
                 # Process FOR clause.
                 with ctx.new() as ictx:
                     clauses.setup_iterator_volatility(last_iterator, ctx=ictx)
@@ -88,6 +88,9 @@ def compile_SelectStmt(
                         env=ctx.env,
                     )
                 last_iterator = iterator_set
+
+        # Process materialized sets
+        clauses.compile_materialized_exprs(query, stmt, ctx=ctx)
 
         # Process the result expression.
         with ctx.new() as ictx:
@@ -107,9 +110,10 @@ def compile_SelectStmt(
                         stmt.where, stmt.where_card, ctx=ctx))
 
             # The ORDER BY clause
-            with ctx.new() as ictx:
-                query.sort_clause = clauses.compile_orderby_clause(
-                    stmt.orderby, ctx=ictx)
+            if stmt.orderby is not None:
+                with ctx.new() as ictx:
+                    query.sort_clause = clauses.compile_orderby_clause(
+                        stmt.orderby, ctx=ictx)
 
         if outvar.nullable and query is ctx.toplevel_stmt:
             # A nullable var has bubbled up to the top,
@@ -179,7 +183,7 @@ def compile_UpdateStmt(
         assert range_cte is not None
 
         toplevel = ctx.toplevel_stmt
-        toplevel.ctes.append(range_cte)
+        toplevel.append_cte(range_cte)
 
         for typeref, (update_cte, _) in parts.dml_ctes.items():
             # Process UPDATE body.
@@ -207,10 +211,10 @@ def compile_DeleteStmt(
 
         range_cte = parts.range_cte
         assert range_cte is not None
-        ctx.toplevel_stmt.ctes.append(range_cte)
+        ctx.toplevel_stmt.append_cte(range_cte)
 
         for delete_cte, _ in parts.dml_ctes.values():
-            ctx.toplevel_stmt.ctes.append(delete_cte)
+            ctx.toplevel_stmt.append_cte(delete_cte)
 
         # Wrap up.
         return dml.fini_dml_stmt(

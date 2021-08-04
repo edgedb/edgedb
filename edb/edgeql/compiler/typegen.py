@@ -82,9 +82,10 @@ def _ql_typeexpr_to_type(
         ctx: context.ContextLevel) -> List[s_types.Type]:
 
     if isinstance(ql_t, qlast.TypeOf):
-        with ctx.newscope(fenced=True, temporary=True) as subctx:
-            ir_set = setgen.ensure_set(dispatch.compile(ql_t.expr, ctx=subctx),
-                                       ctx=subctx)
+        with ctx.new() as subctx:
+            # Use an empty scope tree, to avoid polluting things pointlessly
+            subctx.path_scope = irast.ScopeTreeNode()
+            ir_set = dispatch.compile(ql_t.expr, ctx=subctx)
             stype = setgen.get_set_type(ir_set, ctx=subctx)
 
         return [stype]
@@ -102,7 +103,8 @@ def _ql_typeexpr_to_type(
         return [_ql_typename_to_type(ql_t, ctx=ctx)]
 
     else:
-        raise errors.InternalServerError(f'unexpected TypeExpr: {ql_t!r}')
+        raise errors.EdgeQLSyntaxError("Unexpected type expression",
+                                       context=ql_t.context)
 
 
 def _ql_typename_to_type(

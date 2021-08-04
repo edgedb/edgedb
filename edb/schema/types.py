@@ -65,8 +65,11 @@ class ExprType(enum.IntEnum):
 
 
 TypeT = typing.TypeVar('TypeT', bound='Type')
+TypeT_co = typing.TypeVar('TypeT_co', bound='Type', covariant=True)
 InheritingTypeT = typing.TypeVar('InheritingTypeT', bound='InheritingType')
 CollectionTypeT = typing.TypeVar('CollectionTypeT', bound='Collection')
+CollectionTypeT_co = typing.TypeVar(
+    'CollectionTypeT_co', bound='Collection', covariant=True)
 CollectionExprAliasT = typing.TypeVar(
     'CollectionExprAliasT', bound='CollectionExprAlias'
 )
@@ -232,6 +235,9 @@ class Type(
     def is_enum(self, schema: s_schema.Schema) -> bool:
         return False
 
+    def is_sequence(self, schema: s_schema.Schema) -> bool:
+        return False
+
     def test_polymorphic(self, schema: s_schema.Schema, poly: Type) -> bool:
         """Check if this type can be matched by a polymorphic type.
 
@@ -377,7 +383,10 @@ class Type(
     ) -> bool:
         return not self.is_view(schema)
 
-    def as_shell(self, schema: s_schema.Schema) -> TypeShell:
+    def as_shell(
+        self: TypeT,
+        schema: s_schema.Schema,
+    ) -> TypeShell[TypeT]:
         name = typing.cast(s_name.QualName, self.get_name(schema))
 
         if union_of := self.get_union_of(schema):
@@ -388,6 +397,7 @@ class Type(
                 ],
                 module=name.module,
                 opaque=self.get_is_opaque_union(schema),
+                schemaclass=type(self),
             )
         elif intersection_of := self.get_intersection_of(schema):
             assert isinstance(self, so.QualifiedObject)
@@ -396,12 +406,12 @@ class Type(
                     o.as_shell(schema) for o in intersection_of.objects(schema)
                 ],
                 module=name.module,
+                schemaclass=type(self),
             )
         else:
             return TypeShell(
                 name=name,
                 schemaclass=type(self),
-                is_abstract=self.get_abstract(schema),
             )
 
     def record_cmd_object_aux_data(
@@ -412,6 +422,20 @@ class Type(
         super().record_cmd_object_aux_data(schema, cmd)
         if self.is_compound_type(schema):
             cmd.set_object_aux_data('is_compound_type', True)
+
+    def as_type_delete_if_dead(
+        self: TypeT,
+        schema: s_schema.Schema,
+    ) -> Optional[sd.DeleteObject[TypeT]]:
+        """If this is type is owned by other objects, delete it if unused.
+
+        For types that get created behind the scenes as part of
+        another object, such as collection types and union types, this
+        should generate an appropriate deletion. Otherwise, it should
+        return None.
+        """
+
+        return None
 
 
 class QualifiedType(so.QualifiedObject, Type):
@@ -460,9 +484,9 @@ class InheritingType(so.DerivableInheritingObject, QualifiedType):
             return ancestors.index(ancestor) + 1
 
 
-class TypeShell(so.ObjectShell):
+class TypeShell(so.ObjectShell[TypeT_co]):
 
-    schemaclass: typing.Type[Type]
+    schemaclass: typing.Type[TypeT_co]
 
     def __init__(
         self,
@@ -471,8 +495,7 @@ class TypeShell(so.ObjectShell):
         origname: Optional[s_name.Name] = None,
         displayname: Optional[str] = None,
         expr: Optional[str] = None,
-        is_abstract: bool = False,
-        schemaclass: typing.Type[Type] = Type,
+        schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         super().__init__(
@@ -483,10 +506,9 @@ class TypeShell(so.ObjectShell):
             sourcectx=sourcectx,
         )
 
-        self.is_abstract = is_abstract
         self.expr = expr
 
-    def resolve(self, schema: s_schema.Schema) -> Type:
+    def resolve(self, schema: s_schema.Schema) -> TypeT_co:
         return schema.get(
             self.get_name(schema),
             type=self.schemaclass,
@@ -494,7 +516,7 @@ class TypeShell(so.ObjectShell):
         )
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
-        return self.is_abstract
+        return self.resolve(schema).is_polymorphic(schema)
 
     def as_create_delta(
         self,
@@ -506,17 +528,17 @@ class TypeShell(so.ObjectShell):
         raise NotImplementedError
 
 
-class TypeExprShell(TypeShell):
+class TypeExprShell(TypeShell[TypeT_co]):
 
-    components: typing.Tuple[TypeShell, ...]
+    components: typing.Tuple[TypeShell[TypeT_co], ...]
     module: str
 
     def __init__(
         self,
         *,
-        components: Iterable[TypeShell],
+        components: Iterable[TypeShell[TypeT_co]],
         module: str,
-        schemaclass: typing.Type[Type] = Type,
+        schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         super().__init__(
@@ -530,28 +552,25 @@ class TypeExprShell(TypeShell):
     def resolve_components(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[InheritingType, ...]:
-        return tuple(
-            typing.cast(InheritingType, c.resolve(schema))
-            for c in self.components
-        )
+    ) -> typing.Tuple[TypeT_co, ...]:
+        return tuple(c.resolve(schema) for c in self.components)
 
     def get_components(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[TypeShell, ...]:
+    ) -> typing.Tuple[TypeShell[TypeT_co], ...]:
         return self.components
 
 
-class UnionTypeShell(TypeExprShell):
+class UnionTypeShell(TypeExprShell[TypeT_co]):
 
     def __init__(
         self,
         *,
-        components: Iterable[TypeShell],
+        components: Iterable[TypeShell[TypeT_co]],
         module: str,
         opaque: bool = False,
-        schemaclass: typing.Type[Type] = Type,
+        schemaclass: typing.Type[TypeT_co],
         sourcectx: Optional[parsing.ParserContext] = None,
     ) -> None:
         super().__init__(
@@ -604,7 +623,7 @@ class RenameType(sd.RenameObject[TypeT]):
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: so.Object,
+        scls: TypeT,
     ) -> None:
         super()._canonicalize(schema, context, scls)
 
@@ -760,7 +779,7 @@ class CreateUnionType(sd.CreateObject[InheritingType], CompoundTypeCommand):
         return schema
 
 
-class IntersectionTypeShell(TypeExprShell):
+class IntersectionTypeShell(TypeExprShell[TypeT_co]):
 
     def get_name(
         self,
@@ -789,6 +808,14 @@ class Collection(Type, s_abc.Collection):
             return str(name)
         else:
             return s_name.unmangle_name(str(name))
+
+    def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
+        """Return collection type name generated from element types.
+
+        Unlike get_name(), which might return a custom name, this will always
+        return a name derived from the names of the collection element type(s).
+        """
+        raise NotImplementedError
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return any(st.is_polymorphic(schema)
@@ -920,27 +947,29 @@ class Collection(Type, s_abc.Collection):
     def get_schema_class_displayname(cls) -> str:
         return 'collection'
 
-    def as_colltype_delete_delta(
-        self,
+    def as_type_delete_if_dead(
+        self: CollectionTypeT,
         schema: s_schema.Schema,
-        *,
-        if_exists: bool = False,
-        expiring_refs: AbstractSet[so.Object],
-        view_name: Optional[s_name.QualName] = None,
-    ) -> sd.Command:
-        raise NotImplementedError
+    ) -> sd.DeleteObject[CollectionTypeT]:
+        return self.init_delta_command(
+            schema,
+            sd.DeleteObject,
+            if_unused=True,
+            if_exists=True,
+        )
 
 
 Dimensions = checked.FrozenCheckedList[int]
 Array_T = typing.TypeVar("Array_T", bound="Array")
+Array_T_co = typing.TypeVar("Array_T_co", bound="Array", covariant=True)
 
 
-class CollectionTypeShell(TypeShell):
+class CollectionTypeShell(TypeShell[CollectionTypeT_co]):
 
     def get_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[TypeShell, ...]:
+    ) -> typing.Tuple[TypeShell[Type], ...]:
         raise NotImplementedError
 
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
@@ -956,7 +985,35 @@ class CollectionExprAlias(QualifiedType, Collection):
 
     @classmethod
     def get_schema_class_displayname(cls) -> str:
-        return 'view'
+        return 'expression alias'
+
+    @classmethod
+    def get_underlying_schema_class(cls) -> typing.Type[Collection]:
+        """Return the concrete collection class for this ExprAlias class."""
+        raise NotImplementedError
+
+    def as_underlying_type_delete_if_dead(
+        self,
+        schema: s_schema.Schema,
+    ) -> sd.DeleteObject[Type]:
+        """Return a conditional deletion command for the underlying type object
+        """
+        return sd.get_object_delta_command(
+            objtype=type(self).get_underlying_schema_class(),
+            cmdtype=sd.DeleteObject,
+            schema=schema,
+            name=self.get_generated_name(schema),
+            if_unused=True,
+            if_exists=True,
+        )
+
+    def as_type_delete_if_dead(
+        self: CollectionExprAliasT,
+        schema: s_schema.Schema,
+    ) -> sd.DeleteObject[CollectionExprAliasT]:
+        cmd = self.init_delta_command(schema, sd.DeleteObject, if_exists=True)
+        cmd.add_prerequisite(self.as_underlying_type_delete_if_dead(schema))
+        return cmd
 
 
 class Array(
@@ -986,7 +1043,10 @@ class Array(
         schema: s_schema.Schema,
         data: Dict[str, Any],
     ) -> uuid.UUID:
-        if data.get('alias_is_persistent'):
+        if (
+            data.get('alias_is_persistent')
+            or isinstance(data.get('name'), s_name.QualName)
+        ):
             return super().generate_id(schema, data)
         else:
             return generate_array_type_id(
@@ -1041,6 +1101,11 @@ class Array(
             )
 
         return schema, result
+
+    def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
+        return type(self).generate_name(
+            self.get_element_type(schema).get_name(schema),
+        )
 
     def contains_array_of_tuples(self, schema: s_schema.Schema) -> bool:
         return self.get_element_type(schema).is_tuple(schema)
@@ -1196,14 +1261,14 @@ class Array(
 
     @classmethod
     def create_shell(
-        cls,
+        cls: typing.Type[Array_T],
         schema: s_schema.Schema,
         *,
-        subtypes: Sequence[TypeShell],
+        subtypes: Sequence[TypeShell[Type]],
         typemods: Any = None,
         name: Optional[s_name.Name] = None,
         expr: Optional[str] = None,
-    ) -> ArrayTypeShell:
+    ) -> ArrayTypeShell[Array_T]:
         if not typemods:
             typemods = ([-1],)
 
@@ -1220,7 +1285,10 @@ class Array(
             schemaclass=cls,
         )
 
-    def as_shell(self, schema: s_schema.Schema) -> ArrayTypeShell:
+    def as_shell(
+        self: Array_T,
+        schema: s_schema.Schema,
+    ) -> ArrayTypeShell[Array_T]:
         expr = self.get_expr(schema)
         expr_text = expr.text if expr is not None else None
         return type(self).create_shell(
@@ -1232,15 +1300,15 @@ class Array(
         )
 
     def material_type(
-        self: Array_T,
+        self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, Array_T]:
+    ) -> typing.Tuple[s_schema.Schema, Array]:
         # We need to resolve material types based on the subtype recursively.
 
         st = self.get_element_type(schema)
         schema, stm = st.material_type(schema)
-        if stm != st:
-            return self.__class__.from_subtypes(
+        if stm != st or isinstance(self, ArrayExprAlias):
+            return Array.from_subtypes(
                 schema,
                 [stm],
                 typemods=self.get_typemods(schema),
@@ -1248,48 +1316,19 @@ class Array(
         else:
             return (schema, self)
 
-    def as_colltype_delete_delta(
-        self,
-        schema: s_schema.Schema,
-        *,
-        if_exists: bool = False,
-        expiring_refs: AbstractSet[so.Object] = frozenset(),
-        view_name: Optional[s_name.QualName] = None,
-    ) -> Union[DeleteArray, DeleteArrayExprAlias]:
-        cmd: Union[DeleteArray, DeleteArrayExprAlias]
-        if view_name is None:
-            cmd = DeleteArray(
-                classname=self.get_name(schema),
-                if_unused=True,
-                if_exists=if_exists,
-                expiring_refs=expiring_refs,
-            )
-        else:
-            cmd = DeleteArrayExprAlias(
-                classname=view_name,
-                if_exists=if_exists,
-                expiring_refs=expiring_refs,
-            )
 
-        el = self.get_element_type(schema)
-        if isinstance(el, Collection):
-            cmd.add(el.as_colltype_delete_delta(schema, expiring_refs={self}))
+class ArrayTypeShell(CollectionTypeShell[Array_T_co]):
 
-        return cmd
-
-
-class ArrayTypeShell(CollectionTypeShell):
-
-    schemaclass: typing.Type[Array]
+    schemaclass: typing.Type[Array_T_co]
 
     def __init__(
         self,
         *,
         name: s_name.Name,
         expr: Optional[str] = None,
-        subtype: TypeShell,
+        subtype: TypeShell[Type],
         typemods: typing.Tuple[typing.Any, ...],
-        schemaclass: typing.Type[Array] = Array,
+        schemaclass: typing.Type[Array_T_co],
     ) -> None:
         super().__init__(name=name, schemaclass=schemaclass, expr=expr)
         self.subtype = subtype
@@ -1306,7 +1345,7 @@ class ArrayTypeShell(CollectionTypeShell):
     def get_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[TypeShell, ...]:
+    ) -> typing.Tuple[TypeShell[Type], ...]:
         return (self.subtype,)
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
@@ -1315,11 +1354,12 @@ class ArrayTypeShell(CollectionTypeShell):
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
         return generate_array_type_id(schema, self.subtype, self.typemods[0])
 
-    def resolve(self, schema: s_schema.Schema) -> Array:
+    def resolve(self, schema: s_schema.Schema) -> Array_T_co:
         if isinstance(self.name, s_name.QualName):
-            return schema.get(self.name, type=Array)
+            arr = schema.get(self.name, type=Array)
         else:
-            return schema.get_by_id(self.get_id(schema), type=Array)
+            arr = schema.get_by_id(self.get_id(schema), type=Array)
+        return arr  # type: ignore
 
     def as_create_delta(
         self,
@@ -1349,6 +1389,7 @@ class ArrayTypeShell(CollectionTypeShell):
         ca.set_attribute_value('name', ca.classname)
         ca.set_attribute_value('element_type', el)
         ca.set_attribute_value('is_persistent', True)
+        ca.set_attribute_value('abstract', self.is_polymorphic(schema))
         ca.set_attribute_value('dimensions', self.typemods[0])
 
         if attrs:
@@ -1367,10 +1408,14 @@ class ArrayExprAlias(
 ):
     # N.B: Don't add any SchemaFields to this class, they won't be
     # reflected properly (since this inherits from the concrete Array).
-    pass
+
+    @classmethod
+    def get_underlying_schema_class(cls) -> typing.Type[Collection]:
+        return Array
 
 
 Tuple_T = typing.TypeVar('Tuple_T', bound='Tuple')
+Tuple_T_co = typing.TypeVar('Tuple_T_co', bound='Tuple', covariant=True)
 
 
 class Tuple(
@@ -1462,6 +1507,10 @@ class Tuple(
             )
 
         return schema, result
+
+    def get_generated_name(self, schema: s_schema.Schema) -> s_name.UnqualName:
+        els = {n: st.get_name(schema) for n, st in self.iter_subtypes(schema)}
+        return type(self).generate_name(els, self.is_named(schema))
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
         if self.is_named(schema):
@@ -1580,13 +1629,13 @@ class Tuple(
 
     @classmethod
     def create_shell(
-        cls,
+        cls: typing.Type[Tuple_T],
         schema: s_schema.Schema,
         *,
-        subtypes: Mapping[str, TypeShell],
+        subtypes: Mapping[str, TypeShell[Type]],
         typemods: Any = None,
         name: Optional[s_name.Name] = None,
-    ) -> TupleTypeShell:
+    ) -> TupleTypeShell[Tuple_T]:
         if name is None:
             name = s_name.UnqualName(name='__unresolved__')
 
@@ -1597,8 +1646,11 @@ class Tuple(
             schemaclass=cls,
         )
 
-    def as_shell(self, schema: s_schema.Schema) -> TupleTypeShell:
-        stshells: Dict[str, TypeShell] = {}
+    def as_shell(
+        self: Tuple_T,
+        schema: s_schema.Schema,
+    ) -> TupleTypeShell[Tuple_T]:
+        stshells: Dict[str, TypeShell[Type]] = {}
 
         for n, st in self.iter_subtypes(schema):
             stshells[n] = st.as_shell(schema)
@@ -1720,10 +1772,10 @@ class Tuple(
         return True
 
     def find_common_implicitly_castable_type(
-        self: Tuple_T,
+        self,
         other: Type,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[s_schema.Schema, Optional[Tuple_T]]:
+    ) -> typing.Tuple[s_schema.Schema, Optional[Tuple]]:
 
         if not isinstance(other, Tuple):
             return schema, None
@@ -1749,11 +1801,11 @@ class Tuple(
             my_names = self.get_element_names(schema)
             other_names = other.get_element_names(schema)
             if my_names == other_names:
-                return type(self).from_subtypes(
+                return Tuple.from_subtypes(
                     schema, dict(zip(my_names, new_types)), {"named": True}
                 )
 
-        return type(self).from_subtypes(schema, new_types)
+        return Tuple.from_subtypes(schema, new_types)
 
     def get_typemods(self, schema: s_schema.Schema) -> Dict[str, bool]:
         return {'named': self.is_named(schema)}
@@ -1842,48 +1894,18 @@ class Tuple(
         else:
             return schema, self
 
-    def as_colltype_delete_delta(
-        self,
-        schema: s_schema.Schema,
-        *,
-        if_exists: bool = False,
-        expiring_refs: AbstractSet[so.Object] = frozenset(),
-        view_name: Optional[s_name.QualName] = None,
-    ) -> Union[DeleteTuple, DeleteTupleExprAlias]:
-        cmd: Union[DeleteTuple, DeleteTupleExprAlias]
-        if view_name is None:
-            cmd = DeleteTuple(
-                classname=self.get_name(schema),
-                if_unused=True,
-                if_exists=if_exists,
-                expiring_refs=expiring_refs,
-            )
-        else:
-            cmd = DeleteTupleExprAlias(
-                classname=view_name,
-                if_exists=if_exists,
-                expiring_refs=expiring_refs,
-            )
 
-        for el in self.get_subtypes(schema):
-            if isinstance(el, Collection):
-                cmd.add(
-                    el.as_colltype_delete_delta(schema, expiring_refs={self}))
+class TupleTypeShell(CollectionTypeShell[Tuple_T_co]):
 
-        return cmd
-
-
-class TupleTypeShell(CollectionTypeShell):
-
-    schemaclass: typing.Type[Tuple]
+    schemaclass: typing.Type[Tuple_T_co]
 
     def __init__(
         self,
         *,
         name: s_name.Name,
-        subtypes: Mapping[str, TypeShell],
+        subtypes: Mapping[str, TypeShell[Type]],
         typemods: Any = None,
-        schemaclass: typing.Type[Tuple] = Tuple,
+        schemaclass: typing.Type[Tuple_T_co],
     ) -> None:
         super().__init__(name=name, schemaclass=schemaclass)
         self.subtypes = subtypes
@@ -1908,13 +1930,13 @@ class TupleTypeShell(CollectionTypeShell):
     def get_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> typing.Tuple[TypeShell, ...]:
+    ) -> typing.Tuple[TypeShell[Type], ...]:
         return tuple(self.subtypes.values())
 
     def iter_subtypes(
         self,
         schema: s_schema.Schema,
-    ) -> Iterator[typing.Tuple[str, TypeShell]]:
+    ) -> Iterator[typing.Tuple[str, TypeShell[Type]]]:
         return iter(self.subtypes.items())
 
     def is_named(self) -> bool:
@@ -1923,11 +1945,12 @@ class TupleTypeShell(CollectionTypeShell):
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
         return generate_tuple_type_id(schema, self.subtypes, self.is_named())
 
-    def resolve(self, schema: s_schema.Schema) -> Tuple:
+    def resolve(self, schema: s_schema.Schema) -> Tuple_T_co:
         if isinstance(self.name, s_name.QualName):
-            return schema.get(self.name, type=Tuple)
+            tup = schema.get(self.name, type=Tuple)
         else:
-            return schema.get_by_id(self.get_id(schema), type=Tuple)
+            tup = schema.get_by_id(self.get_id(schema), type=Tuple)
+        return tup  # type: ignore
 
     def as_create_delta(
         self,
@@ -1935,38 +1958,55 @@ class TupleTypeShell(CollectionTypeShell):
         *,
         view_name: Optional[s_name.QualName] = None,
         attrs: Optional[Dict[str, Any]] = None,
-    ) -> sd.CommandGroup:
+    ) -> Union[CreateTuple, CreateTupleExprAlias]:
         ct: Union[CreateTuple, CreateTupleExprAlias]
-        cmd = sd.CommandGroup()
+
+        plain_tuple = self._as_plain_create_delta(schema)
         if view_name is None:
-            ct = CreateTuple(
-                classname=self.get_name(schema),
-                if_not_exists=True,
-            )
-            ct.set_attribute_value('id', self.get_id(schema))
+            ct = plain_tuple
         else:
-            ct = CreateTupleExprAlias(
-                classname=view_name,
-            )
+            ct = CreateTupleExprAlias(classname=view_name)
+            self._populate_create_delta(schema, ct, attrs=attrs)
 
         for el in self.subtypes.values():
-            if (isinstance(el, CollectionTypeShell)
-                    and schema.get_by_id(el.get_id(schema), None) is None):
-                cmd.add(el.as_create_delta(schema))
+            if isinstance(el, CollectionTypeShell):
+                ct.add_prerequisite(el.as_create_delta(schema))
 
+        if view_name is not None:
+            ct.add_prerequisite(plain_tuple)
+
+        return ct
+
+    def _as_plain_create_delta(
+        self,
+        schema: s_schema.Schema,
+    ) -> CreateTuple:
+        name = self.schemaclass.generate_name(
+            {n: st.get_name(schema) for n, st in self.subtypes.items()},
+            self.is_named(),
+        )
+        ct = CreateTuple(classname=name, if_not_exists=True)
+        ct.set_attribute_value('id', self.get_id(schema))
+        self._populate_create_delta(schema, ct)
+        return ct
+
+    def _populate_create_delta(
+        self,
+        schema: s_schema.Schema,
+        ct: Union[CreateTuple, CreateTupleExprAlias],
+        *,
+        attrs: Optional[Dict[str, Any]] = None,
+    ) -> None:
         named = self.is_named()
         ct.set_attribute_value('name', ct.classname)
         ct.set_attribute_value('named', named)
+        ct.set_attribute_value('abstract', self.is_polymorphic(schema))
         ct.set_attribute_value('is_persistent', True)
         ct.set_attribute_value('element_types', self.subtypes)
 
         if attrs:
             for k, v in attrs.items():
                 ct.set_attribute_value(k, v)
-
-        cmd.add(ct)
-
-        return cmd
 
 
 class TupleExprAlias(
@@ -1976,7 +2016,10 @@ class TupleExprAlias(
 ):
     # N.B: Don't add any SchemaFields to this class, they won't be
     # reflected properly (since this inherits from the concrete Tuple).
-    pass
+
+    @classmethod
+    def get_underlying_schema_class(cls) -> typing.Type[Collection]:
+        return Tuple
 
 
 def generate_type_id(id_str: str) -> uuid.UUID:
@@ -1985,7 +2028,7 @@ def generate_type_id(id_str: str) -> uuid.UUID:
 
 def generate_tuple_type_id(
     schema: s_schema.Schema,
-    element_types: Mapping[str, Union[Type, TypeShell]],
+    element_types: Mapping[str, Union[Type, TypeShell[Type]]],
     named: bool = False,
     *quals: str,
 ) -> uuid.UUID:
@@ -1999,7 +2042,7 @@ def generate_tuple_type_id(
 
 def generate_array_type_id(
     schema: s_schema.Schema,
-    element_type: Union[Type, TypeShell],
+    element_type: Union[Type, TypeShell[Type]],
     dimensions: Sequence[int] = (),
     *quals: str,
 ) -> uuid.UUID:
@@ -2037,7 +2080,7 @@ def get_intersection_type_name(
 
 def ensure_schema_type_expr_type(
     schema: s_schema.Schema,
-    type_shell: TypeExprShell,
+    type_shell: TypeExprShell[Type],
     parent_cmd: sd.Command,
     *,
     src_context: typing.Optional[parsing.ParserContext] = None,
@@ -2106,6 +2149,20 @@ class TypeCommand(sd.ObjectCommand[TypeT]):
                 track_schema_ref_exprs=track_schema_ref_exprs,
             ),
         )
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            raise AssertionError(
+                f"{self} must define get_dummy_expr_field_value() "
+                f"for {field.name}")
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
 
     def _create_begin(
         self, schema: s_schema.Schema, context: sd.CommandContext
@@ -2215,7 +2272,17 @@ class DeleteCollectionType(
     CollectionTypeCommand[CollectionTypeT],
     sd.DeleteObject[CollectionTypeT],
 ):
-    pass
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: CollectionTypeT,
+    ) -> List[sd.Command]:
+        ops = super()._canonicalize(schema, context, scls)
+        for el in scls.get_subtypes(schema):
+            if op := el.as_type_delete_if_dead(schema):
+                ops.append(op)
+        return ops
 
 
 class CreateCollectionExprAlias(
@@ -2227,9 +2294,18 @@ class CreateCollectionExprAlias(
 
 class DeleteCollectionExprAlias(
     CollectionExprAliasCommand[CollectionExprAliasT],
-    sd.DeleteObject[CollectionExprAliasT],
+    DeleteCollectionType[CollectionExprAliasT],
 ):
-    pass
+
+    def _canonicalize(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: CollectionExprAliasT,
+    ) -> List[sd.Command]:
+        ops = super()._canonicalize(schema, context, scls)
+        ops.append(scls.as_underlying_type_delete_if_dead(schema))
+        return ops
 
 
 class CreateTuple(CreateCollectionType[Tuple]):
@@ -2264,7 +2340,18 @@ class AlterTupleExprAlias(
     CollectionExprAliasCommand[TupleExprAlias],
     sd.AlterObject[TupleExprAlias],
 ):
-    pass
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text='()')
+        else:
+            raise AssertionError(f'unhandled field {field.name!r}')
 
 
 class CreateArray(CreateCollectionType[Array]):
@@ -2299,7 +2386,18 @@ class AlterArrayExprAlias(
     CollectionExprAliasCommand[ArrayExprAlias],
     sd.AlterObject[ArrayExprAlias],
 ):
-    pass
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text='[]')
+        else:
+            raise AssertionError(f'unhandled field {field.name!r}')
 
 
 class DeleteTuple(DeleteCollectionType[Tuple]):
@@ -2376,3 +2474,47 @@ def materialize_type_in_attribute(
         )
 
     return schema
+
+
+def is_type_compatible(
+    type_a: Type,
+    type_b: Type,
+    *,
+    schema: s_schema.Schema,
+) -> bool:
+    """Check whether two types have compatible SQL representations.
+
+    EdgeQL implicit casts need to be turned into explicit casts in
+    some places, since the semantics differ from SQL's.
+    """
+
+    schema, material_type_a = type_a.material_type(schema)
+    schema, material_type_b = type_b.material_type(schema)
+
+    def labels_compatible(t_a: Type, t_b: Type) -> bool:
+        if t_a == t_b:
+            return True
+
+        if isinstance(t_a, Tuple) and isinstance(t_b, Tuple):
+            if t_a.get_is_persistent(schema) and t_b.get_is_persistent(schema):
+                return False
+
+            # For tuples, we also (recursively) check that the element
+            # names match
+            return all(
+                name_a == name_b
+                and labels_compatible(st_a, st_b)
+                for (name_a, st_a), (name_b, st_b)
+                in zip(t_a.iter_subtypes(schema),
+                       t_b.iter_subtypes(schema))
+            )
+        elif isinstance(t_a, Array) and isinstance(t_b, Array):
+            return labels_compatible(
+                t_a.get_element_type(schema), t_b.get_element_type(schema))
+        else:
+            return True
+
+    return (
+        material_type_b.issubclass(schema, material_type_a)
+        and labels_compatible(material_type_a, material_type_b)
+    )

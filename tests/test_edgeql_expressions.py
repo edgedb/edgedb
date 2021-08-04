@@ -144,6 +144,11 @@ VALUES = {
         value(typename='decimal',
               anyreal=True, anyint=False, anyfloat=False,
               datetime=False, signed=True, anynumeric=True),
+
+    '<cal::relative_duration>"P1Y2M3DT20H1M22.306916S"':
+        value(typename='cal::relative_duration',
+              anyreal=False, anyint=False, anyfloat=False,
+              datetime=True, signed=True, anynumeric=False),
 }
 
 
@@ -255,6 +260,27 @@ class TestExpressions(tb.QueryTestCase):
         await self.assert_query_result(
             r'''SELECT sum({1, 1, {}});''',
             [2],
+        )
+
+    async def test_edgeql_expr_emptyset_05(self):
+        await self.assert_query_result(
+            r'''SELECT {False, <bool>{}};''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT {False, {False, <bool>{}}};''',
+            [False, False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT {<bool>{}, <bool>{}};''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT {False, {<bool>{}, <bool>{}}};''',
+            [False],
         )
 
     async def test_edgeql_expr_idempotent_01(self):
@@ -390,6 +416,13 @@ class TestExpressions(tb.QueryTestCase):
             async with self.con.transaction():
                 await self.con.query_one(
                     r'''SELECT 1e999''',
+                )
+
+        with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
+                                    'interval field value out of range'):
+            async with self.con.transaction():
+                await self.con.query_one(
+                    r'''SELECT <duration>'3074457345618258602us' ''',
                 )
 
     async def test_edgeql_expr_op_02(self):
@@ -1329,8 +1362,8 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT A ORDER BY A;
             ''',
             [
-                "19:01:22.306916",
-                "20:01:22.306916",
+                "PT19H1M22.306916S",
+                "PT20H1M22.306916S",
             ]
         )
 
@@ -1442,9 +1475,13 @@ class TestExpressions(tb.QueryTestCase):
                 query = f"""SELECT count({left} + {right});"""
                 restype = None
 
-                if ldesc.signed:  # duration
+                if 'cal::relative_duration' in [
+                        ldesc.typename, rdesc.typename] \
+                        and 'duration' in [ldesc.typename, rdesc.typename]:
+                    restype = 'cal::relative_duration'
+                elif ldesc.signed:  # duration/cal::relative_duration
                     restype = rdesc.typename
-                elif rdesc.signed:  # duration
+                elif rdesc.signed:  # duration/cal::relative_duration
                     restype = ldesc.typename
 
                 if restype:
@@ -1468,11 +1505,15 @@ class TestExpressions(tb.QueryTestCase):
             for right, rdesc in get_test_items(datetime=True):
                 query = f"""SELECT count({left} - {right});"""
 
-                if rdesc.signed:  # duration
+                if 'cal::relative_duration' in [
+                        ldesc.typename, rdesc.typename] \
+                        and 'duration' in [ldesc.typename, rdesc.typename]:
+                    restype = 'cal::relative_duration'
+                elif rdesc.signed:  # duration/cal::relative_duration
                     restype = ldesc.typename
                 elif rdesc.typename == ldesc.typename:
                     if rdesc.typename.startswith('cal::local_'):
-                        # TODO(tailhook) restype = 'cal::relativedelta'
+                        # TODO(tailhook) restype = 'cal::relative_duration'
                         restype = None
                     else:
                         restype = 'duration'
@@ -2126,7 +2167,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('fails due to incorrect unnesting of tuples in rhs')
     async def test_edgeql_expr_valid_collection_15(self):
         await self.assert_query_result(
             r'''
@@ -2138,7 +2178,6 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
-    @test.xfail('fails due to incorrect unnesting of tuples in rhs')
     async def test_edgeql_expr_valid_collection_16(self):
         await self.assert_query_result(
             r'''
@@ -2150,6 +2189,26 @@ class TestExpressions(tb.QueryTestCase):
             ''',
             [True]
         )
+
+    async def test_edgeql_expr_valid_minmax_01(self):
+        for val in get_test_values():
+            for fn in ['min', 'max']:
+                query = f"""SELECT {fn}({val}) = {val};"""
+                await self.assert_query_result(query, {True})
+
+    async def test_edgeql_expr_valid_minmax_02(self):
+        for val in get_test_values():
+            for fn in ['min', 'max']:
+                # same as the previous test, but for arrays
+                query = f"""SELECT {fn}([{val}]) = [{val}];"""
+                await self.assert_query_result(query, {True})
+
+    async def test_edgeql_expr_valid_minmax_03(self):
+        for val in get_test_values():
+            for fn in ['min', 'max']:
+                # same as the previous test, but for tuples
+                query = f"""SELECT {fn}(({val},)) = ({val},);"""
+                await self.assert_query_result(query, {True})
 
     async def test_edgeql_expr_bytes_op_01(self):
         await self.assert_query_result(
@@ -2170,6 +2229,15 @@ class TestExpressions(tb.QueryTestCase):
             [True],
         )
 
+    async def test_edgeql_expr_bytes_op_03(self):
+        await self.assert_query_result(
+            r'''
+                WITH x := rb'test\raw\x01' ++ br'\now\x02' ++ b'\x03\x04',
+                SELECT x = b"test\\raw\\x01\\now\\x02\x03\x04";
+            ''',
+            [True],
+        )
+
     async def test_edgeql_expr_paths_01(self):
         cases = [
             "Issue.owner.name",
@@ -2178,7 +2246,6 @@ class TestExpressions(tb.QueryTestCase):
 
         for case in cases:
             await self.con.execute('''
-                WITH MODULE test
                 SELECT
                     Issue {
                         number
@@ -2214,7 +2281,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 SELECT Issue.owner
                 FILTER Issue.number > '2';
             """)
@@ -2227,7 +2293,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 SELECT Issue.id
                 FILTER Issue.number > '2';
             """)
@@ -2240,7 +2305,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 SELECT Issue.owner {
                     foo := Issue.number
                 };
@@ -2254,7 +2318,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue.number' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 UPDATE Issue.owner
                 FILTER Issue.number > '2'
                 SET {
@@ -2269,7 +2332,6 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"'Issue' changes the interpretation of 'Issue'"):
             await self.con.execute(r"""
-                WITH MODULE test
                 UPDATE Issue.related_to
                 SET {
                     related_to := Issue
@@ -2278,19 +2340,17 @@ class TestExpressions(tb.QueryTestCase):
 
     async def test_edgeql_expr_polymorphic_01(self):
         await self.con.execute(r"""
-            WITH MODULE test
             SELECT Text {
                 [IS Issue].number,
                 [IS Issue].related_to,
                 [IS Issue].`priority`,
-                [IS test::Comment].owner: {
+                [IS Comment].owner: {
                     name
                 }
             };
         """)
 
         await self.con.execute(r"""
-            WITH MODULE test
             SELECT Owned {
                 [IS Named].name
             };
@@ -2825,6 +2885,16 @@ class TestExpressions(tb.QueryTestCase):
                 SELECT [];
             """)
 
+    async def test_edgeql_expr_array_05(self):
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"index indirection cannot be applied to "
+                r"scalar type 'std::int64'"):
+
+            await self.con.query_json("""
+                SELECT [0, 1, 2][[1][0] [2][0]];
+            """)
+
     async def test_edgeql_expr_array_concat_01(self):
         await self.assert_query_result(
             '''
@@ -2891,7 +2961,8 @@ class TestExpressions(tb.QueryTestCase):
             '''
                 WITH
                     MODULE schema,
-                    A := (SELECT ScalarType FILTER .name = 'test::issue_num_t')
+                    A := (SELECT ScalarType
+                          FILTER .name = 'default::issue_num_t')
                 SELECT [A.name, A.default];
             ''',
             [],
@@ -3494,30 +3565,43 @@ aa \
         )
 
     async def test_edgeql_expr_tuple_17(self):
-        await self.assert_query_result(
-            '''SELECT (1, 2) ?= (1, 2)''',
-            [True],
-        )
+        # We want to do these tests with the tuple both persistent and not
+        # I'm relatively confident that tuple<int64, tuple<int64>>
+        # won't make it into the standard library.
 
-        await self.assert_query_result(
-            '''SELECT (0, 2) ?= enumerate(2)''',
-            [True],
-        )
+        for i in range(2):
+            # Make the tuple persistent on the second time around
+            if i == 1:
+                await self.con.execute(r"""
+                    CREATE TYPE Foo {
+                        CREATE PROPERTY x -> tuple<int64, tuple<int64>>;
+                    }
+                """)
 
-        await self.assert_query_result(
-            '''WITH A := enumerate(2) SELECT (0, 2) ?= A''',
-            [True],
-        )
+            await self.assert_query_result(
+                '''SELECT (1, (2,)) ?= (1, (2,))''',
+                [True],
+            )
 
-        await self.assert_query_result(
-            '''SELECT <tuple<int64, int64>>{} ?? (1, 2);''',
-            [[1, 2]],
-        )
+            await self.assert_query_result(
+                '''SELECT (0, (2,)) ?= enumerate((2,))''',
+                [True],
+            )
 
-        await self.assert_query_result(
-            '''SELECT (1, 2) ?? <tuple<int64, int64>>{};''',
-            [[1, 2]],
-        )
+            await self.assert_query_result(
+                '''WITH A := enumerate((2,)) SELECT (0, (2,)) ?= A''',
+                [True],
+            )
+
+            await self.assert_query_result(
+                '''SELECT <tuple<int64, tuple<int64>>>{} ?? (1, (2,));''',
+                [[1, [2]]],
+            )
+
+            await self.assert_query_result(
+                '''SELECT (1, (2,)) ?? <tuple<int64, tuple<int64>>>{};''',
+                [[1, [2]]],
+            )
 
     async def test_edgeql_expr_tuple_18(self):
         await self.assert_query_result(
@@ -3751,9 +3835,9 @@ aa \
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to __type__'):
             await self.con.query(r"""
-                SELECT test::Text {
+                SELECT Text {
                     __type__ := (SELECT schema::ObjectType
-                                 FILTER .name = 'test::Named')
+                                 FILTER .name = 'default::Named')
                 };
             """)
 
@@ -3761,7 +3845,7 @@ aa \
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to id'):
             await self.con.execute(r"""
-                SELECT test::Text {
+                SELECT Text {
                     id := <uuid>'77841036-8e35-49ce-b509-2cafa0c25c4f'
                 };
             """)
@@ -4165,15 +4249,41 @@ aa \
             len(everything), len(distinct),
             'DISTINCT len(ObjectType.name) failed to filter out dupplicates')
 
+    async def test_edgeql_expr_setop_12(self):
+        await self.assert_query_result(
+            r'''SELECT DISTINCT {(), ()};''',
+            [[]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT DISTINCT (SELECT ({1,2,3}, ()) FILTER .0 > 1).1;''',
+            [[]],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT DISTINCT (SELECT ({1,2,3}, ()) FILTER .0 > 3).1;''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT DISTINCT {(1,(2,3)), (1,(2,3))};''',
+            [[1, [2, 3]]],
+        )
+
+    async def test_edgeql_expr_setop_13(self):
+        await self.assert_query_result(
+            r'''SELECT <tuple<int64, int64>>{} UNION (1, 2);''',
+            [[1, 2]],
+        )
+
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=71):
+                _position=38):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT Issue ORDER BY Issue.watchers.name;
             ''')
 
@@ -4182,10 +4292,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=62):
+                _position=29):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT Issue LIMIT LogEntry.spent_time;
             ''')
 
@@ -4194,10 +4303,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=62):
+                _position=29):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT Issue OFFSET LogEntry.spent_time;
             ''')
 
@@ -4206,10 +4314,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=78):
+                _position=45):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT EXISTS Issue ORDER BY Issue.name;
             ''')
 
@@ -4218,10 +4325,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=85):
+                _position=52):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT 'foo' IN Issue.name ORDER BY Issue.name;
             ''')
 
@@ -4230,10 +4336,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=82):
+                _position=49):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT Issue UNION Text ORDER BY Issue.name;
             ''')
 
@@ -4242,10 +4347,9 @@ aa \
                 edgedb.QueryError,
                 r'possibly more than one element returned by an expression '
                 r'where only singletons are allowed',
-                _position=80):
+                _position=47):
 
             await self.con.execute('''\
-                WITH MODULE test
                 SELECT DISTINCT Issue ORDER BY Issue.name;
             ''')
 
@@ -4448,6 +4552,21 @@ aa \
             [4, 5],
         )
 
+    async def test_edgeql_expr_alias_09(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    x := [1],
+                    y := [2]
+                SELECT
+                    'OK'
+                FILTER
+                    x[0] = 1
+                    AND y[0] = 2
+            """,
+            ['OK'],
+        )
+
     async def test_edgeql_expr_for_01(self):
         await self.assert_query_result(
             r"""
@@ -4638,4 +4757,103 @@ aa \
 
             await self.con.query("""
                 SELECT Object ?? '';
+            """)
+
+    async def test_edgeql_expr_static_eval_casts_01(self):
+        # The static evaluator produced some really silly results for
+        # these at one point.
+
+        await self.assert_query_result(
+            r'''
+                WITH x := {1, 2}, SELECT ("wtf" ++ <str>x);
+            ''',
+            ["wtf1", "wtf2"],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            r'''
+                FOR x in {1, 2} UNION (SELECT ("wtf" ++ <str>x));
+            ''',
+            ["wtf1", "wtf2"],
+            sort=True,
+        )
+
+        await self.assert_query_result(
+            r'''
+                WITH x := <int64>{}, SELECT ("wtf" ++ <str>x);
+            ''',
+            [],
+        )
+
+    async def test_edgeql_normalization_missmatch_01(self):
+        with self.assertRaisesRegex(
+                edgedb.EdgeQLSyntaxError, "Unexpected type expression"):
+
+            await self.con.query('SELECT <tuple<"">>1;')
+
+    async def test_edgeql_assert_single_01(self):
+        await self.con.execute("""
+            INSERT User {
+                name := "He Who Remains"
+            }
+        """)
+
+        await self.assert_query_result("""
+            SELECT assert_single((
+                SELECT User { name } FILTER .name ILIKE "He Who%"
+            ))
+        """, [{
+            "name": "He Who Remains",
+        }])
+
+        await self.con.query_one("""
+            SELECT assert_single((
+                SELECT User { name } FILTER .name ILIKE "He Who%"
+            ))
+        """)
+
+        await self.con.query("""
+            FOR x IN {1, 2, 3}
+            UNION (
+                SELECT assert_single(x)
+            );
+        """)
+
+    async def test_edgeql_assert_single_02(self):
+        await self.con.execute("""
+            FOR name IN {"Hunter B-15", "Hunter B-22"}
+            UNION (
+                INSERT User {
+                    name := name
+                }
+            );
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_single violation",
+        ):
+            await self.con.query("""
+                SELECT assert_single({1, 2});
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_single violation",
+        ):
+            await self.con.query("""
+                SELECT assert_single(
+                    (SELECT User FILTER .name ILIKE "Hunter B%")
+                );
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_single violation",
+        ):
+            await self.con.query("""
+                SELECT User {
+                    single name := assert_single(.name ++ {"!", "?"})
+                };
             """)

@@ -50,7 +50,10 @@ class Index(
     data_safe=True,
 ):
 
-    subject = so.SchemaField(so.Object)
+    subject = so.SchemaField(
+        so.Object,
+        compcoef=None,
+        inheritable=False)
 
     expr = so.SchemaField(
         s_expr.Expression,
@@ -241,18 +244,18 @@ class IndexCommand(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext,
     ) -> sd.ObjectCommand[Index]:
-        assert isinstance(astnode, qlast.IndexCommand)
         cmd = super()._cmd_from_ast(schema, astnode, context)
-        orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
-        cmd.set_ddl_identity(
-            'expr',
-            s_expr.Expression.from_ast(
-                astnode.expr,
-                schema,
-                context.modaliases,
-                orig_text=orig_text,
-            ),
-        )
+        if isinstance(astnode, qlast.IndexCommand):
+            orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
+            cmd.set_ddl_identity(
+                'expr',
+                s_expr.Expression.from_ast(
+                    astnode.expr,
+                    schema,
+                    context.modaliases,
+                    orig_text=orig_text,
+                ),
+            )
         return cmd
 
     def get_ast_attr_for_field(
@@ -321,6 +324,18 @@ class IndexCommand(
         else:
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
+
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text='0')
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
 
 
 class CreateIndex(
@@ -422,6 +437,34 @@ class AlterIndex(
     referencing.AlterReferencedInheritingObject[Index],
 ):
     astnode = qlast.AlterIndex
+
+    def canonicalize_alter_from_external_ref(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        if (
+            not self.get_attribute_value('abstract')
+            and (indexexpr := self.get_attribute_value('expr')) is not None
+        ):
+            # To compute the new name, we construct an AST of the
+            # index, since that is the infrastructure we have for
+            # computing the classname.
+            ast = qlast.CreateIndex(
+                name=qlast.ObjectRef(name="idx", module="__"),
+                expr=indexexpr.qlast,
+            )
+            quals = sn.quals_from_fullname(self.classname)
+            new_name = self._classname_from_ast_and_referrer(
+                schema, sn.QualName.from_string(quals[0]), ast, context)
+            if new_name == self.classname:
+                return
+
+            rename = self.scls.init_delta_command(
+                schema, sd.RenameObject, new_name=new_name)
+            rename.set_attribute_value(
+                'name', value=new_name, orig_value=self.classname)
+            self.add(rename)
 
 
 class DeleteIndex(

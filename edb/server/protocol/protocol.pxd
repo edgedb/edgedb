@@ -26,6 +26,7 @@ cdef class HttpRequest:
         public bytes content_type
         public bytes method
         public bytes body
+        public bytes host
 
 
 cdef class HttpResponse:
@@ -34,6 +35,7 @@ cdef class HttpResponse:
         public object status
         public bint close_connection
         public bytes content_type
+        public dict custom_headers
         public bytes body
 
 
@@ -46,14 +48,20 @@ cdef class HttpProtocol:
         object parser
         object transport
         object unprocessed
+        object sslctx
         bint in_response
         bint first_data_call
         bint external_auth
+        bint respond_hsts
+        bint is_tls
+        bint allow_insecure_binary_clients
+        bint allow_insecure_http_clients
 
         HttpRequest current_request
 
     cdef _write(self, bytes req_version, bytes resp_status,
-                bytes content_type, bytes body, bint close_connection)
+                bytes content_type, dict custom_headers, bytes body,
+                bint close_connection)
 
     cdef write(self, HttpRequest request, HttpResponse response)
 

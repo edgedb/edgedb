@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from edb.testbase import server
 
-from . import protocol  # type: ignore
+from edb.protocol import protocol  # type: ignore
 
 
 class ProtocolTestCase(server.ClusterTestCase):

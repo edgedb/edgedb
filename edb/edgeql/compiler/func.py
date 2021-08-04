@@ -32,6 +32,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import functions as s_func
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
+from edb.schema import objtypes as s_objtypes
 from edb.schema import operators as s_oper
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
@@ -40,7 +41,6 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 
-from . import astutils
 from . import casts
 from . import context
 from . import dispatch
@@ -154,7 +154,8 @@ def compile_FunctionCall(
         # allowed.
         if ctx.env.options.in_ddl_context_name is not None:
             raise errors.SchemaDefinitionError(
-                f'invalid mutation in {ctx.env.options.in_ddl_context_name}',
+                f'mutations are invalid in '
+                f'{ctx.env.options.in_ddl_context_name}',
                 context=expr.context,
             )
         elif ((dv := ctx.defining_view) is not None and
@@ -164,7 +165,7 @@ def compile_FunctionCall(
             # DML is not allowed in the computable, but it may
             # be possible to refactor it.
             raise errors.QueryError(
-                f'invalid mutation in a shape computable',
+                f"mutations are invalid in a shape's computed expression",
                 hint=(
                     f'To resolve this try to factor out the mutation '
                     f'expression into the top-level WITH block.'
@@ -209,14 +210,13 @@ def compile_FunctionCall(
     func_initial_value: Optional[irast.Set]
 
     if matched_func_initial_value is not None:
+        frag = qlparser.parse_fragment(matched_func_initial_value.text)
+        assert isinstance(frag, qlast.Expr)
         iv_ql = qlast.TypeCast(
-            expr=qlparser.parse_fragment(matched_func_initial_value.text),
+            expr=frag,
             type=typegen.type_to_ql_typeref(matched_call.return_type, ctx=ctx),
         )
-        func_initial_value = setgen.ensure_set(
-            dispatch.compile(iv_ql, ctx=ctx),
-            ctx=ctx,
-        )
+        func_initial_value = dispatch.compile(iv_ql, ctx=ctx)
     else:
         func_initial_value = None
 
@@ -250,6 +250,7 @@ def compile_FunctionCall(
         backend_name=func.get_backend_name(env.schema),
         func_polymorphic=is_polymorphic,
         func_sql_function=func.get_from_function(env.schema),
+        func_sql_expr=func.get_from_expr(env.schema),
         force_return_cast=func.get_force_return_cast(env.schema),
         volatility=func.get_volatility(env.schema),
         sql_func_has_out_params=func.get_sql_func_has_out_params(env.schema),
@@ -304,13 +305,13 @@ def compile_operator(
             if conditional_args and ai in conditional_args:
                 fencectx.in_conditional = qlexpr.context
 
-            arg_ir = setgen.ensure_set(
-                dispatch.compile(qlarg, ctx=fencectx),
-                ctx=fencectx)
+            arg_ir = dispatch.compile(qlarg, ctx=fencectx)
 
             arg_ir = setgen.scoped_set(
                 setgen.ensure_stmt(arg_ir, ctx=fencectx),
                 ctx=fencectx)
+
+            arg_ir = setgen.ensure_set(arg_ir, srcctx=qlarg.context, ctx=ctx)
 
             arg_ctxs[arg_ir] = fencectx
 
@@ -507,11 +508,12 @@ def compile_operator(
 
     matched_params = oper.get_params(env.schema)
     rtype = matched_call.return_type
+    matched_rtype = oper.get_return_type(env.schema)
 
     is_polymorphic = (
         any(p.get_type(env.schema).is_polymorphic(env.schema)
             for p in matched_params.objects(env.schema)) and
-        rtype.is_polymorphic(env.schema)
+        matched_rtype.is_polymorphic(env.schema)
     )
 
     final_args, params_typemods = finalize_args(
@@ -530,23 +532,10 @@ def compile_operator(
         else:
             larg, _, rarg = (a.expr for a in final_args)
 
-        left_type = schemactx.get_material_type(
-            setgen.get_set_type(larg, ctx=ctx),
-            ctx=ctx,
-        )
-        right_type = schemactx.get_material_type(
-            setgen.get_set_type(rarg, ctx=ctx),
-            ctx=ctx,
-        )
-
-        if left_type.issubclass(env.schema, right_type):
-            rtype = right_type
-        elif right_type.issubclass(env.schema, left_type):
-            rtype = left_type
-        else:
-            assert isinstance(left_type, s_types.InheritingType)
-            assert isinstance(right_type, s_types.InheritingType)
-            rtype = schemactx.get_union_type([left_type, right_type], ctx=ctx)
+        left_type = setgen.get_set_type(larg, ctx=ctx)
+        right_type = setgen.get_set_type(rarg, ctx=ctx)
+        rtype = schemactx.get_union_type(
+            [left_type, right_type], preserve_derived=True, ctx=ctx)
 
     from_op = oper.get_from_operator(env.schema)
     sql_operator = None
@@ -573,6 +562,7 @@ def compile_operator(
         origin_name=origin_name,
         origin_module_id=origin_module_id,
         func_sql_function=oper.get_from_function(env.schema),
+        func_sql_expr=oper.get_from_expr(env.schema),
         sql_operator=sql_operator,
         force_return_cast=oper.get_force_return_cast(env.schema),
         volatility=oper.get_volatility(env.schema),
@@ -581,9 +571,36 @@ def compile_operator(
         context=qlexpr.context,
         typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
+        tuple_path_ids=[],
     )
 
+    _check_free_shape_op(node, ctx=ctx)
+
     return setgen.ensure_set(node, typehint=rtype, ctx=ctx)
+
+
+# These ops are all footguns when used with free shapes,
+# so we ban them
+INVALID_FREE_SHAPE_OPS: Final = {
+    sn.QualName('std', x) for x in [
+        'DISTINCT', '=', '!=', '?=', '?!=', 'IN', 'NOT IN'
+    ]
+}
+
+
+def _check_free_shape_op(
+        ir: irast.Call, *, ctx: context.ContextLevel) -> None:
+    if ir.func_shortname not in INVALID_FREE_SHAPE_OPS:
+        return
+
+    virt_obj = ctx.env.schema.get(
+        'std::FreeObject', type=s_objtypes.ObjectType)
+    for arg in ir.args:
+        typ = inference.infer_type(arg.expr, ctx.env)
+        if typ.issubclass(ctx.env.schema, virt_obj):
+            raise errors.QueryError(
+                f'cannot use {ir.func_shortname.name} on free shape',
+                context=ir.context)
 
 
 def validate_recursive_operator(
@@ -632,12 +649,10 @@ def compile_call_arg(
         # matching.  We will remove it if necessary in `finalize_args()`.
         # Similarly, delay the decision to inject the implicit limit to
         # `finalize_args()`.
-        arg_ql = astutils.ensure_qlstmt(arg_ql)
+        arg_ql = qlast.SelectQuery(
+            result=arg_ql, context=arg_ql.context, implicit=True)
         argctx.inhibit_implicit_limit = True
-        return setgen.ensure_set(
-            dispatch.compile(arg_ql, ctx=argctx),
-            ctx=argctx,
-        ), argctx
+        return dispatch.compile(arg_ql, ctx=argctx), argctx
 
 
 def compile_call_args(
@@ -734,8 +749,7 @@ def finalize_args(
 
         typemods.append(param_mod)
 
-        orig_arg = arg
-        arg_ctx = arg_ctxs.get(orig_arg)
+        arg_ctx = arg_ctxs.get(arg)
         arg_scope = pathctx.get_set_scope(arg, ctx=ctx)
         if param_mod is not ft.TypeModifier.SetOfType:
             param_shortname = param.get_parameter_name(ctx.env.schema)
@@ -758,13 +772,11 @@ def finalize_args(
 
                 pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
 
-                if arg_scope is not None:
+                if arg_scope is not None and arg.path_scope_id is None:
                     pathctx.assign_set_scope(arg, branch, ctx=ctx)
 
             elif arg_scope is not None:
                 arg_scope.collapse()
-                if arg is orig_arg:
-                    pathctx.assign_set_scope(arg, None, ctx=ctx)
         else:
             process_path_log(arg_ctx, arg_scope)
             is_array_agg = (
@@ -787,11 +799,8 @@ def finalize_args(
                 and arg.expr.limit is None
                 and not ctx.inhibit_implicit_limit
             ):
-                arg.expr.limit = setgen.ensure_set(
-                    dispatch.compile(
-                        qlast.IntegerConstant(value=str(ctx.implicit_limit)),
-                        ctx=ctx,
-                    ),
+                arg.expr.limit = dispatch.compile(
+                    qlast.IntegerConstant(value=str(ctx.implicit_limit)),
                     ctx=ctx,
                 )
 
@@ -805,10 +814,8 @@ def finalize_args(
 
         # Check if we need to cast the argument value before passing
         # it to the callable.
-        compatible = schemactx.is_type_compatible(
-            paramtype,
-            barg.valtype,
-            ctx=ctx,
+        compatible = s_types.is_type_compatible(
+            paramtype, barg.valtype, schema=ctx.env.schema,
         )
 
         if not compatible:
@@ -819,7 +826,7 @@ def finalize_args(
             arg = casts.compile_cast(
                 arg, paramtype, srcctx=None, ctx=ctx)
 
-        args.append(irast.CallArg(expr=arg, cardinality=None))
+        args.append(irast.CallArg(expr=arg))
 
         # If we have any logged paths left over and our enclosing
         # context is logging paths, propagate them up.

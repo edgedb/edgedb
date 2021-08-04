@@ -108,7 +108,7 @@ class TestDocSnippets(unittest.TestCase):
         parser_class = docutils.parsers.get_parser_class('rst')
         parser = parser_class()
 
-        settings = docutils.frontend.OptionParser(
+        settings = docutils.frontend.OptionParser(  # type: ignore
             components=(parser, )).get_default_values()
         settings.syntax_highlight = 'none'
 
@@ -256,9 +256,18 @@ class TestDocSnippets(unittest.TestCase):
                 if lang == 'edgeql':
                     ql_parser.parse_block(snippet)
                 elif lang == 'sdl':
-                    # the snippet itself may either containt a module
+                    # Strip all the "using extension ..." and comment
+                    # lines as they interfere with our module
+                    # detection.
+                    sdl = re.sub(
+                        r'(using\s+extension\s+\w+;)|(#.*?\n)',
+                        '',
+                        snippet
+                    ).strip()
+
+                    # the snippet itself may either contain a module
                     # block or have a fully-qualified top-level name
-                    if re.match(
+                    if not sdl or re.match(
                             r'''(?xm)
                                 (\bmodule\s+\w+\s*{) |
                                 (^.*
@@ -267,7 +276,7 @@ class TestDocSnippets(unittest.TestCase):
                                     ({|extending)
                                 )
                             ''',
-                            snippet):
+                            sdl):
                         ql_parser.parse_sdl(snippet)
                     else:
                         ql_parser.parse_sdl(f'module default {{ {snippet} }}')
@@ -286,7 +295,9 @@ class TestDocSnippets(unittest.TestCase):
                     pass
                 elif lang == 'json':
                     json.loads(snippet)
-                elif lang in {'bash', 'c', 'javascript', 'python'}:
+                elif lang in {
+                    'bash', 'powershell', 'c', 'javascript', 'python'
+                }:
                     pass
                 else:
                     raise LookupError(f'unknown code-lang {lang}')

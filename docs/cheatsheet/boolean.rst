@@ -134,7 +134,7 @@ accounts that are less than half-way completed"*:
 ----------
 
 
-The above will end up including the computable flag ``too_few_steps``
+The above will end up including the computed flag ``too_few_steps``
 in the output, but this is sometimes undesirable. In order to avoid
 including it, the query can be refactored like this:
 
@@ -190,10 +190,10 @@ result is already non-empty and so no coalescing will take place.
 
 Computables in shapes get evaluated *for each object*, whereas path
 expressions only produce as many values as are *reachable* by the
-path. So when all objects must be considered, computables in shapes
-are a good way to handle complex expressions or filters. When only
-objects with specific properties are relevant, path expressions are a
-good compact way of handling this.
+path. So when all objects must be considered, computed links and
+properties in shapes are a good way to handle complex expressions or
+filters. When only objects with specific properties are relevant, path
+expressions are a good compact way of handling this.
 
 
 ----------

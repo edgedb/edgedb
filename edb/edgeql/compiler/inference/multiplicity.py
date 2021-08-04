@@ -137,7 +137,7 @@ def _infer_shape(
     ctx: inference_context.InfCtx,
 ) -> None:
     for shape_set, _ in ir.shape:
-        new_scope = cardinality._get_set_scope(shape_set, scope_tree)
+        new_scope = cardinality._get_set_scope(shape_set, scope_tree, ctx=ctx)
         if shape_set.expr and shape_set.rptr:
             expr_mult = infer_multiplicity(
                 shape_set.expr, scope_tree=new_scope, ctx=ctx)
@@ -146,10 +146,10 @@ def _infer_shape(
             if expr_mult is MANY and irtyputils.is_object(ptrref.out_target):
                 raise errors.QueryError(
                     f'possibly not a strict set returned by an '
-                    f'expression for a computable '
+                    f'expression for a computed '
                     f'{ptrref.shortname.name}.',
                     hint=(
-                        f'Use DISTINCT for the entire computable expression '
+                        f'Use DISTINCT for the entire computed expression '
                         f'to resolve this.'
                     ),
                     context=shape_set.context
@@ -183,7 +183,7 @@ def _infer_set_inner(
     ctx: inference_context.InfCtx,
 ) -> qltypes.Multiplicity:
     rptr = ir.rptr
-    new_scope = cardinality._get_set_scope(ir, scope_tree)
+    new_scope = cardinality._get_set_scope(ir, scope_tree, ctx=ctx)
 
     if rptr is not None:
         # Validate the source
@@ -403,9 +403,8 @@ def _infer_stmt_multiplicity(
     # Inferring how the FILTER clause affects multiplicity is in
     # general impossible, but we still want to ensure that the FILTER
     # expression has valid multiplicity.
-    for part in ir.bindings + [ir.where]:
-        if part:
-            infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
+    for part in (ir.bindings or []) + ([ir.where] if ir.where else []):
+        infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
 
     return result
 
@@ -499,14 +498,13 @@ def __infer_select_stmt(
             ir.iterator_stmt, scope_tree=scope_tree, ctx=ctx,
         )
 
-        ctx = ctx._replace(in_for_body=True)
-
     # OFFSET, LIMIT and ORDER BY have already been validated to be
     # singletons, but their sub-expressions (if any) still need to be
     # validated.
-    for part in [ir.limit, ir.offset] + [sort.expr for sort in ir.orderby]:
+    for part in [ir.limit, ir.offset] + [
+            sort.expr for sort in (ir.orderby or ())]:
         if part:
-            new_scope = cardinality._get_set_scope(part, scope_tree)
+            new_scope = cardinality._get_set_scope(part, scope_tree, ctx=ctx)
             infer_multiplicity(part, scope_tree=new_scope, ctx=ctx)
 
     if itmult is not None:
@@ -531,7 +529,7 @@ def __infer_insert_stmt(
     infer_multiplicity(
         ir.subject, is_mutation=True, scope_tree=scope_tree, ctx=ctx
     )
-    new_scope = cardinality._get_set_scope(ir.result, scope_tree)
+    new_scope = cardinality._get_set_scope(ir.result, scope_tree, ctx=ctx)
     infer_multiplicity(
         ir.result, is_mutation=True, scope_tree=new_scope, ctx=ctx
     )

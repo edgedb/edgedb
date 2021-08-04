@@ -106,13 +106,10 @@ def resolve_name(
 def ast_objref_to_object_shell(
     ref: qlast.ObjectRef,
     *,
-    metaclass: Optional[Type[so.Object]] = None,
+    metaclass: Type[so.Object_T],
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
-) -> so.ObjectShell:
-    if metaclass is None:
-        metaclass = so.Object
-
+) -> so.ObjectShell[so.Object_T]:
     lname = ast_ref_to_name(ref)
     name = resolve_name(
         lname,
@@ -132,19 +129,21 @@ def ast_objref_to_object_shell(
 def ast_objref_to_type_shell(
     ref: qlast.ObjectRef,
     *,
-    metaclass: Optional[Type[s_types.Type]] = None,
+    metaclass: Type[s_types.TypeT],
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
-) -> s_types.TypeShell:
+) -> s_types.TypeShell[s_types.TypeT]:
     from . import types as s_types
 
-    if metaclass is None:
-        metaclass = s_types.InheritingType
+    if metaclass is not s_types.Type:
+        mcls = metaclass
+    else:
+        mcls = s_types.QualifiedType  # type: ignore
 
     lname = ast_ref_to_name(ref)
     name = resolve_name(
         lname,
-        metaclass=metaclass,
+        metaclass=mcls,
         modaliases=modaliases,
         schema=schema,
     )
@@ -152,7 +151,7 @@ def ast_objref_to_type_shell(
     return s_types.TypeShell(
         name=name,
         origname=lname,
-        schemaclass=metaclass,
+        schemaclass=mcls,
         sourcectx=ref.context,
     )
 
@@ -160,15 +159,16 @@ def ast_objref_to_type_shell(
 def ast_to_type_shell(
     node: qlast.TypeExpr,
     *,
-    metaclass: Optional[Type[s_types.Type]] = None,
+    metaclass: Type[s_types.TypeT_co],
     module: Optional[str] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
-) -> s_types.TypeShell:
+) -> s_types.TypeShell[s_types.TypeT_co]:
 
     if isinstance(node, qlast.TypeOp):
         return type_op_ast_to_type_shell(
             node,
+            metaclass=metaclass,
             module=module,
             modaliases=modaliases,
             schema=schema,
@@ -184,7 +184,7 @@ def ast_to_type_shell(
         assert node.subtypes
 
         if isinstance(node.subtypes[0], qlast.TypeExprLiteral):
-            return s_scalars.AnonymousEnumTypeShell(
+            return s_scalars.AnonymousEnumTypeShell(  # type: ignore
                 elements=[
                     est.val.value
                     for est in cast(List[qlast.TypeExprLiteral], node.subtypes)
@@ -200,7 +200,7 @@ def ast_to_type_shell(
                         context=est.context,
                     )
                 elements.append(est.maintype.name)
-            return s_scalars.AnonymousEnumTypeShell(
+            return s_scalars.AnonymousEnumTypeShell(  # type: ignore
                 elements=elements
             )
 
@@ -215,7 +215,7 @@ def ast_to_type_shell(
             # to assert it is an instance of s_types.Tuple to make mypy happy
             # (rightly so, because later we use from_subtypes method)
 
-            subtypes: Dict[str, s_types.TypeShell] = {}
+            subtypes: Dict[str, s_types.TypeShell[s_types.Type]] = {}
             # tuple declaration must either be named or unnamed, but not both
             names = set()
             named = None
@@ -249,7 +249,7 @@ def ast_to_type_shell(
                 )
 
             try:
-                return coll.create_shell(
+                return coll.create_shell(  # type: ignore
                     schema,
                     subtypes=subtypes,
                     typemods={'named': bool(named)},
@@ -262,7 +262,7 @@ def ast_to_type_shell(
 
         elif issubclass(coll, s_types.Array):
 
-            subtypes_list: List[s_types.TypeShell] = []
+            subtypes_list: List[s_types.TypeShell[s_types.Type]] = []
             for st in node.subtypes:
                 subtypes_list.append(
                     ast_to_type_shell(
@@ -287,7 +287,7 @@ def ast_to_type_shell(
                 )
 
             try:
-                return coll.create_shell(
+                return coll.create_shell(  # type: ignore
                     schema,
                     subtypes=subtypes_list,
                 )
@@ -297,11 +297,13 @@ def ast_to_type_shell(
 
     elif isinstance(node.maintype, qlast.AnyType):
         from . import pseudo as s_pseudo
-        return s_pseudo.PseudoTypeShell(name=sn.UnqualName('anytype'))
+        return s_pseudo.PseudoTypeShell(
+            name=sn.UnqualName('anytype'))  # type: ignore
 
     elif isinstance(node.maintype, qlast.AnyTuple):
         from . import pseudo as s_pseudo
-        return s_pseudo.PseudoTypeShell(name=sn.UnqualName('anytuple'))
+        return s_pseudo.PseudoTypeShell(
+            name=sn.UnqualName('anytuple'))  # type: ignore
 
     assert isinstance(node.maintype, qlast.ObjectRef)
 
@@ -316,10 +318,11 @@ def ast_to_type_shell(
 def type_op_ast_to_type_shell(
     node: qlast.TypeOp,
     *,
+    metaclass: Type[s_types.TypeT],
     module: Optional[str] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
-) -> s_types.TypeExprShell:
+) -> s_types.TypeExprShell[s_types.TypeT]:
 
     from . import types as s_types
 
@@ -339,49 +342,64 @@ def type_op_ast_to_type_shell(
         )
 
     left = ast_to_type_shell(
-        node.left, module=module, modaliases=modaliases, schema=schema,
+        node.left,
+        metaclass=metaclass,
+        module=module,
+        modaliases=modaliases,
+        schema=schema,
     )
     right = ast_to_type_shell(
-        node.right, module=module, modaliases=modaliases, schema=schema)
+        node.right,
+        metaclass=metaclass,
+        module=module,
+        modaliases=modaliases,
+        schema=schema,
+    )
 
     if isinstance(left, s_types.UnionTypeShell):
         if isinstance(right, s_types.UnionTypeShell):
             return s_types.UnionTypeShell(
                 components=left.components + right.components,
                 module=module,
+                schemaclass=metaclass,
             )
         else:
             return s_types.UnionTypeShell(
                 components=left.components + (right,),
                 module=module,
+                schemaclass=metaclass,
             )
     else:
         if isinstance(right, s_types.UnionTypeShell):
             return s_types.UnionTypeShell(
                 components=(left,) + right.components,
+                schemaclass=metaclass,
                 module=module,
             )
         else:
             return s_types.UnionTypeShell(
                 components=(left, right),
                 module=module,
+                schemaclass=metaclass,
             )
 
 
 def ast_to_object_shell(
     node: Union[qlast.ObjectRef, qlast.TypeName],
     *,
-    metaclass: Optional[Type[so.Object]] = None,
+    metaclass: Type[so.Object_T],
+    module: Optional[str] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
-) -> so.ObjectShell:
+) -> so.ObjectShell[so.Object_T]:
     from . import types as s_types
 
     if isinstance(node, qlast.TypeName):
-        if metaclass is not None and issubclass(metaclass, s_types.Type):
-            return ast_to_type_shell(
+        if issubclass(metaclass, s_types.Type):
+            return ast_to_type_shell(  # type: ignore
                 node,
                 metaclass=metaclass,
+                module=module,
                 modaliases=modaliases,
                 schema=schema,
             )
@@ -410,7 +428,7 @@ def ast_to_object_shell(
 
 def typeref_to_ast(
     schema: s_schema.Schema,
-    ref: Union[so.Object, so.ObjectShell],
+    ref: Union[so.Object_T, so.ObjectShell[so.Object_T]],
     *,
     _name: Optional[str] = None,
     disambiguate_std: bool=False,
@@ -423,7 +441,6 @@ def typeref_to_ast(
         t = ref
 
     result: qlast.TypeExpr
-    components: Tuple[so.Object, ...]
 
     if t.is_type() and cast(s_types.Type, t).is_any(schema):
         result = qlast.TypeName(name=_name, maintype=qlast.AnyType())
@@ -493,12 +510,13 @@ def typeref_to_ast(
 
 def shell_to_ast(
     schema: s_schema.Schema,
-    t: so.ObjectShell,
+    t: so.ObjectShell[so.Object],
     *,
     _name: Optional[str] = None,
 ) -> qlast.TypeExpr:
     from . import pseudo as s_pseudo
     from . import types as s_types
+    from . import scalars as s_scalars
 
     result: qlast.TypeExpr
     qlref: qlast.BaseObjectRef
@@ -554,6 +572,17 @@ def shell_to_ast(
                 op='|',
                 right=typeref_to_ast(schema, component),
             )
+    elif isinstance(t, s_scalars.AnonymousEnumTypeShell):
+        result = qlast.TypeName(
+            name=_name,
+            maintype=qlast.ObjectRef(
+                name='enum',
+            ),
+            subtypes=[
+                qlast.TypeName(maintype=qlast.ObjectRef(name=x))
+                for x in t.elements
+            ]
+        )
     elif isinstance(t, so.ObjectShell):
         name = t.name
         if isinstance(name, sn.QualName):
@@ -564,7 +593,7 @@ def shell_to_ast(
         else:
             qlref = qlast.ObjectRef(
                 module='',
-                name=name,
+                name=name.name,
             )
         result = qlast.TypeName(
             name=_name,
@@ -822,28 +851,44 @@ def ensure_union_type(
     *,
     opaque: bool = False,
     module: Optional[str] = None,
+    preserve_derived: bool = False,
 ) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
     from edb.schema import objtypes as s_objtypes
     from edb.schema import types as s_types
 
-    components: Set[s_types.Type] = set()
+    type_set: Set[s_types.Type] = set()
     for t in types:
         union_of = t.get_union_of(schema)
         if union_of:
-            components.update(union_of.objects(schema))
+            type_set.update(union_of.objects(schema))
+        else:
+            type_set.add(t)
+    # IF we need to preserve derived types, that means that we don't
+    # want to minimize them and instead keep them as is to be
+    # considered in the type union.
+    derived: Set[s_types.Type] = set()
+    components: Set[s_types.Type] = set()
+    for t in type_set:
+        if (
+            preserve_derived and
+            isinstance(t, s_types.InheritingType) and
+            t.get_is_derived(schema)
+        ):
+            derived.add(t)
         else:
             components.add(t)
 
-    components_list: Sequence[s_types.Type]
+    components_list: List[s_types.Type]
 
     if all(isinstance(c, s_types.InheritingType) for c in components):
-        components_list = minimize_class_set_by_most_generic(
+        components_list = list(minimize_class_set_by_most_generic(
             schema,
             cast(Set[s_types.InheritingType], components),
-        )
+        ))
     else:
         components_list = list(components)
+    components_list.extend(list(derived))
 
     if len(components_list) == 1 and not opaque:
         return schema, next(iter(components_list)), False
@@ -1030,7 +1075,7 @@ def const_ast_from_python(val: Any) -> qlast.BaseConstant:
 def get_config_type_shape(
     schema: s_schema.Schema,
     stype: s_objtypes.ObjectType,
-    path: List[qlast.Base],
+    path: List[qlast.PathElement],
 ) -> List[qlast.ShapeElement]:
     from . import objtypes as s_objtypes
     shape = []
@@ -1046,7 +1091,7 @@ def get_config_type_shape(
             if pn in ('id', '__type__') or pn in seen:
                 continue
 
-            elem_path: List[qlast.Base] = []
+            elem_path: List[qlast.PathElement] = []
 
             if t != stype:
                 elem_path.append(
@@ -1100,3 +1145,55 @@ def get_config_type_shape(
             seen.add(pn)
 
     return shape
+
+
+def type_shell_substitute(
+    name: sn.Name,
+    new: s_types.TypeShell[s_types.TypeT_co],
+    typ: s_types.TypeShell[s_types.TypeT_co],
+) -> s_types.TypeShell[s_types.TypeT_co]:
+    from . import types as s_types
+
+    # arguably this would be better done with a method on the types
+    if typ.name == name:
+        return new
+
+    if isinstance(typ, s_types.UnionTypeShell):
+        return s_types.UnionTypeShell(
+            module=typ.module,
+            schemaclass=typ.schemaclass,
+            opaque=typ.opaque,
+            components=[
+                type_shell_substitute(name, new, c)
+                for c in typ.components
+            ]
+        )
+    elif isinstance(typ, s_types.IntersectionTypeShell):
+        return s_types.IntersectionTypeShell(
+            module=typ.module,
+            schemaclass=typ.schemaclass,
+            components=[
+                type_shell_substitute(name, new, c)
+                for c in typ.components
+            ]
+        )
+    elif isinstance(typ, s_types.ArrayTypeShell):
+        return s_types.ArrayTypeShell(
+            name=sn.UnqualName('__unresolved__'),
+            expr=typ.expr,
+            typemods=typ.typemods,
+            schemaclass=typ.schemaclass,
+            subtype=type_shell_substitute(name, new, typ.subtype),
+        )
+    elif isinstance(typ, s_types.TupleTypeShell):
+        return s_types.TupleTypeShell(
+            name=sn.UnqualName('__unresolved__'),
+            typemods=typ.typemods,
+            schemaclass=typ.schemaclass,
+            subtypes={
+                k: type_shell_substitute(name, new, v)
+                for k, v in typ.subtypes.items()
+            }
+        )
+    else:
+        return typ

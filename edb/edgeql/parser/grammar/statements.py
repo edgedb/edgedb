@@ -198,13 +198,17 @@ class DescribeStmt(Nonterm):
             options=kids[4].val.options,
         )
 
-    def reduce_DESCRIBE_SYSTEM_CONFIG(self, *kids):
-        """%reduce DESCRIBE SYSTEM CONFIG DescribeFormat"""
+    def reduce_DESCRIBE_INSTANCE_CONFIG(self, *kids):
+        """%reduce DESCRIBE INSTANCE CONFIG DescribeFormat"""
         self.val = qlast.DescribeStmt(
-            object=qlast.DescribeGlobal.SystemConfig,
+            object=qlast.DescribeGlobal.InstanceConfig,
             language=kids[3].val.language,
             options=kids[3].val.options,
         )
+
+    def reduce_DESCRIBE_SYSTEM_CONFIG(self, *kids):
+        """%reduce DESCRIBE SYSTEM CONFIG DescribeFormat"""
+        return self.reduce_DESCRIBE_INSTANCE_CONFIG(*kids)
 
     def reduce_DESCRIBE_ROLES(self, *kids):
         """%reduce DESCRIBE ROLES DescribeFormat"""

@@ -36,8 +36,6 @@ class InfCtx(NamedTuple):
         qltypes.Multiplicity]
     singletons: Collection[irast.PathId]
     bindings: Dict[irast.PathId, irast.ScopeTreeNode]
-    volatile_uses: Dict[irast.PathId, irast.ScopeTreeNode]
-    in_for_body: bool
 
 
 def make_ctx(env: context.Environment) -> InfCtx:
@@ -47,6 +45,4 @@ def make_ctx(env: context.Environment) -> InfCtx:
         inferred_multiplicity={},
         singletons=frozenset(env.singletons),
         bindings={},
-        volatile_uses={},
-        in_for_body=False,
     )

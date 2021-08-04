@@ -36,7 +36,6 @@ import immutables
 from edb.server import pgcluster
 
 from edb.common import debug
-from edb.common import taskgroup
 
 from . import amsg
 from . import queue
@@ -100,7 +99,7 @@ class Worker:
     async def _attach(self, init_args_pickled: bytes):
         self._manager._stats_spawned += 1
 
-        self._con = await self._server.get_by_pid(self._pid)
+        self._con = self._server.get_by_pid(self._pid)
 
         await self.call(
             '__init_worker__',
@@ -141,12 +140,12 @@ class Worker:
             exc.__formatted_error__ = data[0]
             raise exc
 
-    async def close(self):
+    def close(self):
         if self._closed:
             return
         self._closed = True
         self._manager._stats_killed += 1
-        self._manager._workers.discard(self)
+        self._manager._workers.pop(self._pid, None)
         self._manager._report_worker(self, action="kill")
         try:
             os.kill(self._pid, signal.SIGTERM)
@@ -154,10 +153,10 @@ class Worker:
             pass
 
 
-class Pool:
+class Pool(amsg.ServerProtocol):
 
     _workers_queue: queue.WorkerQueue[Worker]
-    _workers: Set[Worker]
+    _workers: Dict[int, Worker]
 
     def __init__(
         self,
@@ -186,10 +185,11 @@ class Pool:
 
         assert pool_size >= 1
         self._pool_size = pool_size
-        self._workers = set()
+        self._workers = {}
 
-        self._server = amsg.Server(
-            self._poolsock_name, self._pool_size, loop)
+        self._server = amsg.Server(self._poolsock_name, loop, self)
+        self._template_proc = None
+        self._ready_evt = asyncio.Event()
 
         self._running = None
 
@@ -209,20 +209,24 @@ class Pool:
         await worker._attach(init_args_pickled)
         self._report_worker(worker)
 
-        self._workers.add(worker)
+        self._workers[pid] = worker
         self._workers_queue.release(worker)
+
+        logger.debug("started compiler worker process (PID %s)", pid)
+        if (
+            not self._ready_evt.is_set()
+            and len(self._workers) == self._pool_size
+        ):
+            logger.info(
+                f"started {self._pool_size} compiler worker "
+                f"process{'es' if self._pool_size > 1 else ''}",
+            )
+            self._ready_evt.set()
+
         return worker
 
-    async def start(self):
-        if self._running is not None:
-            raise RuntimeError(
-                'the compiler pool has already been started once')
-
-        self._workers_queue = queue.WorkerQueue(self._loop)
-
-        await self._server.start()
-        self._running = True
-
+    @functools.lru_cache(maxsize=None)
+    def _get_init_args(self):
         dbs: state.DatabasesState = immutables.Map()
         for db in self._dbindex.iter_dbs():
             dbs = dbs.set(
@@ -244,13 +248,34 @@ class Pool:
             self._dbindex.get_global_schema(),
             self._dbindex.get_compilation_system_config(),
         )
-        # Pickle once to later send to multiple worker processes.
-        init_args_pickled = pickle.dumps(init_args, -1)
+        pickled_args = pickle.dumps(init_args, -1)
+        return init_args, pickled_args
+
+    def worker_connected(self, pid):
+        logger.debug("Worker with PID %s connected, sending init args.", pid)
+        args, pickled_args = self._get_init_args()
+        self._loop.create_task(
+            self._attach_worker(pid, args, pickled_args)
+        )
+
+    def worker_disconnected(self, pid):
+        logger.debug("Worker with PID %s disconnected.", pid)
+        self._workers.pop(pid, None)
+
+    async def start(self):
+        if self._running is not None:
+            raise RuntimeError(
+                'the compiler pool has already been started once')
+
+        self._workers_queue = queue.WorkerQueue(self._loop)
+
+        await self._server.start()
+        self._running = True
 
         env = _ENV
         if debug.flags.server:
             env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
-        self._first_proc = await asyncio.create_subprocess_exec(
+        self._template_proc = await asyncio.create_subprocess_exec(
             *[
                 sys.executable, '-m', WORKER_MOD,
                 '--sockname', self._poolsock_name,
@@ -261,15 +286,9 @@ class Pool:
         )
 
         await asyncio.wait_for(
-            self._server.wait_until_ready(),
+            self._ready_evt.wait(),
             PROCESS_INITIAL_RESPONSE_TIMEOUT
         )
-
-        async with taskgroup.TaskGroup(name='compiler-pool-start') as g:
-            for pid in self._server.iter_pids():
-                g.create_task(
-                    self._attach_worker(pid, init_args, init_args_pickled)
-                )
 
     async def stop(self):
         if not self._running:
@@ -280,6 +299,12 @@ class Pool:
 
         self._workers_queue = queue.WorkerQueue(self._loop)
         self._workers.clear()
+
+        proc, self._template_proc = self._template_proc, None
+        if proc is not None:
+            proc.terminate()
+            await proc.wait()
+
         self._running = False
 
     def _report_worker(self, worker: Worker, *, action: str = "spawn"):
@@ -427,6 +452,19 @@ class Pool:
 
         return preargs, callback
 
+    async def _acquire_worker(self):
+        while (
+            worker := await self._workers_queue.acquire()
+        ).get_pid() not in self._workers:
+            # The worker was disconnected; skip to the next one.
+            pass
+        return worker
+
+    def _release_worker(self, worker):
+        # Skip disconnected workers
+        if worker.get_pid() in self._workers:
+            self._workers_queue.release(worker)
+
     async def compile(
         self,
         dbname,
@@ -437,7 +475,7 @@ class Pool:
         system_config,
         *compile_args
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             preargs, sync_state = self._compute_compile_preargs(
                 worker,
@@ -459,7 +497,7 @@ class Pool:
             return units, state
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def compile_in_tx(self, txid, pickled_state, *compile_args):
         # When we compile a query, the compiler returns a tuple:
@@ -521,7 +559,7 @@ class Pool:
         system_config,
         *compile_args
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             preargs, sync_state = self._compute_compile_preargs(
                 worker,
@@ -541,17 +579,17 @@ class Pool:
             )
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def try_compile_rollback(self, eql: bytes):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             return await worker.call(
                 'try_compile_rollback',
                 eql
             )
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def compile_graphql(
         self,
@@ -563,7 +601,7 @@ class Pool:
         system_config,
         *compile_args
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             preargs, sync_state = self._compute_compile_preargs(
                 worker,
@@ -583,14 +621,14 @@ class Pool:
             )
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def describe_database_dump(
         self,
         *args,
         **kwargs
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             return await worker.call(
                 'describe_database_dump',
@@ -599,14 +637,14 @@ class Pool:
             )
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
     async def describe_database_restore(
         self,
         *args,
         **kwargs
     ):
-        worker = await self._workers_queue.acquire()
+        worker = await self._acquire_worker()
         try:
             return await worker.call(
                 'describe_database_restore',
@@ -615,7 +653,7 @@ class Pool:
             )
 
         finally:
-            self._workers_queue.release(worker)
+            self._release_worker(worker)
 
 
 async def create_compiler_pool(

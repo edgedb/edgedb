@@ -273,6 +273,9 @@ class WithDeclList(ListNonterm, element=WithDecl,
 
 
 class Shape(Nonterm):
+    def reduce_LBRACE_RBRACE(self, *kids):
+        self.val = None
+
     def reduce_LBRACE_ShapeElementList_RBRACE(self, *kids):
         self.val = kids[1].val
 
@@ -300,6 +303,14 @@ class TypedShape(Nonterm):
             ),
             elements=kids[1].val
         )
+
+
+class FreeShape(Nonterm):
+    def reduce_LBRACE_FreeComputableShapePointerList_RBRACE(self, *kids):
+        self.val = qlast.Shape(elements=kids[1].val)
+
+    def reduce_LBRACE_FreeComputableShapePointerList_COMMA_RBRACE(self, *kids):
+        self.val = qlast.Shape(elements=kids[1].val)
 
 
 class OptAnySubShape(Nonterm):
@@ -341,7 +352,7 @@ class ShapeElementList(ListNonterm, element=ShapeElement,
     pass
 
 
-class SimpleShapePath(Nonterm):
+class VerySimpleShapePath(Nonterm):
 
     def reduce_PathStepName(self, *kids):
         from edb.schema import pointers as s_pointers
@@ -354,6 +365,12 @@ class SimpleShapePath(Nonterm):
         ]
 
         self.val = qlast.Path(steps=steps)
+
+
+class SimpleShapePath(Nonterm):
+
+    def reduce_VerySimpleShapePath(self, *kids):
+        self.val = kids[0].val
 
     def reduce_AT_ShortNodeName(self, *kids):
         self.val = qlast.Path(
@@ -369,6 +386,19 @@ class SimpleShapePath(Nonterm):
 class SimpleShapePointer(Nonterm):
 
     def reduce_SimpleShapePath(self, *kids):
+        self.val = qlast.ShapeElement(
+            expr=kids[0].val
+        )
+
+
+# Shape pointers in free shapes are not allowed to be link
+# properties. This is because we need to be able to distinguish
+# free shapes from set literals with only one token of lookahead
+# (since this is an LL(1) parser) and seeing the := after @ident would
+# require two tokens of lookahead.
+class FreeSimpleShapePointer(Nonterm):
+
+    def reduce_VerySimpleShapePath(self, *kids):
         self.val = qlast.ShapeElement(
             expr=kids[0].val
         )
@@ -585,6 +615,100 @@ class ComputableShapePointer(Nonterm):
         )
 
 
+# This is the same as the above ComputableShapePointer, except using
+# FreeSimpleShapePointer and not allowing +=/-=.
+class FreeComputableShapePointer(Nonterm):
+    def reduce_OPTIONAL_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[1].val
+        self.val.compexpr = kids[3].val
+        self.val.required = False
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[2].context,
+        )
+
+    def reduce_REQUIRED_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[1].val
+        self.val.compexpr = kids[3].val
+        self.val.required = True
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[2].context,
+        )
+
+    def reduce_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[1].val
+        self.val.compexpr = kids[3].val
+        self.val.cardinality = qltypes.SchemaCardinality.Many
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[2].context,
+        )
+
+    def reduce_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[1].val
+        self.val.compexpr = kids[3].val
+        self.val.cardinality = qltypes.SchemaCardinality.One
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[2].context,
+        )
+
+    def reduce_OPTIONAL_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[2].val
+        self.val.compexpr = kids[4].val
+        self.val.required = False
+        self.val.cardinality = qltypes.SchemaCardinality.Many
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[3].context,
+        )
+
+    def reduce_OPTIONAL_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[2].val
+        self.val.compexpr = kids[4].val
+        self.val.required = False
+        self.val.cardinality = qltypes.SchemaCardinality.One
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[3].context,
+        )
+
+    def reduce_REQUIRED_MULTI_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[2].val
+        self.val.compexpr = kids[4].val
+        self.val.required = True
+        self.val.cardinality = qltypes.SchemaCardinality.Many
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[3].context,
+        )
+
+    def reduce_REQUIRED_SINGLE_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[2].val
+        self.val.compexpr = kids[4].val
+        self.val.required = True
+        self.val.cardinality = qltypes.SchemaCardinality.One
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[3].context,
+        )
+
+    def reduce_FreeSimpleShapePointer_ASSIGN_Expr(self, *kids):
+        self.val = kids[0].val
+        self.val.compexpr = kids[2].val
+        self.val.operation = qlast.ShapeOperation(
+            op=qlast.ShapeOp.ASSIGN,
+            context=kids[1].context,
+        )
+
+
+class FreeComputableShapePointerList(ListNonterm,
+                                     element=FreeComputableShapePointer,
+                                     separator=tokens.T_COMMA):
+    pass
+
+
 class UnlessConflictSpecifier(Nonterm):
     def reduce_ON_Expr_ELSE_Expr(self, *kids):
         self.val = (kids[1].val, kids[3].val)
@@ -752,6 +876,9 @@ class Expr(Nonterm):
 
     def reduce_Expr_Shape(self, *kids):
         self.val = qlast.Shape(expr=kids[0].val, elements=kids[1].val)
+
+    def reduce_FreeShape(self, *kids):
+        self.val = kids[0].val
 
     def reduce_Constant(self, *kids):
         self.val = kids[0].val

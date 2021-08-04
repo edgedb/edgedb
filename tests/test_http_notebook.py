@@ -25,7 +25,7 @@ import urllib
 from edb.testbase import http as tb
 
 
-class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
+class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
 
     # EdgeQL/HTTP queries cannot run in a transaction
     TRANSACTION_ISOLATION = False
@@ -43,7 +43,11 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
             self.http_addr, method='POST')  # type: ignore
         req.add_header('Content-Type', 'application/json')
         response = urllib.request.urlopen(
-            req, json.dumps(req_data).encode())
+            req, json.dumps(req_data).encode(), context=self.tls_context
+        )
+
+        self.assertIsNotNone(response.headers['EdgeDB-Protocol-Version'])
+
         resp_data = json.loads(response.read())
         return resp_data
 
@@ -157,7 +161,7 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
     def test_http_notebook_04(self):
         req = urllib.request.Request(self.http_addr + '/status',
                                      method='GET')
-        response = urllib.request.urlopen(req)
+        response = urllib.request.urlopen(req, context=self.tls_context)
         resp_data = json.loads(response.read())
         self.assertEqual(resp_data, {'kind': 'status', 'status': 'OK'})
 
@@ -191,3 +195,11 @@ class TestHttpNotebook(tb.BaseHttpTest, tb.server.QueryTestCase):
                 ]
             }
         )
+
+    def test_http_notebook_06(self):
+        results = self.run_queries([
+            'SELECT {protocol := "notebook"}'
+        ])
+
+        self.assertEqual(results['kind'], 'results')
+        self.assertEqual(results['results'][0]['kind'], 'data')

@@ -79,8 +79,8 @@ EdgeQL
 * Fix derivation of link targets in certain cases of multiple
   inheritance (:eql:gh:`52c6b2d4`).
 * Fix handling of ad-hoc tuples (:eql:gh:`#1255`).
-* Fix incorrect implicit limit injection in subqueries in computables
-  (:eql:gh:`#1271`).
+* Fix incorrect implicit limit injection in subqueries in computed
+  expressions (:eql:gh:`#1271`).
 * Computables cardinality must now be declared explicitly as
   ``required``, ``single`` or ``multi``. The expression is validated
   to be within the upper and lower limits implied by the declaration

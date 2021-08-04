@@ -23,6 +23,9 @@ import codecs
 import hashlib
 import json
 import os.path
+import socket
+import ssl as ssl_mod
+import struct
 
 cimport cython
 cimport cpython
@@ -34,9 +37,12 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          UINT32_MAX
 
 from edb import errors
+from edb.edgeql import qltypes
 
 from edb.schema import objects as s_obj
 
+from edb.pgsql import common as pgcommon
+from edb.pgsql.common import quote_ident as pg_qi
 from edb.pgsql.common import quote_literal as pg_ql
 
 from edb.server.pgproto cimport hton
@@ -49,26 +55,34 @@ from edb.server.pgproto.pgproto cimport (
     frb_init,
     frb_read,
     frb_get_len,
+    frb_slice_from,
 )
 
 from edb.server import buildmeta
 from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
+from edb.server import pgconnparams
 from edb.server.protocol cimport binary as edgecon
 
 from edb.common import debug
 
 from . import errors as pgerror
 
-
 DEF DATA_BUFFER_SIZE = 100_000
 DEF PREP_STMTS_CACHE = 100
+DEF TCP_KEEPIDLE = 24
+DEF TCP_KEEPINTVL = 2
+DEF TCP_KEEPCNT = 3
 
 DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
-cdef object CARD_NO_RESULT = compiler.ResultCardinality.NO_RESULT
+cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
+cdef object POSTGRES_SHUTDOWN_ERR_CODES = {
+    '57P01': 'admin_shutdown',
+    '57P02': 'crash_shutdown',
+}
 
 
 cdef bytes INIT_CON_SCRIPT = None
@@ -110,13 +124,68 @@ def _build_init_con_script() -> bytes:
     ''').encode('utf-8')
 
 
-async def connect(connargs, dbname):
-    global INIT_CON_SCRIPT
+def _set_tcp_keepalive(transport):
+    # TCP keepalive was initially added here for special cases where idle
+    # connections are dropped silently on GitHub Action running test suite
+    # against AWS RDS. We are keeping the TCP keepalive for generic
+    # Postgres connections as the kernel overhead is considered low, and
+    # in certain cases it does save us some reconnection time.
+    sock = transport.get_extra_info('socket')
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    if hasattr(socket, 'TCP_KEEPIDLE'):
+        sock.setsockopt(socket.IPPROTO_TCP,
+                        socket.TCP_KEEPIDLE, TCP_KEEPIDLE)
+        sock.setsockopt(socket.IPPROTO_TCP,
+                        socket.TCP_KEEPINTVL, TCP_KEEPINTVL)
+        sock.setsockopt(socket.IPPROTO_TCP,
+                        socket.TCP_KEEPCNT, TCP_KEEPCNT)
+
+
+async def _create_ssl_connection(protocol_factory, host, port, *,
+                                 loop, ssl_context, ssl_is_advisory):
+    tr, pr = await loop.create_connection(
+        lambda: TLSUpgradeProto(loop, host, port,
+                                ssl_context, ssl_is_advisory),
+        host, port)
+    _set_tcp_keepalive(tr)
+
+    tr.write(struct.pack('!ll', 8, 80877103))  # SSLRequest message.
+
+    try:
+        do_ssl_upgrade = await pr.on_data
+    except (Exception, asyncio.CancelledError):
+        tr.close()
+        raise
+
+    if do_ssl_upgrade:
+        try:
+            new_tr = await loop.start_tls(
+                tr, pr, ssl_context, server_hostname=host)
+        except (Exception, asyncio.CancelledError):
+            tr.close()
+            raise
+    else:
+        new_tr = tr
+
+    pg_proto = protocol_factory()
+    pg_proto.is_ssl = do_ssl_upgrade
+    pg_proto.connection_made(new_tr)
+    new_tr.set_protocol(pg_proto)
+
+    return new_tr, pg_proto
+
+
+class _RetryConnectSignal(Exception):
+    pass
+
+
+async def _connect(connargs, dbname, ssl):
 
     loop = asyncio.get_running_loop()
 
     host = connargs.get("host")
     port = connargs.get("port")
+    sslmode = connargs.get('sslmode', pgconnparams.SSLMode.prefer)
 
     if host.startswith('/'):
         addr = os.path.join(host, f'.s.PGSQL.{port}')
@@ -124,14 +193,81 @@ async def connect(connargs, dbname):
             lambda: PGConnection(dbname, loop, connargs), addr)
 
     else:
-        _, pgcon = await loop.create_connection(
-            lambda: PGConnection(dbname, loop, connargs), host=host, port=port)
+        if ssl:
+            _, pgcon = await _create_ssl_connection(
+                lambda: PGConnection(dbname, loop, connargs),
+                host,
+                port,
+                loop=loop,
+                ssl_context=ssl,
+                ssl_is_advisory=(sslmode == pgconnparams.SSLMode.prefer),
+            )
+        else:
+            trans, pgcon = await loop.create_connection(
+                lambda: PGConnection(dbname, loop, connargs),
+                host=host, port=port)
+            _set_tcp_keepalive(trans)
 
-    await pgcon.connect()
+    try:
+        await pgcon.connect()
+    except pgerror.BackendError as e:
+        if not e.code_is(pgerror.ERROR_INVALID_AUTHORIZATION_SPECIFICATION):
+            raise
 
-    if connargs['user'] != defines.EDGEDB_SUPERUSER:
+        if (
+            sslmode == pgconnparams.SSLMode.allow and not pgcon.is_ssl or
+            sslmode == pgconnparams.SSLMode.prefer and pgcon.is_ssl
+        ):
+            # Trigger retry when:
+            #   1. First attempt with sslmode=allow, ssl=None failed
+            #   2. First attempt with sslmode=prefer, ssl=ctx failed while the
+            #      server claimed to support SSL (returning "S" for SSLRequest)
+            #      (likely because pg_hba.conf rejected the connection)
+            raise _RetryConnectSignal()
+
+        else:
+            # but will NOT retry if:
+            #   1. First attempt with sslmode=prefer failed but the server
+            #      doesn't support SSL (returning 'N' for SSLRequest), because
+            #      we already tried to connect without SSL thru ssl_is_advisory
+            #   2. Second attempt with sslmode=prefer, ssl=None failed
+            #   3. Second attempt with sslmode=allow, ssl=ctx failed
+            #   4. Any other sslmode
+            raise
+
+    return pgcon
+
+
+async def connect(connargs, dbname, tenant_id):
+    global INIT_CON_SCRIPT
+
+    # This is different than parsing DSN and use the default sslmode=prefer,
+    # because connargs can be set manually thru set_connection_params(), and
+    # the caller should be responsible for aligning sslmode with ssl.
+    sslmode = connargs.get('sslmode', pgconnparams.SSLMode.disable)
+    ssl = connargs.get('ssl')
+    if sslmode == pgconnparams.SSLMode.allow:
+        try:
+            pgcon = await _connect(connargs, dbname, ssl=None)
+        except _RetryConnectSignal:
+            pgcon = await _connect(connargs, dbname, ssl=ssl)
+    elif sslmode == pgconnparams.SSLMode.prefer:
+        try:
+            pgcon = await _connect(connargs, dbname, ssl=ssl)
+        except _RetryConnectSignal:
+            pgcon = await _connect(connargs, dbname, ssl=None)
+    else:
+        pgcon = await _connect(connargs, dbname, ssl=ssl)
+
+    sup_role = pgcommon.get_role_backend_name(
+        defines.EDGEDB_SUPERUSER, tenant_id=tenant_id)
+    if connargs['user'] != sup_role:
+        # We used to use SET SESSION AUTHORIZATION here, there're some security
+        # differences over SET ROLE, but as we don't allow accessing Postgres
+        # directly through EdgeDB, SET ROLE is mostly fine here. (Also hosted
+        # backends like Postgres on DigitalOcean support only SET ROLE)
         await pgcon.simple_query(
-            f'SET SESSION AUTHORIZATION {defines.EDGEDB_SUPERUSER}'.encode(),
+            f'SET ROLE {pg_qi(sup_role)}'.encode(),
             ignore_data=True,
         )
 
@@ -141,6 +277,39 @@ async def connect(connargs, dbname):
     await pgcon.simple_query(INIT_CON_SCRIPT, ignore_data=True)
 
     return pgcon
+
+
+class TLSUpgradeProto(asyncio.Protocol):
+    def __init__(self, loop, host, port, ssl_context, ssl_is_advisory):
+        self.on_data = loop.create_future()
+        self.host = host
+        self.port = port
+        self.ssl_context = ssl_context
+        self.ssl_is_advisory = ssl_is_advisory
+
+    def data_received(self, data):
+        if data == b'S':
+            self.on_data.set_result(True)
+        elif (self.ssl_is_advisory and
+              self.ssl_context.verify_mode == ssl_mod.CERT_NONE and
+              data == b'N'):
+            # ssl_is_advisory will imply that ssl.verify_mode == CERT_NONE,
+            # since the only way to get ssl_is_advisory is from
+            # sslmode=prefer. But be extra sure to disallow insecure
+            # connections when the ssl context asks for real security.
+            self.on_data.set_result(False)
+        else:
+            self.on_data.set_exception(
+                ConnectionError(
+                    'PostgreSQL server at "{host}:{port}" '
+                    'rejected SSL upgrade'.format(
+                        host=self.host, port=self.port)))
+
+    def connection_lost(self, exc):
+        if not self.on_data.done():
+            if exc is None:
+                exc = ConnectionError('unexpected connection_lost() call')
+            self.on_data.set_exception(exc)
 
 
 @cython.final
@@ -191,6 +360,16 @@ cdef class PGConnection:
         self.idle = True
         self.cancel_fut = None
 
+        self._is_ssl = False
+
+    @property
+    def is_ssl(self):
+        return self._is_ssl
+
+    @is_ssl.setter
+    def is_ssl(self, value):
+        self._is_ssl = value
+
     def debug_print(self, *args):
         print(
             '::PGCONN::',
@@ -218,9 +397,6 @@ cdef class PGConnection:
         assert self.cancel_fut is not None
         self.cancel_fut.set_result(True)
 
-    def is_connected(self):
-        return bool(self.connected and self.transport is not None)
-
     def abort(self):
         if not self.transport:
             return
@@ -240,16 +416,25 @@ cdef class PGConnection:
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
 
-    async def set_server(self, server):
-        assert self.dbname == defines.EDGEDB_SYSTEM_DB
-        await self.simple_query(
-            b'LISTEN __edgedb_sysevent__;',
-            ignore_data=True
-        )
+    def set_server(self, server):
+        assert defines.EDGEDB_SYSTEM_DB in self.dbname
         self.server = server
 
+    async def listen_for_sysevent(self):
+        try:
+            assert defines.EDGEDB_SYSTEM_DB in self.dbname
+            await self.simple_query(
+                b'LISTEN __edgedb_sysevent__;',
+                ignore_data=True
+            )
+        except Exception:
+            try:
+                self.abort()
+            finally:
+                raise
+
     async def signal_sysevent(self, event, **kwargs):
-        assert self.dbname == defines.EDGEDB_SYSTEM_DB
+        assert defines.EDGEDB_SYSTEM_DB in self.dbname
         event = json.dumps({
             'event': event,
             'server_id': self.server._server_id,
@@ -1001,7 +1186,7 @@ cdef class PGConnection:
         finally:
             await self.after_command()
 
-    async def _restore(self, sql, bytes data, tuple elided_cols):
+    async def _restore(self, restore_block, bytes data, dict type_map):
         cdef:
             WriteBuffer buf
             WriteBuffer qbuf
@@ -1012,7 +1197,7 @@ cdef class PGConnection:
             ssize_t ncols
 
         qbuf = WriteBuffer.new_message(b'Q')
-        qbuf.write_bytestring(sql)
+        qbuf.write_bytestring(restore_block.sql_copy_stmt)
         qbuf.end_message()
 
         self.write(qbuf)
@@ -1046,8 +1231,19 @@ cdef class PGConnection:
 
         buf = WriteBuffer.new()
         cpython.PyBytes_AsStringAndSize(data, &cbuf, &clen)
-        if elided_cols:
-            self._elide_copy_cols(buf, cbuf, clen, ncols, elided_cols)
+        if (
+            restore_block.compat_elided_cols
+            or any(desc for desc in restore_block.data_mending_desc)
+        ):
+            self._rewrite_copy_data(
+                buf,
+                cbuf,
+                clen,
+                ncols,
+                restore_block.data_mending_desc,
+                type_map,
+                restore_block.compat_elided_cols,
+            )
         else:
             if cbuf[0] != b'd':
                 raise RuntimeError('unexpected dump data message structure')
@@ -1062,7 +1258,6 @@ cdef class PGConnection:
         self.write(buf)
 
         qbuf = WriteBuffer.new_message(b'c')
-        qbuf.write_bytes(data)
         qbuf.end_message()
         self.write(qbuf)
 
@@ -1085,17 +1280,20 @@ cdef class PGConnection:
         if er is not None:
             raise er[0](fields=er[1])
 
-    cdef _elide_copy_cols(
+    cdef _rewrite_copy_data(
         self,
         WriteBuffer wbuf,
         char* data,
         ssize_t data_len,
         ssize_t ncols,
+        tuple data_mending_desc,
+        dict type_id_map,
         tuple elided_cols,
     ):
-        """Rewrite the binary COPY stream to exclude the specified columns."""
+        """Rewrite the binary COPY stream."""
         cdef:
             FRBuffer rbuf
+            FRBuffer datum_buf
             ssize_t i
             ssize_t real_ncols
             int8_t *elide
@@ -1156,8 +1354,22 @@ cdef class PGConnection:
                         mbuf.write_int32(datum_len)
                     if datum_len != -1:
                         datum = frb_read(&rbuf, datum_len)
+
                         if not elided:
-                            mbuf.write_cstr(datum, datum_len)
+                            datum_mending_desc = data_mending_desc[i]
+                            if (
+                                datum_mending_desc is not None
+                                and datum_mending_desc.needs_mending
+                            ):
+                                frb_init(&datum_buf, datum, datum_len)
+                                self._mend_copy_datum(
+                                    mbuf,
+                                    &datum_buf,
+                                    datum_mending_desc,
+                                    type_id_map,
+                                )
+                            else:
+                                mbuf.write_cstr(datum, datum_len)
 
                 mbuf.end_message()
                 wbuf.write_buffer(mbuf)
@@ -1165,10 +1377,107 @@ cdef class PGConnection:
         finally:
             cpython.PyMem_Free(elide)
 
-    async def restore(self, sql, bytes data, tuple elided_cols):
+    cdef _mend_copy_datum(
+        self,
+        WriteBuffer wbuf,
+        FRBuffer *rbuf,
+        object mending_desc,
+        dict type_id_map,
+    ):
+        cdef:
+            ssize_t remainder
+            int32_t ndims
+            int32_t i
+            int32_t nelems
+            int32_t dim
+            const char *buf
+            FRBuffer elem_buf
+            int32_t elem_len
+            object elem_mending_desc
+
+        kind = mending_desc.schema_object_class
+
+        if kind is qltypes.SchemaObjectClass.ARRAY_TYPE:
+            # Dimensions and flags
+            buf = frb_read(rbuf, 8)
+            ndims = hton.unpack_int32(buf)
+            wbuf.write_cstr(buf, 8)
+            elem_mending_desc = mending_desc.elements[0]
+            # Discard the original element OID.
+            frb_read(rbuf, 4)
+            # Write the correct element OID.
+            elem_type_id = elem_mending_desc.schema_type_id
+            elem_type_oid = type_id_map[elem_type_id]
+            wbuf.write_int32(<int32_t>elem_type_oid)
+
+            if ndims == 0:
+                # Empty array
+                return
+
+            if ndims != 1:
+                raise ValueError(
+                    'unexpected non-single dimension array'
+                )
+
+            if mending_desc.needs_mending:
+                # dim and lbound
+                buf = frb_read(rbuf, 8)
+                nelems = hton.unpack_int32(buf)
+                wbuf.write_cstr(buf, 8)
+
+                for i in range(nelems):
+                    elem_len = hton.unpack_int32(frb_read(rbuf, 4))
+                    wbuf.write_int32(elem_len)
+                    frb_slice_from(&elem_buf, rbuf, elem_len)
+                    self._mend_copy_datum(
+                        wbuf,
+                        &elem_buf,
+                        mending_desc.elements[0],
+                        type_id_map,
+                    )
+
+        elif kind is qltypes.SchemaObjectClass.TUPLE_TYPE:
+            nelems = hton.unpack_int32(frb_read(rbuf, 4))
+            wbuf.write_int32(nelems)
+
+            for i in range(nelems):
+                elem_mending_desc = mending_desc.elements[i]
+                if elem_mending_desc is not None:
+                    # Discard the original element OID.
+                    frb_read(rbuf, 4)
+                    # Write the correct element OID.
+                    elem_type_id = elem_mending_desc.schema_type_id
+                    elem_type_oid = type_id_map[elem_type_id]
+                    wbuf.write_int32(<int32_t>elem_type_oid)
+
+                    elem_len = hton.unpack_int32(frb_read(rbuf, 4))
+                    wbuf.write_int32(elem_len)
+
+                    if elem_len != -1:
+                        frb_slice_from(&elem_buf, rbuf, elem_len)
+
+                        if elem_mending_desc.needs_mending:
+                            self._mend_copy_datum(
+                                wbuf,
+                                &elem_buf,
+                                elem_mending_desc,
+                                type_id_map,
+                            )
+                        else:
+                            wbuf.write_frbuf(&elem_buf)
+                else:
+                    buf = frb_read(rbuf, 8)
+                    wbuf.write_cstr(buf, 8)
+                    elem_len = hton.unpack_int32(buf + 4)
+                    if elem_len != -1:
+                        wbuf.write_cstr(frb_read(rbuf, elem_len), elem_len)
+
+        wbuf.write_frbuf(rbuf)
+
+    async def restore(self, restore_block, bytes data, dict type_map):
         self.before_command()
         try:
-            await self._restore(sql, data, elided_cols)
+            await self._restore(restore_block, data, type_map)
         finally:
             await self.after_command()
 
@@ -1203,6 +1512,12 @@ cdef class PGConnection:
 
         buf.write_bytestring(b'default_transaction_isolation')
         buf.write_bytestring(b'repeatable read')
+
+        buf.write_bytestring(b'intervalstyle')
+        buf.write_bytestring(b'iso_8601')
+
+        buf.write_bytestring(b'jit')
+        buf.write_bytestring(b'off')
 
         buf.write_bytestring(b'user')
         buf.write_bytestring(self.pgaddr['user'].encode('utf-8'))
@@ -1263,7 +1578,7 @@ cdef class PGConnection:
             finally:
                 self.buffer.finish_message()
 
-    def is_healthy_to_go_back_to_pool(self):
+    def is_healthy(self):
         return (
             self.connected and
             self.idle and
@@ -1313,7 +1628,7 @@ cdef class PGConnection:
             self.idle = True
 
     cdef write(self, buf):
-        self.transport.write(buf)
+        self.transport.write(memoryview(buf))
 
     cdef fallthrough(self):
         if self.parse_notification():
@@ -1330,6 +1645,14 @@ cdef class PGConnection:
         while self.buffer.take_message():
             if not self.parse_notification():
                 mtype = self.buffer.get_message_type()
+                if mtype == b'E':  # ErrorResponse
+                    er_cls, fields = self.parse_error_message()
+                    msg = POSTGRES_SHUTDOWN_ERR_CODES.get(fields['C'])
+                    if msg:
+                        msg = fields.get('M', msg)
+                        if self.server is not None:
+                            self.server.set_pg_unavailable_msg(msg)
+                        continue
                 raise RuntimeError(
                     f'unexpected message type {chr(mtype)!r} in IDLE state')
 
@@ -1405,9 +1728,8 @@ cdef class PGConnection:
 
             message = self.buffer.read_null_str().decode()
 
-            if code == 67 and message == '57014':
-                # 67 is b'C' -- error code
-                # 57014 is Postgres' QueryCanceledError
+            if (code == 67 and  # 67 is b'C' -- error code
+                message == pgerror.ERROR_QUERY_CANCELLED):
                 cls = pgerror.BackendQueryCancelledError
 
             fields[chr(code)] = message
@@ -1480,8 +1802,15 @@ cdef class PGConnection:
         self.connected_fut = None
 
     def connection_lost(self, exc):
+        # Mark the connection as disconnected, so that `self.is_healthy()`
+        # surely returns False for this connection.
+        self.connected = False
+
+        self.transport = None
+
         if self.server is not None:
-            self.server._on_sys_pgcon_connection_lost()
+            # only system db PGConnection has self.server
+            self.server._on_sys_pgcon_connection_lost(exc)
 
         if self.connected_fut is not None and not self.connected_fut.done():
             self.connected_fut.set_exception(ConnectionAbortedError())
@@ -1490,8 +1819,6 @@ cdef class PGConnection:
         if self.msg_waiter is not None and not self.msg_waiter.done():
             self.msg_waiter.set_exception(ConnectionAbortedError())
             self.msg_waiter = None
-
-        self.transport = None
 
     def pause_writing(self):
         pass

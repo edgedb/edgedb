@@ -32,6 +32,9 @@ Set
     * - :eql:op:`anytype [IS type] <ISINTERSECT>`
       - :eql:op-desc:`ISINTERSECT`
 
+    * - :eql:func:`assert_single`
+      - :eql:func-desc:`assert_single`
+
     * - :eql:func:`count`
       - :eql:func-desc:`count`
 
@@ -229,7 +232,7 @@ Set
     guarantees the type of the result set, all the links and properties
     associated with the specified type can now be used on the
     resulting expression. This is especially useful in combination
-    with :ref:`backward links <ref_eql_expr_paths>`.
+    with :ref:`backlinks <ref_datamodel_links>`.
 
     Consider the following types:
 
@@ -258,10 +261,10 @@ Set
 
         SELECT User.<owner;
 
-    By default backward links don't infer any type information beyond the
-    fact that it's an :eql:type:`Object`. To ensure that this path
-    specifically reaches ``Issue`` the type intersection operator must
-    be used:
+    By default :ref:`backlinks <ref_datamodel_links>` don't infer any
+    type information beyond the fact that it's an :eql:type:`Object`.
+    To ensure that this path specifically reaches ``Issue`` the type
+    intersection operator must be used:
 
     .. code-block:: edgeql
 
@@ -270,6 +273,32 @@ Set
         # With the use of type intersection it's possible to refer to
         # specific property of Issue now:
         SELECT User.<owner[IS Issue].title;
+
+
+----------
+
+
+.. eql:function:: std::assert_single(s: SET OF anytype) -> anytype
+
+    :index: cardinality singleton
+
+    Check that the input set contains no more than one element.
+
+    If the input set contains more than one element, ``assert_single``
+    raises a ``CardinalityViolationError``.  This function is useful
+    as a runtime cardinality assertion in queries and computed
+    expressions that should always return sets with at most a single
+    element, but where static cardinality inference is not capable
+    enough or outright impossible.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT assert_single((SELECT User FILTER .name = "Unique"))
+        {default::User {id: ...}}
+
+        db> SELECT assert_single((SELECT User))
+        ERROR: CardinalityViolationError: assert_single violation: more than
+               one element returned by an expression
 
 
 ----------

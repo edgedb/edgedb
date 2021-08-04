@@ -44,8 +44,9 @@ in the module.
 Parameters
 ----------
 
-:eql:synopsis:`ABSTRACT`
-    If specified, the created type will be *abstract*.
+Most sub-commands and options of this command are identical to the
+:ref:`SDL object type declaration <ref_eql_sdl_object_types_syntax>`,
+with some additional features listed below:
 
 :eql:synopsis:`WITH <with-item> [, ...]`
     Alias declarations.
@@ -53,25 +54,6 @@ Parameters
     The ``WITH`` clause allows specifying module aliases
     that can be referenced by the command.  See :ref:`ref_eql_with`
     for more information.
-
-:eql:synopsis:`<name>`
-    The name (optionally module-qualified) of the new type.
-
-:eql:synopsis:`EXTENDING <supertype> [, ...]`
-    Optional clause specifying the *supertypes* of the new type.
-
-    Use of ``EXTENDING`` creates a persistent type relationship
-    between the new subtype and its supertype(s).  Schema modifications
-    to the supertype(s) propagate to the subtype.
-
-    References to supertypes in queries will also include objects of
-    the subtype.
-
-    If the same *link* name exists in more than one supertype, or
-    is explicitly defined in the subtype and at least one supertype,
-    then the data types of the link targets must be *compatible*.
-    If there is no conflict, the links are merged to form a single
-    link in the new type.
 
 The following subcommands are allowed in the ``CREATE TYPE`` block:
 

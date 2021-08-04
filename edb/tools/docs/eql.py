@@ -213,7 +213,7 @@ from edb.common import debug
 
 from edb.tools.pygments.edgeql import EdgeQLLexer
 
-from edb.testbase import protocol
+from edb import protocol
 
 from docutils import nodes as d_nodes
 from docutils.parsers import rst as d_rst

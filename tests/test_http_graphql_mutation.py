@@ -46,7 +46,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             'p_local_datetime': '2019-05-01T01:02:35.196811',
             'p_local_date': '2019-05-01',
             'p_local_time': '01:02:35.196811',
-            'p_duration': '21:30:00',
+            'p_duration': 'PT21H30M',
             'p_int16': 12345,
             'p_int32': 1234567890,
             # Some GraphQL implementations seem to have a limitation
@@ -462,6 +462,63 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             mutation delete_other__Foo {
                 delete_other__Foo(
                     filter: {select: {eq: "New EnumTest01"}}
+                ) {
+                    select
+                    color
+                }
+            }
+        """, {
+            "delete_other__Foo": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": []
+        })
+
+    def test_graphql_mutation_insert_enum_02(self):
+        # This tests enum values in insertion, using variables.
+        data = {
+            'select': 'New EnumTest02',
+            'color': 'RED',
+        }
+
+        validation_query = r"""
+            query {
+                other__Foo(filter: {select: {eq: "New EnumTest02"}}) {
+                    select
+                    color
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo(
+                $select: String!,
+                $color: other__ColorEnum!
+            ) {
+                insert_other__Foo(
+                    data: [{
+                        select: $select,
+                        color: $color,
+                    }]
+                ) {
+                    select
+                    color
+                }
+            }
+        """, {
+            "insert_other__Foo": [data]
+        }, variables=data)
+
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {select: {eq: "New EnumTest02"}}
                 ) {
                     select
                     color
@@ -1360,7 +1417,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             'p_local_datetime': '2018-05-07T20:01:22.306916',
             'p_local_date': '2018-05-07',
             'p_local_time': '20:01:22.306916',
-            'p_duration': '20:00:00',
+            'p_duration': 'PT20H',
             'p_int16': 12345,
             'p_int32': 1234567890,
             'p_int64': 1234567890123,
@@ -1377,7 +1434,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             'p_local_datetime': '2019-05-01T01:02:35.196811',
             'p_local_date': '2019-05-01',
             'p_local_time': '01:02:35.196811',
-            'p_duration': '21:30:00',
+            'p_duration': 'PT21H30M',
             'p_int16': 4321,
             'p_int32': 876543210,
             # Some GraphQL implementations seem to have a limitation
@@ -1434,7 +1491,7 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
                         p_local_datetime: {set: "2019-05-01T01:02:35.196811"},
                         p_local_date: {set: "2019-05-01"},
                         p_local_time: {set: "01:02:35.196811"},
-                        p_duration: {set: "21:30:00"},
+                        p_duration: {set: "PT21H30M"},
                         p_int16: {set: 4321},
                         p_int32: {set: 876543210},
                         # Some GraphQL implementations seem to have a
@@ -2127,6 +2184,66 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         """, {
             "delete_other__Foo": [{
                 'select': 'Update EnumTest01',
+                'color': 'RED',
+            }]
+        })
+
+    def test_graphql_mutation_update_enum_02(self):
+        # This tests enum values in updates using variables.
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        select: "Update EnumTest02",
+                        color: BLUE
+                    }]
+                ) {
+                    select
+                    color
+                }
+            }
+        """, {
+            "insert_other__Foo": [{
+                'select': 'Update EnumTest02',
+                'color': 'BLUE',
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_other__Foo (
+                $color: other__ColorEnum!
+            ) {
+                update_other__Foo(
+                    filter: {select: {eq: "Update EnumTest02"}}
+                    data: {
+                        color: {set: $color}
+                    }
+                ) {
+                    select
+                    color
+                }
+            }
+        """, {
+            "update_other__Foo": [{
+                'select': 'Update EnumTest02',
+                'color': 'RED',
+            }]
+        }, variables={"color": "RED"})
+
+        # clean up
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {select: {eq: "Update EnumTest02"}}
+                ) {
+                    select
+                    color
+                }
+            }
+        """, {
+            "delete_other__Foo": [{
+                'select': 'Update EnumTest02',
                 'color': 'RED',
             }]
         })

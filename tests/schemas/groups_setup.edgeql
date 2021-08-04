@@ -17,56 +17,46 @@
 #
 
 
-WITH MODULE test
 INSERT Priority {
     name := 'High'
 };
 
-WITH MODULE test
 INSERT Priority {
     name := 'Low'
 };
 
-WITH MODULE test
 INSERT Status {
     name := 'Open'
 };
 
-WITH MODULE test
 INSERT Status {
     name := 'Closed'
 };
 
 
-WITH MODULE test
 INSERT User {
     name := 'Elvis'
 };
 
-WITH MODULE test
 INSERT User {
     name := 'Yury'
 };
 
-WITH MODULE test
 INSERT URL {
     name := 'edgedb.com',
     address := 'https://edgedb.com'
 };
 
-WITH MODULE test
 INSERT File {
     name := 'screenshot.png'
 };
 
-WITH MODULE test
 INSERT LogEntry {
     owner := (SELECT User FILTER User.name = 'Elvis'),
     spent_time := 50000,
     body := 'Rewriting everything.'
 };
 
-WITH MODULE test
 INSERT Issue {
     number := '1',
     name := 'Release EdgeDB',
@@ -78,7 +68,6 @@ INSERT Issue {
     time_estimate := 3000
 };
 
-WITH MODULE test
 INSERT Comment {
     body := 'EdgeDB needs to happen soon.',
     owner := (SELECT User FILTER User.name = 'Elvis'),
@@ -86,7 +75,6 @@ INSERT Comment {
 };
 
 
-WITH MODULE test
 INSERT Issue {
     number := '2',
     name := 'Improve EdgeDB repl output rendering.',
@@ -102,7 +90,6 @@ INSERT Issue {
 };
 
 WITH
-    MODULE test,
     I := DETACHED Issue
 INSERT Issue {
     number := '3',
@@ -118,7 +105,6 @@ INSERT Issue {
 };
 
 WITH
-    MODULE test,
     I := DETACHED Issue
 INSERT Issue {
     number := '4',
@@ -133,14 +119,12 @@ INSERT Issue {
 
 # NOTE: UPDATE Users for testing the link properties
 #
-WITH MODULE test
 UPDATE User
 FILTER User.name = 'Elvis'
 SET {
     todo := (SELECT Issue FILTER Issue.number IN {'1', '2'})
 };
 
-WITH MODULE test
 UPDATE User
 FILTER User.name = 'Yury'
 SET {

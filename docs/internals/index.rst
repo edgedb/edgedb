@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: microchips
+.. eql:section-intro-page:: internals
 
 =========
 Internals

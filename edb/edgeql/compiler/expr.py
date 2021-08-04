@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import *
 
 from edb import errors
 
@@ -56,9 +56,7 @@ from . import func  # NOQA
 def compile__Optional(
         expr: qlast._Optional, *, ctx: context.ContextLevel) -> irast.Set:
 
-    result = setgen.ensure_set(
-        dispatch.compile(expr.expr, ctx=ctx),
-        ctx=ctx)
+    result = dispatch.compile(expr.expr, ctx=ctx)
 
     pathctx.register_set_in_scope(result, optional=True, ctx=ctx)
 
@@ -79,12 +77,12 @@ def compile_BinOp(
         expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
 
     if ctx.env.options.constant_folding:
-        op_node.expr = typing.cast(irast.OperatorCall, op_node.expr)
+        op_node.expr = cast(irast.OperatorCall, op_node.expr)
         folded = try_fold_binop(op_node.expr, ctx=ctx)
         if folded is not None:
             return folded
 
-    return setgen.ensure_set(op_node, ctx=ctx)
+    return op_node
 
 
 @dispatch.compile.register(qlast.IsOp)
@@ -118,9 +116,13 @@ def compile_DetachedExpr(
     expr: qlast.DetachedExpr,
     *,
     ctx: context.ContextLevel,
-) -> typing.Union[irast.Set, irast.Expr]:
+) -> irast.Set:
     with ctx.detached() as subctx:
-        return dispatch.compile(expr.expr, ctx=subctx)
+        ir = dispatch.compile(expr.expr, ctx=subctx)
+    # Wrap the result in another set, so that the inner namespace
+    # doesn't leak out into any shapes (since computable computation
+    # will pull namespaces from the source path_ids.)
+    return setgen.ensure_set(setgen.ensure_stmt(ir, ctx=ctx), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Set)
@@ -128,7 +130,7 @@ def compile_Set(
     expr: qlast.Set,
     *,
     ctx: context.ContextLevel
-) -> typing.Union[irast.Set, irast.Expr]:
+) -> irast.Set:
     # after flattening the set may still end up with 0 or 1 element,
     # which are treated as a special case
     elements = flatten_set(expr)
@@ -169,7 +171,7 @@ def compile_BaseConstant(
         expr: qlast.BaseConstant, *, ctx: context.ContextLevel) -> irast.Set:
     value = expr.value
 
-    node_cls: typing.Type[irast.BaseConstant]
+    node_cls: Type[irast.BaseConstant]
 
     if isinstance(expr, qlast.StringConstant):
         std_type = sn.QualName('std', 'str')
@@ -221,12 +223,12 @@ def compile_BaseConstant(
 
 def try_fold_binop(
         opcall: irast.OperatorCall, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
+        ctx: context.ContextLevel) -> Optional[irast.Set]:
     try:
         const = ireval.evaluate(opcall, schema=ctx.env.schema)
     except ireval.UnsupportedExpressionError:
-        anyreal = typing.cast(s_scalars.ScalarType,
-                              ctx.env.schema.get('std::anyreal'))
+        anyreal = cast(s_scalars.ScalarType,
+                       ctx.env.schema.get('std::anyreal'))
 
         if (str(opcall.func_shortname) in ('std::+', 'std::*') and
                 opcall.operator_kind is ft.OperatorKind.Infix and
@@ -242,7 +244,7 @@ def try_fold_binop(
 
 def try_fold_associative_binop(
         opcall: irast.OperatorCall, *,
-        ctx: context.ContextLevel) -> typing.Optional[irast.Set]:
+        ctx: context.ContextLevel) -> Optional[irast.Set]:
 
     # Let's check if we have (CONST + (OTHER_CONST + X))
     # tree, which can be optimized to ((CONST + OTHER_CONST) + X)
@@ -282,6 +284,7 @@ def try_fold_associative_binop(
                         func_shortname=op,
                         func_polymorphic=opcall.func_polymorphic,
                         func_sql_function=opcall.func_sql_function,
+                        func_sql_expr=opcall.func_sql_expr,
                         sql_operator=opcall.sql_operator,
                         force_return_cast=opcall.force_return_cast,
                         operator_kind=opcall.operator_kind,
@@ -289,6 +292,8 @@ def try_fold_associative_binop(
                         context=opcall.context,
                         typeref=opcall.typeref,
                         typemod=opcall.typemod,
+                        tuple_path_ids=opcall.tuple_path_ids,
+                        volatility=opcall.volatility,
                     ),
                     schema=ctx.env.schema,
                 )
@@ -307,6 +312,7 @@ def try_fold_associative_binop(
                     func_shortname=op,
                     func_polymorphic=opcall.func_polymorphic,
                     func_sql_function=opcall.func_sql_function,
+                    func_sql_expr=opcall.func_sql_expr,
                     sql_operator=opcall.sql_operator,
                     force_return_cast=opcall.force_return_cast,
                     operator_kind=opcall.operator_kind,
@@ -314,6 +320,8 @@ def try_fold_associative_binop(
                     context=opcall.context,
                     typeref=opcall.typeref,
                     typemod=opcall.typemod,
+                    tuple_path_ids=opcall.tuple_path_ids,
+                    volatility=opcall.volatility,
                 )
 
                 folded = setgen.ensure_set(folded_binop, ctx=ctx)
@@ -337,7 +345,7 @@ def compile_NamedTuple(
 
         element = irast.TupleElement(
             name=name,
-            val=setgen.ensure_set(dispatch.compile(el.val, ctx=ctx), ctx=ctx)
+            val=dispatch.compile(el.val, ctx=ctx),
         )
         elements.append(element)
 
@@ -352,7 +360,7 @@ def compile_Tuple(
     for i, el in enumerate(expr.elements):
         element = irast.TupleElement(
             name=str(i),
-            val=setgen.ensure_set(dispatch.compile(el, ctx=ctx), ctx=ctx)
+            val=dispatch.compile(el, ctx=ctx),
         )
         elements.append(element)
 
@@ -362,7 +370,10 @@ def compile_Tuple(
 @dispatch.compile.register(qlast.Array)
 def compile_Array(
         expr: qlast.Array, *, ctx: context.ContextLevel) -> irast.Set:
-    elements = [dispatch.compile(e, ctx=ctx) for e in expr.elements]
+    elements = [
+        dispatch.compile(e, ctx=ctx)
+        for e in expr.elements
+    ]
     # check that none of the elements are themselves arrays
     for el, expr_el in zip(elements, expr.elements):
         if isinstance(inference.infer_type(el, ctx.env), s_abc.Array):
@@ -377,11 +388,9 @@ def compile_Array(
 def compile_IfElse(
         expr: qlast.IfElse, *, ctx: context.ContextLevel) -> irast.Set:
 
-    op_node = func.compile_operator(
+    return func.compile_operator(
         expr, op_name='std::IF',
         qlargs=[expr.if_expr, expr.condition, expr.else_expr], ctx=ctx)
-
-    return setgen.ensure_set(op_node, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.UnaryOp)
@@ -407,11 +416,11 @@ def compile_TypeCast(
         expr: qlast.TypeCast, *, ctx: context.ContextLevel) -> irast.Set:
     target_stype = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
     target_typeref = typegen.type_to_typeref(target_stype, env=ctx.env)
-    ir_expr: irast.Base
+    ir_expr: Union[irast.Set, irast.Expr]
 
     if (isinstance(expr.expr, qlast.Array) and not expr.expr.elements and
             irtyputils.is_array(target_typeref)):
-        ir_expr = irast.Array()
+        ir_expr = irast.Array(elements=[], typeref=target_typeref)
 
     elif isinstance(expr.expr, qlast.Parameter):
         pt = typegen.ql_typeexpr_to_type(expr.type, ctx=ctx)
@@ -537,7 +546,7 @@ def compile_Introspect(
         typeref = typeref.material_type
     if typeref.is_opaque_union:
         typeref = typegen.type_to_typeref(
-            typing.cast(
+            cast(
                 s_objtypes.ObjectType,
                 ctx.env.schema.get('std::BaseObject'),
             ),
@@ -563,7 +572,7 @@ def compile_Introspect(
 @dispatch.compile.register(qlast.Indirection)
 def compile_Indirection(
         expr: qlast.Indirection, *, ctx: context.ContextLevel) -> irast.Set:
-    node = dispatch.compile(expr.arg, ctx=ctx)
+    node: Union[irast.Set, irast.Expr] = dispatch.compile(expr.arg, ctx=ctx)
     for indirection_el in expr.indirection:
         if isinstance(indirection_el, qlast.Index):
             idx = dispatch.compile(indirection_el.index, ctx=ctx)
@@ -572,8 +581,8 @@ def compile_Indirection(
                                           context=expr.context)
 
         elif isinstance(indirection_el, qlast.Slice):
-            start: typing.Optional[irast.Base]
-            stop: typing.Optional[irast.Base]
+            start: Optional[irast.Base]
+            stop: Optional[irast.Base]
 
             if indirection_el.start:
                 start = dispatch.compile(indirection_el.start, ctx=ctx)
@@ -597,7 +606,7 @@ def compile_Indirection(
 def compile_type_check_op(
         expr: qlast.IsOp, *, ctx: context.ContextLevel) -> irast.TypeCheckOp:
     # <Expr> IS <TypeExpr>
-    left = setgen.ensure_set(dispatch.compile(expr.left, ctx=ctx), ctx=ctx)
+    left = dispatch.compile(expr.left, ctx=ctx)
     ltype = setgen.get_set_type(left, ctx=ctx)
     typeref = typegen.ql_typeexpr_to_ir_typeref(expr.right, ctx=ctx)
 
@@ -609,7 +618,7 @@ def compile_type_check_op(
         result = None
     else:
         if (ltype.is_collection()
-                and typing.cast(s_types.Collection, ltype).contains_object(
+                and cast(s_types.Collection, ltype).contains_object(
                     ctx.env.schema)):
             raise errors.QueryError(
                 f'type checks on non-primitive collections are not supported'
@@ -624,7 +633,7 @@ def compile_type_check_op(
         left=left, right=typeref, op=expr.op, result=result)
 
 
-def flatten_set(expr: qlast.Set) -> typing.List[qlast.Expr]:
+def flatten_set(expr: qlast.Set) -> List[qlast.Expr]:
     elements = []
     for el in expr.elements:
         if isinstance(el, qlast.Set):

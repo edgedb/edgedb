@@ -116,13 +116,17 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: Query to become current in the next SUBSTMT switch.
     pending_query: Optional[pgast.SelectStmt]
 
+    #: Sets currently being materialized
+    materializing: FrozenSet[irast.Stmt]
+
     #: Whether the expression currently being processed is
     #: directly exposed to the output of the statement.
     expr_exposed: Optional[bool]
 
     #: Expression to use to force SQL expression volatility in this context
     #: (Delayed with a lambda to avoid inserting it when not used.)
-    volatility_ref: Tuple[Callable[[], pgast.BaseExpr], ...]
+    volatility_ref: Tuple[
+        Callable[[CompilerContextLevel], Optional[pgast.BaseExpr]], ...]
 
     # Current path_id we are INSERTing, so that we can avoid creating
     # a bogus volatility ref to it...
@@ -145,7 +149,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     intersection_narrowing: Dict[irast.Set, irast.Set]
 
     #: Which SQL query holds the SQL scope for the given PathId
-    path_scope: ChainMap[irast.PathId, pgast.SelectStmt]
+    path_scope: ChainMap[irast.PathId, Optional[pgast.SelectStmt]]
 
     #: Relevant IR scope for this context.
     scope_tree: irast.ScopeTreeNode
@@ -180,6 +184,7 @@ class CompilerContextLevel(compiler.ContextLevel):
                 Tuple[
                     str,
                     Union[pgast.BaseRelation, pgast.CommonTableExpr],
+                    irast.PathId,
                 ]
             ],
         ],
@@ -189,6 +194,10 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: construct (which includes iterators, insert/update, and INSERT
     #: ELSE select clauses) currently being compiled.
     enclosing_cte_iterator: Optional[pgast.IteratorCTE]
+
+    #: Sets to force shape compilation on, because the values are
+    #: needed by DML.
+    shapes_needed_by_dml: Set[irast.Set]
 
     def __init__(
         self,
@@ -217,6 +226,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.dml_stmts = {}
             self.parent_rel = None
             self.pending_query = None
+            self.materializing = frozenset()
 
             self.expr_exposed = None
             self.volatility_ref = ()
@@ -235,6 +245,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.ptr_rel_overlays = collections.defaultdict(
                 lambda: collections.defaultdict(list))
             self.enclosing_cte_iterator = None
+            self.shapes_needed_by_dml = set()
 
         else:
             self.env = prevlevel.env
@@ -252,6 +263,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.dml_stmts = prevlevel.dml_stmts
             self.parent_rel = prevlevel.parent_rel
             self.pending_query = prevlevel.pending_query
+            self.materializing = prevlevel.materializing
 
             self.expr_exposed = prevlevel.expr_exposed
             self.volatility_ref = prevlevel.volatility_ref
@@ -268,6 +280,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.type_rel_overlays = prevlevel.type_rel_overlays
             self.ptr_rel_overlays = prevlevel.ptr_rel_overlays
             self.enclosing_cte_iterator = prevlevel.enclosing_cte_iterator
+            self.shapes_needed_by_dml = prevlevel.shapes_needed_by_dml
 
             if mode is ContextSwitchMode.SUBSTMT:
                 if self.pending_query is not None:
@@ -330,6 +343,17 @@ class CompilerContextLevel(compiler.ContextLevel):
     ) -> compiler.CompilerContextManager[CompilerContextLevel]:
         return self.new(ContextSwitchMode.NEWSCOPE)
 
+    def up_hierarchy(
+        self,
+        n: int, q: Optional[pgast.Query]=None
+    ) -> Optional[pgast.Query]:
+        # mostly intended as a debugging helper
+        q = q or self.rel
+        for _ in range(n):
+            if q:
+                q = self.rel_hierarchy.get(q)
+        return q
+
 
 class CompilerContext(compiler.CompilerContext[CompilerContextLevel]):
     ContextLevelClass = CompilerContextLevel
@@ -349,7 +373,9 @@ class Environment:
     singleton_mode: bool
     query_params: List[irast.Param]
     type_rewrites: Dict[uuid.UUID, irast.Set]
+    scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
+    materialized_views: Dict[uuid.UUID, irast.Set]
 
     def __init__(
         self,
@@ -362,6 +388,7 @@ class Environment:
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
         type_rewrites: Dict[uuid.UUID, irast.Set],
+        scope_tree_nodes: Dict[int, irast.ScopeTreeNode],
         external_rvars: Optional[
             Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
         ] = None,
@@ -376,7 +403,9 @@ class Environment:
         self.explicit_top_cast = explicit_top_cast
         self.query_params = query_params
         self.type_rewrites = type_rewrites
+        self.scope_tree_nodes = scope_tree_nodes
         self.external_rvars = external_rvars or {}
+        self.materialized_views = {}
 
 
 # XXX: this context hack is necessary until pathctx is converted

@@ -115,22 +115,30 @@ class GetMetadata(base.Command):
         else:
             objoid, classoid, objsubid = oid
 
-        prefix = f'E{ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)}'
-
-        return textwrap.dedent(f'''\
-            SELECT
-                CASE WHEN substr(
-                    description, 1, char_length({prefix})) = {prefix}
-                THEN substr(description, char_length({prefix}) + 1)::jsonb
-                ELSE '{{}}'::jsonb
-                END
-             FROM
-                {'pg_shdescription' if is_shared else 'pg_description'}
-             WHERE
-                objoid = {objoid}
-                AND classoid = {classoid}
-                {f'AND objsubid = {objsubid}' if not is_shared else ''}
-        ''')
+        if is_shared:
+            return textwrap.dedent(f'''\
+                SELECT
+                    edgedb.shobj_metadata(
+                        {objoid},
+                        {classoid}::regclass::text
+                    )
+                ''')
+        elif objsubid:
+            return textwrap.dedent(f'''\
+                SELECT
+                    edgedb.col_metadata(
+                        {objoid},
+                        {objsubid}
+                    )
+                ''')
+        else:
+            return textwrap.dedent(f'''\
+                SELECT
+                    edgedb.obj_metadata(
+                        {objoid},
+                        {classoid}::regclass::text,
+                    )
+                ''')
 
 
 class PutMetadata(DDLOperation):
@@ -245,22 +253,6 @@ class CreateObject(SchemaObjectOperation):
         super().generate_extra(block)
         if self.object.metadata:
             mdata = SetMetadata(self.object, self.object.metadata)
-            block.add_command(mdata.code(block))
-
-
-class RenameObject(SchemaObjectOperation):
-    def __init__(self, object, *, new_name, **kwargs):
-        super().__init__(name=object.name, **kwargs)
-        self.object = object
-        self.altered_object = object.copy()
-        self.altered_object.rename(new_name)
-        self.new_name = new_name
-
-    def generate_extra(self, block: base.PLBlock) -> None:
-        super().generate_extra(block)
-        if self.object.metadata:
-            mdata = UpdateMetadata(
-                self.altered_object, self.altered_object.metadata)
             block.add_command(mdata.code(block))
 
 

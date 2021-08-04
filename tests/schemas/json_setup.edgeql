@@ -17,7 +17,6 @@
 #
 
 
-SET MODULE test;
 
 INSERT JSONTest {
     number := 0,

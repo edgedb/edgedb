@@ -22,6 +22,7 @@ from __future__ import annotations
 import contextlib
 import http.client
 import json
+import ssl
 import urllib.parse
 import urllib.request
 
@@ -32,7 +33,7 @@ from edb.errors import base as base_errors
 from . import server
 
 
-class StubbornHttpConnection(http.client.HTTPConnection):
+class StubbornHttpConnection(http.client.HTTPSConnection):
 
     def close(self):
         # Don't actually close the connection.  This allows us to
@@ -44,49 +45,32 @@ class StubbornHttpConnection(http.client.HTTPConnection):
 
 
 class BaseHttpTest:
-
-    # Serialize tests over http -- we don't want all tests workers to
-    # create http ports. Every port spawns a number of Python
-    # compiler processes and at a high number of parallel test
-    # workers this ends up with test consuming too much system resources
-    # for no particular speedup.
-    PARALLELISM_GRANULARITY = 'suite'
+    tls_context: ssl.SSLContext
 
     @classmethod
-    def get_extension_name(cls):
+    def get_api_path(cls):
         raise NotImplementedError
-
-    @classmethod
-    def get_extension_path(cls):
-        return cls.get_extension_name()
 
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
 
-        extpath = cls.get_extension_path()
+        cls.tls_context = ssl.SSLContext()
+        cls.tls_context.verify_mode = ssl.CERT_REQUIRED
+        cls.tls_context.check_hostname = False
+        cls.tls_context.load_verify_locations(
+            cafile=cls.get_connect_args()['tls_ca_file']
+        )
 
         cls.http_host, cls.http_port = cls.con.connected_addr()
-        dbname = cls.get_database_name()
-        cls.http_addr = \
-            f'http://{cls.http_host}:{cls.http_port}/db/{dbname}/{extpath}'
-
-        extname = cls.get_extension_name()
-        cls.loop.run_until_complete(
-            cls.con.execute(f'CREATE EXTENSION {extname};')
-        )
-
-    @classmethod
-    def tearDownClass(cls):
-        extname = cls.get_extension_name()
-        cls.loop.run_until_complete(
-            cls.con.execute(f'DROP EXTENSION {extname};')
-        )
-        super().tearDownClass()
+        api_path = cls.get_api_path()
+        cls.http_addr = f'https://{cls.http_host}:{cls.http_port}{api_path}'
 
     @contextlib.contextmanager
     def http_con(self):
-        con = StubbornHttpConnection(self.http_host, self.http_port)
+        con = StubbornHttpConnection(
+            self.http_host, self.http_port, context=self.tls_context
+        )
         con.connect()
         try:
             yield con
@@ -110,7 +94,41 @@ class BaseHttpTest:
         return self.http_con_read_response(con)
 
 
-class EdgeQLTestCase(BaseHttpTest, server.QueryTestCase):
+class BaseHttpExtensionTest(BaseHttpTest):
+
+    @classmethod
+    def get_extension_name(cls):
+        raise NotImplementedError
+
+    @classmethod
+    def get_extension_path(cls):
+        return cls.get_extension_name()
+
+    @classmethod
+    def get_api_path(cls):
+        extpath = cls.get_extension_path()
+        dbname = cls.get_database_name()
+        return f'/db/{dbname}/{extpath}'
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        extname = cls.get_extension_name()
+        cls.loop.run_until_complete(
+            cls.con.execute(f'CREATE EXTENSION {extname};')
+        )
+
+    @classmethod
+    def tearDownClass(cls):
+        extname = cls.get_extension_name()
+        cls.loop.run_until_complete(
+            cls.con.execute(f'DROP EXTENSION {extname};')
+        )
+        super().tearDownClass()
+
+
+class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
 
     @classmethod
     def get_extension_name(cls):
@@ -131,13 +149,16 @@ class EdgeQLTestCase(BaseHttpTest, server.QueryTestCase):
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
             response = urllib.request.urlopen(
-                req, json.dumps(req_data).encode())
+                req, json.dumps(req_data).encode(), context=self.tls_context
+            )
             resp_data = json.loads(response.read())
         else:
             if variables is not None:
                 req_data['variables'] = json.dumps(variables)
             response = urllib.request.urlopen(
-                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}')
+                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+                context=self.tls_context,
+            )
             resp_data = json.loads(response.read())
 
         if 'data' in resp_data:
@@ -169,7 +190,7 @@ class EdgeQLTestCase(BaseHttpTest, server.QueryTestCase):
         return res
 
 
-class GraphQLTestCase(BaseHttpTest, server.QueryTestCase):
+class GraphQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
 
     @classmethod
     def get_extension_name(cls):
@@ -191,13 +212,16 @@ class GraphQLTestCase(BaseHttpTest, server.QueryTestCase):
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
             response = urllib.request.urlopen(
-                req, json.dumps(req_data).encode())
+                req, json.dumps(req_data).encode(), context=self.tls_context
+            )
             resp_data = json.loads(response.read())
         else:
             if variables is not None:
                 req_data['variables'] = json.dumps(variables)
             response = urllib.request.urlopen(
-                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}')
+                f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
+                context=self.tls_context,
+            )
             resp_data = json.loads(response.read())
 
         if 'data' in resp_data:

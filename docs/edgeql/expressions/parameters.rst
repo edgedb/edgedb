@@ -149,7 +149,7 @@ When assigning the result of a similar query, you can see the following error:
     ... };
     Parameter <int32>$limit: 1
     error: possibly more than one element returned by an expression
-    for a computable property 'name' declared as 'single'
+    for a computed property 'name' declared as 'single'
        ┌── query:1:15 ───
        │
      2 │     name := (SELECT User.name ORDER BY .rating DESC

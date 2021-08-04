@@ -254,40 +254,11 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
     schema = _run_ddl(
         '''
-            CREATE FUNCTION sys::_get_pg_type_for_scalar_type(
-                typeid: std::uuid
+            CREATE FUNCTION sys::_get_pg_type_for_edgedb_type(
+                typeid: std::uuid,
+                elemid: OPTIONAL std::uuid,
             ) -> std::int64 {
-                USING SQL $$
-                    SELECT
-                        coalesce(
-                            (
-                                SELECT
-                                    tn::regtype::oid
-                                FROM
-                                    edgedb._get_base_scalar_type_map()
-                                        AS m(tid uuid, tn text)
-                                WHERE
-                                    m.tid = "typeid"
-                            ),
-                            (
-                                SELECT
-                                    typ.oid
-                                FROM
-                                    pg_catalog.pg_type typ
-                                WHERE
-                                    typ.typname = "typeid"::text || '_domain'
-                            ),
-
-                            edgedb.raise(
-                                NULL::bigint,
-                                'invalid_parameter_value',
-                                msg => (
-                                    'cannot determine OID of '
-                                    || typeid::text
-                                )
-                            )
-                        )::bigint
-                $$;
+                USING SQL FUNCTION 'edgedb.get_pg_type_for_edgedb_type';
                 SET volatility := 'STABLE';
             };
 
@@ -369,7 +340,11 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                 rschema_name, type=s_objtypes.ObjectType)
         else:
             ex_bases = schema_objtype.get_bases(schema).names(schema)
-            _, added_bases = s_inh.delta_bases(ex_bases, bases)
+            _, added_bases = s_inh.delta_bases(
+                ex_bases,
+                bases,
+                t=type(schema_objtype),
+            )
 
             if added_bases:
                 for subset, position in added_bases:
@@ -582,17 +557,6 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
                 ref_ptr = schema_cls.getptr(
                     schema, sn.UnqualName(refdict.attr))
-            else:
-                schema = _run_ddl(
-                    f'''
-                        ALTER TYPE {rschema_name} {{
-                            ALTER LINK {refdict.attr}
-                            ON TARGET DELETE ALLOW;
-                        }}
-                    ''',
-                    schema=schema,
-                    delta=delta,
-                )
 
             assert isinstance(ref_ptr, s_links.Link)
 

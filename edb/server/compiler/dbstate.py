@@ -82,7 +82,7 @@ class Query(BaseQuery):
 
     sql_hash: bytes
 
-    cardinality: enums.ResultCardinality
+    cardinality: enums.Cardinality
 
     out_type_data: bytes
     out_type_id: bytes
@@ -126,6 +126,7 @@ class DDLQuery(BaseQuery):
     single_unit: bool = False
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
+    create_db_template: Optional[str] = None
     has_role_ddl: bool = False
     ddl_stmt_id: Optional[str] = None
 
@@ -225,14 +226,19 @@ class QueryUnit:
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
 
+    # If non-None, contains a name of the DB that will be used as
+    # a template database to create the database. The server should
+    # close all inactive unused pooled connections to the template db.
+    create_db_template: Optional[str] = None
+
     # If non-None, the DDL statement will emit data packets marked
     # with the indicated ID.
     ddl_stmt_id: Optional[str] = None
 
     # Cardinality of the result set.  Set to NO_RESULT if the
     # unit represents multiple queries compiled as one script.
-    cardinality: enums.ResultCardinality = \
-        enums.ResultCardinality.NO_RESULT
+    cardinality: enums.Cardinality = \
+        enums.Cardinality.NO_RESULT
 
     out_type_data: bytes = sertypes.NULL_TYPE_DESC
     out_type_id: bytes = sertypes.NULL_TYPE_ID
@@ -240,7 +246,7 @@ class QueryUnit:
     in_type_id: bytes = sertypes.EMPTY_TUPLE_ID
     in_type_args: Optional[List[Param]] = None
 
-    # Set only when this unit contains a CONFIGURE SYSTEM command.
+    # Set only when this unit contains a CONFIGURE INSTANCE command.
     system_config: bool = False
     # Set only when this unit contains a CONFIGURE DATABASE command.
     database_config: bool = False
@@ -426,8 +432,20 @@ class Transaction:
     def get_user_schema(self) -> s_schema.FlatSchema:
         return self._current.user_schema
 
+    def get_user_schema_if_updated(self) -> Optional[s_schema.FlatSchema]:
+        if self._current.user_schema is self._state0.user_schema:
+            return None
+        else:
+            return self._current.user_schema
+
     def get_global_schema(self) -> s_schema.FlatSchema:
         return self._current.global_schema
+
+    def get_global_schema_if_updated(self) -> Optional[s_schema.FlatSchema]:
+        if self._current.global_schema is self._state0.global_schema:
+            return None
+        else:
+            return self._current.global_schema
 
     def get_modaliases(self) -> immutables.Map:
         return self._current.modaliases

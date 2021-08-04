@@ -22,6 +22,7 @@ from typing import *
 
 import collections.abc
 import csv
+import dataclasses
 import enum
 import io
 import itertools
@@ -80,10 +81,12 @@ def init_worker(status_queue: multiprocessing.SimpleQueue,
 
     result = ChannelingTestResult(result_queue)
     if not param_queue.empty():
-        server_addr = param_queue.get()
+        server_addr, postgres_dsn = param_queue.get()
 
         if server_addr is not None:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
+        if postgres_dsn:
+            os.environ['EDGEDB_TEST_POSTGRES_DSN'] = postgres_dsn
 
     os.environ['EDGEDB_TEST_PARALLEL'] = '1'
     coverage_run = devmode.CoverageConfig.start_coverage_if_requested()
@@ -106,6 +109,14 @@ class StreamingTestSuite(unittest.TestSuite):
         with warnings.catch_warnings(record=True) as ww:
             warnings.resetwarnings()
             warnings.simplefilter('default')
+
+            # This is temporary, until we implement `subtransaction`
+            # functionality of RFC1004
+            warnings.filterwarnings(
+                'ignore',
+                message=r'The "transaction\(\)" method is deprecated'
+                        r' and is scheduled to be removed',
+                category=DeprecationWarning)
 
             self._run(test, result)
 
@@ -155,6 +166,12 @@ def _is_exc_info(args):
     )
 
 
+@dataclasses.dataclass
+class SerializedServerError:
+    test_error: str
+    server_error: str
+
+
 class ChannelingTestResultMeta(type):
     @staticmethod
     def get_wrapper(meth):
@@ -162,9 +179,13 @@ class ChannelingTestResultMeta(type):
             args = list(args)
 
             if args and _is_exc_info(args[-1]):
-                # exc_info triple
-                error_text = self._exc_info_to_string(args[-1], args[0])
-                args[-1] = error_text
+                exc_info = args[-1]
+                err = self._exc_info_to_string(exc_info, args[0])
+                if isinstance(exc_info[1], edgedb.EdgeDBError):
+                    srv_tb = exc_info[1].get_server_context()
+                    if srv_tb:
+                        err = SerializedServerError(err, srv_tb)
+                args[-1] = err
 
             try:
                 self._queue.put((meth, args, kwargs))
@@ -227,11 +248,12 @@ def monitor_thread(queue, result):
 
 
 class ParallelTestSuite(unittest.TestSuite):
-    def __init__(self, tests, server_conn, num_workers):
+    def __init__(self, tests, server_conn, num_workers, postgres_dsn):
         self.tests = tests
         self.server_conn = server_conn
         self.num_workers = num_workers
         self.stop_requested = False
+        self.postgres_dsn = postgres_dsn
 
     def run(self, result):
         # We use SimpleQueues because they are more predictable.
@@ -244,7 +266,7 @@ class ParallelTestSuite(unittest.TestSuite):
         # Prepopulate the worker param queue with server connection
         # information.
         for _ in range(self.num_workers):
-            worker_param_queue.put(self.server_conn)
+            worker_param_queue.put((self.server_conn, self.postgres_dsn))
 
         result_thread = threading.Thread(
             name='test-monitor', target=monitor_thread,
@@ -294,10 +316,11 @@ class ParallelTestSuite(unittest.TestSuite):
 
 class SequentialTestSuite(unittest.TestSuite):
 
-    def __init__(self, tests, server_conn):
+    def __init__(self, tests, server_conn, postgres_dsn):
         self.tests = tests
         self.server_conn = server_conn
         self.stop_requested = False
+        self.postgres_dsn = postgres_dsn
 
     def run(self, result_):
         global result
@@ -306,6 +329,8 @@ class SequentialTestSuite(unittest.TestSuite):
         if self.server_conn:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = \
                 json.dumps(self.server_conn)
+        if self.postgres_dsn:
+            os.environ['EDGEDB_TEST_POSTGRES_DSN'] = self.postgres_dsn
 
         for test in self.tests:
             _run_test(test)
@@ -723,7 +748,7 @@ class ParallelTextTestRunner:
 
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
-                 failfast=False, shuffle=False):
+                 failfast=False, shuffle=False, postgres_dsn=None):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
@@ -731,8 +756,9 @@ class ParallelTextTestRunner:
         self.failfast = failfast
         self.shuffle = shuffle
         self.output_format = output_format
+        self.postgres_dsn = postgres_dsn
 
-    def run(self, test, current_shard, total_shards, running_times_log_file):
+    def run(self, test, selected_shard, total_shards, running_times_log_file):
         session_start = time.monotonic()
         cases = tb.get_test_cases([test])
         stats = {}
@@ -743,7 +769,7 @@ class ParallelTextTestRunner:
                 for k, v, c in csv.reader(running_times_log_file)
             }
         cases = tb.get_cases_by_shard(
-            cases, current_shard, total_shards, self.verbosity, stats,
+            cases, selected_shard, total_shards, self.verbosity, stats,
         )
         setup = tb.get_test_cases_setup(cases)
         bootstrap_time_taken = 0
@@ -751,6 +777,7 @@ class ParallelTextTestRunner:
         result = None
         cluster = None
         conn = None
+        setup_stats = []
 
         try:
             if setup:
@@ -768,13 +795,15 @@ class ParallelTextTestRunner:
                         nl=False,
                     )
 
-                cluster = tb._init_cluster(cleanup_atexit=False)
+                cluster = tb._init_cluster(
+                    postgres_dsn=self.postgres_dsn, cleanup_atexit=False
+                )
 
                 if self.verbosity > 1:
                     self._echo(' OK')
 
                 conn = cluster.get_connect_args()
-                tb.setup_test_cases(
+                setup_stats = tb.setup_test_cases(
                     cases,
                     conn,
                     self.num_workers,
@@ -799,11 +828,14 @@ class ParallelTextTestRunner:
                 suite = ParallelTestSuite(
                     self._sort_tests(cases),
                     conn,
-                    self.num_workers)
+                    self.num_workers,
+                    self.postgres_dsn,
+                )
             else:
                 suite = SequentialTestSuite(
                     self._sort_tests(cases),
-                    conn
+                    conn,
+                    self.postgres_dsn,
                 )
 
             result = ParallelTextTestResult(
@@ -817,7 +849,7 @@ class ParallelTextTestRunner:
             suite.run(result)
 
             if running_times_log_file:
-                for test, stat in result.test_stats:
+                for test, stat in result.test_stats + setup_stats:
                     name = str(test)
                     t = stat['running-time']
                     at, c = stats.get(name, (0, 0))
@@ -880,18 +912,20 @@ class ParallelTextTestRunner:
                 self._echo(f'{kind}: {result.getDescription(test)}',
                            fg=fg, bold=True)
                 self._fill('-', fg=fg)
+                srv_tb = None
                 if _is_exc_info(err):
                     if isinstance(err[1], edgedb.EdgeDBError):
                         srv_tb = err[1].get_server_context()
-                        if srv_tb:
-                            self._echo('Server Traceback:',
-                                       fg='red', bold=True)
-                            self._echo(srv_tb)
-                            self._echo('Test Traceback:',
-                                       fg='red', bold=True)
-
                     err = unittest.result.TestResult._exc_info_to_string(
                         result, err, test)
+                elif isinstance(err, SerializedServerError):
+                    err, srv_tb = err.test_error, err.server_error
+                if srv_tb:
+                    self._echo('Server Traceback:',
+                               fg='red', bold=True)
+                    self._echo(srv_tb)
+                    self._echo('Test Traceback:',
+                               fg='red', bold=True)
                 self._echo(err)
 
     def _render_result(self, result, boot_time_taken, tests_time_taken):

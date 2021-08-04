@@ -48,7 +48,7 @@ type User extending Named {
 type Card extending Named {
     required property element -> str;
     required property cost -> int64;
-    multi link owners := __source__.<deck[IS User];
+    multi link owners := .<deck[IS User];
     # computable property
     property elemental_cost := <str>.cost ++ ' ' ++ .element;
 }
@@ -101,4 +101,25 @@ type Report extending Named {
     required link user -> User {
         property note -> str;
     }
+}
+
+
+abstract type BadlyNamed {
+    property first -> str;
+    property last -> str;
+    delegated constraint exclusive on ((.first, .last));
+}
+
+
+type Person extending BadlyNamed {
+    # these constraints don't really make sense but that's fine.
+    property email -> str;
+    constraint exclusive on (.email);
+    property p -> int64;
+    property q -> int64;
+    constraint exclusive on (.p * .q);
+    constraint exclusive on (((.p, __subject__.q), __subject__.first));
+
+    link card -> Card;
+    constraint exclusive on ((.p, .card));
 }

@@ -29,12 +29,12 @@ import textwrap
 
 import setuptools
 from setuptools.command import develop as setuptools_develop
+from setuptools.command import build_ext as setuptools_build_ext
 
 import distutils
 from distutils import version
 from distutils import extension as distutils_extension
 from distutils.command import build as distutils_build
-from distutils.command import build_ext as distutils_build_ext
 
 try:
     import setuptools_rust
@@ -48,54 +48,63 @@ RUNTIME_DEPS = [
     'httptools>=0.0.13',
     'immutables>=0.15',
     'parsing~=1.6.1',
-    'prompt_toolkit==3.0.3',
-    'Pygments~=2.3.0',
+    'psutil~=5.8.0',
     'setproctitle~=1.1.10',
-    'setuptools-rust==0.10.3',
+    'setuptools-rust~=0.11.4',
     'setuptools_scm~=3.2.0',
-    'uvloop~=0.15.1',
+    'uvloop~=0.15.3',
     "typing_inspect~=0.5.0;python_version<'3.9'",
     'wcwidth~=0.2.5',
+    'cryptography~=3.4.7',
 
-    'graphql-core~=3.1.2',
+    'graphql-core~=3.1.5',
     'promise~=2.2.0',
 
-    'edgedb>=0.13.0a4',
+    'edgedb>=0.16.0',
 ]
 
-CYTHON_DEPENDENCY = 'Cython==0.29.21'
+CYTHON_DEPENDENCY = 'Cython==0.29.23'
 
 DOCS_DEPS = [
-    'Sphinx~=2.3.1',
     'lxml~=4.6.2',
+    'Pygments~=2.8.0',
+    'Sphinx~=2.3.1',
     'sphinxcontrib-asyncio~=0.2.0',
 ]
+
+TEST_DEPS = [
+    'pycodestyle~=2.6.0',
+    'pyflakes~=2.2.0',
+    'black~=19.10b0',
+    'flake8~=3.8.1',
+    'flake8-bugbear~=20.1.4',
+    'coverage~=5.5',
+    'requests-xml~=0.2.3',
+    # For rebuilding GHA workflows
+    'Jinja2',
+    'PyYAML',
+
+    'mypy==0.910',
+    # mypy stub packages; when updating, you can use mypy --install-types
+    # to install stub packages and then pip freeze to read out the specifier
+    'types-click==7.1.2',
+    'types-docutils==0.1.7',
+    'types-Jinja2==2.11.2',
+    'types-MarkupSafe==1.1.3',
+    'types-pkg-resources==0.1.3',
+    'types-typed-ast==1.4.2',
+] + DOCS_DEPS
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
 ]
 
-RUST_VERSION = '1.45.0'  # Also update docs/internal/dev.rst
+RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 
 EXTRA_DEPS = {
-    'test': [
-        # Depend on unreleased version for Python 3.8 support,
-        'pycodestyle~=2.6.0',
-        'pyflakes~=2.2.0',
-        'black~=19.10b0',
-        'flake8~=3.8.1',
-        'flake8-bugbear~=20.1.4',
-        'mypy==0.790',
-        'coverage~=5.2.1',
-        'requests-xml~=0.2.3',
-        'lxml',
-        # For rebuilding GHA workflows
-        'Jinja2',
-        'PyYAML',
-    ] + DOCS_DEPS,
-
+    'test': TEST_DEPS,
     'docs': DOCS_DEPS,
 }
 
@@ -180,16 +189,11 @@ def _compile_postgres(build_base, *,
         stdout=subprocess.PIPE, universal_newlines=True, check=True)
     status = proc.stdout
     if status[0] == '-':
-        print(
-            'postgres submodule not initialized, '
-            'run `git submodule init; git submodule update`')
+        print('postgres submodule not initialized, '
+              'run `git submodule init; git submodule update`')
         exit(1)
 
-    proc = subprocess.run(
-        ['git', 'submodule', 'status', 'postgres'],
-        stdout=subprocess.PIPE, universal_newlines=True, check=True)
-    revision, _, _ = proc.stdout[1:].partition(' ')
-    source_stamp = proc.stdout[0] + revision
+    source_stamp = _get_pg_source_stamp()
 
     postgres_build = (build_base / 'postgres').resolve()
     postgres_src = ROOT_PATH / 'postgres'
@@ -264,6 +268,58 @@ def _check_rust():
             f'edgedb from source (see https://rustup.rs/)')
 
 
+def _get_edgedbcli_rev():
+    output = subprocess.check_output(
+        ['git', 'ls-remote', EDGEDBCLI_REPO, 'master'],
+        universal_newlines=True,
+    )
+    rev, _ = output.split()
+    return rev
+
+
+def _get_pg_source_stamp():
+    output = subprocess.check_output(
+        ['git', 'submodule', 'status', 'postgres'], universal_newlines=True,
+    )
+    revision, _, _ = output[1:].partition(' ')
+    # I don't know why we needed the first empty char, but we don't want to
+    # force everyone to rebuild postgres either
+    source_stamp = output[0] + revision
+    return source_stamp
+
+
+def _compile_cli(build_base, build_temp):
+    _check_rust()
+    rust_root = build_base / 'cli'
+    env = dict(os.environ)
+    env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'cli')
+    env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
+    git_rev = env.get("EDGEDBCLI_GIT_REV")
+    if not git_rev:
+        git_rev = _get_edgedbcli_rev()
+
+    subprocess.run(
+        [
+            'cargo', 'install',
+            '--verbose', '--verbose',
+            '--git', EDGEDBCLI_REPO,
+            '--rev', git_rev,
+            '--bin', 'edgedb',
+            '--root', rust_root,
+            '--features=dev_mode',
+            '--locked',
+            '--debug',
+        ],
+        env=env,
+        check=True,
+    )
+
+    shutil.copy(
+        rust_root / 'bin' / 'edgedb',
+        ROOT_PATH / 'edb' / 'cli' / 'edgedb',
+    )
+
+
 class build(distutils_build.build):
 
     user_options = distutils_build.build.user_options + [
@@ -301,35 +357,11 @@ class build(distutils_build.build):
 class develop(setuptools_develop.develop):
 
     def run(self, *args, **kwargs):
-        _check_rust()
         build = self.get_finalized_command('build')
-        rust_tmp = pathlib.Path(build.build_temp) / 'rust' / 'cli'
+        build_temp = pathlib.Path(build.build_temp).resolve()
         build_base = pathlib.Path(build.build_base).resolve()
-        rust_root = build_base / 'cli'
-        env = dict(os.environ)
-        env['CARGO_TARGET_DIR'] = str(rust_tmp)
-        env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
 
-        subprocess.run(
-            [
-                'cargo', 'install',
-                '--verbose', '--verbose',
-                '--git', EDGEDBCLI_REPO,
-                '--bin', 'edgedb',
-                '--root', rust_root,
-                '--features=dev_mode',
-                '--locked',
-                '--debug',
-            ],
-            env=env,
-            check=True,
-        )
-
-        shutil.copy(
-            rust_root / 'bin' / 'edgedb',
-            ROOT_PATH / 'edb' / 'cli' / 'edgedb',
-        )
-
+        _compile_cli(build_base, build_temp)
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = []
         for s in scripts:
@@ -345,28 +377,78 @@ class develop(setuptools_develop.develop):
         _compile_postgres(build_base)
 
 
-class gen_build_cache_key(setuptools.Command):
+class ci_helper(setuptools.Command):
 
-    description = "generate a hash of build dependencies"
-    user_options = []
+    description = "echo specified hash or build info for CI"
+    user_options = [
+        ('type=', None,
+         'one of: cli, rust, ext, parsers, postgres, bootstrap, '
+         'build_temp, build_lib'),
+    ]
 
-    def run(self, *args, **kwargs):
+    def run(self):
         import edb as _edb
-        from edb.server.buildmeta import hash_dirs
+        from edb.server.buildmeta import hash_dirs, get_cache_src_dirs
 
-        parser_hash = hash_dirs([(
-            os.path.join(_edb.__path__[0], 'edgeql/parser/grammar'),
-            '.py')])
+        build = self.get_finalized_command('build')
+        pkg_dir = pathlib.Path(_edb.__path__[0])
 
-        proc = subprocess.run(
-            ['git', 'submodule', 'status', 'postgres'],
-            stdout=subprocess.PIPE, universal_newlines=True, check=True)
-        postgres_revision, _, _ = proc.stdout[1:].partition(' ')
+        if self.type == 'parsers':
+            parser_hash = hash_dirs(
+                [(pkg_dir / 'edgeql/parser/grammar', '.py')],
+                extra_files=[pkg_dir / 'edgeql-parser/src/keywords.rs'],
+            )
+            print(binascii.hexlify(parser_hash).decode())
 
-        print(f'{binascii.hexlify(parser_hash).decode()}-{postgres_revision}')
+        elif self.type == 'postgres':
+            print(_get_pg_source_stamp().strip())
+
+        elif self.type == 'bootstrap':
+            bootstrap_hash = hash_dirs(
+                get_cache_src_dirs(),
+                extra_files=[pkg_dir / 'server/bootstrap.py'],
+            )
+            print(binascii.hexlify(bootstrap_hash).decode())
+
+        elif self.type == 'rust':
+            rust_hash = hash_dirs([
+                (pkg_dir / 'edgeql-parser', '.rs'),
+                (pkg_dir / 'edgeql-rust', '.rs'),
+                (pkg_dir / 'graphql-rewrite', '.rs'),
+            ], extra_files=[
+                pkg_dir / 'edgeql-parser/Cargo.toml',
+                pkg_dir / 'edgeql-rust/Cargo.toml',
+                pkg_dir / 'graphql-rewrite/Cargo.toml',
+                ])
+            print(binascii.hexlify(rust_hash).decode())
+
+        elif self.type == 'ext':
+            ext_hash = hash_dirs([
+                (pkg_dir, '.pyx'),
+                (pkg_dir, '.pyi'),
+                (pkg_dir, '.pxd'),
+                (pkg_dir, '.pxi'),
+            ])
+            print(binascii.hexlify(ext_hash).decode())
+
+        elif self.type == 'cli':
+            print(_get_edgedbcli_rev())
+
+        elif self.type == 'build_temp':
+            print(pathlib.Path(build.build_temp).resolve())
+
+        elif self.type == 'build_lib':
+            print(pathlib.Path(build.build_lib).resolve())
+
+        else:
+            raise RuntimeError(
+                f'Illegal --type={self.type}; can only be: '
+                'cli, rust, ext, postgres, bootstrap, parsers,'
+                'build_temp or build_lib'
+            )
 
     def initialize_options(self):
-        pass
+        self.type = None
 
     def finalize_options(self):
         pass
@@ -400,9 +482,9 @@ class build_postgres(setuptools.Command):
             build_contrib=self.build_contrib)
 
 
-class build_ext(distutils_build_ext.build_ext):
+class build_ext(setuptools_build_ext.build_ext):
 
-    user_options = distutils_build_ext.build_ext.user_options + [
+    user_options = setuptools_build_ext.build_ext.user_options + [
         ('cython-annotate', None,
             'Produce a colorized HTML version of the Cython source.'),
         ('cython-directives=', None,
@@ -429,12 +511,20 @@ class build_ext(distutils_build_ext.build_ext):
             self.cython_annotate = None
             self.cython_directives = None
             self.debug = False
+        self.build_mode = os.environ.get('BUILD_EXT_MODE', 'both')
 
     def finalize_options(self):
         # finalize_options() may be called multiple times on the
         # same command object, so make sure not to override previously
         # set options.
         if getattr(self, '_initialized', False):
+            return
+
+        if self.build_mode not in {'both', 'py-only', 'skip'}:
+            raise RuntimeError(f'Illegal BUILD_EXT_MODE={self.build_mode}; '
+                               f'can only be "both", "py-only" or "skip".')
+        if self.build_mode == 'skip':
+            super(build_ext, self).finalize_options()
             return
 
         import pkg_resources
@@ -482,13 +572,92 @@ class build_ext(distutils_build_ext.build_ext):
         super(build_ext, self).finalize_options()
 
     def run(self):
-        if self.distribution.rust_extensions:
+        if self.build_mode == 'both' and self.distribution.rust_extensions:
             distutils.log.info("running build_rust")
             _check_rust()
             build_rust = self.get_finalized_command("build_rust")
+            build_rust.inplace = self.inplace
+            build_rust.plat_name = self.plat_name
+            build_rust.debug = self.debug
+            build_rust.run()
+
+        if self.build_mode != 'skip':
+            super().run()
+
+
+class build_cli(setuptools.Command):
+
+    description = "build the EdgeDB CLI"
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self, *args, **kwargs):
+        build = self.get_finalized_command('build')
+        _compile_cli(
+            pathlib.Path(build.build_base).resolve(),
+            pathlib.Path(build.build_temp).resolve(),
+        )
+
+
+class build_parsers(setuptools.Command):
+
+    description = "build the parsers"
+    user_options = [
+        ('inplace', None,
+         'ignore build-lib and put compiled parsers into the source directory '
+         'alongside your pure Python modules')]
+
+    def initialize_options(self):
+        self.inplace = None
+
+    def finalize_options(self):
+        pass
+
+    def run(self, *args, **kwargs):
+        build = self.get_finalized_command('build')
+        if self.inplace:
+            build_base = pathlib.Path(build.build_base).resolve()
+            _compile_parsers(build_base / 'lib', inplace=True)
+        else:
+            build_lib = pathlib.Path(build.build_lib)
+            _compile_parsers(build_lib)
+
+
+COMMAND_CLASSES = {
+    'build': build,
+    'build_ext': build_ext,
+    'develop': develop,
+    'build_postgres': build_postgres,
+    'build_cli': build_cli,
+    'build_parsers': build_parsers,
+    'ci_helper': ci_helper,
+}
+
+if setuptools_rust is not None:
+    rust_extensions = [
+        setuptools_rust.RustExtension(
+            "edb._edgeql_rust",
+            path="edb/edgeql-rust/Cargo.toml",
+            binding=setuptools_rust.Binding.RustCPython,
+        ),
+        setuptools_rust.RustExtension(
+            "edb._graphql_rewrite",
+            path="edb/graphql-rewrite/Cargo.toml",
+            binding=setuptools_rust.Binding.RustCPython,
+        ),
+    ]
+
+    class build_rust(setuptools_rust.build.build_rust):
+        def run(self):
+            _check_rust()
             build_ext = self.get_finalized_command("build_ext")
             copy_list = []
-            if not self.inplace:
+            if not build_ext.inplace:
                 for ext in self.distribution.rust_extensions:
                     # Always build in-place because later stages of the build
                     # may depend on the modules having been built
@@ -509,30 +678,15 @@ class build_ext(distutils_build_ext.build_ext):
 
                     target_path.parent.mkdir(parents=True, exist_ok=True)
 
-            build_rust.debug = self.debug
-            os.environ['CARGO_TARGET_DIR'] = (
-                str(pathlib.Path(self.build_temp) / 'rust' / 'extensions'))
-            build_rust.run()
+            os.environ['CARGO_TARGET_DIR'] = str(
+                pathlib.Path(build_ext.build_temp) / 'rust' / 'extensions',
+            )
+            super().run()
 
             for src, dst in copy_list:
                 shutil.copyfile(src, dst)
 
-        super().run()
-
-
-if setuptools_rust is not None:
-    rust_extensions = [
-        setuptools_rust.RustExtension(
-            "edb._edgeql_rust",
-            path="edb/edgeql-rust/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython,
-        ),
-        setuptools_rust.RustExtension(
-            "edb._graphql_rewrite",
-            path="edb/graphql-rewrite/Cargo.toml",
-            binding=setuptools_rust.Binding.RustCPython,
-        ),
-    ]
+    COMMAND_CLASSES['build_rust'] = build_rust
 else:
     rust_extensions = []
 
@@ -542,6 +696,9 @@ def custom_scm_version():
     return {
         'version_scheme': (
             functools.partial(buildmeta.scm_version_scheme, ROOT_PATH)
+        ),
+        'local_scheme': (
+            functools.partial(buildmeta.scm_local_scheme, ROOT_PATH)
         ),
     }
 
@@ -555,13 +712,7 @@ setuptools.setup(
     author_email='hello@magic.io',
     packages=['edb'],
     include_package_data=True,
-    cmdclass={
-        'build': build,
-        'build_ext': build_ext,
-        'develop': develop,
-        'build_postgres': build_postgres,
-        'gen_build_cache_key': gen_build_cache_key,
-    },
+    cmdclass=COMMAND_CLASSES,
     entry_points={
         'console_scripts': [
             'edgedb-old = edb.cli:cli',
@@ -577,8 +728,8 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         distutils_extension.Extension(
-            "edb.testbase.protocol.protocol",
-            ["edb/testbase/protocol/protocol.pyx"],
+            "edb.protocol.protocol",
+            ["edb/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 

@@ -50,19 +50,17 @@ in the module.
 Parameters
 ----------
 
-:eql:synopsis:`<alias-name>`
-    The name (optionally module-qualified) of an alias to be created.
-
-:eql:synopsis:`<alias-expr>`
-    The aliased expression.  Can be any valid EdgeQL expression.
-
-:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
-    An optional list of annotation values for the alias.
-    See :eql:stmt:`CREATE ANNOTATION` for details.
+Most sub-commands and options of this command are identical to the
+:ref:`SDL alias declaration <ref_eql_sdl_aliases_syntax>`, with some
+additional features listed below:
 
 :eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
     An optional list of module alias declarations to be used in the
     alias definition.
+
+:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
+    An optional list of annotation values for the alias.
+    See :eql:stmt:`CREATE ANNOTATION` for details.
 
 
 Example

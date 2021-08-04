@@ -225,7 +225,7 @@ def delta_schemas(
         excluded_items = set(excluded_items)
 
     if include_module_diff:
-        for added_module in added_modules:
+        for added_module in sorted(added_modules):
             if (
                 guidance is None
                 or (
@@ -349,7 +349,7 @@ def delta_schemas(
             result.add(cmd)
 
     if include_module_diff:
-        for dropped_module in dropped_modules:
+        for dropped_module in sorted(dropped_modules):
             if (
                 guidance is None
                 or (
@@ -699,7 +699,7 @@ def statements_from_delta(
     sdlmode: bool = False,
     descriptive_mode: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
-) -> Tuple[Tuple[str, sd.Command], ...]:
+) -> Tuple[Tuple[str, qlast.DDLOperation, sd.Command], ...]:
 
     stmts = ddlast_from_delta(
         schema_a,
@@ -715,15 +715,51 @@ def statements_from_delta(
 
     ql_classes = {q for q in ql_classes_src if q is not None}
 
-    text = []
+    # If we're generating SDL and it includes modules, try to nest the
+    # module contents in the actual modules.
+    processed: List[Tuple[qlast.DDLOperation, sd.Command]] = []
+    unqualified: List[Tuple[qlast.DDLOperation, sd.Command]] = []
+    modules = dict()
     for stmt_ast, cmd in stmts.items():
+        if sdlmode:
+            if isinstance(stmt_ast, qlast.CreateModule):
+                # Record the module stubs.
+                modules[stmt_ast.name.name] = stmt_ast
+                stmt_ast.commands = []
+                processed.append((stmt_ast, cmd))
+
+            elif (
+                modules
+                and not isinstance(stmt_ast, qlast.UnqualifiedObjectCommand)
+            ):
+                # This SDL included creation of modules, so we will try to
+                # nest the declarations in them.
+                assert isinstance(stmt_ast, qlast.CreateObject)
+                assert stmt_ast.name.module is not None
+                module = modules[stmt_ast.name.module]
+                module.commands.append(stmt_ast)
+                # Strip the module from the object name, since we nest
+                # them in a module already.
+                stmt_ast.name.module = None
+
+            elif isinstance(stmt_ast, qlast.UnqualifiedObjectCommand):
+                unqualified.append((stmt_ast, cmd))
+
+            else:
+                processed.append((stmt_ast, cmd))
+
+        else:
+            processed.append((stmt_ast, cmd))
+
+    text = []
+    for stmt_ast, cmd in itertools.chain(unqualified, processed):
         stmt_text = edgeql.generate_source(
             stmt_ast,
             sdlmode=sdlmode,
             descmode=descriptive_mode,
             limit_ref_classes=ql_classes,
         )
-        text.append((stmt_text + ';', cmd))
+        text.append((stmt_text + ';', stmt_ast, cmd))
 
     return tuple(text)
 
@@ -745,7 +781,7 @@ def text_from_delta(
         descriptive_mode=descriptive_mode,
         limit_ref_classes=limit_ref_classes,
     )
-    return '\n'.join(text for text, _ in stmts)
+    return '\n'.join(text for text, _, _ in stmts)
 
 
 def ddl_text_from_delta(

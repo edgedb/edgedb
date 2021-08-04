@@ -11,8 +11,8 @@ sha2 = "0.9.1"
 snafu = "0.6.0"
 combine = "4.5.2"
 twoway = "0.2.1"
-wasm-bindgen = {version="0.2", features=["serde-serialize"], optional=true}
-serde = {version="1.0.106", features=["derive"], optional=true}
+wasm-bindgen = { version="0.2", features=["serde-serialize"], optional=true }
+serde = { version="1.0.106", features=["derive"], optional=true }
 thiserror = "1.0.23"
 unicode-width = "0.1.8"
 

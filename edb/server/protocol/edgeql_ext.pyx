@@ -147,6 +147,8 @@ async def compile(db, server, bytes query):
         False,          # no inlining of type IDs
         False,          # no inlining of type names
         compiler.CompileStatementMode.SINGLE,
+        None,           # protocol_version
+        True,           # inline_objectids
         True,           # json parameters
     )
     return units[0]

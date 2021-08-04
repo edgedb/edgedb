@@ -18,6 +18,7 @@
 
 import edgedb
 
+from edb.schema import defines as s_def
 from edb.testbase import server as tb
 
 
@@ -50,7 +51,7 @@ class TestServerAuth(tb.ConnectedTestCase):
         await conn.aclose()
 
         await self.con.query('''
-            CONFIGURE SYSTEM INSERT Auth {
+            CONFIGURE INSTANCE INSERT Auth {
                 comment := 'test',
                 priority := 0,
                 method := (INSERT Trust),
@@ -67,7 +68,7 @@ class TestServerAuth(tb.ConnectedTestCase):
 
             # insert password auth with a higher priority
             await self.con.query('''
-                CONFIGURE SYSTEM INSERT Auth {
+                CONFIGURE INSTANCE INSERT Auth {
                     comment := 'test-2',
                     priority := -1,
                     method := (INSERT SCRAM),
@@ -86,11 +87,11 @@ class TestServerAuth(tb.ConnectedTestCase):
 
         finally:
             await self.con.query('''
-                CONFIGURE SYSTEM RESET Auth FILTER .comment = 'test'
+                CONFIGURE INSTANCE RESET Auth FILTER .comment = 'test'
             ''')
 
             await self.con.query('''
-                CONFIGURE SYSTEM RESET Auth FILTER .comment = 'test-2'
+                CONFIGURE INSTANCE RESET Auth FILTER .comment = 'test-2'
             ''')
 
             await self.con.query('''
@@ -156,3 +157,11 @@ class TestServerAuth(tb.ConnectedTestCase):
 
         finally:
             await self.con.query("DROP ROLE bar")
+
+    async def test_long_role_name(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaDefinitionError,
+                r'Role names longer than \d+ '
+                r'characters are not supported'):
+            await self.con.execute(
+                f'CREATE SUPERUSER ROLE myrole_{"x" * s_def.MAX_NAME_LENGTH};')

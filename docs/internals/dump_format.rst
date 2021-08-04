@@ -106,7 +106,7 @@ Known headers:
 
 * 101 ``BLOCK_TYPE`` -- block type, always "I"
 * 102 ``SERVER_TIME`` -- server time when dump is started as a floating point
-                       unix timestamp stringified
+  unix timestamp stringified
 * 103 ``SERVER_VERSION`` -- full version of server as string
 
 

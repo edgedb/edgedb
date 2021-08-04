@@ -202,7 +202,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         """Check that JSON of array preserves order."""
 
         await self.assert_query_result(
-            '''WITH MODULE test
+            r'''
                 SELECT <json>array_agg(
                     (SELECT JSONTest{number}
                      FILTER .number IN {0, 1}
@@ -338,7 +338,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             """)
 
     async def test_edgeql_json_accessor_13(self):
-        await self.con.execute('SET MODULE test;')
 
         await self.assert_query_result(
             r"""
@@ -364,7 +363,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r'json index 10 is out of bounds'):
             await self.con.query(r"""
                 WITH
-                    MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data[4]['b']['bar'][10]['bingo'];
             """)
@@ -375,7 +373,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r'json index -10 is out of bounds'):
             await self.con.query(r"""
                 WITH
-                    MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data[-10]['b']['bar'][2]['bingo'];
             """)
@@ -386,7 +383,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r'cannot index json array by text'):
             await self.con.query(r"""
                 WITH
-                    MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data['4']['b']['bar'][10]['bingo'];
             """)
@@ -397,7 +393,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r"json index 'c' is out of bounds"):
             await self.con.execute(r"""
                 WITH
-                    MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data[4]['b']['c'][2]['bingo'];
             """)
@@ -408,7 +403,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r'cannot index json object by bigint'):
             await self.con.query(r"""
                 WITH
-                    MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data[4][1]['bar'][2]['bingo'];
             """)
@@ -419,7 +413,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r'cannot index json null'):
             await self.con.execute(r"""
                 WITH
-                    MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data[4]['b']['bar'][0]['bingo'];
             """)
@@ -430,7 +423,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r'cannot index json boolean'):
             await self.con.execute(r"""
                 WITH
-                    MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data[-1]['b']['bar'][2]['bingo'];
             """)
@@ -441,7 +433,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r'cannot index json number'):
             await self.con.query(r"""
                 WITH
-                    MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data[0]['b']['bar'][2]['bingo'];
             """)
@@ -452,7 +443,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r'cannot index json string'):
             await self.con.execute(r"""
                 WITH
-                    MODULE test,
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data[2]['b']['bar'][2]['bingo'];
             """)
@@ -460,7 +450,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_null_01(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (
                     SELECT JSONTest FILTER .number = 0
                 ).data ?= <json>{};
@@ -470,7 +459,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (
                     SELECT JSONTest FILTER .number = 0
                 ).data ?= to_json('null');
@@ -480,7 +468,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (
                     SELECT JSONTest FILTER .number = 2
                 ).data ?= <json>{};
@@ -490,7 +477,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT (
                     SELECT JSONTest FILTER .number = 2
                 ).data ?= to_json('null');
@@ -550,7 +536,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         )
 
     async def test_edgeql_json_typeof_02(self):
-        await self.con.execute('SET MODULE test;')
         await self.assert_query_result(
             r'''SELECT json_typeof(JSONTest.j_string);''',
             ['string', 'string', 'string'],
@@ -639,7 +624,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r"operator '=' cannot.*'std::json' and 'std::int64'"):
             await self.con.query_json(r'''
                 WITH
-                    MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 0)
                 SELECT json_array_unpack(JT0.j_array) = 1;
             ''')
@@ -648,7 +632,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 0)
                 # unpacking [1, 1, 1]
                 SELECT json_array_unpack(JT0.j_array) = to_json('1');
@@ -660,7 +643,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 2)
                 # unpacking [2, "q", [3], {}, null], should preserve the
                 # order
@@ -674,7 +656,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 2)
                 # unpacking [2, "q", [3], {}, null], should preserve the
                 # order
@@ -728,7 +709,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_object_unpack_02(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT
                     _ := json_object_unpack(JSONTest.j_object)
                 ORDER BY _.0 THEN _.1;
@@ -741,7 +721,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT json_object_unpack(JSONTest.j_object) =
                     ('c', to_json('1'));
             ''',
@@ -750,7 +729,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT json_object_unpack(JSONTest.j_object).0 IN
                     {'a', 'b', 'c'};
             ''',
@@ -759,7 +737,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT json_object_unpack(JSONTest.j_object).1 IN
                     <json>{1, 2};
             ''',
@@ -768,7 +745,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT json_object_unpack(JSONTest.j_object).1 IN
                     <json>{'1', '2'};
             ''',
@@ -783,7 +759,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
                 r'cannot call jsonb_each on a non-object'):
             await self.con.query_json(r'''
                 WITH
-                    MODULE test,
                     JT0 := (SELECT JSONTest FILTER .number = 0)
                 SELECT
                     count(json_object_unpack(JT0.data));
@@ -793,7 +768,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     JT1 := (SELECT JSONTest FILTER .number = 1),
                     JT2 := (SELECT JSONTest FILTER .number = 2)
                 SELECT (
@@ -823,8 +797,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         )
 
     async def test_edgeql_json_get_01(self):
-        await self.con.execute('SET MODULE test')
-
         await self.assert_query_result(
             r'''
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -918,8 +890,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         # since only one JSONTest has a non-trivial `data`, we
         # don't need to filter to get the same results as above
 
-        await self.con.execute('SET MODULE test')
-
         await self.assert_query_result(
             r'''SELECT json_get(JSONTest.data, '2');''',
             {'Fraka'},
@@ -988,8 +958,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_get_03(self):
         # chaining json_get should get the same effect as a single call
 
-        await self.con.execute('SET MODULE test')
-
         await self.assert_query_result(
             r'''
                 SELECT json_get(JSONTest.data, '4', 'b', 'bar', '2', 'bingo');
@@ -1017,8 +985,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         )
 
     async def test_edgeql_json_get_04(self):
-        await self.con.execute('SET MODULE test')
-
         await self.assert_query_result(
             r'''SELECT json_get(JSONTest.data, 'bogus') ?? <json>'oups';''',
             # JSON
@@ -1180,7 +1146,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 # base case
-                WITH MODULE test
                 SELECT
                     JSONTest {number, edb_string};
             """,
@@ -1195,7 +1160,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     JSONTest {number, edb_string}
                 FILTER
@@ -1213,7 +1177,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     JSONTest {number, edb_string}
                 FILTER
@@ -1230,7 +1193,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     JSONTest {number, edb_string}
                 FILTER
@@ -1250,7 +1212,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                WITH MODULE test
                 SELECT
                     JSONTest {number, edb_string}
                 FILTER
@@ -1343,7 +1304,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         )
 
     async def test_edgeql_json_slice_02(self):
-        await self.con.execute('SET MODULE test;')
 
         await self.assert_query_result(
             r'''
@@ -1418,7 +1378,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_alias_01(self):
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT _ := json_get(JSONTest.j_array, '0')
             ORDER BY _;
             ''',
@@ -1430,7 +1389,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT _ := json_get(JSONTest.j_array, '10')
             ORDER BY _;
             ''',
@@ -1439,7 +1397,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT _ := json_get(JSONTest.j_array, {'-1', '4'})
             ORDER BY _;
             ''',
@@ -1451,7 +1408,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT _ := json_get(
                 JSONTest.data,
                 # Each of the variadic "steps" is a set, so we should
@@ -1472,7 +1428,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_alias_02(self):
         await self.assert_query_result(
             r'''
-            WITH MODULE test
             SELECT _ := json_get(
                 JSONTest.data,
                 # Each of the variadic "steps" is a set, so we should
@@ -1502,7 +1457,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             WITH
-                MODULE test,
                 JT := JSONTest
             SELECT JSONTest {
                 a0 := (
@@ -1553,7 +1507,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_alias_04(self):
         await self.assert_query_result(
             r'''
-                WITH MODULE test
                 SELECT _ := json_get(
                     JSONTest.data,
                     '0', '1', '2',
@@ -1574,7 +1527,6 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    MODULE test,
                     JT := JSONTest
                 SELECT JSONTest {
                     a4 := (
@@ -1691,7 +1643,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
         result = (f'"_{i}": {v}' for i, v in enumerate(range(count)))
         await self.assert_query_result(
             f'''
-                SELECT to_str(<json>test::JSONTest{{ {", ".join(args)} }})
+                SELECT to_str(<json>JSONTest{{ {", ".join(args)} }})
                 LIMIT 1
             ''',
             {f'{{{", ".join(result)}}}'},

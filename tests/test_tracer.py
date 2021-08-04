@@ -95,7 +95,7 @@ class TestTracer(unittest.TestCase):
                         f'_infer_type for {name} is not implemented')
 
     def test_infer_volatility_dispatch(self):
-        dispatcher = volatility._infer_volatility
+        dispatcher = volatility._infer_volatility_inner
         not_implemented = dispatcher.registry[object]
 
         for name, astcls in inspect.getmembers(irast, inspect.isclass):

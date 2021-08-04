@@ -32,7 +32,7 @@ from . import annos as s_anno
 from . import casts as s_casts
 from . import constraints
 from . import delta as sd
-from . import expr
+from . import expr as s_expr
 from . import inheriting
 from . import name as s_name
 from . import objects as so
@@ -50,7 +50,7 @@ class ScalarType(
 ):
 
     default = so.SchemaField(
-        expr.Expression, default=None,
+        s_expr.Expression, default=None,
         coerce=True, compcoef=0.909,
     )
 
@@ -68,6 +68,10 @@ class ScalarType(
 
     def is_enum(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_enum_values(schema))
+
+    def is_sequence(self, schema: s_schema.Schema) -> bool:
+        seq = schema.get('std::sequence', type=ScalarType)
+        return self.issubclass(schema, seq)
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return self.get_abstract(schema)
@@ -214,8 +218,41 @@ class ScalarType(
         dname = self.get_displayname(schema)
         return f"{clsname} '{dname}'"
 
+    def as_alter_delta(
+        self,
+        other: ScalarType,
+        *,
+        self_schema: s_schema.Schema,
+        other_schema: s_schema.Schema,
+        confidence: float,
+        context: so.ComparisonContext,
+    ) -> sd.ObjectCommand[ScalarType]:
+        alter = super().as_alter_delta(
+            other,
+            self_schema=self_schema,
+            other_schema=other_schema,
+            confidence=confidence,
+            context=context,
+        )
 
-class AnonymousEnumTypeShell(s_types.TypeShell):
+        # If this is an enum and enum_values changed, we need to
+        # generate a rebase.
+        enum_values = alter.get_attribute_value('enum_values')
+        if enum_values is not None:
+            assert isinstance(alter.classname, s_name.QualName)
+            rebase = RebaseScalarType(
+                classname=alter.classname,
+                removed_bases=(),
+                added_bases=(
+                    ([AnonymousEnumTypeShell(elements=enum_values)], ''),
+                ),
+            )
+            alter.add(rebase)
+
+        return alter
+
+
+class AnonymousEnumTypeShell(s_types.TypeShell[ScalarType]):
 
     elements: Sequence[str]
 
@@ -225,10 +262,10 @@ class AnonymousEnumTypeShell(s_types.TypeShell):
         name: s_name.Name = s_name.QualName(module='std', name='anyenum'),
         elements: Iterable[str],
     ) -> None:
-        super().__init__(name=name)
+        super().__init__(name=name, schemaclass=ScalarType)
         self.elements = list(elements)
 
-    def resolve(self, schema: s_schema.Schema) -> s_types.Type:
+    def resolve(self, schema: s_schema.Schema) -> ScalarType:
         raise NotImplementedError(
             f'cannot resolve {self.__class__.__name__!r}'
         )
@@ -292,6 +329,18 @@ class ScalarTypeCommand(
 
             self.validate_scalar_ancestors(ancestors, schema, context)
 
+    def get_dummy_expr_field_value(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: Any,
+    ) -> Optional[s_expr.Expression]:
+        if field.name == 'expr':
+            return s_expr.Expression(text=f'0')
+        else:
+            raise NotImplementedError(f'unhandled field {field.name!r}')
+
 
 class CreateScalarType(
     ScalarTypeCommand,
@@ -324,6 +373,7 @@ class CreateScalarType(
             bases = [
                 s_utils.ast_to_type_shell(
                     b,
+                    metaclass=ScalarType,
                     modaliases=context.modaliases,
                     schema=schema,
                 )
@@ -403,6 +453,7 @@ class CreateScalarType(
         elif op.property == 'bases':
             enum_values = self.get_attribute_value('enum_values')
             if enum_values:
+                assert isinstance(node, qlast.BasesMixin)
                 node.bases = [
                     qlast.TypeName(
                         maintype=qlast.ObjectRef(name='enum'),
@@ -517,17 +568,6 @@ class RebaseScalarType(
         if len(new_set) != len(new_labels):
             raise errors.SchemaError(
                 f'enums cannot contain duplicate values')
-
-        cur_set = set(cur_labels)
-        if cur_set - new_set:
-            raise errors.SchemaError(
-                f'cannot remove labels from an enumeration type')
-
-        for cur_label, new_label in zip(cur_labels, new_labels):
-            if cur_label != new_label:
-                raise errors.SchemaError(
-                    f'cannot change the existing labels in an enumeration '
-                    f'type, only appending new labels is allowed')
 
         self.set_attribute_value('enum_values', new_labels)
         schema = stype.set_field_value(schema, 'enum_values', new_labels)

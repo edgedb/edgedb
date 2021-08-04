@@ -92,6 +92,7 @@ T = TypeVar("T")
 Type_T = TypeVar("Type_T", bound=type)
 ObjectContainer_T = TypeVar('ObjectContainer_T', bound='ObjectContainer')
 Object_T = TypeVar("Object_T", bound="Object")
+Object_T_co = TypeVar("Object_T_co", bound="Object", covariant=True)
 ObjectCollection_T = TypeVar(
     "ObjectCollection_T",
     bound="ObjectCollection[Object]",
@@ -248,8 +249,10 @@ class Field(struct.ProtoField, Generic[T]):
     __slots__ = ('name', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
                  'merge_fn', 'ephemeral',
-                 'allow_ddl_set', 'ddl_identity',
-                 'weak_ref', 'reflection_method')
+                 'allow_ddl_set', 'ddl_identity', 'special_ddl_syntax',
+                 'aux_cmd_data', 'describe_visibility',
+                 'weak_ref', 'reflection_method', 'reflection_proxy',
+                 'type_is_generic_self', 'is_reducible')
 
     #: Name of the field on the target class; assigned by ObjectMeta
     name: str
@@ -430,6 +433,9 @@ class Field(struct.ProtoField, Generic[T]):
     def is_schema_field(self) -> bool:
         return False
 
+    def maybe_get_default(self) -> Any:
+        return NoDefault
+
     def get_default(self) -> Any:
         raise ValueError(f'field {self.name!r} is required and has no default')
 
@@ -455,7 +461,7 @@ class Field(struct.ProtoField, Generic[T]):
 
 class SchemaField(Field[Type_T]):
 
-    __slots__ = ('default', 'hashable')
+    __slots__ = ('default', 'hashable', 'allow_ddl_set', 'index')
 
     #: The default value to use for the field.
     default: Any
@@ -489,11 +495,8 @@ class SchemaField(Field[Type_T]):
     def is_schema_field(self) -> bool:
         return True
 
-    def get_default(self) -> Any:
-        if self.default is NoDefault:
-            raise ValueError(
-                f'field {self.name!r} is required and has no default')
-        elif self.default is DEFAULT_CONSTRUCTOR:
+    def maybe_get_default(self) -> Any:
+        if self.default is DEFAULT_CONSTRUCTOR:
             if issubclass(self.type, ObjectCollection):
                 value = self.type.create_empty()
             else:
@@ -501,6 +504,14 @@ class SchemaField(Field[Type_T]):
         else:
             value = self.default
         return value
+
+    def get_default(self) -> Any:
+        value = self.maybe_get_default()
+        if value is NoDefault:
+            raise ValueError(
+                f'field {self.name!r} is required and has no default')
+        else:
+            return value
 
     def __get__(
         self,
@@ -611,7 +622,7 @@ class ObjectMeta(type):
             del clsdict[k]
 
         try:
-            cls = cast(ObjectMeta, super().__new__(mcls, name, bases, clsdict))
+            cls = super().__new__(mcls, name, bases, clsdict)
         except TypeError as ex:
             raise TypeError(
                 f'Object metaclass has failed to create class {name}: {ex}')
@@ -1458,7 +1469,10 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
         return schema
 
-    def as_shell(self, schema: s_schema.Schema) -> ObjectShell:
+    def as_shell(
+        self: Object_T,
+        schema: s_schema.Schema,
+    ) -> ObjectShell[Object_T]:
         return ObjectShell(
             name=self.get_name(schema),
             displayname=self.get_displayname(schema),
@@ -1504,6 +1518,7 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             ddl_identity=self.get_ddl_identity(schema),
             **kwargs,
         )
+        cmd.scls = self
         self.record_cmd_object_aux_data(schema, cmd)
         return cmd
 
@@ -1573,7 +1588,6 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
             classname=classname,
             **kwargs,
         )
-        self_cmd.scls = self
 
         parent_cmd.add(self_cmd)
         ctx_stack.push(self_cmd.new_context(schema, context, self))
@@ -2042,13 +2056,13 @@ class Shell:
         raise NotImplementedError
 
 
-class ObjectShell(Shell):
+class ObjectShell(Shell, Generic[Object_T_co]):
 
     def __init__(
         self,
         *,
         name: sn.Name,
-        schemaclass: Type[Object] = Object,
+        schemaclass: Type[Object_T_co],
         displayname: Optional[str] = None,
         origname: Optional[sn.Name] = None,
         sourcectx: Optional[parsing.ParserContext] = None,
@@ -2062,7 +2076,7 @@ class ObjectShell(Shell):
     def get_id(self, schema: s_schema.Schema) -> uuid.UUID:
         return self.resolve(schema).get_id(schema)
 
-    def resolve(self, schema: s_schema.Schema) -> Object:
+    def resolve(self, schema: s_schema.Schema) -> Object_T_co:
         if self.name is None:
             raise TypeError(
                 'cannot resolve anonymous ObjectShell'
@@ -2367,7 +2381,7 @@ class ObjectCollectionShell(Shell, Generic[Object_T]):
 
     def __init__(
         self,
-        items: Iterable[ObjectShell],
+        items: Iterable[ObjectShell[Object_T]],
         collection_type: Type[ObjectCollection[Object_T]],
     ) -> None:
         self.items = items
@@ -2376,7 +2390,7 @@ class ObjectCollectionShell(Shell, Generic[Object_T]):
     def resolve(self, schema: s_schema.Schema) -> ObjectCollection[Object_T]:
         return self.collection_type.create(
             schema,
-            [cast(Object_T, s.resolve(schema)) for s in self.items],
+            [s.resolve(schema) for s in self.items],
         )
 
     def __repr__(self) -> str:
@@ -2694,12 +2708,12 @@ class ObjectDictShell(
     Generic[Key_T, Object_T],
 ):
 
-    items: Mapping[Any, ObjectShell]
+    items: Mapping[Any, ObjectShell[Object_T]]
     collection_type: Type[ObjectDict[Key_T, Object_T]]
 
     def __init__(
         self,
-        items: Mapping[Any, ObjectShell],
+        items: Mapping[Any, ObjectShell[Object_T]],
         collection_type: Type[ObjectDict[Key_T, Object_T]],
     ) -> None:
         self.items = items
@@ -2714,10 +2728,7 @@ class ObjectDictShell(
     def resolve(self, schema: s_schema.Schema) -> ObjectDict[Key_T, Object_T]:
         return self.collection_type.create(
             schema,
-            {
-                k: cast(Object_T, s.resolve(schema))
-                for k, s in self.items.items()
-            },
+            {k: s.resolve(schema) for k, s in self.items.items()},
         )
 
 
@@ -2806,6 +2817,7 @@ class SubclassableObject(Object):
     final = SchemaField(
         bool,
         default=False,
+        inheritable=False,
         special_ddl_syntax=True,
         compcoef=0.909,
     )
@@ -2875,7 +2887,7 @@ class InheritingObject(SubclassableObject):
     def get_default_base_name(self) -> Optional[sn.Name]:
         return None
 
-    # Redefinining bases and ancestors accessors to make them generic
+    # Redefining bases and ancestors accessors to make them generic
     def get_bases(
         self: InheritingObjectT,
         schema: s_schema.Schema,
@@ -3015,11 +3027,14 @@ class InheritingObject(SubclassableObject):
         new_base_names = other.get_bases(other_schema).names(other_schema)
 
         if old_base_names != new_base_names and rebase is not None:
-            removed, added = s_inh.delta_bases(old_base_names, new_base_names)
+            removed, added = s_inh.delta_bases(
+                old_base_names,
+                new_base_names,
+                t=type(self),
+            )
 
             rebase_cmd = rebase(
                 classname=other.get_name(other_schema),
-                metaclass=type(self),
                 removed_bases=removed,
                 added_bases=added,
             )
@@ -3183,6 +3198,15 @@ class DerivableInheritingObject(DerivableObject, InheritingObject):
     ) -> DerivableInheritingObjectT:
         obj = self
         while obj.get_is_derived(schema):
+            obj = obj.get_bases(schema).first(schema)
+        return obj
+
+    def get_nearest_generic_parent(
+        self: DerivableInheritingObjectT,
+        schema: s_schema.Schema,
+    ) -> DerivableInheritingObjectT:
+        obj = self
+        while not obj.generic(schema):
             obj = obj.get_bases(schema).first(schema)
         return obj
 

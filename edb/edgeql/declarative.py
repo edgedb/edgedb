@@ -50,7 +50,7 @@ from edb.schema import constraints as s_constr
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
-from edb.schema import lproperties as s_lprops
+from edb.schema import properties as s_props
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -63,7 +63,7 @@ class TraceContextBase:
     module: str
     depstack: List[Tuple[qlast.DDLOperation, s_name.QualName]]
     modaliases: Dict[Optional[str], str]
-    objects: Dict[s_name.QualName, qltracer.ObjectLike]
+    objects: Dict[s_name.QualName, Optional[qltracer.ObjectLike]]
     parents: Dict[s_name.QualName, Set[s_name.QualName]]
     ancestors: Dict[s_name.QualName, Set[s_name.QualName]]
     defdeps: Dict[s_name.QualName, Set[s_name.QualName]]
@@ -181,13 +181,50 @@ class TraceContextBase:
 
             extra_name = '|'.join(qlcodegen.generate_source(e) for e in exprs)
 
+        elif isinstance(decl, qlast.CreateIndex):
+            # Indexes are defined by what they are an index over, so we need
+            # to add that to the "extra_name".
+            extra_name = f'({qlcodegen.generate_source(decl.expr)})'
+
         if extra_name:
             fq_name = s_name.QualName(
                 module=fq_name.module,
-                name=f'{fq_name.name}:{extra_name}',
+                name=f'{fq_name.name}@@{extra_name}',
             )
 
         return name, fq_name
+
+
+def get_verbosename_from_fqname(
+    fq_name: s_name.QualName,
+    ctx: DepTraceContext,
+) -> str:
+    traceobj = ctx.objects[fq_name]
+    assert traceobj is not None
+
+    name = str(fq_name)
+    clsname = traceobj.__class__.__name__.lower()
+    ofobj = ''
+
+    if isinstance(traceobj, qltracer.Alias):
+        clsname = 'alias'
+    elif isinstance(traceobj, qltracer.ObjectType):
+        clsname = 'object'
+    elif isinstance(traceobj, qltracer.ScalarType):
+        clsname = 'scalar'
+    elif isinstance(traceobj, qltracer.Function):
+        node = ctx.ddlgraph[fq_name].item
+        assert isinstance(node, qlast.FunctionCommand)
+        params = ','.join(
+            qlcodegen.generate_source(param, sdlmode=True)
+            for param in node.params
+        )
+        name = f"{str(fq_name).split('@@', 1)[0]}({params})"
+    elif isinstance(traceobj, qltracer.Pointer):
+        ofobj, name = str(fq_name).split('@', 1)
+        ofobj = f" of object type '{ofobj}'"
+
+    return f"{clsname} '{name}'{ofobj}"
 
 
 class InheritanceGraphEntry(TypedDict):
@@ -231,7 +268,7 @@ class DepTraceContext(TraceContextBase):
         self,
         schema: s_schema.Schema,
         ddlgraph: DDLGraph,
-        objects: Dict[s_name.QualName, qltracer.ObjectLike],
+        objects: Dict[s_name.QualName, Optional[qltracer.ObjectLike]],
         parents: Dict[s_name.QualName, Set[s_name.QualName]],
         ancestors: Dict[s_name.QualName, Set[s_name.QualName]],
         defdeps: Dict[s_name.QualName, Set[s_name.QualName]],
@@ -298,16 +335,17 @@ def sdl_to_ddl(
             if isinstance(decl_ast, qlast.CreateObject):
                 _, fq_name = ctx.get_fq_name(decl_ast)
 
-                if isinstance(decl_ast, (qlast.CreateObjectType,
-                                         qlast.CreateAlias)):
+                if isinstance(decl_ast, qlast.CreateObjectType):
                     ctx.objects[fq_name] = qltracer.ObjectType(fq_name)
-
+                elif isinstance(decl_ast, qlast.CreateAlias):
+                    ctx.objects[fq_name] = qltracer.Alias(fq_name)
                 elif isinstance(decl_ast, qlast.CreateScalarType):
-                    ctx.objects[fq_name] = qltracer.Type(fq_name)
-
-                elif isinstance(decl_ast, (qlast.CreateLink,
-                                           qlast.CreateProperty)):
-                    ctx.objects[fq_name] = qltracer.Pointer(
+                    ctx.objects[fq_name] = qltracer.ScalarType(fq_name)
+                elif isinstance(decl_ast, qlast.CreateLink):
+                    ctx.objects[fq_name] = qltracer.Link(
+                        fq_name, source=None, target=None)
+                elif isinstance(decl_ast, qlast.CreateProperty):
+                    ctx.objects[fq_name] = qltracer.Property(
                         fq_name, source=None, target=None)
                 elif isinstance(decl_ast, qlast.CreateFunction):
                     ctx.objects[fq_name] = qltracer.Function(fq_name)
@@ -347,7 +385,26 @@ def sdl_to_ddl(
         for decl_ast in declarations:
             trace_dependencies(decl_ast, ctx=tracectx)
 
-    ordered = topological.sort(ddlgraph, allow_unresolved=False)
+    try:
+        ordered = topological.sort(ddlgraph, allow_unresolved=False)
+    except topological.CycleError as e:
+        assert isinstance(e.item, s_name.QualName)
+        node = tracectx.ddlgraph[e.item].item
+        item_vn = get_verbosename_from_fqname(e.item, tracectx)
+
+        if e.path is not None and len(e.path):
+            # Recursion involving more than one schema object.
+            rec_vn = get_verbosename_from_fqname(e.path[-1], tracectx)
+            msg = (
+                f'definition dependency cycle between {rec_vn} '
+                f'and {item_vn}'
+            )
+        else:
+            # A single schema object with a recursive definition.
+            msg = f'{item_vn} is defined recursively'
+
+        raise errors.InvalidDefinitionError(msg, context=node.context) from e
+
     return tuple(mods) + tuple(ordered)
 
 
@@ -380,7 +437,9 @@ def _merge_items(
             continue
 
         if pn not in item_ptrs:
-            ptr_copy = qltracer.Pointer(
+            PointerType = (qltracer.Property if ptr.is_property(schema)
+                           else qltracer.Link)
+            ptr_copy = PointerType(
                 s_name.QualName('__', pn.name),
                 source=ptr.get_source(schema),
                 target=ptr.get_target(schema),
@@ -391,7 +450,9 @@ def _merge_items(
         else:
             item_ptr = item.getptr(schema, pn)
             assert isinstance(item_ptr, (qltracer.Pointer, s_sources.Source))
-            ptr_copy = qltracer.Pointer(
+            PointerType = (qltracer.Property if item_ptr.is_property(schema)
+                           else qltracer.Link)
+            ptr_copy = PointerType(
                 s_name.QualName('__', pn.name),
                 source=item,
                 target=item_ptr.get_target(schema),
@@ -488,7 +549,12 @@ def _trace_item_layout(
                     assert isinstance(base_obj, qltracer.Source)
                     base_pointers = base.get_pointers(ctx.schema)
                     for pn, p in base_pointers.items(ctx.schema):
-                        base_obj.pointers[pn] = qltracer.Pointer(
+                        PointerType = (
+                            qltracer.Property
+                            if p.is_property(ctx.schema) else
+                            qltracer.Link
+                        )
+                        base_obj.pointers[pn] = PointerType(
                             s_name.QualName('__', pn.name),
                             source=base,
                             target=p.get_target(ctx.schema),
@@ -511,7 +577,13 @@ def _trace_item_layout(
                 target = None
 
             pn = s_utils.ast_ref_to_unqualname(decl.name)
-            ptr = qltracer.Pointer(
+
+            PointerType = (
+                qltracer.Property
+                if isinstance(decl, qlast.CreateConcreteProperty) else
+                qltracer.Link
+            )
+            ptr = PointerType(
                 s_name.QualName('__', pn.name),
                 source=obj,
                 target=target,
@@ -788,7 +860,8 @@ def _register_item(
     op = orig_op = copy.copy(decl)
 
     if ctx.depstack:
-        op.sdl_alter_if_exists = True
+        if isinstance(op, qlast.CreateObject):
+            op.sdl_alter_if_exists = True
         top_parent = parent = copy.copy(ctx.depstack[0][0])
         _clear_nonessential_subcommands(parent)
         for entry, _ in ctx.depstack[1:]:
@@ -800,6 +873,7 @@ def _register_item(
         parent.commands.append(op)
         op = top_parent
     else:
+        assert isinstance(op, qlast.Command)
         op.aliases = [qlast.ModuleAliasDecl(alias=None, module=ctx.module)]
 
     assert isinstance(op, qlast.DDLCommand)
@@ -857,15 +931,17 @@ def _register_item(
         if subcmds:
             assert isinstance(decl, qlast.ObjectDDL)
             alter_name = f"Alter{decl.__class__.__name__[len('Create'):]}"
-            alter_cls: Type[qlast.ObjectDDL] = getattr(qlast, alter_name)
-            alter_cmd = alter_cls(name=decl.name)
+            alter_cls = getattr(qlast, alter_name)
+            alter_cmd: qlast.ObjectDDL = alter_cls(name=decl.name)
 
             # indexes need to preserve their "on" expression
             if isinstance(decl, qlast.CreateIndex):
+                assert isinstance(alter_cmd, qlast.IndexCommand)
                 alter_cmd.expr = decl.expr
 
             # constraints need to preserve their "on" expression
             if isinstance(decl, qlast.CreateConcreteConstraint):
+                assert isinstance(alter_cmd, qlast.ConcreteConstraintOp)
                 alter_cmd.subjectexpr = decl.subjectexpr
                 alter_cmd.args = decl.args
 
@@ -1079,7 +1155,7 @@ def _resolve_type_expr(
     if isinstance(texpr, qlast.TypeName):
         if texpr.subtypes:
             return qltracer.Type(
-                name=s_name.QualName(module='__coll__', name=texpr.name),
+                name=s_name.QualName(module='__coll__', name=texpr.name or ''),
             )
         else:
             return cast(
@@ -1143,9 +1219,11 @@ def _get_tracer_and_real_type(
     tracer_type: Optional[Type[qltracer.NamedObject]] = None
     real_type: Optional[Type[s_obj.Object]] = None
 
-    if isinstance(decl, (qlast.CreateObjectType,
-                         qlast.CreateScalarType)):
-        tracer_type = qltracer.Type
+    if isinstance(decl, qlast.CreateObjectType):
+        tracer_type = qltracer.ObjectType
+        real_type = s_types.Type
+    elif isinstance(decl, qlast.CreateScalarType):
+        tracer_type = qltracer.ScalarType
         real_type = s_types.Type
     elif isinstance(decl, (qlast.CreateConstraint,
                            qlast.CreateConcreteConstraint)):
@@ -1157,11 +1235,11 @@ def _get_tracer_and_real_type(
         real_type = s_anno.Annotation
     elif isinstance(decl, (qlast.CreateProperty,
                            qlast.CreateConcreteProperty)):
-        tracer_type = qltracer.Pointer
-        real_type = s_lprops.Property
+        tracer_type = qltracer.Property
+        real_type = s_props.Property
     elif isinstance(decl, (qlast.CreateLink,
                            qlast.CreateConcreteLink)):
-        tracer_type = qltracer.Pointer
+        tracer_type = qltracer.Link
         real_type = s_links.Link
 
     return tracer_type, real_type
@@ -1195,7 +1273,7 @@ def _validate_schema_ref(
 def _resolve_schema_ref(
     name: s_name.Name,
     type: Type[s_obj.Object_T],
-    sourcectx: parsing.ParserContext,
+    sourcectx: Optional[parsing.ParserContext],
     *,
     ctx: LayoutTraceContext,
 ) -> s_obj.Object_T:

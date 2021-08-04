@@ -23,7 +23,9 @@
 
 CREATE INFIX OPERATOR
 std::`=` (l: std::anyenum, r: std::anyenum) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::=';
     SET negator := 'std::!=';
     USING SQL OPERATOR r'=';
@@ -32,14 +34,19 @@ std::`=` (l: std::anyenum, r: std::anyenum) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?=` (l: OPTIONAL std::anyenum, r: OPTIONAL std::anyenum) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`!=` (l: std::anyenum, r: std::anyenum) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::!=';
     SET negator := 'std::=';
     USING SQL OPERATOR r'<>';
@@ -48,14 +55,19 @@ std::`!=` (l: std::anyenum, r: std::anyenum) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`?!=` (l: OPTIONAL std::anyenum, r: OPTIONAL std::anyenum) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };
 
 
 CREATE INFIX OPERATOR
 std::`>=` (l: std::anyenum, r: std::anyenum) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<=';
     SET negator := 'std::<';
     USING SQL OPERATOR '>=';
@@ -64,7 +76,9 @@ std::`>=` (l: std::anyenum, r: std::anyenum) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`>` (l: std::anyenum, r: std::anyenum) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::<';
     SET negator := 'std::<=';
     USING SQL OPERATOR '>';
@@ -73,7 +87,9 @@ std::`>` (l: std::anyenum, r: std::anyenum) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<=` (l: std::anyenum, r: std::anyenum) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>=';
     SET negator := 'std::>';
     USING SQL OPERATOR '<=';
@@ -82,7 +98,9 @@ std::`<=` (l: std::anyenum, r: std::anyenum) -> std::bool {
 
 CREATE INFIX OPERATOR
 std::`<` (l: std::anyenum, r: std::anyenum) -> std::bool {
-    SET volatility := 'IMMUTABLE';
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
+    SET volatility := 'Immutable';
     SET commutator := 'std::>';
     SET negator := 'std::>=';
     USING SQL OPERATOR '<';
@@ -95,24 +113,24 @@ std::`<` (l: std::anyenum, r: std::anyenum) -> std::bool {
 # The only way to create an enum is to cast a str into it, so it makes
 # sense to create an implicit assignment cast.
 CREATE CAST FROM std::str TO std::anyenum {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL CAST;
     ALLOW ASSIGNMENT;
 };
 
 
 CREATE CAST FROM std::anyenum TO std::str {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL CAST;
 };
 
 CREATE CAST FROM std::anyenum TO std::json {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL "SELECT to_jsonb(val::text)"
 };
 
 # Handled in compile_cast
 CREATE CAST FROM std::json TO std::anyenum {
-    SET volatility := 'IMMUTABLE';
+    SET volatility := 'Immutable';
     USING SQL EXPRESSION;
 };

@@ -96,7 +96,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
 
         parent_migration = schema.get_last_migration()
 
-        parent: Optional[so.ObjectShell]
+        parent: Optional[so.ObjectShell[Migration]]
 
         if astnode.parent is None:
             if parent_migration is not None:
@@ -208,7 +208,10 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         assert isinstance(node, qlast.CreateMigration)
         if op.property == 'script':
             node.body = qlast.NestedQLBlock(
-                commands=qlparser.parse_block(op.new_value),
+                commands=cast(
+                    List[qlast.DDLOperation],
+                    qlparser.parse_block(op.new_value),
+                ),
                 text=op.new_value,
             )
         elif op.property == 'parents':

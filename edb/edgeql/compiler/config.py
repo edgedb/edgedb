@@ -60,10 +60,11 @@ class SettingInfo(NamedTuple):
 def compile_ConfigSet(
     expr: qlast.ConfigSet, *,
     ctx: context.ContextLevel,
-) -> irast.ConfigSet:
+) -> irast.Set:
 
     info = _validate_op(expr, ctx=ctx)
-    param_val = dispatch.compile(expr.expr, ctx=ctx)
+    param_val = setgen.ensure_set(
+        dispatch.compile(expr.expr, ctx=ctx), ctx=ctx)
 
     try:
         ireval.evaluate(param_val, schema=ctx.env.schema)
@@ -73,7 +74,7 @@ def compile_ConfigSet(
             context=expr.expr.context
         ) from e
 
-    return irast.ConfigSet(
+    config_set = irast.ConfigSet(
         name=info.param_name,
         cardinality=info.cardinality,
         scope=expr.scope,
@@ -82,13 +83,14 @@ def compile_ConfigSet(
         context=expr.context,
         expr=param_val,
     )
+    return setgen.ensure_set(config_set, ctx=ctx)
 
 
 @dispatch.compile.register
 def compile_ConfigReset(
     expr: qlast.ConfigReset, *,
     ctx: context.ContextLevel,
-) -> irast.ConfigReset:
+) -> irast.Set:
 
     info = _validate_op(expr, ctx=ctx)
     filter_expr = expr.where
@@ -117,9 +119,10 @@ def compile_ConfigReset(
         )
 
         ctx.modaliases[None] = 'cfg'
-        select_ir = dispatch.compile(select, ctx=ctx)
+        select_ir = setgen.ensure_set(
+            dispatch.compile(select, ctx=ctx), ctx=ctx)
 
-    return irast.ConfigReset(
+    config_reset = irast.ConfigReset(
         name=info.param_name,
         cardinality=info.cardinality,
         scope=expr.scope,
@@ -128,6 +131,7 @@ def compile_ConfigReset(
         context=expr.context,
         selector=select_ir,
     )
+    return setgen.ensure_set(config_reset, ctx=ctx)
 
 
 @dispatch.compile.register
@@ -136,7 +140,7 @@ def compile_ConfigInsert(
 
     info = _validate_op(expr, ctx=ctx)
 
-    if expr.scope is not qltypes.ConfigScope.SYSTEM:
+    if expr.scope is not qltypes.ConfigScope.INSTANCE:
         raise errors.UnsupportedFeatureError(
             f'CONFIGURE {expr.scope} INSERT is not supported'
         )
@@ -165,7 +169,7 @@ def compile_ConfigInsert(
         if isinstance(el.compexpr, qlast.InsertQuery):
             _inject_tname(el.compexpr, ctx=ctx)
 
-    with ctx.newscope() as subctx:
+    with ctx.newscope(fenced=False) as subctx:
         subctx.expr_exposed = True
         subctx.modaliases = ctx.modaliases.copy()
         subctx.modaliases[None] = 'cfg'
@@ -199,6 +203,7 @@ def _inject_tname(
         if isinstance(el.compexpr, qlast.InsertQuery):
             _inject_tname(el.compexpr, ctx=ctx)
 
+    assert isinstance(insert_stmt.subject.steps[0], qlast.BaseObjectRef)
     insert_stmt.shape.append(
         qlast.ShapeElement(
             expr=qlast.Path(
@@ -337,10 +342,10 @@ def _validate_op(
     else:
         affects_compilation = False
 
-    if system and expr.scope is not qltypes.ConfigScope.SYSTEM:
+    if system and expr.scope is not qltypes.ConfigScope.INSTANCE:
         raise errors.ConfigurationError(
             f'{name!r} is a system-level configuration parameter; '
-            f'use "CONFIGURE SYSTEM"')
+            f'use "CONFIGURE INSTANCE"')
 
     return SettingInfo(param_name=name,
                        param_type=cfg_type,

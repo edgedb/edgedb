@@ -13,9 +13,9 @@ fn test_verbatim() {
 #[test]
 fn test_configure() {
     let entry = normalize(r###"
-        CONFIGURE SYSTEM SET some_setting := 7
+        CONFIGURE INSTANCE SET some_setting := 7
     "###).unwrap();
-    assert_eq!(entry.processed_source, "CONFIGURE SYSTEM SET some_setting:=7");
+    assert_eq!(entry.processed_source, "CONFIGURE INSTANCE SET some_setting:=7");
     assert_eq!(entry.variables, vec![]);
 }
 

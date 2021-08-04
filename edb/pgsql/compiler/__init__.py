@@ -65,9 +65,15 @@ def compile_ir_to_sql_tree(
             type_rewrites = ir_expr.type_rewrites
             ir_expr = ir_expr.expr
         elif isinstance(ir_expr, irast.ConfigCommand):
+            assert ir_expr.scope_tree
             scope_tree = ir_expr.scope_tree
         else:
             scope_tree = irast.new_scope_tree()
+
+        scope_tree_nodes = {
+            node.unique_id: node for node in scope_tree.descendants
+            if node.unique_id is not None
+        }
 
         env = context.Environment(
             output_format=output_format,
@@ -78,6 +84,7 @@ def compile_ir_to_sql_tree(
             ignore_object_shapes=ignore_shapes,
             explicit_top_cast=explicit_top_cast,
             singleton_mode=singleton_mode,
+            scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
         )
 
@@ -90,6 +97,7 @@ def compile_ir_to_sql_tree(
 
         _ = context.CompilerContext(initial=ctx)
         ctx.singleton_mode = singleton_mode
+        ctx.expr_exposed = True
         qtree = dispatch.compile(ir_expr, ctx=ctx)
 
     except Exception as e:  # pragma: no cover
@@ -120,11 +128,13 @@ def compile_ir_to_sql(
         use_named_params=use_named_params,
         expected_cardinality_one=expected_cardinality_one)
 
-    if debug.flags.edgeql_compile:  # pragma: no cover
+    if (  # pragma: no cover
+        debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_ast
+    ):
         debug.header('SQL Tree')
         debug.dump(qtree)
 
-    if isinstance(qtree, pgast.Query):
+    if isinstance(qtree, pgast.Query) and qtree.argnames:
         argmap = qtree.argnames
     else:
         argmap = {}
@@ -133,7 +143,9 @@ def compile_ir_to_sql(
     codegen = _run_codegen(qtree, pretty=pretty)
     sql_text = ''.join(codegen.result)
 
-    if debug.flags.edgeql_compile:  # pragma: no cover
+    if (  # pragma: no cover
+        debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text
+    ):
         debug.header('SQL')
         debug.dump_code(sql_text, lexer='sql')
 

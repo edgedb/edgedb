@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: dna
+.. eql:section-intro-page:: datamodel
 
 ==========
 Data Model
@@ -18,7 +18,7 @@ Start putting your **Object Types** together with **properties** and
 **links**. Then build on them with items like **annotations** (readable
 notes for others), **constraints** to set limits (e.g. maximum length,
 minimum value, or even create your own), **indexes** for faster querying,
-and **computables** to use expressions to define properties or links
+and **computed** properties or links to define useful expressions
 (e.g. ``property email := .user_name ++ '@' ++ .provider_name``).
 
 **Expression Aliases** let you use existing types under new names to build
@@ -47,3 +47,4 @@ one or more **modules** (namespaces).
     annotations
     modules
     databases
+    extensions

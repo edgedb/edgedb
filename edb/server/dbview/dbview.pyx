@@ -134,6 +134,9 @@ cdef class Database:
         self._views.add(view)
         return view
 
+    cdef _remove_view(self, view):
+        self._views.remove(view)
+
 
 cdef class DatabaseConnectionView:
 
@@ -269,7 +272,7 @@ cdef class DatabaseConnectionView:
             self._db._index._global_schema,
         )
 
-    def resolve_array_type_id(self, type_id):
+    def resolve_backend_type_id(self, type_id):
         type_id = str(type_id)
 
         if self._in_tx:
@@ -281,7 +284,7 @@ cdef class DatabaseConnectionView:
         tid = self._db.backend_ids.get(type_id)
         if tid is None:
             raise RuntimeError(
-                f'failed to resolve array OID for type {type_id}')
+                f'cannot resolve backend OID for type {type_id}')
         return tid
 
     cdef bytes serialize_state(self):
@@ -440,7 +443,7 @@ cdef class DatabaseConnectionView:
                 )
                 side_effects |= SideEffects.SchemaChanges
             if query_unit.system_config:
-                side_effects |= SideEffects.SystemConfigChanges
+                side_effects |= SideEffects.InstanceConfigChanges
             if query_unit.database_config:
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
@@ -478,7 +481,7 @@ cdef class DatabaseConnectionView:
                 )
                 side_effects |= SideEffects.SchemaChanges
             if self._in_tx_with_sysconfig:
-                side_effects |= SideEffects.SystemConfigChanges
+                side_effects |= SideEffects.InstanceConfigChanges
             if self._in_tx_with_dbconfig:
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
@@ -508,7 +511,7 @@ cdef class DatabaseConnectionView:
             if setting.backend_setting:
                 continue
 
-            if op.scope is config.ConfigScope.SYSTEM:
+            if op.scope is config.ConfigScope.INSTANCE:
                 await self._db._index.apply_system_config_op(conn, op)
             elif op.scope is config.ConfigScope.DATABASE:
                 self.set_database_config(
@@ -558,6 +561,8 @@ cdef class DatabaseIndex:
         try:
             return self._dbs[dbname]
         except KeyError:
+            import traceback
+            traceback.print_stack()
             raise errors.UnknownDatabaseError(
                 f'database {dbname!r} does not exist')
 
@@ -614,7 +619,9 @@ cdef class DatabaseIndex:
         )
         block = dbops.PLTopBlock()
         dbops.UpdateMetadata(
-            dbops.Database(name=defines.EDGEDB_SYSTEM_DB),
+            dbops.Database(
+                name=self._server.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
+            ),
             {'sysconfig': json.loads(data)},
         ).generate(block)
         await conn.simple_query(block.to_string().encode(), True)
@@ -662,3 +669,7 @@ cdef class DatabaseIndex:
     def new_view(self, dbname: str, *, user: str, query_cache: bool):
         db = self.get_db(dbname)
         return (<Database>db)._new_view(user, query_cache)
+
+    def remove_view(self, view: DatabaseConnectionView):
+        db = self.get_db(view.dbname)
+        return (<Database>db)._remove_view(view)

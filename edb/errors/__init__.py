@@ -71,11 +71,14 @@ __all__ = base.__all__ + (  # type: ignore
     'CardinalityViolationError',
     'MissingRequiredError',
     'TransactionError',
+    'TransactionConflictError',
     'TransactionSerializationError',
     'TransactionDeadlockError',
     'ConfigurationError',
     'AccessError',
     'AuthenticationError',
+    'AvailabilityError',
+    'BackendUnavailableError',
     'LogMessage',
     'WarningMessage',
 )
@@ -329,12 +332,16 @@ class TransactionError(ExecutionError):
     _code = 0x_05_03_00_00
 
 
-class TransactionSerializationError(TransactionError):
-    _code = 0x_05_03_00_01
+class TransactionConflictError(TransactionError):
+    _code = 0x_05_03_01_00
 
 
-class TransactionDeadlockError(TransactionError):
-    _code = 0x_05_03_00_02
+class TransactionSerializationError(TransactionConflictError):
+    _code = 0x_05_03_01_01
+
+
+class TransactionDeadlockError(TransactionConflictError):
+    _code = 0x_05_03_01_02
 
 
 class ConfigurationError(EdgeDBError):
@@ -347,6 +354,14 @@ class AccessError(EdgeDBError):
 
 class AuthenticationError(AccessError):
     _code = 0x_07_01_00_00
+
+
+class AvailabilityError(EdgeDBError):
+    _code = 0x_08_00_00_00
+
+
+class BackendUnavailableError(AvailabilityError):
+    _code = 0x_08_00_00_01
 
 
 class LogMessage(EdgeDBMessage):

@@ -16,7 +16,7 @@ Linux or macOS.  Windows is not currently supported.
 
 * GNU make version 3.80 or newer;
 * C compiler (GCC or clang);
-* Rust compiler and Cargo 1.45 or later;
+* Rust compiler and Cargo 1.53 or later;
 * autotools;
 * Python 3.9 dev package;
 * Bison 1.875 or later;
@@ -44,12 +44,11 @@ Python "venv" with all dependencies and commands installed into it.
       $ mkdir ~/dev
       $ cd ~/dev
 
-#. Clone edgedb and edgedb-python repositories:
+#. Clone the edgedb repository:
 
    .. code-block:: bash
 
-      $ git clone --recursive git@github.com:edgedb/edgedb.git
-      $ git clone --recursive git@github.com:edgedb/edgedb-python.git
+      $ https://github.com/edgedb/edgedb.git
 
 #. Create a Python 3.9 virtual environment and activate it:
 
@@ -58,22 +57,15 @@ Python "venv" with all dependencies and commands installed into it.
       $ python3.9 -m venv edgedb-dev
       $ source edgedb-dev/bin/activate
 
-#. Build edgedb-python:
-
-   .. code-block:: bash
-
-      $ cd edgedb-python
-      $ pip install -v -e .
-
 #. Build edgedb (the build will take a while):
 
    .. code-block:: bash
 
       $ cd ../edgedb
-      $ pip install -v -e ".[test,docs]"
+      $ pip install -v -e ".[test]"
 
    In addition to compiling EdgeDB and all dependencies, this will also
-   install ``edb`` and ``edgedb`` command line tools into the current
+   install the ``edb`` and ``edgedb`` command line tools into the current
    Python virtual environment.
 
    It will also install libraries used during development.

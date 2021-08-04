@@ -22,19 +22,17 @@ from typing import *
 
 import asyncio
 import contextlib
-import errno
+import datetime
 import logging
 import os
 import os.path
 import pathlib
-import random
 import resource
 import signal
 import socket
 import sys
 import tempfile
-import typing
-import warnings
+import uuid
 
 import uvloop
 
@@ -42,18 +40,26 @@ import click
 import setproctitle
 
 from edb.common import devmode
+from edb.common import signalctl
 from edb.common import exceptions
 
-from edb.server import defines as edgedb_defines
-
+from . import args as srvargs
 from . import buildmeta
-from . import cluster as edgedb_cluster
 from . import daemon
 from . import defines
 from . import logsetup
 from . import pgconnparams
 from . import pgcluster
-from . import protocol
+
+
+if TYPE_CHECKING:
+    from . import server
+else:
+    # Import server lazily to make sure that most of imports happen
+    # under coverage (if we're testing with it).  Otherwise
+    # coverage will fail to detect that "import edb..." lines
+    # actually were run.
+    server = None
 
 
 logger = logging.getLogger('edb.server')
@@ -63,10 +69,6 @@ _server_initialized = False
 def abort(msg, *args) -> NoReturn:
     logger.critical(msg, *args)
     sys.exit(1)
-
-
-def terminate_server(server, loop):
-    loop.stop()
 
 
 @contextlib.contextmanager
@@ -121,7 +123,7 @@ def _ensure_runstate_dir(
 @contextlib.contextmanager
 def _internal_state_dir(runstate_dir):
     try:
-        with tempfile.TemporaryDirectory(prefix='internal-',
+        with tempfile.TemporaryDirectory(prefix='edgedb-internal-',
                                          dir=runstate_dir) as td:
             yield td
     except PermissionError as ex:
@@ -130,23 +132,10 @@ def _internal_state_dir(runstate_dir):
               f'--runstate-dir to specify the correct location')
 
 
-def _init_cluster(cluster, args: ServerConfig) -> bool:
+def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
     from edb.server import bootstrap
 
-    bootstrap_args = {
-        'default_database': (args.default_database or
-                             args.default_database_user),
-        'default_database_user': args.default_database_user,
-        'testmode': args.testmode,
-        'insecure': args.insecure,
-        'bootstrap_script': args.bootstrap_script,
-        'bootstrap_command': args.bootstrap_command,
-    }
-
-    need_restart = asyncio.run(
-        bootstrap.ensure_bootstrapped(cluster, bootstrap_args)
-    )
-
+    need_restart = asyncio.run(bootstrap.ensure_bootstrapped(cluster, args))
     global _server_initialized
     _server_initialized = True
 
@@ -181,96 +170,174 @@ def _init_parsers():
     ql_parser.preload()
 
 
-def _run_server(cluster, args: ServerConfig,
-                runstate_dir, internal_runstate_dir):
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    # Import here to make sure that most of imports happen
-    # under coverage (if we're testing with it).  Otherwise
-    # coverage will fail to detect that "import edb..." lines
-    # actually were run.
-    from . import server
-
-    bootstrap_script_text: Optional[str]
-    if args.bootstrap_script:
-        with open(args.bootstrap_script) as f:
-            bootstrap_script_text = f.read()
-    elif args.bootstrap_command:
-        bootstrap_script_text = args.bootstrap_command
-    else:
-        bootstrap_script_text = None
-
-    if bootstrap_script_text is None:
-        bootstrap_script = None
-    else:
-        bootstrap_script = server.StartupScript(
-            text=bootstrap_script_text,
-            database=(
-                args.default_database or
-                edgedb_defines.EDGEDB_SUPERUSER_DB
-            ),
-            user=(
-                args.default_database_user or
-                edgedb_defines.EDGEDB_SUPERUSER
-            ),
+async def _run_server(
+    cluster,
+    args: srvargs.ServerConfig,
+    runstate_dir,
+    internal_runstate_dir,
+    *,
+    do_setproctitle: bool
+):
+    with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
+        ss = server.Server(
+            cluster=cluster,
+            runstate_dir=runstate_dir,
+            internal_runstate_dir=internal_runstate_dir,
+            max_backend_connections=args.max_backend_connections,
+            compiler_pool_size=args.compiler_pool_size,
+            nethosts=args.bind_addresses,
+            netport=args.port,
+            auto_shutdown_after=args.auto_shutdown_after,
+            echo_runtime_info=args.echo_runtime_info,
+            status_sink=args.status_sink,
+            startup_script=args.startup_script,
+            allow_insecure_binary_clients=args.allow_insecure_binary_clients,
+            allow_insecure_http_clients=args.allow_insecure_http_clients,
         )
+        await sc.wait_for(ss.init())
 
-    ss = server.Server(
-        loop=loop,
-        cluster=cluster,
-        runstate_dir=runstate_dir,
-        internal_runstate_dir=internal_runstate_dir,
-        max_backend_connections=args.max_backend_connections,
-        compiler_pool_size=args.compiler_pool_size,
-        nethost=args.bind_address,
-        netport=args.port,
-        auto_shutdown=args.auto_shutdown,
-        echo_runtime_info=args.echo_runtime_info,
-        startup_script=bootstrap_script,
-    )
+        if args.generate_self_signed_cert:
+            ss.init_tls(
+                *_generate_cert(
+                    args.data_dir or pathlib.Path(internal_runstate_dir),
+                    ss.get_listen_hosts(),
+                )
+            )
 
-    loop.run_until_complete(ss.init())
+        if args.bootstrap_only:
+            if args.startup_script:
+                await sc.wait_for(ss.run_startup_script_and_exit())
+            return
 
-    if args.bootstrap_only:
-        loop.run_until_complete(ss.run_startup_script_and_exit())
-    else:
-        try:
-            loop.run_until_complete(ss.start())
-        except Exception:
-            loop.run_until_complete(ss.stop())
-            raise
-
-        loop.add_signal_handler(signal.SIGTERM, terminate_server, ss, loop)
-
-        # Notify systemd that we've started up.
-        _sd_notify('READY=1')
+        if not args.generate_self_signed_cert:
+            ss.init_tls(args.tls_cert_file, args.tls_key_file)
 
         try:
-            loop.run_forever()
-        finally:
+            await sc.wait_for(ss.start())
+
+            if do_setproctitle:
+                setproctitle.setproctitle(
+                    f"edgedb-server-{ss.get_listen_port()}"
+                )
+
+            # Notify systemd that we've started up.
+            _sd_notify('READY=1')
+
             try:
-                logger.info('Shutting down.')
-                loop.run_until_complete(ss.stop())
-            finally:
-                _sd_notify('STOPPING=1')
+                await sc.wait_for(ss.serve_forever())
+            except signalctl.SignalError as e:
+                logger.info('Received signal: %s.', e.signo)
+        finally:
+            _sd_notify('STOPPING=1')
+            logger.info('Shutting down.')
+            await sc.wait_for(ss.stop())
 
 
-def run_server(args: ServerConfig):
+def _generate_cert(
+    cert_dir: pathlib.Path, listen_hosts: Iterable[str]
+) -> Tuple[pathlib.Path, Optional[pathlib.Path]]:
+    logger.info("Generating self-signed TLS certificate.")
+
+    from cryptography import x509
+    from cryptography.hazmat import backends
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509 import oid
+
+    backend = backends.default_backend()
+    private_key = rsa.generate_private_key(
+        public_exponent=65537, key_size=2048, backend=backend
+    )
+    subject = x509.Name(
+        [x509.NameAttribute(oid.NameOID.COMMON_NAME, "EdgeDB Server")]
+    )
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .public_key(private_key.public_key())
+        .serial_number(int(uuid.uuid4()))
+        .issuer_name(subject)
+        .not_valid_before(
+            datetime.datetime.today() - datetime.timedelta(days=1)
+        )
+        .not_valid_after(
+            datetime.datetime.today() + datetime.timedelta(weeks=1000)
+        )
+        .add_extension(
+            x509.SubjectAlternativeName(
+                [x509.DNSName(name) for name in listen_hosts
+                 if name != '0.0.0.0']
+            ),
+            critical=False,
+        )
+        .sign(
+            private_key=private_key,
+            algorithm=hashes.SHA256(),
+            backend=backend,
+        )
+    )
+    cert_file = cert_dir / srvargs.TLS_CERT_FILE_NAME
+    key_file = cert_dir / srvargs.TLS_KEY_FILE_NAME
+    with cert_file.open("wb") as f:
+        f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
+    with key_file.open("wb") as f:
+        f.write(
+            private_key.private_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PrivateFormat.TraditionalOpenSSL,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+        )
+    return cert_file, key_file
+
+
+def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
+
+    from . import server as server_mod
+    global server
+    server = server_mod
+
     ver = buildmeta.get_version()
 
+    info_details = f'version: {ver}'
+    if args.instance_name:
+        info_details = f'instance-name: {args.instance_name!r}, {info_details}'
     if devmode.is_in_dev_mode():
-        logger.info(f'EdgeDB server ({ver}) starting in DEV mode.')
+        logger.info(f'EdgeDB server ({info_details}) is starting in DEV mode.')
     else:
-        logger.info(f'EdgeDB server ({ver}) starting.')
+        logger.info(f'EdgeDB server ({info_details}) is starting.')
 
     _init_parsers()
 
     pg_cluster_init_by_us = False
     pg_cluster_started_by_us = False
 
+    if args.tenant_id is None:
+        tenant_id = buildmeta.get_default_tenant_id()
+    else:
+        tenant_id = f'C{args.tenant_id}'
+
     cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
     if args.data_dir:
-        cluster = pgcluster.get_local_pg_cluster(args.data_dir)
+        pg_max_connections = args.max_backend_connections
+        if not pg_max_connections:
+            max_conns = srvargs.compute_default_max_backend_connections()
+            pg_max_connections = max_conns
+            if args.testmode:
+                max_conns = srvargs.adjust_testmode_max_connections(max_conns)
+                logger.info(f'Configuring Postgres max_connections='
+                            f'{pg_max_connections} under test mode.')
+            args = args._replace(max_backend_connections=max_conns)
+            logger.info(f'Using {max_conns} max backend connections based on '
+                        f'total memory.')
+
+        cluster = pgcluster.get_local_pg_cluster(
+            args.data_dir,
+            # Plus two below to account for system connections.
+            max_connections=pg_max_connections + 2,
+            tenant_id=tenant_id,
+        )
         default_runstate_dir = cluster.get_data_dir()
         cluster.set_connection_params(
             pgconnparams.ConnectionParameters(
@@ -279,7 +346,26 @@ def run_server(args: ServerConfig):
             ),
         )
     elif args.postgres_dsn:
-        cluster = pgcluster.get_remote_pg_cluster(args.postgres_dsn)
+        cluster = pgcluster.get_remote_pg_cluster(
+            args.postgres_dsn,
+            tenant_id=tenant_id,
+        )
+
+        instance_params = cluster.get_runtime_params().instance_params
+        max_conns = (
+            instance_params.max_connections -
+            instance_params.reserved_connections)
+        if not args.max_backend_connections:
+            logger.info(f'Detected {max_conns} backend connections available.')
+            if args.testmode:
+                max_conns = srvargs.adjust_testmode_max_connections(max_conns)
+                logger.info(f'Using max_backend_connections={max_conns} '
+                            f'under test mode.')
+            args = args._replace(max_backend_connections=max_conns)
+        elif args.max_backend_connections > max_conns:
+            abort(f'--max-backend-connections is too large for this backend; '
+                  f'detected maximum available NUM: {max_conns}')
+
         default_runstate_dir = None
     else:
         # This should have been checked by main() already,
@@ -314,7 +400,7 @@ def run_server(args: ServerConfig):
                 _internal_state_dir(runstate_dir) as internal_runstate_dir:
 
             if cluster_status == 'stopped':
-                cluster.start(port=edgedb_cluster.find_available_port())
+                cluster.start()
                 pg_cluster_started_by_us = True
 
             elif cluster_status != 'running':
@@ -325,24 +411,38 @@ def run_server(args: ServerConfig):
 
             if need_cluster_restart and pg_cluster_started_by_us:
                 logger.info('Restarting server to reload configuration...')
-                cluster_port = cluster.get_connection_spec()['port']
                 cluster.stop()
-                cluster.start(port=cluster_port)
+                cluster.start()
 
             if (
                 not args.bootstrap_only
                 or args.bootstrap_script
                 or args.bootstrap_command
+                or args.generate_self_signed_cert
             ):
                 if args.data_dir:
                     cluster.set_connection_params(
                         pgconnparams.ConnectionParameters(
-                            user=defines.EDGEDB_SUPERUSER,
-                            database=defines.EDGEDB_TEMPLATE_DB,
+                            user='postgres',
+                            database=pgcluster.get_database_backend_name(
+                                defines.EDGEDB_TEMPLATE_DB,
+                                tenant_id=tenant_id,
+                            ),
                         ),
                     )
 
-                _run_server(cluster, args, runstate_dir, internal_runstate_dir)
+                asyncio.run(
+                    _run_server(
+                        cluster,
+                        args,
+                        runstate_dir,
+                        internal_runstate_dir,
+                        do_setproctitle=do_setproctitle,
+                    )
+                )
+
+    except server.StartupError as e:
+        abort(str(e))
 
     except BaseException:
         if pg_cluster_init_by_us and not _server_initialized:
@@ -363,87 +463,6 @@ def run_server(args: ServerConfig):
             cluster.stop()
 
 
-class PathPath(click.Path):
-    name = 'path'
-
-    def convert(self, value, param, ctx):
-        return pathlib.Path(super().convert(value, param, ctx)).absolute()
-
-
-class PortType(click.ParamType):
-    name = 'port'
-
-    @staticmethod
-    def find_available_port(port_range=(49152, 65535), max_tries=1000):
-        low, high = port_range
-
-        port = low
-        try_no = 0
-
-        while try_no < max_tries:
-            try_no += 1
-            port = random.randint(low, high)
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            try:
-                sock.bind(('localhost', port))
-            except socket.error as e:
-                if e.errno == errno.EADDRINUSE:
-                    continue
-                raise
-            finally:
-                sock.close()
-
-            break
-        else:
-            port = None
-
-        return port
-
-    def convert(self, value, param, ctx):
-        if value == 'auto':
-            return self.find_available_port()
-
-        try:
-            return int(value, 10)
-        except TypeError:
-            self.fail(
-                "expected string for int() conversion, got "
-                f"{value!r} of type {type(value).__name__}",
-                param,
-                ctx,
-            )
-        except ValueError:
-            self.fail(f"{value!r} is not a valid integer", param, ctx)
-
-
-class ServerConfig(typing.NamedTuple):
-
-    insecure: bool
-    data_dir: pathlib.Path
-    postgres_dsn: str
-    log_level: str
-    log_to: str
-    bootstrap_only: bool
-    bootstrap_command: str
-    bootstrap_script: pathlib.Path
-    default_database: Optional[str]
-    default_database_user: Optional[str]
-    devmode: bool
-    testmode: bool
-    bind_address: str
-    port: int
-    background: bool
-    pidfile_dir: pathlib.Path
-    daemon_user: str
-    daemon_group: str
-    runstate_dir: pathlib.Path
-    max_backend_connections: int
-    compiler_pool_size: int
-    echo_runtime_info: bool
-    temp_dir: bool
-    auto_shutdown: bool
-
-
 def bump_rlimit_nofile() -> None:
     try:
         fno_soft, fno_hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -460,148 +479,7 @@ def bump_rlimit_nofile() -> None:
                 logger.warning('could not set RLIMIT_NOFILE')
 
 
-def _get_runstate_dir_default() -> str:
-    try:
-        return buildmeta.get_build_metadata_value("RUNSTATE_DIR")
-    except buildmeta.MetadataError:
-        return '<data-dir>'
-
-
-def _protocol_version(
-    ctx: click.Context,
-    param: click.Param,  # type: ignore[name-defined]
-    value: str,
-) -> Tuple[int, int]:
-    try:
-        minor, major = map(int, value.split('.'))
-        ver = minor, major
-        if ver < protocol.MIN_PROTOCOL or ver > protocol.CURRENT_PROTOCOL:
-            raise ValueError()
-    except ValueError:
-        raise click.UsageError(
-            f"protocol version must be in the form "
-            f"MAJOR.MINOR, in the range of "
-            f"{protocol.MIN_PROTOCOL[0]}.{protocol.MIN_PROTOCOL[1]} - "
-            f"{protocol.CURRENT_PROTOCOL[0]}.{protocol.CURRENT_PROTOCOL[1]}")
-    return ver
-
-
-def _validate_max_backend_connections(ctx, param, value):
-    if value < defines.BACKEND_CONNECTIONS_MIN:
-        raise click.BadParameter(
-            f'the minimum number of backend connections '
-            f'is {defines.BACKEND_CONNECTIONS_MIN}')
-    return value
-
-
-def _validate_compiler_pool_size(ctx, param, value):
-    if value < defines.BACKEND_COMPILER_POOL_SIZE_MIN:
-        raise click.BadParameter(
-            f'the minimum value for the compiler pool size option '
-            f'is {defines.BACKEND_COMPILER_POOL_SIZE_MIN}')
-    return value
-
-
-_server_options = [
-    click.option(
-        '-D', '--data-dir', type=PathPath(), envvar='EDGEDB_DATADIR',
-        help='database cluster directory'),
-    click.option(
-        '--postgres-dsn', type=str,
-        help='DSN of a remote Postgres cluster, if using one'),
-    click.option(
-        '-l', '--log-level',
-        help=('Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '
-              '(e)rror, (s)ilent'),
-        default='i', envvar='EDGEDB_LOG_LEVEL'),
-    click.option(
-        '--log-to',
-        help=('send logs to DEST, where DEST can be a file name, "syslog", '
-              'or "stderr"'),
-        type=str, metavar='DEST', default='stderr'),
-    click.option(
-        '--bootstrap', is_flag=True, hidden=True,
-        help='[DEPRECATED] bootstrap the database cluster and exit'),
-    click.option(
-        '--bootstrap-only', is_flag=True,
-        help='bootstrap the database cluster and exit'),
-    click.option(
-        '--default-database', type=str, hidden=True,
-        help='[DEPRECATED] the name of the default database to create'),
-    click.option(
-        '--default-database-user', type=str, hidden=True,
-        help='[DEPRECATED] the name of the default database owner'),
-    click.option(
-        '--bootstrap-command', metavar="QUERIES",
-        help='run the commands when initializing the database. '
-             'Queries are executed by default user within default '
-             'database. May be used with or without `--bootstrap-only`.'),
-    click.option(
-        '--bootstrap-script', type=PathPath(), metavar="PATH",
-        help='run the script when initializing the database. '
-             'Script run by default user within default database. '
-             'May be used with or without `--bootstrap-only`.'),
-    click.option(
-        '--devmode/--no-devmode',
-        help='enable or disable the development mode',
-        default=None),
-    click.option(
-        '--testmode/--no-testmode',
-        help='enable or disable the test mode',
-        default=False),
-    click.option(
-        '-I', '--bind-address', type=str, default=None,
-        help='IP address to listen on', envvar='EDGEDB_BIND_ADDRESS'),
-    click.option(
-        '-P', '--port', type=PortType(), default=None,
-        help='port to listen on'),
-    click.option(
-        '-b', '--background', is_flag=True, help='daemonize'),
-    click.option(
-        '--pidfile-dir', type=PathPath(), default='/run/edgedb/',
-        help='path to PID file directory'),
-    click.option(
-        '--daemon-user', type=int),
-    click.option(
-        '--daemon-group', type=int),
-    click.option(
-        '--runstate-dir', type=PathPath(), default=None,
-        help=f'directory where UNIX sockets and other temporary '
-             f'runtime files will be placed ({_get_runstate_dir_default()} '
-             f'by default)'),
-    click.option(
-        '--max-backend-connections', type=int,
-        default=defines.BACKEND_CONNECTIONS_DEFAULT,
-        callback=_validate_max_backend_connections),
-    click.option(
-        '--compiler-pool-size', type=int,
-        default=defines.BACKEND_COMPILER_POOL_SIZE_DEFAULT,
-        callback=_validate_compiler_pool_size),
-    click.option(
-        '--echo-runtime-info', type=bool, default=False, is_flag=True,
-        help='echo runtime info to stdout; the format is JSON, prefixed by ' +
-             '"EDGEDB_SERVER_DATA:", ended with a new line'),
-    click.option(
-        '--temp-dir', type=bool, default=False, is_flag=True,
-        help='create a temporary database cluster directory '
-             'that will be automatically purged on server shutdown'),
-    click.option(
-        '--auto-shutdown', type=bool, default=False, is_flag=True,
-        help='shutdown the server after the last management ' +
-             'connection is closed'),
-    click.option(
-        '--version', is_flag=True,
-        help='Show the version and exit.')
-]
-
-
-def server_options(func):
-    for option in reversed(_server_options):
-        func = option(func)
-    return func
-
-
-def server_main(*, insecure=False, bootstrap, **kwargs):
+def server_main(*, insecure=False, **kwargs):
     logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
 
@@ -612,66 +490,7 @@ def server_main(*, insecure=False, bootstrap, **kwargs):
     if kwargs['devmode'] is not None:
         devmode.enable_dev_mode(kwargs['devmode'])
 
-    if bootstrap:
-        warnings.warn(
-            "Option `--bootstrap` is deprecated, use `--bootstrap-only`",
-            DeprecationWarning,
-        )
-        kwargs['bootstrap_only'] = True
-
-    if kwargs['default_database_user']:
-        if kwargs['default_database_user'] == 'edgedb':
-            warnings.warn(
-                "Option `--default-database-user` is deprecated."
-                " Role `edgedb` is always created and"
-                " no role named after unix user is created any more.",
-                DeprecationWarning,
-            )
-        else:
-            warnings.warn(
-                "Option `--default-database-user` is deprecated."
-                " Please create the role explicitly.",
-                DeprecationWarning,
-            )
-
-    if kwargs['default_database']:
-        if kwargs['default_database'] == 'edgedb':
-            warnings.warn(
-                "Option `--default-database` is deprecated."
-                " Database `edgedb` is always created and"
-                " no database named after unix user is created any more.",
-                DeprecationWarning,
-            )
-        else:
-            warnings.warn(
-                "Option `--default-database` is deprecated."
-                " Please create the database explicitly.",
-                DeprecationWarning,
-            )
-
-    if kwargs['temp_dir']:
-        if kwargs['data_dir']:
-            abort('--temp-dir is incompatible with --data-dir/-D')
-        if kwargs['runstate_dir']:
-            abort('--temp-dir is incompatible with --runstate-dir')
-        if kwargs['postgres_dsn']:
-            abort('--temp-dir is incompatible with --postgres-dsn')
-        kwargs['data_dir'] = kwargs['runstate_dir'] = pathlib.Path(
-            tempfile.mkdtemp())
-    else:
-        if not kwargs['data_dir']:
-            if kwargs['postgres_dsn']:
-                pass
-            elif devmode.is_in_dev_mode():
-                kwargs['data_dir'] = os.path.expanduser('~/.edgedb')
-            else:
-                abort('Please specify the instance data directory '
-                      'using the -D argument or the address of a remote '
-                      'PostgreSQL cluster using the --postgres-dsn argument')
-        elif kwargs['postgres_dsn']:
-            abort('The -D and --postgres-dsn options are mutually exclusive.')
-
-    kwargs['insecure'] = insecure
+    server_args = srvargs.parse_args(insecure=insecure, **kwargs)
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}
@@ -682,23 +501,16 @@ def server_main(*, insecure=False, bootstrap, **kwargs):
         if kwargs['daemon_group']:
             daemon_opts['gid'] = kwargs['daemon_group']
         with daemon.DaemonContext(**daemon_opts):
-            # TODO: setproctitle should probably be moved to where
-            # management port is initialized, as that's where we know
-            # the actual network port we listen on.  At this point
-            # "port" can be "None".
-            setproctitle.setproctitle(
-                f"edgedb-server-{kwargs['port']}")
-
-            run_server(ServerConfig(**kwargs))
+            run_server(server_args, setproctitle=True)
     else:
         with devmode.CoverageConfig.enable_coverage_if_requested():
-            run_server(ServerConfig(**kwargs))
+            run_server(server_args)
 
 
 @click.command(
     'EdgeDB Server',
     context_settings=dict(help_option_names=['-h', '--help']))
-@server_options
+@srvargs.server_options
 def main(version=False, **kwargs):
     if version:
         print(f"edgedb-server, version {buildmeta.get_version()}")

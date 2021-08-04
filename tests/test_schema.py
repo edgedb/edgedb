@@ -43,7 +43,9 @@ if TYPE_CHECKING:
 
 
 class TestSchema(tb.BaseSchemaLoadTest):
-    def test_schema_overloaded_01(self):
+    DEFAULT_MODULE = 'test'
+
+    def test_schema_overloaded_prop_01(self):
         """
             type UniqueName {
                 property name -> str {
@@ -60,7 +62,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(errors.SchemaDefinitionError,
                   "'name'.*must be declared using the `overloaded` keyword",
                   position=228)
-    def test_schema_overloaded_02(self):
+    def test_schema_overloaded_prop_02(self):
         """
             type UniqueName {
                 property name -> str {
@@ -78,11 +80,199 @@ class TestSchema(tb.BaseSchemaLoadTest):
     @tb.must_fail(errors.SchemaDefinitionError,
                   "'name'.*cannot be declared `overloaded`",
                   position=61)
-    def test_schema_overloaded_03(self):
+    def test_schema_overloaded_prop_03(self):
         """
             type UniqueName {
                 overloaded property name -> str
             };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the computed property 'val' "
+                  "of object type 'test::UniqueName_2' to overload "
+                  "an existing property")
+    def test_schema_overloaded_prop_04(self):
+        """
+            type UniqueName {
+                property val -> str {
+                    constraint exclusive;
+                }
+            };
+            type UniqueName_2 extending UniqueName {
+                overloaded property val -> str {
+                    using ('bad');
+                }
+            };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the computed property 'val' "
+                  "of object type 'test::UniqueName_2' to overload "
+                  "an existing property")
+    def test_schema_overloaded_prop_05(self):
+        """
+            type UniqueName {
+                property val := 'ok';
+            };
+            type UniqueName_2 extending UniqueName {
+                # This doesn't appear to be a computable property, but
+                # it is due to inheritance.
+                overloaded property val -> str {
+                    constraint exclusive;
+                }
+            };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the property 'val' of object "
+                  "type 'test::UniqueName_3' to extend both a computed "
+                  "and a non-computed property")
+    def test_schema_overloaded_prop_06(self):
+        """
+            type UniqueName {
+                property val := 'ok';
+            };
+            type UniqueName_2 {
+                property val -> str;
+            };
+            type UniqueName_3 extending UniqueName, UniqueName_2;
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the property 'val' of object "
+                  "type 'test::UniqueName_3' to extend more than one "
+                  "computed property")
+    def test_schema_overloaded_prop_07(self):
+        """
+            type UniqueName {
+                property val := 'ok';
+            };
+            type UniqueName_2 {
+                property val := 'ok';
+            };
+            # It's illegal to extend 2 computable properties even if
+            # the expression is the same for them.
+            type UniqueName_3 extending UniqueName, UniqueName_2;
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the property 'val' of object "
+                  "type 'test::UniqueName_4' to extend both a computed "
+                  "and a non-computed property")
+    def test_schema_overloaded_prop_08(self):
+        """
+            type UniqueName {
+                property val -> str;
+            };
+            type UniqueName_2 {
+                property val := 'ok';
+            };
+            type UniqueName_3 extending UniqueName_2;
+            type UniqueName_4 extending UniqueName, UniqueName_3;
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "it is illegal to create a type union that causes "
+                  "a computed property 'val' to mix with other "
+                  "versions of the same property 'val'")
+    def test_schema_overloaded_prop_09(self):
+        # Overloading implicitly via a type UNION.
+        """
+            type UniqueName {
+                property val -> str;
+            };
+            type UniqueName_2 {
+                property val := 'ok';
+            };
+            alias Combo := {UniqueName, UniqueName_2};
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "it is illegal to create a type union that causes "
+                  "a computed property 'val' to mix with other "
+                  "versions of the same property 'val'")
+    def test_schema_overloaded_prop_10(self):
+        # Overloading implicitly via a type UNION.
+        """
+            type UniqueName {
+                property val -> str;
+            };
+            type UniqueName_2 {
+                property val := 'ok';
+            };
+            type Combo {
+               multi link comp := {UniqueName, UniqueName_2};
+            }
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the computed link 'foo' "
+                  "of object type 'test::UniqueName_2' to overload "
+                  "an existing link")
+    def test_schema_overloaded_link_01(self):
+        """
+            type Foo;
+            type UniqueName {
+                link foo -> Foo;
+            };
+            type UniqueName_2 extending UniqueName {
+                overloaded link foo -> Foo {
+                    using (SELECT Foo LIMIT 1);
+                }
+            };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the computed link 'foo' "
+                  "of object type 'test::UniqueName_2' to overload "
+                  "an existing link")
+    def test_schema_overloaded_link_02(self):
+        """
+            type Foo;
+            type UniqueName {
+                link foo := (SELECT Foo LIMIT 1);
+            };
+            type UniqueName_2 extending UniqueName {
+                # This doesn't appear to be a computable link, but
+                # it is due to inheritance.
+                overloaded link foo -> Foo {
+                    constraint exclusive;
+                }
+            };
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the link 'foo' of object "
+                  "type 'test::UniqueName_3' to extend both a computed "
+                  "and a non-computed link")
+    def test_schema_overloaded_link_03(self):
+        """
+            type Foo;
+            type UniqueName {
+                link foo := (SELECT Foo LIMIT 1);
+            };
+            type UniqueName_2 {
+                link foo -> Foo;
+            };
+            type UniqueName_3 extending UniqueName, UniqueName_2;
+        """
+
+    @tb.must_fail(errors.SchemaDefinitionError,
+                  "it is illegal for the link 'foo' of object "
+                  "type 'test::UniqueName_3' to extend more than one "
+                  "computed link")
+    def test_schema_overloaded_link_04(self):
+        """
+            type Foo;
+            type UniqueName {
+                link foo := (SELECT Foo LIMIT 1);
+            };
+            type UniqueName_2 {
+                link foo := (SELECT Foo LIMIT 1);
+            };
+            # It's illegal to extend 2 computable links even if
+            # the expression is the same for them.
+            type UniqueName_3 extending UniqueName, UniqueName_2;
         """
 
     @tb.must_fail(errors.InvalidLinkTargetError,
@@ -105,17 +295,6 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
-    @tb.must_fail(errors.SchemaDefinitionError,
-                  'link or property name length exceeds the maximum.*',
-                  position=57)
-    def test_schema_bad_link_03(self):
-        """
-            type Object {
-                link f123456789_123456789_123456789_123456789_123456789\
-_123456789_123456789_123456789 -> Object
-            };
-        """
-
     @tb.must_fail(errors.InvalidPropertyTargetError,
                   "invalid property type: expected a scalar type, "
                   "or a scalar collection, got object type 'test::Object'",
@@ -135,17 +314,6 @@ _123456789_123456789_123456789 -> Object
         """
             type Object {
                 property foo := (SELECT Object)
-            };
-        """
-
-    @tb.must_fail(errors.SchemaDefinitionError,
-                  'link or property name length exceeds the maximum.*',
-                  position=57)
-    def test_schema_bad_prop_03(self):
-        """
-            type Object {
-                property f123456789_123456789_123456789_123456789_123456789\
-_123456789_123456789_123456789 -> str
             };
         """
 
@@ -313,7 +481,7 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly more than one element returned by an expression "
-                  "for the computable link 'ham' of object type 'test::Spam' "
+                  "for the computed link 'ham' of object type 'test::Spam' "
                   "explicitly declared as 'single'",
                   line=5, col=36)
     def test_schema_computable_cardinality_inference_03(self):
@@ -327,7 +495,7 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly more than one element returned by an expression "
-                  "for the computable property 'hams' of object type "
+                  "for the computed property 'hams' of object type "
                   "'test::Spam' explicitly declared as 'single'",
                   line=5, col=41)
     def test_schema_computable_cardinality_inference_04(self):
@@ -341,7 +509,7 @@ _123456789_123456789_123456789 -> str
 
     @tb.must_fail(errors.SchemaDefinitionError,
                   "possibly an empty set returned by an expression for "
-                  "the computable property 'hams' of object type "
+                  "the computed property 'hams' of object type "
                   "'test::Spam' explicitly declared as 'required'",
                   line=5, col=43)
     def test_schema_computable_cardinality_inference_05(self):
@@ -386,6 +554,55 @@ _123456789_123456789_123456789 -> str
 
             type C extending A, B {
                 overloaded optional property title -> str;
+            }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "the type inferred from the expression of the computed property "
+        "'title' of object type 'test::A' is scalar type 'std::int64', "
+        "which does not match the explicitly specified scalar type 'std::str'",
+        line=3, col=35)
+    def test_schema_target_consistency_check_01(self):
+        """
+            type A {
+                property title -> str {
+                    using (1)
+                }
+            }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "the type inferred from the expression of the computed property "
+        "'title' of object type 'test::A' is collection "
+        "'tuple<std::int64, std::int64>', which does not match the explicitly "
+        "specified collection 'tuple<std::str, std::str>'",
+        line=3, col=35)
+    def test_schema_target_consistency_check_02(self):
+        """
+            type A {
+                property title -> tuple<str, str> {
+                    using ((1, 2))
+                }
+            }
+        """
+
+    @tb.must_fail(
+        errors.SchemaDefinitionError,
+        "the type inferred from the expression of the computed link "
+        "'foo' of object type 'test::C' is object type 'test::B', "
+        "which does not match the explicitly specified object type 'test::A'",
+        line=6, col=29)
+    def test_schema_target_consistency_check_03(self):
+        """
+            type A;
+            type B;
+
+            type C {
+                link foo -> A {
+                    using (SELECT B)
+                }
             }
         """
 
@@ -492,7 +709,7 @@ _123456789_123456789_123456789 -> str
         schema = self.run_ddl(schema, '''
             CREATE FUNCTION
             test::my_contains(arr: array<anytype>, val: anytype) -> bool {
-                SET volatility := 'STABLE';
+                SET volatility := 'Stable';
                 USING (
                     SELECT contains(arr, val)
                 );
@@ -1262,6 +1479,273 @@ _123456789_123456789_123456789 -> str
             )
         )
 
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot follow backlink 'bar'",
+                  line=4, col=27)
+    def test_schema_backlink_01(self):
+        """
+            type Bar {
+                link foo -> Foo;
+                link f := .<bar[IS Foo];
+            }
+
+            type Foo {
+                link bar := .<foo[IS Bar];
+            }
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot follow backlink 'bar'",
+                  line=4, col=27)
+    def test_schema_backlink_02(self):
+        """
+            type Bar {
+                link foo -> Foo;
+                link f := .<bar;
+            }
+
+            type Foo {
+                link bar := .<foo;
+            }
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot follow backlink 'bar'",
+                  line=3, col=22)
+    def test_schema_backlink_03(self):
+        """
+            alias B := Bar {
+                f := .<bar[IS Foo]
+            };
+
+            type Bar {
+                link foo -> Foo;
+            }
+
+            type Foo {
+                link bar := .<foo[IS Bar];
+            }
+        """
+
+    @tb.must_fail(errors.InvalidReferenceError,
+                  "cannot follow backlink 'bar'",
+                  line=3, col=20)
+    def test_schema_backlink_04(self):
+        """
+            function foo() -> uuid using (
+                Bar.<bar[IS Foo].id
+            );
+
+            type Bar {
+                link foo -> Foo;
+            }
+
+            type Foo {
+                link bar := .<foo[IS Bar];
+            }
+        """
+
+    def test_schema_recursive_01(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                link next -> Foo;
+                property val := 1;
+            }
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "property 'val' of object type 'default::Foo' "
+            "is defined recursively"
+        ):
+            self.run_ddl(schema, '''
+                ALTER TYPE default::Foo
+                    ALTER PROPERTY val USING (1 + (.next.val ?? 0));
+            ''')
+
+    @test.xfail('''
+        The error is not raised.
+    ''')
+    def test_schema_recursive_02(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                link next -> Bar;
+                property val := 1;
+            }
+
+            type Bar {
+                link next -> Foo;
+                property val := 1;
+            }
+        ''', modname='default')
+
+        self.run_ddl(schema, '''
+            ALTER TYPE default::Foo
+                ALTER PROPERTY val USING (1 + (.next.val ?? 0));
+        ''')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "definition dependency cycle between "
+            "property 'val' of object type 'default::Bar' and "
+            "property 'val' of object type 'default::Foo'"
+        ):
+            self.run_ddl(schema, '''
+                ALTER TYPE default::Bar
+                    ALTER PROPERTY val USING (1 + (.next.val ?? 0));
+                    # ALTER PROPERTY val USING ('bad');
+            ''')
+
+    def test_schema_recursive_03(self):
+        schema = self.load_schema(r'''
+            function foo(v: int64) -> int64 using (
+                1 + v
+            );
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"function 'default::foo\(v:.+int64\)' "
+            r"is defined recursively"
+        ):
+            self.run_ddl(schema, '''
+                ALTER FUNCTION foo(v: int64) USING (
+                    0 IF v < 0 ELSE 1 + foo(v -1)
+                );
+            ''')
+
+    @test.xfail('''
+        RecursionError: maximum recursion depth exceeded in comparison
+
+        This happens while processing '_alter_finalize'.
+    ''')
+    def test_schema_recursive_04(self):
+        schema = self.load_schema(r'''
+            function foo(v: int64) -> int64 using (
+                1 + v
+            );
+
+            function bar(v: int64) -> int64 using (
+                0 IF v < 0 ELSE 1 + foo(v -1)
+            );
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::bar\(v:.+int64\)' and "
+            r"function 'default::foo\(v:.+int64\)'"
+        ):
+            self.run_ddl(schema, '''
+                ALTER FUNCTION foo(v: int64) USING (
+                    0 IF v < 0 ELSE 1 + bar(v -1)
+                );
+            ''')
+
+    @test.xfail('''
+        The cycle is detected, but stragely doesn't mention Foo.
+    ''')
+    def test_schema_recursive_05(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                property val := foo(1);
+            }
+
+            function foo(v: int64) -> int64 using (
+                1 + v
+            );
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::foo\(v:.+int64\)' and "
+            r"property 'val' of object type 'default::Foo'"
+        ):
+            self.run_ddl(schema, r'''
+                ALTER FUNCTION foo(v: int64) USING (
+                    # This is very broken now
+                    1 + (SELECT Foo LIMIT 1).val
+                );
+            ''')
+
+    def test_schema_recursive_06(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                property val := 1;
+            }
+
+            function foo(v: int64) -> int64 using (
+                1 + (SELECT Foo LIMIT 1).val
+            );
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            r"cannot alter property 'val' of object type 'default::Foo' "
+            r"because this affects nativecode expression of "
+            r"function 'default::foo\(v:.+int64\)'"
+        ):
+            self.run_ddl(schema, r'''
+                ALTER TYPE Foo {
+                    # This is very broken now
+                    ALTER PROPERTY val USING (foo(1));
+                };
+            ''')
+
+    @test.xfail('''
+        ...File
+          "/home/victor/dev/magicstack/edgedb/edb/edgeql/compiler/stmtctx.py",
+          line 588, in declare_view_from_schema
+            assert view_expr is not None
+        AssertionError
+    ''')
+    def test_schema_recursive_07(self):
+        schema = self.load_schema(r'''
+            type Foo {
+                property val -> int64;
+            }
+
+            alias FooAlias0 := Foo {
+                comp := .val + (SELECT FooAlias1 LIMIT 1).comp
+            };
+
+            alias FooAlias1 := Foo {
+                comp := .val + 1
+            };
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "definition dependency cycle between "
+            "alias 'default::FooAlias1' and alias 'default::FooAlias0'"
+        ):
+            self.run_ddl(schema, r'''
+                ALTER ALIAS FooAlias1 USING (
+                    Foo {
+                      comp := .val + (SELECT FooAlias0 LIMIT 1).comp
+                    }
+                );
+            ''')
+
+    @test.xfail('''
+        RecursionError: maximum recursion depth exceeded in comparison
+    ''')
+    def test_schema_recursive_08(self):
+        schema = self.load_schema(r'''
+            type Foo;
+
+            type Bar extending Foo;
+        ''', modname='default')
+
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "'default::Foo' is defined recursively"
+        ):
+            self.run_ddl(schema, r'''
+                ALTER TYPE Foo EXTENDING Bar;
+            ''')
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.
@@ -1373,6 +1857,10 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Compare 2 schemas obtained by multiple-step migration to a
         # single-step migration.
 
+        # Always finish up by migrating to an empty schema
+        if migrations[-1].strip():
+            migrations = migrations + ['']
+
         # Generate a base schema with 'test' module already created to
         # avoid having two different instances of 'test' module in
         # different evolution branches.
@@ -1406,10 +1894,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             diff = s_ddl.delta_schemas(multi_migration, cur_state)
 
+            note = ('' if i + 1 < len(migrations)
+                    else ' (migrating to empty schema)')
+
             if list(diff.get_subcommands()):
                 self.fail(
                     f'unexpected difference in schema produced by '
-                    f'incremental migration on step {i + 1}:\n'
+                    f'incremental migration on step {i + 1}{note}:\n'
                     f'{markup.dumps(diff)}\n'
                 )
 
@@ -1762,7 +2253,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         function idx(num: int64) -> bool {
             using (SELECT (num % 2) = 0);
-            volatility := 'IMMUTABLE';
+            volatility := 'Immutable';
         }
         '''
 
@@ -1821,7 +2312,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     flags := 'g')
                 )
             );
-            volatility := 'IMMUTABLE';  # needed for the constraint
+            volatility := 'Immutable';  # needed for the constraint
         }
         '''
 
@@ -1921,7 +2412,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         schema = r'''
         function idx(num: int64) -> bool {
             using (SELECT (num % 2) = 0);
-            volatility := 'IMMUTABLE';
+            volatility := 'Immutable';
             annotation title := 'func anno';
         }
         '''
@@ -2155,10 +2646,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
-    @test.xfail('''
-        edb.errors.InvalidReferenceError:
-        constraint 'std::max_len_value' does not exist
-    ''')
     def test_schema_get_migration_43(self):
         schema = r'''
         type Base {
@@ -2173,6 +2660,155 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 # overloading.
                 constraint max_len_value(10);
             }
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_44(self):
+        schema = r'''
+        type Foo {
+            property val -> str;
+            property comp := count((
+                # Use an alias in WITH block in a computable
+                WITH x := .val
+                # Use an alias in SELECT in a computable
+                SELECT y := Bar FILTER x = y.val
+            ))
+        }
+
+        type Bar {
+            property val -> str;
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_45(self):
+        # Need to make sure that usage of ad-hoc aliases doesn't mask
+        # the real error.
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            "mutations are invalid in computed property 'comp'"
+        ):
+            schema = r'''
+            type Foo {
+                property val -> str;
+                property comp := count((
+                    # Use an alias in WITH block in a computable
+                    WITH x := .val
+                    # Use an alias in UPDATE in a computable
+                    UPDATE y := Bar FILTER x = y.val
+                    SET {
+                        val := 'foo'
+                    }
+                ))
+            }
+
+            type Bar {
+                property val -> str;
+            }
+            '''
+
+            self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_46(self):
+        # Need to make sure that usage of ad-hoc aliases doesn't mask
+        # the real error.
+        with self.assertRaisesRegex(
+            errors.SchemaDefinitionError,
+            "mutations are invalid in computed property 'comp'"
+        ):
+            schema = r'''
+            type Foo {
+                property val -> str;
+                property comp := count((
+                    # Use an alias in WITH block in a computable
+                    WITH x := .val
+                    # Use an alias in DELETE in a computable
+                    DELETE y := Bar FILTER x = y.val
+                ))
+            }
+
+            type Bar {
+                property val -> str;
+            }
+            '''
+
+            self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_47(self):
+        schema = r'''
+        type Bar {
+            property val -> str;
+        }
+
+        alias Foo := (
+            # Use an alias in WITH block in a computable
+            WITH x := Bar.val ++ 'q'
+            # Use an alias in SELECT in a computable
+            SELECT y := Bar FILTER x = y.val
+        );
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_48(self):
+        schema = r'''
+        type Bar {
+            property val -> str;
+        }
+
+        function foo() -> int64 using (
+            count((
+                # Use an alias in WITH block in a computable
+                WITH x := Bar.val ++ 'q'
+                # Use an alias in SELECT in a computable
+                SELECT y := Bar FILTER x = y.val
+            ))
+        );
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_49(self):
+        schema = r'''
+        type Base {
+            property val := 'ok';
+        }
+
+        type Gen1 extending Base;
+        type Gen2 extending Gen1;
+        type Gen3 extending Gen2 {
+            property derived_val := .val ++ '!';
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_50(self):
+        schema = r'''
+        type Base {
+            property val := 'ok';
+        }
+
+        type Gen1Lin1 extending Base;
+        type Gen2Lin1 extending Gen1Lin1;
+
+        type Gen1Lin2 extending Base;
+        type Gen2Lin2 extending Gen1Lin2;
+
+        # Diamond inheritance for the .val
+        type Gen3 extending Gen2Lin1, Gen2Lin2 {
+            property aliased_val3 := .val;
+        }
+        # Alias of an alias.
+        type Gen4 extending Gen3 {
+            property aliased_val4 := .aliased_val3;
+        }
+        # Derive a computable from alias.
+        type Gen5 extending Gen4 {
+            property derived_val := .aliased_val4 ++ '!';
         }
         '''
 
@@ -2306,7 +2942,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         function other::idx(num: int64) -> bool {
             using (SELECT (num % 2) = 0);
-            volatility := 'IMMUTABLE';
+            volatility := 'Immutable';
         }
         '''
 
@@ -3129,6 +3765,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 # change a link from a computable to regular
                 multi link foo -> Child;
             }
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_36(self):
@@ -3491,14 +4128,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''
-        edb.errors.SchemaError: link 'owned' of object type
-        'default::User' cannot be cast automatically from object type
-        'default::Post' to object type 'default::Action'
-
-        Notice that since this link is a computable, we shouldn't care
-        about "converting" it.
-    ''')
     def test_schema_migrations_equivalence_48(self):
         # change a link used in a computable
         self._assert_migration_equivalence([r"""
@@ -3523,6 +4152,57 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type User {
                 multi link owned := .<user[IS Action]
             };
+        """])
+
+    def test_schema_migrations_equivalence_49(self):
+        self._assert_migration_equivalence([r"""
+            type Foo {
+                link bars := .<foo[IS Bar];
+                link spam := .<foo[IS Spam];
+            };
+
+            type Bar {
+                link foo -> Foo;
+            };
+
+            type Spam {
+                link foo -> Foo;
+            };
+        """, r"""
+            type Foo {
+                link spam := .<foo[IS Spam];
+            };
+
+            type Spam {
+                link foo -> Foo;
+            };
+        """])
+
+    def test_schema_migrations_equivalence_50(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                required property name -> str {
+                    constraint exclusive;
+                };
+                index on (__subject__.name);
+            };
+        """, r"""
+            type User extending Named;
+
+            abstract type Named {
+                required property name -> str {
+                    constraint exclusive;
+                };
+                index on (__subject__.name);
+            };
+        """])
+
+    def test_schema_migrations_equivalence_51(self):
+        self._assert_migration_equivalence([r"""
+            abstract type Text;
+            abstract type Owned;
+            type Comment extending Text, Owned;
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_compound_01(self):
@@ -3550,6 +4230,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 link l1 -> (Type11 | Type2 | TypeS);  # Expand union
                 link l2 := (SELECT .l1);
             };
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_function_01(self):
@@ -3563,6 +4244,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 using (
                     SELECT 'hello' ++ <str>(a + b)
                 )
+        """])
+
+    def test_schema_migrations_equivalence_function_04(self):
+        self._assert_migration_equivalence([r"""
+            function foo() -> str USING ('foo');
+        """, r"""
+            function foo() -> str USING ('bar');
         """])
 
     @test.xfail('''
@@ -3811,6 +4499,203 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_recursive_01(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "property 'val' of object type 'default::Foo' "
+            "is defined recursively"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    link next -> Foo;
+                    property val := 1;
+                }
+            """, r"""
+                type Foo {
+                    link next -> Foo;
+                    property val := 1 + (.next.val ?? 0);
+                }
+            """])
+
+    def test_schema_migrations_equivalence_recursive_02(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "definition dependency cycle between "
+            "property 'val' of object type 'default::Bar' and "
+            "property 'val' of object type 'default::Foo'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    link next -> Bar;
+                    property val := 1;
+                }
+
+                type Bar {
+                    link next -> Foo;
+                    property val := 1;
+                }
+            """, r"""
+                type Foo {
+                    link next -> Bar;
+                    property val := 1 + (.next.val ?? 0);
+                }
+
+                type Bar {
+                    link next -> Foo;
+                    property val := 1;
+                }
+            """, r"""
+                type Foo {
+                    link next -> Bar;
+                    property val := 1 + (.next.val ?? 0);
+                }
+
+                type Bar {
+                    link next -> Foo;
+                    property val := 1 + (.next.val ?? 0);
+                }
+            """])
+
+    def test_schema_migrations_equivalence_recursive_03(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"function 'default::foo\(v: int64\)' "
+            r"is defined recursively"
+        ):
+            self._assert_migration_equivalence([r"""
+                function foo(v: int64) -> int64 using (
+                    1 + v
+                );
+            """, r"""
+                function foo(v: int64) -> int64 using (
+                    0 IF v < 0 ELSE 1 + foo(v -1)
+                );
+            """])
+
+    def test_schema_migrations_equivalence_recursive_04(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::bar\(v: int64\)' and "
+            r"function 'default::foo\(v: int64\)'"
+        ):
+            self._assert_migration_equivalence([r"""
+                function foo(v: int64) -> int64 using (
+                    1 + v
+                );
+
+                function bar(v: int64) -> int64 using (
+                    0 IF v < 0 ELSE 1 + foo(v -1)
+                );
+            """, r"""
+                function foo(v: int64) -> int64 using (
+                    0 IF v < 0 ELSE 1 + bar(v -1)
+                );
+
+                function bar(v: int64) -> int64 using (
+                    0 IF v < 0 ELSE 1 + foo(v -1)
+                );
+            """])
+
+    def test_schema_migrations_equivalence_recursive_05(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::foo\(v: int64\)' and "
+            r"property 'val' of object type 'default::Foo'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    property val := foo(1);
+                }
+
+                function foo(v: int64) -> int64 using (
+                    1 + v
+                );
+            """, r"""
+                type Foo {
+                    property val := foo(1);
+                }
+
+                function foo(v: int64) -> int64 using (
+                    # This is very broken now
+                    1 + (SELECT Foo LIMIT 1).val
+                );
+            """])
+
+    def test_schema_migrations_equivalence_recursive_06(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            r"definition dependency cycle between "
+            r"function 'default::foo\(v: int64\)' and "
+            r"property 'val' of object type 'default::Foo'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    property val := 1;
+                }
+
+                function foo(v: int64) -> int64 using (
+                    1 + (SELECT Foo LIMIT 1).val
+                );
+            """, r"""
+                type Foo {
+                    # This is very broken now
+                    property val := foo(1);
+                }
+
+                function foo(v: int64) -> int64 using (
+                    1 + (SELECT Foo LIMIT 1).val
+                );
+            """])
+
+    def test_schema_migrations_equivalence_recursive_07(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "definition dependency cycle between "
+            "alias 'default::FooAlias1' and alias 'default::FooAlias0'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo {
+                    property val -> int64;
+                }
+
+                alias FooAlias0 := Foo {
+                    comp := .val + (SELECT FooAlias1 LIMIT 1).comp
+                };
+
+                alias FooAlias1 := Foo {
+                    comp := .val + 1
+                };
+            """, r"""
+                type Foo {
+                    property val -> int64;
+                }
+
+                alias FooAlias0 := Foo {
+                    comp := .val + (SELECT FooAlias1 LIMIT 1).comp
+                };
+
+                alias FooAlias1 := Foo {
+                    comp := .val + (SELECT FooAlias0 LIMIT 1).comp
+                };
+            """])
+
+    def test_schema_migrations_equivalence_recursive_08(self):
+        with self.assertRaisesRegex(
+            errors.InvalidDefinitionError,
+            "'default::Foo' is defined recursively"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Foo;
+
+                type Bar extending Foo;
+            """, r"""
+                type Foo extending Bar;
+
+                type Bar extending Foo;
+            """])
+
     def test_schema_migrations_equivalence_computed_01(self):
         self._assert_migration_equivalence([r"""
             type Foo {
@@ -3911,6 +4796,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     property foo -> str
                 }
             };
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_linkprops_09(self):
@@ -3967,6 +4853,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     property foo -> str
                 }
             };
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_linkprops_11(self):
@@ -4026,6 +4913,32 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Owner extending Base;
 
             type Renter extending Base;
+        """])
+
+    def test_schema_migrations_equivalence_linkprops_13(self):
+        self._assert_migration_equivalence([r"""
+            type Child;
+
+            type Base {
+                link child -> Child
+            };
+
+            type Derived extending Base {
+                overloaded link child -> Child {
+                    property foo -> str
+                }
+            };
+        """, r"""
+            type Child;
+
+            type Base {
+                link child -> Child {
+                    property foo -> str
+                }
+            };
+
+            type Derived extending Base;
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_annotation_01(self):
@@ -4154,6 +5067,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     annotation my_anno := 'Derived my_anno 05';
                 }
             }
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_annotation_06(self):
@@ -4186,6 +5100,35 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     annotation my_anno := 'Derived my_anno 06';
                 }
             }
+        """, r"""
+        """])
+
+    def test_schema_migrations_equivalence_annotation_07(self):
+        self._assert_migration_equivalence([r"""
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                link my_link -> Object {
+                    annotation my_anno := 'Base my_anno 06';
+                }
+            }
+
+            type Derived extending Base {
+                overloaded link my_link -> Object {
+                    annotation my_anno := 'Derived my_anno 06';
+                }
+            }
+        """, r"""
+            abstract inheritable annotation my_anno;
+
+            type Base {
+                link my_link -> Object {
+                    annotation my_anno := 'Base my_anno 06';
+                }
+            }
+
+            type Derived extending Base;
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_index_01(self):
@@ -4322,6 +5265,26 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
     def test_schema_migrations_equivalence_constraint_03(self):
         self._assert_migration_equivalence([r"""
+            abstract constraint Lol { using (__subject__ < 10) };
+            type Foo {
+                property x -> int64 {
+                    constraint Lol;
+                }
+            }
+            type Bar extending Foo;
+
+        """, r"""
+            abstract constraint Lolol { using (__subject__ < 10) };
+            type Foo {
+                property x -> int64 {
+                    constraint Lolol;
+                }
+            }
+            type Bar extending Foo;
+        """])
+
+    def test_schema_migrations_equivalence_constraint_04(self):
+        self._assert_migration_equivalence([r"""
             type Base {
                 property firstname -> str {
                     constraint max_len_value(10);
@@ -4347,6 +5310,32 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     constraint min_len_value(5);
                 }
             }
+        """, r"""
+        """])
+
+    def test_schema_migrations_equivalence_constraint_05(self):
+        self._assert_migration_equivalence([r"""
+            abstract constraint not_bad {
+                using (__subject__ != "bad" and __subject__ != "terrible")
+            }
+
+            type Foo {
+                property x -> str {
+                    constraint not_bad;
+                }
+            }
+            type Bar extending Foo;
+        """, r"""
+            abstract constraint not_bad {
+                using (__subject__ != "bad" and __subject__ != "awful")
+            }
+
+            type Foo {
+                property x -> str {
+                    constraint not_bad;
+                }
+            }
+            type Bar extending Foo;
         """])
 
     # NOTE: array<str>, array<int16>, array<json> already exist in std
@@ -4562,6 +5551,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 bar := (Base.name, Base.number, [Base.foo])
             };
             alias CollAlias := (Base.name, Base.number, [Base.foo]);
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_collections_16(self):
@@ -4788,6 +5778,22 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                         d: tuple<array<MyScalar2Renamed>>,
                     >;
             };
+        """, r"""
+        """])
+
+    def test_schema_migrations_equivalence_collections_27(self):
+        self._assert_migration_equivalence([r"""
+        """, r"""
+            scalar type MyScalar2Renamed extending int64;
+
+            type User {
+                required property tup ->
+                    tuple<
+                        c: array<MyScalar2Renamed>,
+                        d: array<MyScalar2Renamed>,
+                    >;
+            };
+        """, r"""
         """])
 
     def test_schema_migrations_equivalence_rename_refs_01(self):
@@ -4882,6 +5888,27 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             alias Alias1 := Remark;
             alias Alias2 := (SELECT Remark.remark);
             alias Alias3 := Remark { command := .remark ++ "!" };
+        """])
+
+    def test_schema_migrations_equivalence_rename_refs_07(self):
+        self._assert_migration_equivalence([r"""
+            type Obj1 {
+                 required property id1 -> str;
+                 required property id2 -> str;
+                 property exclusive_hack {
+                     using ((.id1, .id2));
+                     constraint exclusive;
+                 };
+             }
+        """, r"""
+            type Obj2 {
+                 required property id1 -> str;
+                 required property id2 -> str;
+                 property exclusive_hack {
+                     using ((.id1, .id2));
+                     constraint exclusive;
+                 };
+             }
         """])
 
     def test_schema_migrations_equivalence_rename_alias_01(self):
@@ -5201,6 +6228,93 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_drop_parent_05(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                property x -> str;
+                index on (.x);
+            }
+            type Child extending Parent;
+        """, r"""
+            type Parent {
+                property x -> str;
+                index on (.x);
+            }
+            type Child;
+        """])
+
+    def test_schema_migrations_drop_parent_06(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                property x -> str;
+                constraint expression on (.x != "YOLO");
+            }
+            type Child extending Parent;
+        """, r"""
+            type Parent {
+                property x -> str;
+                constraint expression on (.x != "YOLO");
+            }
+            type Child;
+        """])
+
+    def test_schema_migrations_drop_parent_07(self):
+        self._assert_migration_equivalence([r"""
+            type Parent {
+                property x -> str;
+                property z := .x ++ "!";
+            }
+            type Child extending Parent;
+        """, r"""
+            type Parent {
+                property x -> str;
+                property z := .x ++ "!";
+            }
+            type Child;
+        """])
+
+    def test_schema_migrations_drop_owned_default_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Foo;
+                type Post {
+                    required property createdAt -> str {
+                        default := "asdf";
+                        constraint expression on (__subject__ != "!");
+                    }
+                    link whatever -> Foo {
+                        default := (SELECT Foo LIMIT 1);
+                    }
+                }
+            """,
+            r"""
+                type Foo;
+                abstract type Event {
+                    required property createdAt -> str {
+                        default := "asdf";
+                        constraint expression on (__subject__ != "!");
+                    }
+                    link whatever -> Foo {
+                        default := (SELECT Foo LIMIT 1);
+                    }
+                }
+
+                type Post extending Event;
+            """,
+            r"""
+                type Foo;
+                type Post {
+                    required property createdAt -> str {
+                        default := "asdf";
+                        constraint expression on (__subject__ != "!");
+                    }
+                    link whatever -> Foo {
+                        default := (SELECT Foo LIMIT 1);
+                    }
+                }
+            """
+        ])
+
     def test_schema_migrations_computed_optionality_01(self):
         self._assert_migration_equivalence([r"""
             abstract type Removable {
@@ -5252,9 +6366,125 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
+    def test_schema_migrations_extend_enum_01(self):
+        self._assert_migration_equivalence([r"""
+            scalar type foo extending enum<Foo, Bar>;
+        """, r"""
+            scalar type foo extending enum<Foo, Bar, Baz>;
+        """])
+
+    def test_schema_migrations_union_01(self):
+        with self.assertRaisesRegex(
+            errors.QueryError,
+            "it is illegal to create a type union that causes a "
+            "computed property 'deleted' to mix with other versions of the "
+            "same property 'deleted'"
+        ):
+            self._assert_migration_equivalence([r"""
+                type Category {
+                    required property title -> str;
+                    required property deleted :=
+                        EXISTS(.<element[IS DeletionRecord]);
+                };
+                type Article {
+                    required property title -> str;
+                    required property deleted :=
+                        EXISTS(.<element[IS DeletionRecord]);
+                };
+                type DeletionRecord {
+                    link element -> Article | Category;
+                }
+            """])
+
+    def test_schema_migrations_drop_depended_on_parent_01(self):
+        self._assert_migration_equivalence([r"""
+            type Person2 {
+                required single property first -> str;
+            }
+
+            type Person2a extending Person2 {
+                constraint exclusive on (__subject__.first);
+            }
+        """, r"""
+        """])
+
+    def test_schema_migrations_drop_depended_on_parent_02(self):
+        self._assert_migration_equivalence([r"""
+            type Person2;
+            type Person2a extending Person2;
+        """, r"""
+        """])
+
+    def test_schema_migrations_drop_depended_on_parent_03(self):
+        self._assert_migration_equivalence([r"""
+            type Person2 {
+                required single property first -> str;
+            };
+            type Person2a extending Person2;
+        """, r"""
+            type Person2a;
+        """])
+
+    def test_schema_migrations_drop_from_one_parent_01(self):
+        self._assert_migration_equivalence([r"""
+            abstract type Text { property x -> str { constraint exclusive } }
+            abstract type Owned { property x -> str { constraint exclusive } }
+            type Comment extending Text, Owned;
+        """, r"""
+            abstract type Text { }
+            abstract type Owned { property x -> str { constraint exclusive } }
+            type Comment extending Text, Owned;
+        """])
+
+    def test_schema_migrations_drop_from_one_parent_02(self):
+        self._assert_migration_equivalence([r"""
+            abstract type Text { property x -> str { constraint exclusive } }
+            abstract type Owned { property x -> str { constraint exclusive } }
+            type Comment extending Text, Owned;
+        """, r"""
+            abstract type Text { property x -> str }
+            abstract type Owned { property x -> str { constraint exclusive } }
+            type Comment extending Text, Owned;
+        """])
+
+    def test_schema_migrations_expression_ref_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type Article {
+                    required property deleted_a := (
+                        EXISTS (.<element[IS DeletionRecord]));
+                };
+                type Category {
+                    required property deleted_c := (
+                        EXISTS (.<element[IS DeletionRecord]));
+                };
+                type DeletionRecord {
+                    required link element -> (Article | Category) {
+                        on target delete delete source;
+                        constraint std::exclusive;
+                    };
+                };
+            """,
+            r"""
+                abstract type Removable {
+                    property deleted := EXISTS(.<element[IS DeletionRecord]);
+                }
+                type Article extending Removable;
+                type Category extending Removable;
+                type DeletionRecord {
+                    required link element -> Removable {
+                        on target delete delete source;
+                        constraint std::exclusive;
+                    };
+                };
+            """
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
+
+    DEFAULT_MODULE = 'test'
 
     re_filter = re.compile(r'[\s]+|(,(?=\s*[})]))')
     maxDiff = 10000
@@ -5265,12 +6495,21 @@ class TestDescribe(tb.BaseSchemaLoadTest):
         *tests,
         as_ddl=False,
         default_module='test',
+        explicit_modules=False,
     ):
         if as_ddl:
             schema = tb._load_std_schema()
             schema = self.run_ddl(schema, schema_text, default_module)
+        elif explicit_modules:
+            sdl_schema = qlparser.parse_sdl(schema_text)
+            schema = tb._load_std_schema()
+            schema = s_ddl.apply_sdl(
+                sdl_schema,
+                base_schema=schema,
+                current_schema=schema,
+            )
         else:
-            schema = self.load_schema(schema_text)
+            schema = self.load_schema(schema_text, modname=default_module)
 
         tests = [iter(tests)] * 2
 
@@ -5415,25 +6654,31 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             function std::array_agg(s: SET OF anytype) ->  array<anytype> {
-                volatility := 'IMMUTABLE';
+                volatility := 'Immutable';
                 annotation std::description := 'Return the array made from all
                     of the input set elements.';
                 using sql function 'array_agg';
             };
             """,
 
-            'DESCRIBE FUNCTION stdgraphql::short_name AS SDL',
+            'DESCRIBE FUNCTION sys::get_version AS SDL',
 
             r"""
-            function stdgraphql::short_name(name: std::str) -> std::str {
-                volatility := 'IMMUTABLE';
-                using (
-                    SELECT (
-                       ((name)[5:] IF (name LIKE 'std::%') ELSE
-                       ((name)[9:] IF (name LIKE 'default::%') ELSE
-                        std::re_replace('(.+?)::(.+$)', r'\1__\2', name)))
-                      ++ '_Type'
-                    )
+            function sys::get_version() -> tuple<major: std::int64,
+                                                 minor: std::int64,
+                                                 stage: sys::VersionStage,
+                                                 stage_no: std::int64,
+                                                 local: array<std::str>>
+            {
+                volatility := 'Stable';
+                annotation std::description :=
+                    'Return the server version as a tuple.';
+                using (SELECT <tuple<
+                    major: std::int64,
+                    minor: std::int64,
+                    stage: sys::VersionStage,
+                    stage_no: std::int64,
+                    local: array<std::str>>>sys::__version_internal()
                 )
             ;};
             """,
@@ -6435,7 +7680,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             # The following builtins are masked by the above:
 
             # function std::all(vals: SET OF std::bool) ->  std::bool {
-            #     volatility := 'IMMUTABLE';
+            #     volatility := 'Immutable';
             #     annotation std::description := 'Generalized boolean `AND`
                       applied to the set of *values*.';
             #     using sql function 'bool_and'
@@ -6502,6 +7747,168 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             """,
             as_ddl=True,
+        )
+
+    def test_schema_describe_schema_01(self):
+        self._assert_describe(
+            """
+            type Foo;
+            abstract annotation anno;
+            scalar type int_t extending int64 {
+                annotation anno := 'ext int';
+                constraint max_value(15);
+            }
+
+            abstract link f {
+                property p -> int_t {
+                    annotation anno := 'annotated link property';
+                    constraint max_value(10);
+                }
+            }
+
+            type Parent {
+                multi property name -> str;
+            }
+
+            type Parent2 {
+                link foo -> Foo;
+                index on (.foo);
+            }
+
+            type Child extending Parent, Parent2 {
+                annotation anno := 'annotated';
+
+                overloaded link foo extending f -> Foo {
+                    constraint exclusive {
+                        annotation anno := 'annotated constraint';
+                    }
+                    annotation anno := 'annotated link';
+                }
+            }
+            """,
+
+            'DESCRIBE SCHEMA AS DDL',
+
+            """
+            CREATE MODULE default IF NOT EXISTS;
+            CREATE MODULE test IF NOT EXISTS;
+            CREATE ABSTRACT ANNOTATION test::anno;
+            CREATE SCALAR TYPE test::int_t EXTENDING std::int64 {
+                CREATE ANNOTATION test::anno := 'ext int';
+                CREATE CONSTRAINT std::max_value(15);
+            };
+            CREATE ABSTRACT LINK test::f {
+                CREATE PROPERTY p -> test::int_t {
+                    CREATE ANNOTATION test::anno := 'annotated link property';
+                    CREATE CONSTRAINT std::max_value(10);
+                };
+            };
+            CREATE TYPE test::Foo;
+            CREATE TYPE test::Parent {
+                CREATE MULTI PROPERTY name -> std::str;
+            };
+            CREATE TYPE test::Parent2 {
+                CREATE LINK foo -> test::Foo;
+                CREATE INDEX ON (.foo);
+            };
+            CREATE TYPE test::Child EXTENDING test::Parent, test::Parent2 {
+                CREATE ANNOTATION test::anno := 'annotated';
+                ALTER LINK foo {
+                    EXTENDING test::f;
+                    SET OWNED;
+                    SET TYPE test::Foo;
+                    CREATE ANNOTATION test::anno := 'annotated link';
+                    CREATE CONSTRAINT std::exclusive {
+                        CREATE ANNOTATION test::anno := 'annotated constraint';
+                    };
+                };
+            };
+            """,
+
+            'DESCRIBE SCHEMA AS SDL',
+
+            r"""
+            module default{};
+            module test {
+                abstract annotation anno;
+                abstract link f {
+                    property p -> test::int_t {
+                        annotation test::anno := 'annotated link property';
+                        constraint std::max_value(10);
+                    };
+                };
+                scalar type int_t extending std::int64 {
+                    annotation test::anno := 'ext int';
+                    constraint std::max_value(15);
+                };
+                type Child extending test::Parent, test::Parent2 {
+                    annotation test::anno := 'annotated';
+                    overloaded link foo extending test::f -> test::Foo {
+                        annotation test::anno := 'annotated link';
+                        constraint std::exclusive {
+                            annotation test::anno := 'annotated constraint';
+                        };
+                    };
+                };
+                type Foo;
+                type Parent {
+                    multi property name -> std::str;
+                };
+                type Parent2 {
+                    index on (.foo);
+                    link foo -> test::Foo;
+                };
+            };
+            """,
+        )
+
+    def test_schema_describe_schema_02(self):
+        self._assert_describe(
+            """
+            using extension notebook version '1.0';
+            module default {
+                type Foo {
+                    link bar -> test::Bar;
+                };
+            };
+            module test {
+                type Bar {
+                    link foo -> default::Foo;
+                };
+            };
+            """,
+
+            'DESCRIBE SCHEMA AS DDL',
+
+            """
+            CREATE MODULE default IF NOT EXISTS;
+            CREATE MODULE test IF NOT EXISTS;
+            CREATE EXTENSION NOTEBOOK VERSION '1.0';
+            CREATE TYPE default::Foo;
+            CREATE TYPE test::Bar {
+                CREATE LINK foo -> default::Foo;
+            };
+            ALTER TYPE default::Foo {
+                CREATE LINK bar -> test::Bar;
+            };
+            """,
+
+            'DESCRIBE SCHEMA AS SDL',
+
+            r"""
+            using extension notebook version '1.0';
+            module default {
+                type Foo {
+                    link bar -> test::Bar;
+                };
+            };
+            module test {
+                type Bar {
+                    link foo -> default::Foo;
+                };
+            };
+            """,
+            explicit_modules=True,
         )
 
 

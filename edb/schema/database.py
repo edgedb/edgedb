@@ -53,14 +53,11 @@ class DatabaseCommand(
     context_class=DatabaseCommandContext,
 ):
 
-    def _create_begin(
+    def _validate_name(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-    ) -> s_schema.Schema:
-        schema = super()._create_begin(schema, context)
-
-        # Validate that the database name is fewer than 64 characters
+    ) -> None:
         name = self.get_attribute_value('name')
         if len(str(name)) > s_def.MAX_NAME_LENGTH:
             source_context = self.get_attribute_source_context('name')
@@ -69,8 +66,6 @@ class DatabaseCommand(
                 f'characters are not supported',
                 context=source_context,
             )
-
-        return schema
 
 
 class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
@@ -99,9 +94,25 @@ class CreateDatabase(DatabaseCommand, sd.CreateExternalObject[Database]):
 
         return cmd
 
+    def validate_create(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_create(schema, context)
+        self._validate_name(schema, context)
+
 
 class AlterDatabase(DatabaseCommand, sd.AlterObject[Database]):
     astnode = qlast.AlterDatabase
+
+    def validate_alter(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_alter(schema, context)
+        self._validate_name(schema, context)
 
 
 class DropDatabase(DatabaseCommand, sd.DeleteExternalObject[Database]):

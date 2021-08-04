@@ -33,14 +33,14 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
                           'cards.esdl')
 
     def test_edgeql_ir_pathid_basic(self):
-        User = self.schema.get('test::User')
+        User = self.schema.get('default::User')
         deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
         count_prop = deck_ptr.getptr(self.schema, s_name.UnqualName('count'))
 
         pid_1 = pathid.PathId.from_type(self.schema, User)
         self.assertEqual(
             str(pid_1),
-            '(test::User)')
+            '(default::User)')
 
         self.assertTrue(pid_1.is_objtype_path())
         self.assertFalse(pid_1.is_scalar_path())
@@ -54,10 +54,10 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
             schema=self.schema,
             ptrcls=deck_ptr,
         )
-        pid_2 = pid_1.extend(ptrref=deck_ptr_ref, schema=self.schema)
+        pid_2 = pid_1.extend(ptrref=deck_ptr_ref)
         self.assertEqual(
             str(pid_2),
-            '(test::User).>deck[IS test::Card]')
+            '(default::User).>deck[IS default::Card]')
 
         self.assertEqual(pid_2.rptr().name, deck_ptr.get_name(self.schema))
         self.assertEqual(pid_2.rptr_dir(),
@@ -68,7 +68,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         ptr_pid = pid_2.ptr_path()
         self.assertEqual(
             str(ptr_pid),
-            '(test::User).>deck[IS test::Card]@')
+            '(default::User).>deck[IS default::Card]@')
 
         self.assertTrue(ptr_pid.is_ptr_path())
         self.assertFalse(ptr_pid.is_objtype_path())
@@ -80,10 +80,10 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
             schema=self.schema,
             ptrcls=count_prop,
         )
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref, schema=self.schema)
+        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
         self.assertEqual(
             str(prop_pid),
-            '(test::User).>deck[IS test::Card]@count[IS std::int64]')
+            '(default::User).>deck[IS default::Card]@count[IS std::int64]')
 
         self.assertFalse(prop_pid.is_ptr_path())
         self.assertFalse(prop_pid.is_objtype_path())
@@ -92,7 +92,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         self.assertEqual(prop_pid.src_path(), ptr_pid)
 
     def test_edgeql_ir_pathid_startswith(self):
-        User = self.schema.get('test::User')
+        User = self.schema.get('default::User')
         deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
         deck_ptr_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
@@ -105,9 +105,9 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         )
 
         pid_1 = pathid.PathId.from_type(self.schema, User)
-        pid_2 = pid_1.extend(ptrref=deck_ptr_ref, schema=self.schema)
+        pid_2 = pid_1.extend(ptrref=deck_ptr_ref)
         ptr_pid = pid_2.ptr_path()
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref, schema=self.schema)
+        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
 
         self.assertTrue(pid_2.startswith(pid_1))
         self.assertFalse(pid_1.startswith(pid_2))
@@ -121,7 +121,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         self.assertTrue(prop_pid.startswith(ptr_pid))
 
     def test_edgeql_ir_pathid_namespace_01(self):
-        User = self.schema.get('test::User')
+        User = self.schema.get('default::User')
         deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
         deck_ptr_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
@@ -135,9 +135,9 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         ns = frozenset(('foo',))
         pid_1 = pathid.PathId.from_type(self.schema, User, namespace=ns)
-        pid_2 = pid_1.extend(ptrref=deck_ptr_ref, schema=self.schema)
+        pid_2 = pid_1.extend(ptrref=deck_ptr_ref)
         ptr_pid = pid_2.ptr_path()
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref, schema=self.schema)
+        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
 
         self.assertEqual(pid_1.namespace, ns)
         self.assertEqual(pid_2.namespace, ns)
@@ -150,8 +150,8 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_pathid_namespace_02(self):
         # Test cases where the prefix is in a different namespace
 
-        Card = self.schema.get('test::Card')
-        User = self.schema.get('test::User')
+        Card = self.schema.get('default::Card')
+        User = self.schema.get('default::User')
         owners_ptr = Card.getptr(self.schema, s_name.UnqualName('owners'))
         owners_ptr_ref = irtyputils.ptrref_from_ptrcls(
             schema=self.schema,
@@ -172,16 +172,15 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         ns_2 = frozenset(('bar',))
 
         pid_1 = pathid.PathId.from_type(self.schema, Card)
-        pid_2 = pid_1.extend(ptrref=owners_ptr_ref, ns=ns_1,
-                             schema=self.schema)
-        pid_2_no_ns = pid_1.extend(ptrref=owners_ptr_ref, schema=self.schema)
+        pid_2 = pid_1.extend(ptrref=owners_ptr_ref, ns=ns_1)
+        pid_2_no_ns = pid_1.extend(ptrref=owners_ptr_ref)
 
         self.assertNotEqual(pid_2, pid_2_no_ns)
         self.assertEqual(pid_2.src_path(), pid_1)
 
-        pid_3 = pid_2.extend(ptrref=deck_ptr_ref, ns=ns_2, schema=self.schema)
+        pid_3 = pid_2.extend(ptrref=deck_ptr_ref, ns=ns_2)
         ptr_pid = pid_3.ptr_path()
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref, schema=self.schema)
+        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
 
         self.assertEqual(prop_pid.src_path().namespace, ns_1 | ns_2)
         self.assertEqual(prop_pid.src_path().src_path().namespace, ns_1)
@@ -192,9 +191,9 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         self.assertEqual(
             prefixes,
             [
-                '(test::Card)',
-                'foo@@(test::Card).>owners[IS test::User]',
-                'bar@foo@@(test::Card).>owners[IS test::User]'
-                '.>deck[IS test::Card]',
+                '(default::Card)',
+                'foo@@(default::Card).>owners[IS default::User]',
+                'bar@foo@@(default::Card).>owners[IS default::User]'
+                '.>deck[IS default::Card]',
             ]
         )

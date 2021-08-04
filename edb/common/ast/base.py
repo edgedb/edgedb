@@ -28,21 +28,24 @@ from typing import *
 
 from edb.common import debug
 from edb.common import markup
-from edb.common import typeutils
 from edb.common import typing_inspect
+
+
+T = TypeVar('T')
 
 
 class ASTError(Exception):
     pass
 
 
-class Field:
+class _Field:
     def __init__(
-            self, name, type_, default, traverse, child_traverse=None,
+            self, name, type_, default, factory, traverse, child_traverse=None,
             field_hidden=False, field_meta=False):
         self.name = name
         self.type = type_
         self.default = default
+        self.factory = factory
         self.traverse = traverse
         self.child_traverse = \
             child_traverse if child_traverse is not None else traverse
@@ -50,134 +53,13 @@ class Field:
         self.meta = field_meta
 
 
-class MetaAST(type):
-    def __new__(mcls, name, bases, dct):
-        cls = super().__new__(mcls, name, bases, dct)
+class _FieldSpec:
+    def __init__(self, factory):
+        self.factory = factory
 
-        cls.__abstract_node__ = bool(dct.get('__abstract_node__'))
 
-        if '__annotations__' not in dct:
-            return cls
-
-        globalns = sys.modules[cls.__module__].__dict__.copy()
-        globalns[cls.__name__] = cls
-
-        try:
-            while True:
-                try:
-                    annos = get_type_hints(cls, globalns)
-                except NameError as e:
-                    # Forward type declaration.  Generally, we try
-                    # to avoid these as much as possible, but when
-                    # there's a cycle it's better to have correct
-                    # static type analysis even though the runtime
-                    # validation infrastructure does not support
-                    # cyclic rerefences.
-                    # XXX: This is a horrible hack, need to find
-                    # a better way.
-                    m = re.match(r"name '(\w+)' is not defined", e.args[0])
-                    if not m:
-                        raise
-                    globalns[m.group(1)] = AST
-                else:
-                    break
-
-        except Exception:
-            raise RuntimeError(
-                f'unable to resolve type annotations for '
-                f'{cls.__module__}.{cls.__qualname__}')
-
-        if annos:
-            annos = {k: v for k, v in annos.items()
-                     if k in dct['__annotations__']}
-
-            module_name = cls.__module__
-            fields_attrname = f'_{name}__fields'
-
-            if fields_attrname in dct:
-                raise RuntimeError(
-                    'cannot combine class annotations and '
-                    'legacy __fields attribute in '
-                    f'{cls.__module__}.{cls.__qualname__}')
-
-            hidden = ()
-            if '__ast_hidden__' in dct:
-                hidden = set(dct['__ast_hidden__'])
-
-            meta = ()
-            if '__ast_meta__' in dct:
-                meta = set(dct['__ast_meta__'])
-
-            fields = []
-            for f_name, f_type in annos.items():
-                f_fullname = f'{module_name}.{cls.__qualname__}.{f_name}'
-
-                if f_type is object:
-                    f_type = None
-
-                if f_name in dct:
-                    f_default = dct[f_name]
-                    delattr(cls, f_name)
-                else:
-                    f_default = None
-
-                f_default = _check_annotation(f_type, f_fullname, f_default)
-
-                f_hidden = f_name in hidden
-                f_meta = f_name in meta
-
-                fields.append((f_name, f_type, f_default,
-                               True, None, f_hidden, f_meta))
-
-            setattr(cls, fields_attrname, fields)
-
-        return cls
-
-    def __init__(cls, name, bases, dct):
-        super().__init__(name, bases, dct)
-        fields = collections.OrderedDict()
-
-        for parent in reversed(cls.__mro__):
-            lst = getattr(cls, '_' + parent.__name__ + '__fields', [])
-            for field in lst:
-                field_name = field
-                field_type = None
-                field_default = None
-                field_traverse = True
-                field_child_traverse = None
-                field_hidden = False
-                field_meta = False
-
-                if isinstance(field, tuple):
-                    field_name = field[0]
-
-                    if len(field) > 1:
-                        field_type = field[1]
-                    if len(field) > 2:
-                        field_default = field[2]
-                    else:
-                        field_default = field_type
-
-                    if len(field) > 3:
-                        field_traverse = field[3]
-
-                    if len(field) > 4:
-                        field_child_traverse = field[4]
-
-                    if len(field) > 5:
-                        field_hidden = field[5]
-
-                    if len(field) > 6:
-                        field_meta = field[6]
-
-                fields[field_name] = Field(
-                    field_name, field_type, field_default, field_traverse,
-                    field_child_traverse, field_hidden, field_meta)
-
-        cls._fields = fields
-
-    def get_field(cls, name):
-        return cls._fields.get(name)
+def field(*, factory: Callable[[], T]) -> T:
+    return cast(T, _FieldSpec(factory=factory))
 
 
 def _check_type_passthrough(type_, value, raise_error):
@@ -231,39 +113,136 @@ else:
     _check_type = _check_type_passthrough
 
 
-class AST(object, metaclass=MetaAST):
+class AST:
     # These use type comments because type annotations are interpreted
     # by the AST system and so annotating them would interfere!
-    __fields = []  # type: List[str]
     __ast_frozen_fields__ = frozenset()  # type: AbstractSet[str]
 
+    # Class setup stuff:
+    @classmethod
+    def _collect_direct_fields(cls):
+        dct = cls.__dict__
+        cls.__abstract_node__ = bool(dct.get('__abstract_node__'))
+
+        if '__annotations__' not in dct:
+            return cls
+
+        globalns = sys.modules[cls.__module__].__dict__.copy()
+        globalns[cls.__name__] = cls
+
+        try:
+            while True:
+                try:
+                    annos = get_type_hints(cls, globalns)
+                except NameError as e:
+                    # Forward type declaration.  Generally, we try
+                    # to avoid these as much as possible, but when
+                    # there's a cycle it's better to have correct
+                    # static type analysis even though the runtime
+                    # validation infrastructure does not support
+                    # cyclic rerefences.
+                    # XXX: This is a horrible hack, need to find
+                    # a better way.
+                    m = re.match(r"name '(\w+)' is not defined", e.args[0])
+                    if not m:
+                        raise
+                    globalns[m.group(1)] = AST
+                else:
+                    break
+
+        except Exception:
+            raise RuntimeError(
+                f'unable to resolve type annotations for '
+                f'{cls.__module__}.{cls.__qualname__}')
+
+        if annos:
+            annos = {k: v for k, v in annos.items()
+                     if k in dct['__annotations__']}
+
+            hidden = ()
+            if '__ast_hidden__' in dct:
+                hidden = set(dct['__ast_hidden__'])
+
+            meta = ()
+            if '__ast_meta__' in dct:
+                meta = set(dct['__ast_meta__'])
+
+            fields = []
+            for f_name, f_type in annos.items():
+                if f_type is object:
+                    f_type = None
+
+                factory = None
+                if f_name in dct:
+                    f_default = dct[f_name]
+                    if isinstance(f_default, _FieldSpec):
+                        factory = f_default.factory
+                        f_default = None
+                        delattr(cls, f_name)
+                else:
+                    f_default = None
+
+                f_hidden = f_name in hidden
+                f_meta = f_name in meta
+
+                fields.append(_Field(
+                    f_name, f_type, f_default, factory,
+                    True, None, f_hidden, f_meta
+                ))
+
+            cls._direct_fields = fields
+
+        return cls
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        cls._collect_direct_fields()
+
+        fields = collections.OrderedDict()
+
+        for parent in reversed(cls.__mro__):
+            lst = getattr(parent, '_direct_fields', [])
+            for field in lst:
+                fields[field.name] = field
+
+        cls._fields = fields
+        cls._field_factories = tuple(
+            (k, v.factory) for k, v in fields.items()
+            if v.factory and not isinstance(getattr(cls, k, None), property)
+        )
+
+        # Push the default values down in the MRO
+        for k, v in cls._fields.items():
+            if (
+                not v.factory
+                and not isinstance(getattr(cls, k, None), property)
+                and k not in cls.__dict__
+            ):
+                setattr(cls, k, v.default)
+
+    @classmethod
+    def get_field(cls, name):
+        return cls._fields.get(name)
+
+    # Actual object level code
     def __init__(self, **kwargs):
         if type(self).__abstract_node__:
             raise ASTError(
                 f'cannot instantiate abstract AST node '
                 f'{self.__class__.__name__!r}')
 
+        # Make kwargs directly into our __dict__
+        for field_name, factory in self._field_factories:
+            if field_name not in kwargs:
+                kwargs[field_name] = factory()
+
         should_check_types = __debug__ and _check_type is _check_type_real
-        for field_name, field in self.__class__._fields.items():
-            if field_name in kwargs:
-                value = kwargs[field_name]
-            elif field.default is not None:
-                if callable(field.default):
-                    value = field.default()
-                else:
-                    value = field.default
-            else:
-                value = None
+        if should_check_types:
+            for k, v in kwargs.items():
+                self.check_field_type(self._fields[k], v)
 
-            if should_check_types:
-                self.check_field_type(field, value)
-
-            # Bypass overloaded setattr
-            try:
-                object.__setattr__(self, field_name, value)
-            except AttributeError:
-                # Field overriden as a property in a subclass.
-                pass
+        self.__dict__ = kwargs
 
     def __copy__(self):
         copied = self.__class__()
@@ -285,11 +264,8 @@ class AST(object, metaclass=MetaAST):
             if name in self.__ast_frozen_fields__:
                 raise TypeError(f'cannot set immutable {name} on {self!r}')
 
-    def __setattr__(self, name, value):
-        object.__setattr__(self, name, value)
-
     if __debug__ and _check_type is _check_type_real:
-        __setattr__ = _checked_setattr  # NoQA: F811
+        __setattr__ = _checked_setattr
 
     def check_field_type(self, field, value):
         def raise_error(field_type_name, value):
@@ -314,15 +290,18 @@ class ImmutableASTMixin:
         super().__init__(**kwargs)
         self.__frozen = True
 
-    def __setattr__(self, name, value):
-        if self.__frozen and name not in self.__ast_mutable_fields__:
-            raise TypeError(f'cannot set {name} on immutable {self!r}')
-        else:
-            super().__setattr__(name, value)
+    # mypy gets mad about this if there isn't a __setattr__ in AST.
+    # I don't know why.
+    if not TYPE_CHECKING:
+        def __setattr__(self, name, value):
+            if self.__frozen and name not in self.__ast_mutable_fields__:
+                raise TypeError(f'cannot set {name} on immutable {self!r}')
+            else:
+                super().__setattr__(name, value)
 
 
 @markup.serializer.serializer.register(AST)
-def _serialize_to_markup(ast, *, ctx):
+def serialize_to_markup(ast, *, ctx):
     node = markup.elements.lang.TreeNode(id=id(ast), name=type(ast).__name__)
     include_meta = ctx.kwargs.get('_ast_include_meta', True)
     exclude_unset = ctx.kwargs.get('_ast_exclude_unset', True)
@@ -361,8 +340,8 @@ def iter_fields(node, *, include_meta=True, exclude_unset=False):
         if field_val is _marker:
             continue
         if exclude_unset:
-            if callable(field.default):
-                default = field.default()
+            if field.factory:
+                default = field.factory()
             else:
                 default = field.default
             if field_val == default:
@@ -373,71 +352,6 @@ def iter_fields(node, *, include_meta=True, exclude_unset=False):
 def _is_optional(type_):
     return (typing_inspect.is_union_type(type_) and
             type(None) in typing_inspect.get_args(type_, evaluate=True))
-
-
-def _check_annotation(f_type, f_fullname, f_default):
-    if typing_inspect.is_tuple_type(f_type):
-        if f_default is not None:
-            raise RuntimeError(
-                f'invalid type annotation on {f_fullname}: '
-                f'default is defined for tuple type')
-
-        f_default = tuple
-
-    elif typing_inspect.is_union_type(f_type):
-        for t in typing_inspect.get_args(f_type, evaluate=True):
-            _check_annotation(t, f_fullname, f_default)
-
-    elif typing_inspect.is_generic_type(f_type):
-        if f_default is not None:
-            raise RuntimeError(
-                f'invalid type annotation on {f_fullname}: '
-                f'default is defined for container type '
-                f'{f_type!r}')
-
-        ot = typing_inspect.get_origin(f_type)
-        if ot is None:
-            raise RuntimeError(
-                f'cannot find origin of a generic type {f_type}')
-
-        if ot in (list, List, collections.abc.Sequence):
-            f_default = list
-        elif ot in (set, Set):
-            f_default = set
-        elif ot in (frozenset, FrozenSet):
-            f_default = frozenset
-        elif ot in (dict, Dict):
-            f_default = dict
-        else:
-            raise RuntimeError(
-                f'invalid type annotation on {f_fullname}: '
-                f'{f_type!r} is not supported')
-
-    elif f_type is not None:
-        if f_type is Any:
-            f_type = object
-
-        if not isinstance(f_type, type):
-            raise RuntimeError(
-                f'invalid type annotation on {f_fullname}: '
-                f'{f_type!r} is not a type')
-
-        if typeutils.is_container_type(f_type):
-            if f_default is not None:
-                raise RuntimeError(
-                    f'invalid type annotation on {f_fullname}: '
-                    f'default is defined for container type '
-                    f'{f_type!r}')
-            # Make sure that we can actually construct an empty
-            # version of this type before we decide it is the default.
-            try:
-                f_type()
-            except TypeError:
-                pass
-            else:
-                f_default = f_type
-
-    return f_default
 
 
 def _check_container_type(type_, value, raise_error, instance_type):

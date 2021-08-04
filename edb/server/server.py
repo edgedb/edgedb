@@ -22,13 +22,14 @@ from typing import *
 
 import asyncio
 import binascii
-import collections
 import json
 import logging
 import os
 import pickle
 import socket
+import ssl
 import stat
+import sys
 import uuid
 
 import immutables
@@ -45,6 +46,7 @@ from edb.schema import schema as s_schema
 
 from edb.edgeql import parser as ql_parser
 
+from edb.server import args as srvargs
 from edb.server import cache
 from edb.server import config
 from edb.server import connpool
@@ -53,25 +55,24 @@ from edb.server import defines
 from edb.server import protocol
 from edb.server.protocol import binary  # type: ignore
 from edb.server import pgcon
+from edb.server.pgcon import errors as pgcon_errors
 
 from . import dbview
 
 
+ADMIN_PLACEHOLDER = "<edgedb:admin>"
 logger = logging.getLogger('edb.server')
 log_metrics = logging.getLogger('edb.server.metrics')
-
-
-class StartupScript(NamedTuple):
-
-    text: str
-    database: str
-    user: str
 
 
 class RoleDescriptor(TypedDict):
     superuser: bool
     name: str
     password: str
+
+
+class StartupError(Exception):
+    pass
 
 
 class Server:
@@ -89,34 +90,42 @@ class Server:
     _schema_class_layout: s_refl.SchemaTypeLayout
 
     _sys_pgcon_waiter: asyncio.Lock
-    _servers: List[asyncio.AbstractServer]
+    _servers: Mapping[str, asyncio.AbstractServer]
+
+    _task_group: Optional[taskgroup.TaskGroup]
+    _binary_conns: Set[binary.EdgeConnection]
 
     def __init__(
         self,
         *,
-        loop,
         cluster,
         runstate_dir,
         internal_runstate_dir,
         max_backend_connections,
         compiler_pool_size,
-        nethost,
+        nethosts,
         netport,
-        auto_shutdown: bool=False,
+        allow_insecure_binary_clients: bool = False,
+        allow_insecure_http_clients: bool = False,
+        auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
-        startup_script: Optional[StartupScript] = None,
+        status_sink: Optional[Callable[[str], None]] = None,
+        startup_script: Optional[srvargs.StartupScript] = None,
     ):
 
-        self._loop = loop
+        self._loop = asyncio.get_running_loop()
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
 
         self._serving = False
         self._initing = False
+        self._accept_new_tasks = False
 
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
+        inst_params = cluster.get_runtime_params().instance_params
+        self._tenant_id = inst_params.tenant_id
 
         # 1 connection is reserved for the system DB
         pool_capacity = max_backend_connections - 1
@@ -125,6 +134,7 @@ class Server:
             disconnect=self._pg_disconnect,
             max_capacity=pool_capacity,
         )
+        self._pg_unavailable_msg = None
 
         # DB state will be initialized in init().
         self._dbindex = None
@@ -132,18 +142,22 @@ class Server:
         self._runstate_dir = runstate_dir
         self._internal_runstate_dir = internal_runstate_dir
         self._max_backend_connections = max_backend_connections
+        self._compiler_pool = None
         self._compiler_pool_size = compiler_pool_size
 
-        self._listen_host = nethost
+        self._listen_hosts = nethosts
         self._listen_port = netport
 
         self._sys_auth: Tuple[Any, ...] = tuple()
 
         # Shutdown the server after the last management
         # connection has disconnected
-        self._auto_shutdown = auto_shutdown
+        # and there have been no new connections for n seconds
+        self._auto_shutdown_after = auto_shutdown_after
+        self._auto_shutdown_handler = None
 
         self._echo_runtime_info = echo_runtime_info
+        self._status_sink = status_sink
 
         self._startup_script = startup_script
 
@@ -158,16 +172,24 @@ class Server:
         self._devmode = devmode.is_in_dev_mode()
 
         self._binary_proto_id_counter = 0
-        self._binary_proto_num_connections = 0
+        self._binary_conns = set()
         self._accepting_connections = False
 
-        self._servers = []
+        self._servers = {}
 
         self._http_query_cache = cache.StatementsCache(
             maxsize=defines.HTTP_PORT_QUERY_CACHE_SIZE)
 
         self._http_last_minute_requests = windowedsum.WindowedSum()
         self._http_request_logger = None
+
+        self._task_group = None
+        self._stop_evt = asyncio.Event()
+        self._tls_cert_file = None
+        self._sslctx = None
+
+        self._allow_insecure_binary_clients = allow_insecure_binary_clients
+        self._allow_insecure_http_clients = allow_insecure_http_clients
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -182,29 +204,58 @@ class Server:
 
             await asyncio.sleep(30)
 
+    def get_listen_hosts(self):
+        return self._listen_hosts
+
+    def get_listen_port(self):
+        return self._listen_port
+
     def get_loop(self):
         return self._loop
 
     def in_dev_mode(self):
         return self._devmode
 
+    def get_pg_dbname(self, dbname: str) -> str:
+        return self._cluster.get_db_name(dbname)
+
     def on_binary_client_connected(self) -> str:
         self._binary_proto_id_counter += 1
+
+        if self._auto_shutdown_handler:
+            self._auto_shutdown_handler.cancel()
+            self._auto_shutdown_handler = None
+
         return str(self._binary_proto_id_counter)
 
-    def on_binary_client_authed(self):
-        self._binary_proto_num_connections += 1
-        # self._report_connections() XXX
+    def on_binary_client_authed(self, conn):
+        self._binary_conns.add(conn)
+        self._report_connections(event='opened')
 
-    def on_binary_client_disconnected(self):
-        self._binary_proto_num_connections -= 1
-        # self._report_connections(action="close") XXX
-        if not self._binary_proto_num_connections and self._auto_shutdown:
-            self._accepting_connections = False
-            raise SystemExit
+    def on_binary_client_disconnected(self, conn):
+        self._binary_conns.discard(conn)
+        self._report_connections(event="closed")
+
+        if not self._binary_conns and self._auto_shutdown_after >= 0:
+
+            def shutdown():
+                self._accepting_connections = False
+                self._stop_evt.set()
+
+            self._auto_shutdown_handler = self._loop.call_later(
+                self._auto_shutdown_after, shutdown)
+
+    def _report_connections(self, *, event: str) -> None:
+        log_metrics.info(
+            "%s a connection; open_count=%d",
+            event,
+            len(self._binary_conns),
+        )
 
     async def _pg_connect(self, dbname):
-        return await pgcon.connect(self._get_pgaddr(), dbname)
+        pg_dbname = self.get_pg_dbname(dbname)
+        return await pgcon.connect(
+            self._get_pgaddr(), pg_dbname, self._tenant_id)
 
     async def _pg_disconnect(self, conn):
         conn.terminate()
@@ -214,6 +265,8 @@ class Server:
         try:
             self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
             self._sys_pgcon_waiter = asyncio.Lock()
+            self._sys_pgcon_ready_evt = asyncio.Event()
+            self._sys_pgcon_reconnect_evt = asyncio.Event()
 
             await self._load_instance_data()
 
@@ -232,27 +285,19 @@ class Server:
 
             # Now, once all DBs have been introspected, start listening on
             # any notifications about schema/roles/etc changes.
-            await self.__sys_pgcon.set_server(self)
-
-            self._compiler_pool = await compiler_pool.create_compiler_pool(
-                pool_size=self._compiler_pool_size,
-                dbindex=self._dbindex,
-                runstate_dir=self._runstate_dir,
-                backend_runtime_params=self.get_backend_runtime_params(),
-                std_schema=self._std_schema,
-                refl_schema=self._refl_schema,
-                schema_class_layout=self._schema_class_layout,
-            )
+            await self.__sys_pgcon.listen_for_sysevent()
+            self.__sys_pgcon.set_server(self)
+            self._sys_pgcon_ready_evt.set()
 
             self._populate_sys_auth()
 
-            if not self._listen_host:
-                self._listen_host = (
+            if not self._listen_hosts:
+                self._listen_hosts = (
                     config.lookup('listen_addresses', sys_config)
-                    or 'localhost'
+                    or ('localhost',)
                 )
 
-            if not self._listen_port:
+            if self._listen_port is None:
                 self._listen_port = (
                     config.lookup('listen_port', sys_config)
                     or defines.EDGEDB_PORT
@@ -264,6 +309,22 @@ class Server:
 
         finally:
             self._initing = False
+
+    async def _create_compiler_pool(self):
+        self._compiler_pool = await compiler_pool.create_compiler_pool(
+            pool_size=self._compiler_pool_size,
+            dbindex=self._dbindex,
+            runstate_dir=self._internal_runstate_dir,
+            backend_runtime_params=self.get_backend_runtime_params(),
+            std_schema=self._std_schema,
+            refl_schema=self._refl_schema,
+            schema_class_layout=self._schema_class_layout,
+        )
+
+    async def _destroy_compiler_pool(self):
+        if self._compiler_pool is not None:
+            await self._compiler_pool.stop()
+            self._compiler_pool = None
 
     def _populate_sys_auth(self):
         cfg = self._dbindex.get_sys_config()
@@ -288,6 +349,9 @@ class Server:
         return self._dbindex.new_view(
             dbname, user=user, query_cache=query_cache)
 
+    def remove_dbview(self, dbview):
+        return self._dbindex.remove_view(dbview)
+
     def get_global_schema(self):
         return self._dbindex.get_global_schema()
 
@@ -295,11 +359,29 @@ class Server:
         return self._dbindex.get_compilation_system_config()
 
     async def acquire_pgcon(self, dbname):
-        return await self._pg_pool.acquire(dbname)
+        if self._pg_unavailable_msg is not None:
+            raise errors.BackendUnavailableError(
+                'Postgres is not available: ' + self._pg_unavailable_msg
+            )
+
+        for _ in range(self._pg_pool.max_capacity + 1):
+            conn = await self._pg_pool.acquire(dbname)
+            if conn.is_healthy():
+                return conn
+            else:
+                logger.warning('Acquired an unhealthy pgcon; discard now.')
+                self._pg_pool.release(dbname, conn, discard=True)
+        else:
+            # This is unlikely to happen, but we defer to the caller to retry
+            # when it does happen
+            raise errors.BackendUnavailableError(
+                'No healthy backend connection available at the moment, '
+                'please try again.'
+            )
 
     def release_pgcon(self, dbname, conn, *, discard=False):
-        if not conn.is_healthy_to_go_back_to_pool():
-            # TODO: Add warning. This shouldn't happen.
+        if not conn.is_healthy():
+            logger.warning('Released an unhealthy pgcon; discard now.')
             discard = True
         self._pg_pool.release(dbname, conn, discard=discard)
 
@@ -343,6 +425,12 @@ class Server:
         )
 
     async def _reintrospect_global_schema(self):
+        if not self._initing and not self._serving:
+            logger.warning(
+                "global-schema-changes event received during shutdown; "
+                "ignoring."
+            )
+            return
         new_global_schema = await self.introspect_global_schema()
         self._dbindex.update_global_schema(new_global_schema)
         self._fetch_roles()
@@ -366,8 +454,24 @@ class Server:
             schema_class_layout=self._schema_class_layout,
         )
 
-    async def introspect_db(self, dbname, *, refresh=False):
-        conn = await self.acquire_pgcon(dbname)
+    async def introspect_db(
+        self, dbname, *, refresh=False, skip_dropped=False
+    ):
+        try:
+            conn = await self.acquire_pgcon(dbname)
+        except pgcon_errors.BackendError as e:
+            if skip_dropped and e.code_is(
+                pgcon_errors.ERROR_INVALID_CATALOG_NAME
+            ):
+                # database does not exist
+                logger.warning(
+                    "Detected concurrently-dropped database %s; skipping.",
+                    dbname,
+                )
+                return
+            else:
+                raise
+
         try:
             user_schema = await self.introspect_user_schema(conn)
 
@@ -404,7 +508,7 @@ class Server:
                         "backend_id"
                     )::text
                 FROM
-                    edgedb."_SchemaScalarType"
+                    edgedb."_SchemaType"
                 ''',
                 b'__backend_ids_fetch',
                 dbver=0,
@@ -451,7 +555,7 @@ class Server:
 
         async with taskgroup.TaskGroup(name='introspect DBs') as g:
             for dbname in dbnames:
-                g.create_task(self.introspect_db(dbname))
+                g.create_task(self.introspect_db(dbname, skip_dropped=True))
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
@@ -535,23 +639,90 @@ class Server:
     def get_roles(self):
         return self._roles
 
-    async def _restart_servers_new_addr(self, nethost, netport):
-        old_servers = self._servers
-        self._servers = await self._start_servers(nethost, netport)
-        self._listen_host = nethost
+    async def _restart_servers_new_addr(self, nethosts, netport):
+        if not netport:
+            raise RuntimeError('cannot restart without network port specified')
+        nethosts = _fix_wildcard_host(nethosts)
+        servers_to_stop = []
+        servers = {}
+        if self._listen_port == netport:
+            hosts_to_start = [
+                host for host in nethosts if host not in self._servers
+            ]
+            for host, srv in self._servers.items():
+                if host == ADMIN_PLACEHOLDER or host in nethosts:
+                    servers[host] = srv
+                else:
+                    servers_to_stop.append(srv)
+            admin = False
+        else:
+            hosts_to_start = nethosts
+            servers_to_stop = self._servers.values()
+            admin = True
+
+        new_servers, *_ = await self._start_servers(
+            hosts_to_start, netport, admin
+        )
+        servers.update(new_servers)
+        self._servers = servers
+        self._listen_hosts = nethosts
         self._listen_port = netport
-        await self._stop_servers(old_servers)
+
+        addrs = []
+        unix_addr = None
+        port = None
+        for srv in servers_to_stop:
+            for s in srv.sockets:
+                addr = s.getsockname()
+                if isinstance(addr, tuple):
+                    addrs.append(addr)
+                    if port is None:
+                        port = addr[1]
+                    elif port != addr[1]:
+                        port = 0
+                else:
+                    unix_addr = addr
+        if len(addrs) > 1:
+            if port:
+                addr_str = f"{{{', '.join(addr[0] for addr in addrs)}}}:{port}"
+            else:
+                addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
+        elif addrs:
+            addr_str = "%s:%d" % addrs[0]
+        else:
+            addr_str = None
+        if addr_str:
+            logger.info('Stopping to serve on %s', addr_str)
+        if unix_addr:
+            logger.info('Stopping to serve admin on %s', unix_addr)
+
+        await self._stop_servers(servers_to_stop)
 
     async def _on_before_drop_db(
         self,
         dbname: str,
         current_dbname: str
     ) -> None:
-        assert self._dbindex is not None
-
         if current_dbname == dbname:
             raise errors.ExecutionError(
                 f'cannot drop the currently open database {dbname!r}')
+
+        await self._ensure_database_not_connected(dbname)
+
+    async def _on_before_create_db_from_template(
+        self,
+        dbname: str,
+        current_dbname: str
+    ):
+        if current_dbname == dbname:
+            raise errors.ExecutionError(
+                f'cannot create database using currently open database '
+                f'{dbname!r} as a template database')
+
+        await self._ensure_database_not_connected(dbname)
+
+    async def _ensure_database_not_connected(self, dbname: str):
+        assert self._dbindex is not None
 
         if self._dbindex.count_connections(dbname):
             # If there are open EdgeDB connections to the `dbname` DB
@@ -568,64 +739,69 @@ class Server:
         self._dbindex.unregister_db(dbname)
 
     async def _on_system_config_add(self, setting_name, value):
-        # CONFIGURE SYSTEM INSERT ConfigObject;
+        # CONFIGURE INSTANCE INSERT ConfigObject;
         pass
 
     async def _on_system_config_rem(self, setting_name, value):
-        # CONFIGURE SYSTEM RESET ConfigObject;
+        # CONFIGURE INSTANCE RESET ConfigObject;
         pass
 
     async def _on_system_config_set(self, setting_name, value):
-        # CONFIGURE SYSTEM SET setting_name := value;
+        # CONFIGURE INSTANCE SET setting_name := value;
         if setting_name == 'listen_addresses':
             await self._restart_servers_new_addr(value, self._listen_port)
 
         elif setting_name == 'listen_port':
-            await self._restart_servers_new_addr(self._listen_host, value)
+            await self._restart_servers_new_addr(self._listen_hosts, value)
 
     async def _on_system_config_reset(self, setting_name):
-        # CONFIGURE SYSTEM RESET setting_name;
+        # CONFIGURE INSTANCE RESET setting_name;
         if setting_name == 'listen_addresses':
             await self._restart_servers_new_addr(
-                'localhost', self._listen_port)
+                ('localhost',), self._listen_port)
 
         elif setting_name == 'listen_port':
             await self._restart_servers_new_addr(
-                self._listen_host, defines.EDGEDB_PORT)
+                self._listen_hosts, defines.EDGEDB_PORT)
 
     async def _after_system_config_add(self, setting_name, value):
-        # CONFIGURE SYSTEM INSERT ConfigObject;
+        # CONFIGURE INSTANCE INSERT ConfigObject;
         if setting_name == 'auth':
             self._populate_sys_auth()
 
     async def _after_system_config_rem(self, setting_name, value):
-        # CONFIGURE SYSTEM RESET ConfigObject;
+        # CONFIGURE INSTANCE RESET ConfigObject;
         if setting_name == 'auth':
             self._populate_sys_auth()
 
     async def _after_system_config_set(self, setting_name, value):
-        # CONFIGURE SYSTEM SET setting_name := value;
+        # CONFIGURE INSTANCE SET setting_name := value;
         pass
 
     async def _after_system_config_reset(self, setting_name):
-        # CONFIGURE SYSTEM RESET setting_name;
+        # CONFIGURE INSTANCE RESET setting_name;
         pass
 
     async def _acquire_sys_pgcon(self):
         if not self._initing and not self._serving:
-            return None
+            raise RuntimeError("EdgeDB server is not serving.")
 
         await self._sys_pgcon_waiter.acquire()
 
         if not self._initing and not self._serving:
             self._sys_pgcon_waiter.release()
-            return None
+            raise RuntimeError("EdgeDB server is not serving.")
 
-        if (self.__sys_pgcon is None or
-                not self.__sys_pgcon.is_healthy_to_go_back_to_pool()):
-            self.__sys_pgcon.abort()
-            self.__sys_pgcon = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
-            await self.__sys_pgcon.set_server(self)
+        if self.__sys_pgcon is None or not self.__sys_pgcon.is_healthy():
+            conn, self.__sys_pgcon = self.__sys_pgcon, None
+            if conn is not None:
+                self._sys_pgcon_ready_evt.clear()
+                conn.abort()
+            # We depend on the reconnect on connection_lost() of __sys_pgcon
+            await self._sys_pgcon_ready_evt.wait()
+            if self.__sys_pgcon is None:
+                self._sys_pgcon_waiter.release()
+                raise RuntimeError("Cannot acquire pgcon to the system DB.")
 
         return self.__sys_pgcon
 
@@ -661,15 +837,22 @@ class Server:
         finally:
             self._release_sys_pgcon()
 
+    async def _cancel_and_discard_pgcon(self, pgcon, dbname) -> None:
+        try:
+            if self._serving:
+                await self._cancel_pgcon_operation(pgcon)
+        finally:
+            self.release_pgcon(dbname, pgcon, discard=True)
+
     async def _signal_sysevent(self, event, **kwargs):
-        pgcon = await self._acquire_sys_pgcon()
-        if pgcon is None:
-            # No pgcon means that the server is going down.  This is very
-            # likely if we are doing "run_startup_script_and_exit()",
-            # but is also possible if the server was shut down with
-            # this coroutine as a background task in flight.
+        if not self._initing and not self._serving:
+            # This is very likely if we are doing
+            # "run_startup_script_and_exit()", but is also possible if the
+            # server was shut down with this coroutine as a background task
+            # in flight.
             return
 
+        pgcon = await self._acquire_sys_pgcon()
         try:
             await pgcon.signal_sysevent(event, **kwargs)
         finally:
@@ -695,84 +878,213 @@ class Server:
     def _on_global_schema_change(self):
         self._loop.create_task(self._reintrospect_global_schema())
 
-    def _on_sys_pgcon_connection_lost(self):
+    def _on_sys_pgcon_connection_lost(self, exc):
         if not self._serving:
-            # The server is shutting down.
+            # The server is shutting down, release all events so that
+            # the waiters if any could continue and exit
+            self._sys_pgcon_ready_evt.set()
+            self._sys_pgcon_reconnect_evt.set()
             return
-        self.__sys_pgcon = None
 
-        async def reconnect():
-            conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
-            if self.__sys_pgcon is not None or not self._serving:
-                conn.abort()
+        logger.error(
+            "Connection to the system database is " +
+            ("closed." if exc is None else f"broken! Reason: {exc}")
+        )
+        self.set_pg_unavailable_msg(
+            "Connection is lost, please check server log for the reason."
+        )
+        self.__sys_pgcon = None
+        self._sys_pgcon_ready_evt.clear()
+        self._loop.create_task(self._reconnect_sys_pgcon())
+
+    async def _reconnect_sys_pgcon(self):
+        try:
+            conn = None
+            while self._serving:
+                try:
+                    conn = await self._pg_connect(defines.EDGEDB_SYSTEM_DB)
+                    break
+                except ConnectionError:
+                    # Keep retrying as far as:
+                    #   1. The EdgeDB server is still serving,
+                    #   2. We still cannot connect to the Postgres cluster, or
+                    pass
+                except pgcon_errors.BackendError as e:
+                    #   3. The Postgres cluster is still starting up
+                    if not e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW):
+                        raise
+
+                if self._serving:
+                    try:
+                        # Retry after INTERVAL seconds, unless the event is set
+                        # and we can retry immediately after the event.
+                        await asyncio.wait_for(
+                            self._sys_pgcon_reconnect_evt.wait(),
+                            defines.SYSTEM_DB_RECONNECT_INTERVAL,
+                        )
+                        # But the event can only skip one INTERVAL.
+                        self._sys_pgcon_reconnect_evt.clear()
+                    except asyncio.TimeoutError:
+                        pass
+
+            if not self._serving:
+                if conn is not None:
+                    conn.abort()
                 return
 
+            logger.info("Successfully reconnected to the system database.")
             self.__sys_pgcon = conn
-            await self.__sys_pgcon.set_server(self)
-
-        self._loop.create_task(reconnect())
+            self.__sys_pgcon.set_server(self)
+            # This await is meant to be after set_server() because we need the
+            # pgcon to be able to trigger another reconnect if its connection
+            # is lost during this await.
+            await self.__sys_pgcon.listen_for_sysevent()
+            self.set_pg_unavailable_msg(None)
+        finally:
+            self._sys_pgcon_ready_evt.set()
 
     async def run_startup_script_and_exit(self):
         """Run the script specified in *startup_script* and exit immediately"""
         if self._startup_script is None:
             raise AssertionError('startup script is not defined')
+        await self._create_compiler_pool()
+        try:
+            ql_parser.preload()
+            await binary.EdgeConnection.run_script(
+                server=self,
+                database=self._startup_script.database,
+                user=self._startup_script.user,
+                script=self._startup_script.text,
+            )
+        finally:
+            await self._destroy_compiler_pool()
 
-        ql_parser.preload()
-        await binary.EdgeConnection.run_script(
-            server=self,
-            database=self._startup_script.database,
-            user=self._startup_script.user,
-            script=self._startup_script.text,
+    async def _start_server(
+        self, host: str, port: int
+    ) -> asyncio.AbstractServer:
+        nethost = None
+        if host == "localhost":
+            nethost = await _resolve_localhost()
+
+        proto_factory = lambda: protocol.HttpProtocol(
+            self, self._sslctx,
+            allow_insecure_binary_clients=self._allow_insecure_binary_clients,
+            allow_insecure_http_clients=self._allow_insecure_http_clients,
         )
-        return
 
-    async def _start_servers(self, host, port):
-        nethost = await _fix_localhost(host, port)
+        return await self._loop.create_server(
+            proto_factory, host=nethost or host, port=port)
 
-        tcp_srv = await self._loop.create_server(
-            lambda: protocol.HttpProtocol(self),
-            host=nethost, port=port)
-
-        try:
-            unix_sock_path = os.path.join(
-                self._runstate_dir, f'.s.EDGEDB.{port}')
-            unix_srv = await self._loop.create_unix_server(
-                lambda: protocol.HttpProtocol(self),
-                unix_sock_path)
-        except Exception:
-            tcp_srv.close()
-            await tcp_srv.wait_closed()
-            raise
-
-        try:
-            admin_unix_sock_path = os.path.join(
-                self._runstate_dir, f'.s.EDGEDB.admin.{port}')
-            admin_unix_srv = await self._loop.create_unix_server(
-                lambda: protocol.HttpProtocol(self, external_auth=True),
-                admin_unix_sock_path)
-            os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
-        except Exception:
-            tcp_srv.close()
-            await tcp_srv.wait_closed()
-            unix_srv.close()
-            await unix_srv.wait_closed()
-            raise
-
-        servers = []
-
-        servers.append(tcp_srv)
-        if len(nethost) > 1:
-            host_str = f"{{{', '.join(nethost)}}}"
-        else:
-            host_str = next(iter(nethost))
-
-        logger.info('Serving on %s:%s', host_str, port)
-        servers.append(unix_srv)
-        logger.info('Serving on %s', unix_sock_path)
-        servers.append(admin_unix_srv)
+    async def _start_admin_server(self, port: int) -> asyncio.AbstractServer:
+        admin_unix_sock_path = os.path.join(
+            self._runstate_dir, f'.s.EDGEDB.admin.{port}')
+        admin_unix_srv = await self._loop.create_unix_server(
+            lambda: binary.EdgeConnection(self, external_auth=True),
+            admin_unix_sock_path
+        )
+        os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
         logger.info('Serving admin on %s', admin_unix_sock_path)
+        return admin_unix_srv
 
-        return servers
+    async def _start_servers(self, hosts, port, admin=True):
+        servers = {}
+        try:
+            async with taskgroup.TaskGroup() as g:
+                for host in hosts:
+                    servers[host] = g.create_task(
+                        self._start_server(host, port)
+                    )
+        except Exception:
+            await self._stop_servers([
+                fut.result() for fut in servers.values()
+                if fut.done() and fut.exception() is None
+            ])
+            raise
+        servers = {host: fut.result() for host, fut in servers.items()}
+
+        addrs = []
+        for tcp_srv in servers.values():
+            for s in tcp_srv.sockets:
+                addrs.append(s.getsockname())
+
+        if len(addrs) > 1:
+            if port:
+                addr_str = f"{{{', '.join(addr[0] for addr in addrs)}}}:{port}"
+            else:
+                addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
+        elif addrs:
+            addr_str = "%s:%d" % addrs[0]
+            port = addrs[0][1]
+        else:
+            addr_str = None
+
+        if addr_str:
+            logger.info('Serving on %s', addr_str)
+
+        if admin and port:
+            try:
+                admin_unix_srv = await self._start_admin_server(port)
+            except Exception:
+                await self._stop_servers(servers.values())
+                raise
+            servers[ADMIN_PLACEHOLDER] = admin_unix_srv
+
+        return servers, port, addrs
+
+    def init_tls(self, tls_cert_file, tls_key_file):
+        assert self._sslctx is None
+        tls_password_needed = False
+
+        def _tls_private_key_password():
+            nonlocal tls_password_needed
+            tls_password_needed = True
+            return os.environ.get('EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
+
+        sslctx = ssl.SSLContext()
+        try:
+            sslctx.load_cert_chain(
+                tls_cert_file,
+                tls_key_file,
+                password=_tls_private_key_password,
+            )
+        except ssl.SSLError as e:
+            if e.library == "SSL" and e.errno == 9:  # ERR_LIB_PEM
+                if tls_password_needed:
+                    if _tls_private_key_password():
+                        raise StartupError(
+                            "Cannot load TLS certificates - it's likely that "
+                            "the private key password is wrong."
+                        ) from e
+                    else:
+                        raise StartupError(
+                            "Cannot load TLS certificates - the private key "
+                            "file is likely protected by a password. Specify "
+                            "the password using environment variable: "
+                            "EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD"
+                        ) from e
+                elif tls_key_file is None:
+                    raise StartupError(
+                        "Cannot load TLS certificates - have you specified "
+                        "the private key file using the `--tls-key-file` "
+                        "command-line argument?"
+                    ) from e
+                else:
+                    raise StartupError(
+                        "Cannot load TLS certificates - please double check "
+                        "if the specified certificate files are valid."
+                    )
+            elif e.library == "X509" and e.errno == 116:
+                # X509 Error 116: X509_R_KEY_VALUES_MISMATCH
+                raise StartupError(
+                    "Cannot load TLS certificates - the private key doesn't "
+                    "match the certificate."
+                )
+
+            raise StartupError(f"Cannot load TLS certificates - {e}") from e
+
+        sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
+        self._sslctx = sslctx
+        self._tls_cert_file = str(tls_cert_file)
 
     async def _stop_servers(self, servers):
         async with taskgroup.TaskGroup() as g:
@@ -781,6 +1093,14 @@ class Server:
                 g.create_task(srv.wait_closed())
 
     async def start(self):
+        self._stop_evt.clear()
+        assert self._task_group is None
+        self._task_group = taskgroup.TaskGroup()
+        await self._task_group.__aenter__()
+        self._accept_new_tasks = True
+
+        await self._create_compiler_pool()
+
         # Make sure that EdgeQL parser is preloaded; edgecon might use
         # it to restore config values.
         ql_parser.preload()
@@ -793,8 +1113,11 @@ class Server:
                 script=self._startup_script.text,
             )
 
-        self._servers = await self._start_servers(
-            self._listen_host, self._listen_port)
+        self._servers, actual_port, listen_addrs = await self._start_servers(
+            _fix_wildcard_host(self._listen_hosts), self._listen_port
+        )
+        if self._listen_port == 0:
+            self._listen_port = actual_port
 
         self._accepting_connections = True
         self._serving = True
@@ -803,24 +1126,55 @@ class Server:
             ri = {
                 "port": self._listen_port,
                 "runstate_dir": str(self._runstate_dir),
+                "tls_cert_file": self._tls_cert_file,
             }
             print(f'\nEDGEDB_SERVER_DATA:{json.dumps(ri)}\n', flush=True)
+
+        if self._status_sink is not None:
+            status = {
+                "listen_addrs": listen_addrs,
+                "port": self._listen_port,
+                "socket_dir": str(self._runstate_dir),
+                "main_pid": os.getpid(),
+                "tenant_id": self._tenant_id,
+                "tls_cert_file": self._tls_cert_file,
+            }
+            self._status_sink(f'READY={json.dumps(status)}')
 
     async def stop(self):
         try:
             self._serving = False
+            self._accept_new_tasks = False
 
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
 
-            await self._stop_servers(self._servers)
-            self._servers = []
+            await self._stop_servers(self._servers.values())
+            self._servers = {}
+
+            for conn in self._binary_conns:
+                conn.stop()
+            self._binary_conns = set()
+
+            if self._task_group is not None:
+                tg = self._task_group
+                self._task_group = None
+                await tg.__aexit__(*sys.exc_info())
+
+            await self._destroy_compiler_pool()
 
         finally:
             if self.__sys_pgcon is not None:
                 self.__sys_pgcon.terminate()
                 self.__sys_pgcon = None
             self._sys_pgcon_waiter = None
+
+    def create_task(self, coro):
+        if self._accept_new_tasks:
+            return self._task_group.create_task(coro)
+
+    async def serve_forever(self):
+        await self._stop_evt.wait()
 
     async def get_auth_method(self, user):
         authlist = self._sys_auth
@@ -846,29 +1200,21 @@ class Server:
     def get_backend_runtime_params(self) -> Any:
         return self._cluster.get_runtime_params()
 
+    def set_pg_unavailable_msg(self, msg):
+        if msg is None or self._pg_unavailable_msg is None:
+            self._pg_unavailable_msg = msg
 
-async def _fix_localhost(host, port):
+
+async def _resolve_localhost() -> List[str]:
     # On many systems 'localhost' resolves to _both_ IPv4 and IPv6
     # addresses, even if the system is not capable of handling
     # IPv6 connections.  Due to the common nature of this issue
     # we explicitly disable the AF_INET6 component of 'localhost'.
 
-    if (isinstance(host, str)
-            or not isinstance(host, collections.abc.Iterable)):
-        hosts = [host]
-    else:
-        hosts = list(host)
-
-    try:
-        idx = hosts.index('localhost')
-    except ValueError:
-        # No localhost, all good
-        return hosts
-
     loop = asyncio.get_running_loop()
     localhost = await loop.getaddrinfo(
         'localhost',
-        port,
+        0,
         family=socket.AF_UNSPEC,
         type=socket.SOCK_STREAM,
         flags=socket.AI_PASSIVE,
@@ -880,12 +1226,28 @@ async def _fix_localhost(host, port):
     if not infos:
         # "localhost" did not resolve to an IPv4 address,
         # let create_server handle the situation.
-        return hosts
+        return ["localhost"]
 
     # Replace 'localhost' with explicitly resolved AF_INET addresses.
-    hosts.pop(idx)
+    hosts = []
     for info in reversed(infos):
         addr, *_ = info[4]
-        hosts.insert(idx, addr)
+        hosts.append(addr)
 
+    return hosts
+
+
+def _fix_wildcard_host(hosts: Sequence[str]) -> Sequence[str]:
+    # Even though it is sometimes not a conflict to bind on the same port of
+    # both the wildcard host 0.0.0.0 and some specific host at the same time,
+    # we're still discarding other hosts if 0.0.0.0 is present because it
+    # should behave the same and we could avoid potential conflicts.
+
+    if '0.0.0.0' in hosts:
+        if len(hosts) > 1:
+            logger.warning(
+                "0.0.0.0 found in listen_addresses; "
+                "discarding the other hosts."
+            )
+            hosts = ['0.0.0.0']
     return hosts

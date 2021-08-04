@@ -495,10 +495,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_Shape(self, node: qlast.Shape) -> None:
         if node.expr is not None:
-            # shape.expr may be None in Function RETURNING declaration,
-            # when the shape is used to described a returned struct.
             self.visit(node.expr)
-        self.write(' ')
+            self.write(' ')
         self._visit_shape(node.elements)
 
     def _visit_shape(self, shape: Sequence[qlast.ShapeElement]) -> None:
@@ -877,10 +875,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.write(ident_to_str(node.name.module), '::',
                            ident_to_str(node.name.name))
-        if node.create_if_not_exists and not self.sdlmode:
-            self.write(' IF NOT EXISTS')
         if after_name:
             after_name()
+        if node.create_if_not_exists and not self.sdlmode:
+            self.write(' IF NOT EXISTS')
 
         commands = node.commands
         if commands and render_commands:
@@ -1032,7 +1030,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.write(' ')
         self.write(ident_to_str(node.name.name))
         if node.version is not None:
-            self.write(' VERSION ')
+            if self.sdlmode or self.descmode:
+                self.write(' version ')
+            else:
+                self.write(' VERSION ')
             self.visit(node.version)
         if node.commands:
             self._ddl_visit_body(node.commands)
@@ -1271,8 +1272,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     ) -> None:
         self.write('ALTER ANNOTATION ')
         self.visit(node.name)
-        self.write(' := ')
-        self.visit(node.value)
+        self.write(' ')
+        if node.value:
+            self.write(':= ')
+            self.visit(node.value)
+        else:
+            # The command should be a DROP OWNED
+            assert len(node.commands) == 1
+            self.visit(node.commands[0])
 
     def visit_DropAnnotationValue(
         self,
@@ -1420,6 +1427,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 len(node.commands) == 1
                 and isinstance(node.commands[0], qlast.SetField)
                 and node.commands[0].name == 'expr'
+                and not isinstance(node.target, qlast.TypeExpr)
             )
         )
 
@@ -1484,6 +1492,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             def after_name() -> None:
                 if type_cmd is not None:
                     self.write(' -> ')
+                    assert type_cmd.value
                     self.visit(type_cmd.value)
 
         keywords.append('PROPERTY')
@@ -1546,6 +1555,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 len(node.commands) == 1
                 and isinstance(node.commands[0], qlast.SetField)
                 and node.commands[0].name == 'expr'
+                and not isinstance(node.target, qlast.TypeExpr)
             )
         )
 
@@ -1584,6 +1594,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self._ddl_visit_bases(inherit_cmd)
                 if type_cmd is not None:
                     self.write(' -> ')
+                    assert type_cmd.value
                     self.visit(type_cmd.value)
         else:
             after_name = None
@@ -1775,56 +1786,64 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         op_type.append('OPERATOR')
         self._visit_DropObject(node, *op_type, after_name=after_name)
 
-    def visit_CreateFunction(self, node: qlast.CreateFunction) -> None:
-        def after_name() -> None:
-            self.write('(')
-            self.visit_list(node.params, newlines=False)
-            self.write(')')
+    def _function_after_name(
+        self, node: Union[qlast.CreateFunction, qlast.AlterFunction]
+    ) -> None:
+        self.write('(')
+        self.visit_list(node.params, newlines=False)
+        self.write(')')
+        if isinstance(node, qlast.CreateFunction):
             self.write(' -> ')
             self.write(node.returning_typemod.to_edgeql(), ' ')
             self.visit(node.returning)
 
-            if node.commands:
-                self.write(' {')
-                self._block_ws(1)
-                commands = self._ddl_clean_up_commands(node.commands)
-                self.visit_list(commands, terminator=';')
-                self.new_lines = 1
-            else:
-                self.write(' ')
+        if node.commands:
+            self.write(' {')
+            self._block_ws(1)
+            commands = self._ddl_clean_up_commands(node.commands)
+            self.visit_list(commands, terminator=';')
+            self.new_lines = 1
+        else:
+            self.write(' ')
 
-            if node.code.from_function:
-                from_clause = f'USING {node.code.language} FUNCTION '
-                if self.sdlmode:
-                    from_clause = from_clause.lower()
-                self.write(from_clause)
-                self.write(f'{node.code.from_function!r}')
-            elif node.code.language is qlast.Language.EdgeQL:
-                if node.nativecode:
-                    self._write_keywords('USING')
-                    self.write(' (')
-                    self.visit(node.nativecode)
-                    self.write(')')
-                else:
-                    assert node.code.code
-                    self._write_keywords('USING')
-                    self.write(f' ({node.code.code})')
+        had_using = True
+        if node.code.from_function:
+            from_clause = f'USING {node.code.language} FUNCTION '
+            if self.sdlmode:
+                from_clause = from_clause.lower()
+            self.write(from_clause)
+            self.write(f'{node.code.from_function!r}')
+        elif node.code.language is qlast.Language.EdgeQL:
+            if node.nativecode:
+                self._write_keywords('USING')
+                self.write(' (')
+                self.visit(node.nativecode)
+                self.write(')')
+            elif node.code.code:
+                self._write_keywords('USING')
+                self.write(f' ({node.code.code})')
             else:
-                from_clause = f'USING {node.code.language} '
-                if self.sdlmode:
-                    from_clause = from_clause.lower()
-                self.write(from_clause)
-                if node.code.code:
-                    self.write(edgeql_quote.dollar_quote_literal(
-                        node.code.code))
+                had_using = False
+        else:
+            from_clause = f'USING {node.code.language} '
+            if self.sdlmode:
+                from_clause = from_clause.lower()
+            self.write(from_clause)
+            if node.code.code:
+                self.write(edgeql_quote.dollar_quote_literal(
+                    node.code.code))
 
+        if node.commands:
             self._block_ws(-1)
-            if node.commands:
+            if had_using:
                 self.write(';')
-                self.write('}')
+            self.write('}')
 
-        self._visit_CreateObject(node, 'FUNCTION', after_name=after_name,
-                                 render_commands=False)
+    def visit_CreateFunction(self, node: qlast.CreateFunction) -> None:
+        self._visit_CreateObject(
+            node, 'FUNCTION',
+            after_name=lambda: self._function_after_name(node),
+            render_commands=False)
 
     def visit_AlterFunction(self, node: qlast.AlterFunction) -> None:
         def after_name() -> None:
@@ -1832,7 +1851,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit_list(node.params, newlines=False)
             self.write(')')
 
-        self._visit_AlterObject(node, 'FUNCTION', after_name=after_name)
+        self._visit_AlterObject(
+            node, 'FUNCTION',
+            after_name=lambda: self._function_after_name(node),
+            ignored_cmds=set(node.commands))
 
     def visit_DropFunction(self, node: qlast.DropFunction) -> None:
         def after_name() -> None:
@@ -2108,7 +2130,7 @@ def _fix_parent_links(node: qlast.Base) -> qlast.Base:
     # Using AST.parent is an anti-pattern. Instead write code
     # that uses singledispatch and maintains a proper context.
 
-    node._parent = None
+    node._parent = None  # type: ignore
 
     for _field, value in base.iter_fields(node):
         if isinstance(value, dict):

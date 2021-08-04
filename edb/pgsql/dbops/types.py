@@ -24,7 +24,6 @@ import textwrap
 from edb.common import ordered
 
 from ..common import qname as qn
-from ..common import quote_ident as qi
 from ..common import quote_literal as ql
 
 from . import base
@@ -169,34 +168,6 @@ class AlterCompositeTypeAlterAttributeType(
         composites.AlterCompositeAlterAttributeType,
         AlterCompositeTypeFragment):
     pass
-
-
-class AlterCompositeTypeSetSchema(AlterCompositeTypeBase):
-    def __init__(self, name, schema, **kwargs):
-        super().__init__(name, **kwargs)
-        self.schema = schema
-
-    def code(self, block: base.PLBlock) -> str:
-        code = super().prefix_code()
-        code += f' SET SCHEMA {qi(self.schema)} '
-        return code
-
-
-class AlterCompositeTypeRenameTo(AlterCompositeTypeBase):
-    def __init__(self, name, new_name, **kwargs):
-        super().__init__(name, **kwargs)
-        self.new_name = new_name
-
-    def code(self, block: base.PLBlock) -> str:
-        code = super().prefix_code()
-        code += f' RENAME TO {qi(self.new_name)} '
-        return code
-
-
-class AlterCompositeTypeRenameAttribute(
-        composites.AlterCompositeRenameAttribute, AlterCompositeTypeBase):
-    def get_attribute_term(self):
-        return 'ATTRIBUTE'
 
 
 class DropCompositeType(ddl.SchemaObjectOperation):

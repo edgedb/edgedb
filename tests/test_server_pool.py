@@ -33,23 +33,76 @@ file in `./tmp/connpool.html`.
 """
 
 
+from __future__ import annotations
 import asyncio
 import collections
 import dataclasses
 import datetime
 import functools
 import json
+import logging
 import os
 import random
 import statistics
 import string
+import sys
 import textwrap
 import time
 import typing
 import unittest
+import unittest.mock
 
 from edb.common import taskgroup
 from edb.server import connpool
+from edb.server.connpool import pool as pool_impl
+
+# TIME_SCALE is used to run the simulation for longer time, the default is 1x.
+TIME_SCALE = int(os.environ.get("TIME_SCALE", '1'))
+
+# Running this script individually for the simulation test will exit with
+# code 0 if the final score is above MIN_SCORE, non-zero otherwise.
+MIN_SCORE = int(os.environ.get('MIN_SCORE', 80))
+
+# As the simulation test report is kinda large (~5MB with TIME_SCALE=10),
+# the CI automation will delete old reports beyond CI_MAX_REPORTS.
+CI_MAX_REPORTS = int(os.environ.get('CI_MAX_REPORTS', 50))
+
+C = typing.TypeVar('C')
+
+
+def with_base_test(m):
+    @functools.wraps(m)
+    def wrapper(self):
+        if self.full_qps is None:
+            self.full_qps = asyncio.run(
+                asyncio.wait_for(self.base_test(), 30 * TIME_SCALE)
+            )
+        return m(self)
+    return wrapper
+
+
+def calc_percentiles(
+    lats: typing.List[float]
+) -> typing.Tuple[float, float, float, float, float, float]:
+    lats_len = len(lats)
+    lats.sort()
+    return (
+        lats[lats_len // 99],
+        lats[lats_len // 4],
+        lats[lats_len // 2],
+        lats[lats_len * 3 // 4],
+        lats[min(lats_len - lats_len // 99, lats_len - 1)],
+        statistics.geometric_mean(lats)
+    )
+
+
+def calc_total_percentiles(
+    lats: typing.Dict[str, typing.List[float]]
+) -> typing.Tuple[float, float, float, float, float, float]:
+    acc = []
+    for i in lats.values():
+        acc.extend(i)
+    return calc_percentiles(acc)
 
 
 @dataclasses.dataclass
@@ -63,9 +116,172 @@ class DBSpec:
 
 
 @dataclasses.dataclass
+class ScoreMethod:
+    # Calculates a score in 0 - 100 with the given value linearly scaled to the
+    # four landmarks. v100 is the value that worth 100 points, and v0 is the
+    # value worth nothing. There is no limit on either v100 or v0 is greater
+    # than each other, but the landmarks should be either incremental
+    # (v100 > v90 > v60 > v0) or decremental (v100 < v90 < v60 < v10).
+
+    v100: float
+    v90: float
+    v60: float
+    v0: float
+    weight: float
+
+    def _calculate(self, value: float) -> float:
+        for v1, v2, base, diff in (
+            (self.v100, self.v90, 90, 10),
+            (self.v90, self.v60, 60, 30),
+            (self.v60, self.v0, 0, 60),
+        ):
+            v_min = min(v1, v2)
+            v_max = max(v1, v2)
+            if v_min <= value < v_max:
+                return base + abs(value - v2) / (v_max - v_min) * diff
+        if self.v0 > self.v100:
+            return 100 if value < self.v100 else 0
+        else:
+            return 0 if value < self.v0 else 100
+
+    def calculate(self, sim: Simulation) -> float:
+        raise NotImplementedError()
+
+
+@dataclasses.dataclass
+class LatencyDistribution(ScoreMethod):
+    # Calculate the score using the average CV of quantiles. This evaluates how
+    # the specified groups of latencies vary in distribution.
+
+    group: range  # select a subset from sim.latencies using range()
+
+    @staticmethod
+    def calc_average_cv_of_quantiles(
+        group_of_lats: typing.Iterable[typing.List[float]], n: int = 10
+    ) -> float:
+        # Calculates the average CV (coefficient of variation) of the given
+        # distributions. The result is a float ranging from zero indicating
+        # how different the given distributions are, where zero means no
+        # difference. Known defect: when the mean value is close to zero, the
+        # coefficient of variation will approach infinity and is therefore
+        # sensitive to small changes.
+        return statistics.geometric_mean(
+            map(
+                lambda v: statistics.pstdev(v) / statistics.fmean(v),
+                zip(
+                    *(
+                        statistics.quantiles(lats, n=n)
+                        for lats in group_of_lats
+                    )
+                ),
+            )
+        )
+
+    def calculate(self, sim: Simulation) -> float:
+        group = sim.group_of_latencies(f't{i}' for i in self.group)
+        cv = self.calc_average_cv_of_quantiles(group)
+        score = self._calculate(cv)
+        sim.record_scoring(
+            f'Average CV for {self.group}', cv, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
+class ConnectionOverhead(ScoreMethod):
+    # Calculate the score based on the total number of connects and disconnects
+
+    use_time_scale: bool = True
+
+    def calculate(self, sim: Simulation) -> float:
+        if self.use_time_scale:
+            self.v90 = self.v100 + (self.v90 - self.v100) * TIME_SCALE
+            self.v60 = self.v100 + (self.v60 - self.v100) * TIME_SCALE
+            self.v0 = self.v100 + (self.v0 - self.v100) * TIME_SCALE
+        value = (
+            sim.stats[-1]["successful_connects"]
+            + sim.stats[-1]["successful_disconnects"]
+        )
+        score = self._calculate(value)
+        sim.record_scoring(
+            'Num of (dis-)connects', value, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
+class PercentileBasedScoreMethod(ScoreMethod):
+    percentile: str  # one of ('P1', 'P25', 'P50', 'P75', 'P99', 'Mean')
+
+    def calc_average_percentile(self, sim: Simulation, group: range) -> float:
+        # Calculate the arithmetic mean of the specified percentile of the
+        # given groups of latencies.
+        percentile_names = ('P1', 'P25', 'P50', 'P75', 'P99', 'Mean')
+        percentile_index = percentile_names.index(self.percentile)
+        return statistics.fmean(
+            map(
+                lambda lats: calc_percentiles(lats)[percentile_index],
+                sim.group_of_latencies(f"t{i}" for i in group),
+            )
+        )
+
+
+@dataclasses.dataclass
+class LatencyRatio(PercentileBasedScoreMethod):
+    # Calculate score based on the ratio of average percentiles between two
+    # groups of latencies. This measures how close this ratio is from the
+    # expected ratio (v100, v90, etc.).
+
+    dividend: range
+    divisor: range
+
+    def calculate(self, sim: Simulation) -> float:
+        dividend_percentile = self.calc_average_percentile(sim, self.dividend)
+        divisor_percentile = self.calc_average_percentile(sim, self.divisor)
+        ratio = dividend_percentile / divisor_percentile
+        score = self._calculate(ratio)
+        sim.record_scoring(
+            f'{self.percentile} ratio {self.divisor}/{self.divisor}',
+            ratio, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
+class AbsoluteLatency(PercentileBasedScoreMethod):
+    # Calculate score based on the absolute average latency percentiles of the
+    # specified group of latencies. This measures the absolute latency of
+    # acquire latencies.
+
+    group: range
+
+    def calculate(self, sim: Simulation) -> float:
+        value = self.calc_average_percentile(sim, self.group)
+        score = self._calculate(value)
+        sim.record_scoring(
+            f'Average {self.percentile} of {self.group}',
+            value, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
+class EndingCapacity(ScoreMethod):
+    # Calculate the score based on the capacity at the end of the test
+
+    def calculate(self, sim: Simulation) -> float:
+        value = sim.stats[-1]["capacity"]
+        score = self._calculate(value)
+        sim.record_scoring(
+            'Ending capacity', value, score, self.weight
+        )
+        return score * self.weight
+
+
+@dataclasses.dataclass
 class Spec:
     timeout: float
-    duration: int
+    duration: float
     capacity: int
     conn_cost_base: float
     conn_cost_var: float
@@ -73,6 +289,19 @@ class Spec:
     desc: str = ''
     disconn_cost_base: float = 0.006
     disconn_cost_var: float = 0.0015
+    score: typing.List[ScoreMethod] = dataclasses.field(default_factory=list)
+
+    def __post_init__(self):
+        self.timeout *= TIME_SCALE
+        self.duration *= TIME_SCALE
+        for db in self.dbs:
+            db.start_at *= TIME_SCALE
+            db.end_at *= TIME_SCALE
+
+    def asdict(self):
+        rv = dataclasses.asdict(self)
+        rv.pop('score')
+        return rv
 
 
 @dataclasses.dataclass
@@ -85,6 +314,28 @@ class Simulation:
     failed_queries: int = 0
 
     stats: typing.List[dict] = dataclasses.field(default_factory=list)
+    scores: typing.List[dict] = dataclasses.field(default_factory=list)
+
+    def group_of_latencies(
+        self, keys: typing.Iterable[str]
+    ) -> typing.Iterable[typing.List[float]]:
+        for key in keys:
+            yield self.latencies[key]
+
+    def record_scoring(self, key, value, score, weight):
+        self.scores.append({
+            'name': key,
+            'value': value if isinstance(value, int) else f'{value:.4f}',
+            'score': f'{score:.1f}',
+            'weight': f'{weight * 100:.0f}%',
+        })
+        if isinstance(value, int):
+            kv = f'{key}: {value}'
+        else:
+            kv = f'{key}: {value:.4f}'
+        score_str = f'score: {score:.1f}'
+        weight_str = f'weight: {weight * 100:.0f}%'
+        print(f'    {kv.ljust(40)} {score_str.ljust(15)} {weight_str}')
 
 
 class FakeConnection:
@@ -139,7 +390,54 @@ class SimulatedCaseMeta(type):
         return super().__new__(mcls, name, bases, dct)
 
 
+class SingleBlockPool(pool_impl.BasePool[C]):
+    # used by the base test only
+
+    _queue: asyncio.Queue[C]
+
+    def __init__(
+        self,
+        *,
+        connect,
+        disconnect,
+        max_capacity: int,
+        stats_collector=None,
+    ) -> None:
+        super().__init__(
+            connect=connect,
+            disconnect=disconnect,
+            max_capacity=max_capacity,
+            stats_collector=stats_collector,
+        )
+        self._queue = asyncio.Queue(max_capacity)
+
+    async def _async_connect(self, dbname: str) -> None:
+        self.release(dbname, await self._connect_cb(dbname))
+
+    async def acquire(self, dbname: str) -> C:
+        try:
+            return self._queue.get_nowait()
+        except asyncio.QueueEmpty:
+            if self._cur_capacity < self._max_capacity:
+                self._cur_capacity += 1
+                self._get_loop().create_task(self._async_connect(dbname))
+        return await self._queue.get()
+
+    def release(self, dbname: str, conn: C) -> None:
+        self._queue.put_nowait(conn)
+
+    def count_waiters(self):
+        return len(self._queue._getters)
+
+
 class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
+    full_qps: typing.Optional[int] = None  # set by the base test
+
+    def setUp(self) -> None:
+        if not os.environ.get('EDGEDB_TEST_DEBUG_POOL'):
+            raise unittest.SkipTest(
+                "Skipped because EDGEDB_TEST_DEBUG_POOL is not set"
+            )
 
     def make_fake_connect(
         self,
@@ -191,30 +489,6 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                 raise
         return query()
 
-    def calc_percentiles(
-        self,
-        lats: typing.List[float]
-    ) -> typing.Tuple[float, float, float, float, float, float]:
-        lats_len = len(lats)
-        lats.sort()
-        return (
-            lats[lats_len // 99],
-            lats[lats_len // 4],
-            lats[lats_len // 2],
-            lats[lats_len * 3 // 4],
-            lats[min(lats_len - lats_len // 99, lats_len - 1)],
-            statistics.geometric_mean(lats)
-        )
-
-    def calc_total_percentiles(
-        self,
-        lats: typing.Dict[str, typing.List[float]]
-    ) -> typing.Tuple[float, float, float, float, float, float]:
-        acc = []
-        for i in lats.values():
-            acc.extend(i)
-        return self.calc_percentiles(acc)
-
     async def simulate_once(self, spec, pool_cls, *, collect_stats=False):
         sim = Simulation()
 
@@ -230,6 +504,8 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
             stats_collector=on_stats if collect_stats else None,
             max_capacity=spec.capacity,
         )
+        if hasattr(pool, '_gc_interval'):
+            pool._gc_interval = 0.1 * TIME_SCALE
 
         TICK_EVERY = 0.001
 
@@ -244,10 +520,7 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
                         continue
 
                     qpt = db.qps * TICK_EVERY
-                    if qpt >= 1:
-                        qpt = round(qpt)
-                    else:
-                        qpt = int(random.random() <= qpt)
+                    qpt = int(random.random() <= qpt - int(qpt)) + int(qpt)
 
                     for _ in range(qpt):
                         dur = max(
@@ -268,14 +541,26 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
         self.assertEqual(pool.failed_disconnects, 0)
         self.assertEqual(pool.failed_connects, 0)
 
+        try:
+            for db in sim.latencies:
+                int(db[1:])
+        except ValueError:
+            key_func = lambda x: x
+        else:
+            key_func = lambda x: int(x[0][1:])
+
         if collect_stats:
             pn = f'{type(pool).__module__}.{type(pool).__qualname__}'
+            score = int(round(sum(sm.calculate(sim) for sm in spec.score)))
+            print('weighted score:'.rjust(68), score)
             js_data = {
                 'test_started_at': started_at,
-                'total_lats': self.calc_total_percentiles(sim.latencies),
+                'total_lats': calc_total_percentiles(sim.latencies),
+                "score": score,
+                'scores': sim.scores,
                 'lats': {
-                    db: self.calc_percentiles(lats)
-                    for db, lats in sim.latencies.items()
+                    db: calc_percentiles(lats)
+                    for db, lats in sorted(sim.latencies.items(), key=key_func)
                 },
                 'pool_name': pn,
                 'stats': sim.stats,
@@ -319,13 +604,87 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
             'desc': textwrap.dedent(spec.desc) if spec.desc else None,
             'test_name': testname,
             'now': str(datetime.datetime.now()),
-            'spec': dataclasses.asdict(spec),
+            'spec': spec.asdict(),
             'runs': js_data
         }
 
         return js_data
 
-    def simulate_all_and_collect_stats(self):
+    async def _base_test_single(
+        self, total_duration, qps, sim, pool, query_duration
+    ):
+        getters = 0
+        TICK_EVERY = 0.001
+        started_at = time.monotonic()
+        async with taskgroup.TaskGroup() as g:
+            elapsed = 0
+            while elapsed < total_duration * TIME_SCALE:
+                elapsed = time.monotonic() - started_at
+
+                qpt = qps * TICK_EVERY
+                qpt = int(random.random() <= qpt - int(qpt)) + int(qpt)
+
+                for _ in range(qpt):
+                    g.create_task(
+                        self.make_fake_query(sim, pool, '', query_duration)
+                    )
+
+                await asyncio.sleep(TICK_EVERY)
+                getters = max(getters, pool.count_waiters())
+        return getters
+
+    async def base_test(self) -> int:
+        QUERY_DURATION = 0.01
+        POOL_SIZE = 100
+        verbose = bool(os.environ.get('EDGEDB_TEST_DEBUG_POOL'))
+        qps = 100
+        getters = 0
+        sim = Simulation()
+        pool: SingleBlockPool = SingleBlockPool(
+            connect=self.make_fake_connect(sim, 0, 0),
+            disconnect=self.make_fake_disconnect(sim, 0, 0),
+            max_capacity=POOL_SIZE,
+        )
+
+        if verbose:
+            print('Running the base test to detect the host capacity...')
+            print(f'Query duration: {QUERY_DURATION * 1000:.0f}ms, '
+                  f'pool size: {POOL_SIZE}')
+
+        while pool._cur_capacity < 10 or getters < 100:
+            qps = int(qps * 1.5)
+            getters = await self._base_test_single(
+                0.2, qps, sim, pool, QUERY_DURATION
+            )
+            if verbose:
+                print(f'Increasing load: {qps} Q/s, {pool._cur_capacity} '
+                      f'connections, {getters} waiters')
+
+        if verbose:
+            print("OK that's enough. Now go back slowly to find "
+                  "the precise load.")
+        qps_delta = int(qps / 30)
+        last_qps = qps
+
+        while getters > 10:
+            last_qps = qps
+            qps -= qps_delta
+            getters = await self._base_test_single(
+                0.35, qps, sim, pool, QUERY_DURATION
+            )
+
+            if verbose:
+                print(f'Decreasing load: {qps} Q/s, {pool._cur_capacity} '
+                      f'connections, {getters} waiters')
+
+        qps = int((last_qps + qps) / 2)
+        if verbose:
+            print(f'Looks like {qps} is a just-enough Q/s to '
+                  f'fully load the pool.')
+        return qps
+
+    def simulate_all_and_collect_stats(self) -> int:
+        os.environ['EDGEDB_TEST_DEBUG_POOL'] = '1'
         specs = {}
         for methname in dir(self):
             if not methname.startswith('test_'):
@@ -338,33 +697,104 @@ class SimulatedCase(unittest.TestCase, metaclass=SimulatedCaseMeta):
 
         js_data = []
         for testname, spec in specs.items():
-            print(f'Running {testname}...', end='', flush=True)
+            print(f'Running {testname}...')
             js_data.append(
                 asyncio.run(
                     self.simulate_and_collect_stats(testname, spec)))
-            print('OK')
 
         html = string.Template(HTML_TPL).safe_substitute(
             DATA=json.dumps(js_data))
+        score = int(round(statistics.fmean(
+            sim['runs'][0]['score'] for sim in js_data
+        )))
 
-        if not os.path.exists('tmp'):
-            os.mkdir('tmp')
-        with open(f'tmp/connpool.html', 'wt') as f:
+        if os.environ.get("SIMULATION_CI"):
+            self.write_ci_report(html, js_data, score)
+
+        else:
+            if not os.path.exists('tmp'):
+                os.mkdir('tmp')
+            with open(f'tmp/connpool.html', 'wt') as f:
+                f.write(html)
+            now = int(datetime.datetime.now().timestamp())
+            with open(f'tmp/connpool_{now}.html', 'wt') as f:
+                f.write(html)
+
+        print('Final QoS score:', score)
+        return score
+
+    def write_ci_report(self, html, js_data, score):
+        sha = os.environ.get('GITHUB_SHA')
+        path = f'reports/{sha}.html'
+        report_path = f'pool-simulation/{path}'
+        i = 1
+        while os.path.exists(report_path):
+            path = f'reports/{sha}-{i}.html'
+            report_path = f'pool-simulation/{path}'
+            i += 1
+        with open(report_path, 'wt') as f:
             f.write(html)
-        now = int(datetime.datetime.now().timestamp())
-        with open(f'tmp/connpool_{now}.html', 'wt') as f:
-            f.write(html)
+        try:
+            with open(f'pool-simulation/reports.json') as f:
+                reports = json.load(f)
+        except Exception:
+            reports = []
+        reports.insert(0, {
+            'path': path,
+            'sha': sha,
+            'ref': os.environ.get('GITHUB_REF'),
+            'num_simulations': len(js_data),
+            'qos_score': score,
+            'datetime': str(datetime.datetime.now()),
+        })
+        with open(f'pool-simulation/reports.json', 'wt') as f:
+            json.dump(reports[:CI_MAX_REPORTS], f)
+        with open(f'pool-simulation/reports-archive.json', 'at') as f:
+            for report in reports[:CI_MAX_REPORTS - 1:-1]:
+                print('Removing outdated report:', report['path'])
+                json.dump(report, f)
+                print(file=f)
+                try:
+                    os.unlink(report['path'])
+                except OSError as e:
+                    print('ERROR:', e)
 
 
 class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_1(self):
         return Spec(
+            desc='''
+            This is a test for Mode D, where 2 groups of blocks race for
+            connections in the pool with max capacity set to 6. The first group
+            (0-5) has more dedicated time with the pool, so it should have
+            relatively lower latency than the second group (6-11). But the QoS
+            is focusing on the latency distribution similarity, as we don't
+            want to starve only a few blocks because of the lack of capacity.
+            Therefore, reconnection is a necessary cost for QoS.
+            ''',
             timeout=20,
             duration=1.1,
             capacity=6,
             conn_cost_base=0.05,
             conn_cost_var=0.01,
+            score=[
+                LatencyDistribution(
+                    weight=0.18, group=range(6),
+                    v100=0, v90=0.25, v60=0.5, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.28, group=range(6, 12),
+                    v100=0, v90=0.1, v60=0.3, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.48, group=range(12),
+                    v100=0.2, v90=0.45, v60=0.7, v0=2
+                ),
+                ConnectionOverhead(
+                    weight=0.06, v100=40, v90=160, v60=200, v0=300
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -399,17 +829,34 @@ class TestServerConnpoolSimulation(SimulatedCase):
         return Spec(
             desc='''
             In this test, we have 6x1500qps connections that simulate fast
-            queries (0.001..0.006s), and 6x700qps connections that simutale
+            queries (0.001..0.006s), and 6x700qps connections that simulate
             slow queries (~0.03s). The algorithm allocates connections
             fairly to both groups, essentially using the
             "demand = avg_query_time * avg_num_of_connection_waiters"
-            formula. The QoS is at the same level for all DBs.
+            formula. The QoS is at the same level for all DBs. (Mode B / C)
             ''',
             timeout=20,
             duration=1.1,
             capacity=100,
             conn_cost_base=0.04,
             conn_cost_var=0.011,
+            score=[
+                LatencyDistribution(
+                    weight=0.15, group=range(6),
+                    v100=0, v90=0.2, v60=0.3, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.25, group=range(6, 12),
+                    v100=0, v90=0.05, v60=0.2, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.45, group=range(12),
+                    v100=0.55, v90=0.75, v60=1.0, v0=2
+                ),
+                ConnectionOverhead(
+                    weight=0.15, v100=500, v90=510, v60=800, v0=1500
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -442,11 +889,23 @@ class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_3(self):
         return Spec(
+            desc='''
+            This test simply starts 6 same crazy requesters for 6 databases to
+            test the pool fairness in Mode C with max capacity of 100.
+            ''',
             timeout=10,
             duration=1.1,
             capacity=100,
             conn_cost_base=0.04,
             conn_cost_var=0.011,
+            score=[
+                LatencyDistribution(
+                    weight=0.85, group=range(6), v100=0, v90=0.1, v60=0.2, v0=2
+                ),
+                ConnectionOverhead(
+                    weight=0.15, v100=200, v90=250, v60=300, v0=600
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -461,11 +920,25 @@ class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_4(self):
         return Spec(
+            desc='''
+            Similar to test 3, this test also has 6 requesters for 6 databases,
+            they have the same Q/s but with different query cost. In Mode C,
+            we should observe equal connection acquisition latency, fair and
+            stable connection distribution and reasonable reconnection cost.
+            ''',
             timeout=20,
             duration=1.1,
             capacity=50,
             conn_cost_base=0.04,
             conn_cost_var=0.011,
+            score=[
+                LatencyDistribution(
+                    weight=0.9, group=range(6), v100=0, v90=0.1, v60=0.2, v0=2
+                ),
+                ConnectionOverhead(
+                    weight=0.1, v100=100, v90=220, v60=300, v0=500
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -480,11 +953,50 @@ class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_5(self):
         return Spec(
+            desc='''
+            This is a mixed test with pool max capacity set to 6. Requests in
+            the first group (0-5) come and go alternatively as time goes on,
+            even with different query cost, so its latency similarity doesn't
+            matter much, as far as the latency distribution is not too crazy
+            and unstable. However the second group (6-11) has a stable
+            environment - pressure from the first group is quite even at the
+            time the second group works. So we should observe a high similarity
+            in the second group. Also due to a low query cost, the second group
+            should have a higher priority in connection acquisition, therefore
+            a much lower latency distribution comparing to the first group.
+            Pool Mode wise, we should observe a transition from Mode A to C,
+            then D and eventually back to C. One regression to be aware of is
+            that, the last D->C transition should keep the pool running at
+            a full capacity.
+            ''',
             timeout=30,
             duration=1.1,
             capacity=6,
             conn_cost_base=0.15,
             conn_cost_var=0.05,
+            score=[
+                LatencyDistribution(
+                    weight=0.05, group=range(6),
+                    v100=0, v90=0.4, v60=0.8, v0=2
+                ),
+                LatencyDistribution(
+                    weight=0.25, group=range(6, 12),
+                    v100=0, v90=0.4, v60=0.8, v0=2
+                ),
+                LatencyRatio(
+                    weight=0.45,
+                    percentile='P75',
+                    dividend=range(6),
+                    divisor=range(6, 12),
+                    v100=30, v90=5, v60=2, v0=1,
+                ),
+                ConnectionOverhead(
+                    weight=0.15, v100=50, v90=100, v60=150, v0=200
+                ),
+                EndingCapacity(
+                    weight=0.1, v100=6, v90=5, v60=4, v0=3
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't{i}',
@@ -517,11 +1029,20 @@ class TestServerConnpoolSimulation(SimulatedCase):
 
     def test_server_connpool_6(self):
         return Spec(
+            desc='''
+            This is a simple test for Mode A. In this case, we don't want to
+            have lots of reconnection overhead.
+            ''',
             timeout=10,
             duration=1.1,
             capacity=6,
             conn_cost_base=0.15,
             conn_cost_var=0.05,
+            score=[
+                ConnectionOverhead(
+                    weight=0.9, v100=6, v90=7, v60=12, v0=13
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f'one-db',
@@ -542,13 +1063,33 @@ class TestServerConnpoolSimulation(SimulatedCase):
             are infrequent -- so they have a miniscule quota.
 
             Our goal is to make sure that "t2" has good QoS and gets
-            its queries processed as soon as they're submitted.
+            its queries processed as soon as they're submitted. Therefore,
+            "t2" should have way lower connection acquisition cost than "t1".
             """,
             timeout=10,
             duration=1.1,
             capacity=6,
             conn_cost_base=0.05,
             conn_cost_var=0.01,
+            score=[
+                LatencyRatio(
+                    weight=0.2,
+                    percentile='P99',
+                    dividend=range(1, 2),
+                    divisor=range(2, 3),
+                    v100=100, v90=50, v60=10, v0=1,
+                ),
+                LatencyRatio(
+                    weight=0.4,
+                    percentile='P75',
+                    dividend=range(1, 2),
+                    divisor=range(2, 3),
+                    v100=200, v90=100, v60=20, v0=1,
+                ),
+                ConnectionOverhead(
+                    weight=0.4, v100=14, v90=22, v60=30, v0=50
+                ),
+            ],
             dbs=[
                 DBSpec(
                     db=f't1',
@@ -574,6 +1115,178 @@ class TestServerConnpoolSimulation(SimulatedCase):
                     query_cost_base=0.010,
                     query_cost_var=0.005,
                 )
+            ]
+        )
+
+    @with_base_test
+    def test_server_connpool_8(self):
+        return Spec(
+            desc='''
+            This test spec is to check the pool connection reusability with a
+            single block before the pool reaches its full capacity in Mode A.
+            We should observe just enough number of connects to serve the load,
+            while there can be very few disconnects because of GC.
+            ''',
+            timeout=20,
+            duration=1.1,
+            capacity=100,
+            conn_cost_base=0,
+            conn_cost_var=0,
+            score=[
+                ConnectionOverhead(
+                    weight=1, v100=25, v90=50, v60=90, v0=200,
+                    use_time_scale=False,
+                ),
+            ],
+            dbs=[
+                DBSpec(
+                    db='t1',
+                    start_at=0,
+                    end_at=0.1,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0,
+                ),
+                DBSpec(
+                    db='t1',
+                    start_at=0.1,
+                    end_at=0.2,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0,
+                ),
+                DBSpec(
+                    db='t1',
+                    start_at=0.2,
+                    end_at=0.6,
+                    qps=int(self.full_qps / 8),
+                    query_cost_base=0.01,
+                    query_cost_var=0,
+                ),
+            ]
+        )
+
+    @with_base_test
+    def test_server_connpool_9(self):
+        return Spec(
+            desc='''
+            This test spec is to check the pool performance with low traffic
+            between 3 pre-heated blocks in Mode B. t1 is a reference block,
+            t2 has the same qps as t1, but t3 with doubled qps came in while t2
+            is active. As the total throughput is low enough, we shouldn't have
+            a lot of connects and disconnects, nor a high acquire waiting time.
+            ''',
+            timeout=20,
+            duration=1.1,
+            capacity=100,
+            conn_cost_base=0.01,
+            conn_cost_var=0.005,
+            score=[
+                LatencyDistribution(
+                    group=range(1, 4), weight=0.1,
+                    v100=0.2, v90=0.5, v60=1.0, v0=2.0,
+                ),
+                AbsoluteLatency(
+                    group=range(1, 4), percentile='P99', weight=0.1,
+                    v100=0.001, v90=0.002, v60=0.004, v0=0.05
+                ),
+                AbsoluteLatency(
+                    group=range(1, 4), percentile='P75', weight=0.2,
+                    v100=0.0001, v90=0.0002, v60=0.0004, v0=0.005
+                ),
+                ConnectionOverhead(
+                    weight=0.6, v100=50, v90=90, v60=100, v0=200,
+                    use_time_scale=False,
+                ),
+            ],
+            dbs=[
+                DBSpec(
+                    db='t1',
+                    start_at=0,
+                    end_at=0.1,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t1',
+                    start_at=0.1,
+                    end_at=0.4,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t2',
+                    start_at=0.5,
+                    end_at=0.6,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t2',
+                    start_at=0.6,
+                    end_at=1.0,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t3',
+                    start_at=0.7,
+                    end_at=0.8,
+                    qps=int(self.full_qps / 16),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t3',
+                    start_at=0.8,
+                    end_at=0.9,
+                    qps=int(self.full_qps / 8),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+            ]
+        )
+
+    @with_base_test
+    def test_server_connpool_10(self):
+        return Spec(
+            desc='''
+            This test spec is to check the pool garbage collection feature.
+            t1 is a constantly-running reference block, t2 starts in the middle
+            with a full qps and ends early to leave enough time for the pool to
+            execute garbage collection.
+            ''',
+            timeout=10,
+            duration=1.1,
+            capacity=100,
+            conn_cost_base=0.01,
+            conn_cost_var=0.005,
+            score=[
+                EndingCapacity(
+                    weight=1.0, v100=10, v90=20, v60=40, v0=100,
+                ),
+            ],
+            dbs=[
+                DBSpec(
+                    db='t1',
+                    start_at=0,
+                    end_at=1.0,
+                    qps=int(self.full_qps / 32),
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
+                DBSpec(
+                    db='t2',
+                    start_at=0.4,
+                    end_at=0.6,
+                    qps=int(self.full_qps / 32) * 31,
+                    query_cost_base=0.01,
+                    query_cost_var=0.005,
+                ),
             ]
         )
 
@@ -691,6 +1404,175 @@ class TestServerConnectionPool(unittest.TestCase):
 
         async def main():
             await asyncio.wait_for(test(0.05), timeout=5)
+
+        asyncio.run(main())
+
+    class MockLogger(logging.Logger):
+        logs: asyncio.Queue
+
+        def __init__(self):
+            super().__init__('edb.server')
+
+        def isEnabledFor(self, level):
+            return True
+
+        def _log(self, level, msg, args, *other, **kwargs):
+            if (
+                'established' in args or
+                '1 were discarded' in args or
+                '1 were established' in args or
+                'transferred out' in args or
+                'transferred in' in args or
+                'discarded' in args
+            ):
+                self.logs.put_nowait(args)
+
+    @unittest.mock.patch('edb.server.connpool.pool.logger',
+                         new_callable=MockLogger)
+    @unittest.mock.patch('edb.server.connpool.pool.MIN_LOG_TIME_THRESHOLD',
+                         0.2)
+    def test_connpool_log_batching(self, logger: MockLogger):
+        async def test():
+            pool = connpool.Pool(
+                connect=self.make_fake_connect(),
+                disconnect=self.make_fake_disconnect(),
+                max_capacity=5,
+            )
+            conn1 = await pool.acquire("block_a")
+            args = await logger.logs.get()
+            self.assertIn("established", args)
+            self.assertIn("block_a", args)
+
+            conn2 = await pool.acquire("block_b")
+            start = time.monotonic()
+            args = await logger.logs.get()
+            self.assertIn("established", args)
+            self.assertIn("block_b", args)
+            self.assertLess(time.monotonic() - start, 0.2)
+
+            pool.release("block_a", conn1, discard=True)
+            start = time.monotonic()
+            args = await logger.logs.get()
+            self.assertIn("1 were discarded", args)
+            self.assertIn("block_a", args)
+            self.assertGreater(time.monotonic() - start, 0.2)
+
+            pool.release("block_b", conn2, discard=True)
+            start = time.monotonic()
+            args = await logger.logs.get()
+            self.assertIn("discarded", args)
+            self.assertIn("block_b", args)
+            self.assertLess(time.monotonic() - start, 0.2)
+
+        async def main():
+            logger.logs = asyncio.Queue()
+            await asyncio.wait_for(test(), timeout=5)
+
+        asyncio.run(main())
+
+    @unittest.mock.patch('edb.server.connpool.pool.logger.level',
+                         logging.CRITICAL)
+    def _test_connpool_connect_error(self, error_type, expected_connects):
+        connect_called_num = 0
+        disconnect_called_num = 0
+
+        async def fake_connect(dbname):
+            nonlocal connect_called_num
+            connect_called_num += 1
+            raise error_type()
+
+        async def fake_disconnect(conn):
+            nonlocal disconnect_called_num
+            disconnect_called_num += 1
+
+        async def test():
+            pool = connpool.Pool(
+                connect=fake_connect,
+                disconnect=fake_disconnect,
+                max_capacity=5,
+            )
+            with self.assertRaises(error_type):
+                await pool.acquire("block_a")
+            self.assertEqual(connect_called_num, expected_connects)
+            self.assertEqual(disconnect_called_num, 0)
+            with self.assertRaises(error_type):
+                await pool.acquire("block_a")
+            self.assertEqual(connect_called_num, expected_connects + 1)
+            self.assertEqual(disconnect_called_num, 0)
+
+        async def main():
+            await asyncio.wait_for(test(), timeout=1)
+
+        asyncio.run(main())
+
+    @unittest.mock.patch('edb.server.connpool.pool.CONNECT_FAILURE_RETRIES', 2)
+    def test_connpool_connect_error(self):
+        from edb.server.pgcon import errors
+
+        class BackendError(errors.BackendError):
+            def __init__(self):
+                super().__init__(fields={'C': '3D000'})
+
+        self._test_connpool_connect_error(BackendError, 1)
+
+        class ConnectError(Exception):
+            pass
+
+        self._test_connpool_connect_error(ConnectError, 3)
+
+    @unittest.mock.patch('edb.server.connpool.pool.CONNECT_FAILURE_RETRIES', 0)
+    def test_connpool_connect_error_zero_retry(self):
+        class ConnectError(Exception):
+            pass
+
+        self._test_connpool_connect_error(ConnectError, 1)
+
+    @unittest.mock.patch('edb.server.connpool.pool.logger',
+                         new_callable=MockLogger)
+    @unittest.mock.patch('edb.server.connpool.pool.MIN_LOG_TIME_THRESHOLD', 0)
+    @unittest.mock.patch('edb.server.connpool.pool.CONNECT_FAILURE_RETRIES', 5)
+    def test_connpool_steal_connect_error(self, logger: MockLogger):
+        count = 0
+        connect = self.make_fake_connect()
+
+        async def fake_connect(dbname):
+            if dbname == 'block_a':
+                return await connect(dbname)
+            else:
+                nonlocal count
+                count += 1
+                if count < 3:
+                    raise ValueError()
+                else:
+                    return await connect(dbname)
+
+        async def test():
+            pool = connpool.Pool(
+                connect=fake_connect,
+                disconnect=self.make_fake_disconnect(),
+                max_capacity=2,
+            )
+
+            # fill the pool
+            conn1 = await pool.acquire("block_a")
+            self.assertEqual(await logger.logs.get(),
+                             ('established', 'block_a'))
+            conn2 = await pool.acquire("block_a")
+            self.assertEqual(await logger.logs.get(),
+                             ('established', 'block_a'))
+            pool.release("block_a", conn1)
+            pool.release("block_a", conn2)
+
+            # steal a connection from block_a, with retries
+            await pool.acquire("block_b")
+            logs = [await logger.logs.get() for i in range(3)]
+            self.assertIn(('transferred out', 'block_a'), logs)
+            self.assertIn(('discarded', 'block_a'), logs)
+            self.assertIn(('transferred in', 'block_b'), logs)
+
+        async def main():
+            logger.logs = asyncio.Queue()
+            await asyncio.wait_for(test(), timeout=5)
 
         asyncio.run(main())
 
@@ -1271,6 +2153,45 @@ HTML_TPL = R'''<!DOCTYPE html>
             </div>
         }
 
+        function ScoreLine({score, scores}) {
+            const [collapsed, setCollapsed] = React.useState(true);
+
+            const button = collapsed ?
+                <button onClick={() => setCollapsed(false)}>➕</button> :
+                <button onClick={() => setCollapsed(true)}>➖</button>;
+
+            let scoreDetail = null;
+            if (!collapsed) {
+                let items = [];
+                for (const detail of scores) {
+                    items.push(
+                        <tr>
+                            <td>{detail.name}</td>
+                            <td><code>{detail.value}</code></td>
+                            <td><code>{detail.score}</code></td>
+                            <td><code>{detail.weight}</code></td>
+                        </tr>
+                    );
+                }
+
+                scoreDetail = <table>
+                    <tr>
+                        <th>Reason</th>
+                        <th>Value</th>
+                        <th>Score</th>
+                        <th>Weight</th>
+                    </tr>
+                    {items}
+                </table>;
+            }
+
+            return <p>
+                {button} QoS Score:{' '}
+                <code>{score}</code>
+                {scoreDetail}
+            </p>;
+        }
+
         function TestView({results: tr, collapsible}) {
             const [collapsed, setCollapsed] = React.useState(collapsible);
 
@@ -1294,6 +2215,8 @@ HTML_TPL = R'''<!DOCTYPE html>
                             Pool implementation:{' '}
                             <code>{runData.pool_name}</code>
                         </p>
+                        <ScoreLine score={runData.score}
+                                   scores={runData.scores}/>
 
                         <LatencyChart runData={runData} tr={tr}/>
                     </div>
@@ -1384,5 +2307,22 @@ HTML_TPL = R'''<!DOCTYPE html>
 '''
 
 
+def run():
+    try:
+        import uvloop
+    except ImportError:
+        pass
+    else:
+        uvloop.install()
+
+    test_sim = TestServerConnpoolSimulation()
+    if test_sim.simulate_all_and_collect_stats() < MIN_SCORE:
+        print(
+            f'WARNING: the score is below the bar ({MIN_SCORE}), please '
+            f'double check the changes made to edb/server/connpool/pool.py'
+        )
+        sys.exit(1)
+
+
 if __name__ == '__main__':
-    TestServerConnpoolSimulation().simulate_all_and_collect_stats()
+    run()

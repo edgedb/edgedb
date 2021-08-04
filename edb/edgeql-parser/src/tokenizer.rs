@@ -296,6 +296,11 @@ impl<'a> TokenStream<'a> {
                                 "backtick-quoted name cannot \
                                     start with char `@`"));
                         }
+                        if val.starts_with("`$") {
+                            return Err(Error::unexpected_static_message(
+                                "backtick-quoted name cannot \
+                                    start with char `$`"));
+                        }
                         if val.contains("::") {
                             return Err(Error::unexpected_static_message(
                                 "backtick-quoted name cannot \
@@ -339,6 +344,8 @@ impl<'a> TokenStream<'a> {
                             let (raw, binary) = match prefix {
                                 "r" => (true, false),
                                 "b" => (false, true),
+                                "rb" => (true, true),
+                                "br" => (true, true),
                                 _ => return Err(Error::unexpected_format(
                                     format_args!("prefix {:?} \
                                     is not allowed for strings, \

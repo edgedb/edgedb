@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: toolbox
+.. eql:section-intro-page:: administration
 
 ==============
 Administration

@@ -66,10 +66,12 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                         "description":
                             "Marks an element of a GraphQL schema as "
                             "no longer supported.",
-                        "locations": [
+                        "locations": {
                             "FIELD_DEFINITION",
-                            "ENUM_VALUE"
-                        ],
+                            "ARGUMENT_DEFINITION",
+                            "INPUT_FIELD_DEFINITION",
+                            "ENUM_VALUE",
+                        },
                         "args": [
                             {
                                 "name": "reason",
@@ -97,11 +99,11 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             "Directs the executor to include this "
                             "field or fragment only when the `if` "
                             "argument is true.",
-                        "locations": [
+                        "locations": {
                             "FIELD",
                             "FRAGMENT_SPREAD",
                             "INLINE_FRAGMENT"
-                        ],
+                        },
                         "args": [
                             {
                                 "name": "if",
@@ -1986,7 +1988,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     },
                     {
                         "name": "nulls",
-                        "defaultValue": 'SMALLEST',  # TODO(tailhook) not sure
+                        "defaultValue": 'SMALLEST',
                         "type": {
                             "name": "nullsOrderingEnum",
                             "kind": "ENUM",
@@ -2356,14 +2358,9 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     {
                         "name": "of_group",
                         "type": {
-                            "kind": "NON_NULL",
-                            "name": None,
-                            "ofType": {
-                                "kind": "OBJECT",
-                                "name":
-                                    "_edb__SettingAliasAugmented__of_group",
-                                "__typename": "__Type"
-                            },
+                            "kind": "OBJECT",
+                            "name": "_edb__SettingAliasAugmented__of_group",
+                            "ofType": None,
                             "__typename": "__Type"
                         },
                         "__typename": "__Field",

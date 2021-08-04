@@ -25,6 +25,7 @@ from edgedb import scram
 from edb import errors
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
+from edb.schema import defines as s_def
 
 from . import annos as s_anno
 from . import delta as sd
@@ -111,7 +112,7 @@ class RoleCommand(
         schema: s_schema.Schema,
         astnode: qlast.ObjectDDL,
         context: sd.CommandContext,
-    ) -> List[so.ObjectShell]:
+    ) -> List[so.ObjectShell[Role]]:
         result = []
         for b in getattr(astnode, 'bases', None) or []:
             result.append(utils.ast_objref_to_object_shell(
@@ -122,6 +123,20 @@ class RoleCommand(
             ))
 
         return result
+
+    def _validate_name(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        name = self.get_attribute_value('name')
+        if len(str(name)) > s_def.MAX_NAME_LENGTH:
+            source_context = self.get_attribute_source_context('name')
+            raise errors.SchemaDefinitionError(
+                f'Role names longer than {s_def.MAX_NAME_LENGTH} '
+                f'characters are not supported',
+                context=source_context,
+            )
 
 
 class CreateRole(RoleCommand, inheriting.CreateInheritingObject[Role]):
@@ -160,6 +175,14 @@ class CreateRole(RoleCommand, inheriting.CreateInheritingObject[Role]):
         else:
             return super().get_ast_attr_for_field(field, astnode)
 
+    def validate_create(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_create(schema, context)
+        self._validate_name(schema, context)
+
 
 class RebaseRole(RoleCommand, inheriting.RebaseInheritingObject[Role]):
     pass
@@ -182,6 +205,14 @@ class AlterRole(RoleCommand, inheriting.AlterInheritingObject[Role]):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         cls._process_role_body(cmd, schema, astnode, context)
         return cmd
+
+    def validate_alter(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        super().validate_alter(schema, context)
+        self._validate_name(schema, context)
 
 
 class DeleteRole(RoleCommand, inheriting.DeleteInheritingObject[Role]):

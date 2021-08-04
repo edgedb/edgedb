@@ -23,6 +23,7 @@ from typing import *
 import enum
 
 from edb.common import enum as strenum
+from edb.protocol.enums import * # NoQA
 
 
 class CompileStatementMode(enum.Enum):
@@ -30,21 +31,6 @@ class CompileStatementMode(enum.Enum):
     SKIP_FIRST = 'skip_first'
     ALL = 'all'
     SINGLE = 'single'
-
-
-class ResultCardinality(strenum.StrEnum):
-
-    # Cardinality is 1 or 0
-    ONE = 'ONE'
-
-    # Cardinality is >= 0
-    MANY = 'MANY'
-
-    # Cardinality isn't applicable for the query:
-    # * the query is a command like CONFIGURE that
-    #   does not return any data;
-    # * the query is composed of multiple queries.
-    NO_RESULT = 'NO_RESULT'
 
 
 if TYPE_CHECKING:

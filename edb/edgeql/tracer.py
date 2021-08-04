@@ -76,7 +76,13 @@ class Annotation(NamedObject):
 
 
 class Type(NamedObject):
-    pass
+    def is_scalar(self) -> bool:
+        return False
+
+
+class ScalarType(Type):
+    def is_scalar(self) -> bool:
+        return True
 
 
 TypeLike = Union[Type, s_types.Type]
@@ -140,6 +146,13 @@ class ObjectType(Type, Source):
     def is_pointer(self) -> bool:
         return False
 
+    def is_scalar(self) -> bool:
+        return False
+
+
+class Alias(ObjectType):
+    pass
+
 
 class UnionType(Type):
 
@@ -171,6 +184,12 @@ class Pointer(Source):
     def is_pointer(self) -> bool:
         return True
 
+    def is_property(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        raise NotImplementedError
+
     def maybe_get_ptr(
         self,
         schema: s_schema.Schema,
@@ -194,6 +213,22 @@ class Pointer(Source):
         return self.source
 
 
+class Property(Pointer):
+    def is_property(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        return True
+
+
+class Link(Pointer):
+    def is_property(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        return False
+
+
 def qualify_name(name: sn.QualName, qual: str) -> sn.QualName:
     return sn.QualName(name.module, f'{name.name}@{qual}')
 
@@ -206,7 +241,7 @@ def trace_refs(
     subject: Optional[sn.QualName] = None,
     path_prefix: Optional[sn.QualName] = None,
     module: str,
-    objects: Dict[sn.QualName, ObjectLike],
+    objects: Dict[sn.QualName, Optional[ObjectLike]],
     params: Mapping[str, sn.QualName],
 ) -> FrozenSet[sn.QualName]:
 
@@ -232,7 +267,7 @@ class TracerContext:
         *,
         schema: s_schema.Schema,
         module: str,
-        objects: Dict[sn.QualName, ObjectLike],
+        objects: Dict[sn.QualName, Optional[ObjectLike]],
         source: Optional[sn.QualName],
         subject: Optional[sn.QualName],
         path_prefix: Optional[sn.QualName],
@@ -296,17 +331,19 @@ class TracerContext:
 @contextmanager
 def alias_context(
     ctx: TracerContext,
-    aliases: List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]],
+    aliases: Optional[List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]]],
 ) -> Generator[TracerContext, None, None]:
     module = None
     modaliases: Dict[Optional[str], str] = {}
     # make a copy of the objects dict so that it can be safely updated
     # with aliased expressions
     objects = dict(ctx.objects)
+    ctx_changed = False
 
-    for alias in aliases:
+    for alias in (aliases or ()):
         # module and modalias in ctx needs to be amended
         if isinstance(alias, qlast.ModuleAliasDecl):
+            ctx_changed = True
             if alias.alias:
                 modaliases[alias.alias] = alias.module
             else:
@@ -314,15 +351,17 @@ def alias_context(
                 module = alias.module
 
         elif isinstance(alias, qlast.AliasedExpr):
+            ctx_changed = True
             obj = trace(alias.expr, ctx=ctx)
-            assert obj is not None
+            # Regardless of whether tracing the expression produces an
+            # object, record the alias.
             objects[sn.QualName('__alias__', alias.alias)] = obj
 
-    if module or modaliases:
+    if ctx_changed:
         nctx = TracerContext(
             schema=ctx.schema,
             module=module or ctx.module,
-            objects=ctx.objects,
+            objects=objects,
             source=ctx.source,
             subject=ctx.subject,
             path_prefix=ctx.path_prefix,
@@ -331,6 +370,44 @@ def alias_context(
         )
         # use the same refs set
         nctx.refs = ctx.refs
+    else:
+        nctx = ctx
+
+    try:
+        yield nctx
+    finally:
+        # refs are already updated
+        pass
+
+
+@contextmanager
+def result_alias_context(
+    ctx: TracerContext,
+    node: Union[qlast.ReturningMixin, qlast.SubjectMixin],
+    obj: Optional[ObjectLike],
+) -> Generator[TracerContext, None, None]:
+
+    alias: Optional[str] = None
+    if isinstance(node, qlast.ReturningMixin):
+        alias = node.result_alias
+    elif isinstance(node, qlast.SubjectMixin):
+        alias = node.subject_alias
+
+    # potentially SELECT uses an alias for the main result
+    if obj is not None and alias:
+        nctx = TracerContext(
+            schema=ctx.schema,
+            module=ctx.module,
+            objects=dict(ctx.objects),
+            source=ctx.source,
+            subject=ctx.subject,
+            path_prefix=ctx.path_prefix,
+            modaliases=ctx.modaliases,
+            params=ctx.params,
+        )
+        # use the same refs set
+        nctx.refs = ctx.refs
+        nctx.objects[sn.QualName('__alias__', alias)] = obj
     else:
         nctx = ctx
 
@@ -536,8 +613,28 @@ def trace_Path(
                         # process it on the next step.
                         pass
                     else:
-                        # otherwise we cannot say anything about the target,
-                        # so bail.
+                        # No type intersection, so the only type that
+                        # it can be is "Object", which is trivial.
+                        # However, we need to make it dependent on
+                        # every link of the same name now.
+                        for fqname, obj in ctx.objects.items():
+                            # Ignore what appears to not be a link
+                            # with the right name.
+                            if (isinstance(obj, (s_pointers.Pointer,
+                                                 Pointer)) and
+                                fqname.name.split('@', 1)[1] ==
+                                    step.ptr.name):
+
+                                target = obj.get_target(ctx.schema)
+                                # Ignore scalars, but include other
+                                # computables to produce better error
+                                # messages.
+                                if (target is None or
+                                        not target.is_scalar()):
+                                    # Record link with matching short
+                                    # name.
+                                    ctx.refs.add(fqname)
+
                         return None
                 else:
                     if isinstance(tip, (Source, s_sources.Source)):
@@ -736,8 +833,9 @@ def trace_Shape(
 def trace_ShapeElement(node: qlast.ShapeElement, *,
                        ctx: TracerContext) -> None:
     trace(node.expr, ctx=ctx)
-    for element in node.elements:
-        trace(element, ctx=ctx)
+    if node.elements:
+        for element in node.elements:
+            trace(element, ctx=ctx)
     trace(node.where, ctx=ctx)
     if node.orderby:
         for sortexpr in node.orderby:
@@ -760,15 +858,17 @@ def trace_Select(
             assert isinstance(tip_name, sn.QualName)
             ctx.path_prefix = tip_name
 
-        if node.where is not None:
-            trace(node.where, ctx=ctx)
-        if node.orderby:
-            for expr in node.orderby:
-                trace(expr, ctx=ctx)
-        if node.offset is not None:
-            trace(node.offset, ctx=ctx)
-        if node.limit is not None:
-            trace(node.limit, ctx=ctx)
+        # potentially SELECT uses an alias for the main result
+        with result_alias_context(ctx, node, tip) as nctx:
+            if node.where is not None:
+                trace(node.where, ctx=nctx)
+            if node.orderby:
+                for expr in node.orderby:
+                    trace(expr, ctx=nctx)
+            if node.offset is not None:
+                trace(node.offset, ctx=nctx)
+            if node.limit is not None:
+                trace(node.limit, ctx=nctx)
 
         return tip
 
@@ -803,10 +903,12 @@ def trace_UpdateQuery(
         assert isinstance(tip_name, sn.QualName)
         ctx.path_prefix = tip_name
 
-        for element in node.shape:
-            trace(element, ctx=ctx)
+        # potentially UPDATE uses an alias for the main result
+        with result_alias_context(ctx, node, tip) as nctx:
+            for element in node.shape:
+                trace(element, ctx=nctx)
 
-        trace(node.where, ctx=ctx)
+            trace(node.where, ctx=nctx)
 
         return tip
 
@@ -824,15 +926,17 @@ def trace_DeleteQuery(
             assert isinstance(tip_name, sn.QualName)
             ctx.path_prefix = tip_name
 
-        if node.where is not None:
-            trace(node.where, ctx=ctx)
-        if node.orderby:
-            for expr in node.orderby:
-                trace(expr, ctx=ctx)
-        if node.offset is not None:
-            trace(node.offset, ctx=ctx)
-        if node.limit is not None:
-            trace(node.limit, ctx=ctx)
+        # potentially DELETE uses an alias for the main result
+        with result_alias_context(ctx, node, tip) as nctx:
+            if node.where is not None:
+                trace(node.where, ctx=nctx)
+            if node.orderby:
+                for expr in node.orderby:
+                    trace(expr, ctx=nctx)
+            if node.offset is not None:
+                trace(node.offset, ctx=nctx)
+            if node.limit is not None:
+                trace(node.limit, ctx=nctx)
 
         return tip
 

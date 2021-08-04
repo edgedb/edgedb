@@ -15,34 +15,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-
-from __future__ import annotations
-
-import enum
-import typing
-
-from . import messages
-from . import render_utils
-
-from .messages import *  # NoQA
-
-
-def render(
-    obj: typing.Union[typing.Type[enum.Enum], typing.Type[messages.Struct]]
-) -> str:
-    if issubclass(obj, messages.Struct):
-        return obj.render()
-    else:
-        assert issubclass(obj, enum.Enum)
-
-        buf = render_utils.RenderBuffer()
-        buf.write(f'enum {obj.__name__} {{')
-        with buf.indent():
-            for membername, member in obj.__members__.items():
-                buf.write(
-                    f'{membername.ljust(messages._PAD - 1)} = '
-                    f'{member.value:#x};'
-                )
-        buf.write('};')
-        return str(buf)

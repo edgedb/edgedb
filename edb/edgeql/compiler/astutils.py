@@ -73,7 +73,8 @@ def is_ql_empty_set(expr: qlast.Expr) -> bool:
 
 def is_ql_path(qlexpr: qlast.Expr) -> bool:
     if isinstance(qlexpr, qlast.Shape):
-        qlexpr = qlexpr.expr
+        if qlexpr.expr:
+            qlexpr = qlexpr.expr
 
     if not isinstance(qlexpr, qlast.Path):
         return False
@@ -81,3 +82,17 @@ def is_ql_path(qlexpr: qlast.Expr) -> bool:
     start = qlexpr.steps[0]
 
     return isinstance(start, (qlast.Source, qlast.ObjectRef, qlast.Ptr))
+
+
+def is_nontrivial_shape_element(shape_el: qlast.ShapeElement) -> bool:
+    return bool(
+        shape_el.where
+        or shape_el.orderby
+        or shape_el.offset
+        or shape_el.limit
+        or shape_el.compexpr
+        or (
+            shape_el.elements and
+            any(is_nontrivial_shape_element(el) for el in shape_el.elements)
+        )
+    )

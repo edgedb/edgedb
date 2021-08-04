@@ -75,7 +75,7 @@ def get_tuple_indirection_path_id(
         # typeref_cache=ctx.env.type_ref_cache,
     )
 
-    return tuple_path_id.extend(schema=ctx.env.schema, ptrref=ptrref)
+    return tuple_path_id.extend(ptrref=ptrref)
 
 
 def get_expression_path_id(
@@ -91,7 +91,6 @@ def register_set_in_scope(
         ir_set: irast.Set, *,
         path_scope: Optional[irast.ScopeTreeNode]=None,
         optional: bool=False,
-        fence_points: FrozenSet[irast.PathId]=frozenset(),
         ctx: context.ContextLevel) -> List[irast.ScopeTreeNode]:
     if path_scope is None:
         path_scope = ctx.path_scope
@@ -102,7 +101,6 @@ def register_set_in_scope(
     return path_scope.attach_path(
         ir_set.path_id,
         optional=optional,
-        fence_points=fence_points,
         context=ir_set.context,
     )
 
@@ -115,6 +113,7 @@ def assign_set_scope(
     else:
         if scope.unique_id is None:
             scope.unique_id = ctx.scope_id_ctr.nextval()
+            ctx.env.scope_tree_nodes[scope.unique_id] = scope
         ir_set.path_scope_id = scope.unique_id
         if scope.find_child(ir_set.path_id):
             raise RuntimeError('scoped set must not contain itself')
@@ -130,7 +129,7 @@ def get_set_scope(
     if ir_set.path_scope_id is None:
         return None
     else:
-        scope = ctx.path_scope.root.find_by_unique_id(ir_set.path_scope_id)
+        scope = ctx.env.scope_tree_nodes.get(ir_set.path_scope_id)
         if scope is None:
             raise errors.InternalServerError(
                 f'dangling scope pointer to node with uid'
@@ -160,8 +159,7 @@ def extend_path_id(
         typeref_cache=ctx.env.type_ref_cache,
     )
 
-    return path_id.extend(ptrref=ptrref, direction=direction,
-                          ns=ns, schema=ctx.env.schema)
+    return path_id.extend(ptrref=ptrref, direction=direction, ns=ns)
 
 
 def ban_path(
@@ -175,4 +173,5 @@ def path_is_banned(
         path_id: irast.PathId, *,
         ctx: context.ContextLevel) -> bool:
 
-    return path_id in ctx.banned_paths and ctx.path_scope.is_visible(path_id)
+    node = ctx.path_scope.find_visible(path_id)
+    return bool(node and node.path_id in ctx.banned_paths)

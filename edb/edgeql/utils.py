@@ -30,6 +30,13 @@ from edb.schema import functions as s_func
 from . import ast as qlast
 
 
+FREE_SHAPE_EXPR = qlast.DetachedExpr(
+    expr=qlast.Path(
+        steps=[qlast.ObjectRef(module='std', name='FreeObject')],
+    ),
+)
+
+
 class ParameterInliner(ast.NodeTransformer):
 
     def __init__(self, args_map: Mapping[str, qlast.Base]) -> None:
@@ -69,11 +76,11 @@ def index_parameters(
 ) -> Dict[str, qlast.Base]:
 
     result: Dict[str, qlast.Base] = {}
-    varargs: Optional[List[qlast.Base]] = None
+    varargs: Optional[List[qlast.Expr]] = None
     variadic = parameters.find_variadic(schema)
     variadic_num = variadic.get_num(schema) if variadic else -1  # type: ignore
 
-    e: qlast.Base
+    e: qlast.Expr
     p: s_func.ParameterLike
     for (i, e), p in itertools.zip_longest(enumerate(ql_args),
                                            parameters.objects(schema),

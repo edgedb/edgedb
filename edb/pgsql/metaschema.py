@@ -42,7 +42,7 @@ from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
-from edb.schema import lproperties as s_props
+from edb.schema import properties as s_props
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
@@ -116,7 +116,99 @@ class BigintDomain(dbops.Domain):
                     expr=("scale(VALUE) = 0 AND VALUE != 'NaN'"),
                 ),
             ),
-        ),
+        )
+
+
+class TimestampTzDomain(dbops.Domain):
+    """Timestamptz clamped to years 0001-9999.
+
+    The default timestamp range of (4713 BC - 294276 AD) has problems:
+    Postgres isn't ISO compliant with years out of the 0-9999 range and
+    language compatibility is questionable.
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'timestamptz_t'),
+            base='timestamptz',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'timestamptz_t'),
+                    expr=("EXTRACT(years from VALUE) BETWEEN 1 AND 9999"),
+                ),
+            ),
+        )
+
+
+class TimestampDomain(dbops.Domain):
+    """Timestamp clamped to years 0001-9999.
+
+    The default timestamp range of (4713 BC - 294276 AD) has problems:
+    Postgres isn't ISO compliant with years out of the 0-9999 range and
+    language compatibility is questionable.
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'timestamp_t'),
+            base='timestamp',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'timestamp_t'),
+                    expr=("EXTRACT(years from VALUE) BETWEEN 1 AND 9999"),
+                ),
+            ),
+        )
+
+
+class DateDomain(dbops.Domain):
+    """Date clamped to years 0001-9999.
+
+    The default timestamp range of (4713 BC - 294276 AD) has problems:
+    Postgres isn't ISO compliant with years out of the 0-9999 range and
+    language compatibility is questionable.
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'date_t'),
+            base='date',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'date_t'),
+                    expr=("EXTRACT(years from VALUE) BETWEEN 1 AND 9999"),
+                ),
+            ),
+        )
+
+
+class DurationDomain(dbops.Domain):
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'duration_t'),
+            base='interval',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'duration_t'),
+                    expr=r'''
+                        EXTRACT(months from VALUE) = 0 AND
+                        EXTRACT(years from VALUE) = 0 AND
+                        EXTRACT(days from VALUE) = 0
+                    ''',
+                ),
+            ),
+        )
+
+
+class RelativeDurationDomain(dbops.Domain):
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'relative_duration_t'),
+            base='interval',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'relative_duration_t'),
+                    expr="true",
+                ),
+            ),
+        )
 
 
 class AlterCurrentDatabaseSetString(dbops.Function):
@@ -405,6 +497,148 @@ class StrToFloat32NoInline(dbops.Function):
         )
 
 
+class GetBackendCapabilitiesFunction(dbops.Function):
+
+    text = f'''
+        SELECT
+            (json ->> 'capabilities')::bigint
+        FROM
+            edgedbinstdata.instdata
+        WHERE
+            key = 'backend_instance_params'
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_backend_capabilities'),
+            args=[],
+            returns=('bigint',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetBackendTenantIDFunction(dbops.Function):
+
+    text = f'''
+        SELECT
+            (json ->> 'tenant_id')::text
+        FROM
+            edgedbinstdata.instdata
+        WHERE
+            key = 'backend_instance_params'
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_backend_tenant_id'),
+            args=[],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetDatabaseBackendNameFunction(dbops.Function):
+
+    text = f'''
+        SELECT edgedb.get_backend_tenant_id() || '_' || "db_name"
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_database_backend_name'),
+            args=[('db_name', ('text',))],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetRoleBackendNameFunction(dbops.Function):
+
+    text = f'''
+        SELECT edgedb.get_backend_tenant_id() || '_' || "role_name"
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_role_backend_name'),
+            args=[('role_name', ('text',))],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetUserSequenceBackendNameFunction(dbops.Function):
+
+    text = f"""
+        SELECT
+            'edgedbpub',
+            "sequence_type_id"::text || '_sequence'
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_user_sequence_backend_name'),
+            args=[('sequence_type_id', ('uuid',))],
+            returns=('record',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetSequenceBackendNameFunction(dbops.Function):
+
+    text = f'''
+        SELECT
+            (CASE
+                WHEN edgedb.get_name_module(st.name)
+                     = any(edgedb.get_std_modules())
+                THEN 'edgedbstd'
+                ELSE 'edgedbpub'
+             END),
+            "sequence_type_id"::text || '_sequence'
+        FROM
+            edgedb."_SchemaScalarType" AS st
+        WHERE
+            st.id = "sequence_type_id"
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_sequence_backend_name'),
+            args=[('sequence_type_id', ('uuid',))],
+            returns=('record',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetStdModulesFunction(dbops.Function):
+
+    text = f'''
+        SELECT ARRAY[{",".join(ql(str(m)) for m in s_schema.STD_MODULES)}]
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_std_modules'),
+            args=[],
+            returns=('text[]',),
+            language='sql',
+            volatility='immutable',
+            text=self.text,
+        )
+
+
 class GetObjectMetadata(dbops.Function):
     """Return EdgeDB metadata associated with a backend object."""
     text = '''
@@ -423,6 +657,29 @@ class GetObjectMetadata(dbops.Function):
         super().__init__(
             name=('edgedb', 'obj_metadata'),
             args=[('objoid', ('oid',)), ('objclass', ('text',))],
+            returns=('jsonb',),
+            volatility='stable',
+            text=self.text)
+
+
+class GetColumnMetadata(dbops.Function):
+    """Return EdgeDB metadata associated with a backend object."""
+    text = '''
+        SELECT
+            CASE WHEN substr(d, 1, char_length({prefix})) = {prefix}
+            THEN substr(d, char_length({prefix}) + 1)::jsonb
+            ELSE '{{}}'::jsonb
+            END
+        FROM
+            col_description("tableoid", "column") AS d
+    '''.format(
+        prefix=f'E{ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)}',
+    )
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'col_metadata'),
+            args=[('tableoid', ('oid',)), ('column', ('integer',))],
             returns=('jsonb',),
             volatility='stable',
             text=self.text)
@@ -449,6 +706,53 @@ class GetSharedObjectMetadata(dbops.Function):
             returns=('jsonb',),
             volatility='stable',
             text=self.text)
+
+
+class GetDatabaseMetadataFunction(dbops.Function):
+    """Return EdgeDB metadata associated with a given database."""
+    text = '''
+        SELECT
+            edgedb.shobj_metadata(
+                (SELECT
+                    oid
+                 FROM
+                    pg_database
+                 WHERE
+                    datname = edgedb.get_database_backend_name("dbname")
+                ),
+                'pg_database'
+            )
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_database_metadata'),
+            args=[('dbname', ('text',))],
+            returns=('jsonb',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
+class GetCurrentDatabaseFunction(dbops.Function):
+
+    text = f'''
+        SELECT
+            substr(
+                current_database(),
+                char_length(edgedb.get_backend_tenant_id()) + 2
+            )
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_current_database'),
+            args=[],
+            returns=('text',),
+            language='sql',
+            volatility='stable',
+            text=self.text,
+        )
 
 
 class RaiseExceptionFunction(dbops.Function):
@@ -773,6 +1077,21 @@ class NormalizeNameFunction(dbops.Function):
     def __init__(self) -> None:
         super().__init__(
             name=('edgedb', 'shortname_from_fullname'),
+            args=[('name', 'text')],
+            returns='text',
+            volatility='immutable',
+            language='sql',
+            text=self.__class__.text)
+
+
+class GetNameModuleFunction(dbops.Function):
+    text = '''
+        SELECT reverse(split_part(reverse("name"), '::', 1))
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_name_module'),
             args=[('name', 'text')],
             returns='text',
             volatility='immutable',
@@ -1591,20 +1910,21 @@ class DatetimeInFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::timestamptz,
+                    NULL::edgedb.timestamptz_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type timestamptz: '
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        '{"hint":"Please use ISO8601 format. Example: '
+                        || '2010-12-27T23:59:59-07:00 Alternatively '
                         || '\"to_datetime\" function provides custom '
                         || 'formatting options."}'
                     )
                 )
             ELSE
-                val::timestamptz
+                val::edgedb.timestamptz_t
             END;
     '''
 
@@ -1612,7 +1932,7 @@ class DatetimeInFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'datetime_in'),
             args=[('val', ('text',))],
-            returns=('timestamptz',),
+            returns=('edgedb', 'timestamptz_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
@@ -1628,7 +1948,7 @@ class DurationInFunction(dbops.Function):
                 EXTRACT(DAY FROM v.column1) != 0
             THEN
                 edgedb.raise(
-                    NULL::interval,
+                    NULL::edgedb.duration_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type std::duration: '
@@ -1639,7 +1959,7 @@ class DurationInFunction(dbops.Function):
                         || 'for std::duration."}'
                     )
                 )
-            ELSE v.column1
+            ELSE v.column1::edgedb.duration_t
             END
         FROM
             (VALUES (
@@ -1651,7 +1971,7 @@ class DurationInFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'duration_in'),
             args=[('val', ('text',))],
-            returns=('interval',),
+            returns=('edgedb', 'duration_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text,
@@ -1672,20 +1992,21 @@ class LocalDatetimeInFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::timestamp,
+                    NULL::edgedb.timestamp_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type timestamp: '
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        '{"hint":"Please use ISO8601 format. Example '
+                        || '2010-04-18T09:27:00 Alternatively '
                         || '\"to_local_datetime\" function provides custom '
                         || 'formatting options."}'
                     )
                 )
             ELSE
-                val::timestamp
+                val::edgedb.timestamp_t
             END;
     '''
 
@@ -1693,7 +2014,7 @@ class LocalDatetimeInFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'local_datetime_in'),
             args=[('val', ('text',))],
-            returns=('timestamp',),
+            returns=('edgedb', 'timestamp_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
@@ -1711,20 +2032,21 @@ class LocalDateInFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::date,
+                    NULL::edgedb.date_t,
                     'invalid_datetime_format',
                     msg => (
                         'invalid input syntax for type date: '
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        '{"hint":"Please use ISO8601 format. Example '
+                        || '2010-04-18 Alternatively '
                         || '\"to_local_date\" function provides custom '
                         || 'formatting options."}'
                     )
                 )
             ELSE
-                val::date
+                val::edgedb.date_t
             END;
     '''
 
@@ -1732,7 +2054,7 @@ class LocalDateInFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'local_date_in'),
             args=[('val', ('text',))],
-            returns=('date',),
+            returns=('edgedb', 'date_t'),
             # Same volatility as raise() (stable)
             volatility='stable',
             text=self.text)
@@ -1756,7 +2078,8 @@ class LocalTimeInFunction(dbops.Function):
                         || quote_literal(val)
                     ),
                     detail => (
-                        '{"hint":"Please use ISO8601 format. Alternatively '
+                        '{"hint":"Please use ISO8601 format. Examples: '
+                        || '18:43:27 or 18:43 Alternatively '
                         || '\"to_local_time\" function provides custom '
                         || 'formatting options."}'
                     )
@@ -1826,7 +2149,7 @@ class ToTimestampTZCheck(dbops.Function):
                     DETAIL = '';
             END IF;
 
-            RETURN result;
+            RETURN result::edgedb.timestamptz_t;
         END;
     '''
 
@@ -1835,7 +2158,7 @@ class ToTimestampTZCheck(dbops.Function):
             name=('edgedb', '_to_timestamptz_check'),
             args=[('val', ('text',)), ('fmt', ('text',)),
                   ('hastz', ('bool',))],
-            returns=('timestamptz',),
+            returns=('edgedb', 'timestamptz_t'),
             # We're relying on changing settings, so it's volatile.
             volatility='volatile',
             language='plpgsql',
@@ -1856,7 +2179,7 @@ class ToDatetimeFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::timestamptz,
+                    NULL::edgedb.timestamptz_t,
                     'invalid_datetime_format',
                     msg => (
                         'missing required time zone in format: '
@@ -1876,7 +2199,7 @@ class ToDatetimeFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'to_datetime'),
             args=[('val', ('text',)), ('fmt', ('text',))],
-            returns=('timestamptz',),
+            returns=('edgedb', 'timestamptz_t'),
             # Same as _to_timestamptz_check.
             volatility='volatile',
             text=self.text)
@@ -1895,7 +2218,7 @@ class ToLocalDatetimeFunction(dbops.Function):
                 )
             THEN
                 edgedb.raise(
-                    NULL::timestamp,
+                    NULL::edgedb.timestamp_t,
                     'invalid_datetime_format',
                     msg => (
                         'unexpected time zone in format: '
@@ -1903,7 +2226,8 @@ class ToLocalDatetimeFunction(dbops.Function):
                     )
                 )
             ELSE
-                edgedb._to_timestamptz_check(val, fmt, false)::timestamp
+                edgedb._to_timestamptz_check(val, fmt, false)
+                    ::edgedb.timestamp_t
             END;
     '''
 
@@ -1911,7 +2235,7 @@ class ToLocalDatetimeFunction(dbops.Function):
         super().__init__(
             name=('edgedb', 'to_local_datetime'),
             args=[('val', ('text',)), ('fmt', ('text',))],
-            returns=('timestamp',),
+            returns=('edgedb', 'timestamp_t'),
             # Same as _to_timestamptz_check.
             volatility='volatile',
             text=self.text)
@@ -1978,9 +2302,41 @@ class QuoteIdentFunction(dbops.Function):
             name=('edgedb', 'quote_ident'),
             args=[('val', ('text',))],
             returns=('text',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class QuoteNameFunction(dbops.Function):
+
+    text = r"""
+        SELECT
+            string_agg(edgedb.quote_ident(np), '::')
+        FROM
+            unnest(string_to_array("name", '::')) AS np
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'quote_name'),
+            args=[('name', ('text',))],
+            returns=('text',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class DescribeRolesAsDDLFunctionForwardDecl(dbops.Function):
+    """Forward declaration for _describe_roles_as_ddl"""
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_describe_roles_as_ddl'),
+            args=[],
+            returns=('text'),
             # Stable because it's raising exceptions.
             volatility='stable',
-            text=self.text,
+            text='SELECT NULL::text',
         )
 
 
@@ -2081,6 +2437,78 @@ class DescribeRolesAsDDLFunction(dbops.Function):
             text=text)
 
 
+class DescribeInstanceConfigAsDDLFunctionForwardDecl(dbops.Function):
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_describe_system_config_as_ddl'),
+            args=[],
+            returns=('text'),
+            volatility='stable',
+            text='SELECT NULL::text',
+        )
+
+
+class DescribeDatabaseConfigAsDDLFunctionForwardDecl(dbops.Function):
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_describe_database_config_as_ddl'),
+            args=[],
+            returns=('text'),
+            volatility='stable',
+            text='SELECT NULL::text',
+        )
+
+
+class DumpSequencesFunction(dbops.Function):
+
+    text = r"""
+        SELECT
+            string_agg(
+                'SELECT std::sequence_reset('
+                || 'INTROSPECT ' || edgedb.quote_name(seq.name)
+                || (CASE WHEN seq_st.is_called
+                    THEN ', ' || seq_st.last_value::text
+                    ELSE '' END)
+                || ');',
+                E'\n'
+            )
+        FROM
+            (SELECT
+                id,
+                name
+             FROM
+                edgedb."_SchemaScalarType"
+             WHERE
+                id = any("seqs")
+            ) AS seq,
+            LATERAL (
+                SELECT
+                    COALESCE(last_value, start_value)::text AS last_value,
+                    last_value IS NOT NULL AS is_called
+                FROM
+                    pg_sequences,
+                    LATERAL ROWS FROM (
+                        edgedb.get_sequence_backend_name(seq.id)
+                    ) AS seq_name(schema text, name text)
+                WHERE
+                    (pg_sequences.schemaname, pg_sequences.sequencename)
+                    = (seq_name.schema, seq_name.name)
+            ) AS seq_st
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_dump_sequences'),
+            args=[('seqs', ('uuid[]',))],
+            returns=('text',),
+            # Volatile because sequence state is volatile
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 class SysConfigSourceType(dbops.Enum):
     def __init__(self) -> None:
         super().__init__(
@@ -2108,7 +2536,7 @@ class SysConfigScopeType(dbops.Enum):
         super().__init__(
             name=('edgedb', '_sys_config_scope_t'),
             values=[
-                'SYSTEM',
+                'INSTANCE',
                 'DATABASE',
                 'SESSION',
             ]
@@ -2172,12 +2600,10 @@ class SysConfigFullFunction(dbops.Function):
             'system override' AS source
         FROM
             jsonb_each(
-                edgedb.shobj_metadata(
-                    (SELECT oid FROM pg_database
-                    WHERE datname = {ql(defines.EDGEDB_SYSTEM_DB)}),
-                    'pg_database'
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_SYSTEM_DB)}
                 ) -> 'sysconfig'
-            ) s
+            ) AS s
     ),
 
     config_db AS (
@@ -2326,7 +2752,7 @@ class SysConfigFullFunction(dbops.Function):
         q.source,
         (CASE
             WHEN q.source < 'database'::edgedb._sys_config_source_t THEN
-                'SYSTEM'
+                'INSTANCE'
             WHEN q.source = 'database'::edgedb._sys_config_source_t THEN
                 'DATABASE'
             ELSE
@@ -2430,12 +2856,10 @@ class SysConfigNoFileAccessFunction(dbops.Function):
             'system override' AS source
         FROM
             jsonb_each(
-                edgedb.shobj_metadata(
-                    (SELECT oid FROM pg_database
-                    WHERE datname = {ql(defines.EDGEDB_SYSTEM_DB)}),
-                    'pg_database'
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_SYSTEM_DB)}
                 ) -> 'sysconfig'
-            ) s
+            ) AS s
     ),
 
     config_db AS (
@@ -2535,12 +2959,20 @@ class SysConfigNoFileAccessFunction(dbops.Function):
     SELECT
         q.name,
         q.value,
-        q.source
+        q.source,
+        (CASE
+            WHEN q.source < 'database'::edgedb._sys_config_source_t THEN
+                'INSTANCE'
+            WHEN q.source = 'database'::edgedb._sys_config_source_t THEN
+                'DATABASE'
+            ELSE
+                'SESSION'
+        END)::edgedb._sys_config_scope_t AS scope
     FROM
         (SELECT
             u.name,
             u.value,
-            u.source,
+            u.source::edgedb._sys_config_source_t,
             row_number() OVER (
                 PARTITION BY u.name
                 ORDER BY u.source::edgedb._sys_config_source_t DESC
@@ -2637,28 +3069,6 @@ class SysConfigFunction(dbops.Function):
         )
 
 
-class GetBackendCapabilitiesFunction(dbops.Function):
-
-    text = f'''
-        SELECT
-            (json ->> 'capabilities')::bigint
-        FROM
-            edgedbinstdata.instdata
-        WHERE
-            key = 'backend_instance_params'
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', 'get_backend_capabilities'),
-            args=[],
-            returns=('bigint',),
-            language='sql',
-            volatility='stable',
-            text=self.text,
-        )
-
-
 class SysVersionFunction(dbops.Function):
 
     text = f'''
@@ -2723,7 +3133,7 @@ class GetCachedReflection(dbops.Function):
             pg_proc
             INNER JOIN pg_namespace ON (pronamespace = pg_namespace.oid)
         WHERE
-            proname LIKE '__rh_%'
+            proname LIKE '\\_\\_rh\\_%'
     '''
 
     def __init__(self) -> None:
@@ -2765,6 +3175,74 @@ class GetBaseScalarTypeMap(dbops.Function):
         )
 
 
+class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
+    """Return Postgres OID representing a given EdgeDB type."""
+
+    text = f'''
+        SELECT
+            coalesce(
+                (
+                    SELECT
+                        tn::regtype::oid
+                    FROM
+                        edgedb._get_base_scalar_type_map()
+                            AS m(tid uuid, tn text)
+                    WHERE
+                        m.tid = "typeid"
+                ),
+                (
+                    SELECT
+                        typ.oid
+                    FROM
+                        pg_catalog.pg_type typ
+                    WHERE
+                        typ.typname = "typeid"::text || '_domain'
+                        OR typ.typname = "typeid"::text || '_t'
+                ),
+                (
+                    SELECT
+                        typ.typarray
+                    FROM
+                        pg_catalog.pg_type typ
+                    WHERE
+                        typ.typname = "elemid"::text || '_domain'
+                        OR typ.typname = "elemid"::text || '_t'
+                        OR typ.oid = (
+                            SELECT
+                                tn::regtype::oid
+                            FROM
+                                edgedb._get_base_scalar_type_map()
+                                    AS m(tid uuid, tn text)
+                            WHERE
+                                tid = elemid
+                        )
+                ),
+                edgedb.raise(
+                    NULL::bigint,
+                    'invalid_parameter_value',
+                    msg => (
+                        format(
+                            'cannot determine OID of EdgeDB type %L',
+                            typeid::text
+                        )
+                    )
+                )
+            )::bigint
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'get_pg_type_for_edgedb_type'),
+            args=[
+                ('typeid', ('uuid',)),
+                ('elemid', ('uuid',)),
+            ],
+            returns=('bigint',),
+            volatility='stable',
+            text=self.text,
+        )
+
+
 async def bootstrap(conn: asyncpg.Connection) -> None:
     commands = dbops.CommandGroup()
     commands.add_commands([
@@ -2774,12 +3252,23 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateSchema(name='edgedbstd'),
         dbops.CreateCompositeType(ExpressionType()),
         dbops.CreateTable(DBConfigTable()),
+        dbops.CreateFunction(QuoteIdentFunction()),
+        dbops.CreateFunction(QuoteNameFunction()),
         dbops.CreateFunction(AlterCurrentDatabaseSetString()),
         dbops.CreateFunction(AlterCurrentDatabaseSetStringArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetNonArray()),
         dbops.CreateFunction(AlterCurrentDatabaseSetArray()),
+        dbops.CreateFunction(GetBackendCapabilitiesFunction()),
+        dbops.CreateFunction(GetBackendTenantIDFunction()),
+        dbops.CreateFunction(GetDatabaseBackendNameFunction()),
+        dbops.CreateFunction(GetRoleBackendNameFunction()),
+        dbops.CreateFunction(GetUserSequenceBackendNameFunction()),
+        dbops.CreateFunction(GetStdModulesFunction()),
         dbops.CreateFunction(GetObjectMetadata()),
+        dbops.CreateFunction(GetColumnMetadata()),
         dbops.CreateFunction(GetSharedObjectMetadata()),
+        dbops.CreateFunction(GetDatabaseMetadataFunction()),
+        dbops.CreateFunction(GetCurrentDatabaseFunction()),
         dbops.CreateFunction(RaiseExceptionFunction()),
         dbops.CreateFunction(RaiseExceptionOnNullFunction()),
         dbops.CreateFunction(RaiseExceptionOnNotNullFunction()),
@@ -2787,6 +3276,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(AssertJSONTypeFunction()),
         dbops.CreateFunction(ExtractJSONScalarFunction()),
         dbops.CreateFunction(NormalizeNameFunction()),
+        dbops.CreateFunction(GetNameModuleFunction()),
         dbops.CreateFunction(NullIfArrayNullsFunction()),
         dbops.CreateCompositeType(IndexDescType()),
         dbops.CreateFunction(IntrospectIndexesFunction()),
@@ -2794,6 +3284,11 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(IntrospectTriggersFunction()),
         dbops.CreateCompositeType(TableInheritanceDescType()),
         dbops.CreateDomain(BigintDomain()),
+        dbops.CreateDomain(TimestampTzDomain()),
+        dbops.CreateDomain(TimestampDomain()),
+        dbops.CreateDomain(DateDomain()),
+        dbops.CreateDomain(DurationDomain()),
+        dbops.CreateDomain(RelativeDurationDomain()),
         dbops.CreateFunction(StrToBigint()),
         dbops.CreateFunction(StrToDecimal()),
         dbops.CreateFunction(StrToInt64NoInline()),
@@ -2829,7 +3324,6 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateEnum(SysConfigSourceType()),
         dbops.CreateEnum(SysConfigScopeType()),
         dbops.CreateCompositeType(SysConfigValueType()),
-        dbops.CreateFunction(GetBackendCapabilitiesFunction()),
         dbops.CreateFunction(SysConfigFullFunction()),
         dbops.CreateFunction(SysConfigNoFileAccessFunction()),
         dbops.CreateFunction(SysConfigFunction()),
@@ -2837,6 +3331,10 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(SysGetTransactionIsolation()),
         dbops.CreateFunction(GetCachedReflection()),
         dbops.CreateFunction(GetBaseScalarTypeMap()),
+        dbops.CreateFunction(GetPgTypeForEdgeDBTypeFunction()),
+        dbops.CreateFunction(DescribeInstanceConfigAsDDLFunctionForwardDecl()),
+        dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
+        dbops.CreateFunction(DescribeRolesAsDDLFunctionForwardDecl()),
     ])
 
     block = dbops.PLTopBlock()
@@ -2912,12 +3410,16 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
                  WHERE name = 'sys::Database')
                 AS {qi(ptr_col_name(schema, Database, '__type__'))},
             (datname IN (
-                {ql(defines.EDGEDB_TEMPLATE_DB)},
-                {ql(defines.EDGEDB_SYSTEM_DB)}
+                edgedb.get_database_backend_name(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                edgedb.get_database_backend_name(
+                    {ql(defines.EDGEDB_SYSTEM_DB)})
             ))
                 AS {qi(ptr_col_name(schema, Database, 'internal'))},
-            datname AS {qi(ptr_col_name(schema, Database, 'name'))},
-            datname AS {qi(ptr_col_name(schema, Database, 'name__internal'))},
+            (d.description)->>'name'
+                AS {qi(ptr_col_name(schema, Database, 'name'))},
+            (d.description)->>'name'
+                AS {qi(ptr_col_name(schema, Database, 'name__internal'))},
             ARRAY[]::text[]
                 AS {qi(ptr_col_name(schema, Database, 'computed_fields'))},
             ((d.description)->>'builtin')::bool
@@ -2931,6 +3433,7 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
             ) AS d
         WHERE
             (d.description)->>'id' IS NOT NULL
+            AND (d.description)->>'tenant_id' = edgedb.get_backend_tenant_id()
     '''
 
     annos_link_query = f'''
@@ -3043,11 +3546,11 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             (e.value->>'internal')::bool
                 AS {qi(ptr_col_name(schema, ExtPkg, 'internal'))}
         FROM
-            jsonb_each(edgedb.shobj_metadata(
-                (SELECT oid FROM pg_database
-                WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                'pg_database'
-            ) -> 'ExtensionPackage') AS e
+            jsonb_each(
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
+                ) -> 'ExtensionPackage'
+            ) AS e
     '''
 
     annos_link_query = f'''
@@ -3061,11 +3564,11 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             (annotations->>'is_owned')::bool
                 AS {qi(ptr_col_name(schema, annos, 'owned'))}
         FROM
-            jsonb_each(edgedb.shobj_metadata(
-                (SELECT oid FROM pg_database
-                WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                'pg_database'
-            ) -> 'ExtensionPackage') AS e
+            jsonb_each(
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
+                ) -> 'ExtensionPackage'
+            ) AS e
             CROSS JOIN LATERAL
                 ROWS FROM (
                     jsonb_array_elements(e.value->'annotations')
@@ -3081,11 +3584,11 @@ def _generate_extension_views(schema: s_schema.Schema) -> List[dbops.View]:
             (annotations->>'is_owned')::bool
                 AS {qi(ptr_col_name(schema, int_annos, 'owned'))}
         FROM
-            jsonb_each(edgedb.shobj_metadata(
-                (SELECT oid FROM pg_database
-                WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                'pg_database'
-            ) -> 'ExtensionPackage') AS e
+            jsonb_each(
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
+                ) -> 'ExtensionPackage'
+            ) AS e
             CROSS JOIN LATERAL
                 ROWS FROM (
                     jsonb_array_elements(e.value->'annotations__internal')
@@ -3141,9 +3644,9 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             (SELECT id FROM edgedb."_SchemaObjectType"
                  WHERE name = 'sys::Role')
                 AS {qi(ptr_col_name(schema, Role, '__type__'))},
-            a.rolname
+            (d.description)->>'name'
                 AS {qi(ptr_col_name(schema, Role, 'name'))},
-            a.rolname
+            (d.description)->>'name'
                 AS {qi(ptr_col_name(schema, Role, 'name__internal'))},
             {superuser}
                 AS {qi(ptr_col_name(schema, Role, 'superuser'))},
@@ -3172,6 +3675,7 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             ) AS d
         WHERE
             (d.description)->>'id' IS NOT NULL
+            AND (d.description)->>'tenant_id' = edgedb.get_backend_tenant_id()
     '''
 
     member_of_link_query = f'''
@@ -3335,10 +3839,8 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
                 AS {qi(ptr_col_name(schema, Ver, 'computed_fields'))}
         FROM
             jsonb_each(
-                edgedb.shobj_metadata(
-                    (SELECT oid FROM pg_database
-                    WHERE datname = {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                    'pg_database'
+                edgedb.get_database_metadata(
+                    {ql(defines.EDGEDB_TEMPLATE_DB)}
                 ) -> 'GlobalSchemaVersion'
             ) AS v
     '''
@@ -3474,9 +3976,9 @@ async def generate_support_views(
         for tn, q in cfg_views
     ])
 
-    conf = schema.get('cfg::SystemConfig', type=s_objtypes.ObjectType)
+    conf = schema.get('cfg::InstanceConfig', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
-        schema, conf, scope=qltypes.ConfigScope.SYSTEM, path=[], rptr=None)
+        schema, conf, scope=qltypes.ConfigScope.INSTANCE, path=[], rptr=None)
     commands.add_commands([
         dbops.CreateView(dbops.View(name=tn, query=q), or_replace=True)
         for tn, q in cfg_views
@@ -3522,7 +4024,6 @@ async def generate_support_functions(
         dbops.CreateFunction(IssubclassFunction()),
         dbops.CreateFunction(IssubclassFunction2()),
         dbops.CreateFunction(GetSchemaObjectNameFunction()),
-        dbops.CreateFunction(QuoteIdentFunction()),
     ])
 
     block = dbops.PLTopBlock()
@@ -3546,7 +4047,7 @@ async def generate_more_support_functions(
         output_format=edbcompiler.IoFormat.BINARY,
     )
 
-    DescribeSystemConfigAsDDLFunction = dbops.Function(
+    DescribeInstanceConfigAsDDLFunction = dbops.Function(
         name=('edgedb', '_describe_system_config_as_ddl'),
         args=[],
         returns=('text'),
@@ -3573,9 +4074,14 @@ async def generate_more_support_functions(
     )
 
     commands.add_commands([
-        dbops.CreateFunction(DescribeSystemConfigAsDDLFunction),
-        dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunction),
-        dbops.CreateFunction(DescribeRolesAsDDLFunction(schema)),
+        dbops.CreateFunction(
+            DescribeInstanceConfigAsDDLFunction, or_replace=True),
+        dbops.CreateFunction(
+            DescribeDatabaseConfigAsDDLFunction, or_replace=True),
+        dbops.CreateFunction(
+            DescribeRolesAsDDLFunction(schema), or_replace=True),
+        dbops.CreateFunction(GetSequenceBackendNameFunction()),
+        dbops.CreateFunction(DumpSequencesFunction()),
     ])
 
     block = dbops.PLTopBlock()
@@ -3591,8 +4097,8 @@ def _describe_config(
     """Generate an EdgeQL query to render config as DDL."""
 
     if source == 'system override':
-        scope = qltypes.ConfigScope.SYSTEM
-        config_object_name = 'cfg::SystemConfig'
+        scope = qltypes.ConfigScope.INSTANCE
+        config_object_name = 'cfg::InstanceConfig'
     elif source == 'database':
         scope = qltypes.ConfigScope.DATABASE
         config_object_name = 'cfg::DatabaseConfig'
@@ -3981,7 +4487,7 @@ def _generate_config_type_view(
     json_t = schema.get('std::json', type=s_scalars.ScalarType)
 
     if scope is not None:
-        if scope is qltypes.ConfigScope.SYSTEM:
+        if scope is qltypes.ConfigScope.INSTANCE:
             max_source = "'system override'"
         elif scope is qltypes.ConfigScope.DATABASE:
             max_source = "'database'"
