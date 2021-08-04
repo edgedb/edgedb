@@ -266,7 +266,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     valid for concrete links.
 
 :eql:synopsis:`SET MULTI`
-    Change the link set's maximum cardinality to any natural number ( *greater than or equal to one* ).
+    Change the link set's maximum cardinality to fit any natural number ( *greater than or equal to one* ).
     Only valid for concrete links;
 
 :eql:synopsis:`RESET CARDINALITY`
