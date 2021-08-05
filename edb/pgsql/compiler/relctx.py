@@ -101,7 +101,7 @@ def _pull_path_namespace(
             # Skip pulling paths that match the path_id_mask before or after
             # doing path id mapping. We need to look at before as well
             # to prevent paths leaking out under a different name.
-            if (
+            if flavor != 'packed' and (
                 path_id in squery.path_id_mask
                 or orig_path_id in squery.path_id_mask
             ):
