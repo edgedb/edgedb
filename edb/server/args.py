@@ -473,9 +473,9 @@ def parse_args(**kwargs: Any):
             if kwargs['postgres_dsn']:
                 pass
             elif devmode.is_in_dev_mode():
-                data_dir = os.environ.get("EDGEDB_SERVER_DEV_DIR")
-                if data_dir:
-                    data_dir = pathlib.Path(data_dir)
+                data_dir_env = os.environ.get("EDGEDB_SERVER_DEV_DIR")
+                if data_dir_env:
+                    data_dir = pathlib.Path(data_dir_env)
                 else:
                     if sys.platform == "darwin":
                         data_dir = (
