@@ -1469,7 +1469,7 @@ def should_materialize(
         ir, ctx.env, for_materialization=True)
     if volatility is qltypes.Volatility.Volatile:
         # vol is always good enough, don't need to look harder
-        return (('vol',),)
+        return (irast.MaterializeVolatile(),)
 
     if not isinstance(ir, irast.Set):
         return ()
@@ -1488,7 +1488,7 @@ def should_materialize(
         binding_pessimism
         and (bindings := irutils.find_bindings(ir, skipped_bindings))
     ):
-        reasons.append(('bindings', bindings))
+        reasons.append(irast.MaterializeBindings(bindings))
 
     if ptrcls and ptrcls in ctx.source_map:
         reasons += ctx.source_map[ptrcls].should_materialize

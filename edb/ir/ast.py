@@ -474,7 +474,15 @@ class Param:
     """IR type reference"""
 
 
-MaterializeReason = typing.Tuple[typing.Any, ...]
+class MaterializeVolatile(typing.NamedTuple):
+    pass
+
+
+class MaterializeBindings(typing.NamedTuple):
+    bindings: typing.Set[Set]
+
+
+MaterializeReason = typing.Union[MaterializeVolatile, MaterializeBindings]
 
 
 class ComputableInfo(typing.NamedTuple):

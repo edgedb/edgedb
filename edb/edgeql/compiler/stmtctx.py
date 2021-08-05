@@ -292,15 +292,15 @@ def _fixup_materialized_sets(
 
             good_reason = False
             for x in mat_set.reason:
-                if x[0] == 'vol':
+                if isinstance(x, irast.MaterializeVolatile):
                     good_reason = True
-                elif x[0] == 'bindings':
+                elif isinstance(x, irast.MaterializeBindings):
                     # If any of the bindings that the set uses are *visible*
                     # at the binding point, we need to materialize, to make
                     # sure that things get correlated properly. If it's not
                     # visible, then it's just being used internally and we
                     # don't need any special work.
-                    if any(parent.is_visible(b.path_id) for b in x[1]):
+                    if any(parent.is_visible(b.path_id) for b in x.bindings):
                         good_reason = True
 
             if not good_reason:
