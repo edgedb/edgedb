@@ -473,12 +473,31 @@ def parse_args(**kwargs: Any):
             if kwargs['postgres_dsn']:
                 pass
             elif devmode.is_in_dev_mode():
-                from edgedb import platform
+                data_dir_env = os.environ.get("EDGEDB_SERVER_DEV_DIR")
+                if data_dir_env:
+                    data_dir = pathlib.Path(data_dir_env)
+                else:
+                    if sys.platform == "darwin":
+                        data_dir = (
+                            pathlib.Path.home()
+                            / "Library"
+                            / "Application Support"
+                            / "edgedb"
+                            / "_localdev"
+                        )
+                    else:
+                        xdg_data_dir = pathlib.Path(
+                            os.environ.get("XDG_DATA_HOME", ".")
+                        )
+                        if not xdg_data_dir.is_absolute():
+                            xdg_data_dir = (
+                                pathlib.Path.home() / ".local" / "share"
+                            )
+                        data_dir = xdg_data_dir / "edgedb" / "_localdev"
+                if not data_dir.parent.exists():
+                    data_dir.parent.mkdir(exist_ok=True, parents=True)
 
-                kwargs['data_dir'] = pathlib.Path(os.environ.get(
-                    "EDGEDB_SERVER_DEV_DIR",
-                    platform.config_dir() / 'data' / '_localdev',
-                ))
+                kwargs["data_dir"] = data_dir
             else:
                 abort('Please specify the instance data directory '
                       'using the -D argument or the address of a remote '
