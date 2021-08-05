@@ -1233,12 +1233,11 @@ def process_with_block(
                 )
                 results.append(binding)
 
-                if setgen.should_materialize(binding, ctx=ctx):
+                if reason := setgen.should_materialize(binding, ctx=ctx):
                     had_materialized = True
                     typ = setgen.get_set_type(binding, ctx=ctx)
-                    ctx.env.materialized_sets[typ] = edgeql_tree
+                    ctx.env.materialized_sets[typ] = edgeql_tree, reason
                     assert binding.expr
-                    setgen.force_materialized_volatile(binding.expr, ctx=ctx)
                     setgen.maybe_materialize(typ, binding, ctx=ctx)
 
         else:

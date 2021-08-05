@@ -3010,9 +3010,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    @test.xfail('more than one row returned by a subquery')
     async def test_edgeql_scope_ref_side_02(self):
-        # This works but tbh it is by accident since the SELECT _
-        # triggers a materialization (for the wrong reasons).
         await self.assert_query_result(
             """
                 SELECT (

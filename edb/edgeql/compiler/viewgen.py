@@ -408,7 +408,7 @@ def _normalize_view_ptr_expr(
     is_linkprop = False
     is_polymorphic = False
     is_mutation = is_insert or is_update
-    materialized = False
+    materialized = None
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
     plen = len(steps)
@@ -581,7 +581,8 @@ def _normalize_view_ptr_expr(
                 path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
                 is_insert=is_insert, is_update=is_update, ctx=ctx)
             materialized = setgen.should_materialize(
-                irexpr, binding_pessimism=True, skipped_bindings={path_id},
+                irexpr, ptrcls=ptrcls,
+                binding_pessimism=True, skipped_bindings={path_id},
                 ctx=ctx)
             ptr_target = inference.infer_type(irexpr, ctx.env)
 
@@ -681,7 +682,8 @@ def _normalize_view_ptr_expr(
             path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
             is_insert=is_insert, is_update=is_update, ctx=ctx)
         materialized = setgen.should_materialize(
-            irexpr, binding_pessimism=True, skipped_bindings={path_id},
+            irexpr, ptrcls=ptrcls,
+            binding_pessimism=True, skipped_bindings={path_id},
             ctx=ctx)
         ptr_target = inference.infer_type(irexpr, ctx.env)
 
@@ -846,7 +848,7 @@ def _normalize_view_ptr_expr(
 
     if materialized and not is_mutation and ctx.qlstmt:
         assert ptrcls not in ctx.env.materialized_sets
-        ctx.env.materialized_sets[ptrcls] = ctx.qlstmt
+        ctx.env.materialized_sets[ptrcls] = ctx.qlstmt, materialized
 
         if not ctx.expr_exposed and irexpr:
             setgen.maybe_materialize(ptrcls, irexpr, ctx=ctx)
@@ -869,7 +871,7 @@ def _normalize_view_ptr_expr(
             path_id=path_id,
             path_id_ns=path_id_namespace,
             shape_op=shape_el.operation.op,
-            should_materialize=materialized,
+            should_materialize=materialized or [],
         )
 
     if compexpr is not None or is_polymorphic or materialized:

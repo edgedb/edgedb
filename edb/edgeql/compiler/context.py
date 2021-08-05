@@ -220,7 +220,7 @@ class Environment:
 
     materialized_sets: Dict[
         Union[s_types.Type, s_pointers.PointerLike],
-        qlast.Statement,
+        Tuple[qlast.Statement, Sequence[irast.MaterializeReason]],
     ]
     """A mapping of computed sets that must be computed only once."""
 
