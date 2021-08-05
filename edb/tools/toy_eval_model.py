@@ -499,10 +499,12 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> Result:
     subqs = [node.where] + [x.path for x in orderby]
     extra_subqs = [(subq_path, subq) for subq in subqs]
     new_qil, out = subquery_full(node.result, extra_subqs=extra_subqs, ctx=ctx)
-    new_qil += [simplify_path(subq_path) if subq_path else (IPartial(),)]
     if node.result_alias:
-        out = [row + (row[-1],) for row in out]
-        new_qil += [(IORef(node.result_alias),)]
+        # If there is a result alias, the body is treated as being a subquery,
+        # so it doesn't become visible.
+        for i in range(len(ctx.query_input_list), len(new_qil)):
+            new_qil[i] = ()
+    new_qil += [simplify_path(subq_path) if subq_path else (IPartial(),)]
 
     subq_ctx = replace(ctx, cur_path=subq_path)
     out = eval_filter(node.where, new_qil, out, ctx=subq_ctx)
@@ -885,7 +887,11 @@ class PathFinder(NodeVisitor):
 
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
         with self.subquery():
-            self.visit(query.result)
+            if query.result_alias:
+                with self.subquery():
+                    self.visit(query.result)
+            else:
+                self.visit(query.result)
 
             with self.update_path(query):
                 self.visit(query.orderby)
