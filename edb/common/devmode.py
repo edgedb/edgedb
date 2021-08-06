@@ -18,13 +18,14 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import contextlib
 import json
 import logging
 import os
 import pathlib
-from typing import *
+import sys
 
 
 logger = logging.getLogger('edb.devmode.cache')
@@ -111,7 +112,7 @@ def is_in_dev_mode() -> bool:
     return devmode.lower() not in ('0', '', 'false')
 
 
-def get_dev_mode_cache_dir() -> os.PathLike:
+def get_dev_mode_cache_dir() -> pathlib.Path:
     if is_in_dev_mode():
         root = pathlib.Path(__file__).parent.parent.parent
         cache_dir = (root / 'build' / 'cache')
@@ -119,3 +120,29 @@ def get_dev_mode_cache_dir() -> os.PathLike:
         return cache_dir
     else:
         raise RuntimeError('server is not running in dev mode')
+
+
+def get_dev_mode_data_dir() -> pathlib.Path:
+    data_dir_env = os.environ.get("EDGEDB_SERVER_DEV_DIR")
+    if data_dir_env:
+        data_dir = pathlib.Path(data_dir_env)
+    else:
+        if sys.platform == "darwin":
+            data_dir = (
+                pathlib.Path.home()
+                / "Library"
+                / "Application Support"
+                / "edgedb"
+                / "_localdev"
+            )
+        else:
+            xdg_data_dir = pathlib.Path(
+                os.environ.get("XDG_DATA_HOME", ".")
+            )
+            if not xdg_data_dir.is_absolute():
+                xdg_data_dir = (
+                    pathlib.Path.home() / ".local" / "share"
+                )
+            data_dir = xdg_data_dir / "edgedb" / "_localdev"
+
+    return data_dir

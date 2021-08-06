@@ -27,11 +27,10 @@ import unittest
 
 import click
 
+from edb.common import devmode
 from edb.server import cluster as edgedb_cluster
 from edb.testbase import server as tb
 from edb.tools.edb import edbcommands
-
-from edgedb import platform
 
 
 class TestResult:
@@ -68,12 +67,7 @@ def die(msg):
 @click.option(
     '-D', '--data-dir',
     type=str,
-    default=str(
-        pathlib.Path(os.environ.get(
-            "EDGEDB_SERVER_DEV_DIR",
-            platform.config_dir() / 'data' / '_localdev',
-        ))
-    ),
+    default=str(devmode.get_dev_mode_data_dir()),
     help='database cluster directory',
 )
 @click.option(
