@@ -84,7 +84,7 @@ class TestServerProto(tb.QueryTestCase):
         except edgedb.InvalidFunctionDefinitionError:
             return False
 
-        return await self.con.query_one('''
+        return await self.con.query_single('''
             SELECT cfg::Config.__internal_testmode LIMIT 1
         ''')
 
@@ -95,7 +95,7 @@ class TestServerProto(tb.QueryTestCase):
         for power in range(10, 20):
             base = 2 ** power
             for i in range(base - 100, base + 100):
-                v = await self.con.query_one(
+                v = await self.con.query_single(
                     'select str_repeat(".", <int64>$i)', i=i)
                 self.assertEqual(len(v), i)
 
@@ -282,15 +282,15 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'cannot be executed with query_one\(\).*'
+                r'cannot be executed with query_single\(\).*'
                 r'not return'):
-            await self.con.query_one('START TRANSACTION')
+            await self.con.query_single('START TRANSACTION')
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'cannot be executed with query_one_json\(\).*'
+                r'cannot be executed with query_single_json\(\).*'
                 r'not return'):
-            await self.con.query_one_json('START TRANSACTION')
+            await self.con.query_single_json('START TRANSACTION')
 
     async def test_server_proto_fetch_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
@@ -302,7 +302,7 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(edgedb.ProtocolError,
                                     'expected one statement'):
-            await self.con.query_one('''
+            await self.con.query_single('''
                 SELECT 1;
                 SET MODULE blah;
             ''')
@@ -461,7 +461,7 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
-                await self.con.query_one(
+                await self.con.query_single(
                     'select ()'),
                 ())
 
@@ -472,7 +472,7 @@ class TestServerProto(tb.QueryTestCase):
 
             async with self.con.transaction():
                 self.assertEqual(
-                    await self.con.query_one(
+                    await self.con.query_single(
                         'select <array<int64>>[]'),
                     [])
 
@@ -493,11 +493,14 @@ class TestServerProto(tb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.InterfaceError,
-                    r'query_one\(\) as it returns a multiset'):
-                await self.con.query_one('SELECT {1, 2}')
+                    r'query_single\(\) as it returns a multiset'):
+                await self.con.query_single('SELECT {1, 2}')
 
-            with self.assertRaisesRegex(edgedb.NoDataError, r'\bquery_one\('):
-                await self.con.query_one('SELECT <int64>{}')
+            with self.assertRaisesRegex(
+                edgedb.NoDataError,
+                r'\bquery_single\(',
+            ):
+                await self.con.query_single('SELECT <int64>{}')
 
     async def test_server_proto_basic_datatypes_02(self):
         self.assertEqual(
@@ -535,7 +538,7 @@ class TestServerProto(tb.QueryTestCase):
 
             self.assertEqual(
                 json.loads(
-                    await self.con.query_one_json(
+                    await self.con.query_single_json(
                         'select ["a", "b"]')),
                 ["a", "b"])
 
@@ -560,14 +563,14 @@ class TestServerProto(tb.QueryTestCase):
                 [])
 
             with self.assertRaises(edgedb.NoDataError):
-                await self.con.query_one_json('SELECT <int64>{}')
+                await self.con.query_single_json('SELECT <int64>{}')
 
         self.assertEqual(self.con._get_last_status(), 'SELECT')
 
     async def test_server_proto_basic_datatypes_04(self):
         # A regression test for enum typedescs being improperly
         # serialized and screwing up client's decoder.
-        d = await self.con.query_one('''
+        d = await self.con.query_single('''
             SELECT (<RGB>"RED", <RGB>"GREEN", [1], [<RGB>"GREEN"], [2])
         ''')
         self.assertEqual(d[2], [1])
@@ -711,7 +714,7 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_args_06(self):
         for _ in range(10):
             self.assertEqual(
-                await self.con.query_one(
+                await self.con.query_single(
                     'select <int64>$你好 + 10',
                     你好=32),
                 42)
@@ -719,7 +722,7 @@ class TestServerProto(tb.QueryTestCase):
     async def test_server_proto_args_07(self):
         with self.assertRaisesRegex(edgedb.QueryError,
                                     r'missing a type cast.*parameter'):
-            await self.con.query_one(
+            await self.con.query_single(
                 'select schema::Object {name} filter .id=$id', id='asd')
 
     async def test_server_proto_args_08(self):
@@ -735,14 +738,14 @@ class TestServerProto(tb.QueryTestCase):
             )
 
             self.assertEqual(
-                await self.con.query_one('select ("1", 1, 1.1, 1.1n, 1n)'),
+                await self.con.query_single('select ("1", 1, 1.1, 1.1n, 1n)'),
                 ('1', 1, 1.1, decimal.Decimal('1.1'), 1)
             )
 
     async def test_server_proto_args_09(self):
         async with self._run_and_rollback():
             self.assertEqual(
-                await self.con.query_one(
+                await self.con.query_single(
                     'WITH std AS MODULE math SELECT ("1", 1, 1.1, 1.1n, 1n)'
                 ),
                 ('1', 1, 1.1, decimal.Decimal('1.1'), 1)
@@ -934,7 +937,7 @@ class TestServerProto(tb.QueryTestCase):
 
             with self.assertRaisesRegex(
                     edgedb.TransactionError, "current transaction is aborted"):
-                await self.con.query_one('''
+                await self.con.query_single('''
                     RELEASE SAVEPOINT t1;
                 ''')
 
@@ -999,7 +1002,7 @@ class TestServerProto(tb.QueryTestCase):
                 [1])
 
             with self.assertRaises(edgedb.DivisionByZeroError):
-                await self.con.query_one('''
+                await self.con.query_single('''
                     SELECT 1 / 0;
                 ''')
 
@@ -1178,7 +1181,7 @@ class TestServerProto(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,
                 "function 't1::min' does not exist"):
-            await con.query_one('SELECT t1::min({1})')
+            await con.query_single('SELECT t1::min({1})')
 
     async def test_server_proto_tx_savepoint_09(self):
         # Test basic SET ALIAS tracking in transactions/savepoints;
@@ -1247,7 +1250,7 @@ class TestServerProto(tb.QueryTestCase):
             await con.query('ROLLBACK TO SAVEPOINT t2')
 
             self.assertEqual(
-                await con.query_one('SELECT 42+1+1+1+1'),
+                await con.query_single('SELECT 42+1+1+1+1'),
                 46)
         finally:
             await con.query('ROLLBACK')
@@ -1490,7 +1493,7 @@ class TestServerProto(tb.QueryTestCase):
                         await self.con.query('ROLLBACK TO SAVEPOINT _;')
             await self.con.query('RELEASE SAVEPOINT _')
 
-            actual_count = await self.con.query_one(
+            actual_count = await self.con.query_single(
                 '''SELECT count(
                     Tmp11
                     FILTER Tmp11.tmp = "test_server_proto_tx_11")
@@ -1655,7 +1658,7 @@ class TestServerProto(tb.QueryTestCase):
             ''')
 
             self.assertFalse(
-                await self.con.query_one('''
+                await self.con.query_single('''
                     SELECT cfg::Config.__internal_testmode LIMIT 1
                 ''')
             )
@@ -1679,7 +1682,7 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.query('ROLLBACK')
 
         self.assertEqual(
-            await self.con.query_one('SELECT 1;'),
+            await self.con.query_single('SELECT 1;'),
             1)
 
         await self.con.query('START TRANSACTION')
@@ -1688,7 +1691,7 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.query('ROLLBACK')
 
         self.assertEqual(
-            await self.con.query_one('SELECT 1;'),
+            await self.con.query_single('SELECT 1;'),
             1)
 
         await self.con.query('START TRANSACTION')
@@ -1697,7 +1700,7 @@ class TestServerProto(tb.QueryTestCase):
         await self.con.query('ROLLBACK')
 
         self.assertEqual(
-            await self.con.query_one('SELECT 1;'),
+            await self.con.query_single('SELECT 1;'),
             1)
 
     async def test_server_proto_tx_16(self):
@@ -1713,7 +1716,7 @@ class TestServerProto(tb.QueryTestCase):
                     stmt += f' ISOLATION {isol}'
 
                 await self.con.query(stmt)
-                result = await self.con.query_one(
+                result = await self.con.query_single(
                     'SELECT sys::get_transaction_isolation()')
                 # Check that it's an enum and that the value is as
                 # expected without explicitly listing all the possible
@@ -1735,7 +1738,7 @@ class TestServerProto(tb.QueryTestCase):
 
         try:
             async def worker(con, tx, n):
-                await con.query_one(f'''
+                await con.query_single(f'''
                     SELECT count(TransactionTest FILTER .name LIKE 'tx_17_{n}')
                 ''')
 
@@ -1805,12 +1808,12 @@ class TestServerProto(tb.QueryTestCase):
         ''')
 
         for _ in range(10):
-            result = await self.con.query_one(f'''
+            result = await self.con.query_single(f'''
                 SELECT <{typename}>100000
             ''')
             self.assertEqual(result, 100000)
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             ''')
             self.assertEqual(
@@ -1889,7 +1892,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
         ''')
 
         self.assertEqual(
-            await self.con.query_one('SELECT Test.foo LIMIT 1'),
+            await self.con.query_single('SELECT Test.foo LIMIT 1'),
             123
         )
 
@@ -1905,7 +1908,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
             try:
                 self.assertEqual(
-                    await con2.query_one('SELECT Test.foo LIMIT 1'),
+                    await con2.query_single('SELECT Test.foo LIMIT 1'),
                     123
                 )
 
@@ -1918,7 +1921,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                 ''')
 
                 self.assertEqual(
-                    await self.con.query_one('SELECT Test2.foo LIMIT 1'),
+                    await self.con.query_single('SELECT Test2.foo LIMIT 1'),
                     'text'
                 )
 
@@ -1930,8 +1933,10 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
                 ):
                     async with tr:
                         self.assertEqual(
-                            await con2.query_one('SELECT Test2.foo LIMIT 1'),
-                            'text'
+                            await con2.query_single(
+                                'SELECT Test2.foo LIMIT 1',
+                            ),
+                            'text',
                         )
 
             finally:
@@ -1963,7 +1968,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
 
             try:
                 self.assertEqual(
-                    await con3.query_one('SELECT 42'),
+                    await con3.query_single('SELECT 42'),
                     42
                 )
             finally:
@@ -1999,7 +2004,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 con2 = await self.connect(database=db)
                 try:
                     self.assertEqual(
-                        await con2.query_one('SELECT 1'),
+                        await con2.query_single('SELECT 1'),
                         1
                     )
                 finally:
@@ -2438,7 +2443,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE tid_prop_01 EXTENDING str;
             ''')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_01>>$input)[1]
             ''', input=['a', 'b'])
 
@@ -2450,7 +2455,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE tid_prop_02 EXTENDING str;
             ''')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_02>>$input)[1]
             ''', input=['a', 'b'])
 
@@ -2472,7 +2477,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 COMMIT MIGRATION;
             ''')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_03>>$input)[1]
             ''', input=['A', 'B'])
 
@@ -2490,7 +2495,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE tid_prop_04 EXTENDING str;
             ''')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_04>>$input)[1]
             ''', input=['A', 'B'])
 
@@ -2512,7 +2517,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE tid_prop_052 EXTENDING str;
             ''')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_052>>$input)[1]
             ''', input=['A', 'C'])
 
@@ -2527,7 +2532,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE tid_prop_06 EXTENDING str;
             ''')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_06>>$input)[1]
             ''', input=['a', 'b'])
 
@@ -2539,7 +2544,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE tid_prop_07 EXTENDING str;
             ''')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_07>>$input)[1]
             ''', input=['a', 'b'])
 
@@ -2565,17 +2570,17 @@ class TestServerProtoDDL(tb.DDLTestCase):
                 CREATE SCALAR TYPE tid_prop_083 EXTENDING str;
             ''')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_081>>$input)[0]
             ''', input=['A', 'C'])
             self.assertEqual(result, 'A')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_082>>$input)[1]
             ''', input=['A', 'C'])
             self.assertEqual(result, 'C')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_083>>$input)[1]
             ''', input=['A', 'Z'])
             self.assertEqual(result, 'Z')
@@ -2604,17 +2609,17 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
             await self.con.query('COMMIT')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_091>>$input)[0]
             ''', input=['A', 'C'])
             self.assertEqual(result, 'A')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_092>>$input)[1]
             ''', input=['A', 'C'])
             self.assertEqual(result, 'C')
 
-            result = await self.con.query_one('''
+            result = await self.con.query_single('''
                 SELECT (<array<tid_prop_093>>$input)[1]
             ''', input=['A', 'Z'])
             self.assertEqual(result, 'Z')

@@ -239,7 +239,7 @@ class TestProtocol(ProtocolTestCase):
 
                 # Let's check what's in the row - if the cancellation didn't
                 # happen, the test will fail with value "inner".
-                val = await con2.query_one('SELECT tclcq.p LIMIT 1')
+                val = await con2.query_single('SELECT tclcq.p LIMIT 1')
                 self.assertEqual(val, 'initial')
 
             finally:

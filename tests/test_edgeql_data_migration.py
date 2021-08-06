@@ -72,7 +72,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             tx = self.con.transaction()
             await tx.start()
             try:
-                res = await self.con.query_one(
+                res = await self.con.query_single(
                     'DESCRIBE CURRENT MIGRATION AS JSON;')
             finally:
                 await tx.rollback()
@@ -110,7 +110,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         try:
             step = 0
             while True:
-                mig = await self.con.query_one(
+                mig = await self.con.query_single(
                     'DESCRIBE CURRENT MIGRATION AS JSON;')
                 mig = json.loads(mig)
                 if mig['proposed'] is None:
@@ -4022,7 +4022,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         # Starting with a small schema migrate to remove its elements.
         # There are non-zero default Objects existing in a fresh blank
         # database because of placeholder objects used for GraphQL.
-        start_objects = await self.con.query_one(r"""
+        start_objects = await self.con.query_single(r"""
             SELECT count(Object);
         """)
 
@@ -8904,7 +8904,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             SET MODULE test;
             INSERT User;
         ''')
-        post = await self.con.query_one('''
+        post = await self.con.query_single('''
             INSERT Post {
                 user := (SELECT User LIMIT 1),
             };

@@ -1052,7 +1052,7 @@ class TestIntrospection(tb.QueryTestCase):
         )
 
     async def test_edgeql_introspection_meta_13(self):
-        res = await self.con.query_one(r"""
+        res = await self.con.query_single(r"""
             SELECT count(schema::Object);
         """)
 
@@ -1350,7 +1350,7 @@ class TestIntrospection(tb.QueryTestCase):
         """)
 
     async def test_edgeql_introspection_database_01(self):
-        res = await self.con.query_one(r"""
+        res = await self.con.query_single(r"""
             WITH MODULE sys
             SELECT count(Database.name);
         """)

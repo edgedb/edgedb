@@ -1238,7 +1238,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
             RENAME TO mymax13b;
         """)
 
-        res = await self.con.query_one("""
+        res = await self.con.query_single("""
             DESCRIBE MODULE default
         """)
 
