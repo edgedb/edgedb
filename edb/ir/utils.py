@@ -323,7 +323,7 @@ def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
     return res
 
 
-class ContainsBindingVisitor(ast.NodeVisitor):
+class FindBindingVisitor(ast.NodeVisitor):
     skip_hidden = True
     extra_skips = frozenset(['materialized_sets'])
 
@@ -331,22 +331,28 @@ class ContainsBindingVisitor(ast.NodeVisitor):
         super().__init__()
         self.to_skip = to_skip
 
-    def combine_field_results(self, xs: List[Optional[bool]]) -> bool:
-        return any(
-            x is True
-            or (isinstance(x, list) and self.combine_field_results(x))
-            for x in xs
-        )
+    def combine_field_results(self, xs: Any) -> Set[irast.Set]:
+        out = set()
+        for x in xs:
+            if isinstance(x, list):
+                x = self.combine_field_results(x)
+            if x:
+                if isinstance(x, set):
+                    out.update(x)
+        return out
 
-    def visit_Set(self, node: irast.Set) -> bool:
+    def visit_Set(self, node: irast.Set) -> Set[irast.Set]:
         if node.path_id in self.to_skip:
-            return False
+            return set()
 
         if node.is_binding:
-            return True
+            return {node}
 
         results = []
         results.append(self.visit(node.rptr))
+        # If the root of a path is bound, say that the whole path is
+        if self.combine_field_results(results):
+            results.append({node})
         results.append(self.visit(node.shape))
         if not node.rptr:
             results.append(self.visit(node.expr))
@@ -355,13 +361,13 @@ class ContainsBindingVisitor(ast.NodeVisitor):
         return self.combine_field_results(results)
 
 
-def contains_binding(
+def find_bindings(
     stmt: irast.Base, to_skip: AbstractSet[irast.PathId]=frozenset()
-) -> bool:
+) -> Set[irast.Set]:
     """Check whether a statement contains any bindings in a subtree."""
     # TODO: Make this caching.
-    visitor = ContainsBindingVisitor(to_skip=to_skip)
-    return visitor.visit(stmt) is True
+    visitor = FindBindingVisitor(to_skip=to_skip)
+    return cast(Set[irast.Set], visitor.visit(stmt))
 
 
 def contains_set_of_op(ir: irast.Base) -> bool:

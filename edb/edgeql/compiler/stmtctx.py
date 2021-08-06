@@ -284,15 +284,33 @@ def _fixup_materialized_sets(
                         f"couldn't find the source for {mat_set.uses} on "
                         f"{stmt.result}!")
 
-            # Compile the view shapes in the set
             ir_set = mat_set.materialized
+            assert ir_set.path_scope_id is not None
+            new_scope = ctx.env.scope_tree_nodes[ir_set.path_scope_id]
+            assert new_scope.parent
+            parent = new_scope.parent
+
+            good_reason = False
+            for x in mat_set.reason:
+                if isinstance(x, irast.MaterializeVolatile):
+                    good_reason = True
+                elif isinstance(x, irast.MaterializeBindings):
+                    # If any of the bindings that the set uses are *visible*
+                    # at the binding point, we need to materialize, to make
+                    # sure that things get correlated properly. If it's not
+                    # visible, then it's just being used internally and we
+                    # don't need any special work.
+                    if any(parent.is_visible(b.path_id) for b in x.bindings):
+                        good_reason = True
+
+            if not good_reason:
+                del stmt.materialized_sets[key]
+                continue
+
+            # Compile the view shapes in the set
             with ctx.new() as subctx:
                 subctx.implicit_tid_in_shapes = False
                 subctx.implicit_tname_in_shapes = False
-                assert ir_set.path_scope_id is not None
-                new_scope = ctx.env.scope_tree_nodes.get(
-                    ir_set.path_scope_id)
-                assert new_scope
                 subctx.path_scope = new_scope
                 viewgen.compile_view_shapes(ir_set, ctx=subctx)
 

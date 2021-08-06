@@ -1423,73 +1423,93 @@ def maybe_materialize(
     *,
     ctx: context.ContextLevel,
 ) -> None:
-    mat_qlstmt = ctx.env.materialized_sets.get(stype)
-    if mat_qlstmt is not None:
-        materialize_in_stmt = ctx.env.compiled_stmts[mat_qlstmt]
-        if materialize_in_stmt.materialized_sets is None:
-            materialize_in_stmt.materialized_sets = {}
+    if isinstance(stype, s_pointers.PseudoPointer):
+        return
 
-        assert not isinstance(stype, s_pointers.PseudoPointer)
-        if stype.id not in materialize_in_stmt.materialized_sets:
-            saved = (
-                None if isinstance(stype, s_pointers.Pointer) and not ir.rptr
-                else ir
-            )
-            materialize_in_stmt.materialized_sets[stype.id] = (
-                irast.MaterializedSet(materialized=saved, use_sets=[]))
+    # Search for a materialized_sets entry
+    while True:
+        if mat_entry := ctx.env.materialized_sets.get(stype):
+            break
+        # Search up for parent pointers, if applicable
+        if not isinstance(stype, s_pointers.Pointer):
+            return
+        bases = stype.get_bases(ctx.env.schema).objects(ctx.env.schema)
+        if not bases:
+            return
+        stype = bases[0]
 
-        mat_set = materialize_in_stmt.materialized_sets[stype.id]
-        mat_set.use_sets.append(ir)
+    # We've found an entry, populate it.
+    mat_qlstmt, reason = mat_entry
+    materialize_in_stmt = ctx.env.compiled_stmts[mat_qlstmt]
+    if materialize_in_stmt.materialized_sets is None:
+        materialize_in_stmt.materialized_sets = {}
 
+    assert not isinstance(stype, s_pointers.PseudoPointer)
+    if stype.id not in materialize_in_stmt.materialized_sets:
+        saved = (
+            None if isinstance(stype, s_pointers.Pointer) and not ir.rptr
+            else ir
+        )
+        materialize_in_stmt.materialized_sets[stype.id] = (
+            irast.MaterializedSet(
+                materialized=saved, reason=reason, use_sets=[]))
 
-def force_materialized_volatile(
-    ir: irast.Base, *, ctx: context.ContextLevel
-) -> None:
-    vol = inference.infer_volatility(ir, ctx.env)
-    ctx.env.inferred_volatility[ir] = (vol, qltypes.Volatility.Volatile)
+    mat_set = materialize_in_stmt.materialized_sets[stype.id]
+    mat_set.use_sets.append(ir)
 
 
 def should_materialize(
     ir: irast.Base, *,
+    ptrcls: Optional[s_pointers.Pointer]=None,
     binding_pessimism: bool=False,
     skipped_bindings: AbstractSet[irast.PathId]=frozenset(),
     ctx: context.ContextLevel,
-) -> bool:
+) -> Sequence[irast.MaterializeReason]:
     volatility = inference.infer_volatility(
         ir, ctx.env, for_materialization=True)
     if volatility is qltypes.Volatility.Volatile:
-        return True
+        # vol is always good enough, don't need to look harder
+        return (irast.MaterializeVolatile(),)
 
     if not isinstance(ir, irast.Set):
-        return False
+        return ()
 
     typ = get_set_type(ir, ctx=ctx)
 
-    # For shape elements, we need to materialize when they reference bindings
-    # TODO: this is pretty pessimistic, we should be able to detect
-    # cases where it isn't necessary afterwards in stmtctx and clean
-    # them up.
-    if binding_pessimism and irutils.contains_binding(ir, skipped_bindings):
-        return True
+    reasons: List[irast.MaterializeReason] = []
 
-    return should_materialize_type(typ, ctx=ctx)
+    # For shape elements, we need to materialize when they reference
+    # bindings that are visible from that point. This means that doing
+    # WITH/FOR bindings internally is fine, but referring to
+    # externally bound things needs materialization. We can't actually
+    # do this visibility analysis until we are done, though, so
+    # instead we just store the bindings.
+    if (
+        binding_pessimism
+        and (bindings := irutils.find_bindings(ir, skipped_bindings))
+    ):
+        reasons.append(irast.MaterializeBindings(bindings))
+
+    if ptrcls and ptrcls in ctx.source_map:
+        reasons += ctx.source_map[ptrcls].should_materialize
+
+    reasons += should_materialize_type(typ, ctx=ctx)
+
+    return reasons
 
 
 def should_materialize_type(
     typ: s_types.Type, *, ctx: context.ContextLevel
-) -> bool:
+) -> List[irast.MaterializeReason]:
     schema = ctx.env.schema
+    reasons: List[irast.MaterializeReason] = []
     if isinstance(
             typ, (s_objtypes.ObjectType, s_pointers.Pointer)):
         for pointer in typ.get_pointers(schema).objects(schema):
-            if (
-                pointer in ctx.source_map
-                and ctx.source_map[pointer].should_materialize
-            ):
-                return True
+            if pointer in ctx.source_map:
+                reasons += ctx.source_map[pointer].should_materialize
     elif isinstance(typ, s_types.Collection):
         for sub in typ.get_subtypes(schema):
-            if should_materialize_type(sub, ctx=ctx):
-                return True
+            reasons += should_materialize_type(sub, ctx=ctx)
 
-    return False
+    return reasons

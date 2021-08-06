@@ -1388,7 +1388,34 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             {"m": 2, "n": 3},
         ])
 
-    @test.xfail("x and y don't match")
+    async def test_edgeql_volatility_hack_05a(self):
+        await self.assert_query_result(r'''
+            SELECT (WITH x := {(SELECT Tgt FILTER .n < 3)},
+                    SELECT (x.n, Obj {m := x.n})).1
+            { n, m } ORDER BY .m THEN .n;
+        ''', [
+            {"m": 1, "n": 1},
+            {"m": 1, "n": 2},
+            {"m": 1, "n": 3},
+            {"m": 2, "n": 1},
+            {"m": 2, "n": 2},
+            {"m": 2, "n": 3},
+        ])
+
+    async def test_edgeql_volatility_hack_05b(self):
+        await self.assert_query_result(r'''
+            WITH X :=  (WITH x := {(SELECT Tgt FILTER .n < 3)},
+                        SELECT (x.n, Obj {m := x.n})).1,
+            SELECT X { n, m } ORDER BY .m THEN .n;
+        ''', [
+            {"m": 1, "n": 1},
+            {"m": 1, "n": 2},
+            {"m": 1, "n": 3},
+            {"m": 2, "n": 1},
+            {"m": 2, "n": 2},
+            {"m": 2, "n": 3},
+        ])
+
     async def test_edgeql_volatility_for_like_hard_01(self):
         for query in self.test_loop():
             res = await query("""
@@ -1405,6 +1432,10 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
     @test.xfail("column definition list is only allowed ...")
     async def test_edgeql_volatility_for_like_hard_02(self):
+        # Weird stuff is happening here!
+        # 1. Putting basically anything other than O as the 1st tuple el works
+        # 2. If we reorder the arguments it works
+        # 3. If we add a real shape to the nested O, it works
         for query in self.test_loop():
             res = await query("""
                 WITH
@@ -1416,7 +1447,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self.assertEqual(len(res), 3)
             self.assertNotEqual(res[0]['o']['x'], res[1]['o']['x'])
 
-    @test.xfail("Fails finding a range var")
+    @test.xfail("column definition list is only allowed ...")
     async def test_edgeql_volatility_for_like_hard_03(self):
         for query in self.test_loop():
             res = await query("""
