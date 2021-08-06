@@ -70,7 +70,7 @@ class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
             hasher.update(data)
             total_len += len(data)
 
-            await self.con.query_one('''
+            await self.con.query_single('''
                 INSERT test::Tmp {
                     idx := <int64>$idx,
                     data := <bytes>$data,
@@ -101,7 +101,7 @@ class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
                 # We don't have cursors yet and we also don't want to fetch
                 # a huge data set in one hop; so we fetch row by row.
                 # Not ideal, but isn't too bad either.
-                r = await con2.query_one('''
+                r = await con2.query_single('''
                     WITH
                         MODULE test,
                         A := (SELECT Tmp FILTER Tmp.idx = <int64>$idx)

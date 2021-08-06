@@ -65,14 +65,14 @@ class TestServerOps(tb.TestCase):
         ) as sd:
 
             con1 = await sd.connect()
-            self.assertEqual(await con1.query_one('SELECT 1'), 1)
+            self.assertEqual(await con1.query_single('SELECT 1'), 1)
 
             con2 = await sd.connect()
-            self.assertEqual(await con2.query_one('SELECT 1'), 1)
+            self.assertEqual(await con2.query_single('SELECT 1'), 1)
 
             await con1.aclose()
 
-            self.assertEqual(await con2.query_one('SELECT 42'), 42)
+            self.assertEqual(await con2.query_single('SELECT 42'), 42)
             await con2.aclose()
 
             with self.assertRaises(
@@ -147,7 +147,7 @@ class TestServerOps(tb.TestCase):
         ) as sd:
             con = await sd.connect(user='test_bootstrap2', password='tbs2')
             try:
-                self.assertEqual(await con.query_one('SELECT 1'), 1)
+                self.assertEqual(await con.query_single('SELECT 1'), 1)
             finally:
                 await con.aclose()
 
@@ -212,7 +212,7 @@ class TestServerOps(tb.TestCase):
         ) as sd:
             con = await sd.connect()
             try:
-                max_connections = await con.query_one(
+                max_connections = await con.query_single(
                     'SELECT cfg::InstanceConfig.__pg_max_connections LIMIT 1'
                 )  # TODO: remove LIMIT 1 after #2402
                 self.assertEqual(int(max_connections), actual + 2)
@@ -232,7 +232,7 @@ class TestServerOps(tb.TestCase):
             ) as sd:
                 con = await sd.connect()
                 try:
-                    max_connections = await con.query_one(
+                    max_connections = await con.query_single(
                         '''
                         SELECT cfg::InstanceConfig.__pg_max_connections
                         LIMIT 1
@@ -307,7 +307,7 @@ class TestServerOps(tb.TestCase):
             ) as sd:
                 con = await sd.connect()
                 try:
-                    val = await con.query_one('SELECT 123')
+                    val = await con.query_single('SELECT 123')
                     self.assertEqual(int(val), 123)
 
                     # stop the postgres
@@ -317,7 +317,7 @@ class TestServerOps(tb.TestCase):
                         errors.EdgeDBError,
                         'Postgres is not available',
                     ):
-                        await con.query_one('SELECT 123+456')
+                        await con.query_single('SELECT 123+456')
 
                     # bring postgres back
                     await self.loop.run_in_executor(None, cluster.start)
@@ -326,7 +326,7 @@ class TestServerOps(tb.TestCase):
                     deadline = time.monotonic() + 5
                     while time.monotonic() < deadline:
                         try:
-                            val = await con.query_one('SELECT 123+456')
+                            val = await con.query_single('SELECT 123+456')
                             break
                         except errors.EdgeDBError:  # TODO: ditto
                             pass

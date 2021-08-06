@@ -46,20 +46,20 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             {(n1, n2) for n1 in ns for n2 in ns},
         )
 
-    def test_loop(self, n=None, *, one=False):
+    def test_loop(self, n=None, *, single=False):
         async def json_query(*args, **kwargs):
-            q = self.con.query_one_json if one else self.con.query_json
+            q = self.con.query_single_json if single else self.con.query_json
             res = await q(*args, **kwargs)
             return json.loads(res)
 
         async def native_query(*args, **kwargs):
-            q = self.con.query_one if one else self.con.query
+            q = self.con.query_single if single else self.con.query
             res = await q(*args, **kwargs)
             return serutils.serialize(res)
 
         async def native_query_typenames(*args, **kwargs):
             res = await self.con._fetchall(*args, **kwargs, __typenames__=True)
-            if one:
+            if single:
                 assert len(res) == 1
                 res = res[0]
             return serutils.serialize(res)

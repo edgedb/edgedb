@@ -1023,25 +1023,25 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
         )
 
     async def test_edgeql_functions_unix_to_datetime_01(self):
-        dt = await self.con.query_one(
+        dt = await self.con.query_single(
             'SELECT <str>to_datetime(1590595184.584);'
         )
         self.assertEqual('2020-05-27T15:59:44.584+00:00', dt)
 
     async def test_edgeql_functions_unix_to_datetime_02(self):
-        dt = await self.con.query_one(
+        dt = await self.con.query_single(
             'SELECT <str>to_datetime(1590595184);'
         )
         self.assertEqual('2020-05-27T15:59:44+00:00', dt)
 
     async def test_edgeql_functions_unix_to_datetime_03(self):
-        dt = await self.con.query_one(
+        dt = await self.con.query_single(
             'SELECT <str>to_datetime(517795200);'
         )
         self.assertEqual('1986-05-30T00:00:00+00:00', dt)
 
     async def test_edgeql_functions_unix_to_datetime_04(self):
-        dt = await self.con.query_one(
+        dt = await self.con.query_single(
             'SELECT <str>to_datetime(517795200.00n);'
         )
         self.assertEqual('1986-05-30T00:00:00+00:00', dt)
@@ -1051,14 +1051,14 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             edgedb.InvalidValueError,
             "'std::datetime' value out of range"
         ):
-            await self.con.query_one(
+            await self.con.query_single(
                 'SELECT to_datetime(999999999999)'
             )
 
     async def test_edgeql_functions_datetime_current_01(self):
         # make sure that datetime as a str gets serialized to a
         # particular format
-        dt = await self.con.query_one('SELECT <str>datetime_current();')
+        dt = await self.con.query_single('SELECT <str>datetime_current();')
         self.assertRegex(dt, r'\d+-\d+-\d+T\d+:\d+:\d+\.\d+.*')
 
     async def test_edgeql_functions_datetime_current_02(self):
@@ -4609,13 +4609,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             CREATE SCALAR TYPE my_seq_01 EXTENDING std::sequence;
         ''')
 
-        result = await self.con.query_one('''
+        result = await self.con.query_single('''
             SELECT sequence_next(INTROSPECT my_seq_01)
         ''')
 
         self.assertEqual(result, 1)
 
-        result = await self.con.query_one('''
+        result = await self.con.query_single('''
             SELECT sequence_next(INTROSPECT my_seq_01)
         ''')
 
@@ -4625,7 +4625,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT sequence_reset(INTROSPECT my_seq_01)
         ''')
 
-        result = await self.con.query_one('''
+        result = await self.con.query_single('''
             SELECT sequence_next(INTROSPECT my_seq_01)
         ''')
 
@@ -4635,7 +4635,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT sequence_reset(INTROSPECT my_seq_01, 20)
         ''')
 
-        result = await self.con.query_one('''
+        result = await self.con.query_single('''
             SELECT sequence_next(INTROSPECT my_seq_01)
         ''')
 

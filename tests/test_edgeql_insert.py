@@ -2468,8 +2468,8 @@ class TestInsert(tb.QueryTestCase):
             ) {id, person};
         '''
 
-        res1 = await self.con.query_one(query)
-        res2 = await self.con.query_one(query)
+        res1 = await self.con.query_single(query)
+        res2 = await self.con.query_single(query)
 
         self.assertNotEqual(res1.id, res2.id)
         self.assertEqual(res1.person, res2.person)
