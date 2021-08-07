@@ -815,9 +815,11 @@ def put_path_source_rvar(
 
 def has_rvar(
         stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
-        flavor: str='normal',
         env: context.Environment) -> bool:
-    return rvar in set(stmt.get_rvar_map(flavor).values())
+    return any(
+        rvar in set(stmt.get_rvar_map(flavor).values())
+        for flavor in ('normal', 'packed')
+    )
 
 
 def put_path_rvar_if_not_exists(
