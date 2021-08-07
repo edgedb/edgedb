@@ -250,7 +250,7 @@ def include_specific_rvar(
         Compiler context.
     """
 
-    if not has_rvar(stmt, rvar, flavor=flavor, ctx=ctx):
+    if not has_rvar(stmt, rvar, ctx=ctx):
         if not (
             ctx.env.external_rvars
             and has_external_rvar(path_id, aspects, ctx=ctx)
@@ -286,13 +286,12 @@ def include_specific_rvar(
 
 def has_rvar(
         stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
-        flavor: str='normal',
         ctx: context.CompilerContextLevel) -> bool:
 
     curstmt: Optional[pgast.Query] = stmt
 
     while curstmt is not None:
-        if pathctx.has_rvar(curstmt, rvar, flavor=flavor, env=ctx.env):
+        if pathctx.has_rvar(curstmt, rvar, env=ctx.env):
             return True
         curstmt = ctx.rel_hierarchy.get(curstmt)
 
@@ -1097,23 +1096,14 @@ def unpack_rvar(
             pathctx.put_path_rvar(
                 ctx.rel, el_id, rvar, aspect='value', env=ctx.env)
         else:
-            cref = pathctx.get_rvar_path_var(rvar, el_id, 'value', env=ctx.env)
+            cref = pathctx.get_path_output(
+                qry, el_id, aspect='value', env=ctx.env)
 
-            colname = ctx.env.aliases.get("col")
-            sub_packed_stmt = pgast.SelectStmt(
-                target_list=[pgast.ResTarget(name=colname, val=cref)],
-            )
             pathctx.put_path_packed_output(
-                sub_packed_stmt, el_id,
-                val=pgast.ColumnRef(name=[colname]), multi=el.multi,
-            )
+                qry, el_id, val=cref, multi=el.multi)
 
-            sub_rvar = rvar_for_rel(sub_packed_stmt, lateral=True, ctx=ctx)
-            # Need to specify value as the aspects because we *don't*
-            # provide the source.
-            include_rvar(
-                stmt, sub_rvar, path_id=el_id, aspects=('value',),
-                flavor='packed', pull_namespace=False, ctx=ctx,
+            pathctx.put_path_rvar(
+                stmt, el_id, rvar, flavor='packed', aspect='value', env=ctx.env
             )
 
     # When we're producing an exposed shape, we need to rewrite the
