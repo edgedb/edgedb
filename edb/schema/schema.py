@@ -881,7 +881,9 @@ class FlatSchema(Schema):
                         else:
                             mm[ref_id] = refs.set(key, field_refs)
 
-            return mm.finish()
+            result = mm.finish()
+
+        return result
 
     def add_raw(
         self,
@@ -1922,11 +1924,11 @@ def _get_operators(
 ) -> Optional[Tuple[s_oper.Operator, ...]]:
     objids = schema._shortname_to_id.get((s_oper.Operator, name))
     if objids is None:
-        return
-    return cast(
-        Tuple[s_oper.Operator, ...],
-        tuple(schema.get_by_id(oid) for oid in objids),
-    )
+        return None
+    else:
+        return tuple(
+            schema.get_by_id(oid, type=s_oper.Operator) for oid in objids
+        )
 
 
 @functools.lru_cache()
