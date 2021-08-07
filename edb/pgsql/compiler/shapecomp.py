@@ -36,6 +36,7 @@ from . import context
 from . import dispatch
 from . import expr as expr_compiler  # NOQA
 from . import relgen
+from . import relctx
 
 
 def compile_shape(
@@ -89,8 +90,8 @@ def compile_shape(
                 wrapper = relgen.set_as_subquery(
                     el, as_value=True, ctx=shapectx)
                 if not is_singleton:
-                    value = relgen.set_to_array(
-                        ir_set=el, query=wrapper, ctx=shapectx)
+                    value = relctx.set_to_array(
+                        path_id=el.path_id, query=wrapper, ctx=shapectx)
                 else:
                     value = wrapper
             else:

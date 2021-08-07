@@ -787,6 +787,83 @@ def maybe_get_scope_stmt(
     return stmt
 
 
+def set_to_array(
+        path_id: irast.PathId, query: pgast.Query, *,
+        materializing: bool=False,
+        ctx: context.CompilerContextLevel) -> pgast.Query:
+    """Collapse a set into an array."""
+    subrvar = pgast.RangeSubselect(
+        subquery=query,
+        alias=pgast.Alias(
+            aliasname=ctx.env.aliases.get('aggw')
+        )
+    )
+
+    result = pgast.SelectStmt()
+    include_rvar(result, subrvar, path_id=path_id, ctx=ctx)
+
+    val: Optional[pgast.BaseExpr] = (
+        pathctx.maybe_get_path_serialized_var(
+            result, path_id, env=ctx.env)
+    )
+
+    if val is None:
+        value_var = pathctx.get_path_value_var(
+            result, path_id, env=ctx.env)
+        val = output.serialize_expr(
+            value_var, path_id=path_id, env=ctx.env)
+        pathctx.put_path_serialized_var(
+            result, path_id, val, force=True, env=ctx.env)
+
+    if isinstance(val, pgast.TupleVarBase):
+        val = output.serialize_expr(
+            val, path_id=path_id, env=ctx.env)
+
+    pg_type = output.get_pg_type(path_id.target, ctx=ctx)
+    orig_val = val
+
+    if (path_id.is_array_path()
+            and ctx.env.output_format is context.OutputFormat.NATIVE):
+        # We cannot aggregate arrays straight away, as
+        # they be of different length, so we have to
+        # encase each element into a record.
+        val = pgast.RowExpr(args=[val], ser_safe=val.ser_safe)
+        pg_type = ('record',)
+
+    array_agg = pgast.FuncCall(
+        name=('array_agg',),
+        args=[val],
+        agg_filter=(
+            astutils.new_binop(orig_val, pgast.NullConstant(),
+                               'IS DISTINCT FROM')
+            if orig_val.nullable else None
+        ),
+        ser_safe=val.ser_safe,
+    )
+
+    agg_expr = pgast.CoalesceExpr(
+        args=[
+            array_agg,
+            pgast.TypeCast(
+                arg=pgast.ArrayExpr(elements=[]),
+                type_name=pgast.TypeName(name=pg_type, array_bounds=[-1])
+            )
+        ],
+        ser_safe=array_agg.ser_safe,
+        nullable=False,
+    )
+
+    result.target_list = [
+        pgast.ResTarget(
+            name=ctx.env.aliases.get('v'),
+            val=agg_expr,
+            ser_safe=agg_expr.ser_safe,
+        )
+    ]
+
+    return result
+
+
 class UnpackElement(NamedTuple):
     path_id: irast.PathId
     colname: str
