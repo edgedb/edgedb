@@ -1851,9 +1851,19 @@ def process_set_as_singleton_assertion(
     expr = ir_set.expr
     assert isinstance(expr, irast.FunctionCall)
 
+    ir_arg = expr.args[0]
+    ir_arg_set = ir_arg.expr
+
+    if ir_arg.cardinality.is_single():
+        # If the argument has been statically proven to be a singleton,
+        # elide the entire assertion.
+        arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
+        pathctx.put_path_value_var(stmt, ir_set.path_id, arg_ref, env=ctx.env)
+        pathctx.put_path_id_map(stmt, ir_set.path_id, ir_arg_set.path_id)
+        return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
     with ctx.subrel() as newctx:
-        ir_arg = expr.args[0].expr
-        arg_ref = dispatch.compile(ir_arg, ctx=newctx)
+        arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
 
         # Generate a singleton set assertion as the following SQL:
@@ -1916,7 +1926,7 @@ def process_set_as_singleton_assertion(
         pathctx.put_path_var_if_not_exists(
             newctx.rel, ir_set.path_id, arg_val, aspect='value', env=ctx.env)
 
-        pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg.path_id)
+        pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
 
     aspects = ('value', 'source')
 

@@ -4857,3 +4857,19 @@ aa \
                     single name := assert_single(.name ++ {"!", "?"})
                 };
             """)
+
+    async def test_edgeql_assert_single_no_op(self):
+        await self.con.query("""
+            SELECT assert_single(1)
+        """)
+
+        await self.con.query("""
+            FOR x IN {User}
+            UNION assert_single(x.name)
+        """)
+
+        await self.con.query("""
+            SELECT User {
+                single foo := assert_single(.name) ++ "!"
+            }
+        """)
