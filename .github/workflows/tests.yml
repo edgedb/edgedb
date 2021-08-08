@@ -101,9 +101,9 @@ jobs:
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v2-${{ hashFiles('.tmp/ext_cache_key.txt') }}
         restore-keys: |
-          edb-ext-v1-
+          edb-ext-v2-
 
     - name: Handle cached PostgreSQL build
       uses: actions/cache@v2
@@ -188,9 +188,9 @@ jobs:
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
-        key: edb-ext-build-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-build-v2-${{ hashFiles('.tmp/ext_cache_key.txt') }}
         restore-keys: |
-          edb-ext-build-v1-
+          edb-ext-build-v2-
 
     - name: Build Cython extensions
       env:
@@ -400,7 +400,7 @@ jobs:
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v2-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v2
@@ -523,7 +523,7 @@ jobs:
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v1-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v2-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v2

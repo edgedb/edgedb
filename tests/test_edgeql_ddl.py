@@ -4847,13 +4847,13 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
 
         count_query = "SELECT count(schema::CollectionType);"
-        orig_count = await self.con.query_one(count_query)
+        orig_count = await self.con.query_single(count_query)
 
         await self.con.execute('''
             ALTER SCALAR TYPE myint CREATE CONSTRAINT std::one_of(1, 2);
         ''')
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count)
+        self.assertEqual(await self.con.query_single(count_query), orig_count)
 
         async with self.assertRaisesRegexTx(
                 edgedb.ConstraintViolationError,
@@ -6545,7 +6545,7 @@ type default::Foo {
             }]
         )
 
-        role = await self.con.query_one('''
+        role = await self.con.query_single('''
             SELECT sys::Role { password }
             FILTER .name = 'foo2'
         ''')
@@ -6558,7 +6558,7 @@ type default::Foo {
             };
         """)
 
-        role = await self.con.query_one('''
+        role = await self.con.query_single('''
             SELECT sys::Role { password }
             FILTER .name = 'foo2'
         ''')
@@ -6700,7 +6700,7 @@ type default::Foo {
         # This is ensuring that describing std does not cause errors.
         # The test validates only a small sample of entries, though.
 
-        result = await self.con.query_one("""
+        result = await self.con.query_single("""
             DESCRIBE MODULE std
         """)
         # This is essentially a syntax test from this point on.
@@ -9887,7 +9887,7 @@ type default::Foo {
             """)
 
         else:
-            res = await self.con.query_one("""
+            res = await self.con.query_single("""
                 DESCRIBE MODULE default
             """)
 
@@ -9980,7 +9980,7 @@ type default::Foo {
             }
             """)
 
-        res = await self.con.query_one("""
+        res = await self.con.query_single("""
             DESCRIBE MODULE default
         """)
 
@@ -10055,7 +10055,7 @@ type default::Foo {
             }
         """)
 
-        res = await self.con.query_one("""
+        res = await self.con.query_single("""
             DESCRIBE MODULE default
         """)
 
@@ -10154,7 +10154,7 @@ type default::Foo {
 
     async def test_edgeql_ddl_collection_cleanup_01(self):
         count_query = "SELECT count(schema::Array);"
-        orig_count = await self.con.query_one(count_query)
+        orig_count = await self.con.query_single(count_query)
 
         await self.con.execute(r"""
 
@@ -10168,7 +10168,10 @@ type default::Foo {
             };
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         await self.con.execute(r"""
             ALTER TYPE TestArrays {
@@ -10176,7 +10179,10 @@ type default::Foo {
             };
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 1)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 1,
+        )
 
         await self.con.execute(r"""
             ALTER TYPE TestArrays {
@@ -10186,17 +10192,20 @@ type default::Foo {
             };
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 1)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 1,
+        )
 
         await self.con.execute(r"""
             DROP TYPE TestArrays;
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count)
+        self.assertEqual(await self.con.query_single(count_query), orig_count)
 
     async def test_edgeql_ddl_collection_cleanup_01b(self):
         count_query = "SELECT count(schema::Array);"
-        orig_count = await self.con.query_one(count_query)
+        orig_count = await self.con.query_single(count_query)
 
         await self.con.execute(r"""
 
@@ -10211,7 +10220,10 @@ type default::Foo {
             };
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         await self.con.execute(r"""
             ALTER TYPE TestArrays {
@@ -10219,7 +10231,10 @@ type default::Foo {
             };
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 1)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 1,
+        )
 
         await self.con.execute(r"""
             ALTER TYPE TestArrays {
@@ -10229,17 +10244,20 @@ type default::Foo {
             };
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         await self.con.execute(r"""
             DROP TYPE TestArrays;
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count)
+        self.assertEqual(await self.con.query_single(count_query), orig_count)
 
     async def test_edgeql_ddl_collection_cleanup_02(self):
         count_query = "SELECT count(schema::CollectionType);"
-        orig_count = await self.con.query_one(count_query)
+        orig_count = await self.con.query_single(count_query)
 
         await self.con.execute(r"""
 
@@ -10252,19 +10270,22 @@ type default::Foo {
             };
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         await self.con.execute(r"""
             DROP TYPE TestArrays;
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count)
+        self.assertEqual(await self.con.query_single(count_query), orig_count)
 
     async def test_edgeql_ddl_collection_cleanup_03(self):
         count_query = "SELECT count(schema::CollectionType);"
-        orig_count = await self.con.query_one(count_query)
+        orig_count = await self.con.query_single(count_query)
         elem_count_query = "SELECT count(schema::TupleElement);"
-        orig_elem_count = await self.con.query_one(elem_count_query)
+        orig_elem_count = await self.con.query_single(elem_count_query)
 
         await self.con.execute(r"""
 
@@ -10277,20 +10298,23 @@ type default::Foo {
                  -> array<b> USING (SELECT [<b>""]);
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 4)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 4,
+        )
 
         await self.con.execute(r"""
             DROP FUNCTION foo(
                 x: array<a>, z: tuple<b, c>, y: array<tuple<b, c>>);
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count)
+        self.assertEqual(await self.con.query_single(count_query), orig_count)
         self.assertEqual(
-            await self.con.query_one(elem_count_query), orig_elem_count)
+            await self.con.query_single(elem_count_query), orig_elem_count)
 
     async def test_edgeql_ddl_collection_cleanup_04(self):
         count_query = "SELECT count(schema::CollectionType);"
-        orig_count = await self.con.query_one(count_query)
+        orig_count = await self.con.query_single(count_query)
 
         await self.con.execute(r"""
 
@@ -10307,48 +10331,66 @@ type default::Foo {
             CREATE ALIAS Bar := Foo { thing := (.a, .b) };
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 1)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 1,
+        )
 
         await self.con.execute(r"""
             ALTER ALIAS Bar USING (Foo { thing := (.a, .b, .c) });
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 1)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 1,
+        )
 
         await self.con.execute(r"""
             ALTER ALIAS Bar USING (Foo { thing := (.a, (.b, .c)) });
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         await self.con.execute(r"""
             ALTER ALIAS Bar USING (Foo { thing := ((.a, .b), .c) });
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         await self.con.execute(r"""
             ALTER ALIAS Bar USING (Foo { thing := ((.a, .b), .c, "foo") });
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         # Make a change that doesn't change the types
         await self.con.execute(r"""
             ALTER ALIAS Bar USING (Foo { thing := ((.a, .b), .c, "bar") });
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         await self.con.execute(r"""
             DROP ALIAS Bar;
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count)
+        self.assertEqual(await self.con.query_single(count_query), orig_count)
 
     async def test_edgeql_ddl_collection_cleanup_05(self):
         count_query = "SELECT count(schema::CollectionType);"
-        orig_count = await self.con.query_one(count_query)
+        orig_count = await self.con.query_single(count_query)
 
         await self.con.execute(r"""
 
@@ -10358,19 +10400,25 @@ type default::Foo {
             CREATE ALIAS Bar := (<a>"", <b>"");
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         await self.con.execute(r"""
             ALTER ALIAS Bar USING ((<b>"", <a>""));
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count + 2)
+        self.assertEqual(
+            await self.con.query_single(count_query),
+            orig_count + 2,
+        )
 
         await self.con.execute(r"""
             DROP ALIAS Bar;
         """)
 
-        self.assertEqual(await self.con.query_one(count_query), orig_count)
+        self.assertEqual(await self.con.query_single(count_query), orig_count)
 
     async def test_edgeql_ddl_drop_field_01(self):
         await self.con.execute(r"""
