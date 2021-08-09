@@ -282,7 +282,8 @@ class ASTFindChildrenTests(unittest.TestCase):
             op='NamedTuple',
             operand=[
                 ('foo', tast.Constant(value=2)),
-                ('bar', [tast.UnaryOp(op='-', operand=tast.Constant(value=3))]),
+                ('bar', [
+                    tast.UnaryOp(op='-', operand=tast.Constant(value=3))]),
             ],
         )
         flt = lambda n: isinstance(n, tast.Constant)
