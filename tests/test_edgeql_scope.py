@@ -2952,6 +2952,56 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_scope_3x_nested_materialized_01(self):
+        # Having that doubly nested thing needing materialization
+        # blows us up.
+        await self.assert_query_result(
+            """
+                SELECT User {
+                    name,
+                    avatar: {
+                        name,
+                        awards: {
+                            name,
+                            nonce := random(),
+                        },
+                    }
+                }
+                FILTER EXISTS User.avatar.awards AND User.name = 'Alice';
+            """,
+            [
+                {
+                    "avatar": {"awards": [{"name": "1st"}], "name": "Dragon"},
+                    "name": "Alice"
+                }
+            ]
+        )
+
+    async def test_edgeql_scope_3x_nested_materialized_02(self):
+        # Having that doubly nested thing needing materialization
+        # blows us up.
+        await self.assert_query_result(
+            """
+                SELECT User {
+                    name,
+                    avatar: {
+                        name,
+                        awd := (SELECT .awards {
+                            name,
+                            nonce := random(),
+                        } FILTER .name = '1st'),
+                    }
+                }
+                FILTER EXISTS User.avatar.awd AND User.name = 'Alice';
+            """,
+            [
+                {
+                    "avatar": {"awd": {"name": "1st"}, "name": "Dragon"},
+                    "name": "Alice"
+                }
+            ]
+        )
+
     async def test_edgeql_scope_source_rebind_01(self):
         await self.assert_query_result(
             """
