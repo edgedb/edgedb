@@ -2330,8 +2330,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         })
 
     def test_graphql_functional_scalars_02(self):
-        # JSON is special since it has to be serialized into its
-        # string representation
         self.assert_graphql_query_result(r"""
             query {
                 ScalarTest {
@@ -2340,7 +2338,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             "ScalarTest": [{
-                'p_json': '{"foo": [1, null, "bar"]}',
+                'p_json': {"foo": [1, None, "bar"]},
             }]
         })
 
@@ -2384,8 +2382,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             """)
 
     def test_graphql_functional_scalars_06(self):
-        # JSON is special since it has to be serialized into its
-        # string representation
         self.assert_graphql_query_result(r"""
             query {
                 ScalarTest {
@@ -3255,6 +3251,23 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                     "color": "GREEN",
                 }]
             },
+        )
+
+    def test_graphql_functional_variables_46(self):
+        self.assert_graphql_query_result(
+            r"""
+                query($val: JSON) {
+                    ScalarTest(filter: {p_json: {eq: $val}}) {
+                        p_json
+                    }
+                }
+            """, {
+                "ScalarTest": [{
+                    'p_json': {"foo": [1, None, "bar"]},
+                }]
+            },
+            # JSON can only be passed as a variable.
+            variables={"val": {"foo": [1, None, "bar"]}},
         )
 
     def test_graphql_functional_inheritance_01(self):
