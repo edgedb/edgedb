@@ -63,7 +63,7 @@ def get_parameters(ir: irast.Base) -> Set[irast.Parameter]:
 
 def is_const(ir: irast.Base) -> bool:
     """Return True if the given *ir* expression is constant."""
-    flt = lambda n: isinstance(n, irast.Set) and n.expr is None
+    flt = lambda n: isinstance(n, irast.Set) and n.expr is None and n is not ir
     ir_sets = ast.find_children(ir, flt)
     variables = get_parameters(ir)
     return not ir_sets and not variables
