@@ -261,10 +261,10 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
         })
 
     def test_graphql_mutation_insert_scalars_04(self):
-        # This tests JSON insertion.
+        # This tests JSON insertion. JSON can only be inserted via a variable.
         data = {
             'p_str': 'New ScalarTest04',
-            'p_json': '{"foo": [1, null, "aardvark"]}',
+            'p_json': {"foo": [1, None, "aardvark"]},
         }
 
         validation_query = r"""
@@ -276,36 +276,47 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             }
         """
 
-        self.assert_graphql_query_result(r"""
-            mutation insert_ScalarTest {
-                insert_ScalarTest(
-                    data: [{
-                        p_str: "New ScalarTest04",
-                        p_json: "{\"foo\": [1, null, \"aardvark\"]}",
-                    }]
+        self.assert_graphql_query_result(
+            r"""
+                mutation insert_ScalarTest(
+                    $p_str: String!,
+                    $p_json: JSON
                 ) {
-                    p_str
-                    p_json
+                    insert_ScalarTest(
+                        data: [{
+                            p_str: $p_str,
+                            p_json: $p_json,
+                        }]
+                    ) {
+                        p_str
+                        p_json
+                    }
                 }
-            }
-        """, {
-            "insert_ScalarTest": [data]
-        })
+            """, {
+                "insert_ScalarTest": [data]
+            },
+            variables=data,
+        )
 
         self.assert_graphql_query_result(validation_query, {
             "ScalarTest": [data]
         })
 
-        self.assert_graphql_query_result(r"""
-            mutation delete_ScalarTest {
-                delete_ScalarTest(filter: {p_str: {eq: "New ScalarTest04"}}) {
-                    p_str
-                    p_json
+        self.assert_graphql_query_result(
+            r"""
+                mutation delete_ScalarTest(
+                    $p_json: JSON
+                ) {
+                    delete_ScalarTest(filter: {p_json: {eq: $p_json}}) {
+                        p_str
+                        p_json
+                    }
                 }
-            }
-        """, {
-            "delete_ScalarTest": [data]
-        })
+            """, {
+                "delete_ScalarTest": [data]
+            },
+            variables=data,
+        )
 
         # validate that the deletion worked
         self.assert_graphql_query_result(validation_query, {
@@ -1667,11 +1678,11 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
     def test_graphql_mutation_update_scalars_03(self):
         orig_data = {
             'p_str': 'Hello',
-            'p_json': '{"foo": [1, null, "bar"]}',
+            'p_json': {"foo": [1, None, "bar"]},
         }
         data = {
             'p_str': 'Update ScalarTest03',
-            'p_json': '{"bar": [null, 2, "aardvark"]}',
+            'p_json': {"bar": [None, 2, "aardvark"]},
         }
 
         validation_query = rf"""
@@ -1695,44 +1706,57 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "ScalarTest": [orig_data]
         })
 
-        self.assert_graphql_query_result(r"""
-            mutation update_ScalarTest {
-                update_ScalarTest(
-                    data: {
-                        p_str: {set: "Update ScalarTest03"},
-                        p_json: {set: "{\"bar\": [null, 2, \"aardvark\"]}"},
+        # Test that basic and complex JSON values can be updated
+        for json_val in [data['p_json'], data['p_json']['bar'],
+                         True, 123, "hello world", None]:
+            data['p_json'] = json_val
+            self.assert_graphql_query_result(
+                r"""
+                    mutation update_ScalarTest(
+                        $p_str: String!,
+                        $p_json: JSON
+                    ) {
+                        update_ScalarTest(
+                            data: {
+                                p_str: {set: $p_str},
+                                p_json: {set: $p_json},
+                            }
+                        ) {
+                            p_str
+                            p_json
+                        }
                     }
+                """, {
+                    "update_ScalarTest": [data]
+                },
+                variables=data
+            )
+
+            self.assert_graphql_query_result(validation_query, {
+                "ScalarTest": [data]
+            })
+
+        self.assert_graphql_query_result(
+            r"""
+                mutation update_ScalarTest(
+                    $p_str: String,
+                    $p_json: JSON,
                 ) {
-                    p_str
-                    p_json
-                }
-            }
-        """, {
-            "update_ScalarTest": [data]
-        })
-
-        self.assert_graphql_query_result(validation_query, {
-            "ScalarTest": [data]
-        })
-
-        self.assert_graphql_query_result(r"""
-            mutation update_ScalarTest(
-                $p_str: String,
-                $p_json: String,
-            ) {
-                update_ScalarTest(
-                    data: {
-                        p_str: {set: $p_str},
-                        p_json: {set: $p_json},
+                    update_ScalarTest(
+                        data: {
+                            p_str: {set: $p_str},
+                            p_json: {set: $p_json},
+                        }
+                    ) {
+                        p_str
+                        p_json
                     }
-                ) {
-                    p_str
-                    p_json
                 }
-            }
-        """, {
-            "update_ScalarTest": [orig_data]
-        }, variables=orig_data)
+            """, {
+                "update_ScalarTest": [orig_data]
+            },
+            variables=orig_data
+        )
 
         # validate that the final update worked
         self.assert_graphql_query_result(validation_query, {

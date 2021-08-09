@@ -204,6 +204,12 @@ GraphQLBigint = GraphQLScalarType(
 )
 
 
+GraphQLJSON = GraphQLScalarType(
+    name="JSON",
+    description="The `JSON` scalar type represents arbitrary JSON values.",
+)
+
+
 def parse_decimal_literal(
     ast: gql_ast.Node,
     _variables: Optional[Dict[str, Any]] = None,
@@ -227,7 +233,7 @@ GraphQLDecimal = GraphQLScalarType(
 EDB_TO_GQL_SCALARS_MAP = {
     # For compatibility with GraphQL we cast json into a String, since
     # GraphQL doesn't have an equivalent type with arbitrary fields.
-    'std::json': GraphQLString,
+    'std::json': GraphQLJSON,
     'std::str': GraphQLString,
     'std::anyint': GraphQLInt,
     'std::int16': GraphQLInt,
@@ -262,6 +268,7 @@ GQL_TO_EDB_SCALARS_MAP = {
     'Decimal': 'decimal',
     'Boolean': 'bool',
     'ID': 'uuid',
+    'JSON': 'json',
 }
 
 
@@ -1093,6 +1100,7 @@ class GQLCoreSchema:
         self._make_generic_filter_type(GraphQLFloat, comp)
         self._make_generic_filter_type(GraphQLDecimal, comp)
         self._make_generic_filter_type(GraphQLString, string)
+        self._make_generic_filter_type(GraphQLJSON, comp)
 
         for name, etype in self._gql_enums.items():
             if name not in {'directionEnum', 'nullsOrderingEnum'}:
@@ -1119,7 +1127,7 @@ class GQLCoreSchema:
     def define_generic_insert_types(self) -> None:
         for itype in [GraphQLBoolean, GraphQLID, GraphQLInt, GraphQLInt64,
                       GraphQLBigint, GraphQLFloat, GraphQLDecimal,
-                      GraphQLString]:
+                      GraphQLString, GraphQLJSON]:
             self._gql_inobjtypes[f'Insert{itype.name}'] = itype
 
     def define_generic_order_types(self) -> None:
@@ -1684,14 +1692,6 @@ class GQLBaseType(metaclass=GQLTypeMeta):
             filterable = eql
             shape = filterable.result
 
-        elif (f := self.get_field_type(name)) is not None and f.is_json:
-            eql = parse_fragment(
-                f'''SELECT <json>to_str({codegen.generate_source(parent)}.
-                        {codegen.generate_source(qlast.ObjectRef(name=name))})
-                ''')
-            assert isinstance(eql, qlast.SelectQuery)
-            filterable = eql
-
         else:
             eql = parse_fragment(
                 f'''SELECT {codegen.generate_source(parent)}.
@@ -1728,7 +1728,7 @@ class GQLShadowType(GQLBaseType):
 
         ftype = self.get_field_type(name)
         # JSON fields are not shadowed
-        if ftype is None or ftype.is_json:
+        if ftype is None:
             return False
 
         return True
