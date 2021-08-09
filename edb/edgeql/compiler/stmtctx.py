@@ -262,11 +262,12 @@ def _fixup_materialized_sets(
     for nobe in ctx.source_map.values():
         if nobe.irexpr:
             children += ast_visitor.find_children(nobe.irexpr, flt)
-    for stmt in children:
+    for stmt in set(children):
         if not stmt.materialized_sets:
             continue
         for key in list(stmt.materialized_sets):
             mat_set = stmt.materialized_sets[key]
+            assert not mat_set.finalized
 
             if len(mat_set.uses) <= 1:
                 del stmt.materialized_sets[key]
@@ -294,13 +295,13 @@ def _fixup_materialized_sets(
             for x in mat_set.reason:
                 if isinstance(x, irast.MaterializeVolatile):
                     good_reason = True
-                elif isinstance(x, irast.MaterializeBindings):
+                elif isinstance(x, irast.MaterializeVisible):
                     # If any of the bindings that the set uses are *visible*
                     # at the binding point, we need to materialize, to make
                     # sure that things get correlated properly. If it's not
                     # visible, then it's just being used internally and we
                     # don't need any special work.
-                    if any(parent.is_visible(b.path_id) for b in x.bindings):
+                    if any(parent.is_visible(b.path_id) for b in x.sets):
                         good_reason = True
 
             if not good_reason:
@@ -318,6 +319,7 @@ def _fixup_materialized_sets(
                 not any(use.src_path() for use in mat_set.uses)
                 or mat_set.materialized.rptr
             ), f"materialized ptr {mat_set.uses} missing rptr"
+            mat_set.finalized = True
 
 
 class FindPathScopes(ast_visitor.NodeVisitor):

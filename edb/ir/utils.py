@@ -323,7 +323,7 @@ def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
     return res
 
 
-class FindBindingVisitor(ast.NodeVisitor):
+class FindPotentiallyVisibleVisitor(ast.NodeVisitor):
     skip_hidden = True
     extra_skips = frozenset(['materialized_sets'])
 
@@ -345,12 +345,18 @@ class FindBindingVisitor(ast.NodeVisitor):
         if node.path_id in self.to_skip:
             return set()
 
-        if node.is_binding:
+        # Bound variables are always potentially visible as are object
+        # references (which have no expr or rptr).
+        if (
+            node.is_binding
+            or (not node.expr and not node.rptr)
+        ):
             return {node}
 
         results = []
         results.append(self.visit(node.rptr))
-        # If the root of a path is bound, say that the whole path is
+        # If the root of a path is potentially visible,
+        # say that the whole path is
         if self.combine_field_results(results):
             results.append({node})
         results.append(self.visit(node.shape))
@@ -361,12 +367,12 @@ class FindBindingVisitor(ast.NodeVisitor):
         return self.combine_field_results(results)
 
 
-def find_bindings(
+def find_potentially_visible(
     stmt: irast.Base, to_skip: AbstractSet[irast.PathId]=frozenset()
 ) -> Set[irast.Set]:
-    """Check whether a statement contains any bindings in a subtree."""
+    """Find all "potentially visible" sets referenced."""
     # TODO: Make this caching.
-    visitor = FindBindingVisitor(to_skip=to_skip)
+    visitor = FindPotentiallyVisibleVisitor(to_skip=to_skip)
     return cast(Set[irast.Set], visitor.visit(stmt))
 
 

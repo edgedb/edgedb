@@ -477,8 +477,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         # do some remapping. This is a little fiddly, since we may have
         # picked up *additional* namespaces.
         key = path_tip.path_id.strip_namespace(path_tip.path_id.namespace)
-        if (entry := ctx.view_map.get(key)) is not None:
-            inner_path_id, mapped = entry
+        entries = ctx.view_map.get(key, ())
+        for inner_path_id, mapped in entries:
             fixed_inner = inner_path_id.merge_namespace(ctx.path_id_namespace)
             if fixed_inner == path_tip.path_id:
                 path_tip = new_set(
@@ -487,6 +487,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     expr=mapped.expr,
                     rptr=mapped.rptr,
                     ctx=ctx)
+                break
 
         if pathctx.path_is_banned(path_tip.path_id, ctx=ctx):
             dname = stype.get_displayname(ctx.env.schema)
@@ -1358,7 +1359,7 @@ def _get_computable_ctx(
                 subctx.aliased_views[scls_name] = None
             subctx.source_map = qlctx.source_map.copy()
             subctx.view_nodes = qlctx.view_nodes.copy()
-            subctx.view_map = qlctx.view_map.new_child()
+            subctx.view_map = ctx.view_map.new_child()
 
             source_scope = pathctx.get_set_scope(rptr.source, ctx=ctx)
             if source_scope and source_scope.namespaces:
@@ -1409,8 +1410,8 @@ def _get_computable_ctx(
                 rptr.source, rptr=rptr.source.rptr,
                 preserve_scope_ns=True, ctx=ctx)
             key = inner_path_id.strip_namespace(inner_path_id.namespace)
-            assert key not in subctx.view_map
-            subctx.view_map[key] = (inner_path_id, remapped_source)
+            old = subctx.view_map.get(key, ())
+            subctx.view_map[key] = ((inner_path_id, remapped_source),) + old
 
             yield subctx
 
@@ -1461,7 +1462,7 @@ def maybe_materialize(
 def should_materialize(
     ir: irast.Base, *,
     ptrcls: Optional[s_pointers.Pointer]=None,
-    binding_pessimism: bool=False,
+    materialize_visible: bool=False,
     skipped_bindings: AbstractSet[irast.PathId]=frozenset(),
     ctx: context.ContextLevel,
 ) -> Sequence[irast.MaterializeReason]:
@@ -1485,10 +1486,10 @@ def should_materialize(
     # do this visibility analysis until we are done, though, so
     # instead we just store the bindings.
     if (
-        binding_pessimism
-        and (bindings := irutils.find_bindings(ir, skipped_bindings))
+        materialize_visible
+        and (vis := irutils.find_potentially_visible(ir, skipped_bindings))
     ):
-        reasons.append(irast.MaterializeBindings(bindings))
+        reasons.append(irast.MaterializeVisible(vis))
 
     if ptrcls and ptrcls in ctx.source_map:
         reasons += ctx.source_map[ptrcls].should_materialize
