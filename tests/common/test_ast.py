@@ -25,6 +25,7 @@ import unittest
 import unittest.mock
 
 from edb.common import ast
+from edb.common.ast import visitor
 from edb.common.ast import match
 
 
@@ -272,3 +273,19 @@ class ASTMatchTests(unittest.TestCase):
         # but the single constant matches just fine
         result = match.match(self.pat4, self.tree4)
         assert result and result.recursive[0].node.value == 'one and only'
+
+
+class ASTFindChildrenTests(unittest.TestCase):
+
+    def test_common_ast_find_children(self):
+        node = tast.UnaryOp(
+            op='NamedTuple',
+            operand=[
+                ('foo', tast.Constant(value=2)),
+                ('bar', [
+                    tast.UnaryOp(op='-', operand=tast.Constant(value=3))]),
+            ],
+        )
+        flt = lambda n: isinstance(n, tast.Constant)
+        children = visitor.find_children(node, flt)
+        assert {x.value for x in children} == {2, 3}

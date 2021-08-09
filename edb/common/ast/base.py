@@ -40,15 +40,12 @@ class ASTError(Exception):
 
 class _Field:
     def __init__(
-            self, name, type_, default, factory, traverse, child_traverse=None,
+            self, name, type_, default, factory,
             field_hidden=False, field_meta=False):
         self.name = name
         self.type = type_
         self.default = default
         self.factory = factory
-        self.traverse = traverse
-        self.child_traverse = \
-            child_traverse if child_traverse is not None else traverse
         self.hidden = field_hidden
         self.meta = field_meta
 
@@ -186,8 +183,7 @@ class AST:
                 f_meta = f_name in meta
 
                 fields.append(_Field(
-                    f_name, f_type, f_default, factory,
-                    True, None, f_hidden, f_meta
+                    f_name, f_type, f_default, factory, f_hidden, f_meta
                 ))
 
             cls._direct_fields = fields
