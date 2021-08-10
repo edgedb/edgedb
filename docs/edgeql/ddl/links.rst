@@ -334,8 +334,8 @@ valid subcommands for ``ALTER LINK`` block.
 Examples
 --------
 
-On the object type ``User``, set the ``title`` annotation of its ``friends`` link to
-``"Friends"``:
+On the object type ``User``, set the ``title`` annotation of its
+``friends`` link to ``"Friends"``:
 
 .. code-block:: edgeql
 
