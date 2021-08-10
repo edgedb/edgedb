@@ -736,7 +736,6 @@ def extend_path(
     direction: PtrDir = PtrDir.Outbound,
     *,
     ignore_computable: bool = False,
-    unnest_fence: bool = False,
     same_computable_scope: bool = False,
     srcctx: Optional[parsing.ParserContext]=None,
     ctx: context.ContextLevel,
@@ -782,7 +781,6 @@ def extend_path(
     if not ignore_computable and is_computable:
         target_set = computable_ptr_set(
             ptr,
-            unnest_fence=unnest_fence,
             same_computable_scope=same_computable_scope,
             srcctx=srcctx,
             ctx=ctx,
@@ -1160,7 +1158,6 @@ def ensure_stmt(
 def computable_ptr_set(
     rptr: irast.Pointer,
     *,
-    unnest_fence: bool=False,
     same_computable_scope: bool=False,
     srcctx: Optional[parsing.ParserContext]=None,
     ctx: context.ContextLevel,
@@ -1315,7 +1312,6 @@ def computable_ptr_set(
 
         if isinstance(qlexpr, qlast.Statement):
             subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
-                is_unnest_fence=unnest_fence,
                 iterator_target=True,
             )
 

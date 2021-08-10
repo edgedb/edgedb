@@ -87,7 +87,6 @@ class ViewRPtr:
 
 @dataclasses.dataclass
 class StatementMetadata:
-    is_unnest_fence: bool = False
     iterator_target: bool = False
 
 

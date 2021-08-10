@@ -1313,7 +1313,6 @@ def _compile_view_shapes_in_set(
             element = setgen.extend_path(
                 path_tip,
                 ptr,
-                unnest_fence=False,
                 same_computable_scope=True,
                 srcctx=srcctx,
                 ctx=ctx,
