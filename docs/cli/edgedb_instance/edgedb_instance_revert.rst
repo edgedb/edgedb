@@ -15,7 +15,7 @@ Revert a major instance upgrade.
 Description
 ===========
 
-When :ref:`ref_cli_edgedb_server_upgrade` performs a major version
+When :ref:`ref_cli_edgedb_instance_upgrade` performs a major version
 upgrade on an instance the old instance data is kept around. The
 ``edgedb instance revert`` command removes the new instance version and
 replaces it with the old copy. It also ensures that the previous

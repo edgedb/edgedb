@@ -106,6 +106,41 @@ EdgeQL
 GraphQL
 =======
 
+* Reflect :eql:type:`json` into a custom GraphQL type (:eql:gh:`#2782`).
+
+  The :eql:type:`json` values will be reflected into a custom JSON
+  type that renders as seamless JSON. Assuming ``additional_data`` is
+  a JSON value, here's how a GraphQL query would work:
+
+  .. code-block:: graphql
+
+    {
+        Book {
+            additional_data
+        }
+    }
+
+  producing:
+
+  .. code-block:: json
+
+    {
+        "data": {
+            "Book": [
+                {
+                    "additional_data": {
+                        "dimensions": "6 x 8 in",
+                        "# of illustrations": 5,
+                        "illustrator": "Alice White"
+                    }
+                }
+            ]
+        }
+    }
+
+  There's a limitation that in order for GraphQL type validation to
+  work JSON values have to be passed as variables.
+
 * Remove the helper ``stdgraphql`` module as it is no loger needed
   (:eql:gh:`#2692`).
 * Fix an issue with inline fragments (:eql:gh:`#1800`).
@@ -128,12 +163,13 @@ Command-Line Tools
 We've changed some of the CLI `commands and groupings <rfc1006_>`_.
 There are some top-level "frequently used" commands such as
 :ref:`ref_cli_edgedb_dump`, :ref:`ref_cli_edgedb_restore`,
-:ref:`ref_cli_edgedb_database_create`, and :ref:`ref_cli_edgedb_migrate`,
-Other commands are grouped into categories:
+:ref:`ref_cli_edgedb_migrate`, :ref:`ref_cli_edgedb_query`,
+:ref:`ref_cli_edgedb_info` and :ref:`ref_cli_edgedb_cli_upgrade`. Other
+commands are grouped into categories:
 :ref:`ref_cli_edgedb_configure`, :ref:`ref_cli_edgedb_migration`,
-:ref:`ref_cli_edgedb_list`, :ref:`ref_cli_edgedb_server`,
-:ref:`ref_cli_edgedb_instance`, :ref:`ref_cli_edgedb_project`, and
-:ref:`ref_cli_edgedb_self`.
+:ref:`ref_cli_edgedb_list`, :ref:`ref_cli_edgedb_describe`,
+:ref:`ref_cli_edgedb_instance`, :ref:`ref_cli_edgedb_project` and
+:ref:`ref_cli_edgedb_server`.
 
 Here's a more comprehensive list of the CLI commands:
 
@@ -167,36 +203,10 @@ Here's a more comprehensive list of the CLI commands:
       - Describe schema of the current database
     * - ``list``
       - List matching database objects by name and type
-    * - ``server info``
-      - Show locally installed EdgeDB servers
-    * - ``server install``
-      - Install an EdgeDB server locally
-    * - ``server uninstall``
-      - Uninstall an EdgeDB server locally
-    * - ``server upgrade``
-      - Upgrade installations and instances
-    * - ``server list-versions``
-      - List available and installed versions of the server
-    * - ``instance create``
-      - Initialize a new server instance
-    * - ``instance link``
-      - Authenticate to a remote instance
-    * - ``instance status``
-      - Show statuses of all or of a matching instance
-    * - ``instance start``
-      - Start an instance
-    * - ``instance stop``
-      - Stop an instance
-    * - ``instance restart``
-      - Restart an instance
-    * - ``instance destroy``
-      - Destroy an instance and remove the data
-    * - ``instance logs``
-      - Show logs of an instance
-    * - ``instance revert``
-      - Revert a major instance upgrade
-    * - ``instance reset-password``
-      - Reset password for a user in the instance
+    * - ``query``
+      - Execute EdgeQL queries
+    * - ``info``
+      - Show information about the EdgeDB installation
     * - ``project init``
       - Initialize a new or existing project
     * - ``project unlink``
@@ -205,10 +215,36 @@ Here's a more comprehensive list of the CLI commands:
       - Get various metadata about the project
     * - ``project upgrade``
       - Upgrade EdgeDB instance used for the current project
-    * - ``self upgrade``
-      - Upgrade this edgedb binary
-    * - ``self install``
-      - Install server
+    * - ``instance create``
+      - Initialize a new EdgeDB instance
+    * - ``instance list``
+      - Show all instances
+    * - ``instance status``
+      - Show status of a matching instance
+    * - ``instance start``
+      - Start an instance
+    * - ``instance stop``
+      - Stop an instance
+    * - ``instance restart``
+      - Restart an instance
+    * - ``instance destroy``
+      - Destroy an instance and remove the data
+    * - ``instance link``
+      - Link a remote instance
+    * - ``instance unlink``
+      - Unlink a remote instance
+    * - ``instance logs``
+      - Show logs of an instance
+    * - ``instance upgrade``
+      - Upgrade installations and instances
+    * - ``instance revert``
+      - Revert a major instance upgrade
+    * - ``instance reset-password``
+      - Reset password for a user in the instance
+    * - ``server``
+      - Manage local EdgeDB installations
+    * - ``cli upgrade``
+      - Upgrade the ``edgedb`` command-line tool
 
 
 Bindings
