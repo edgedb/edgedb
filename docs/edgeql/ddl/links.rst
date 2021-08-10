@@ -282,11 +282,10 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     if there is no implicit or assignment cast from old to new type.
 
 :eql:synopsis:`RESET TYPE`
-    For a given type ``T`` that owns a set of links ``L``, with 
-    ``L = { link_1, link_2, ... , link_t }``, ``RESET TYPE`` morphs the type signature on
-    ``L``'s elements to become the kind allocated on ``T``'s supertype (provided that they
-    share the same name).
-    It is an error to ``RESET TYPE`` on a link that is not inherited.
+    Reset the type of the link to be strictly the inherited type. This only 
+    has an effect on links that have been :ref:`overloaded
+    <ref_eql_sdl_links_overloading>` in order to change their inherited 
+    type. It is an error to ``RESET TYPE`` on a link that is not inherited.
 
 :eql:synopsis:`USING (<computed-expr>)`
     Change the expression of a :ref:`computed link
