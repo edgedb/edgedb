@@ -1128,8 +1128,6 @@ def init_stmt(
 
     metadata = ctx.stmt_metadata.get(qlstmt)
     if metadata is not None:
-        if metadata.is_unnest_fence:
-            ctx.path_scope.unnest_fence = True
         if metadata.iterator_target:
             ctx.iterator_ctx = ctx
 

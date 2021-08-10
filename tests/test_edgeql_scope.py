@@ -2834,9 +2834,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ["Alice"],
         )
 
-    @test.xfail('''
-        More than one row returned by a subquery
-    ''')
     async def test_edgeql_scope_ref_outer_01(self):
         await self.assert_query_result(
             """
@@ -2878,7 +2875,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             }],
         )
 
-    @test.xfail('Returns tags with all users')
     async def test_edgeql_scope_ref_outer_03(self):
         await self.assert_query_result(
             """
@@ -2898,7 +2894,24 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('Returns tags with all users')
+        await self.assert_query_result(
+            """
+                WITH A := (SELECT AliasedFriends {
+                    cards := .deck {
+                        name,
+                        multi tag := AliasedFriends.name ++ " - " ++ .name,
+                    }
+                } FILTER .name = 'Alice'),
+                SELECT _ := A.cards.tag ORDER BY _;
+            """,
+            [
+                "Alice - Bog monster",
+                "Alice - Dragon",
+                "Alice - Giant turtle",
+                "Alice - Imp"
+            ]
+        )
+
     async def test_edgeql_scope_ref_outer_04(self):
         await self.assert_query_result(
             """
@@ -2921,7 +2934,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('Returns tags with all users')
     async def test_edgeql_scope_ref_outer_05(self):
         await self.assert_query_result(
             """
@@ -2990,7 +3002,32 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('more than one row returned by a subquery')
+    async def test_edgeql_scope_ref_outer_07(self):
+        baseline = await self.con.query(r'''
+            WITH A := (SELECT User {
+                cards := .deck {
+                    name,
+                    multi tag := User.name ++ " - " ++ .name,
+                }
+            }),
+            FOR x IN {A} UNION (x.cards.tag);
+        ''')
+        self.assertEqual(len(baseline), 22)
+
+        # A.cards gets semi-joined, so we should only get one row per card,
+        # and the semantics don't tell us which it should be.
+        res = await self.con.query(r'''
+            WITH A := (SELECT User {
+                cards := .deck {
+                    name,
+                    multi tag := User.name ++ " - " ++ .name,
+                }
+            }),
+            SELECT A.cards.tag;
+        ''')
+        self.assertEqual(len(res), 9)
+        self.assertTrue(set(res).issubset(baseline))
+
     async def test_edgeql_scope_ref_side_01(self):
         await self.assert_query_result(
             """
