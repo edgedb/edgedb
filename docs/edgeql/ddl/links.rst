@@ -271,7 +271,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 
 :eql:synopsis:`RESET CARDINALITY`
     Reset the link set's maximum cardinality to the default value
-    (``SINGLE``), or to the link value inherited from its supertypes.
+    (``SINGLE``), or to the value inherited from the link's supertypes.
 
 :eql:synopsis:`SET TYPE <typename> [USING (<conversion-expr)]`
     Change the type of the link to the specified
