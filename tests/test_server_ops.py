@@ -453,10 +453,11 @@ class TestServerOps(tb.TestCase):
             finally:
                 con.close()
 
-            tls_context = ssl.SSLContext()
-            tls_context.verify_mode = ssl.CERT_REQUIRED
+            tls_context = ssl.create_default_context(
+                ssl.Purpose.SERVER_AUTH,
+                cafile=sd.tls_cert_file,
+            )
             tls_context.check_hostname = False
-            tls_context.load_verify_locations(cafile=sd.tls_cert_file)
             con = http.client.HTTPSConnection(
                 sd.host, sd.port, context=tls_context)
             con.connect()
