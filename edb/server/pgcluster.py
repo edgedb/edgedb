@@ -483,9 +483,14 @@ class Cluster(BaseCluster):
         }
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
+            start_settings['log_min_messages'] = 'info'
             start_settings['log_statement'] = 'all'
+        elif os.getenv('EDGEDB_LOG_LEVEL') == 'silent':
+            start_settings['log_min_messages'] = 'panic'
+            start_settings['log_statement'] = 'none'
         else:
             start_settings['log_min_messages'] = 'warning'
+            start_settings['log_statement'] = 'none'
 
         if server_settings:
             start_settings.update(server_settings)
