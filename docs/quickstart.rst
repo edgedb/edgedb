@@ -91,9 +91,9 @@ up your first EdgeDB instance. You should see something like this:
     [default: 1-beta3]:
     > 1-beta3
     ┌─────────────────────┬───────────────────────────────────────────────┐
-    │ Project directory   │ ~/path/to/edgedb-quickstart                 │
-    │ Project config      │ ~/path/to/edgedb-quickstart/edgedb.toml     │
-    │ Schema dir (empty)  │ ~/path/to/edgedb-quickstart/dbschema        │
+    │ Project directory   │ ~/path/to/edgedb-quickstart                   │
+    │ Project config      │ ~/path/to/edgedb-quickstart/edgedb.toml       │
+    │ Schema dir (empty)  │ ~/path/to/edgedb-quickstart/dbschema          │
     │ Installation method │ Native System Package                         │
     │ Version             │ 1.0b2+ga7130d5c7.cv202104290000-202105060205  │
     │ Instance name       │ edgedb_quickstart                             │
