@@ -530,6 +530,9 @@ def compile_TypeCast(
                 # JSON wants type shapes and acts as an output sink.
                 subctx.expr_exposed = True
                 subctx.inhibit_implicit_limit = True
+                subctx.implicit_id_in_shapes = False
+                subctx.implicit_tid_in_shapes = False
+                subctx.implicit_tname_in_shapes = False
             ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
     return casts.compile_cast(
