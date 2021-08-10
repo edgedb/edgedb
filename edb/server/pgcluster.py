@@ -484,6 +484,8 @@ class Cluster(BaseCluster):
 
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
             start_settings['log_statement'] = 'all'
+        else:
+            start_settings['log_min_messages'] = 'warning'
 
         if server_settings:
             start_settings.update(server_settings)
@@ -499,15 +501,10 @@ class Cluster(BaseCluster):
         for k, v in start_settings.items():
             extra_args.extend(['-c', '{}={}'.format(k, v)])
 
-        if os.getenv('EDGEDB_DEBUG_PGSERVER'):
-            stdout = sys.stdout
-        else:
-            stdout = subprocess.DEVNULL
-
         self._daemon_process = \
             subprocess.Popen(
                 [self._postgres, '-D', self._data_dir, *extra_args],
-                stdout=stdout, stderr=subprocess.STDOUT)
+                stdout=sys.stdout, stderr=sys.stderr)
 
         self._daemon_pid = self._daemon_process.pid
 

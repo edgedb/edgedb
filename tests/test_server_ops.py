@@ -129,11 +129,6 @@ class TestServerOps(tb.TestCase):
                 f'STDERR: {stderr.decode()}',
             )
 
-            if stderr != b'':
-                self.fail(
-                    'Unexpected server error output:\n' + stderr.decode()
-                )
-
     async def test_server_ops_bootstrap_script_server(self):
         # Test that "edgedb-server" works as expected with the
         # following arguments:
