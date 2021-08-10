@@ -45,7 +45,7 @@ Options
 :cli:synopsis:`-V, --version`
     Print version.
 
-:cli:synopsis:`--no-version-check`
+:cli:synopsis:`--no-cli-update-check`
     Disable version check.
 
 :cli:synopsis:`-c <query>`

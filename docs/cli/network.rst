@@ -10,7 +10,7 @@ there are two exceptions:
 1. When the command-line tool starts, it checks if its version is up to
    date. :ref:`Details <ref_cli_edgedb_version_check>`
 2. The :ref:`ref_cli_edgedb_server` family of commands and
-   :ref:`ref_cli_edgedb_self_upgrade` discover package versions and
+   :ref:`ref_cli_edgedb_cli_upgrade` discover package versions and
    docker images and also invoke package managers and the docker
    engine to do :ref:`index updates and related data.
    <ref_cli_edgedb_net_server>`
@@ -47,7 +47,7 @@ Disabling Version Check
 
 To disable version check do one of two things:
 
-1. Use ``--no-version-check`` command-line parameter to disable just
+1. Use ``--no-cli-update-check`` command-line parameter to disable just
 for this invocation
 2. Export ``EDGEDB_NO_VERSION_CHECK=true`` in the environment.
 
@@ -55,8 +55,8 @@ To verify that check is skipped and no network access is being done
 logging facility can be used::
 
    $ export RUST_LOG=edgedb::version_check=debug
-   $ edgedb --no-version-check
-   [..snip..] Skipping version check due to --no-version-check
+   $ edgedb --no-cli-update-check
+   [..snip..] Skipping version check due to --no-cli-update-check
    edgedb>
    $ EDGEDB_NO_VERSION_CHECK=true edgedb
    [..snip..] Skipping version check due to EDGEDB_NO_VERSION_CHECK
