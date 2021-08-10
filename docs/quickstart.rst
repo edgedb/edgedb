@@ -285,8 +285,9 @@ Looking good! Now let's add some data to the database!
 
 For this tutorial we'll just use the REPL tool to execute queries. In
 practice, you'll probably be using one of EdgeDB's client libraries for
-`JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__, `Go <https://github.com
-edgedb/edgedb-go>`__, or `Python <https://github.com/edgedb/edgedb-python>`__.
+`JavaScript/TypeScript <https://github.com/edgedb/edgedb-js>`__,
+`Go <https://github.com/edgedb/edgedb-go>`__,
+or `Python <https://github.com/edgedb/edgedb-python>`__.
 
 Open the REPL:
 
