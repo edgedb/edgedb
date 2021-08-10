@@ -30,70 +30,51 @@ class SkipNode(Exception):
     pass
 
 
-def find_children(node, test_func, *args, force_traversal=False,
+def find_children(node, test_func, *args,
                   terminate_early=False, **kwargs):
     visited = set()
+    result = []
 
-    def _find_children(node, test_func):
-        result = []
+    def _find_children(node):
+        if isinstance(node, (tuple, list, set, frozenset)):
+            for n in node:
+                if _find_children(n):
+                    return True
+            return False
+        elif not base.is_ast_node(node):
+            return False
 
         if node in visited:
-            return result
+            return False
         else:
             visited.add(node)
+
+        try:
+            if test_func(node, *args, **kwargs):
+                result.append(node)
+                if terminate_early:
+                    return True
+        except SkipNode:
+            return False
 
         for field, value in base.iter_fields(node, include_meta=False):
             field_spec = node._fields[field]
             if field_spec.hidden:
                 continue
 
-            if isinstance(value, (list, set, frozenset)):
-                for n in value:
-                    if not base.is_ast_node(n):
-                        continue
+            if _find_children(value):
+                return True
 
-                    try:
-                        if not field_spec.hidden and test_func(
-                                n, *args, **kwargs):
-                            result.append(n)
-                            if terminate_early:
-                                return result
-                    except SkipNode:
-                        continue
+        return False
 
-                    if field_spec.child_traverse or force_traversal:
-                        _n = _find_children(n, test_func)
-                        if _n:
-                            result.extend(_n)
-                            if terminate_early:
-                                return result
-
-            elif base.is_ast_node(value):
-                try:
-                    if not field_spec.hidden and test_func(
-                            value, *args, **kwargs):
-                        result.append(value)
-                        if terminate_early:
-                            return result
-                except SkipNode:
-                    continue
-
-                if field_spec.child_traverse or force_traversal:
-                    _n = _find_children(value, test_func)
-                    if _n:
-                        result.extend(_n)
-                        if terminate_early:
-                            return result
-        return result
-
-    nodes = _find_children(node, test_func)
+    _find_children(node)
     if terminate_early:
-        if nodes:
-            return nodes[0]
+        if result:
+            return result[0]
         else:
             return None
     else:
-        return nodes
+        return result
 
 
 class NodeVisitor:

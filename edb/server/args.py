@@ -21,7 +21,6 @@ from __future__ import annotations
 from typing import *
 
 import logging
-import os.path
 import pathlib
 import re
 import warnings
@@ -473,12 +472,11 @@ def parse_args(**kwargs: Any):
             if kwargs['postgres_dsn']:
                 pass
             elif devmode.is_in_dev_mode():
-                from edgedb import platform
+                data_dir = devmode.get_dev_mode_data_dir()
+                if not data_dir.parent.exists():
+                    data_dir.parent.mkdir(exist_ok=True, parents=True)
 
-                kwargs['data_dir'] = pathlib.Path(os.environ.get(
-                    "EDGEDB_SERVER_DEV_DIR",
-                    platform.config_dir() / 'data' / '_localdev',
-                ))
+                kwargs["data_dir"] = data_dir
             else:
                 abort('Please specify the instance data directory '
                       'using the -D argument or the address of a remote '

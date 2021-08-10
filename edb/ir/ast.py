@@ -474,6 +474,17 @@ class Param:
     """IR type reference"""
 
 
+class MaterializeVolatile(typing.NamedTuple):
+    pass
+
+
+class MaterializeBindings(typing.NamedTuple):
+    bindings: typing.Set[Set]
+
+
+MaterializeReason = typing.Union[MaterializeVolatile, MaterializeBindings]
+
+
 class ComputableInfo(typing.NamedTuple):
 
     qlexpr: qlast.Expr
@@ -482,7 +493,7 @@ class ComputableInfo(typing.NamedTuple):
     path_id: PathId
     path_id_ns: typing.Optional[Namespace]
     shape_op: qlast.ShapeOp
-    should_materialize: bool
+    should_materialize: typing.Sequence[MaterializeReason]
 
 
 class Statement(Command):
@@ -743,6 +754,8 @@ class MaterializedSet(Base):
     # Hide uses to reduce spew; we produce our own simpler uses
     __ast_hidden__ = {'use_sets'}
     materialized: typing.Optional[Set]
+    reason: typing.Sequence[MaterializeReason]
+
     # We really only want the *paths* of all the places it is used,
     # but we need to store the sets to take advantage of weak
     # namespace rewriting.

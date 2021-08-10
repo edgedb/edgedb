@@ -920,7 +920,7 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
         )
 
         self.assertEqual(
-            await self.con.query_one(
+            await self.con.query_single(
                 r'''SELECT call23(to_json('[{"a":"b"}]'), 0);'''),
             '{"a": "b"}')
         self.assertEqual(

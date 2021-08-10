@@ -1,21 +1,21 @@
-.. _ref_cli_edgedb_self_upgrade:
+.. _ref_cli_edgedb_cli_upgrade:
 
 
-===================
-edgedb self upgrade
-===================
+==================
+edgedb cli upgrade
+==================
 
 Upgrade the CLI binary.
 
 .. cli:synopsis::
 
-    edgedb self upgrade [OPTIONS]
+    edgedb cli upgrade [OPTIONS]
 
 
 Description
 ===========
 
-``edgedb self upgrade`` is a terminal command used to upgrade the CLI
+``edgedb cli upgrade`` is a terminal command used to upgrade the CLI
 tools to keep them up-to-date.
 
 

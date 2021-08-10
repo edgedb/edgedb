@@ -176,8 +176,8 @@ def compile_materialized_exprs(
             )
 
             if not is_singleton:
-                mat_qry = relgen.set_to_array(
-                    ir_set=mat_set.materialized,
+                mat_qry = relctx.set_to_array(
+                    path_id=mat_set.materialized.path_id,
                     query=mat_qry,
                     materializing=True,
                     ctx=matctx)

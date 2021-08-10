@@ -424,12 +424,12 @@ class TestServerConfig(tb.QueryTestCase):
             ''')
 
     async def test_server_proto_configure_02(self):
-        conf = await self.con.query_one('''
+        conf = await self.con.query_single('''
             SELECT cfg::Config.__internal_testvalue LIMIT 1
         ''')
         self.assertEqual(conf, 0)
 
-        jsonconf = await self.con.query_one('''
+        jsonconf = await self.con.query_single('''
             SELECT cfg::get_config_json()
         ''')
 
@@ -451,12 +451,12 @@ class TestServerConfig(tb.QueryTestCase):
                 Configure INSTANCE SET __internal_testvalue := 1;
             ''')
 
-            conf = await self.con.query_one('''
+            conf = await self.con.query_single('''
                 SELECT cfg::Config.__internal_testvalue LIMIT 1
             ''')
             self.assertEqual(conf, 1)
 
-            jsonconf = await self.con.query_one('''
+            jsonconf = await self.con.query_single('''
                 SELECT cfg::get_config_json()
             ''')
 
@@ -495,8 +495,11 @@ class TestServerConfig(tb.QueryTestCase):
             };
         ''')
 
-        with self.assertRaisesRegex(edgedb.InterfaceError, r'\bquery_one\('):
-            await self.con.query_one('''
+        with self.assertRaisesRegex(
+            edgedb.InterfaceError,
+            r'\bquery_single\(',
+        ):
+            await self.con.query_single('''
                 CONFIGURE INSTANCE INSERT cfg::TestInstanceConfig {
                     name := 'test_03_0122222222'
                 };
@@ -928,7 +931,7 @@ class TestServerConfig(tb.QueryTestCase):
             conf3 = "CONFIGURE SESSION SET singleprop := '42';"
             await self.con.execute(conf3)
 
-            res = await self.con.query_one('DESCRIBE INSTANCE CONFIG;')
+            res = await self.con.query_single('DESCRIBE INSTANCE CONFIG;')
             self.assertIn(conf1, res)
             self.assertIn(conf2, res)
             self.assertNotIn(conf3, res)
@@ -953,7 +956,8 @@ class TestServerConfig(tb.QueryTestCase):
             conf2 = "CONFIGURE SESSION SET singleprop := '42';"
             await self.con.execute(conf2)
 
-            res = await self.con.query_one('DESCRIBE CURRENT DATABASE CONFIG;')
+            res = await self.con.query_single(
+                'DESCRIBE CURRENT DATABASE CONFIG;')
             self.assertIn(conf1, res)
             self.assertNotIn(conf2, res)
 
@@ -963,7 +967,7 @@ class TestServerConfig(tb.QueryTestCase):
             ''')
 
     async def test_server_version(self):
-        srv_ver = await self.con.query_one(r"""
+        srv_ver = await self.con.query_single(r"""
             SELECT sys::get_version()
         """)
 
@@ -1062,8 +1066,8 @@ class TestServerConfig(tb.QueryTestCase):
 
                 con2 = await sd.connect(host="127.0.0.2")
 
-                self.assertEqual(await con1.query_one("SELECT 1"), 1)
-                self.assertEqual(await con2.query_one("SELECT 2"), 2)
+                self.assertEqual(await con1.query_single("SELECT 1"), 1)
+                self.assertEqual(await con2.query_single("SELECT 2"), 2)
 
             finally:
                 closings = []

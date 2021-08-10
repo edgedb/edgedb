@@ -1227,6 +1227,17 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             sort=lambda x: x['number'],
         )
 
+    async def test_edgeql_json_cast_object_to_json_06(self):
+        res = await self.con.query("""
+            SELECT to_str(<json>{x := random()});
+        """)
+
+        val = res[0]
+        self.assertIsInstance(val, str)
+        data = json.loads(val)
+
+        self.assertTrue('id' not in data)
+
     async def test_edgeql_json_cast_tuple_to_json_01(self):
         res = await self.con.query("""
             WITH MODULE schema

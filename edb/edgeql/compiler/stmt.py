@@ -195,7 +195,9 @@ def compile_ForQuery(
         with sctx.newscope(fenced=True) as bctx:
             stmt.result = setgen.scoped_set(
                 compile_result_clause(
-                    qlstmt.result,
+                    # Make sure it is a stmt, so that shapes inside the body
+                    # get resolved there.
+                    astutils.ensure_qlstmt(qlstmt.result),
                     view_scls=ctx.view_scls,
                     view_rptr=ctx.view_rptr,
                     result_alias=qlstmt.result_alias,
@@ -1231,12 +1233,11 @@ def process_with_block(
                 )
                 results.append(binding)
 
-                if setgen.should_materialize(binding, ctx=ctx):
+                if reason := setgen.should_materialize(binding, ctx=ctx):
                     had_materialized = True
                     typ = setgen.get_set_type(binding, ctx=ctx)
-                    ctx.env.materialized_sets[typ] = edgeql_tree
+                    ctx.env.materialized_sets[typ] = edgeql_tree, reason
                     assert binding.expr
-                    setgen.force_materialized_volatile(binding.expr, ctx=ctx)
                     setgen.maybe_materialize(typ, binding, ctx=ctx)
 
         else:

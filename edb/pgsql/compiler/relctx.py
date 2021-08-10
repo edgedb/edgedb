@@ -101,7 +101,7 @@ def _pull_path_namespace(
             # Skip pulling paths that match the path_id_mask before or after
             # doing path id mapping. We need to look at before as well
             # to prevent paths leaking out under a different name.
-            if (
+            if flavor != 'packed' and (
                 path_id in squery.path_id_mask
                 or orig_path_id in squery.path_id_mask
             ):
@@ -250,7 +250,7 @@ def include_specific_rvar(
         Compiler context.
     """
 
-    if not has_rvar(stmt, rvar, flavor=flavor, ctx=ctx):
+    if not has_rvar(stmt, rvar, ctx=ctx):
         if not (
             ctx.env.external_rvars
             and has_external_rvar(path_id, aspects, ctx=ctx)
@@ -286,13 +286,12 @@ def include_specific_rvar(
 
 def has_rvar(
         stmt: pgast.Query, rvar: pgast.PathRangeVar, *,
-        flavor: str='normal',
         ctx: context.CompilerContextLevel) -> bool:
 
     curstmt: Optional[pgast.Query] = stmt
 
     while curstmt is not None:
-        if pathctx.has_rvar(curstmt, rvar, flavor=flavor, env=ctx.env):
+        if pathctx.has_rvar(curstmt, rvar, env=ctx.env):
             return True
         curstmt = ctx.rel_hierarchy.get(curstmt)
 
@@ -787,6 +786,83 @@ def maybe_get_scope_stmt(
     return stmt
 
 
+def set_to_array(
+        path_id: irast.PathId, query: pgast.Query, *,
+        materializing: bool=False,
+        ctx: context.CompilerContextLevel) -> pgast.Query:
+    """Collapse a set into an array."""
+    subrvar = pgast.RangeSubselect(
+        subquery=query,
+        alias=pgast.Alias(
+            aliasname=ctx.env.aliases.get('aggw')
+        )
+    )
+
+    result = pgast.SelectStmt()
+    include_rvar(result, subrvar, path_id=path_id, ctx=ctx)
+
+    val: Optional[pgast.BaseExpr] = (
+        pathctx.maybe_get_path_serialized_var(
+            result, path_id, env=ctx.env)
+    )
+
+    if val is None:
+        value_var = pathctx.get_path_value_var(
+            result, path_id, env=ctx.env)
+        val = output.serialize_expr(
+            value_var, path_id=path_id, env=ctx.env)
+        pathctx.put_path_serialized_var(
+            result, path_id, val, force=True, env=ctx.env)
+
+    if isinstance(val, pgast.TupleVarBase):
+        val = output.serialize_expr(
+            val, path_id=path_id, env=ctx.env)
+
+    pg_type = output.get_pg_type(path_id.target, ctx=ctx)
+    orig_val = val
+
+    if (path_id.is_array_path()
+            and ctx.env.output_format is context.OutputFormat.NATIVE):
+        # We cannot aggregate arrays straight away, as
+        # they be of different length, so we have to
+        # encase each element into a record.
+        val = pgast.RowExpr(args=[val], ser_safe=val.ser_safe)
+        pg_type = ('record',)
+
+    array_agg = pgast.FuncCall(
+        name=('array_agg',),
+        args=[val],
+        agg_filter=(
+            astutils.new_binop(orig_val, pgast.NullConstant(),
+                               'IS DISTINCT FROM')
+            if orig_val.nullable else None
+        ),
+        ser_safe=val.ser_safe,
+    )
+
+    agg_expr = pgast.CoalesceExpr(
+        args=[
+            array_agg,
+            pgast.TypeCast(
+                arg=pgast.ArrayExpr(elements=[]),
+                type_name=pgast.TypeName(name=pg_type, array_bounds=[-1])
+            )
+        ],
+        ser_safe=array_agg.ser_safe,
+        nullable=False,
+    )
+
+    result.target_list = [
+        pgast.ResTarget(
+            name=ctx.env.aliases.get('v'),
+            val=agg_expr,
+            ser_safe=agg_expr.ser_safe,
+        )
+    ]
+
+    return result
+
+
 class UnpackElement(NamedTuple):
     path_id: irast.PathId
     colname: str
@@ -1020,23 +1096,14 @@ def unpack_rvar(
             pathctx.put_path_rvar(
                 ctx.rel, el_id, rvar, aspect='value', env=ctx.env)
         else:
-            cref = pathctx.get_rvar_path_var(rvar, el_id, 'value', env=ctx.env)
+            cref = pathctx.get_path_output(
+                qry, el_id, aspect='value', env=ctx.env)
 
-            colname = ctx.env.aliases.get("col")
-            sub_packed_stmt = pgast.SelectStmt(
-                target_list=[pgast.ResTarget(name=colname, val=cref)],
-            )
             pathctx.put_path_packed_output(
-                sub_packed_stmt, el_id,
-                val=pgast.ColumnRef(name=[colname]), multi=el.multi,
-            )
+                qry, el_id, val=cref, multi=el.multi)
 
-            sub_rvar = rvar_for_rel(sub_packed_stmt, lateral=True, ctx=ctx)
-            # Need to specify value as the aspects because we *don't*
-            # provide the source.
-            include_rvar(
-                stmt, sub_rvar, path_id=el_id, aspects=('value',),
-                flavor='packed', pull_namespace=False, ctx=ctx,
+            pathctx.put_path_rvar(
+                stmt, el_id, rvar, flavor='packed', aspect='value', env=ctx.env
             )
 
     # When we're producing an exposed shape, we need to rewrite the

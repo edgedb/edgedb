@@ -388,40 +388,40 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'std::int16 out of range'):
             async with self.con.transaction():
-                await self.con.query_one(
+                await self.con.query_single(
                     r'''SELECT <int16>36893488147419''',
                 )
 
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'std::int32 out of range'):
             async with self.con.transaction():
-                await self.con.query_one(
+                await self.con.query_single(
                     r'''SELECT <int32>36893488147419''',
                 )
 
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'is out of range for type std::int64'):
             async with self.con.transaction():
-                await self.con.query_one(
+                await self.con.query_single(
                     r'''SELECT <int64>'3689348814741900000000000' ''',
                 )
 
         with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                     'expected digit after dot'):
             async with self.con.transaction():
-                await self.con.query_one('SELECT 0. ')
+                await self.con.query_single('SELECT 0. ')
 
         with self.assertRaisesRegex(edgedb.EdgeQLSyntaxError,
                                     'number is out of range for std::float64'):
             async with self.con.transaction():
-                await self.con.query_one(
+                await self.con.query_single(
                     r'''SELECT 1e999''',
                 )
 
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError,
                                     'interval field value out of range'):
             async with self.con.transaction():
-                await self.con.query_one(
+                await self.con.query_single(
                     r'''SELECT <duration>'3074457345618258602us' ''',
                 )
 
@@ -832,7 +832,7 @@ class TestExpressions(tb.QueryTestCase):
 
         # overflow is expected for float64, but would not happen for decimal
         with self.assertRaisesRegex(edgedb.NumericOutOfRangeError, 'overflow'):
-            await self.con.query_one(r"""
+            await self.con.query_single(r"""
                 SELECT (10 + math::floor(random()))^309;
             """)
 
@@ -1399,7 +1399,7 @@ class TestExpressions(tb.QueryTestCase):
                                         expected_error_msg,
                                         msg=query):
                 async with self.con.transaction():
-                    await self.con.query_one(query)
+                    await self.con.query_single(query)
 
     # NOTE: Generalized Binop `+` and `-` rules:
     #
@@ -1690,7 +1690,7 @@ class TestExpressions(tb.QueryTestCase):
                 _hint='Consider using the "++" operator for concatenation'
             ):
                 async with self.con.transaction():
-                    await self.con.query_one(query)
+                    await self.con.query_single(query)
 
     async def test_edgeql_expr_valid_setop_01(self):
         # use every scalar with DISTINCT
@@ -2394,7 +2394,7 @@ class TestExpressions(tb.QueryTestCase):
                 edgedb.QueryError,
                 r"operator '\*' cannot .* 'std::str' and 'std::int64'"):
 
-            await self.con.query_one("""
+            await self.con.query_single("""
                 SELECT <std::str>123 * 2;
             """)
 
@@ -2872,7 +2872,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index array by.*str'):
 
-            await self.con.query_one("""
+            await self.con.query_single("""
                 SELECT [1, 2]['1'];
             """)
 
@@ -3208,7 +3208,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot index string by.*str'):
 
-            await self.con.query_one("""
+            await self.con.query_single("""
                 SELECT '123'['1'];
             """)
 
@@ -3454,7 +3454,7 @@ aa \
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 r"operator '!=' cannot"):
-            await self.con.query_one(r"""
+            await self.con.query_single(r"""
                 SELECT (a := 1, b := 'foo') != (b := 'foo', a := 1);
             """)
 
@@ -4807,7 +4807,7 @@ aa \
             "name": "He Who Remains",
         }])
 
-        await self.con.query_one("""
+        await self.con.query_single("""
             SELECT assert_single((
                 SELECT User { name } FILTER .name ILIKE "He Who%"
             ))
@@ -4857,3 +4857,19 @@ aa \
                     single name := assert_single(.name ++ {"!", "?"})
                 };
             """)
+
+    async def test_edgeql_assert_single_no_op(self):
+        await self.con.query("""
+            SELECT assert_single(1)
+        """)
+
+        await self.con.query("""
+            FOR x IN {User}
+            UNION assert_single(x.name)
+        """)
+
+        await self.con.query("""
+            SELECT User {
+                single foo := assert_single(.name) ++ "!"
+            }
+        """)

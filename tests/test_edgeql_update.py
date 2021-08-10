@@ -357,12 +357,12 @@ class TestUpdate(tb.QueryTestCase):
         # manipulated
         try:
             data = []
-            data.append(await self.con.query_one(r"""
+            data.append(await self.con.query_single(r"""
                 INSERT UpdateTest {
                     name := 'ret5.1'
                 };
             """))
-            data.append(await self.con.query_one(r"""
+            data.append(await self.con.query_single(r"""
                 INSERT UpdateTest {
                     name := 'ret5.2'
                 };
@@ -446,7 +446,7 @@ class TestUpdate(tb.QueryTestCase):
             """)
 
     async def test_edgeql_update_generic_01(self):
-        status = await self.con.query_one(r"""
+        status = await self.con.query_single(r"""
             SELECT Status{id}
             FILTER Status.name = 'Open'
             LIMIT 1;

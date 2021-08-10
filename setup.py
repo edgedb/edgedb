@@ -60,10 +60,10 @@ RUNTIME_DEPS = [
     'graphql-core~=3.1.5',
     'promise~=2.2.0',
 
-    'edgedb>=0.16.0',
+    'edgedb>=0.17.0',
 ]
 
-CYTHON_DEPENDENCY = 'Cython==0.29.23'
+CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
 
 DOCS_DEPS = [
     'lxml~=4.6.2',

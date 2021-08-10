@@ -992,7 +992,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         # Make sure that the __type__ attribute gets the same object
         # as a direct schema::ObjectType query. As long as this is true,
         # we can test the schema separately without any other data.
-        res = await self.con.query_one(r'''
+        res = await self.con.query_single(r'''
             SELECT User {
                 __type__: {
                     name,
@@ -6093,7 +6093,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             self.assertEqual(row[0].__tname__, "std::Object")
 
     async def test_edgeql_select_free_shape_01(self):
-        res = await self.con.query_one('SELECT {test := 1}')
+        res = await self.con.query_single('SELECT {test := 1}')
         self.assertEqual(res.test, 1)
 
     async def test_edgeql_select_result_alias_binding_01(self):

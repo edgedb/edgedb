@@ -1210,12 +1210,9 @@ class GraphQLTranslator:
             val = self.visit(node)
 
             if target.is_json:
-                # JSON must use a converter function and not a cast
-
-                return qlast.FunctionCall(
-                    func='to_json',
-                    args=[val]
-                )
+                # JSON can only come as a variable and will already be
+                # converted appropriately.
+                return val
             elif target.edb_base_name != 'std::str':
 
                 # bigint data would require a bigint input, so
@@ -1733,7 +1730,7 @@ def convert_errors(
 
             result.append(err)
             continue
-        if (m.group("used"), m.group("expected")) in _IMPLICIT_CONVERSIONS:
+        elif (m.group("used"), m.group("expected")) in _IMPLICIT_CONVERSIONS:
             # skip the error, we avoid it in the execution code
             continue
         value, line, col = substitutions[m.group("var_name")]

@@ -406,14 +406,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('''
-        The second query fails with
-            cannot redefine link 'select_deck' of object type 'User'
-            as scalar type 'std::str'
-
-        I think because viewgen is too eager to decide that the first
-        subshape it sees is the actual result type.
-    ''')
     async def test_edgeql_for_in_computable_05(self):
         await self.assert_query_result(
             r'''

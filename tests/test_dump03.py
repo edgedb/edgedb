@@ -57,12 +57,12 @@ class DumpTestCaseMixin:
             ]
         )
 
-        result = await self.con.query_one(
+        result = await self.con.query_single(
             "SELECT sequence_next(INTROSPECT TYPEOF Test.seq)"
         )
         self.assertEqual(result, 2)
 
-        result = await self.con.query_one(
+        result = await self.con.query_single(
             "SELECT sequence_next(INTROSPECT MyPristineSeq)"
         )
         self.assertEqual(result, 1)

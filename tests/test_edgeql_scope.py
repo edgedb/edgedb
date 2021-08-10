@@ -2803,3 +2803,229 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 }
             ],
         )
+
+    @test.xfail('''
+        Returns ["Alice", "Bob", "Carol", "Dave"]!!
+    ''')
+    async def test_edgeql_scope_source_rebind_01(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (SELECT User { tag := User.name }),
+                A := (SELECT U FILTER .name = 'Alice'),
+                SELECT A.tag;
+            """,
+            ["Alice"],
+        )
+
+    @test.xfail('''
+        There is no range var for...
+        Sticking a shape in the SELECT U fixes it...
+    ''')
+    async def test_edgeql_scope_source_rebind_02(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (SELECT User { tag := (
+                    SELECT User.name FILTER random() > 0) }),
+                A := (SELECT U FILTER .name = 'Alice'),
+                SELECT A.tag;
+            """,
+            ["Alice"],
+        )
+
+    @test.xfail('''
+        More than one row returned by a subquery
+    ''')
+    async def test_edgeql_scope_ref_outer_01(self):
+        await self.assert_query_result(
+            """
+                SELECT User {
+                    cards := (SELECT (SELECT _ := .deck {
+                        tag := .name ++ " - " ++ User.name,
+                    }
+                    ) ORDER BY .name)
+                } FILTER .name = 'Alice'
+            """,
+            [
+                {
+                    "cards": [
+                        {"tag": "Bog monster - Alice"},
+                        {"tag": "Dragon - Alice"},
+                        {"tag": "Giant turtle - Alice"},
+                        {"tag": "Imp - Alice"}
+                    ]
+                }
+            ]
+        )
+
+    async def test_edgeql_scope_ref_outer_02(self):
+        await self.assert_query_result(
+            """
+                SELECT User {
+                    cards := (SELECT _ := .deck {
+                        multi tag := User.name,
+                    })
+                } FILTER .name = 'Alice' AND EXISTS .cards;
+            """,
+            [{
+                "cards": [
+                    {"tag": ["Alice"]},
+                    {"tag": ["Alice"]},
+                    {"tag": ["Alice"]},
+                    {"tag": ["Alice"]}
+                ]
+            }],
+        )
+
+    @test.xfail('Returns tags with all users')
+    async def test_edgeql_scope_ref_outer_03(self):
+        await self.assert_query_result(
+            """
+                WITH A := (SELECT User {
+                    cards := .deck {
+                        name,
+                        multi tag := User.name ++ " - " ++ .name,
+                    }
+                } FILTER .name = 'Alice'),
+                SELECT _ := A.cards.tag ORDER BY _;
+            """,
+            [
+                "Alice - Bog monster",
+                "Alice - Dragon",
+                "Alice - Giant turtle",
+                "Alice - Imp"
+            ]
+        )
+
+    @test.xfail('Returns tags with all users')
+    async def test_edgeql_scope_ref_outer_04(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (
+                    SELECT User {
+                        cards := .deck {
+                            name,
+                            multi tag := User.name ++ " - " ++ .name,
+                        }
+                    }),
+                A := (SELECT U FILTER .name = 'Alice'),
+                SELECT _ := A.cards.tag ORDER BY _;
+            """,
+            [
+                "Alice - Bog monster",
+                "Alice - Dragon",
+                "Alice - Giant turtle",
+                "Alice - Imp"
+            ]
+        )
+
+    @test.xfail('Returns tags with all users')
+    async def test_edgeql_scope_ref_outer_05(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (
+                    SELECT User {
+                        cards := .deck {
+                            name,
+                            tag := User.name ++ " - " ++ .name,
+                        }
+                    }),
+                A := (SELECT U FILTER .name = 'Alice'),
+                B := (SELECT U FILTER .name = 'Bob'),
+                SELECT { a := A.cards.tag, b := B.cards.tag };
+            """,
+            [
+                {
+                    "a": {
+                        "Alice - Imp",
+                        "Alice - Dragon",
+                        "Alice - Bog monster",
+                        "Alice - Giant turtle",
+                    },
+                    "b": {
+                        "Bob - Bog monster",
+                        "Bob - Giant turtle",
+                        "Bob - Dwarf",
+                        "Bob - Golem",
+                    }
+                }
+            ]
+        )
+
+    @test.xfail('Returns tags with all users')
+    async def test_edgeql_scope_ref_outer_06(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (
+                    SELECT User {
+                        cards := .deck {
+                            name,
+                            tag := User.name ++ " - " ++ .name,
+                        }
+                    }),
+                A := (SELECT U FILTER .name = 'Alice'),
+                B := (SELECT U FILTER .name = 'Bob'),
+                Bc := B.cards,
+                SELECT { a := A.cards.tag, b := Bc.tag };
+            """,
+            [
+                {
+                    "a": {
+                        "Alice - Imp",
+                        "Alice - Dragon",
+                        "Alice - Bog monster",
+                        "Alice - Giant turtle",
+                    },
+                    "b": {
+                        "Bob - Bog monster",
+                        "Bob - Giant turtle",
+                        "Bob - Dwarf",
+                        "Bob - Golem",
+                    }
+                }
+            ]
+        )
+
+    @test.xfail('more than one row returned by a subquery')
+    async def test_edgeql_scope_ref_side_01(self):
+        await self.assert_query_result(
+            """
+                SELECT (
+                    SELECT (
+                        User,
+                        (SELECT Card { name, user := User.name }
+                         FILTER Card.name[0] = User.name[0]),
+                    )
+                ).1 { name, user } ORDER BY .name;
+            """,
+            [
+                {"name": "Bog monster", "user": "Bob"},
+                {"name": "Djinn", "user": "Dave"},
+                {"name": "Dragon", "user": "Dave"},
+                {"name": "Dwarf", "user": "Dave"},
+            ]
+        )
+
+    @test.xfail('more than one row returned by a subquery')
+    async def test_edgeql_scope_ref_side_02(self):
+        await self.assert_query_result(
+            """
+                SELECT (
+                    SELECT (
+                        User,
+                        (SELECT Card { name, user := (SELECT _ := User.name) }
+                         FILTER Card.name[0] = User.name[0]),
+                    )
+                ).1 { name, user } ORDER BY .name;
+            """,
+            [
+                {"name": "Bog monster", "user": "Bob"},
+                {"name": "Djinn", "user": "Dave"},
+                {"name": "Dragon", "user": "Dave"},
+                {"name": "Dwarf", "user": "Dave"},
+            ]
+        )
