@@ -60,6 +60,7 @@ class BaseCluster:
         if testmode:
             self._edgedb_cmd.append('--testmode')
 
+        self._log_level = log_level
         self._runstate_dir = runstate_dir
         self._edgedb_cmd.extend(['--runstate-dir', runstate_dir])
         self._pg_cluster = self._get_pg_cluster()
@@ -307,7 +308,10 @@ class Cluster(BaseCluster):
         self._pg_connect_args['database'] = 'template1'
 
     def _get_pg_cluster(self):
-        return pgcluster.get_local_pg_cluster(self._data_dir)
+        return pgcluster.get_local_pg_cluster(
+            self._data_dir,
+            log_level=self._log_level,
+        )
 
     def get_data_dir(self):
         return self._data_dir
