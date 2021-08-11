@@ -202,9 +202,9 @@ these questions to make sure you aren't making any unintended changes.
 
     $ edgedb create-migration
     did you create object type 'default::Person'? [y,n,l,c,b,s,q,?]
-    y
+    > y
     did you create object type 'default::Movie'? [y,n,l,c,b,s,q,?]
-    y
+    > y
     Created ./dbschema/migrations/00001.edgeql, id: m1la5u4qi...
 
 For now, just type ``y`` to confirm each change. But you have several other
@@ -539,7 +539,7 @@ Then we'll create a new migration and apply it:
     $ edgedb migration create
     did you make property 'last_name' of object type
     'default::Person' optional? [y,n,l,c,b,s,q,?]
-    y
+    > y
     Created ./dbschema/migrations/00002.edgeql, id: m1k62y4x...
 
     $ edgedb migrate
