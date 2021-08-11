@@ -479,7 +479,7 @@ class MaterializeVolatile(typing.NamedTuple):
 
 
 class MaterializeVisible(typing.NamedTuple):
-    sets: typing.Set[Set]
+    paths: typing.Set[PathId]
 
 
 MaterializeReason = typing.Union[MaterializeVolatile, MaterializeVisible]

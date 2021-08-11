@@ -302,7 +302,7 @@ def _fixup_materialized_sets(
                     # sure that things get correlated properly. If it's not
                     # visible, then it's just being used internally and we
                     # don't need any special work.
-                    if any(parent.is_visible(b.path_id) for b in x.sets):
+                    if any(parent.is_visible(b) for b in x.paths):
                         good_reason = True
 
             if not good_reason:

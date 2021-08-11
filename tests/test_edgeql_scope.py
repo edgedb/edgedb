@@ -3047,8 +3047,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('more than one row returned by a subquery')
-    async def test_edgeql_scope_ref_side_02(self):
+    async def test_edgeql_scope_ref_side_02a(self):
         await self.assert_query_result(
             """
                 SELECT (
@@ -3058,6 +3057,25 @@ class TestEdgeQLScope(tb.QueryTestCase):
                          FILTER Card.name[0] = User.name[0]),
                     )
                 ).1 { name, user } ORDER BY .name;
+            """,
+            [
+                {"name": "Bog monster", "user": "Bob"},
+                {"name": "Djinn", "user": "Dave"},
+                {"name": "Dragon", "user": "Dave"},
+                {"name": "Dwarf", "user": "Dave"},
+            ]
+        )
+
+    async def test_edgeql_scope_ref_side_02b(self):
+        await self.assert_query_result(
+            """
+                SELECT (
+                    SELECT (
+                        (SELECT Card { name, user := (SELECT _ := User.name) }
+                         FILTER Card.name[0] = User.name[0]),
+                        User,
+                    )
+                ).0 { name, user } ORDER BY .name;
             """,
             [
                 {"name": "Bog monster", "user": "Bob"},
