@@ -350,6 +350,7 @@ class Cluster(BaseCluster):
         *,
         pg_config_path=None,
         instance_params: Optional[BackendInstanceParams] = None,
+        log_level: str = 'i',
     ):
         super().__init__(
             pg_config_path=pg_config_path, instance_params=instance_params
@@ -357,6 +358,7 @@ class Cluster(BaseCluster):
         self._data_dir = data_dir
         self._daemon_pid = None
         self._daemon_process = None
+        self._log_level = log_level
 
     def get_pg_version(self):
         return self._pg_version
@@ -485,11 +487,15 @@ class Cluster(BaseCluster):
         if os.getenv('EDGEDB_DEBUG_PGSERVER'):
             start_settings['log_min_messages'] = 'info'
             start_settings['log_statement'] = 'all'
-        elif os.getenv('EDGEDB_LOG_LEVEL') == 'silent':
-            start_settings['log_min_messages'] = 'panic'
-            start_settings['log_statement'] = 'none'
         else:
-            start_settings['log_min_messages'] = 'warning'
+            log_level_map = {
+                'd': 'INFO',
+                'i': 'NOTICE',
+                'w': 'WARNING',
+                'e': 'ERROR',
+                's': 'PANIC',
+            }
+            start_settings['log_min_messages'] = log_level_map[self._log_level]
             start_settings['log_statement'] = 'none'
 
         if server_settings:
@@ -859,6 +865,7 @@ def get_local_pg_cluster(
     *,
     max_connections: Optional[int] = None,
     tenant_id: Optional[str] = None,
+    log_level: str = 'i',
 ) -> Cluster:
     pg_config = buildmeta.get_pg_config_path()
     if tenant_id is None:
@@ -873,6 +880,7 @@ def get_local_pg_cluster(
         data_dir=data_dir,
         pg_config_path=str(pg_config),
         instance_params=instance_params,
+        log_level=log_level,
     )
 
 

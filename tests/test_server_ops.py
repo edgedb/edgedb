@@ -239,7 +239,7 @@ class TestServerOps(tb.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             cluster = pgcluster.get_local_pg_cluster(
-                td, max_connections=actual)
+                td, max_connections=actual, log_level='s')
             cluster.set_connection_params(
                 pgconnparams.ConnectionParameters(
                     user='postgres',
@@ -279,7 +279,7 @@ class TestServerOps(tb.TestCase):
                 tg.create_task(test(td, 'tenant2'))
 
         with tempfile.TemporaryDirectory() as td:
-            cluster = pgcluster.get_local_pg_cluster(td)
+            cluster = pgcluster.get_local_pg_cluster(td, log_level='s')
             cluster.set_connection_params(
                 pgconnparams.ConnectionParameters(
                     user='postgres',
@@ -330,7 +330,7 @@ class TestServerOps(tb.TestCase):
                     await con.aclose()
 
         with tempfile.TemporaryDirectory() as td:
-            cluster = pgcluster.get_local_pg_cluster(td)
+            cluster = pgcluster.get_local_pg_cluster(td, log_level='s')
             cluster.set_connection_params(
                 pgconnparams.ConnectionParameters(
                     user='postgres',
