@@ -213,7 +213,10 @@ def shortname_from_fullname(fullname: Name) -> Name:
     name = fullname.name
     parts = name.split('@', 1)
     if len(parts) == 2:
-        return name_from_string(unmangle_name(parts[0]))
+        res = name_from_string(unmangle_name(parts[0]))
+        if isinstance(fullname, QualName) and isinstance(res, UnqualName):
+            res = QualName(module=fullname.module, name=res.name)
+        return res
     else:
         return fullname
 
