@@ -569,7 +569,7 @@ name for a given Person. We'll do this with a :ref:`computable property
     edgedb> SELECT Person {
     .......     full_name := .first_name ++ ' ' ++ .last_name
     .......       IF EXISTS .last_name
-    .......       ELSE .first_name;
+    .......       ELSE .first_name
     ....... };
     {
       default::Person {full_name: 'Zendaya'},
@@ -587,7 +587,7 @@ properties of ``Person``. Let's update ``dbschema/default.esdl``:
     module default {
         type Person {
             required property first_name -> str;
-            property last_name -> str
+            property last_name -> str;
 
             # add computable property "name"
             property name :=
