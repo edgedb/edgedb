@@ -128,7 +128,7 @@ Let's give it a try! Run ``edgedb`` in your terminal. This will connect to
 your database and open a REPL. You're now connected to a live EdgeDB instance
 running on your computer! Try executing a simple query:
 
-.. code-block:: sdl
+.. code-block:: edgeql-repl
 
     edgedb> SELECT 1 + 1;
     {2}
