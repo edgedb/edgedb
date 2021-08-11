@@ -1977,7 +1977,9 @@ class QualifiedObject(Object):
     @classmethod
     def get_shortname_static(cls, name: sn.Name) -> sn.QualName:
         result = sn.shortname_from_fullname(name)
-        assert isinstance(result, sn.QualName)
+        if not isinstance(result, sn.QualName):
+            assert isinstance(name, sn.QualName)
+            result = sn.QualName(module=name.module, name=result.name)
         return result
 
     def get_shortname(self, schema: s_schema.Schema) -> sn.QualName:

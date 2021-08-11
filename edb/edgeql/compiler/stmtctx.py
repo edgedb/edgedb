@@ -550,23 +550,17 @@ def declare_view(
             view_name = subctx.view_scls.get_name(ctx.env.schema)
             assert isinstance(view_name, s_name.QualName)
         else:
-            if isinstance(alias, s_name.QualName):
-                basename = alias
-            else:
-                basename = s_name.QualName(
-                    module='__derived__', name=alias.name)
-
             if (
                 isinstance(alias, s_name.QualName)
                 and subctx.env.options.schema_view_mode
             ):
-                view_name = basename
+                view_name = alias
                 subctx.recompiling_schema_alias = True
             else:
                 view_name = s_name.QualName(
                     module=ctx.derived_target_module or '__derived__',
                     name=s_name.get_specialized_name(
-                        basename,
+                        alias,
                         ctx.aliases.get('w')
                     )
                 )
