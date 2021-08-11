@@ -42,14 +42,21 @@ For Windows, the installation script is:
 * You can uninstall EdgeDB server or remove the ``edgedb`` command at
   any time.
 
-With command-line tools installed see
-:ref:`server installation <ref_tutorial_install>` or
-:ref:`connection options <ref_cli_edgedb_connopts>` to connect to a remote
-server.
 
-To install the nightly version of the command-line tools (that's not
-the same as the nightly version of the EdgeDB server) use this
-command:
+.. rubric:: Connection options
+
+All commands respect a common set of
+:ref:`connection options <ref_cli_edgedb_connopts>`, which let you specify
+a target instance. This instance can be local to your machine or hosted
+remotely.
+
+
+.. _ref_cli_edgedb_nightly:
+
+.. rubric:: Nightly version
+
+To install the nightly version of the CLI (not to be confused with the nightly
+version of EdgeDB itself!) use this command:
 
 .. code-block:: bash
 
@@ -63,7 +70,6 @@ command:
 
 Command-line tools contain just one binary, so to remove it on Linux or
 macOS run:
-
 
 .. code-block:: bash
 
