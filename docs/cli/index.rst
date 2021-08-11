@@ -61,7 +61,7 @@ version of EdgeDB itself!) use this command:
 .. code-block:: bash
 
     $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | \
-    sh -s -- --nightly
+      sh -s -- --nightly
 
 
 .. _ref_cli_edgedb_uninstall:
