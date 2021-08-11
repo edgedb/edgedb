@@ -323,6 +323,61 @@ def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
     return res
 
 
+class FindPathScopes(ast.NodeVisitor):
+    """Visitor to find the enclosing path scope id of sub expressions.
+
+    Sets inherit an effective scope id from enclosing expressions,
+    and this visitor computes those.
+
+    This is set up so that another visitor could inherit from it,
+    override process_set, and also collect the scope tree info.
+    """
+    def __init__(self) -> None:
+        super().__init__()
+        self.path_scope_ids: List[Optional[int]] = [None]
+        self.scopes: Dict[irast.Set, Optional[int]] = {}
+
+    def visit_Stmt(self, stmt: irast.Stmt) -> Any:
+        # Sometimes there is sharing, so we want the official scope
+        # for a node to be based on its appearance in the result,
+        # not in a subquery.
+        # I think it might not actually matter, though.
+        self.visit(stmt.bindings)
+        if stmt.iterator_stmt:
+            self.visit(stmt.iterator_stmt)
+        if isinstance(stmt, irast.MutatingStmt):
+            self.visit(stmt.subject)
+        self.visit(stmt.result)
+
+        return self.generic_visit(stmt)
+
+    def visit_Set(self, node: irast.Set) -> Any:
+        val = self.path_scope_ids[-1]
+        if node.path_scope_id:
+            self.path_scope_ids.append(node.path_scope_id)
+        if not node.is_binding:
+            val = self.path_scope_ids[-1]
+
+        # Visit sub-trees
+        self.scopes[node] = val
+        res = self.process_set(node)
+
+        if node.path_scope_id:
+            self.path_scope_ids.pop()
+
+        return res
+
+    def process_set(self, node: irast.Set) -> Any:
+        self.generic_visit(node)
+        return None
+
+
+def find_path_scopes(stmt: irast.Base) -> Dict[irast.Set, Optional[int]]:
+    visitor = FindPathScopes()
+    visitor.visit(stmt)
+    return visitor.scopes
+
+
 class FindPotentiallyVisibleVisitor(ast.NodeVisitor):
     skip_hidden = True
     extra_skips = frozenset(['materialized_sets'])
