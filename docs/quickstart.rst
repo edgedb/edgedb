@@ -516,21 +516,22 @@ migrate our schema to make ``last_name`` optional.
 
 First, we'll update the ``dbschema/schema.esdl``:
 
-.. code-block:: sdl-diff
+.. code-block:: sdl
 
-      module default {
-          type Person {
-              required property first_name -> str;
-    -         required property last_name -> str;
-    +         property last_name -> str;
-          }
-          type Movie {
-              required property title -> str;
-              property year -> int64; # the year of release
-              required link director -> Person;
-              multi link actors -> Person;
-          }
-      };
+    module default {
+        type Person {
+            required property first_name -> str;
+
+            # delete "required"
+            property last_name -> str;
+        }
+        type Movie {
+            required property title -> str;
+            property year -> int64; # the year of release
+            required link director -> Person;
+            multi link actors -> Person;
+        }
+    };
 
 Then we'll create a new migration and apply it:
 
@@ -581,24 +582,26 @@ Let's say we're planning to use ``full_name`` a lot. Instead of re-defining it
 in each query, we can add it directly to the schema alongside the other
 properties of ``Person``. Let's update ``dbschema/default.esdl``:
 
-.. code-block:: sdl-diff
+.. code-block:: sdl
 
-      module default {
-          type Person {
-              required property first_name -> str;
-              property last_name -> str;
-    +         property name :=
-    +             .first_name ++ ' ' ++ .last_name
-    +             IF EXISTS .last_name
-    +             ELSE .first_name;
-          }
-          type Movie {
-              required property title -> str;
-              property year -> int64; # the year of release
-              required link director -> Person;
-              multi link actors -> Person;
-          }
-      };
+    module default {
+        type Person {
+            required property first_name -> str;
+            property last_name -> str
+
+            # add computable property "name"
+            property name :=
+                .first_name ++ ' ' ++ .last_name
+                IF EXISTS .last_name
+                ELSE .first_name;
+        }
+        type Movie {
+            required property title -> str;
+            property year -> int64; # the year of release
+            required link director -> Person;
+            multi link actors -> Person;
+        }
+    };
 
 Then create and run another migration:
 
