@@ -1376,29 +1376,25 @@ def _get_computable_ctx(
 
             self_view = ctx.view_sets.get(source_stype)
             if self_view:
-                if self_view.path_id.namespace:
-                    subns.update(self_view.path_id.namespace)
-                inner_path_id = self_view.path_id.merge_namespace(
-                    subctx.path_id_namespace | subns)
+                subns.update(self_view.path_id.namespace)
             else:
-                if source.path_id.namespace:
-                    subns.update(source.path_id.namespace)
+                subns.update(source.path_id.namespace)
 
-                if inner_source_path_id is not None:
-                    # The path id recorded in the source map may
-                    # contain namespaces referring to a temporary
-                    # scope subtree used by `process_view()`.
-                    # Since we recompile the computable expression
-                    # using the current path id namespace, the
-                    # original source path id needs to be fixed.
-                    inner_path_id = inner_source_path_id \
-                        .strip_namespace(qlctx.path_id_namespace) \
-                        .merge_namespace(subctx.path_id_namespace)
-                else:
-                    inner_path_id = pathctx.get_path_id(
-                        source_stype, ctx=subctx)
+            if inner_source_path_id is not None:
+                # The path id recorded in the source map may
+                # contain namespaces referring to a temporary
+                # scope subtree used by `process_view()`.
+                # Since we recompile the computable expression
+                # using the current path id namespace, the
+                # original source path id needs to be fixed.
+                inner_path_id = inner_source_path_id \
+                    .strip_namespace(qlctx.path_id_namespace) \
+                    .merge_namespace(subctx.path_id_namespace)
+            else:
+                inner_path_id = pathctx.get_path_id(
+                    source_stype, ctx=subctx)
 
-                inner_path_id = inner_path_id.merge_namespace(subns)
+            inner_path_id = inner_path_id.merge_namespace(subns)
 
             subctx.pending_stmt_full_path_id_namespace = frozenset(subns)
 
