@@ -1483,7 +1483,8 @@ def should_materialize(
     # instead we just store the bindings.
     if (
         materialize_visible
-        and (vis := irutils.find_potentially_visible(ir, skipped_bindings))
+        and (vis := irutils.find_potentially_visible(
+            ir, ctx.path_scope, ctx.env.scope_tree_nodes, skipped_bindings))
     ):
         reasons.append(irast.MaterializeVisible(vis))
 
