@@ -49,8 +49,6 @@ RUNTIME_DEPS = [
     'uvloop~=0.16.0',
 
     'click~=7.1',
-    'httptools>=0.0.13',
-    'immutables>=0.15',
     'parsing~=1.6.1',
     'psutil~=5.8.0',
     'setproctitle~=1.1.10',
