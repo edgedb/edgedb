@@ -27,6 +27,7 @@ from typing import *
 from edb import errors
 
 from edb.ir import ast as irast
+from edb.ir import utils as irutils
 
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
@@ -262,11 +263,12 @@ def _fixup_materialized_sets(
     for nobe in ctx.source_map.values():
         if nobe.irexpr:
             children += ast_visitor.find_children(nobe.irexpr, flt)
-    for stmt in children:
+    for stmt in set(children):
         if not stmt.materialized_sets:
             continue
         for key in list(stmt.materialized_sets):
             mat_set = stmt.materialized_sets[key]
+            assert not mat_set.finalized
 
             if len(mat_set.uses) <= 1:
                 del stmt.materialized_sets[key]
@@ -294,13 +296,13 @@ def _fixup_materialized_sets(
             for x in mat_set.reason:
                 if isinstance(x, irast.MaterializeVolatile):
                     good_reason = True
-                elif isinstance(x, irast.MaterializeBindings):
+                elif isinstance(x, irast.MaterializeVisible):
                     # If any of the bindings that the set uses are *visible*
                     # at the binding point, we need to materialize, to make
                     # sure that things get correlated properly. If it's not
                     # visible, then it's just being used internally and we
                     # don't need any special work.
-                    if any(parent.is_visible(b.path_id) for b in x.bindings):
+                    if any(parent.is_visible(b) for b in x.paths):
                         good_reason = True
 
             if not good_reason:
@@ -318,47 +320,7 @@ def _fixup_materialized_sets(
                 not any(use.src_path() for use in mat_set.uses)
                 or mat_set.materialized.rptr
             ), f"materialized ptr {mat_set.uses} missing rptr"
-
-
-class FindPathScopes(ast_visitor.NodeVisitor):
-    """Visitor to find the enclosing path scope id of sub expressions.
-
-    Sets inherit an effective scope id from enclosing expressions,
-    and this visitor computes those.
-    """
-    def __init__(self, check: bool) -> None:
-        super().__init__()
-        self.path_scope_ids: List[Optional[int]] = [None]
-
-    def visit_Stmt(self, stmt: irast.Stmt) -> Optional[int]:
-        # Sometimes there is sharing, so we want the official scope
-        # for a node to be based on its appearance in the result,
-        # not in a subquery.
-        # I think it might not actually matter, though.
-        self.visit(stmt.bindings)
-        if stmt.iterator_stmt:
-            self.visit(stmt.iterator_stmt)
-        if isinstance(stmt, irast.MutatingStmt):
-            self.visit(stmt.subject)
-        self.visit(stmt.result)
-
-        self.generic_visit(stmt)
-        return None
-
-    def visit_Set(self, node: irast.Set) -> Optional[int]:
-        val = self.path_scope_ids[-1]
-        if node.path_scope_id:
-            self.path_scope_ids.append(node.path_scope_id)
-        if not node.is_binding:
-            val = self.path_scope_ids[-1]
-
-        # Visit sub-trees
-        self.generic_visit(node)
-
-        if node.path_scope_id:
-            self.path_scope_ids.pop()
-
-        return val
+            mat_set.finalized = True
 
 
 def _try_namespace_fix(
@@ -402,11 +364,10 @@ def _rewrite_weak_namespaces(
     for node in tree.strict_descendants:
         _try_namespace_fix(node, node)
 
-    visitor = FindPathScopes(ctx.env.options.apply_query_rewrites)
-    visitor.visit(ir)
+    scopes = irutils.find_path_scopes(ir)
 
     for ir_set in ctx.env.set_types:
-        path_scope_id: Optional[int] = visitor.memo.get(ir_set)
+        path_scope_id: Optional[int] = scopes.get(ir_set)
         if path_scope_id is not None:
             # Some entries in set_types are from compiling views
             # in temporary scopes, so we need to just skip those.

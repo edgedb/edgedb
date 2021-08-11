@@ -252,9 +252,17 @@ _server_options = [
              'exiting with a catalog incompatibility error.'
     ),
     click.option(
-        '-l', '--log-level', default='i',
-        help=('Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '
-              '(e)rror, (s)ilent')),
+        '-l', '--log-level',
+        default='i',
+        type=click.Choice(
+            ['debug', 'd', 'info', 'i', 'warn', 'w',
+             'error', 'e', 'silent', 's'],
+            case_sensitive=False,
+        ),
+        help=(
+            'Logging level.  Possible values: (d)ebug, (i)nfo, (w)arn, '
+            '(e)rror, (s)ilent'
+        )),
     click.option(
         '--log-to',
         help=('send logs to DEST, where DEST can be a file name, "syslog", '
@@ -527,6 +535,9 @@ def parse_args(**kwargs: Any):
         and not kwargs['bootstrap_only']
     ):
         abort('Please specify a TLS certificate with --tls-cert-file.')
+
+    if kwargs['log_level']:
+        kwargs['log_level'] = kwargs['log_level'].lower()[0]
 
     bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_script']:

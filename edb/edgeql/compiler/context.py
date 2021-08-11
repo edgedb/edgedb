@@ -87,7 +87,6 @@ class ViewRPtr:
 
 @dataclasses.dataclass
 class StatementMetadata:
-    is_unnest_fence: bool = False
     iterator_target: bool = False
 
 
@@ -443,7 +442,10 @@ class ContextLevel(compiler.ContextLevel):
     banned_paths: Set[irast.PathId]
     """A set of path ids that are considered invalid in this context."""
 
-    view_map: ChainMap[irast.PathId, Tuple[irast.PathId, irast.Set]]
+    view_map: ChainMap[
+        irast.PathId,
+        Tuple[Tuple[irast.PathId, irast.Set], ...],
+    ]
     """Set translation map.  Used for mapping computable sources..
 
     When compiling a computable, we need to be able to map references to

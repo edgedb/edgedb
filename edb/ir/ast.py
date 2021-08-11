@@ -478,11 +478,11 @@ class MaterializeVolatile(typing.NamedTuple):
     pass
 
 
-class MaterializeBindings(typing.NamedTuple):
-    bindings: typing.Set[Set]
+class MaterializeVisible(typing.NamedTuple):
+    paths: typing.Set[PathId]
 
 
-MaterializeReason = typing.Union[MaterializeVolatile, MaterializeBindings]
+MaterializeReason = typing.Union[MaterializeVolatile, MaterializeVisible]
 
 
 class ComputableInfo(typing.NamedTuple):
@@ -761,6 +761,10 @@ class MaterializedSet(Base):
     # namespace rewriting.
     use_sets: typing.List[Set]
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
+
+    # Whether this has been "finalized" by stmtctx; just for supporting some
+    # assertions
+    finalized: bool = False
 
     @property
     def uses(self) -> typing.List[PathId]:

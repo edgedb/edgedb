@@ -323,7 +323,62 @@ def contains_dml(stmt: irast.Base, *, skip_bindings: bool=False) -> bool:
     return res
 
 
-class FindBindingVisitor(ast.NodeVisitor):
+class FindPathScopes(ast.NodeVisitor):
+    """Visitor to find the enclosing path scope id of sub expressions.
+
+    Sets inherit an effective scope id from enclosing expressions,
+    and this visitor computes those.
+
+    This is set up so that another visitor could inherit from it,
+    override process_set, and also collect the scope tree info.
+    """
+    def __init__(self) -> None:
+        super().__init__()
+        self.path_scope_ids: List[Optional[int]] = [None]
+        self.scopes: Dict[irast.Set, Optional[int]] = {}
+
+    def visit_Stmt(self, stmt: irast.Stmt) -> Any:
+        # Sometimes there is sharing, so we want the official scope
+        # for a node to be based on its appearance in the result,
+        # not in a subquery.
+        # I think it might not actually matter, though.
+        self.visit(stmt.bindings)
+        if stmt.iterator_stmt:
+            self.visit(stmt.iterator_stmt)
+        if isinstance(stmt, irast.MutatingStmt):
+            self.visit(stmt.subject)
+        self.visit(stmt.result)
+
+        return self.generic_visit(stmt)
+
+    def visit_Set(self, node: irast.Set) -> Any:
+        val = self.path_scope_ids[-1]
+        if node.path_scope_id:
+            self.path_scope_ids.append(node.path_scope_id)
+        if not node.is_binding:
+            val = self.path_scope_ids[-1]
+
+        # Visit sub-trees
+        self.scopes[node] = val
+        res = self.process_set(node)
+
+        if node.path_scope_id:
+            self.path_scope_ids.pop()
+
+        return res
+
+    def process_set(self, node: irast.Set) -> Any:
+        self.generic_visit(node)
+        return None
+
+
+def find_path_scopes(stmt: irast.Base) -> Dict[irast.Set, Optional[int]]:
+    visitor = FindPathScopes()
+    visitor.visit(stmt)
+    return visitor.scopes
+
+
+class FindPotentiallyVisibleVisitor(FindPathScopes):
     skip_hidden = True
     extra_skips = frozenset(['materialized_sets'])
 
@@ -341,33 +396,62 @@ class FindBindingVisitor(ast.NodeVisitor):
                     out.update(x)
         return out
 
-    def visit_Set(self, node: irast.Set) -> Set[irast.Set]:
+    def process_set(self, node: irast.Set) -> Set[irast.Set]:
         if node.path_id in self.to_skip:
             return set()
 
-        if node.is_binding:
-            return {node}
-
         results = []
         results.append(self.visit(node.rptr))
-        # If the root of a path is bound, say that the whole path is
+        # If the root of a path is potentially visible,
+        # say that the whole path is
         if self.combine_field_results(results):
             results.append({node})
         results.append(self.visit(node.shape))
         if not node.rptr:
             results.append(self.visit(node.expr))
 
+        # Bound variables are always potentially visible as are object
+        # references (which have no expr or rptr).
+        if (
+            node.is_binding
+            or (not node.expr and not node.rptr)
+        ):
+            results.append({node})
+
         # Visit sub-trees
         return self.combine_field_results(results)
 
 
-def find_bindings(
-    stmt: irast.Base, to_skip: AbstractSet[irast.PathId]=frozenset()
-) -> Set[irast.Set]:
-    """Check whether a statement contains any bindings in a subtree."""
+def find_potentially_visible(
+    stmt: irast.Base,
+    scope: irast.ScopeTreeNode,
+    scope_tree_nodes: Mapping[int, irast.ScopeTreeNode],
+    to_skip: AbstractSet[irast.PathId]=frozenset()
+) -> Set[irast.PathId]:
+    """Find all "potentially visible" sets referenced."""
     # TODO: Make this caching.
-    visitor = FindBindingVisitor(to_skip=to_skip)
-    return cast(Set[irast.Set], visitor.visit(stmt))
+    visitor = FindPotentiallyVisibleVisitor(to_skip=to_skip)
+    visible_sets = cast(Set[irast.Set], visitor.visit(stmt))
+
+    visible_paths = set()
+    for ir in visible_sets:
+        path_id = ir.path_id
+        # Collect any namespaces between where the set is referred to
+        # and the binding point we are looking from, and strip those off.
+        # We need to do this because visibility *from the binding point*
+        # needs to not include namespaces defined below it.
+        # (See test_edgeql_scope_ref_side_02 for an example where this
+        # matters.)
+        if (set_scope_id := visitor.scopes.get(ir)) is not None:
+            set_scope = scope_tree_nodes[set_scope_id]
+            for anc, ns in set_scope.ancestors_and_namespaces:
+                if anc is scope:
+                    path_id = path_id.strip_namespace(ns)
+                    break
+
+        visible_paths.add(path_id)
+
+    return visible_paths
 
 
 def contains_set_of_op(ir: irast.Base) -> bool:

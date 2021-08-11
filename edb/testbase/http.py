@@ -55,12 +55,11 @@ class BaseHttpTest:
     def setUpClass(cls):
         super().setUpClass()
 
-        cls.tls_context = ssl.SSLContext()
-        cls.tls_context.verify_mode = ssl.CERT_REQUIRED
-        cls.tls_context.check_hostname = False
-        cls.tls_context.load_verify_locations(
-            cafile=cls.get_connect_args()['tls_ca_file']
+        cls.tls_context = ssl.create_default_context(
+            ssl.Purpose.SERVER_AUTH,
+            cafile=cls.get_connect_args()['tls_ca_file'],
         )
+        cls.tls_context.check_hostname = False
 
         cls.http_host, cls.http_port = cls.con.connected_addr()
         api_path = cls.get_api_path()

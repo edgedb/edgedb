@@ -381,23 +381,18 @@ def _init_cluster(data_dir=None, postgres_dsn=None, *,
             "data_dir and postgres_dsn cannot be set at the same time")
     if init_settings is None:
         init_settings = {}
-    if (not os.environ.get('EDGEDB_DEBUG_SERVER') and
-            not os.environ.get('EDGEDB_LOG_LEVEL')):
-        _env = {'EDGEDB_LOG_LEVEL': 'silent'}
-    else:
-        _env = {}
 
     if postgres_dsn:
         cluster = edgedb_cluster.TempClusterWithRemotePg(
-            postgres_dsn, env=_env, testmode=True, log_level='s')
+            postgres_dsn, testmode=True, log_level='s')
         destroy = True
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
-            env=_env, testmode=True, log_level='s')
+            testmode=True, log_level='s')
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
-            data_dir=data_dir, env=_env, log_level='s')
+            data_dir=data_dir, log_level='s')
         destroy = False
 
     if cluster.get_status() == 'not-initialized':
@@ -1509,8 +1504,7 @@ class _EdgeDBServer:
 
         reset_auth = self.reset_auth
 
-        if self.debug:
-            cmd.extend(['--log-level', 'd'])
+        cmd.extend(['--log-level', 'd' if self.debug else 's'])
         if self.max_allowed_connections is not None:
             cmd.extend([
                 '--max-backend-connections', str(self.max_allowed_connections),
@@ -1577,7 +1571,7 @@ class _EdgeDBServer:
 
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
-            stdout=None if self.debug else subprocess.DEVNULL,
+            stdout=None,
             stderr=subprocess.STDOUT,
             pass_fds=(status_w.fileno(),),
         )

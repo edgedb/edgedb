@@ -1040,7 +1040,7 @@ class Server:
             tls_password_needed = True
             return os.environ.get('EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD', '')
 
-        sslctx = ssl.SSLContext()
+        sslctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         try:
             sslctx.load_cert_chain(
                 tls_cert_file,

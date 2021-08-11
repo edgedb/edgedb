@@ -43,16 +43,17 @@ except ImportError:
 
 
 RUNTIME_DEPS = [
-    'asyncpg~=0.22.0',
+    'asyncpg~=0.24.0',
+    'httptools>=0.3.0',
+    'immutables>=0.16',
+    'uvloop~=0.16.0',
+
     'click~=7.1',
-    'httptools>=0.0.13',
-    'immutables>=0.15',
     'parsing~=1.6.1',
     'psutil~=5.8.0',
     'setproctitle~=1.1.10',
     'setuptools-rust~=0.11.4',
     'setuptools_scm~=3.2.0',
-    'uvloop~=0.15.3',
     "typing_inspect~=0.5.0;python_version<'3.9'",
     'wcwidth~=0.2.5',
     'cryptography~=3.4.7',

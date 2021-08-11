@@ -582,7 +582,7 @@ def _normalize_view_ptr_expr(
                 is_insert=is_insert, is_update=is_update, ctx=ctx)
             materialized = setgen.should_materialize(
                 irexpr, ptrcls=ptrcls,
-                binding_pessimism=True, skipped_bindings={path_id},
+                materialize_visible=True, skipped_bindings={path_id},
                 ctx=ctx)
             ptr_target = inference.infer_type(irexpr, ctx.env)
 
@@ -683,7 +683,7 @@ def _normalize_view_ptr_expr(
             is_insert=is_insert, is_update=is_update, ctx=ctx)
         materialized = setgen.should_materialize(
             irexpr, ptrcls=ptrcls,
-            binding_pessimism=True, skipped_bindings={path_id},
+            materialize_visible=True, skipped_bindings={path_id},
             ctx=ctx)
         ptr_target = inference.infer_type(irexpr, ctx.env)
 
@@ -1313,7 +1313,6 @@ def _compile_view_shapes_in_set(
             element = setgen.extend_path(
                 path_tip,
                 ptr,
-                unnest_fence=True,
                 same_computable_scope=True,
                 srcctx=srcctx,
                 ctx=ctx,
