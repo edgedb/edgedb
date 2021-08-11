@@ -384,11 +384,12 @@ def _init_cluster(data_dir=None, postgres_dsn=None, *,
 
     if postgres_dsn:
         cluster = edgedb_cluster.TempClusterWithRemotePg(
-            postgres_dsn, testmode=True, log_level='s')
+            postgres_dsn, testmode=True, log_level='s',
+            data_dir_prefix='edb-test-')
         destroy = True
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
-            testmode=True, log_level='s')
+            testmode=True, log_level='s', data_dir_prefix='edb-test-')
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
