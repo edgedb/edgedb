@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import asyncio
 import collections.abc
 import csv
 import dataclasses
@@ -795,20 +796,27 @@ class ParallelTextTestRunner:
                         nl=False,
                     )
 
-                cluster = tb._init_cluster(
-                    postgres_dsn=self.postgres_dsn, cleanup_atexit=False
-                )
+                async def _setup():
+                    nonlocal conn
 
-                if self.verbosity > 1:
-                    self._echo(' OK')
+                    cluster = await tb.init_cluster(
+                        postgres_dsn=self.postgres_dsn,
+                        cleanup_atexit=False,
+                    )
 
-                conn = cluster.get_connect_args()
-                setup_stats = tb.setup_test_cases(
-                    cases,
-                    conn,
-                    self.num_workers,
-                    verbose=self.verbosity > 1,
-                )
+                    if self.verbosity > 1:
+                        self._echo(' OK')
+
+                    conn = cluster.get_connect_args()
+
+                    return await tb.setup_test_cases(
+                        cases,
+                        conn,
+                        self.num_workers,
+                        verbose=self.verbosity > 1,
+                    )
+
+                setup_stats = asyncio.run(_setup())
 
                 os.environ.update({
                     'EDGEDB_TEST_CASES_SET_UP': "1"

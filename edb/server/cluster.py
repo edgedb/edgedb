@@ -18,17 +18,19 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import asyncio
 import json
 import os
+import pathlib
 import socket
 import subprocess
 import sys
 import tempfile
 import time
-import typing
 
+import asyncpg
 import edgedb
 
 from edb.common import devmode
@@ -45,8 +47,15 @@ class ClusterError(Exception):
 
 
 class BaseCluster:
-    def __init__(self, runstate_dir, *, port=edgedb_defines.EDGEDB_PORT,
-                 env=None, testmode=False, log_level=None):
+    def __init__(
+        self,
+        runstate_dir: pathlib.Path,
+        *,
+        port: int = edgedb_defines.EDGEDB_PORT,
+        env: Optional[Mapping[str, str]] = None,
+        testmode: bool = False,
+        log_level: Optional[str] = None,
+    ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
         if log_level:
@@ -62,77 +71,91 @@ class BaseCluster:
 
         self._log_level = log_level
         self._runstate_dir = runstate_dir
-        self._edgedb_cmd.extend(['--runstate-dir', runstate_dir])
-        self._pg_cluster = self._get_pg_cluster()
-        self._pg_connect_args = {}
-        self._daemon_process = None
+        self._edgedb_cmd.extend(['--runstate-dir', str(runstate_dir)])
+        self._pg_cluster: Optional[pgcluster.BaseCluster] = None
+        self._pg_connect_args: Dict[str, Any] = {}
+        self._daemon_process: Optional[subprocess.Popen[str]] = None
         self._port = port
         self._effective_port = None
         self._tls_cert_file = None
         self._env = env
 
-    def _get_pg_cluster(self):
+    async def _get_pg_cluster(self) -> pgcluster.BaseCluster:
+        if self._pg_cluster is None:
+            self._pg_cluster = await self._new_pg_cluster()
+        return self._pg_cluster
+
+    async def _new_pg_cluster(self) -> pgcluster.BaseCluster:
         raise NotImplementedError()
 
-    def get_status(self):
-        pg_status = self._pg_cluster.get_status()
+    async def get_status(self) -> str:
+        pg_cluster = await self._get_pg_cluster()
+        pg_status = pg_cluster.get_status()
         initially_stopped = pg_status == 'stopped'
 
         if initially_stopped:
-            self._pg_cluster.start()
+            await pg_cluster.start()
         elif pg_status == 'not-initialized':
             return 'not-initialized'
 
         conn = None
-        loop = asyncio.new_event_loop()
         try:
-            conn = loop.run_until_complete(
-                self._pg_cluster.connect(
-                    timeout=5, **self._pg_connect_args))
+            conn = await pg_cluster.connect(
+                timeout=5,
+                **self._pg_connect_args,
+            )
 
-            db_exists = loop.run_until_complete(
-                self._edgedb_template_exists(conn))
+            db_exists = await self._edgedb_template_exists(conn)
         finally:
             if conn is not None:
-                conn.terminate()
-            loop.run_until_complete(asyncio.sleep(0))
-            loop.close()
+                await conn.close()
+            await asyncio.sleep(0)
             if initially_stopped:
-                self._pg_cluster.stop()
+                pg_cluster.stop()
 
         if initially_stopped:
             return 'stopped' if db_exists else 'not-initialized,stopped'
         else:
             return 'running' if db_exists else 'not-initialized,running'
 
-    def get_connect_args(self):
+    def get_connect_args(self) -> Dict[str, Any]:
         return {
             'host': 'localhost',
             'port': self._effective_port,
             'tls_ca_file': self._tls_cert_file,
         }
 
-    async def async_connect(self, **kwargs):
+    async def async_connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
         connect_args = self.get_connect_args().copy()
         connect_args.update(kwargs)
 
         return await edgedb.async_connect(**connect_args)
 
-    def connect(self, **kwargs):
+    def connect(self, **kwargs: Any) -> edgedb.BlockingIOConnection:
         connect_args = self.get_connect_args().copy()
         connect_args.update(kwargs)
 
         return edgedb.connect(**connect_args)
 
-    def init(self, *, server_settings=None):
-        cluster_status = self.get_status()
+    async def init(
+        self,
+        *,
+        server_settings: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        cluster_status = await self.get_status()
 
         if not cluster_status.startswith('not-initialized'):
             raise ClusterError('cluster has already been initialized')
 
         self._init()
 
-    def start(self, wait=60, *, port: int=None, **settings):
+    async def start(
+        self,
+        wait: int=60,
+        *,
+        port: Optional[int] = None,
+        **settings: Any,
+    ) -> None:
         if port is None:
             port = self._port
 
@@ -149,7 +172,7 @@ class BaseCluster:
             status_r, status_w = socket.socketpair()
             extra_args.append(f'--emit-server-status=fd://{status_w.fileno()}')
 
-        env: typing.Optional[dict]
+        env: Optional[Dict[str, str]]
         if self._env:
             env = os.environ.copy()
             env.update(self._env)
@@ -166,18 +189,20 @@ class BaseCluster:
         if status_w is not None:
             status_w.close()
 
-        self._wait_for_server(timeout=wait, status_sock=status_r)
+        await self._wait_for_server(timeout=wait, status_sock=status_r)
 
-    def stop(self, wait=60):
+    def stop(self, wait: int = 60) -> None:
         if (self._daemon_process is not None and
                 self._daemon_process.returncode is None):
             self._daemon_process.terminate()
             self._daemon_process.wait(wait)
 
-    def destroy(self):
-        self._pg_cluster.destroy()
+    def destroy(self) -> None:
+        if self._pg_cluster is not None:
+            self._pg_cluster.destroy()
 
-    def _init(self):
+    def _init(self) -> None:
+        env: Optional[Dict[str, str]]
         if self._env:
             env = os.environ.copy()
             env.update(self._env)
@@ -194,17 +219,25 @@ class BaseCluster:
                 f'edgedb-server --bootstrap-only failed with '
                 f'exit code {init.returncode}')
 
-    async def _edgedb_template_exists(self, conn):
-        st = await conn.prepare(
-            '''
-            SELECT True FROM pg_catalog.pg_database WHERE datname = $1
-        ''')
+    async def _edgedb_template_exists(
+        self,
+        conn: asyncpg.Connection,
+    ) -> bool:
+        exists = await conn.fetchval(
+            "SELECT True FROM pg_catalog.pg_database WHERE datname = $1",
+            edgedb_defines.EDGEDB_TEMPLATE_DB,
+        )
+        return exists  # type: ignore
 
-        return await st.fetchval(edgedb_defines.EDGEDB_TEMPLATE_DB)
+    async def _wait_for_server(
+        self,
+        timeout: float = 30.0,
+        status_sock: Optional[socket.socket] = None,
+    ) -> None:
 
-    def _wait_for_server(self, timeout=30, status_sock=None):
-
-        async def _read_server_status(stream: asyncio.StreamReader):
+        async def _read_server_status(
+            stream: asyncio.StreamReader,
+        ) -> Dict[str, Any]:
             while True:
                 line = await stream.readline()
                 if not line:
@@ -214,14 +247,14 @@ class BaseCluster:
 
             _, _, dataline = line.decode().partition('=')
             try:
-                return json.loads(dataline)
+                return json.loads(dataline)  # type: ignore
             except Exception as e:
                 raise ClusterError(
                     f"EdgeDB server returned invalid status line: "
                     f"{dataline!r} ({e})"
                 )
 
-        async def test():
+        async def test() -> None:
             stat_reader, stat_writer = await asyncio.open_connection(
                 sock=status_sock,
             )
@@ -243,7 +276,7 @@ class BaseCluster:
         left = timeout
         if status_sock is not None:
             started = time.monotonic()
-            asyncio.run(test())
+            await test()
             left -= (time.monotonic() - started)
 
         if self._admin_query("SELECT ();", f"{max(1, int(left))}s"):
@@ -251,7 +284,11 @@ class BaseCluster:
                 f'could not connect to edgedb-server '
                 f'within {timeout} seconds') from None
 
-    def _admin_query(self, query, wait_until_available="0s"):
+    def _admin_query(
+        self,
+        query: str,
+        wait_until_available: str = "0s",
+    ) -> int:
         return subprocess.call(
             [
                 "edgedb",
@@ -273,13 +310,13 @@ class BaseCluster:
             stderr=subprocess.STDOUT,
         )
 
-    def set_superuser_password(self, password):
+    async def set_superuser_password(self, password: str) -> None:
         self._admin_query(f'''
             ALTER ROLE {edgedb_defines.EDGEDB_SUPERUSER}
             SET password := {quote.quote_literal(password)}
         ''')
 
-    def trust_local_connections(self):
+    async def trust_local_connections(self) -> None:
         self._admin_query('''
             CONFIGURE INSTANCE INSERT Auth {
                 priority := 0,
@@ -290,9 +327,16 @@ class BaseCluster:
 
 class Cluster(BaseCluster):
     def __init__(
-            self, data_dir, *,
-            pg_superuser='postgres', port=edgedb_defines.EDGEDB_PORT,
-            runstate_dir=None, env=None, testmode=False, log_level=None):
+        self,
+        data_dir: pathlib.Path,
+        *,
+        pg_superuser: str = 'postgres',
+        port: int = edgedb_defines.EDGEDB_PORT,
+        runstate_dir: Optional[pathlib.Path] = None,
+        env: Optional[Mapping[str, str]] = None,
+        testmode: bool = False,
+        log_level: Optional[str] = None,
+    ) -> None:
         self._data_dir = data_dir
         if runstate_dir is None:
             runstate_dir = buildmeta.get_runstate_path(self._data_dir)
@@ -303,21 +347,25 @@ class Cluster(BaseCluster):
             testmode=testmode,
             log_level=log_level,
         )
-        self._edgedb_cmd.extend(['-D', self._data_dir])
+        self._edgedb_cmd.extend(['-D', str(self._data_dir)])
         self._pg_connect_args['user'] = pg_superuser
         self._pg_connect_args['database'] = 'template1'
 
-    def _get_pg_cluster(self):
+    async def _new_pg_cluster(self) -> pgcluster.Cluster:
         return pgcluster.get_local_pg_cluster(
             self._data_dir,
             log_level=self._log_level,
         )
 
-    def get_data_dir(self):
+    def get_data_dir(self) -> pathlib.Path:
         return self._data_dir
 
-    def init(self, *, server_settings=None):
-        cluster_status = self.get_status()
+    async def init(
+        self,
+        *,
+        server_settings: Optional[Mapping[str, str]] = None,
+    ) -> None:
+        cluster_status = await self.get_status()
 
         if not cluster_status.startswith('not-initialized'):
             raise ClusterError(
@@ -329,56 +377,93 @@ class Cluster(BaseCluster):
 
 class TempCluster(Cluster):
     def __init__(
-            self, *, data_dir_suffix=None, data_dir_prefix=None,
-            data_dir_parent=None, env=None, testmode=False, log_level=None):
-        tempdir = tempfile.mkdtemp(
-            suffix=data_dir_suffix, prefix=data_dir_prefix,
-            dir=data_dir_parent)
-        super().__init__(data_dir=tempdir, runstate_dir=tempdir, env=env,
-                         testmode=testmode, log_level=log_level)
+        self,
+        *,
+        data_dir_suffix: Optional[str] = None,
+        data_dir_prefix: Optional[str] = None,
+        data_dir_parent: Optional[str] = None,
+        env: Optional[Mapping[str, str]] = None,
+        testmode: bool = False,
+        log_level: Optional[str] = None,
+    ) -> None:
+        tempdir = pathlib.Path(
+            tempfile.mkdtemp(
+                suffix=data_dir_suffix,
+                prefix=data_dir_prefix,
+                dir=data_dir_parent,
+            ),
+        )
+        super().__init__(
+            data_dir=tempdir,
+            runstate_dir=tempdir,
+            env=env,
+            testmode=testmode,
+            log_level=log_level,
+        )
 
 
 class RunningCluster(BaseCluster):
-    def __init__(self, **conn_args):
+    def __init__(self, **conn_args: Any) -> None:
         self.conn_args = conn_args
 
-    def is_managed(self):
+    def is_managed(self) -> bool:
         return False
 
-    def ensure_initialized(self):
+    def ensure_initialized(self) -> bool:
         return False
 
-    def get_connect_args(self):
+    def get_connect_args(self) -> Dict[str, Any]:
         return dict(self.conn_args)
 
-    def get_status(self):
+    async def get_status(self) -> str:
         return 'running'
 
-    def init(self, **settings):
+    async def init(
+        self,
+        *,
+        server_settings: Optional[Mapping[str, str]] = None,
+    ) -> None:
         pass
 
-    def start(self, wait=60, **settings):
+    async def start(
+        self,
+        wait: int=60,
+        *,
+        port: Optional[int] = None,
+        **settings: Any,
+    ) -> None:
         pass
 
-    def stop(self, wait=60):
+    def stop(self, wait: int = 60) -> None:
         pass
 
-    def destroy(self):
+    def destroy(self) -> None:
         pass
 
 
 class TempClusterWithRemotePg(BaseCluster):
-    def __init__(self, postgres_dsn, *, data_dir_suffix=None,
-                 data_dir_prefix=None, data_dir_parent=None,
-                 env=None, testmode=False, log_level=None):
-        runstate_dir = tempfile.mkdtemp(
-            suffix=data_dir_suffix, prefix=data_dir_prefix,
-            dir=data_dir_parent)
+    def __init__(
+        self,
+        postgres_dsn: str,
+        *,
+        data_dir_suffix: Optional[str] = None,
+        data_dir_prefix: Optional[str] = None,
+        data_dir_parent: Optional[str] = None,
+        env: Optional[Mapping[str, str]] = None,
+        testmode: bool = False,
+        log_level: Optional[str] = None,
+    ) -> None:
+        runstate_dir = pathlib.Path(
+            tempfile.mkdtemp(
+                suffix=data_dir_suffix,
+                prefix=data_dir_prefix,
+                dir=data_dir_parent,
+            ),
+        )
         self._pg_dsn = postgres_dsn
         super().__init__(
-            runstate_dir, env=env, testmode=testmode, log_level=log_level
-        )
+            runstate_dir, env=env, testmode=testmode, log_level=log_level)
         self._edgedb_cmd.extend(['--postgres-dsn', postgres_dsn])
 
-    def _get_pg_cluster(self):
-        return pgcluster.get_remote_pg_cluster(self._pg_dsn)
+    async def _new_pg_cluster(self) -> pgcluster.BaseCluster:
+        return await pgcluster.get_remote_pg_cluster(self._pg_dsn)

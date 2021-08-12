@@ -18,7 +18,9 @@
 
 
 from __future__ import annotations
+from typing import *
 
+import asyncio
 import os.path
 import pathlib
 import shutil
@@ -47,7 +49,7 @@ class TestRunner:
         return TestResult()
 
 
-def execute(tests_dir, conn, num_workers, include):
+async def execute(tests_dir, conn, num_workers, include):
     runner = TestRunner()
     include = [x for pat in include for x in ['-k', pat]]
     unittest.main(
@@ -55,7 +57,7 @@ def execute(tests_dir, conn, num_workers, include):
         argv=['unittest', 'discover', '-s', tests_dir, *include],
         testRunner=runner, exit=False)
 
-    tb.setup_test_cases(runner.cases, conn, num_workers)
+    await tb.setup_test_cases(runner.cases, conn, num_workers)
 
 
 def die(msg):
@@ -90,13 +92,30 @@ def inittestdb(*, data_dir, jobs, tests_dir, include):
     if not jobs:
         jobs = os.cpu_count()
 
-    cluster = edgedb_cluster.Cluster(data_dir, testmode=True)
+    asyncio.run(
+        _inittestdb(
+            jobs=jobs,
+            data_dir=data_dir,
+            tests_dir=tests_dir,
+            include=include,
+        ),
+    )
+
+
+async def _inittestdb(
+    *,
+    jobs: int,
+    data_dir: str,
+    tests_dir: str,
+    include: List[str],
+) -> None:
+    cluster = edgedb_cluster.Cluster(pathlib.Path(data_dir), testmode=True)
     print(f'Bootstrapping test EdgeDB instance in {data_dir}...')
 
     try:
-        cluster.init()
-        cluster.start(port=0)
-        cluster.trust_local_connections()
+        await cluster.init()
+        await cluster.start(port=0)
+        await cluster.trust_local_connections()
     except BaseException:
         if os.path.exists(data_dir):
             shutil.rmtree(data_dir)
@@ -106,7 +125,7 @@ def inittestdb(*, data_dir, jobs, tests_dir, include):
     destroy_cluster = False
 
     try:
-        execute(tests_dir, conn, num_workers=jobs, include=include)
+        await execute(tests_dir, conn, num_workers=jobs, include=include)
         print(f'Initialized and populated test EdgeDB instance in {data_dir}')
     except BaseException:
         destroy_cluster = True

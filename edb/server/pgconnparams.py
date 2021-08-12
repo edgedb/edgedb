@@ -49,7 +49,7 @@ class SSLMode(enum.IntEnum):
 
 @dataclasses.dataclass
 class ConnectionParameters:
-    user: Optional[str] = None
+    user: str
     password: Optional[str] = None
     database: Optional[str] = None
     ssl: Optional[ssl_module.SSLContext] = None

@@ -73,7 +73,7 @@ def abort(msg, *args) -> NoReturn:
 
 @contextlib.contextmanager
 def _ensure_runstate_dir(
-    default_runstate_dir: pathlib.Path,
+    default_runstate_dir: Optional[pathlib.Path],
     specified_runstate_dir: Optional[pathlib.Path]
 ) -> Iterator[pathlib.Path]:
     temp_runstate_dir = None
@@ -81,10 +81,12 @@ def _ensure_runstate_dir(
     if specified_runstate_dir is None:
         if default_runstate_dir is None:
             temp_runstate_dir = tempfile.TemporaryDirectory(prefix='edbrun-')
-            default_runstate_dir = temp_runstate_dir.name
+            runstate_parent = pathlib.Path(temp_runstate_dir.name)
+        else:
+            runstate_parent = default_runstate_dir
 
         try:
-            runstate_dir = buildmeta.get_runstate_path(default_runstate_dir)
+            runstate_dir = buildmeta.get_runstate_path(runstate_parent)
         except buildmeta.MetadataError:
             abort(
                 f'cannot determine the runstate directory location; '
@@ -132,10 +134,10 @@ def _internal_state_dir(runstate_dir):
               f'--runstate-dir to specify the correct location')
 
 
-def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
+async def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
     from edb.server import bootstrap
 
-    need_restart = asyncio.run(bootstrap.ensure_bootstrapped(cluster, args))
+    need_restart = await bootstrap.ensure_bootstrapped(cluster, args)
     global _server_initialized
     _server_initialized = True
 
@@ -292,8 +294,11 @@ def _generate_cert(
     return cert_file, key_file
 
 
-def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
-
+async def run_server(
+    args: srvargs.ServerConfig,
+    *,
+    do_setproctitle: bool=False,
+) -> None:
     from . import server as server_mod
     global server
     server = server_mod
@@ -319,6 +324,7 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
         tenant_id = f'C{args.tenant_id}'
 
     cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
+    default_runstate_dir: Optional[pathlib.Path]
     if args.data_dir:
         pg_max_connections = args.max_backend_connections
         if not pg_max_connections:
@@ -347,7 +353,7 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
             ),
         )
     elif args.postgres_dsn:
-        cluster = pgcluster.get_remote_pg_cluster(
+        cluster = await pgcluster.get_remote_pg_cluster(
             args.postgres_dsn,
             tenant_id=tenant_id,
         )
@@ -401,19 +407,19 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                 _internal_state_dir(runstate_dir) as internal_runstate_dir:
 
             if cluster_status == 'stopped':
-                cluster.start()
+                await cluster.start()
                 pg_cluster_started_by_us = True
 
             elif cluster_status != 'running':
                 abort('Could not start database cluster in %s',
                       args.data_dir)
 
-            need_cluster_restart = _init_cluster(cluster, args)
+            need_cluster_restart = await _init_cluster(cluster, args)
 
             if need_cluster_restart and pg_cluster_started_by_us:
                 logger.info('Restarting server to reload configuration...')
                 cluster.stop()
-                cluster.start()
+                await cluster.start()
 
             if (
                 not args.bootstrap_only
@@ -432,14 +438,12 @@ def run_server(args: srvargs.ServerConfig, *, do_setproctitle: bool=False):
                         ),
                     )
 
-                asyncio.run(
-                    _run_server(
-                        cluster,
-                        args,
-                        runstate_dir,
-                        internal_runstate_dir,
-                        do_setproctitle=do_setproctitle,
-                    )
+                await _run_server(
+                    cluster,
+                    args,
+                    runstate_dir,
+                    internal_runstate_dir,
+                    do_setproctitle=do_setproctitle,
                 )
 
     except server.StartupError as e:
@@ -502,10 +506,10 @@ def server_main(*, insecure=False, **kwargs):
         if kwargs['daemon_group']:
             daemon_opts['gid'] = kwargs['daemon_group']
         with daemon.DaemonContext(**daemon_opts):
-            run_server(server_args, setproctitle=True)
+            asyncio.run(run_server(server_args, setproctitle=True))
     else:
         with devmode.CoverageConfig.enable_coverage_if_requested():
-            run_server(server_args)
+            asyncio.run(run_server(server_args))
 
 
 @click.command(
