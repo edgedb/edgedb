@@ -104,7 +104,7 @@ planned or in development.
 
 # Getting Started
 
-Please refer to the [Tutorial](https://edgedb.com/docs/tutorial/index) section
+Please refer to the [Tutorial](https://edgedb.com/docs/quickstart) section
 of the documentation on how to install and run EdgeDB.
 
 # Documentation
