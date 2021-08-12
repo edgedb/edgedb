@@ -43,7 +43,6 @@ VOLATILE = qltypes.Volatility.Volatile
 # A basic one, and one for consumption by materialization.
 #
 # The one for consumption by materialization differs in that it
-# does not consider variable bindings to be Stable and that it
 # (counterintuitively) does not consider DML to be volatile
 # (since DML has its own "materialization" mechanism).
 #
@@ -164,7 +163,7 @@ def __infer_set(
         ])
 
     if ir.is_binding:
-        vol = (STABLE, _normalize_volatility(vol)[1])
+        vol = STABLE
 
     return vol
 
