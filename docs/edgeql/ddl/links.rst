@@ -118,7 +118,7 @@ subcommands are allowed in the ``CREATE LINK`` block:
 Examples
 --------
 
-Define a new link ``interests`` on the ``User`` object type:
+Define a new link ``friends`` on the ``User`` object type:
 
 .. code-block:: edgeql
 
@@ -139,8 +139,8 @@ friends from the same town:
         )
     };
 
-Define a new abstract link ``orderable``, and then a concrete link
-``interests`` that extends it, inheriting the ``weight`` property:
+Define a new abstract link ``orderable`` and a concrete link
+``interests`` that extends it, inheriting its ``weight`` property:
 
 .. code-block:: edgeql
 
@@ -215,7 +215,7 @@ Description
 the definition of a concrete link for a given object type.
 
 ``ALTER ABSTRACT LINK`` changes the definition of an abstract link item.
-*name* must be a name of an existing abstract link, optionally qualified
+*name* must be the identity of an existing abstract link, optionally qualified
 with a module name.
 
 Parameters
@@ -262,17 +262,16 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     supertypes.
 
 :eql:synopsis:`SET SINGLE`
-    Change the maximum cardinality of the link set to *one*.  Only
+    Change the link set's maximum cardinality to *one*.  Only
     valid for concrete links.
 
 :eql:synopsis:`SET MULTI`
-    Change the maximum cardinality of the link set to *greater than one*.
-    Only valid for concrete links;
+    Remove the upper limit on the link set's cardinality. Only valid for 
+    concrete links.
 
 :eql:synopsis:`RESET CARDINALITY`
-    Reset the maximum cardinality of the link to the default value
-    (``SINGLE``), or, if the link is inherited, to the value inherited
-    from links in supertypes.
+    Reset the link set's maximum cardinality to the default value
+    (``SINGLE``), or to the value inherited from the link's supertypes.
 
 :eql:synopsis:`SET TYPE <typename> [USING (<conversion-expr)]`
     Change the type of the link to the specified
@@ -283,9 +282,10 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     if there is no implicit or assignment cast from old to new type.
 
 :eql:synopsis:`RESET TYPE`
-    Reset the type of the link to the type inherited from links of the same
-    name in supertypes.  It is an error to ``RESET TYPE`` on a link that is
-    not inherited.
+    Reset the type of the link to be strictly the inherited type. This only 
+    has an effect on links that have been :ref:`overloaded
+    <ref_eql_sdl_links_overloading>` in order to change their inherited 
+    type. It is an error to ``RESET TYPE`` on a link that is not inherited.
 
 :eql:synopsis:`USING (<computed-expr>)`
     Change the expression of a :ref:`computed link
@@ -334,13 +334,13 @@ valid subcommands for ``ALTER LINK`` block.
 Examples
 --------
 
-Set the ``title`` annotation of link ``friends`` of object type ``User`` to
-``"Friends"``:
+On the object type ``User``, set the ``title`` annotation of its
+``friends`` link to ``"Friends"``:
 
 .. code-block:: edgeql
 
     ALTER TYPE User {
-        ALTER LINK interests CREATE ANNOTATION title := "Interests";
+        ALTER LINK friends CREATE ANNOTATION title := "Friends";
     };
 
 Rename the abstract link ``orderable`` to ``sorted``:
