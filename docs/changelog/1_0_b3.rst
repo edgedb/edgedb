@@ -255,12 +255,12 @@ instance information, so all the bindings need to be updated to their
 latest versions in order to properly work with this release.
 
 * Implement `RFC 1008 <rfc1008_>`_ features for `edgedb-python
-  <https://github.com/edgedb/edgedb-python>`_ and release v0.16.0
+  <https://github.com/edgedb/edgedb-python>`_ and release v0.17.x
   driver.
 * Implement `RFC 1008 <rfc1008_>`_ features for `edgedb-js
-  <https://github.com/edgedb/edgedb-js>`_ and release v0.15.0 driver.
+  <https://github.com/edgedb/edgedb-js>`_ and release v0.15.x driver.
 * Implement `RFC 1008 <rfc1008_>`_ features for `edgedb-go
-  <https://github.com/edgedb/edgedb-go>`_ and release v0.7.0 driver.
+  <https://github.com/edgedb/edgedb-go>`_ and release v0.8.0 driver.
 
 .. _rfc1006:
     https://github.com/edgedb/rfcs/blob/master/text/1006-simplified-cli.rst
