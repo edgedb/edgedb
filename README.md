@@ -78,7 +78,7 @@ SELECT User {
     name,
     image,
     latest_reviews := (
-        WITH UserReviews := User.<author
+        WITH UserReviews := User.<author[IS Review]
         SELECT UserReviews {
             id,
             body,
