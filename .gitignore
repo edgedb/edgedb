@@ -29,7 +29,6 @@ tests/dumps/**/*_dev*.dump
 /.coverage*
 /htmlcov
 
-!/.coveragerc
 /.vscode
 *.code-workspace
 /.pytest_cache

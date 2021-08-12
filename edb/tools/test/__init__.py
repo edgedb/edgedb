@@ -202,11 +202,11 @@ def _coverage_wrapper(paths):
         sys.exit(1)
 
     for path in edb.__path__:
-        cov_rc = pathlib.Path(path).parent / '.coveragerc'
+        cov_rc = pathlib.Path(path).parent / 'pyproject.toml'
         if cov_rc.exists():
             break
     else:
-        raise RuntimeError('cannot locate the .coveragerc file')
+        raise RuntimeError('cannot locate the pyproject.toml file')
 
     with tempfile.TemporaryDirectory() as td:
         cov_config = devmode.CoverageConfig(
