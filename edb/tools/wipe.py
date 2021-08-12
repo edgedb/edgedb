@@ -87,8 +87,27 @@ def wipe(
     dry_run,
     list_tenants,
 ):
+    asyncio.run(do_wipe(
+        postgres_dsn=postgres_dsn,
+        data_dir=data_dir,
+        tenant_id=tenant_id,
+        yes=yes,
+        dry_run=dry_run,
+        list_tenants=list_tenants,
+    ))
+
+
+async def do_wipe(
+    *,
+    postgres_dsn,
+    data_dir,
+    tenant_id,
+    yes,
+    dry_run,
+    list_tenants,
+):
     if postgres_dsn:
-        cluster = pgcluster.get_remote_pg_cluster(
+        cluster = await pgcluster.get_remote_pg_cluster(
             postgres_dsn,
             tenant_id='<unknown>',
         )
@@ -121,29 +140,12 @@ def wipe(
             click.secho(f'Remote cluster is not running', fg='red')
             sys.exit(1)
         else:
-            cluster.start()
+            await cluster.start()
             cluster_started_by_us = True
 
     try:
-        asyncio.run(
-            do_wipe(cluster, tenant_id, dry_run, list_tenants),
-        )
-    finally:
-        if cluster_started_by_us:
-            cluster.stop()
-
-
-async def do_wipe(
-    cluster: pgcluster.BaseCluster,
-    tenants: List[str],
-    dry_run: bool,
-    list_tenants: bool,
-) -> None:
-
-    conn = await cluster.connect()
-
-    try:
-        if not tenants:
+        conn = await cluster.connect()
+        if not tenant_id:
             tenants = await _get_all_tenants(conn)
             if list_tenants:
                 print('\n'.join(t if t else '(none)' for t in tenants))
@@ -153,6 +155,8 @@ async def do_wipe(
             await wipe_tenant(cluster, conn, tenant, dry_run)
     finally:
         await conn.close()
+        if cluster_started_by_us:
+            cluster.stop()
 
 
 def get_database_backend_name(name: str, tenant_id: str) -> str:

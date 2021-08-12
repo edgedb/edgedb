@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import asyncio
 import os
 import pathlib
 import shutil
@@ -49,8 +50,11 @@ class TestRunner:
         return TestResult()
 
 
-def execute(
-    tests_dir: str, conn: Dict[str, Any], num_workers: int, version: str
+async def execute(
+    tests_dir: str,
+    conn: Dict[str, Any],
+    num_workers: int,
+    version: str,
 ) -> None:
     runner = TestRunner()
     unittest.main(
@@ -66,7 +70,7 @@ def execute(
         for case, db_name, _ss in setup_scripts
         if getattr(case, "STABLE_DUMP", False)
     }
-    tb.setup_test_cases(list(dump_cases.values()), conn, num_workers)
+    await tb.setup_test_cases(list(dump_cases.values()), conn, num_workers)
 
     dumps_dir = pathlib.Path(tests_dir) / "dumps"
     db_friendly_version = version.split("+", 1)[0]
@@ -110,31 +114,41 @@ def die(msg):
     help="number of parallel processes to use",
 )
 def gen_test_dumps(*, jobs, tests_dir):
-    version = str(buildmeta.get_version())
     if not jobs:
         jobs = os.cpu_count()
 
     with tempfile.TemporaryDirectory(
         dir="/tmp/", prefix="edb_gen-test-dumps_"
     ) as data_dir:
-        cluster = edgedb_cluster.Cluster(data_dir, testmode=True)
-        print(
-            f"Generating test dumps for version {version}"
-            f" with a temporary EdgeDB instance in {data_dir}..."
+        asyncio.run(
+            _gen_test_dumps(
+                tests_dir=tests_dir,
+                data_dir=data_dir,
+                jobs=jobs,
+            ),
         )
 
-        try:
-            cluster.init()
-            cluster.start(port=0)
-            cluster.trust_local_connections()
-        except BaseException:
-            raise
 
-        conn = cluster.get_connect_args()
-        try:
-            execute(tests_dir, conn, num_workers=jobs, version=version)
-        except BaseException:
-            raise
-        finally:
-            cluster.stop()
-            cluster.destroy()
+async def _gen_test_dumps(*, jobs: int, tests_dir: str, data_dir: str) -> None:
+    version = str(buildmeta.get_version())
+    cluster = edgedb_cluster.Cluster(pathlib.Path(data_dir), testmode=True)
+    print(
+        f"Generating test dumps for version {version}"
+        f" with a temporary EdgeDB instance in {data_dir}..."
+    )
+
+    try:
+        await cluster.init()
+        await cluster.start(port=0)
+        await cluster.trust_local_connections()
+    except BaseException:
+        raise
+
+    conn = cluster.get_connect_args()
+    try:
+        execute(tests_dir, conn, num_workers=jobs, version=version)
+    except BaseException:
+        raise
+    finally:
+        cluster.stop()
+        cluster.destroy()
