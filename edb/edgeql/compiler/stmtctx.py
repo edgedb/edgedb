@@ -302,7 +302,7 @@ def _fixup_materialized_sets(
                     # sure that things get correlated properly. If it's not
                     # visible, then it's just being used internally and we
                     # don't need any special work.
-                    if any(parent.is_visible(b) for b in x.paths):
+                    if any(parent.is_visible(b) for b, _ in x.sets):
                         good_reason = True
 
             if not good_reason:
@@ -521,6 +521,7 @@ def declare_view(
     factoring_fence: bool=False,
     fully_detached: bool=False,
     must_be_used: bool=False,
+    is_for_view: bool=False,
     path_id_namespace: Optional[FrozenSet[str]]=None,
     ctx: context.ContextLevel,
 ) -> irast.Set:
@@ -573,6 +574,7 @@ def declare_view(
         ctx.path_scope_map[view_set] = context.ScopeInfo(
             path_scope=subctx.path_scope,
             pinned_path_id_ns=pinned_pid_ns,
+            is_for_view=is_for_view,
         )
 
         if not fully_detached:

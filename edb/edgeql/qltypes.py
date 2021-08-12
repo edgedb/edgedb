@@ -162,6 +162,9 @@ class Volatility(s_enum.StrEnum):
     Stable = 'Stable'
     Volatile = 'Volatile'
 
+    def is_volatile(self) -> bool:
+        return self is Volatility.Volatile
+
     @classmethod
     def _missing_(cls, name):
         # We want both `volatility := 'immutable'` in SDL and

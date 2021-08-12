@@ -846,6 +846,21 @@ def _normalize_view_ptr_expr(
 
     assert ptrcls is not None
 
+    if materialized and is_mutation and any(
+        x.is_binding == irast.BindingKind.With
+        and x.expr
+        and inference.infer_volatility(
+            x.expr, ctx.env, for_materialization=True).is_volatile()
+
+        for reason in materialized
+        if isinstance(reason, irast.MaterializeVisible)
+        for _, x in reason.sets
+    ):
+        raise errors.QueryError(
+            f'cannot refer to volatile WITH bindings from DML',
+            context=compexpr and compexpr.context,
+        )
+
     if materialized and not is_mutation and ctx.qlstmt:
         assert ptrcls not in ctx.env.materialized_sets
         ctx.env.materialized_sets[ptrcls] = ctx.qlstmt, materialized

@@ -94,6 +94,7 @@ class StatementMetadata:
 class ScopeInfo:
     path_scope: irast.ScopeTreeNode
     pinned_path_id_ns: Optional[FrozenSet[str]] = None
+    is_for_view: bool = False
 
 
 class PointerRefCache(Dict[irtyputils.PtrRefCacheKey, irast.BasePointerRef]):
