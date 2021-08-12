@@ -1,3 +1,99 @@
+# ========================
+#          BLACK
+# ========================
 [tool.black]
 line-length = 79
-target-version = ['py38']
+target-version = ["py39"]
+
+
+# ========================
+#          MYPY
+# ========================
+
+[tool.mypy]
+python_version = "3.9"
+plugins = "edb/tools/mypy/plugin.py"
+follow_imports = "normal"
+ignore_missing_imports = true
+warn_redundant_casts = true
+warn_unused_configs = true
+show_column_numbers = true
+
+[[tool.mypy.overrides]]
+module = [
+    "edb.common.adapter",
+    "edb.edgeql.compiler.*",
+    "edb.edgeql.codegen",
+    "edb.edgeql.declarative",
+    "edb.edgeql.tracer",
+    "edb.graphql.types",
+    "edb.ir.*",
+    "edb.pgsql.metaschema",
+    "edb.pgsql.compiler.*",
+    "edb.repl.*",
+    "edb.schema.*",
+    "edb.schema.reflection.*",
+    "edb.server.cluster",
+    "edb.server.config",
+    "edb.server.connpool.*",
+    "edb.server.pgcluster",
+    "edb.server.pgconnparams",
+]
+# Equivalent of --strict on the command line,
+# but without disallow_untyped_calls:
+disallow_subclassing_any = true
+disallow_any_generics = true
+# disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "edb.common.checked",
+    "edb.common.compiler",
+    "edb.common.ordered",
+    "edb.common.parametric",
+    "edb.common.struct",
+    "edb.common.topological",
+    "edb.common.uuidgen",
+]
+# Equivalent of --strict on the command line:
+disallow_subclassing_any = true
+disallow_any_generics = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
+
+
+# ========================
+#        COVERAGE
+# ========================
+[tool.coverage.run]
+branch = false
+plugins = ["Cython.Coverage"]
+parallel = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if debug",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.",
+]
+show_missing = true
+ignore_errors = true

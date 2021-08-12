@@ -38,7 +38,7 @@ V = TypeVar("V")
 
 
 try:
-    from types import GenericAlias  # type: ignore
+    from types import GenericAlias
 except ImportError:
     from typing import _GenericAlias as GenericAlias  # type: ignore
 

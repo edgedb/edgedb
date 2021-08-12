@@ -79,9 +79,9 @@ class TestCodeQuality(unittest.TestCase):
 
     def test_cqa_mypy(self):
         edgepath = find_edgedb_root()
-        config_path = os.path.join(edgepath, 'mypy.ini')
+        config_path = os.path.join(edgepath, 'pyproject.toml')
         if not os.path.exists(config_path):
-            raise RuntimeError('could not locate mypy.ini file')
+            raise RuntimeError('could not locate pyproject.toml file')
 
         try:
             import mypy  # NoQA
