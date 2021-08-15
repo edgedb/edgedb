@@ -8,6 +8,10 @@ targets:
           platform: debian
           platform_version: buster
           family: debian
+        - name: debian-bullseye
+          platform: debian
+          platform_version: bullseye
+          family: debian
         - name: ubuntu-xenial
           platform: ubuntu
           platform_version: xenial

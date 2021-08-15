@@ -70,6 +70,26 @@ jobs:
         name: builds-debian-buster
         path: artifacts/debian-buster
 
+  build-debian-bullseye:
+    runs-on: ubuntu-latest
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/debian-bullseye@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_VERSION: "${{ needs.prep.outputs.version }}"
+        PKG_REVISION: "<current-date>"
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        EXTRA_OPTIMIZATIONS: "true"
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-debian-bullseye
+        path: artifacts/debian-bullseye
+
   build-ubuntu-xenial:
     runs-on: ubuntu-latest
     needs: prep
@@ -271,6 +291,26 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
+
+
+  test-debian-bullseye:
+    needs: [build-debian-bullseye]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-bullseye
+        path: artifacts/debian-bullseye
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/debian-bullseye@master
+      env:
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
         # edb test with -j higher than 1 seems to result in workflow
         # jobs getting killed arbitrarily by Github.
         PKG_TEST_JOBS: 1
@@ -480,6 +520,39 @@ jobs:
         tags: ${{ steps.describe.outputs.version-slot }}
         workdir: dockerfile
         buildargs: version=${{ steps.describe.outputs.version-slot }}
+    
+
+  publish-debian-bullseye:
+    needs: [test-debian-bullseye]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-debian-bullseye
+        path: artifacts/debian-bullseye
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: debian-bullseye
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-bullseye@master
+      env:
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/debian-bullseye@master
+      env:
+        PKG_PLATFORM: "debian"
+        PKG_PLATFORM_VERSION: "bullseye"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
     
 
   publish-ubuntu-xenial:
