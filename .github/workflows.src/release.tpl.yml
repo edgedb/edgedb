@@ -182,7 +182,6 @@ jobs:
       env:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published
@@ -190,7 +189,7 @@ jobs:
       env:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
 
     <% if tgt.name == 'debian-buster' %>
     - uses: actions/checkout@v2
@@ -236,7 +235,6 @@ jobs:
       env:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
       run: |
         edgedb-pkg/integration/macos/publish.sh

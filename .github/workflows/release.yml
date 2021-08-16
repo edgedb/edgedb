@@ -462,7 +462,6 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published
@@ -470,7 +469,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
 
     
 
@@ -495,7 +494,6 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published
@@ -503,7 +501,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
 
     
     - uses: actions/checkout@v2
@@ -543,7 +541,6 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published
@@ -551,7 +548,7 @@ jobs:
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
 
     
 
@@ -576,7 +573,6 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published
@@ -584,7 +580,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
 
     
 
@@ -609,7 +605,6 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published
@@ -617,7 +612,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
 
     
 
@@ -642,7 +637,6 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published
@@ -650,7 +644,7 @@ jobs:
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
 
     
 
@@ -675,7 +669,6 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published
@@ -683,7 +676,7 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
 
     
 
@@ -708,7 +701,6 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
 
     - name: Test Published
@@ -716,7 +708,7 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
 
     
 
@@ -747,7 +739,6 @@ jobs:
       env:
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
-        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
         PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
       run: |
         edgedb-pkg/integration/macos/publish.sh
