@@ -112,7 +112,7 @@ async def do_wipe(
             tenant_id='<unknown>',
         )
     elif data_dir:
-        cluster = pgcluster.get_local_pg_cluster(
+        cluster = await pgcluster.get_local_pg_cluster(
             data_dir,
             tenant_id='<unknown>',
         )
@@ -133,7 +133,7 @@ async def do_wipe(
         click.echo('OK. Not proceeding.')
         return
 
-    status = cluster.get_status()
+    status = await cluster.get_status()
     cluster_started_by_us = False
     if status != 'running':
         if isinstance(cluster, pgcluster.RemoteCluster):
@@ -156,7 +156,7 @@ async def do_wipe(
     finally:
         await conn.close()
         if cluster_started_by_us:
-            cluster.stop()
+            await cluster.stop()
 
 
 def get_database_backend_name(name: str, tenant_id: str) -> str:

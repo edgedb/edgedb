@@ -39,6 +39,9 @@ import uvloop
 import click
 import setproctitle
 
+from . import logsetup
+logsetup.early_setup()
+
 from edb.common import devmode
 from edb.common import signalctl
 from edb.common import exceptions
@@ -47,7 +50,6 @@ from . import args as srvargs
 from . import buildmeta
 from . import daemon
 from . import defines
-from . import logsetup
 from . import pgconnparams
 from . import pgcluster
 
@@ -338,7 +340,7 @@ async def run_server(
             logger.info(f'Using {max_conns} max backend connections based on '
                         f'total memory.')
 
-        cluster = pgcluster.get_local_pg_cluster(
+        cluster = await pgcluster.get_local_pg_cluster(
             args.data_dir,
             # Plus two below to account for system connections.
             max_connections=pg_max_connections + 2,
@@ -381,9 +383,8 @@ async def run_server(
               'are specified')
 
     try:
-        pg_cluster_init_by_us = cluster.ensure_initialized()
-
-        cluster_status = cluster.get_status()
+        pg_cluster_init_by_us = await cluster.ensure_initialized()
+        cluster_status = await cluster.get_status()
 
         specified_runstate_dir: Optional[pathlib.Path]
         if args.runstate_dir:
@@ -418,7 +419,7 @@ async def run_server(
 
             if need_cluster_restart and pg_cluster_started_by_us:
                 logger.info('Restarting server to reload configuration...')
-                cluster.stop()
+                await cluster.stop()
                 await cluster.start()
 
             if (
@@ -453,19 +454,19 @@ async def run_server(
         if pg_cluster_init_by_us and not _server_initialized:
             logger.warning('server bootstrap did not complete successfully, '
                            'removing the data directory')
-            if cluster.get_status() == 'running':
-                cluster.stop()
+            if await cluster.get_status() == 'running':
+                await cluster.stop()
             cluster.destroy()
         raise
 
     finally:
         if args.temp_dir:
-            if cluster.get_status() == 'running':
-                cluster.stop()
+            if await cluster.get_status() == 'running':
+                await cluster.stop()
             cluster.destroy()
 
         elif pg_cluster_started_by_us:
-            cluster.stop()
+            await cluster.stop()
 
 
 def bump_rlimit_nofile() -> None:

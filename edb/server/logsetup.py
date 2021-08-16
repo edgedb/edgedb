@@ -39,6 +39,7 @@ LOG_LEVELS = {
     'W': 'WARN',
     'WARN': 'WARN',
     'ERROR': 'ERROR',
+    'CRITICAL': 'CRITICAL',
     'INFO': 'INFO',
     'DEBUG': 'DEBUG',
     'SILENT': 'SILENT'
@@ -46,22 +47,30 @@ LOG_LEVELS = {
 
 
 class Dark16:
+    critical = term.Style16(color='white', bgcolor='red', bold=True)
     error = term.Style16(color='white', bgcolor='red')
     default = term.Style16(color='white', bgcolor='blue')
     pid = date = term.Style16(color='black', bold=True)
+    name = term.Style16(color='black', bold=True)
     message = term.Style16()
 
 
 class Dark256:
+    critical = term.Style256(color='#c6c6c6', bgcolor='#870000', bold=True)
     error = term.Style256(color='#c6c6c6', bgcolor='#870000')
     warning = term.Style256(color='#c6c6c6', bgcolor='#5f00d7')
     info = term.Style256(color='#c6c6c6', bgcolor='#005f00')
     default = term.Style256(color='#c6c6c6', bgcolor='#000087')
     pid = date = term.Style256(color='#626262', bold=True)
+    name = term.Style256(color='#A2A2A2')
     message = term.Style16()
 
 
 class EdgeDBLogFormatter(logging.Formatter):
+
+    default_time_format = '%Y-%m-%dT%H:%M:%S'
+    default_msec_format = '%s.%03d'
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.__styles = None
@@ -105,6 +114,7 @@ class EdgeDBLogFormatter(logging.Formatter):
             record.levelname = level_style.apply(level)
             record.process = self.__styles.pid.apply(str(record.process))
             record.message = self.__styles.message.apply(record.getMessage())
+            record.name = self.__styles.name.apply(record.name)
 
         return super().format(record)
 
@@ -120,10 +130,38 @@ class EdgeDBLogHandler(logging.StreamHandler):
         self.setFormatter(fmt)
 
 
+class EdgeDBLogger(logging.Logger):
+
+    def makeRecord(
+        self,
+        name,
+        level,
+        fn,
+        lno,
+        msg,
+        args,
+        exc_info,
+        func=None,
+        extra=None,
+        sinfo=None,
+    ):
+        # Unlike the standard Logger class, we allow overwriting
+        # all attributes of the log record with stuff from *extra*.
+        factory = logging.getLogRecordFactory()
+        rv = factory(name, level, fn, lno, msg, args, exc_info, func, sinfo)
+        if extra is not None:
+            rv.__dict__.update(extra)
+        return rv
+
+
 IGNORE_DEPRECATIONS_IN = {
     'graphql',
     'promise',
 }
+
+
+def early_setup():
+    logging.setLoggerClass(EdgeDBLogger)
 
 
 def setup_logging(log_level, log_destination):
