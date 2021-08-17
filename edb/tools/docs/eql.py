@@ -243,7 +243,8 @@ class EQLField(s_docfields.Field):
         return node
 
     def make_xref(self, rolename, domain, target,
-                  innernode=d_nodes.emphasis, contnode=None, env=None):
+                  innernode=d_nodes.emphasis, contnode=None, env=None,
+                  inliner=None, location=None):
 
         if not rolename:
             return contnode or innernode(target, target)
@@ -256,7 +257,8 @@ class EQLField(s_docfields.Field):
 
         refnode = s_nodes.pending_xref('', refdomain=domain,
                                        refexplicit=title != target,
-                                       reftype=rolename, reftarget=target)
+                                       reftype=rolename, reftarget=target,
+                                       location=location)
         refnode += contnode or innernode(title, title)
         if env:
             env.domains[domain].process_field_xref(refnode)
@@ -265,7 +267,7 @@ class EQLField(s_docfields.Field):
         return refnode
 
     def make_xrefs(self, rolename, domain, target, innernode=d_nodes.emphasis,
-                   contnode=None, env=None):
+                   contnode=None, env=None, inliner=None, location=None):
         delims = r'''(?x)
         (
             \s* [\[\]\(\)<>,] \s* | \s+or\s+ |
@@ -288,7 +290,9 @@ class EQLField(s_docfields.Field):
                 results.append(contnode or innernode(sub_target, sub_target))
             else:
                 results.append(self.make_xref(rolename, domain, sub_target,
-                                              innernode, contnode, env))
+                                              innernode, contnode, env,
+                                              inliner=inliner,
+                                              location=location))
 
         return results
 
@@ -311,20 +315,23 @@ class EQLTypedField(EQLField):
         super().__init__(name, names, label, has_arg, rolename, None)
         self.typerolename = typerolename
 
-    def make_field(self, types, domain, item, env=None):
+    def make_field(self, types, domain, item, env=None, inliner=None,
+                   location=None):
         fieldarg, fieldtype = item
 
         body = d_nodes.paragraph()
         if fieldarg:
             body.extend(self.make_xrefs(self.rolename, domain, fieldarg,
-                                        s_nodes.literal_strong, env=env))
+                                        s_nodes.literal_strong, env=env,
+                                        inliner=inliner, location=location))
 
             body += d_nodes.Text('--')
 
         typename = u''.join(n.astext() for n in fieldtype)
         body.extend(
             self.make_xrefs(self.typerolename, domain, typename,
-                            s_nodes.literal_emphasis, env=env))
+                            s_nodes.literal_emphasis, env=env,
+                            inliner=inliner, location=location))
 
         fieldname = d_nodes.field_name('', self.label)
         fieldbody = d_nodes.field_body('', body)
@@ -347,13 +354,14 @@ class EQLTypedParamField(EQLField):
         self.typenames = typenames
         self.typerolename = typerolename
 
-    def make_field(self, types, domain, item, env=None):
+    def make_field(self, types, domain, item, env=None, inliner=None):
         fieldname = d_nodes.field_name('', self.label)
 
         fieldarg, content = item
         body = d_nodes.paragraph()
         body.extend(self.make_xrefs(self.rolename, domain, fieldarg,
-                                    s_nodes.literal_strong, env=env))
+                                    s_nodes.literal_strong, env=env,
+                                    inliner=inliner))
 
         typename = None
         if fieldarg in types:
@@ -367,7 +375,8 @@ class EQLTypedParamField(EQLField):
                 typename = u''.join(n.astext() for n in fieldtype)
                 body.extend(
                     self.make_xrefs(self.typerolename, domain, typename,
-                                    s_nodes.literal_emphasis, env=env))
+                                    s_nodes.literal_emphasis, env=env,
+                                    inliner=inliner))
             else:
                 body += fieldtype
             body += d_nodes.Text(')')

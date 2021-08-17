@@ -42,7 +42,7 @@ and function directives in the following ways:
 from __future__ import annotations
 
 from docutils import nodes as d_nodes
-from docutils.parsers.rst import directives
+from docutils.parsers.rst import directives  # type: ignore
 
 from sphinx import addnodes as s_nodes
 from sphinx.domains import javascript as js
@@ -51,14 +51,10 @@ from sphinx.util import docfields
 
 
 class JSFieldMixin:
-    def make_xref(self, rolename, domain, target,
-                  innernode=d_nodes.emphasis, contnode=None, env=None):
-
+    def make_xref(self, rolename, domain, target, *args, **kwargs):
         if rolename:
             return d_nodes.literal(target, target)
-
-        return super().make_xref(
-            rolename, domain, target, innernode, contnode, env)
+        return super().make_xref(rolename, domain, target, *args, **kwargs)
 
 
 class JSTypedField(JSFieldMixin, docfields.TypedField):

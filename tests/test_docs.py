@@ -108,8 +108,8 @@ class TestDocSnippets(unittest.TestCase):
         parser_class = docutils.parsers.get_parser_class('rst')
         parser = parser_class()
 
-        settings = docutils.frontend.OptionParser(  # type: ignore
-            components=(parser, )).get_default_values()
+        settings = docutils.frontend.OptionParser(
+            components=(parser_class, )).get_default_values()
         settings.syntax_highlight = 'none'
 
         min_error_code = 100  # Ignore all errors, we process them manually.

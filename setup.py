@@ -69,8 +69,8 @@ CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
 DOCS_DEPS = [
     'lxml~=4.6.2',
     'Pygments~=2.8.0',
-    'Sphinx~=2.3.1',
-    'sphinxcontrib-asyncio~=0.2.0',
+    'Sphinx~=4.1.2',
+    'sphinxcontrib-asyncio~=0.3.0',
 ]
 
 TEST_DEPS = [
@@ -89,7 +89,7 @@ TEST_DEPS = [
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
     'types-click==7.1.2',
-    'types-docutils==0.1.7',
+    'types-docutils==0.17.0',
     'types-Jinja2==2.11.2',
     'types-MarkupSafe==1.1.3',
     'types-pkg-resources==0.1.3',
