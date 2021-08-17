@@ -132,11 +132,11 @@ Production rules for :eql:type:`str` literals:
     unicode: <any printable unicode character not preceded by "\">
     str_escapes: <see below for details>
 
-The inclusion of "high ASCII" character in :token:`q_char` in
+The inclusion of "high ASCII" character in :token:`edgeql:q_char` in
 practice reflects the ability to use some of the letters with
 diacritics like ``ò`` or ``ü`` in the dollar-quote delimiter.
 
-Here's a list of valid :token:`str_escapes`:
+Here's a list of valid :token:`edgeql:str_escapes`:
 
 .. _ref_eql_lexical_str_escapes:
 
@@ -270,7 +270,7 @@ Production rules for :eql:type:`bytes` literals:
     ascii: <any printable ascii character not preceded by "\">
     bytes_escapes: <see below for details>
 
-Here's a list of valid :token:`bytes_escapes`:
+Here's a list of valid :token:`edgeql:bytes_escapes`:
 
 .. _ref_eql_lexical_bytes_escapes:
 
@@ -357,8 +357,6 @@ lexical structure as :eql:type:`float64`, but with an ``n`` suffix:
     integer_part: "0" | `non_zero` `digit`*
     decimal_part: `digit`+
     exp: "e" ("+" | "-")? `digit`+
-    non_zero: "1"..."9"
-    digit: "0"..."9"
 
 By default all float literals are interpreted as :eql:type:`float64`,
 while an explicit cast can be used to convert them to :eql:type:`float32`:
