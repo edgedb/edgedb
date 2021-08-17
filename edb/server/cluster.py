@@ -90,7 +90,7 @@ class BaseCluster:
 
     async def get_status(self) -> str:
         pg_cluster = await self._get_pg_cluster()
-        pg_status = pg_cluster.get_status()
+        pg_status = await pg_cluster.get_status()
         initially_stopped = pg_status == 'stopped'
 
         if initially_stopped:
@@ -111,7 +111,7 @@ class BaseCluster:
                 await conn.close()
             await asyncio.sleep(0)
             if initially_stopped:
-                pg_cluster.stop()
+                await pg_cluster.stop()
 
         if initially_stopped:
             return 'stopped' if db_exists else 'not-initialized,stopped'
@@ -352,7 +352,7 @@ class Cluster(BaseCluster):
         self._pg_connect_args['database'] = 'template1'
 
     async def _new_pg_cluster(self) -> pgcluster.Cluster:
-        return pgcluster.get_local_pg_cluster(
+        return await pgcluster.get_local_pg_cluster(
             self._data_dir,
             log_level=self._log_level,
         )

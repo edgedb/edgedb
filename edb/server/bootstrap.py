@@ -668,7 +668,7 @@ async def _init_stdlib(
             tpl_pg_db_name = cluster.get_db_name(tpl_db_name)
             tpl_pg_db_name_dyn = (
                 f"edgedb.get_database_backend_name({ql(tpl_db_name)})")
-            tpldbdump = cluster.dump_database(
+            tpldbdump = await cluster.dump_database(
                 tpl_pg_db_name,
                 exclude_schemas=['edgedbinstdata', 'edgedbext'],
                 dump_object_owners=False,

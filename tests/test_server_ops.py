@@ -238,7 +238,7 @@ class TestServerOps(tb.TestCase):
                     await con.aclose()
 
         with tempfile.TemporaryDirectory() as td:
-            cluster = pgcluster.get_local_pg_cluster(
+            cluster = await pgcluster.get_local_pg_cluster(
                 td, max_connections=actual, log_level='s')
             cluster.set_connection_params(
                 pgconnparams.ConnectionParameters(
@@ -246,12 +246,12 @@ class TestServerOps(tb.TestCase):
                     database='template1',
                 ),
             )
-            self.assertTrue(cluster.ensure_initialized())
+            self.assertTrue(await cluster.ensure_initialized())
             await cluster.start()
             try:
                 await test(td)
             finally:
-                cluster.stop()
+                await cluster.stop()
 
     async def test_server_ops_postgres_multitenant(self):
         async def test(pgdata_path, tenant):
@@ -274,14 +274,14 @@ class TestServerOps(tb.TestCase):
                     await con.aclose()
 
         with tempfile.TemporaryDirectory() as td:
-            cluster = pgcluster.get_local_pg_cluster(td, log_level='s')
+            cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
             cluster.set_connection_params(
                 pgconnparams.ConnectionParameters(
                     user='postgres',
                     database='template1',
                 ),
             )
-            self.assertTrue(cluster.ensure_initialized())
+            self.assertTrue(await cluster.ensure_initialized())
 
             await cluster.start()
             try:
@@ -289,7 +289,7 @@ class TestServerOps(tb.TestCase):
                     tg.create_task(test(td, 'tenant1'))
                     tg.create_task(test(td, 'tenant2'))
             finally:
-                cluster.stop()
+                await cluster.stop()
 
     async def test_server_ops_postgres_recovery(self):
         async def test(pgdata_path):
@@ -304,7 +304,7 @@ class TestServerOps(tb.TestCase):
                     self.assertEqual(int(val), 123)
 
                     # stop the postgres
-                    cluster.stop()
+                    await cluster.stop()
                     # TODO: Use BackendUnavailableError here, same below
                     with self.assertRaisesRegex(
                         errors.EdgeDBError,
@@ -328,19 +328,19 @@ class TestServerOps(tb.TestCase):
                     await con.aclose()
 
         with tempfile.TemporaryDirectory() as td:
-            cluster = pgcluster.get_local_pg_cluster(td, log_level='s')
+            cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
             cluster.set_connection_params(
                 pgconnparams.ConnectionParameters(
                     user='postgres',
                     database='template1',
                 ),
             )
-            self.assertTrue(cluster.ensure_initialized())
+            self.assertTrue(await cluster.ensure_initialized())
             await cluster.start()
             try:
                 await test(td)
             finally:
-                cluster.stop()
+                await cluster.stop()
 
     async def _test_connection(self, con):
         await con.connect()

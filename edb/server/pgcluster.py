@@ -28,15 +28,15 @@ import os
 import os.path
 import pathlib
 import re
+import shlex
 import shutil
-import subprocess
-import sys
-import tempfile
+import textwrap
 import time
 
 import asyncpg
 from asyncpg import serverversion
 
+from edb.common import supervisor
 from edb.common import uuidgen
 
 from edb.server import buildmeta
@@ -46,8 +46,12 @@ from edb.pgsql import common as pgcommon
 from . import pgconnparams
 
 
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger('edb.pgcluster')
+pg_dump_logger = logging.getLogger('pg_dump')
+pg_ctl_logger = logging.getLogger('pg_ctl')
+pg_config_logger = logging.getLogger('pg_config')
+initdb_logger = logging.getLogger('initdb')
+postgres_logger = logging.getLogger('postgres')
 
 get_database_backend_name = pgcommon.get_database_backend_name
 get_role_backend_name = pgcommon.get_role_backend_name
@@ -138,13 +142,13 @@ class BaseCluster:
         ] = None
         self._default_session_auth: Optional[str] = None
         self._pg_config_path = pg_config_path
+        self._pg_config_data: Dict[str, str] = {}
         self._pg_bin_dir: Optional[str] = None
         if instance_params is None:
             self._instance_params = (
                 get_default_runtime_params().instance_params)
         else:
             self._instance_params = instance_params
-        self._init_env()
 
     def get_db_name(self, db_name: str) -> str:
         return get_database_backend_name(
@@ -167,7 +171,7 @@ class BaseCluster:
     ) -> None:
         raise NotImplementedError
 
-    def stop(self, wait: int = 60) -> None:
+    async def stop(self, wait: int = 60) -> None:
         raise NotImplementedError
 
     def destroy(self) -> None:
@@ -260,17 +264,17 @@ class BaseCluster:
     def is_managed(self) -> bool:
         raise NotImplementedError
 
-    def get_status(self) -> str:
+    async def get_status(self) -> str:
         raise NotImplementedError
 
-    def dump_database(
+    async def dump_database(
         self,
         dbname: str,
         *,
         exclude_schemas: Iterable[str] = (),
         dump_object_owners: bool = True,
     ) -> bytes:
-        status = self.get_status()
+        status = await self.get_status()
         if status != 'running':
             raise ClusterError('cannot dump: cluster is not running')
 
@@ -297,21 +301,13 @@ class BaseCluster:
             for exclude_schema in exclude_schemas:
                 args.append(f'--exclude-schema={exclude_schema}')
 
-        process = subprocess.run(
+        stdout_lines, _, _ = await _run_logged_subprocess(
             args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            logger=pg_dump_logger,
+            log_stdout=False,
             env=env,
         )
-
-        if process.returncode != 0:
-            raise ClusterError(
-                'pg_dump exited with status {:d}: {}'.format(
-                    process.returncode, process.stderr.decode()
-                )
-            )
-
-        return process.stdout
+        return b'\n'.join(stdout_lines)
 
     def _find_pg_binary(self, binary: str) -> str:
         assert self._pg_bin_dir is not None
@@ -323,36 +319,43 @@ class BaseCluster:
 
         return bpath
 
-    def _init_env(self) -> None:
-        pg_config = self._find_pg_config(self._pg_config_path)
-        pg_config_data = self._run_pg_config(pg_config)
+    def _subprocess_error(
+        self,
+        name: str,
+        exitcode: int,
+        stderr: Optional[bytes],
+    ) -> ClusterError:
+        if stderr:
+            return ClusterError(
+                f'{name} exited with status {exitcode}:\n'
+                + textwrap.indent(stderr.decode(), ' ' * 4),
+            )
+        else:
+            return ClusterError(
+                f'{name} exited with status {exitcode}',
+            )
 
-        self._pg_bin_dir = pg_config_data.get('bindir')
+    async def lookup_postgres(self) -> None:
+        pg_config = self._find_pg_config(self._pg_config_path)
+        self._pg_config_data = await self._run_pg_config(pg_config)
+        self._pg_bin_dir = self._pg_config_data.get('bindir')
         if not self._pg_bin_dir:
             raise ClusterError(
                 'pg_config output did not provide the BINDIR value')
 
-    def _run_pg_config(self, pg_config_path: str) -> Dict[str, str]:
-        process = subprocess.run(
-            pg_config_path,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+    async def _run_pg_config(self, pg_config_path: str) -> Dict[str, str]:
+        stdout_lines, _, _ = await _run_logged_text_subprocess(
+            [pg_config_path],
+            logger=pg_config_logger,
         )
-        stdout, stderr = process.stdout, process.stderr
 
-        if process.returncode != 0:
-            raise ClusterError('pg_config exited with status {:d}: {}'.format(
-                process.returncode, stderr))
-        else:
-            config = {}
+        config = {}
+        for line in stdout_lines:
+            k, eq, v = line.partition('=')
+            if eq:
+                config[k.strip().lower()] = v.strip()
 
-            for line in stdout.splitlines():
-                k, eq, v = line.partition('=')
-                if eq:
-                    config[k.strip().lower()] = v.strip()
-
-            return config
+        return config
 
     def _find_pg_config(self, pg_config_path: str) -> str:
         if pg_config_path is None:
@@ -393,7 +396,8 @@ class Cluster(BaseCluster):
         )
         self._data_dir = data_dir
         self._daemon_pid: Optional[int] = None
-        self._daemon_process: Optional[subprocess.Popen[str]] = None
+        self._daemon_process: Optional[asyncio.subprocess.Process] = None
+        self._daemon_supervisor: Optional[supervisor.Supervisor] = None
         self._log_level = log_level
 
     def get_pg_version(self) -> asyncpg.ServerVersion:
@@ -405,36 +409,42 @@ class Cluster(BaseCluster):
     def get_data_dir(self) -> pathlib.Path:
         return self._data_dir
 
-    def get_status(self) -> str:
-        process = subprocess.run(
-            [self._pg_ctl, 'status', '-D', self._data_dir],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+    async def get_status(self) -> str:
+        stdout_lines, stderr_lines, exit_code = (
+            await _run_logged_text_subprocess(
+                [self._pg_ctl, 'status', '-D', str(self._data_dir)],
+                logger=pg_ctl_logger,
+                check=False,
+            )
         )
-        stdout, stderr = process.stdout, process.stderr
 
-        if (process.returncode == 4 or not os.path.exists(self._data_dir) or
-                not os.listdir(self._data_dir)):
+        if (
+            exit_code == 4
+            or not os.path.exists(self._data_dir)
+            or not os.listdir(self._data_dir)
+        ):
             return 'not-initialized'
-        elif process.returncode == 3:
+        elif exit_code == 3:
             return 'stopped'
-        elif process.returncode == 0:
-            r = re.match(r'.*PID\s?:\s+(\d+).*', stdout)
+        elif exit_code == 0:
+            output = '\n'.join(stdout_lines)
+            r = re.match(r'.*PID\s?:\s+(\d+).*', output)
             if not r:
                 raise ClusterError(
-                    'could not parse pg_ctl status output: {}'.format(stdout))
+                    f'could not parse pg_ctl status output: {output}')
             self._daemon_pid = int(r.group(1))
             if self._connection_addr is None:
                 self._connection_addr = self._connection_addr_from_pidfile()
             return 'running'
         else:
+            stderr_text = '\n'.join(stderr_lines)
             raise ClusterError(
-                'pg_ctl status exited with status {:d}: {}'.format(
-                    process.returncode, stderr))
+                f'`pg_ctl status` exited with status {exit_code}:\n'
+                + textwrap.indent(stderr_text, ' ' * 4),
+            )
 
-    def ensure_initialized(self, **settings: Any) -> bool:
-        cluster_status = self.get_status()
+    async def ensure_initialized(self, **settings: Any) -> bool:
+        cluster_status = await self.get_status()
 
         if cluster_status == 'not-initialized':
             logger.info(
@@ -444,14 +454,12 @@ class Cluster(BaseCluster):
             capabilities = instance_params.capabilities
             have_c_utf8 = (
                 capabilities & BackendCapabilities.C_UTF8_LOCALE)
-            initdb_output = self.init(
+            await self.init(
                 username='postgres',
                 locale='C.UTF-8' if have_c_utf8 else 'en_US.UTF-8',
                 lc_collate='C',
                 encoding='UTF8',
             )
-            for line in initdb_output.splitlines():
-                logger.debug('initdb: %s', line)
             self.reset_hba()
             self.add_hba_entry(
                 type='local',
@@ -463,9 +471,9 @@ class Cluster(BaseCluster):
         else:
             return False
 
-    def init(self, **settings: str) -> str:
+    async def init(self, **settings: str) -> None:
         """Initialize cluster."""
-        if self.get_status() != 'not-initialized':
+        if await self.get_status() != 'not-initialized':
             raise ClusterError(
                 'cluster in {!r} has already been initialized'.format(
                     self._data_dir))
@@ -477,21 +485,10 @@ class Cluster(BaseCluster):
         else:
             extra_args = []
 
-        process = subprocess.run(
+        await _run_logged_subprocess(
             [self._pg_ctl, 'init', '-D', str(self._data_dir)] + extra_args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+            logger=initdb_logger,
         )
-
-        output = process.stdout
-
-        if process.returncode != 0:
-            raise ClusterError(
-                'pg_ctl init exited with status {:d}:\n{}'.format(
-                    process.returncode, output))
-
-        return output
 
     async def start(
         self,
@@ -501,7 +498,7 @@ class Cluster(BaseCluster):
         **opts: str,
     ) -> None:
         """Start the cluster."""
-        status = self.get_status()
+        status = await self.get_status()
         if status == 'running':
             return
         elif status == 'not-initialized':
@@ -544,7 +541,7 @@ class Cluster(BaseCluster):
             }
             start_settings['log_min_messages'] = log_level_map[self._log_level]
             start_settings['log_statement'] = 'none'
-            start_settings['log_line_prefix'] = '[%p] '
+            start_settings['log_line_prefix'] = ''
 
         if server_settings:
             start_settings.update(server_settings)
@@ -561,110 +558,59 @@ class Cluster(BaseCluster):
         for k, v in start_settings.items():
             extra_args.extend(['-c', '{}={}'.format(k, v)])
 
-        self._daemon_process = subprocess.Popen(
-            [self._postgres, '-D', self._data_dir, *extra_args],
-            stdout=sys.stdout,
-            stderr=sys.stderr,
-            text=True,
+        self._daemon_process, *loggers = await _start_logged_subprocess(
+            [self._postgres, '-D', str(self._data_dir), *extra_args],
+            capture_stdout=False,
+            capture_stderr=False,
+            logger=postgres_logger,
+            log_processor=postgres_log_processor,
         )
-
         self._daemon_pid = self._daemon_process.pid
+
+        sup = await supervisor.Supervisor.create(name="postgres loggers")
+        for logger_coro in loggers:
+            sup.create_task(logger_coro)
+        self._daemon_supervisor = sup
 
         await self._test_connection(timeout=wait)
 
-    def reload(self) -> None:
+    async def reload(self) -> None:
         """Reload server configuration."""
-        status = self.get_status()
+        status = await self.get_status()
         if status != 'running':
             raise ClusterError('cannot reload: cluster is not running')
 
-        process = subprocess.run(
-            [self._pg_ctl, 'reload', '-D', self._data_dir],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        stderr = process.stderr
-
-        if process.returncode != 0:
-            raise ClusterError(
-                'pg_ctl stop exited with status {:d}: {}'.format(
-                    process.returncode, stderr.decode()))
-
-    def stop(self, wait: int = 60) -> None:
-        process = subprocess.run(
-            [self._pg_ctl, 'stop', '-D', self._data_dir, '-t', str(wait),
-             '-m', 'fast'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
+        await _run_logged_subprocess(
+            [self._pg_ctl, 'reload', '-D', str(self._data_dir)],
+            logger=pg_ctl_logger,
         )
 
-        stderr = process.stderr
+    async def stop(self, wait: int = 60) -> None:
+        await _run_logged_subprocess(
+            [
+                self._pg_ctl,
+                'stop', '-D', str(self._data_dir),
+                '-t', str(wait), '-m', 'fast'
+            ],
+            logger=pg_ctl_logger,
+        )
 
-        if process.returncode != 0:
-            raise ClusterError(
-                'pg_ctl stop exited with status {:d}: {}'.format(
-                    process.returncode, stderr))
+        if (
+            self._daemon_process is not None and
+            self._daemon_process.returncode is None
+        ):
+            self._daemon_process.terminate()
+            await asyncio.wait_for(self._daemon_process.wait(), timeout=wait)
 
-        if (self._daemon_process is not None and
-                self._daemon_process.returncode is None):
-            self._daemon_process.kill()
-            self._daemon_process.wait(wait)
+        if self._daemon_supervisor is not None:
+            await self._daemon_supervisor.cancel()
+            self._daemon_supervisor = None
 
     def destroy(self) -> None:
-        status = self.get_status()
-        if status == 'stopped' or status == 'not-initialized':
-            shutil.rmtree(self._data_dir)
-        else:
-            raise ClusterError('cannot destroy {} cluster'.format(status))
-
-    def reset_wal(
-        self,
-        *,
-        oid: Optional[int] = None,
-        xid: Optional[int] = None,
-    ) -> None:
-        status = self.get_status()
-        if status == 'not-initialized':
-            raise ClusterError(
-                'cannot modify WAL status: cluster is not initialized')
-
-        if status == 'running':
-            raise ClusterError(
-                'cannot modify WAL status: cluster is running')
-
-        opts = []
-        if oid is not None:
-            opts.extend(['-o', str(oid)])
-        if xid is not None:
-            opts.extend(['-x', str(xid)])
-        if not opts:
-            return
-
-        opts.append(str(self._data_dir))
-
-        try:
-            reset_wal = self._find_pg_binary('pg_resetwal')
-        except ClusterError:
-            reset_wal = self._find_pg_binary('pg_resetxlog')
-
-        process = subprocess.run(
-            [reset_wal] + opts,
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        stderr = process.stderr
-
-        if process.returncode != 0:
-            raise ClusterError(
-                'pg_resetwal exited with status {:d}: {}'.format(
-                    process.returncode, stderr.decode()))
+        shutil.rmtree(self._data_dir)
 
     def reset_hba(self) -> None:
         """Remove all records from pg_hba.conf."""
-        status = self.get_status()
-        if status == 'not-initialized':
-            raise ClusterError(
-                'cannot modify HBA records: cluster is not initialized')
-
         pg_hba = os.path.join(self._data_dir, 'pg_hba.conf')
 
         try:
@@ -685,11 +631,6 @@ class Cluster(BaseCluster):
         auth_options: Optional[Mapping[str, Any]] = None,
     ) -> None:
         """Add a record to pg_hba.conf."""
-        status = self.get_status()
-        if status == 'not-initialized':
-            raise ClusterError(
-                'cannot modify HBA records: cluster is not initialized')
-
         if type not in {'local', 'host', 'hostssl', 'hostnossl'}:
             raise ValueError('invalid HBA record type: {!r}'.format(type))
 
@@ -717,7 +658,7 @@ class Cluster(BaseCluster):
             raise ClusterError(
                 'cannot modify HBA records: {}'.format(e)) from e
 
-    def trust_local_connections(self) -> None:
+    async def trust_local_connections(self) -> None:
         self.reset_hba()
 
         self.add_hba_entry(type='local', database='all',
@@ -728,28 +669,16 @@ class Cluster(BaseCluster):
         self.add_hba_entry(type='host', address='::1/128',
                            database='all', user='all',
                            auth_method='trust')
-        status = self.get_status()
+        status = await self.get_status()
         if status == 'running':
-            self.reload()
+            await self.reload()
 
-    def trust_local_replication_by(self, user: str) -> None:
-        self.add_hba_entry(type='local', database='replication',
-                           user=user, auth_method='trust')
-        self.add_hba_entry(type='host', address='127.0.0.1/32',
-                           database='replication', user=user,
-                           auth_method='trust')
-        self.add_hba_entry(type='host', address='::1/128',
-                           database='replication', user=user,
-                           auth_method='trust')
-        status = self.get_status()
-        if status == 'running':
-            self.reload()
-
-    def _init_env(self) -> None:
-        super()._init_env()
+    async def lookup_postgres(self) -> None:
+        await super().lookup_postgres()
         self._pg_ctl = self._find_pg_binary('pg_ctl')
         self._postgres = self._find_pg_binary('postgres')
-        self._pg_version = self._get_pg_version()
+        self._pg_version = serverversion.split_server_version_string(
+            self._pg_config_data['version'])
 
     def _get_connection_addr(self) -> Tuple[str, int]:
         if self._connection_addr is None:
@@ -848,49 +777,6 @@ class Cluster(BaseCluster):
         else:
             return 'not-initialized'
 
-    def _get_pg_version(self) -> asyncpg.ServerVersion:
-        process = subprocess.run(
-            [self._postgres, '--version'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-        stdout, stderr = process.stdout, process.stderr
-
-        if process.returncode != 0:
-            raise ClusterError(
-                'postgres --version exited with status {:d}: {}'.format(
-                    process.returncode, stderr))
-
-        version_string = stdout.strip(' \n')
-        prefix = 'postgres (PostgreSQL) '
-        if not version_string.startswith(prefix):
-            raise ClusterError(
-                'could not determine server version from {!r}'.format(
-                    version_string))
-        version_string = version_string[len(prefix):]
-
-        return serverversion.split_server_version_string(version_string)
-
-
-class TempCluster(Cluster):
-    def __init__(
-        self,
-        *,
-        data_dir_suffix: Optional[str] = None,
-        data_dir_prefix: Optional[str] = None,
-        data_dir_parent: Optional[str] = None,
-        pg_config_path: str,
-    ):
-        self._data_dir = pathlib.Path(
-            tempfile.mkdtemp(
-                suffix=data_dir_suffix,
-                prefix=data_dir_prefix,
-                dir=data_dir_parent,
-            ),
-        )
-        super().__init__(self._data_dir, pg_config_path=pg_config_path)
-
 
 class RemoteCluster(BaseCluster):
     def __init__(
@@ -908,13 +794,13 @@ class RemoteCluster(BaseCluster):
         self._connection_addr = addr
         self._connection_params = params
 
-    def ensure_initialized(self, **settings: Any) -> bool:
+    async def ensure_initialized(self, **settings: Any) -> bool:
         return False
 
     def is_managed(self) -> bool:
         return False
 
-    def get_status(self) -> str:
+    async def get_status(self) -> str:
         return 'running'
 
     def init(self, **settings: str) -> str:
@@ -929,7 +815,7 @@ class RemoteCluster(BaseCluster):
     ) -> None:
         pass
 
-    def stop(self, wait: int = 60) -> None:
+    async def stop(self, wait: int = 60) -> None:
         pass
 
     def destroy(self) -> None:
@@ -951,7 +837,7 @@ class RemoteCluster(BaseCluster):
         raise ClusterError('cannot modify HBA records of unmanaged cluster')
 
 
-def get_local_pg_cluster(
+async def get_local_pg_cluster(
     data_dir: pathlib.Path,
     *,
     max_connections: Optional[int] = None,
@@ -969,12 +855,14 @@ def get_local_pg_cluster(
             max_connections=max_connections,
             tenant_id=tenant_id,
         ).instance_params
-    return Cluster(
+    cluster = Cluster(
         data_dir=data_dir,
         pg_config_path=str(pg_config),
         instance_params=instance_params,
         log_level=log_level,
     )
+    await cluster.lookup_postgres()
+    return cluster
 
 
 async def get_remote_pg_cluster(
@@ -1104,3 +992,220 @@ async def get_remote_pg_cluster(
         pg_config_path=str(pg_config),
         instance_params=instance_params,
     )
+
+
+async def _run_logged_text_subprocess(
+    args: Sequence[str],
+    logger: logging.Logger,
+    level: int = logging.DEBUG,
+    check: bool = True,
+    log_stdout: bool = True,
+    timeout: Optional[float] = None,
+    **kwargs: Any,
+) -> Tuple[List[str], List[str], int]:
+    stdout_lines, stderr_lines, exit_code = await _run_logged_subprocess(
+        args,
+        logger=logger,
+        level=level,
+        check=check,
+        log_stdout=log_stdout,
+        timeout=timeout,
+        **kwargs,
+    )
+
+    return (
+        [line.decode() for line in stdout_lines],
+        [line.decode() for line in stderr_lines],
+        exit_code,
+    )
+
+
+async def _run_logged_subprocess(
+    args: Sequence[str],
+    logger: logging.Logger,
+    level: int = logging.DEBUG,
+    check: bool = True,
+    log_stdout: bool = True,
+    log_stderr: bool = True,
+    capture_stdout: bool = True,
+    capture_stderr: bool = True,
+    timeout: Optional[float] = None,
+    **kwargs: Any,
+) -> Tuple[List[bytes], List[bytes], int]:
+    process, stdout_reader, stderr_reader = await _start_logged_subprocess(
+        args,
+        logger=logger,
+        level=level,
+        log_stdout=log_stdout,
+        log_stderr=log_stderr,
+        capture_stdout=capture_stdout,
+        capture_stderr=capture_stderr,
+        **kwargs,
+    )
+
+    exit_code, stdout_lines, stderr_lines = await asyncio.wait_for(
+        asyncio.gather(process.wait(), stdout_reader, stderr_reader),
+        timeout=timeout,
+    )
+
+    if exit_code != 0 and check:
+        stderr_text = b'\n'.join(stderr_lines).decode()
+        raise ClusterError(
+            f'{args[0]} exited with status {exit_code}:\n'
+            + textwrap.indent(stderr_text, ' ' * 4),
+        )
+    else:
+        return stdout_lines, stderr_lines, exit_code
+
+
+async def _start_logged_subprocess(
+    args: Sequence[str],
+    *,
+    logger: logging.Logger,
+    level: int = logging.DEBUG,
+    log_stdout: bool = True,
+    log_stderr: bool = True,
+    capture_stdout: bool = True,
+    capture_stderr: bool = True,
+    log_processor: Optional[Callable[[str], Tuple[str, int]]] = None,
+    **kwargs: Any,
+) -> Tuple[
+    asyncio.subprocess.Process,
+    Coroutine[Any, Any, List[bytes]],
+    Coroutine[Any, Any, List[bytes]],
+]:
+    logger.log(
+        level,
+        f'running `{" ".join(shlex.quote(arg) for arg in args)}`'
+    )
+
+    process = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=(
+            asyncio.subprocess.PIPE if log_stdout or capture_stdout
+            else asyncio.subprocess.DEVNULL
+        ),
+        stderr=(
+            asyncio.subprocess.PIPE if log_stderr or capture_stderr
+            else asyncio.subprocess.DEVNULL
+        ),
+        **kwargs,
+    )
+
+    assert process.stderr is not None
+    assert process.stdout is not None
+
+    if log_stderr and capture_stderr:
+        stderr_reader = _capture_and_log_subprocess_output(
+            process.pid,
+            process.stderr,
+            logger,
+            level,
+            log_processor,
+        )
+    elif capture_stderr:
+        stderr_reader = _capture_subprocess_output(process.stderr)
+    elif log_stderr:
+        stderr_reader = _log_subprocess_output(
+            process.pid, process.stderr, logger, level, log_processor)
+    else:
+        stderr_reader = _dummy()
+
+    if log_stdout and capture_stdout:
+        stdout_reader = _capture_and_log_subprocess_output(
+            process.pid,
+            process.stdout,
+            logger,
+            level,
+            log_processor,
+        )
+    elif capture_stdout:
+        stdout_reader = _capture_subprocess_output(process.stdout)
+    elif log_stdout:
+        stdout_reader = _log_subprocess_output(
+            process.pid, process.stdout, logger, level, log_processor)
+    else:
+        stdout_reader = _dummy()
+
+    return process, stdout_reader, stderr_reader
+
+
+async def _capture_subprocess_output(
+    stream: asyncio.StreamReader,
+) -> List[bytes]:
+    lines = []
+    while not stream.at_eof():
+        line = await stream.readline()
+        if line or not stream.at_eof():
+            lines.append(line.rstrip(b'\n'))
+    return lines
+
+
+async def _capture_and_log_subprocess_output(
+    pid: int,
+    stream: asyncio.StreamReader,
+    logger: logging.Logger,
+    level: int,
+    log_processor: Optional[Callable[[str], Tuple[str, int]]] = None,
+) -> List[bytes]:
+    lines = []
+    while not stream.at_eof():
+        line = await stream.readline()
+        if line or not stream.at_eof():
+            line = line.rstrip(b'\n')
+            lines.append(line)
+            log_line = line.decode()
+            if log_processor is not None:
+                log_line, level = log_processor(log_line)
+            logger.log(level, log_line, extra={"process": pid})
+    return lines
+
+
+async def _log_subprocess_output(
+    pid: int,
+    stream: asyncio.StreamReader,
+    logger: logging.Logger,
+    level: int,
+    log_processor: Optional[Callable[[str], Tuple[str, int]]] = None,
+) -> List[bytes]:
+    while not stream.at_eof():
+        line = await stream.readline()
+        if line or not stream.at_eof():
+            log_line = line.rstrip(b'\n').decode()
+            if log_processor is not None:
+                log_line, level = log_processor(log_line)
+            logger.log(level, log_line, extra={"process": pid})
+    return []
+
+
+async def _dummy() -> List[bytes]:
+    return []
+
+
+postgres_to_python_level_map = {
+    "DEBUG5": logging.DEBUG,
+    "DEBUG4": logging.DEBUG,
+    "DEBUG3": logging.DEBUG,
+    "DEBUG2": logging.DEBUG,
+    "DEBUG1": logging.DEBUG,
+    "INFO": logging.INFO,
+    "NOTICE": logging.INFO,
+    "LOG": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "FATAL": logging.CRITICAL,
+    "PANIC": logging.CRITICAL,
+}
+
+postgres_log_re = re.compile(r'^(\w+):\s*(.*)$')
+
+
+def postgres_log_processor(msg: str) -> Tuple[str, int]:
+    if m := postgres_log_re.match(msg):
+        postgres_level = m.group(1)
+        level = postgres_to_python_level_map.get(postgres_level, logging.INFO)
+        msg = m.group(2)
+    else:
+        level = logging.INFO
+
+    return msg, level
