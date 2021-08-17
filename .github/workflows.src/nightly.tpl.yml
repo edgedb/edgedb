@@ -189,6 +189,7 @@ jobs:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     <% if tgt.name == 'debian-buster' %>
     - uses: actions/checkout@v2

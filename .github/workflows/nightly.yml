@@ -476,6 +476,7 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     
 
@@ -510,6 +511,7 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     
     - uses: actions/checkout@v2
@@ -559,6 +561,7 @@ jobs:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     
 
@@ -593,6 +596,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     
 
@@ -627,6 +631,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     
 
@@ -661,6 +666,7 @@ jobs:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     
 
@@ -695,6 +701,7 @@ jobs:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     
 
@@ -729,6 +736,7 @@ jobs:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 
     
 
