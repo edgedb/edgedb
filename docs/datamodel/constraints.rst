@@ -18,8 +18,9 @@ restricting what objects or values those links and properties may
 reference.  The *subject* of a constraint can be referred to in
 the constraint expression as ``__subject__``.
 
+
 Standard Constraints
-====================
+--------------------
 
 The standard library defines the following constraints:
 

@@ -51,7 +51,7 @@ JSON
 
 
 Constructing JSON Values
-========================
+------------------------
 
 JSON in EdgeDB is one of the :ref:`scalar types <ref_datamodel_scalar_types>`.
 This scalar doesn't have its own literal and instead can be obtained

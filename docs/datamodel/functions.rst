@@ -29,6 +29,42 @@ cardinality:
     {2}
 
 
+User-defined Functions
+----------------------
+
+It is also possible to define custom functions. For example, consider
+a function that adds an exclamation mark ``'!'`` at the end of the
+string:
+
+.. code-block:: sdl
+
+    function exclamation(word: str) -> str
+        using (word ++ '!');
+
+This function accepts a :eql:type:`str` as an argument and produces a
+:eql:type:`str` as output as well.
+
+.. code-block:: edgeql-repl
+
+    test> SELECT exclamation({'Hello', 'World'});
+    {'Hello!', 'World!'}
+
+In order to make sure that the function is called when the argument is
+an empty set ``{}`` we make the argument :ref:`optional
+<ref_eql_fundamentals_optional>`. We also provide a default value of
+``{}`` if the argument is omitted entirely. Here are some results this
+function produces:
+
+.. code-block:: edgeql-repl
+
+    test> SELECT exclamation({'Hello', 'World'});
+    {'Hello!', 'World!'}
+    test> SELECT exclamation(<str>{});
+    {'!!!'}
+    test> SELECT exclamation();
+    {'!!!'}
+
+
 See Also
 --------
 

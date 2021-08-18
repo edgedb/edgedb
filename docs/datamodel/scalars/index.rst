@@ -4,40 +4,19 @@
 Scalar Types
 ============
 
-*Scalar types* are primitive individual types.  Scalar type instances
-hold a single value, called a *scalar value*.
+*Scalar types* are primitive individual types. Scalar type instances
+hold a single value, called a *scalar value*. Unlike :ref:`objects
+<ref_datamodel_object_types>` scalars don't have an ``id`` or any
+other property. This means that the database can have as many
+duplicates of the same *scalar value* as you like.
 
-The standard EdgeDB scalar types are:
+Even though, some *scalar types* such as :ref:`date and time scalars
+<ref_datamodel_scalars_datetime>` or :eql:type:`json` have internal
+structure, they require specialized functions and operators to access
+this structure rather than using the ``.`` like objects or tuples.
 
-- :ref:`Numeric types <ref_datamodel_scalars_numeric>`:
-
-  * :eql:type:`int16`
-  * :eql:type:`int32`
-  * :eql:type:`int64`
-  * :eql:type:`float32`
-  * :eql:type:`float64`
-  * :eql:type:`bigint`
-  * :eql:type:`decimal`
-  * :eql:type:`sequence`
-
-- :ref:`String type <ref_datamodel_scalars_str>`
-
-- :ref:`Boolean type <ref_datamodel_scalars_bool>`
-
-- :ref:`Date and Time types <ref_datamodel_scalars_datetime>`:
-
-  * :eql:type:`datetime`
-  * :eql:type:`duration`
-  * :eql:type:`cal::local_datetime`
-  * :eql:type:`cal::local_date`
-  * :eql:type:`cal::local_time`
-  * :eql:type:`cal::relative_duration`
-
-- :ref:`UUID type <ref_datamodel_scalars_uuid>`
-
-- :ref:`JSON type <ref_datamodel_scalars_json>`
-
-- :ref:`Enum types <ref_datamodel_scalars_enum>`
+Each subsection describes the standard EdgeDB scalar types in greater
+details.
 
 See also scalar type
 :ref:`SDL <ref_eql_sdl_scalars>`,
