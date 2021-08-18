@@ -797,6 +797,7 @@ class ParallelTextTestRunner:
                     )
 
                 async def _setup():
+                    nonlocal cluster
                     nonlocal conn
 
                     cluster = await tb.init_cluster(
