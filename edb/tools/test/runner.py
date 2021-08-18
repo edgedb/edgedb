@@ -21,6 +21,8 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
+import binascii
+import collections
 import collections.abc
 import csv
 import dataclasses
@@ -51,12 +53,15 @@ import edgedb
 from edb.common import devmode
 from edb.testbase import server as tb
 
+from . import cpython_state
 from . import mproc_fixes
 from . import styles
 
 
 result: Optional[unittest.result.TestResult] = None
 coverage_run: Optional[Any] = None
+py_hash_secret: bytes = cpython_state.get_py_hash_secret()
+py_random_seed: bytes = random.SystemRandom().randbytes(8)
 
 
 def teardown_suite() -> None:
@@ -75,10 +80,13 @@ def init_worker(status_queue: multiprocessing.SimpleQueue,
                 result_queue: multiprocessing.SimpleQueue) -> None:
     global result
     global coverage_run
+    global py_hash_secret
+    global py_random_seed
 
     # Make sure the generator is re-seeded, as we have inherited
     # the seed from the parent process.
-    random.seed()
+    py_random_seed = random.SystemRandom().randbytes(8)
+    random.seed(py_random_seed)
 
     result = ChannelingTestResult(result_queue)
     if not param_queue.empty():
@@ -91,6 +99,7 @@ def init_worker(status_queue: multiprocessing.SimpleQueue,
 
     os.environ['EDGEDB_TEST_PARALLEL'] = '1'
     coverage_run = devmode.CoverageConfig.start_coverage_if_requested()
+    py_hash_secret = cpython_state.get_py_hash_secret()
     status_queue.put(True)
 
 
@@ -143,6 +152,10 @@ class StreamingTestSuite(unittest.TestSuite):
         elapsed = time.monotonic() - start
 
         result.record_test_stats(test, {'running-time': elapsed})
+        result.annotate_test(test, {
+            'py-hash-secret': py_hash_secret,
+            'py-random-seed': py_random_seed,
+        })
 
         result._testRunEntered = False
         return result
@@ -201,7 +214,8 @@ class ChannelingTestResultMeta(type):
     def __new__(mcls, name, bases, dct):
         for meth in {'startTest', 'addSuccess', 'addError', 'addFailure',
                      'addSkip', 'addExpectedFailure', 'addUnexpectedSuccess',
-                     'addSubTest', 'addWarning', 'record_test_stats'}:
+                     'addSubTest', 'addWarning', 'record_test_stats',
+                     'annotate_test'}:
             dct[meth] = mcls.get_wrapper(meth)
 
         return super().__new__(mcls, name, bases, dct)
@@ -332,6 +346,8 @@ class SequentialTestSuite(unittest.TestSuite):
                 json.dumps(self.server_conn)
         if self.postgres_dsn:
             os.environ['EDGEDB_TEST_POSTGRES_DSN'] = self.postgres_dsn
+
+        random.seed(py_random_seed)
 
         for test in self.tests:
             _run_test(test)
@@ -630,6 +646,7 @@ class ParallelTextTestResult(unittest.result.TestResult):
         self.catch_warnings = warnings
         self.failfast = failfast
         self.test_stats = []
+        self.test_annotations = collections.defaultdict(dict)
         self.warnings = []
         self.notImplemented = []
         self.currently_running = {}
@@ -660,6 +677,12 @@ class ParallelTextTestResult(unittest.result.TestResult):
 
     def record_test_stats(self, test, stats):
         self.test_stats.append((test, stats))
+
+    def annotate_test(self, test, annotations: Dict[str, Any]) -> None:
+        self.test_annotations[test].update(annotations)
+
+    def get_test_annotations(self, test) -> Optional[Dict[str, Any]]:
+        return self.test_annotations.get(test)
 
     def _exc_info_to_string(self, err, test):
         # Errors are serialized in the worker.
@@ -921,6 +944,16 @@ class ParallelTextTestRunner:
                 self._echo(f'{kind}: {result.getDescription(test)}',
                            fg=fg, bold=True)
                 self._fill('-', fg=fg)
+
+                if annos := result.get_test_annotations(test):
+                    if phs := annos.get('py-hash-secret'):
+                        phs_hex = binascii.hexlify(phs).decode()
+                        self._echo(f'Py_HashSecret: {phs_hex}')
+                    if prs := annos.get('py-random-seed'):
+                        prs_hex = binascii.hexlify(prs).decode()
+                        self._echo(f'random.seed(): {prs_hex}')
+                    self._fill('-', fg=fg)
+
                 srv_tb = None
                 if _is_exc_info(err):
                     if isinstance(err[1], edgedb.EdgeDBError):
