@@ -40,7 +40,7 @@ INSERT `S p a M` {
 };
 
 INSERT A {
-    `s p A m 🤞` := (SELECT `S p a M` FILTER .`🚀` = 42)
+    `s p A m 🤞` := assert_single((SELECT `S p a M` FILTER .`🚀` = 42))
 };
 
 INSERT Łukasz;

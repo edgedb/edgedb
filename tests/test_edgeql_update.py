@@ -2060,7 +2060,7 @@ class TestUpdate(tb.QueryTestCase):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             "possibly more than one element returned by an expression"
-            " for a computed link 'annotated_status' declared as 'single'",
+            " for a link 'annotated_status' declared as 'single'",
             _position=114,
         ):
             await self.con.execute("""
@@ -3005,4 +3005,16 @@ class TestUpdate(tb.QueryTestCase):
                         flag := 1
                     } FILTER .name = 'Tag'
                 };
+            ''')
+
+    async def test_edgeql_update_cardinality_assertion(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "possibly more than one element returned by an expression "
+                "for a link 'status' declared as 'single'"):
+            await self.con.query(r'''
+                UPDATE UpdateTest
+                SET {
+                    status := Status,
+                }
             ''')

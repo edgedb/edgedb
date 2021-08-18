@@ -2352,7 +2352,7 @@ class TestServerProtoDDL(tb.DDLTestCase):
 
                 INSERT {typename} {{
                     link1 := (
-                        SELECT Foo{typename} {{@prop1 := 'aaa'}}
+                        SELECT assert_single(Foo{typename}) {{@prop1 := 'aaa'}}
                     )
                 }};
             ''')

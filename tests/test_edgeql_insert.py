@@ -3643,3 +3643,15 @@ class TestInsert(tb.QueryTestCase):
                     (INSERT Person { name := 'foo' })
                 )
             ''')
+
+    async def test_edgeql_insert_cardinality_assertion(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "possibly more than one element returned by an expression "
+                "for a link 'sub' declared as 'single'"):
+            await self.con.query(r'''
+                INSERT InsertTest {
+                    l2 := 10,
+                    sub := Subordinate,
+                }
+            ''')

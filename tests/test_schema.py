@@ -7209,7 +7209,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                         UPDATE Foo
                         FILTER .val = 1
                         SET {
-                            val += 1
+                            val := .val + 1
                         }
                     )
                 };
@@ -7266,7 +7266,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     FILTER
                         (.val = 1)
                     SET {
-                        val += 1
+                        val := (.val + 1)
                     });
                 };
             };

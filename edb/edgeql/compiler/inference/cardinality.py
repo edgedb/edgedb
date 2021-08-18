@@ -413,11 +413,20 @@ def _infer_pointer_cardinality(
                 (ir_specified_card, inferred_card),
             )
         else:
+            desc = ptrcls.get_verbosename(env.schema)
+            if not is_mut_assignment:
+                desc = f'computed {desc}'
             sp_req, sp_card = ir_specified_card.to_schema_value()
             ic_req, ic_card = inferred_card.to_schema_value()
             # Specified cardinality is stricter than inferred (e.g.
             # ONE vs MANY), this is an error.
-            if sp_req and not ic_req:
+            if sp_card.is_single() and ic_card.is_multi():
+                raise errors.QueryError(
+                    f'possibly more than one element returned by an '
+                    f"expression for a {desc} declared as 'single'",
+                    context=source_ctx
+                )
+            elif sp_req and not ic_req:
                 if is_mut_assignment:
                     # For mutations we punt the lower cardinality bound
                     # check to the runtime constraint.  Doing it statically
@@ -430,19 +439,9 @@ def _infer_pointer_cardinality(
                 else:
                     raise errors.QueryError(
                         f'possibly an empty set returned by an '
-                        f'expression for a computed '
-                        f'{ptrcls.get_verbosename(env.schema)} '
-                        f"declared as 'required'",
+                        f"expression for a {desc} declared as 'required'",
                         context=source_ctx
                     )
-            else:
-                raise errors.QueryError(
-                    f'possibly more than one element returned by an '
-                    f'expression for a computed '
-                    f'{ptrcls.get_verbosename(env.schema)} '
-                    f"declared as 'single'",
-                    context=source_ctx
-                )
 
     if (
         not ptrcls_schema_card.is_known()
