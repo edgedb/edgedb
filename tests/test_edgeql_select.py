@@ -2037,7 +2037,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         ):
             await self.con.execute("""
                 SELECT Issue {
-                    owner := User
+                    owner := (SELECT User LIMIT 1)
                 }
             """)
 
