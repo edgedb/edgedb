@@ -1,5 +1,6 @@
 .. _ref_datamodel_scalars_enum:
 
+====
 Enum
 ====
 

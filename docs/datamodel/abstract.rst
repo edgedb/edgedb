@@ -4,6 +4,13 @@
 Abstract Types
 ==============
 
+These types are used in introspection as well as in definitions of
+functions that are general enough to apply to a broad range of types.
+
+
+----------
+
+
 .. eql:type:: anytype
 
     :index: any anytype

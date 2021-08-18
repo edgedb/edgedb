@@ -1,5 +1,6 @@
 .. _ref_datamodel_scalars_bytes:
 
+=====
 Bytes
 =====
 
