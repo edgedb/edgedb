@@ -43,61 +43,64 @@ except ImportError:
 
 
 RUNTIME_DEPS = [
+    'edgedb>=0.17.0',
+
     'asyncpg~=0.24.0',
     'httptools>=0.3.0',
     'immutables>=0.16',
     'uvloop~=0.16.0',
 
     'click~=7.1',
-    'parsing~=1.6.1',
-    'psutil~=5.8.0',
-    'setproctitle~=1.1.10',
-    'setuptools-rust~=0.11.4',
-    'setuptools_scm~=3.2.0',
-    "typing_inspect~=0.5.0;python_version<'3.9'",
-    'wcwidth~=0.2.5',
-    'cryptography~=3.4.7',
-
+    'cryptography~=3.4',
     'graphql-core~=3.1.5',
-    'promise~=2.2.0',
-
-    'edgedb>=0.17.0',
+    'parsing~=1.6',
+    'psutil~=5.8',
+    'setproctitle~=1.2',
+    'setuptools_scm~=6.0',
+    'wcwidth~=0.2',
 ]
 
 CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
 
 DOCS_DEPS = [
-    'lxml~=4.6.2',
-    'Pygments~=2.8.0',
+    'docutils~=0.17.0',
+    'lxml~=4.6.3',
+    'Pygments~=2.10.0',
     'Sphinx~=4.1.2',
     'sphinxcontrib-asyncio~=0.3.0',
 ]
 
 TEST_DEPS = [
-    'pycodestyle~=2.6.0',
-    'pyflakes~=2.2.0',
-    'black~=19.10b0',
-    'flake8~=3.8.1',
-    'flake8-bugbear~=20.1.4',
+    # Code QA
+    'black~=21.7b0',
     'coverage~=5.5',
+    'flake8~=3.9.2',
+    'flake8-bugbear~=21.4.3',
+    'pycodestyle~=2.7.0',
+    'pyflakes~=2.3.1',
+
+    # Needed for test_docs_sphinx_ext
     'requests-xml~=0.2.3',
+
     # For rebuilding GHA workflows
-    'Jinja2',
-    'PyYAML',
+    'Jinja2~=2.11',
+    'MarkupSafe~=1.1',
+    'PyYAML~=5.4',
 
     'mypy==0.910',
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
-    'types-click==7.1.2',
-    'types-docutils==0.17.0',
-    'types-Jinja2==2.11.2',
-    'types-MarkupSafe==1.1.3',
-    'types-pkg-resources==0.1.3',
-    'types-typed-ast==1.4.2',
+    'types-click~=7.1',
+    'types-docutils~=0.17.0',
+    'types-Jinja2~=2.11',
+    'types-MarkupSafe~=1.1',
+    'types-pkg-resources~=0.1.3',
+    'types-typed-ast~=1.4.2',
 ] + DOCS_DEPS
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
+    'setuptools-rust~=0.12.1',
 ]
 
 RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst

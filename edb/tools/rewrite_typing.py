@@ -28,7 +28,8 @@ from pathlib import Path
 import sys
 from typing import *
 
-from black import lib2to3_parse, Visitor, Leaf, Node, LN, syms
+from black import lib2to3_parse
+from black.nodes import Visitor, Leaf, Node, LN, syms
 from blib2to3.pgen2 import token
 
 
@@ -119,7 +120,7 @@ class TypingRewriter(Visitor[str]):
 
 
 def show(code: LN) -> None:
-    from black import DebugVisitor
+    from black.debug import DebugVisitor
 
     dv = DebugVisitor[None]()
     list(dv.visit(code))
