@@ -179,7 +179,7 @@ class BasePointerRef(ImmutableBase):
     __abstract_node__ = True
 
     # Hide children to reduce noise
-    __ast_hidden__ = {'children'}
+    __ast_hidden__ = {'children', 'outbound_ptr'}
 
     # cardinality fields need to be mutable for lazy cardinality inference.
     # and children because we update pointers with newly derived children
@@ -211,6 +211,11 @@ class BasePointerRef(ImmutableBase):
     dir_cardinality: qltypes.Cardinality
     # Outbound cardinality of the pointer.
     out_cardinality: qltypes.Cardinality
+
+    # For inbound pointers, a pointer to the corresponding outbound pointer.
+    # I think it might be better to drop direction from PointerRef and track it
+    # externally?
+    outbound_ptr: typing.Optional[BasePointerRef] = None
 
     @property
     def dir_target(self) -> TypeRef:

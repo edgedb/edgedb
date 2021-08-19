@@ -20,6 +20,7 @@
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestIntrospection(tb.QueryTestCase):
@@ -1357,6 +1358,24 @@ class TestIntrospection(tb.QueryTestCase):
 
         self.assertGreater(res, 0)
 
+    @test.xfail("""
+       We don't always properly filter things when
+       intersections/unions/backlinks are involved.
+    """)
+    async def test_edgeql_introspection_reverse_leaks_01(self):
+        res1 = await self.con.query(r"""
+            WITH MODULE schema
+            SELECT ScalarType { z := count(.<target) }
+            FILTER .name = 'std::str';
+        """)
+
+        res2 = await self.con.query_single(r"""
+            WITH MODULE schema
+            SELECT count((SELECT Property FILTER .target.name = 'std::str'));
+        """)
+
+        self.assertEqual(res1[0].z, res2)
+
     async def test_edgeql_default_injection_collision_01(self):
         await self.assert_query_result(
             r"""
@@ -1404,3 +1423,54 @@ class TestIntrospection(tb.QueryTestCase):
                 }
             ]
         )
+
+    async def test_edgeql_introspection_reverse_01(self):
+        await self.assert_query_result(
+            r"""
+            WITH MODULE schema
+            SELECT Type {
+                name,
+                from_casts := .<from_type[IS Cast] { allow_implicit }
+            }
+            FILTER .name = 'std::BaseObject';
+            """,
+            [
+                {
+                    "from_casts": [{"allow_implicit": False}],
+                    "name": "std::BaseObject",
+                },
+            ]
+        )
+
+    async def test_edgeql_introspection_reverse_02(self):
+        await self.assert_query_result(
+            r"""
+            WITH MODULE schema
+            SELECT EXISTS Cast.from_type.<from_type[IS Cast];
+            """,
+            [True],
+        )
+
+    async def test_edgeql_introspection_reverse_03(self):
+        # just some ones that crashed; can clean up later
+        await self.con.query(r'''
+            with module schema
+            SELECT Type.<type[IS std::Object][IS schema::TupleElement];
+        ''')
+
+        await self.con.query(r'''
+            with module schema
+            SELECT Type.<type[IS std::Object]
+        ''')
+
+        await self.con.query(r'''
+            with module schema
+            SELECT Type.<type[IS schema::Object]
+        ''')
+
+        res = await self.con.query(r'''
+            with module schema
+            SELECT Type { name, z := count(.<type[IS Object]) };
+        ''')
+        count1 = res[0].z
+        self.assertFalse(all(row.z == count1 for row in res))
