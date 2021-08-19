@@ -28,12 +28,11 @@ import subprocess
 import textwrap
 
 import setuptools
-from setuptools.command import develop as setuptools_develop
+from setuptools import extension as setuptools_extension
 from setuptools.command import build_ext as setuptools_build_ext
+from setuptools.command import develop as setuptools_develop
 
 import distutils
-from distutils import version
-from distutils import extension as distutils_extension
 from distutils.command import build as distutils_build
 
 try:
@@ -100,6 +99,7 @@ TEST_DEPS = [
 
 BUILD_DEPS = [
     CYTHON_DEPENDENCY,
+    'packaging>=21.0',
     'setuptools-rust~=0.12.1',
 ]
 
@@ -259,10 +259,17 @@ def _compile_postgres(build_base, *,
 
 
 def _check_rust():
+    import packaging
+
     try:
-        ver = subprocess.check_output(["rustc", '-V']).split()[1]
-        ver = version.LooseVersion(ver.decode())
-        if ver < version.LooseVersion(RUST_VERSION):
+        rustc_ver = (
+            subprocess.check_output(["rustc", '-V'], text=True).split()[1]
+            .rstrip("-nightly")
+        )
+        if (
+            packaging.version.parse(rustc_ver)
+            < packaging.version.parse(RUST_VERSION)
+        ):
             raise RuntimeError(
                 f'please upgrade Rust to {RUST_VERSION} to compile '
                 f'edgedb from source')
@@ -423,7 +430,7 @@ class ci_helper(setuptools.Command):
                 pkg_dir / 'edgeql-parser/Cargo.toml',
                 pkg_dir / 'edgeql-rust/Cargo.toml',
                 pkg_dir / 'graphql-rewrite/Cargo.toml',
-                ])
+            ])
             print(binascii.hexlify(rust_hash).decode())
 
         elif self.type == 'ext':
@@ -709,6 +716,7 @@ def custom_scm_version():
 
 setuptools.setup(
     setup_requires=RUNTIME_DEPS + BUILD_DEPS,
+    python_requires='>=3.9.0',
     use_scm_version=custom_scm_version,
     name='edgedb-server',
     description='EdgeDB Server',
@@ -719,67 +727,66 @@ setuptools.setup(
     cmdclass=COMMAND_CLASSES,
     entry_points={
         'console_scripts': [
-            'edgedb-old = edb.cli:cli',
             'edgedb-server = edb.server.main:main',
             'edgedb = edb.cli:rustcli',
         ]
     },
     ext_modules=[
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.server.cache.stmt_cache",
             ["edb/server/cache/stmt_cache.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.protocol.protocol",
             ["edb/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.server.pgproto.pgproto",
             ["edb/server/pgproto/pgproto.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.server.dbview.dbview",
             ["edb/server/dbview/dbview.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.server.protocol.binary",
             ["edb/server/protocol/binary.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.server.protocol.notebook_ext",
             ["edb/server/protocol/notebook_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.server.protocol.edgeql_ext",
             ["edb/server/protocol/edgeql_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.server.protocol.protocol",
             ["edb/server/protocol/protocol.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.server.pgcon.pgcon",
             ["edb/server/pgcon/pgcon.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
-        distutils_extension.Extension(
+        setuptools_extension.Extension(
             "edb.graphql.extension",
             ["edb/graphql/extension.pyx"],
             extra_compile_args=EXT_CFLAGS,
@@ -788,5 +795,4 @@ setuptools.setup(
     rust_extensions=rust_extensions,
     install_requires=RUNTIME_DEPS,
     extras_require=EXTRA_DEPS,
-    test_suite='tests.suite',
 )
