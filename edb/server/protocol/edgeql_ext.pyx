@@ -25,6 +25,7 @@ import immutables
 
 from edb import errors
 from edb import edgeql
+from edb.server import defines as edbdef
 from edb.server.pgcon import errors as pgerrors
 
 from edb.common import debug
@@ -147,7 +148,7 @@ async def compile(db, server, bytes query):
         False,          # no inlining of type IDs
         False,          # no inlining of type names
         compiler.CompileStatementMode.SINGLE,
-        None,           # protocol_version
+        edbdef.CURRENT_PROTOCOL,  # protocol_version
         True,           # inline_objectids
         True,           # json parameters
     )
