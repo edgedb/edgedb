@@ -152,7 +152,8 @@ class TypeSerializer:
 
     def _describe_type(self, t, view_shapes, view_shapes_metadata,
                        protocol_version,
-                       follow_links: bool = True):
+                       follow_links: bool = True,
+                       name_filter: str = ""):
         # The encoding format is documented in edb/api/types.txt.
 
         buf = self.buffer
@@ -238,6 +239,10 @@ class TypeSerializer:
             implicit_id = metadata is not None and metadata.has_implicit_id
 
             for ptr in view_shapes.get(t, ()):
+                name = ptr.get_shortname(self.schema).name
+                if not name.startswith(name_filter):
+                    continue
+                name = name.removeprefix(name_filter)
                 if ptr.singular(self.schema):
                     if isinstance(ptr, s_links.Link) and not follow_links:
                         subtype_id = self._describe_type(
@@ -259,7 +264,7 @@ class TypeSerializer:
                             ptr.get_target(self.schema), view_shapes,
                             view_shapes_metadata, protocol_version)
                 subtypes.append(subtype_id)
-                element_names.append(ptr.get_shortname(self.schema).name)
+                element_names.append(name)
                 link_props.append(False)
                 links.append(not ptr.is_property(self.schema))
                 cardinalities.append(
@@ -399,6 +404,7 @@ class TypeSerializer:
         protocol_version,
         follow_links: bool = True,
         inline_typenames: bool = False,
+        name_filter: str = "",
     ) -> typing.Tuple[bytes, uuid.UUID]:
         builder = cls(
             schema,
@@ -406,7 +412,8 @@ class TypeSerializer:
         )
         type_id = builder._describe_type(
             typ, view_shapes, view_shapes_metadata,
-            protocol_version, follow_links=follow_links)
+            protocol_version, follow_links=follow_links,
+            name_filter=name_filter)
         out = b''.join(builder.buffer) + b''.join(builder.anno_buffer)
         return out, type_id
 

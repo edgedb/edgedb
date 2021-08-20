@@ -537,6 +537,73 @@ class Compiler:
 
         return sql.decode(), argmap
 
+    def _compile_query_args(
+            self,
+            ctx: CompileContext,
+            schema: s_schema.Schema,
+            subtypes: List[Tuple[str, Any, bool]],
+    ) -> Tuple[bytes, uuid.UUID]:
+        current_tx = ctx.state.current_tx()
+
+        if not subtypes:
+            arg_ast = qlast.SelectQuery(
+                result=qlast.Path(steps=[qlast.ObjectRef(
+                    name='FreeObject',
+                    module='std',
+                )]),
+            )
+        else:
+            elements = []
+            for name, schema_type, required in subtypes:
+                if required:
+                    card = qlast.CardinalityModifier.Required
+                else:
+                    card = qlast.CardinalityModifier.Optional
+
+                elem = qlast.ShapeElement(
+                    expr=qlast.Path(steps=[qlast.Ptr(
+                        ptr=qlast.ObjectRef(name=f'__arg_{name}'),
+                        direction=s_pointers.PointerDirection.Outbound,
+                    )]),
+                    compexpr=qlast.TypeCast(
+                        cardinality_mod=card,
+                        expr=qlast.Parameter(name=name),
+                        type=s_utils.typeref_to_ast(schema, schema_type),
+                    ),
+                    operation=qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN),
+                )
+
+                elements.append(elem)
+
+            arg_ast = qlast.SelectQuery(
+                result=qlast.Shape(elements=elements),
+            )
+
+        arg_compile_options = qlcompiler.CompilerOptions(
+            modaliases=current_tx.get_modaliases(),
+            implicit_tid_in_shapes=False,
+            implicit_id_in_shapes=False,
+            implicit_tname_in_shapes=False,
+            apply_query_rewrites=False,
+        )
+
+        ir_expr = qlcompiler.compile_ast_to_ir(
+            arg_ast,
+            schema=schema,
+            options=arg_compile_options,
+        )
+
+        in_type_data, in_type_id = sertypes.TypeSerializer.describe(
+            schema=ir_expr.schema,
+            typ=ir_expr.stype,
+            view_shapes=ir_expr.view_shapes,
+            view_shapes_metadata=ir_expr.view_shapes_metadata,
+            protocol_version=ctx.protocol_version,
+            name_filter="__arg_",
+        )
+
+        return in_type_data, in_type_id
+
     def _compile_ql_query(
         self,
         ctx: CompileContext,
@@ -633,8 +700,8 @@ class Compiler:
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
 
+            params = []
             in_type_args = None
-
             if ir.params:
                 first_param = next(iter(ir.params))
                 named = not first_param.name.isdecimal()
@@ -648,6 +715,7 @@ class Compiler:
                 else:
                     user_params = len(ir.params)
 
+                params = [None] * user_params
                 subtypes = [None] * user_params
                 in_type_args = [None] * user_params
                 for param in ir.params:
@@ -669,6 +737,11 @@ class Compiler:
                         #     assert array_tid is not None
 
                     subtypes[idx] = (param.name, param.schema_type)
+                    params[idx] = (
+                        param.name,
+                        param.schema_type,
+                        sql_param.required,
+                    )
                     in_type_args[idx] = dbstate.Param(
                         name=param.name,
                         required=sql_param.required,
@@ -684,9 +757,13 @@ class Compiler:
                 ir.schema, params_type = s_types.Tuple.create(
                     ir.schema, element_types={}, named=False)
 
-            in_type_data, in_type_id = sertypes.TypeSerializer.describe(
-                ir.schema, params_type, {}, {},
-                protocol_version=ctx.protocol_version)
+            if ctx.protocol_version >= (0, 12):
+                in_type_data, in_type_id = self._compile_query_args(
+                    ctx, ir.schema, params)
+            else:
+                in_type_data, in_type_id = sertypes.TypeSerializer.describe(
+                    ir.schema, params_type, {}, {},
+                    protocol_version=ctx.protocol_version)
 
             sql_hash = self._hash_sql(
                 sql_bytes,

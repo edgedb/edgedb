@@ -121,6 +121,8 @@ async def compile(server, query):
         False,          # no inlining of type IDs
         False,          # no inlining of type names
         compiler.CompileStatementMode.SINGLE,
+        edbdef.CURRENT_PROTOCOL,  # protocol_version
+        True,           # inline_objectids
         True,           # json parameters
     )
     return units[0]
