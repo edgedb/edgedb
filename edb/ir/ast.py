@@ -179,12 +179,12 @@ class BasePointerRef(ImmutableBase):
     __abstract_node__ = True
 
     # Hide children to reduce noise
-    __ast_hidden__ = {'children', 'outbound_ptr'}
+    __ast_hidden__ = {'children'}
 
     # cardinality fields need to be mutable for lazy cardinality inference.
     # and children because we update pointers with newly derived children
     __ast_mutable_fields__ = frozenset(
-        ('dir_cardinality', 'out_cardinality', 'children')
+        ('in_cardinality', 'out_cardinality', 'children')
     )
 
     # The defaults set here are mostly to try to reduce debug spew output.
@@ -194,8 +194,6 @@ class BasePointerRef(ImmutableBase):
     std_parent_name: typing.Optional[sn.QualName] = None
     out_source: TypeRef
     out_target: TypeRef
-    direction: s_pointers.PointerDirection = (
-        s_pointers.PointerDirection.Outbound)
     source_ptr: typing.Optional[PointerRef] = None
     base_ptr: typing.Optional[BasePointerRef] = None
     material_ptr: typing.Optional[BasePointerRef] = None
@@ -206,38 +204,34 @@ class BasePointerRef(ImmutableBase):
     has_properties: bool = False
     is_derived: bool = False
     is_computable: bool = False
-    # Relation cardinality in the direction specified
-    # by *direction*.
-    dir_cardinality: qltypes.Cardinality
     # Outbound cardinality of the pointer.
     out_cardinality: qltypes.Cardinality
+    # Inbound cardinality of the pointer.
+    in_cardinality: qltypes.Cardinality = qltypes.Cardinality.MANY
 
-    # For inbound pointers, a pointer to the corresponding outbound pointer.
-    # I think it might be better to drop direction from PointerRef and track it
-    # externally?
-    outbound_ptr: typing.Optional[BasePointerRef] = None
-
-    @property
-    def dir_target(self) -> TypeRef:
-        if self.direction is s_pointers.PointerDirection.Outbound:
+    def dir_target(self, direction: s_pointers.PointerDirection) -> TypeRef:
+        if direction is s_pointers.PointerDirection.Outbound:
             return self.out_target
         else:
             return self.out_source
 
-    @property
-    def dir_source(self) -> TypeRef:
-        if self.direction is s_pointers.PointerDirection.Outbound:
+    def dir_source(self, direction: s_pointers.PointerDirection) -> TypeRef:
+        if direction is s_pointers.PointerDirection.Outbound:
             return self.out_source
         else:
             return self.out_target
+
+    def dir_cardinality(
+        self, direction: s_pointers.PointerDirection
+    ) -> qltypes.Cardinality:
+        if direction is s_pointers.PointerDirection.Outbound:
+            return self.out_cardinality
+        else:
+            return self.in_cardinality
 
     @property
     def required(self) -> bool:
         return self.out_cardinality.to_schema_value()[0]
-
-    @property
-    def is_inbound(self) -> bool:
-        return self.direction is self.direction.Inbound
 
     def descendants(self) -> typing.Set[BasePointerRef]:
         res = set(self.children)
@@ -412,6 +406,10 @@ class Pointer(Base):
     @property
     def is_inbound(self) -> bool:
         return self.direction == s_pointers.PointerDirection.Inbound
+
+    @property
+    def dir_cardinality(self) -> qltypes.Cardinality:
+        return self.ptrref.dir_cardinality(self.direction)
 
 
 class TypeIntersectionPointer(Pointer):

@@ -423,58 +423,31 @@ def new_primitive_rvar(
         typeref, path_id, dml_source=dml_source, ctx=ctx)
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
-    if ir_set.rptr is not None:
-        ptr_ref_map: Dict[uuid.UUID, irast.BasePointerRef] = {}
-        p: irast.BasePointerRef
-
-        # TODO: It should I think be possible to replace all of this
-        # ptr_ref_map logic with a generalized find_actual_ptrref.
-        rptrref = ir_set.rptr.ptrref
-        if isinstance(rptrref, irast.TypeIntersectionPointerRef):
-            if rptrref.rptr_specialization:
-                for p in rptrref.rptr_specialization:
-                    ptr_ref_map[p.dir_target.id] = p
-
-            src_set = ir_set.rptr.source
-            if src_set.rptr is not None:
-                src_rptrref = src_set.rptr.ptrref
-                if src_rptrref.union_components:
-                    for p in src_rptrref.union_components:
-                        ptr_ref_map[p.dir_target.id] = p
-                else:
-                    ptr_ref_map[src_rptrref.dir_target.id] = src_rptrref
-                rptrref = src_rptrref
-            else:
-                ptr_ref_map[rptrref.dir_target.id] = rptrref
-        else:
-            if rptrref.union_components:
-                for p in rptrref.union_components:
-                    ptr_ref_map[p.dir_target.id] = p
-            else:
-                ptr_ref_map[rptrref.dir_target.id] = rptrref
-
-        if (
-            set_rvar.typeref is not None
-            and (narrow_rptrref := ptr_ref_map.get(set_rvar.typeref.id))
-        ):
-            rptrref = narrow_rptrref
-
-        ptr_info = pg_types.get_ptrref_storage_info(
-            rptrref, resolve_type=False, link_bias=False, allow_missing=True)
+    rptr = ir_set.rptr
+    if rptr is not None:
+        if (isinstance(rptr.ptrref, irast.TypeIntersectionPointerRef)
+                and rptr.source.rptr):
+            rptr = rptr.source.rptr
 
         # If the set comes from an backlink, and the link is stored inline,
         # we want to output the source path.
         if (
-            ptr_info
-            and ptr_info.table_type == 'ObjectType'
-            and rptrref.is_inbound
+            rptr.is_inbound
+            and (
+                rptrref := irtyputils.maybe_find_actual_ptrref(
+                    set_rvar.typeref, rptr.ptrref) or rptr.ptrref
+                if set_rvar.typeref else rptr.ptrref
+            ) and (
+                ptr_info := pg_types.get_ptrref_storage_info(
+                    rptrref, resolve_type=False, link_bias=False,
+                    allow_missing=True)
+            ) and ptr_info.table_type == 'ObjectType'
         ):
             # Inline link
             prefix_path_id = path_id.src_path()
             assert prefix_path_id is not None, 'expected a path'
 
-            assert rptrref.outbound_ptr
-            flipped_id = path_id.extend(ptrref=rptrref.outbound_ptr)
+            flipped_id = path_id.extend(ptrref=rptrref)
             rref = pathctx.get_path_output(
                 set_rvar.query, flipped_id, aspect='identity', env=ctx.env)
 
@@ -619,7 +592,7 @@ def semi_join(
         ptrref, resolve_type=False, allow_missing=True)
 
     if ptr_info and ptr_info.table_type == 'ObjectType':
-        if irtyputils.is_inbound_ptrref(ptrref):
+        if rptr.is_inbound:
             far_pid = ir_set.path_id.src_path()
             assert far_pid is not None
         else:
@@ -872,7 +845,6 @@ def unpack_rvar(
                     out_source=path_id.target,
                     out_target=st,
                     out_cardinality=qltypes.Cardinality.ONE,
-                    dir_cardinality=qltypes.Cardinality.ONE,
                 )
                 el_path_id = path_id.extend(ptrref=el_ref)
 
@@ -950,7 +922,7 @@ def unpack_rvar(
                 el_id = path_id.ptr_path().extend(ptrref=ptrref)
 
                 assert el.rptr
-                card = el.rptr.ptrref.dir_cardinality
+                card = el.rptr.ptrref.dir_cardinality(el.rptr.direction)
                 is_singleton = card.is_single() and not card.can_be_zero()
                 must_pack = not is_singleton
 

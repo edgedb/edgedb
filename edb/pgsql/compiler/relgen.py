@@ -910,7 +910,7 @@ def process_set_as_path(
     source_rptr = ir_source.rptr
     if (irtyputils.is_id_ptrref(ptrref) and source_rptr is not None
             and isinstance(source_rptr.ptrref, irast.PointerRef)
-            and not irtyputils.is_inbound_ptrref(source_rptr.ptrref)
+            and not source_rptr.is_inbound
             and not irtyputils.is_computable_ptrref(source_rptr.ptrref)
             and not irutils.is_type_intersection_reference(ir_set)):
 
