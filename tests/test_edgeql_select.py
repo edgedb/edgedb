@@ -6112,3 +6112,40 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             await self.con.query(r'''
                 SELECT _ := (User { tag := _.name });
             ''')
+
+    async def test_edgeql_select_reverse_overload_01(self):
+        await self.con.execute('''
+            CREATE TYPE Dummy {
+                CREATE LINK owner -> User;
+            }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    z := (SELECT .<owner[IS Named] { name }
+                          ORDER BY .name)
+                } FILTER .name = 'Elvis';
+            ''',
+            [{"z": [{"name": "Regression."}, {"name": "Release EdgeDB"}]}],
+        )
+
+    async def test_edgeql_select_reverse_overload_02(self):
+        await self.con.execute('''
+            CREATE TYPE Dummy1 {
+                CREATE MULTI LINK owner -> User;
+            };
+            CREATE TYPE Dummy2 {
+                CREATE SINGLE LINK owner -> User;
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    z := (SELECT .<owner[IS Named] { name }
+                          ORDER BY .name)
+                } FILTER .name = 'Elvis';
+            ''',
+            [{"z": [{"name": "Regression."}, {"name": "Release EdgeDB"}]}],
+        )

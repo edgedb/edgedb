@@ -636,6 +636,13 @@ def ptrref_from_ptrcls(  # NoQA: F811
     else:
         children = frozenset()
 
+    if direction == s_pointers.PointerDirection.Outbound:
+        outbound_ptr = None
+    else:
+        outbound_ptr = ptrref_from_ptrcls(
+            schema=schema, ptrcls=ptrcls, cache=cache,
+            typeref_cache=typeref_cache)
+
     kwargs.update(dict(
         out_source=out_source,
         out_target=out_target,
@@ -656,6 +663,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
         has_properties=ptrcls.has_user_defined_properties(schema),
         dir_cardinality=dir_cardinality,
         out_cardinality=out_cardinality,
+        outbound_ptr=outbound_ptr,
     ))
 
     ptrref = ircls(**kwargs)
