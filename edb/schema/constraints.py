@@ -790,7 +790,7 @@ class ConstraintCommand(
             for ref in refs:
                 while ref.rptr:
                     rptr = ref.rptr
-                    if rptr.ptrref.dir_cardinality.is_multi():
+                    if rptr.dir_cardinality.is_multi():
                         has_multi = True
                     if (not isinstance(rptr.ptrref,
                                        ir_ast.TupleIndirectionPointerRef)

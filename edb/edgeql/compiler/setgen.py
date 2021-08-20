@@ -967,7 +967,7 @@ def type_intersection_set(
         # when evaluating the path cardinality, as well as to
         # route link property references accordingly.
         for component in rptr.ptrref.union_components:
-            component_endpoint_ref = component.dir_target
+            component_endpoint_ref = component.dir_target(rptr.direction)
             ctx.env.schema, component_endpoint = irtyputils.ir_typeref_to_type(
                 ctx.env.schema, component_endpoint_ref)
             if component_endpoint.issubclass(ctx.env.schema, stype):
@@ -983,7 +983,6 @@ def type_intersection_set(
                     irtyputils.ptrref_from_ptrcls(
                         schema=ctx.env.schema,
                         ptrcls=narrow_ptr,
-                        direction=rptr.direction,
                         cache=ctx.env.ptr_ref_cache,
                         typeref_cache=ctx.env.type_ref_cache,
                     ),

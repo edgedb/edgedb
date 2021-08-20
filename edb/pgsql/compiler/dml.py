@@ -901,7 +901,7 @@ def compile_insert_shape_element(
         # the expression is one, so we check for AT_MOST_ONE
         # to determine nullability.
         assert shape_el.rptr is not None
-        if (shape_el.rptr.ptrref.dir_cardinality
+        if (shape_el.rptr.dir_cardinality
                 is qltypes.Cardinality.AT_MOST_ONE):
             insvalctx.force_optional.add(shape_el.path_id)
 
@@ -1388,7 +1388,7 @@ def process_link_update(
         delqry = None
 
     if shape_op is qlast.ShapeOp.SUBTRACT:
-        if mptrref.dir_cardinality.can_be_zero():
+        if mptrref.dir_cardinality(rptr.direction).can_be_zero():
             # The pointer is OPTIONAL, no checks or further processing
             # is needed.
             return None
@@ -1641,7 +1641,9 @@ def process_link_values(
         if ptrref.material_ptr is not None:
             ptrref = ptrref.material_ptr
         assert isinstance(ptrref, irast.PointerRef)
-        ptr_is_required = not ptrref.dir_cardinality.can_be_zero()
+        ptr_is_required = (
+            not ptrref.dir_cardinality(ir_rptr.direction).can_be_zero()
+        )
 
         with subrelctx.newscope() as sctx, sctx.subrel() as input_rel_ctx:
             input_rel = input_rel_ctx.rel

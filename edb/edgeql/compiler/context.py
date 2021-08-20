@@ -110,7 +110,7 @@ class PointerRefCache(Dict[irtyputils.PtrRefCacheKey, irast.BasePointerRef]):
         val: irast.BasePointerRef,
     ) -> None:
         super().__setitem__(key, val)
-        self._rcache[val] = key[0]
+        self._rcache[val] = key
 
     def get_ptrcls_for_ref(
         self,

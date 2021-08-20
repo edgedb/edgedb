@@ -466,11 +466,11 @@ def _infer_pointer_cardinality(
         _update_cardinality_in_derived(ptrcls, env=ctx.env)
 
     if ptrref:
-        out_card, dir_card = typeutils.cardinality_from_ptrcls(
-            env.schema, ptrcls, direction=ptrref.direction)
-        assert dir_card is not None
+        out_card, in_card = typeutils.cardinality_from_ptrcls(
+            env.schema, ptrcls)
+        assert in_card is not None
         assert out_card is not None
-        ptrref.dir_cardinality = dir_card
+        ptrref.in_cardinality = in_card
         ptrref.out_cardinality = out_card
 
 
@@ -617,7 +617,8 @@ def _infer_set_inner(
                         rptr_spec.update(ind_ptr.ptrref.rptr_specialization)
 
                     rptr_spec_card = _union_cardinality(
-                        s.dir_cardinality for s in rptr_spec)
+                        s.dir_cardinality(ind_prefix.rptr.direction)
+                        for s in rptr_spec)
 
                     # If the intersection has an rptr_specialization,
                     # then we take a step back and start with
@@ -644,10 +645,11 @@ def _infer_set_inner(
                 # in a sense that for any specific source only a given union
                 # component is used.
                 rptrref_card = cartesian_cardinality(
-                    c.dir_cardinality for c in rptrref.union_components
+                    c.dir_cardinality(rptr.direction)
+                    for c in rptrref.union_components
                 )
             else:
-                rptrref_card = rptrref.dir_cardinality
+                rptrref_card = rptrref.dir_cardinality(rptr.direction)
 
             if rptrref_card.is_single():
                 return cartesian_cardinality((source_card, rptrref_card))

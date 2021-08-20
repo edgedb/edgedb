@@ -75,7 +75,7 @@ def compile_shape(
             ptrref = rptr.ptrref
             # As an implementation expedient, we currently represent
             # AT_MOST_ONE materialized values with arrays
-            card = ptrref.dir_cardinality
+            card = rptr.dir_cardinality
             is_singleton = (
                 card.is_single() and (
                     op != qlast.ShapeOp.MATERIALIZE or not card.can_be_zero()

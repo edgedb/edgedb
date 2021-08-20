@@ -137,6 +137,7 @@ def get_path_var(
         return _get_path_var_in_setop(rel, path_id, aspect=aspect, env=env)
 
     ptrref = path_id.rptr()
+    ptrref_dir = path_id.rptr_dir()
     is_type_intersection = path_id.is_type_intersection_path()
 
     src_path_id: Optional[irast.PathId] = None
@@ -151,9 +152,13 @@ def get_path_var(
             src_path_id = path_id.src_path()
             assert src_path_id is not None
             src_rptr = src_path_id.rptr()
-            if (irtyputils.is_id_ptrref(ptrref)
-                    and (src_rptr is None
-                         or not irtyputils.is_inbound_ptrref(src_rptr))):
+            if (
+                irtyputils.is_id_ptrref(ptrref)
+                and (
+                    src_rptr is None
+                    or ptrref_dir is not s_pointers.PointerDirection.Inbound
+                )
+            ):
                 # When there is a reference to the id property of
                 # an object which is linked to by a link stored
                 # inline, we want to route the reference to the
@@ -236,8 +241,9 @@ def get_path_var(
     source_rel = rel_rvar.query
 
     if isinstance(ptrref, irast.PointerRef) and rel_rvar.typeref is not None:
+        assert ptrref_dir
         actual_ptrref = irtyputils.maybe_find_actual_ptrref(
-            rel_rvar.typeref, ptrref)
+            rel_rvar.typeref, ptrref, dir=ptrref_dir)
 
         if actual_ptrref is not None:
             ptr_info = pg_types.get_ptrref_storage_info(
@@ -639,9 +645,10 @@ def get_rvar_path_var(
             and (not rvar.query.path_id.is_type_intersection_path()
                  or rvar.query.path_id.src_path() != path_id)
         ):
+            ptrref_dir = path_id.rptr_dir()
+            assert ptrref_dir
             actual_rptr = irtyputils.maybe_find_actual_ptrref(
-                rvar.typeref,
-                rptr,
+                rvar.typeref, rptr, dir=ptrref_dir
             )
             if actual_rptr is not None:
                 ptr_si = pg_types.get_ptrref_storage_info(actual_rptr)
