@@ -710,6 +710,10 @@ class FunctionCall(Call):
     # Error to raise if the underlying SQL function returns NULL.
     error_on_null_result: typing.Optional[str] = None
 
+    # Whether the generic function preserves optionality of the generic
+    # argument(s).
+    preserves_optionality: bool = False
+
     # Set to the type of the variadic parameter of the bound function
     # (or None, if the function has no variadic parameters.)
     variadic_param_type: typing.Optional[TypeRef] = None

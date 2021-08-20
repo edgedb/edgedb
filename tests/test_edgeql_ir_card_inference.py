@@ -663,3 +663,83 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         AT_LEAST_ONE
         """
+
+    def test_edgeql_ir_card_inference_74(self):
+        """
+        SELECT taking_opt_returning_non_opt("foo")
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_75(self):
+        """
+        SELECT taking_opt_returning_non_opt(<str>{})
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_76(self):
+        """
+        SELECT taking_non_opt_returning_opt("foo")
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_77(self):
+        """
+        SELECT taking_non_opt_returning_opt(<str>{})
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_78(self):
+        """
+        SELECT len("foo")
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_79(self):
+        """
+        SELECT len(<str>{})
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_80(self):
+        """
+        WITH s := {1, 2, 3}
+        SELECT max(s)
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_81(self):
+        """
+        SELECT max(Person.p)
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_82(self):
+        """
+        SELECT assert_single(Person.p)
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_83(self):
+        """
+        SELECT Card {
+            element := assert_single(.element ++ "1")
+        }
+% OK %
+        element: ONE
+        """
+
+    def test_edgeql_ir_card_inference_84(self):
+        """
+        SELECT array_get([1, 2, 3], {0, 2})
+% OK %
+        MANY
+        """

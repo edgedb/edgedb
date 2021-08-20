@@ -273,6 +273,12 @@ class CastParamListWrapper(s_func.ParameterLikeList):
     ) -> bool:
         return False
 
+    def has_set_of(
+        self,
+        schema: s_schema.Schema,
+    ) -> bool:
+        return False
+
     def objects(
         self,
         schema: s_schema.Schema,

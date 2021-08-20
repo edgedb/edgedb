@@ -255,6 +255,7 @@ def compile_FunctionCall(
         volatility=func.get_volatility(env.schema),
         sql_func_has_out_params=func.get_sql_func_has_out_params(env.schema),
         error_on_null_result=func.get_error_on_null_result(env.schema),
+        preserves_optionality=func.get_preserves_optionality(env.schema),
         params_typemods=params_typemods,
         context=expr.context,
         typeref=typegen.type_to_typeref(

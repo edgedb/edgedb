@@ -547,6 +547,10 @@ class ParameterLikeList(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def has_set_of(self, schema: s_schema.Schema) -> bool:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def find_named_only(
         self,
         schema: s_schema.Schema,
@@ -602,6 +606,10 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
 
     def has_polymorphic(self, schema: s_schema.Schema) -> bool:
         return any(p.get_type(schema).is_polymorphic(schema)
+                   for p in self.objects(schema))
+
+    def has_set_of(self, schema: s_schema.Schema) -> bool:
+        return any(p.get_typemod(schema) is ft.TypeModifier.SetOfType
                    for p in self.objects(schema))
 
     def find_named_only(
@@ -1166,6 +1174,12 @@ class Function(
     error_on_null_result = so.SchemaField(
         str, default=None, compcoef=0.9)
 
+    #: For a generic function, if True, indicates that the
+    #: optionality of the result set should be the same as
+    #: of the generic argument.  (See std::assert_single).
+    preserves_optionality = so.SchemaField(
+        bool, default=False, compcoef=0.99)
+
     initial_value = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.4, coerce=True)
 
@@ -1515,9 +1529,18 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         return_typemod = self.scls.get_return_typemod(schema)
         from_function = self.scls.get_from_function(schema)
         has_polymorphic = params.has_polymorphic(schema)
+        has_set_of = params.has_set_of(schema)
         polymorphic_return_type = return_type.is_polymorphic(schema)
         named_only = params.find_named_only(schema)
         fallback = self.scls.get_fallback(schema)
+        preserves_opt = self.scls.get_preserves_optionality(schema)
+
+        if preserves_opt and not has_set_of:
+            raise errors.InvalidFunctionDefinitionError(
+                f'cannot create `{signature}` function: '
+                f'"preserves_optionality" makes no sense '
+                f'in a non-aggregate function',
+                context=self.source_context)
 
         # Certain syntax is only allowed in "EdgeDB developer" mode,
         # i.e. when populating std library, etc.
@@ -1540,12 +1563,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'"USING {language}" is not supported in '
                     f'user-defined functions',
                     context=self.source_context)
-            elif fallback:
-                raise errors.InvalidFunctionDefinitionError(
-                    f'cannot create `{signature}` function: '
-                    f'designating a generic fallback is not supported in '
-                    f'user-defined functions',
-                    context=self.source_context)
 
         if polymorphic_return_type and not has_polymorphic:
             raise errors.InvalidFunctionDefinitionError(
@@ -1561,6 +1578,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             func_params = func.get_params(schema)
             func_named_only = func_params.find_named_only(schema)
             func_from_function = func.get_from_function(schema)
+            func_preserves_opt = func.get_preserves_optionality(schema)
 
             if func_named_only.keys() != named_only.keys():
                 raise errors.InvalidFunctionDefinitionError(
@@ -1594,6 +1612,14 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
 
             if func_from_function:
                 has_from_function = func_from_function
+
+            if func_preserves_opt != preserves_opt:
+                raise errors.InvalidFunctionDefinitionError(
+                    f'cannot create `{signature}` function: '
+                    f'overloading another function with different '
+                    f'"preserves_optionality" attribute: '
+                    f'`{func.get_signature_as_str(schema)}`',
+                    context=self.source_context)
 
         if has_from_function:
             # Ignore the generic fallback when considering

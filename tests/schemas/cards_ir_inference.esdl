@@ -123,3 +123,16 @@ type Person extending BadlyNamed {
     link card -> Card;
     constraint exclusive on ((.p, .card));
 }
+
+
+function taking_opt_returning_non_opt(a: optional str) -> str {
+    using (
+        a
+    );
+};
+
+function taking_non_opt_returning_opt(a: str) -> optional str {
+    using (
+        a
+    );
+};
