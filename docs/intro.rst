@@ -29,3 +29,10 @@ document-like data is trivial.
 
 EdgeDB is not a traditional object database, despite the classification,
 it is not an implementation of OOP persistence.
+
+
+.. toctree::
+    :maxdepth: 3
+    :hidden:
+
+    changelog/index

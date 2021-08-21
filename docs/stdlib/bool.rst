@@ -1,4 +1,4 @@
-.. _ref_eql_operators_logical:
+.. _ref_std_logical:
 
 
 =======

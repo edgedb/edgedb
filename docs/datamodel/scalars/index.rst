@@ -22,7 +22,7 @@ See also scalar type
 :ref:`SDL <ref_eql_sdl_scalars>`,
 :ref:`DDL <ref_eql_ddl_scalars>`,
 :ref:`introspection <ref_eql_introspection_scalar_types>`,
-and :ref:`functions and operators <ref_eql_funcops>`.
+and :ref:`functions and operators <ref_std>`.
 
 .. toctree::
     :maxdepth: 3

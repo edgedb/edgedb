@@ -22,7 +22,7 @@ Bytes
         db> SELECT b'Hello,\x20world\x01';
         {b'Hello, world\x01'}
 
-    There are also some :ref:`generic <ref_eql_functions_generic>`
+    There are also some :ref:`generic <ref_std_generic>`
     functions that can operate on bytes:
 
     .. code-block:: edgeql-repl
@@ -38,5 +38,5 @@ Scalar type
 :ref:`SDL <ref_eql_sdl_scalars>`,
 :ref:`DDL <ref_eql_ddl_scalars>`,
 :ref:`introspection <ref_eql_introspection_scalar_types>`,
-:ref:`bytes functions and operators <ref_eql_funcops_bytes>`,
+:ref:`bytes functions and operators <ref_std_bytes>`,
 and :ref:`bytes literal lexical structure <ref_eql_lexical_bytes>`.

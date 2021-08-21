@@ -62,7 +62,7 @@ Similarly you can run some aggregates on the nested sets:
 
 You can find more information on aggregates in the
 :ref:`Cookbook <ref_cookbook_aggregates>` and the reference of
-:ref:`set functions <ref_eql_operators_set>` (or just search for "aggregate").
+:ref:`set functions <ref_std_set>` (or just search for "aggregate").
 
 
 .. _ref_cookbook_links_bw:

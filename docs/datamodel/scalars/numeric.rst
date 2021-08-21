@@ -89,7 +89,7 @@ from :eql:type:`str` and :eql:type:`json`.
     accidentally cast into a numeric type with less precision.
 
     In accordance with this :ref:`the mathematical functions
-    <ref_eql_functions_math>` are designed to keep the separation
+    <ref_std_math>` are designed to keep the separation
     between bigint values and the rest of the numeric types.
 
     All of the following types can be explicitly cast into bigint:
@@ -151,7 +151,7 @@ from :eql:type:`str` and :eql:type:`json`.
     accidentally cast into a numeric type with less precision.
 
     In accordance with this :ref:`the mathematical functions
-    <ref_eql_functions_math>` are designed to keep the separation
+    <ref_std_math>` are designed to keep the separation
     between decimal values and the rest of the numeric types.
 
     All of the following types can be explicitly cast into decimal:
@@ -227,8 +227,8 @@ Scalar type
 :ref:`DDL <ref_eql_ddl_scalars>`,
 :ref:`introspection <ref_eql_introspection_scalar_types>`,
 :ref:`arithmetic operators and numeric converter functions
-<ref_eql_funcops_numeric>`,
-:ref:`mathematical functions <ref_eql_functions_math>`,
+<ref_std_numeric>`,
+:ref:`mathematical functions <ref_std_math>`,
 :eql:func:`max`,
 :eql:func:`min`,
 :eql:func:`random`,

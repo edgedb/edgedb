@@ -1,4 +1,4 @@
-.. _ref_eql_funcops_json:
+.. _ref_std_json:
 
 ====
 JSON

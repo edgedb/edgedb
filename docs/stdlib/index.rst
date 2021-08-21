@@ -1,8 +1,8 @@
-.. _ref_eql_funcops:
+.. _ref_std:
 
-=======================
-Functions and Operators
-=======================
+================
+Standard Library
+================
 
 EdgeDB provides a number of functions for the standard data types.
 Custom functions can be created using
@@ -31,7 +31,7 @@ so they are element-wise operations. This implies that if any of the
 input sets are empty, the result of applying an element function
 is also empty.
 
-.. _ref_eql_functions_agg:
+.. _ref_std_agg:
 
 Aggregate functions are *set functions* mapping arbitrary sets onto
 singletons. Examples of aggregate functions include built-ins such as
@@ -54,6 +54,7 @@ singletons. Examples of aggregate functions include built-ins such as
     :maxdepth: 3
     :hidden:
 
+    abstract
     generic
     set
     type
@@ -68,4 +69,5 @@ singletons. Examples of aggregate functions include built-ins such as
     sequence
     sys
     uuid
+    constraints
     deprecated

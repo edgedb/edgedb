@@ -1,4 +1,4 @@
-.. _ref_eql_funcops_deprecated:
+.. _ref_std_deprecated:
 
 ==========
 Deprecated

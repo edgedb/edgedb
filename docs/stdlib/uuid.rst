@@ -1,4 +1,4 @@
-.. _ref_eql_funcops_uuid:
+.. _ref_std_uuid:
 
 ====
 UUID

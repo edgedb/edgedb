@@ -1,4 +1,4 @@
-.. _ref_eql_funcops_numeric:
+.. _ref_std_numeric:
 
 ========
 Numerics
@@ -257,7 +257,7 @@ Numerics
         {31n}
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
+    <ref_std_converters_number_fmt>`.
 
 
 ------------
@@ -283,7 +283,7 @@ Numerics
         {31.0n}
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
+    <ref_std_converters_number_fmt>`.
 
 
 ------------
@@ -299,7 +299,7 @@ Numerics
     specification *fmt*.
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
+    <ref_std_converters_number_fmt>`.
 
 
 ------------
@@ -315,7 +315,7 @@ Numerics
     specification *fmt*.
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
+    <ref_std_converters_number_fmt>`.
 
 
 ------------
@@ -331,7 +331,7 @@ Numerics
     specification *fmt*.
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
+    <ref_std_converters_number_fmt>`.
 
 
 ------------
@@ -347,7 +347,7 @@ Numerics
     specification *fmt*.
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
+    <ref_std_converters_number_fmt>`.
 
 
 ------------
@@ -363,4 +363,4 @@ Numerics
     specification *fmt*.
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_number_fmt>`.
+    <ref_std_converters_number_fmt>`.

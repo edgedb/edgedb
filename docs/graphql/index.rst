@@ -1,8 +1,8 @@
 .. _ref_graphql_index:
 
-=================
-GraphQL over HTTP
-=================
+=======
+GraphQL
+=======
 
 EdgeDB supports `GraphQL queries`__ natively out of the box. Not
 everything that can be expressed in EdgeQL can easily be queried using
@@ -45,6 +45,7 @@ used to try out queries and explore the GraphQL capabilities.
     introspection
     protocol
     limitations
+    cheatsheet
 
 
 .. __: http://graphql.org/docs/queries/

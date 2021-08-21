@@ -1,4 +1,4 @@
-.. _ref_eql_operators_type:
+.. _ref_std_type:
 
 
 =====

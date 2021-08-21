@@ -1,4 +1,4 @@
-.. _ref_eql_funcops_datetime:
+.. _ref_std_datetime:
 
 
 =============
@@ -420,7 +420,7 @@ Date and Time
     :eql:type:`str` *s*. By default, the input is expected to conform
     to ISO 8601 format. However, the optional argument *fmt* can
     be used to override the :ref:`input format
-    <ref_eql_functions_converters_datetime_fmt>` to other forms.
+    <ref_std_converters_datetime_fmt>` to other forms.
 
     .. code-block:: edgeql-repl
 
@@ -480,7 +480,7 @@ Date and Time
     component parts: *year*, *month*, *day*, *hour*, *min*, *sec*.
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
+    <ref_std_converters_datetime_fmt>`.
 
     .. code-block:: edgeql-repl
 
@@ -523,7 +523,7 @@ Date and Time
     component parts: *year*, *month*, *day*.
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
+    <ref_std_converters_datetime_fmt>`.
 
     .. code-block:: edgeql-repl
 
@@ -565,7 +565,7 @@ Date and Time
     component parts: *hour*, *min*, *sec*.
 
     For more details on formatting see :ref:`here
-    <ref_eql_functions_converters_datetime_fmt>`.
+    <ref_std_converters_datetime_fmt>`.
 
     .. code-block:: edgeql-repl
 

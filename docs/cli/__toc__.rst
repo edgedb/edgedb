@@ -1,6 +1,6 @@
-===
-CLI
-===
+============
+Command Line
+============
 
 .. toctree::
     :maxdepth: 3

@@ -1,4 +1,4 @@
-.. _ref_eql_funcops_array:
+.. _ref_std_array:
 
 
 =====

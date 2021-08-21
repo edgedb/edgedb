@@ -1,4 +1,4 @@
-.. _ref_eql_functions_math:
+.. _ref_std_math:
 
 
 ====

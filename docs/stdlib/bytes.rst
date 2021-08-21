@@ -1,4 +1,4 @@
-.. _ref_eql_funcops_bytes:
+.. _ref_std_bytes:
 
 =====
 Bytes
