@@ -181,6 +181,7 @@ def type_to_typeref(
     elif not isinstance(t, s_types.Collection):
         assert isinstance(t, s_types.InheritingType)
         union_of = t.get_union_of(schema)
+        union: Optional[FrozenSet[irast.TypeRef]]
         if union_of:
             non_overlapping, union_is_concrete = (
                 s_utils.get_non_overlapping_union(
@@ -194,16 +195,17 @@ def type_to_typeref(
             )
         else:
             union_is_concrete = False
-            union = frozenset()
+            union = None
 
         intersection_of = t.get_intersection_of(schema)
+        intersection: Optional[FrozenSet[irast.TypeRef]]
         if intersection_of:
             intersection = frozenset(
                 type_to_typeref(schema, c, cache=cache)
                 for c in intersection_of.objects(schema)
             )
         else:
-            intersection = frozenset()
+            intersection = None
 
         schema, material_type = t.material_type(schema)
 
