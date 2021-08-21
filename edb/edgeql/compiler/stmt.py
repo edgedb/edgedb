@@ -146,6 +146,7 @@ def compile_ForQuery(
             s_name.UnqualName(qlstmt.iterator_alias),
             factoring_fence=contains_dml,
             path_id_namespace=ictx.path_id_namespace,
+            is_for_view=True,
             ctx=ictx,
         )
 
@@ -273,6 +274,14 @@ def compile_insert_unless_conflict_select(
         name = elem.rptr.ptrref.shortname.name
         if name in needed_ptrs and name not in ptr_anchors:
             assert elem.expr
+
+            if inference.infer_volatility(elem.expr, ctx.env).is_volatile():
+                raise errors.QueryError(
+                    'INSERT UNLESS CONFLICT ON does not support volatile '
+                    'properties',
+                    context=parser_context,
+                )
+
             # FIXME: The wrong thing will definitely happen if there are
             # volatile entries here
             source_alias = ctx.aliases.get(name)

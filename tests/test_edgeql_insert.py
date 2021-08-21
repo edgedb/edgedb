@@ -23,6 +23,7 @@ import uuid
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestInsert(tb.QueryTestCase):
@@ -2674,6 +2675,34 @@ class TestInsert(tb.QueryTestCase):
             ],
         )
 
+    @test.not_implemented("""
+        We don't support UNLESS CONFLICT with volatile keys yet.
+        test_edgeql_insert_unless_conflict_16b tests our error reporting
+    """)
+    async def test_edgeql_insert_unless_conflict_16(self):
+        # unless conflict with a volatile key
+        for _ in range(10):
+            await self.con.execute(r'''
+                DELETE Person;
+            ''')
+
+            for _ in range(3):
+                res = await self.con.query(r'''
+                    INSERT Person { name := <str>math::floor(random() * 2) }
+                    UNLESS CONFLICT ON (.name) ELSE (Person)
+                ''')
+                self.assertEqual(len(res), 1)
+
+    async def test_edgeql_insert_unless_conflict_16b(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "INSERT UNLESS CONFLICT ON does not support volatile "
+                "properties"):
+            await self.con.execute('''
+                INSERT Person { name := <str>math::floor(random() * 2) }
+                UNLESS CONFLICT ON (.name) ELSE (Person)
+            ''')
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             SELECT (
@@ -3655,3 +3684,33 @@ class TestInsert(tb.QueryTestCase):
                     sub := Subordinate,
                 }
             ''')
+
+    async def test_edgeql_insert_volatile_01(self):
+        # Ideally we'll support these versions eventually
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "cannot refer to volatile WITH bindings from DML"):
+            await self.con.execute('''
+                WITH name := <str>random(),
+                INSERT Person { name := name, tag := name };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "cannot refer to volatile WITH bindings from DML"):
+            await self.con.execute('''
+                WITH name := <str>random(),
+                SELECT (INSERT Person { name := name, tag := name });
+            ''')
+
+        await self.con.execute('''
+            FOR name in {<str>random()}
+            UNION (INSERT Person { name := name, tag := name });
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT all(Person.name = Person.tag)
+            ''',
+            [True]
+        )

@@ -69,7 +69,7 @@ import dataclasses
 import typing
 import uuid
 
-from edb.common import ast, compiler, parsing, markup
+from edb.common import ast, compiler, parsing, markup, enum as s_enum
 
 from edb.schema import modules as s_mod
 from edb.schema import name as sn
@@ -435,6 +435,11 @@ class ImmutableExpr(Expr, ImmutableBase):
     __abstract_node__ = True
 
 
+class BindingKind(s_enum.StrEnum):
+    With = 'With'
+    For = 'For'
+
+
 class Set(Base):
 
     __ast_frozen_fields__ = frozenset({'typeref'})
@@ -450,7 +455,7 @@ class Set(Base):
     # A pointer to a set nested within this one has a shape and the same
     # typeref, if such a set exists.
     shape_source: typing.Optional[Set] = None
-    is_binding: bool = False
+    is_binding: typing.Optional[BindingKind] = None
 
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
@@ -482,7 +487,7 @@ class MaterializeVolatile(typing.NamedTuple):
 
 
 class MaterializeVisible(typing.NamedTuple):
-    paths: typing.Set[PathId]
+    sets: typing.Set[typing.Tuple[PathId, Set]]
 
 
 MaterializeReason = typing.Union[MaterializeVolatile, MaterializeVisible]

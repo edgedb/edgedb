@@ -427,7 +427,7 @@ def find_potentially_visible(
     scope: irast.ScopeTreeNode,
     scope_tree_nodes: Mapping[int, irast.ScopeTreeNode],
     to_skip: AbstractSet[irast.PathId]=frozenset()
-) -> Set[irast.PathId]:
+) -> Set[Tuple[irast.PathId, irast.Set]]:
     """Find all "potentially visible" sets referenced."""
     # TODO: Make this caching.
     visitor = FindPotentiallyVisibleVisitor(to_skip=to_skip)
@@ -449,7 +449,7 @@ def find_potentially_visible(
                     path_id = path_id.strip_namespace(ns)
                     break
 
-        visible_paths.add(path_id)
+        visible_paths.add((path_id, ir))
 
     return visible_paths
 
