@@ -348,8 +348,13 @@ def _get_set_rvar(
                     rvars = process_set_as_enumerate(ir_set, stmt, ctx=ctx)
 
             elif str(expr.func_shortname) == 'std::assert_single':
-                # Cardinality assertion
+                # Cardinality assertion (upper bound)
                 rvars = process_set_as_singleton_assertion(
+                    ir_set, stmt, ctx=ctx)
+
+            elif str(expr.func_shortname) == 'std::assert_exists':
+                # Cardinality assertion (lower bound)
+                rvars = process_set_as_existence_assertion(
                     ir_set, stmt, ctx=ctx)
 
             elif str(expr.func_shortname) == 'std::min' and expr.func_sql_expr:
@@ -1446,7 +1451,7 @@ def process_set_as_coalesce(
             or ir_set.path_id.is_tuple_path()
         )
 
-        # The cardinality optimziations below apply to non-object
+        # The cardinality optimizations below apply to non-object
         # expressions only, because we don't want to have to deal
         # with the complexity of resolving coalesced sources for
         # potential link or property references.
@@ -1935,6 +1940,62 @@ def process_set_as_singleton_assertion(
                         pull_namespace=False, aspects=aspects, ctx=ctx)
 
     return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
+
+
+def process_set_as_existence_assertion(
+    ir_set: irast.Set,
+    stmt: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    """Implementation of std::assert_exists"""
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    ir_arg = expr.args[0]
+    ir_arg_set = ir_arg.expr
+
+    if not ir_arg.cardinality.can_be_zero():
+        # If the argument has been statically proven to be non empty,
+        # elide the entire assertion.
+        arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
+        pathctx.put_path_value_var(stmt, ir_set.path_id, arg_ref, env=ctx.env)
+        pathctx.put_path_id_map(stmt, ir_set.path_id, ir_arg_set.path_id)
+        return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+    with ctx.new() as newctx:
+        # The solution to assert_exists() is as simple as
+        # calling raise_on_null().
+        newctx.force_optional.add(ir_arg_set.path_id)
+        arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
+        arg_val = output.output_as_value(arg_ref, env=newctx.env)
+        set_expr = pgast.FuncCall(
+            name=('edgedb', 'raise_on_null'),
+            args=[
+                arg_val,
+                pgast.StringConstant(val='cardinality_violation'),
+                pgast.NamedFuncArg(
+                    name='msg',
+                    val=pgast.StringConstant(
+                        val='assert_exists violation: expression returned '
+                            'an empty set',
+                    ),
+                ),
+                pgast.NamedFuncArg(
+                    name='constraint',
+                    val=pgast.StringConstant(val='std::assert_exists'),
+                ),
+            ],
+        )
+
+        pathctx.put_path_value_var(
+            stmt,
+            ir_set.path_id,
+            set_expr,
+            env=newctx.env,
+        )
+
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def process_set_as_enumerate(

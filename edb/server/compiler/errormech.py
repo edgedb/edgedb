@@ -314,7 +314,10 @@ def static_interpret_backend_error(fields):
 
     elif (
         err_details.code == pgerrors.ERROR_CARDINALITY_VIOLATION
-        and err_details.constraint_name == 'std::assert_single'
+        and (
+            err_details.constraint_name == 'std::assert_single'
+            or err_details.constraint_name == 'std::assert_exists'
+        )
     ):
         return errors.CardinalityViolationError(err_details.message)
 
