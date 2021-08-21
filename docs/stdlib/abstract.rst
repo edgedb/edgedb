@@ -1,4 +1,4 @@
-.. _ref_datamodel_abstract_types:
+.. _ref_std_abstract_types:
 
 ==============
 Abstract Types

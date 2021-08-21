@@ -105,7 +105,7 @@ listed below:
 
 Type conversion between timezone-aware ``std::datetime`` and local date/time
 values (types in the ``cal::`` module) is always
-:ref:`explicit and unambiguous <ref_eql_funcops_datetime>`.
+:ref:`explicit and unambiguous <ref_std_datetime>`.
 
 (See :eql:gh:`#902` for details.)
 

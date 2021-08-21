@@ -39,4 +39,4 @@ having elements in it:
 
 
 See also the list of array
-:ref:`functions and operators <ref_eql_funcops_array>`.
+:ref:`functions and operators <ref_std_array>`.

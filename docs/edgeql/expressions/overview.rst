@@ -50,7 +50,7 @@ a cast string literal:
 
 
 EdgeQL defines many functions and operators to work with various
-scalar types, see the :ref:`functions and operators <ref_eql_funcops>`
+scalar types, see the :ref:`functions and operators <ref_std>`
 section for more details.
 
 
@@ -164,7 +164,7 @@ Unary prefix operator syntax:
     <operator> <expression>
 
 A complete reference of standard EdgeQL operators can be found in
-:ref:`ref_eql_funcops`.
+:ref:`ref_std`.
 
 
 .. _ref_eql_expr_index_parens:
@@ -196,7 +196,7 @@ function, and :eql:synopsis:`<argument>` is an *expression* optionally
 prefixed with an argument name and the assignment operator (``:=``).
 
 A complete reference of standard EdgeQL functions can be found in
-:ref:`ref_eql_funcops`.
+:ref:`ref_std`.
 
 
 .. _ref_eql_expr_index_typecast:

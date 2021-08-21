@@ -1,4 +1,4 @@
-.. _ref_eql_funcops_sequence:
+.. _ref_std_sequence:
 
 ========
 Sequence

@@ -34,7 +34,7 @@ heterogeneous data.
     section <ref_eql_types_array>`.
 
     See also the list of standard
-    :ref:`array functions <ref_eql_funcops_array>` and
+    :ref:`array functions <ref_std_array>` and
     generic functions such as :eql:func:`len`.
 
 

@@ -1,5 +1,3 @@
-.. eql:section-intro-page:: cheatsheet
-
 ===========
 Cheatsheets
 ===========
@@ -63,4 +61,3 @@ Schema:
     annotations
     migrations
     syntax
-    graphql

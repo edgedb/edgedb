@@ -1,4 +1,4 @@
-.. _ref_eql_functions_generic:
+.. _ref_std_generic:
 
 =======
 Generic

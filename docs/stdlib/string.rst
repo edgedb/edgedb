@@ -1,4 +1,4 @@
-.. _ref_eql_funcops_string:
+.. _ref_std_string:
 
 ======
 String
@@ -515,7 +515,7 @@ String
     :eql:func:`to_duration`, correspondingly.
 
     For valid date and time formatting patterns see
-    :ref:`here <ref_eql_functions_converters_datetime_fmt>`.
+    :ref:`here <ref_std_converters_datetime_fmt>`.
 
     .. code-block:: edgeql-repl
 
@@ -531,7 +531,7 @@ String
     :eql:func:`to_float32`, :eql:func:`to_float64`.
 
     For valid number formatting patterns see
-    :ref:`here <ref_eql_functions_converters_number_fmt>`.
+    :ref:`here <ref_std_converters_number_fmt>`.
 
     See also :eql:func:`to_json`.
 
@@ -663,7 +663,7 @@ the formatting (either for converting to a :eql:type:`str` or parsing
 from one). The different formatting options are collected in this section.
 
 
-.. _ref_eql_functions_converters_datetime_fmt:
+.. _ref_std_converters_datetime_fmt:
 
 Date and time formatting options
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -847,7 +847,7 @@ the *FX* prefix modifier is used. For example:
     InternalServerError: invalid value "   " for "MON"
 
 
-.. _ref_eql_functions_converters_number_fmt:
+.. _ref_std_converters_number_fmt:
 
 Number formatting options
 ^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -24,4 +24,4 @@ Scalar type
 :ref:`SDL <ref_eql_sdl_scalars>`,
 :ref:`DDL <ref_eql_ddl_scalars>`,
 :ref:`introspection <ref_eql_introspection_scalar_types>`,
-and :ref:`UUID functions and operators <ref_eql_funcops_uuid>`.
+and :ref:`UUID functions and operators <ref_std_uuid>`.

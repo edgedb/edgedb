@@ -1,8 +1,8 @@
 .. eql:section-intro-page:: clients
 
-=======
-Clients
-=======
+================
+Client Libraries
+================
 
 Clients currently available:
 

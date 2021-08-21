@@ -22,9 +22,10 @@ There are also two different ways of measuring duration:
 * :eql:type:`cal::relative_duration` using fuzzy units like years,
   months and days in addition to the absolute units.
 
-All date/time :ref:`functions and operators <ref_eql_funcops_datetime>`
-and type casts are designed to maintain a strict separation between
-timezone-aware and "local" date/time values.
+All date/time :ref:`operators <ref_std_datetime>` and
+:ref:`functions <ref_std_datetime>` and type casts are designed to
+maintain a strict separation between timezone-aware and "local"
+date/time values.
 
 EdgeDB stores and outputs timezone-aware values in UTC.
 
@@ -263,4 +264,5 @@ Scalar type
 :ref:`SDL <ref_eql_sdl_scalars>`,
 :ref:`DDL <ref_eql_ddl_scalars>`,
 :ref:`introspection <ref_eql_introspection_scalar_types>`,
-and :ref:`date/time functions and operators <ref_eql_funcops_datetime>`.
+date/time :ref:`operators <ref_std_datetime>`.
+and :ref:`functions <ref_std_datetime>`.

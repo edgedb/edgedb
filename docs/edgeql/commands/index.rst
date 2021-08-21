@@ -1,7 +1,7 @@
 .. _ref_eql_statements:
 
-Statements
-==========
+Commands
+========
 
 Statements in EdgeQL are a kind of an *expression* that has one or
 more ``clauses`` and is used to retrieve or modify data in a database.

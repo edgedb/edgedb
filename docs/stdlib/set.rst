@@ -1,4 +1,4 @@
-.. _ref_eql_operators_set:
+.. _ref_std_set:
 
 ===
 Set

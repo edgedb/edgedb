@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_graphql:
 
-GraphQL
-=======
+Cheatsheet
+==========
 
 .. note::
 

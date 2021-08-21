@@ -22,7 +22,7 @@ Boolean
         {(false, false, false)}
 
     A boolean value may arise as a result of a :ref:`logical
-    <ref_eql_operators_logical>` or :eql:op:`comparison <EQ>`
+    <ref_std_logical>` or :eql:op:`comparison <EQ>`
     operations as well as :eql:op:`IN`
     and :eql:op:`NOT IN <IN>`:
 
@@ -59,4 +59,4 @@ Scalar type
 :ref:`SDL <ref_eql_sdl_scalars>`,
 :ref:`DDL <ref_eql_ddl_scalars>`,
 :ref:`introspection <ref_eql_introspection_scalar_types>`,
-and :ref:`boolean operators <ref_eql_operators_logical>`.
+and :ref:`boolean operators <ref_std_logical>`.
