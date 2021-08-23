@@ -23,12 +23,13 @@
 # ---------------------------------------------------
 
 CREATE FUNCTION
-std::assert_single(input: SET OF anytype) -> anytype
+std::assert_single(input: SET OF anytype) -> OPTIONAL anytype
 {
     CREATE ANNOTATION std::description :=
         "Check that the input set contains at most one element, raise
          CardinalityViolationError otherwise.";
     SET volatility := 'Stable';
+    SET preserves_optionality := true;
     USING SQL EXPRESSION;
 };
 
@@ -181,6 +182,7 @@ std::min(vals: SET OF anytype) -> OPTIONAL anytype
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
     SET fallback := true;
+    SET preserves_optionality := true;
     USING SQL EXPRESSION;
 };
 
@@ -202,6 +204,7 @@ std::min(vals: SET OF anyreal) -> OPTIONAL anyreal
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -212,6 +215,7 @@ std::min(vals: SET OF anyenum) -> OPTIONAL anyenum
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -222,6 +226,7 @@ std::min(vals: SET OF str) -> OPTIONAL str
     CREATE ANNOTATION std::description :=
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -233,6 +238,7 @@ std::min(vals: SET OF datetime) -> OPTIONAL datetime
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
     SET force_return_cast := true;
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -244,6 +250,7 @@ std::min(vals: SET OF duration) -> OPTIONAL duration
         'Return the smallest value of the input set.';
     SET volatility := 'Immutable';
     SET force_return_cast := true;
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'min';
 };
 
@@ -258,6 +265,7 @@ std::max(vals: SET OF anytype) -> OPTIONAL anytype
         'Return the greatest value of the input set.';
     SET volatility := 'Immutable';
     SET fallback := true;
+    SET preserves_optionality := true;
     USING SQL EXPRESSION;
 };
 
@@ -279,6 +287,7 @@ std::max(vals: SET OF anyreal) -> OPTIONAL anyreal
     CREATE ANNOTATION std::description :=
         'Return the greatest value of the input set.';
     SET volatility := 'Immutable';
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -289,6 +298,7 @@ std::max(vals: SET OF anyenum) -> OPTIONAL anyenum
     CREATE ANNOTATION std::description :=
         'Return the greatest value of the input set.';
     SET volatility := 'Immutable';
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -299,6 +309,7 @@ std::max(vals: SET OF str) -> OPTIONAL str
     CREATE ANNOTATION std::description :=
         'Return the greatest value of the input set.';
     SET volatility := 'Immutable';
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -310,6 +321,7 @@ std::max(vals: SET OF datetime) -> OPTIONAL datetime
         'Return the greatest value of the input set.';
     SET volatility := 'Immutable';
     SET force_return_cast := true;
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -321,6 +333,7 @@ std::max(vals: SET OF duration) -> OPTIONAL duration
         'Return the greatest value of the input set.';
     SET volatility := 'Immutable';
     SET force_return_cast := true;
+    SET preserves_optionality := true;
     USING SQL FUNCTION 'max';
 };
 
@@ -364,6 +377,7 @@ std::enumerate(
     CREATE ANNOTATION std::description :=
         'Return a set of tuples of the form `(index, element)`.';
     SET volatility := 'Immutable';
+    SET preserves_optionality := true;
     USING SQL EXPRESSION;
 };
 
