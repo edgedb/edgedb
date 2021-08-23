@@ -1191,6 +1191,10 @@ class Server:
                 if match:
                     return auth.method
 
+        raise errors.AuthenticationError(
+            f"no authentication method configured for {user!r} role"
+        )
+
     def get_sys_query(self, key):
         return self._sys_queries[key]
 

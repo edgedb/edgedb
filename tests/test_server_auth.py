@@ -158,6 +158,57 @@ class TestServerAuth(tb.ConnectedTestCase):
         finally:
             await self.con.query("DROP ROLE bar")
 
+    async def test_server_auth_02(self):
+        try:
+            await self.con.query('''
+                CREATE SUPERUSER ROLE foo {
+                    SET password := 'foo-pass';
+                }
+            ''')
+
+            await self.con.query('''
+                CREATE SUPERUSER ROLE bar {
+                    SET password := 'bar-pass';
+                }
+            ''')
+
+            await self.con.query('''
+                CONFIGURE INSTANCE INSERT Auth {
+                    comment := 'test-02',
+                    priority := 0,
+                    method := (INSERT SCRAM),
+                    user := 'foo',
+                }
+            ''')
+
+            # good password with configured Auth
+            conn = await self.connect(
+                user='foo',
+                password='foo-pass',
+            )
+            await conn.aclose()
+
+            # good password but Auth is not configured
+            with self.assertRaisesRegex(
+                    edgedb.AuthenticationError,
+                    "no authentication method configured for 'bar' role"):
+                await self.connect(
+                    user='bar',
+                    password='bar-pass'
+                )
+        finally:
+            await self.con.query('''
+                CONFIGURE INSTANCE RESET Auth FILTER .comment = 'test-02'
+            ''')
+
+            await self.con.query('''
+                DROP ROLE foo;
+            ''')
+
+            await self.con.query('''
+                DROP ROLE bar;
+            ''')
+
     async def test_long_role_name(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
