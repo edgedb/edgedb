@@ -209,7 +209,6 @@ class TestServerAuth(tb.ConnectedTestCase):
                 DROP ROLE bar;
             ''')
 
-
     async def test_long_role_name(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaDefinitionError,
