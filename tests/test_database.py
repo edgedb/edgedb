@@ -24,6 +24,8 @@ from edb.testbase import server as tb
 
 
 class TestDatabase(tb.ConnectedTestCase):
+    TRANSACTION_ISOLATION = False
+
     async def test_database_create_01(self):
         await self.con.execute('CREATE DATABASE mytestdb;')
 
