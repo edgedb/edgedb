@@ -452,6 +452,32 @@ class ClusterTestCase(TestCase):
     BASE_TEST_CLASS = True
     postgres_dsn: Optional[str] = None
 
+    # Some tests may want to manage transactions manually,
+    # or affect non-transactional state, in which case
+    # TRANSACTION_ISOLATION must be set to False
+    TRANSACTION_ISOLATION = True
+
+    # By default, tests from the same testsuite may be ran in parallel in
+    # several test worker processes.  However, certain cases might exhibit
+    # pathological locking behavior, or are parallel-unsafe altogether, in
+    # which case PARALLELISM_GRANULARITY must be set to 'database', 'suite',
+    # or 'system'.  The 'database' granularity signals that no two runners
+    # may execute tests on the same database in parallel, although the tests
+    # may still run on copies of the test database.  The 'suite' granularity
+    # means that only one test worker is allowed to execute tests from this
+    # suite.  Finally, the 'system' granularity means that the test suite
+    # is not parallelizable at all and must run sequentially with respect
+    # to *all other* suites with 'system' granularity.
+    PARALLELISM_GRANULARITY = 'default'
+
+    # Turns on "EdgeDB developer" mode which allows using restricted
+    # syntax like USING SQL and similar. It allows modifying standard
+    # library (e.g. declaring casts).
+    INTERNAL_TESTMODE = True
+
+    SETUP_METHOD: Optional[str] = None
+    TEARDOWN_METHOD: Optional[str] = None
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -471,6 +497,87 @@ class ClusterTestCase(TestCase):
                             password=password,
                             database=database))
         return conargs
+
+    @classmethod
+    def get_parallelism_granularity(cls):
+        if cls.PARALLELISM_GRANULARITY == 'default':
+            if cls.TRANSACTION_ISOLATION:
+                return 'default'
+            else:
+                return 'database'
+        else:
+            return cls.PARALLELISM_GRANULARITY
+
+    @classmethod
+    def uses_database_copies(cls):
+        return (
+            os.environ.get('EDGEDB_TEST_PARALLEL')
+            and cls.get_parallelism_granularity() == 'database'
+        )
+
+    def setUp(self):
+        if self.INTERNAL_TESTMODE:
+            self.loop.run_until_complete(
+                self.con.execute(
+                    'CONFIGURE SESSION SET __internal_testmode := true;'))
+
+        if self.TRANSACTION_ISOLATION:
+            self.xact = self.con.transaction()
+            self.loop.run_until_complete(self.xact.start())
+
+        if self.SETUP_METHOD:
+            self.loop.run_until_complete(
+                self.con.execute(self.SETUP_METHOD))
+
+        super().setUp()
+
+    def tearDown(self):
+        try:
+            if self.TEARDOWN_METHOD:
+                self.loop.run_until_complete(
+                    self.con.execute(self.TEARDOWN_METHOD))
+        finally:
+            try:
+                if self.TRANSACTION_ISOLATION:
+                    self.loop.run_until_complete(self.xact.rollback())
+                    del self.xact
+
+                if self.con.is_in_transaction():
+                    self.loop.run_until_complete(
+                        self.con.query('ROLLBACK'))
+                    raise AssertionError(
+                        'test connection is still in transaction '
+                        '*after* the test')
+
+                if not self.TRANSACTION_ISOLATION:
+                    self.loop.run_until_complete(
+                        self.con.execute('RESET ALIAS *;'))
+
+            finally:
+                super().tearDown()
+
+    @contextlib.asynccontextmanager
+    async def assertRaisesRegexTx(self, exception, regex, msg=None, **kwargs):
+        """A version of assertRaisesRegex with automatic transaction recovery
+        """
+
+        with super().assertRaisesRegex(exception, regex, msg=msg):
+            try:
+                tx = self.con.transaction()
+                await tx.start()
+                yield
+            except BaseException as e:
+                if isinstance(e, exception):
+                    for attr_name, expected_val in kwargs.items():
+                        val = getattr(e, attr_name)
+                        if val != expected_val:
+                            raise self.failureException(
+                                f'{exception.__name__} context attribute '
+                                f'{attr_name!r} is {val} (expected '
+                                f'{expected_val!r})') from e
+                raise
+            finally:
+                await tx.rollback()
 
 
 class RollbackChanges:
@@ -836,76 +943,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     SCHEMA: Optional[Union[str, pathlib.Path]] = None
     DEFAULT_MODULE: str = 'default'
 
-    SETUP_METHOD: Optional[str] = None
-    TEARDOWN_METHOD: Optional[str] = None
-
-    # Some tests may want to manage transactions manually,
-    # or affect non-transactional state, in which case
-    # TRANSACTION_ISOLATION must be set to False
-    TRANSACTION_ISOLATION = True
-
-    # By default, tests from the same testsuite may be ran in parallel in
-    # several test worker processes.  However, certain cases might exhibit
-    # pathological locking behavior, or are parallel-unsafe altogether, in
-    # which case PARALLELISM_GRANULARITY must be set to 'database', 'suite',
-    # or 'system'.  The 'database' granularity signals that no two runners
-    # may execute tests on the same database in parallel, although the tests
-    # may still run on copies of the test database.  The 'suite' granularity
-    # means that only one test worker is allowed to execute tests from this
-    # suite.  Finally, the 'system' granularity means that the test suite
-    # is not parallelizable at all and must run sequentially with respect
-    # to *all other* suites with 'system' granularity.
-    PARALLELISM_GRANULARITY = 'default'
-
-    # Turns on "EdgeDB developer" mode which allows using restricted
-    # syntax like USING SQL and similar. It allows modifying standard
-    # library (e.g. declaring casts).
-    INTERNAL_TESTMODE = True
-
     BASE_TEST_CLASS = True
 
     con: Any  # XXX: the real type?
-
-    def setUp(self):
-        if self.INTERNAL_TESTMODE:
-            self.loop.run_until_complete(
-                self.con.execute(
-                    'CONFIGURE SESSION SET __internal_testmode := true;'))
-
-        if self.TRANSACTION_ISOLATION:
-            self.xact = self.con.transaction()
-            self.loop.run_until_complete(self.xact.start())
-
-        if self.SETUP_METHOD:
-            self.loop.run_until_complete(
-                self.con.execute(self.SETUP_METHOD))
-
-        super().setUp()
-
-    def tearDown(self):
-        try:
-            if self.TEARDOWN_METHOD:
-                self.loop.run_until_complete(
-                    self.con.execute(self.TEARDOWN_METHOD))
-        finally:
-            try:
-                if self.TRANSACTION_ISOLATION:
-                    self.loop.run_until_complete(self.xact.rollback())
-                    del self.xact
-
-                if self.con.is_in_transaction():
-                    self.loop.run_until_complete(
-                        self.con.query('ROLLBACK'))
-                    raise AssertionError(
-                        'test connection is still in transaction '
-                        '*after* the test')
-
-                if not self.TRANSACTION_ISOLATION:
-                    self.loop.run_until_complete(
-                        self.con.execute('RESET ALIAS *;'))
-
-            finally:
-                super().tearDown()
 
     @classmethod
     def setUpClass(cls):
@@ -1030,23 +1070,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     super().tearDownClass()
 
     @classmethod
-    def get_parallelism_granularity(cls):
-        if cls.PARALLELISM_GRANULARITY == 'default':
-            if cls.TRANSACTION_ISOLATION:
-                return 'default'
-            else:
-                return 'database'
-        else:
-            return cls.PARALLELISM_GRANULARITY
-
-    @classmethod
-    def uses_database_copies(cls):
-        return (
-            os.environ.get('EDGEDB_TEST_PARALLEL')
-            and cls.get_parallelism_granularity() == 'database'
-        )
-
-    @classmethod
     def get_database_name(cls):
         if cls.__name__.startswith('TestEdgeQL'):
             dbname = cls.__name__[len('TestEdgeQL'):]
@@ -1115,29 +1138,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
             script += '\nCONFIGURE SESSION SET __internal_testmode := false;'
 
         return script.strip(' \n')
-
-    @contextlib.asynccontextmanager
-    async def assertRaisesRegexTx(self, exception, regex, msg=None, **kwargs):
-        """A version of assertRaisesRegex with automatic transaction recovery
-        """
-
-        with super().assertRaisesRegex(exception, regex, msg=msg):
-            try:
-                tx = self.con.transaction()
-                await tx.start()
-                yield
-            except BaseException as e:
-                if isinstance(e, exception):
-                    for attr_name, expected_val in kwargs.items():
-                        val = getattr(e, attr_name)
-                        if val != expected_val:
-                            raise self.failureException(
-                                f'{exception.__name__} context attribute '
-                                f'{attr_name!r} is {val} (expected '
-                                f'{expected_val!r})') from e
-                raise
-            finally:
-                await tx.rollback()
 
     async def migrate(self, migration, *, module: str = 'default'):
         async with self.con.transaction():
@@ -1258,6 +1258,7 @@ class DumpCompatTestCase(
     metaclass=DumpCompatTestCaseMeta,
 ):
     BASE_TEST_CLASS = True
+    TRANSACTION_ISOLATION = False
 
 
 class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
