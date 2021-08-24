@@ -21,10 +21,14 @@ jobs:
           echo ::error::"${branch} is not a release branch."
           exit 1
         fi
+        commitish=$(git rev-parse --verify --quiet "${GITHUB_REF}" | cut -c1-9)
+        date=$(env TZ=UTC git show -s \
+               --format=%cd --date=format-local:%Y%m%d%H "$commitish")
         ver=${branch#releases/}
-        ver+=+g$(git rev-parse --verify --quiet "${GITHUB_REF}" | cut -c1-9)
+        ver+=+d${date}
+        ver+=.g${commitish}
         ver+=.cv$(sed -n -r 's/EDGEDB_CATALOG_VERSION = ([0-9_]+)/\1/p' \
-                   edb/server/defines.py | sed 's/_//g')
+                  edb/server/defines.py | sed 's/_//g')
         echo ::set-output name=version::"${ver}"
         echo ::set-output name=branch::"${branch}"
       id: whichver

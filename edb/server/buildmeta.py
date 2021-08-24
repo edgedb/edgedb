@@ -20,7 +20,6 @@
 from __future__ import annotations
 from typing import *
 
-import datetime
 import functools
 import hashlib
 import json
@@ -338,12 +337,21 @@ def scm_local_scheme(root, version):
         check=True,
         cwd=root,
     )
-
-    curdate = datetime.datetime.now(tz=datetime.timezone.utc)
-    curdate_str = curdate.strftime(r'%Y%m%d%H')
     commitish = proc.stdout.strip()
+
+    proc = subprocess.run(
+        ['git', 'show', '-s', '--format=%cd',
+         '--date=format-local:%Y%m%d%H', commitish],
+        stdout=subprocess.PIPE,
+        universal_newlines=True,
+        check=True,
+        cwd=root,
+        env={'TZ': 'UTC'},
+    )
+    rev_date = proc.stdout.strip()
+
     catver = defines.EDGEDB_CATALOG_VERSION
-    return f'+d{curdate_str}.g{commitish[:9]}.cv{catver}'
+    return f'+d{rev_date}.g{commitish[:9]}.cv{catver}'
 
 
 def get_cache_src_dirs():
