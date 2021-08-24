@@ -21,8 +21,11 @@
 
 from __future__ import annotations
 
-from edb.schema import objects as s_obj
 from edb.common import adapter
+
+from edb.schema import name as s_name
+from edb.schema import pointers as s_pointers
+from edb.schema import objects as s_obj
 
 from edb.pgsql import common
 from edb.pgsql import dbops
@@ -234,7 +237,16 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         return self._scope != 'row' and len(self._exprdata) > 1
 
     def requires_triggers(self):
-        return self._type != 'check'
+        subject = self._constraint.get_subject(self._schema)
+        cname = self._constraint.get_shortname(self._schema)
+        if (
+            isinstance(subject, s_pointers.Pointer)
+            and subject.is_id_pointer(self._schema)
+            and cname == s_name.QualName('std', 'exclusive')
+        ):
+            return False
+        else:
+            return self._type != 'check'
 
     def __repr__(self):
         return '<{}.{} {!r} at 0x{:x}>'.format(
