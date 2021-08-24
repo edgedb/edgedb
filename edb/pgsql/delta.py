@@ -2761,6 +2761,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         is_lprop = ptr.is_link_property(schema)
         is_multi = ptr_table and not is_lprop
         is_required = ptr.get_required(schema)
+        is_scalar = ptr.is_property(schema)
 
         ref_op = self.get_referrer_context_or_die(context).op
 
@@ -2899,8 +2900,10 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
                     WHERE
                         q.val IS NOT NULL
                 )
-                ON CONFLICT (source, target) DO NOTHING
             ''')
+
+            if not is_scalar:
+                update_qry += 'ON CONFLICT (source, target) DO NOTHING'
 
             self.pgops.add(dbops.Query(update_qry))
 
@@ -3996,13 +3999,6 @@ class PropertyMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
         if not prop.generic(schema):
             tgt_cols = cls.get_columns(prop, schema, None)
             columns.extend(tgt_cols)
-
-            constraints.append(
-                dbops.UniqueConstraint(
-                    table_name=new_table_name,
-                    columns=[src_col] + [tgt_col.name for tgt_col in tgt_cols]
-                )
-            )
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)

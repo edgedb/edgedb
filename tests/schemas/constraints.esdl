@@ -251,3 +251,9 @@ type BecomingConcreteConstraint {
 }
 
 type BecomingConcreteConstraintChild extending BecomingConcreteConstraint;
+
+type PropertyContainer {
+    multi property tags -> str {
+        constraint exclusive
+    }
+}
