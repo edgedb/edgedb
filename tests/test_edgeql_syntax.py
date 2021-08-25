@@ -2465,7 +2465,7 @@ aa';
 
 % OK %
 
-        SELECT DETACHED Foo.bar;
+        SELECT (DETACHED Foo).bar;
         """
 
     def test_edgeql_syntax_detached_05(self):
@@ -2474,16 +2474,7 @@ aa';
 
 % OK %
 
-        SELECT DETACHED mod::Foo.bar;
-        """
-
-    def test_edgeql_syntax_detached_06(self):
-        """
-        SELECT (DETACHED Foo).bar;
-
-% OK %
-
-        SELECT (DETACHED Foo).bar;
+        SELECT (DETACHED mod::Foo).bar;
         """
 
     def test_edgeql_syntax_select_01(self):
