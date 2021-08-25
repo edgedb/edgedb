@@ -377,7 +377,7 @@ class CreateScalarType(
             if astnode.final and not context.compat_ver_is_before(
                 (1, 0, verutils.VersionStage.BETA, 4)
             ):
-                raise errors.UnsupportFeatureError(
+                raise errors.UnsupportedFeatureError(
                     f'FINAL is not supported',
                     context=astnode.context,
                 )
