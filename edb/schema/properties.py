@@ -119,6 +119,11 @@ class Property(
                 similarity /= target_coef
         return similarity
 
+    def should_propagate(self, schema: s_schema.Schema) -> bool:
+        # @source and @target link props don't propagate to children
+        # because we create new properties with distinct types.
+        return not self.is_endpoint_pointer(schema)
+
     def is_property(self, schema: s_schema.Schema) -> bool:
         return True
 

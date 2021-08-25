@@ -70,6 +70,9 @@ class AnnotationValue(
     value = so.SchemaField(
         str, compcoef=0.909)
 
+    def should_propagate(self, schema: s_schema.Schema) -> bool:
+        return self.get_annotation(schema).get_inheritable(schema)
+
     def __str__(self) -> str:
         return '<{}: at 0x{:x}>'.format(self.__class__.__name__, id(self))
 
@@ -310,10 +313,6 @@ class CreateAnnotationValue(
         schema = super().canonicalize_attributes(schema, context)
         anno = self.get_ddl_identity('annotation')
         assert anno is not None
-        self.set_attribute_value(
-            'final',
-            not anno.get_inheritable(schema),
-        )
         self.set_attribute_value('internal', True)
         return schema
 

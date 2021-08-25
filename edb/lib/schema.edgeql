@@ -61,13 +61,6 @@ CREATE ABSTRACT TYPE schema::SubclassableObject EXTENDING schema::Object {
 
     # Backwards compatibility.
     CREATE PROPERTY is_abstract := .abstract;
-
-    CREATE PROPERTY final -> std::bool {
-        SET default := false;
-    };
-
-    # Backwards compatibility.
-    CREATE PROPERTY is_final := .final;
 };
 
 

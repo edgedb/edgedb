@@ -419,7 +419,6 @@ class CreateLink(
         )
         src_prop.set_attribute_value('required', True)
         src_prop.set_attribute_value('readonly', True)
-        src_prop.set_attribute_value('final', True)
         src_prop.set_attribute_value('owned', True)
         src_prop.set_attribute_value('from_alias',
                                      self.scls.get_from_alias(schema))
@@ -454,7 +453,6 @@ class CreateLink(
         )
         tgt_prop.set_attribute_value('required', False)
         tgt_prop.set_attribute_value('readonly', True)
-        tgt_prop.set_attribute_value('final', True)
         tgt_prop.set_attribute_value('owned', True)
         tgt_prop.set_attribute_value('from_alias',
                                      self.scls.get_from_alias(schema))

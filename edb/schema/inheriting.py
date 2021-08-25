@@ -234,7 +234,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             ] = base.get_field_value(schema, attr)
 
             for k, v in base_refs.items(schema):
-                if v.get_final(schema):
+                if not v.should_propagate(schema):
                     continue
                 if base == self.scls and not v.get_owned(schema):
                     continue

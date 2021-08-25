@@ -167,6 +167,10 @@ class ReferencedInheritingObject(
         ephemeral=True,
     )
 
+    def should_propagate(self, schema: s_schema.Schema) -> bool:
+        """Whether this object should be propagated to subtypes of the owner"""
+        return True
+
     def get_implicit_bases(
         self: ReferencedInheritingObjectT,
         schema: s_schema.Schema,
@@ -730,7 +734,7 @@ class ReferencedInheritingObjectCommand(
             parent_coll = ref_base.get_field_value(schema, referrer_field)
             parent_item = parent_coll.get(schema, refname, default=None)
             if (parent_item is not None
-                    and not parent_item.get_final(schema)):
+                    and parent_item.should_propagate(schema)):
                 implicit_bases.append(parent_item)
 
         return implicit_bases
@@ -1118,7 +1122,7 @@ class CreateReferencedInheritingObject(
 
         schema = super()._create_ref(schema, context, referrer)
 
-        if (not self.scls.get_final(schema)
+        if (self.scls.should_propagate(schema)
                 and isinstance(referrer, so.InheritingObject)
                 and not context.canonical
                 and context.enable_recursion):
