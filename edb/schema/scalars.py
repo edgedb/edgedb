@@ -520,7 +520,7 @@ class RebaseScalarType(
                         is_enum_base = base.is_enum(schema)
 
                     if not is_enum_base:
-                        raise errors.SchemaError(
+                        raise errors.UnsupportedFeatureError(
                             f'cannot add another type as supertype, '
                             f'enumeration must be the only supertype specified'
                         )
