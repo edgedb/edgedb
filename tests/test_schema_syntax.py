@@ -827,6 +827,8 @@ type LogEntry extending    OwnedObject,    Text {
         };
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError, r"Unexpected 'final'",
+                  line=3, col=13)
     def test_eschema_syntax_scalar_07(self):
         """
         module test {

@@ -429,18 +429,6 @@ class ScalarTypeDeclaration(Nonterm):
             commands=kids[5].val,
         )
 
-    def reduce_CreateFinalScalarTypeStmt(self, *kids):
-        r"""%reduce \
-            FINAL SCALAR TYPE NodeName \
-            OptExtending CreateScalarTypeSDLCommandsBlock \
-        """
-        self.val = qlast.CreateScalarType(
-            final=True,
-            name=kids[3].val,
-            bases=kids[4].val,
-            commands=kids[5].val,
-        )
-
     def reduce_ScalarTypeDeclaration(self, *kids):
         r"""%reduce \
             SCALAR TYPE NodeName \
@@ -461,17 +449,6 @@ class ScalarTypeDeclarationShort(Nonterm):
         """
         self.val = qlast.CreateScalarType(
             abstract=True,
-            name=kids[3].val,
-            bases=kids[4].val,
-        )
-
-    def reduce_CreateFinalScalarTypeStmt(self, *kids):
-        r"""%reduce \
-            FINAL SCALAR TYPE NodeName \
-            OptExtending \
-        """
-        self.val = qlast.CreateScalarType(
-            final=True,
             name=kids[3].val,
             bases=kids[4].val,
         )

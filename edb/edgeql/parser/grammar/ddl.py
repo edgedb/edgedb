@@ -512,38 +512,6 @@ class AlterAbstract(Nonterm):
         )
 
 
-class AlterFinal(Nonterm):
-
-    def reduce_DROP_FINAL(self, *kids):
-        # TODO: Raise a DeprecationWarning once we have facility for that.
-        self.val = qlast.SetField(
-            name='final',
-            value=qlast.BooleanConstant.from_python(False),
-            special_syntax=True,
-        )
-
-    def reduce_SET_NOT_FINAL(self, *kids):
-        self.val = qlast.SetField(
-            name='final',
-            value=qlast.BooleanConstant.from_python(False),
-            special_syntax=True,
-        )
-
-    def reduce_SET_FINAL(self, *kids):
-        self.val = qlast.SetField(
-            name='final',
-            value=qlast.BooleanConstant.from_python(True),
-            special_syntax=True,
-        )
-
-    def reduce_RESET_FINAL(self, *kids):
-        self.val = qlast.SetField(
-            name='final',
-            value=None,
-            special_syntax=True,
-        )
-
-
 class OptInheritPosition(Nonterm):
     def reduce_BEFORE_NodeName(self, *kids):
         self.val = qlast.Position(ref=kids[1].val, position='BEFORE')
@@ -572,9 +540,6 @@ class AlterSimpleExtending(Nonterm):
     def reduce_AlterAbstract(self, *kids):
         self.val = kids[0].val
 
-    def reduce_AlterFinal(self, *kids):
-        self.val = kids[0].val
-
 
 class AlterExtending(Nonterm):
     def reduce_EXTENDING_TypeNameList_OptInheritPosition(self, *kids):
@@ -585,9 +550,6 @@ class AlterExtending(Nonterm):
         self.val = qlast.AlterDropInherit(bases=kids[2].val)
 
     def reduce_AlterAbstract(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_AlterFinal(self, *kids):
         self.val = kids[0].val
 
 
@@ -1091,6 +1053,10 @@ class CreateScalarTypeStmt(Nonterm):
             CREATE FINAL SCALAR TYPE NodeName \
             OptExtending OptCreateScalarTypeCommandsBlock \
         """
+        # Old dumps (1.0-beta.3 and earlier) specify FINAL for all
+        # scalar types, despite it not doing anything and being
+        # undocumented. So we need to support it in the syntax, and we
+        # reject later it when not reading an old dump.
         self.val = qlast.CreateScalarType(
             name=kids[4].val,
             final=True,

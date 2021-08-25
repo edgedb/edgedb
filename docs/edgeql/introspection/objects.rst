@@ -39,7 +39,6 @@ Introspection of the ``schema::ObjectType``:
             properties: {
                 Object { name: 'id' },
                 Object { name: 'abstract' },
-                Object { name: 'final' },
                 Object { name: 'name' }
             }
         }
@@ -71,7 +70,6 @@ Introspection of ``User``:
     ... SELECT ObjectType {
     ...     name,
     ...     abstract,
-    ...     final,
     ...     bases: { name },
     ...     ancestors: { name },
     ...     annotations: { name, @value },
@@ -95,7 +93,6 @@ Introspection of ``User``:
         Object {
             name: 'default::User',
             abstract: false,
-            final: false,
             bases: {Object { name: 'default::Addressable' }},
             ancestors: {
                 Object { name: 'std::BaseObject' },
