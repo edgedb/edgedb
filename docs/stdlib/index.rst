@@ -1,3 +1,5 @@
+.. eql:section-intro-page:: stdlib
+
 .. _ref_std:
 
 ================
@@ -54,7 +56,6 @@ singletons. Examples of aggregate functions include built-ins such as
     :maxdepth: 3
     :hidden:
 
-    abstract
     generic
     set
     type
@@ -70,4 +71,5 @@ singletons. Examples of aggregate functions include built-ins such as
     sys
     uuid
     constraints
+    abstract
     deprecated

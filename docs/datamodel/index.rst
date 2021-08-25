@@ -13,7 +13,7 @@ EdgeDB.
     :maxdepth: 3
     :hidden:
 
-    overview
+    typesystem
     objects/index
     scalars/index
     colltypes

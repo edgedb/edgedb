@@ -2,11 +2,11 @@
 
 .. _ref_cli_overview:
 
-========
-Overview
-========
+============
+Command Line
+============
 
-:edgedb-alt-title: EdgeDB Commands
+:edb-alt-title: 'edgedb' command
 
 EdgeDB includes the all-encompassing ``edgedb`` command-line tool. It
 provides an idiomatic way to do just about everything: install EdgeDB,
@@ -102,3 +102,26 @@ respectively:
 
 
 :ref:`Notes on network usage <ref_cli_edgedb_network>`
+
+
+.. toctree::
+    :maxdepth: 3
+    :hidden:
+
+    edgedb
+    edgedb_dump
+    edgedb_restore
+    edgedb_configure
+    edgedb_migration/index
+    edgedb_migrate
+    edgedb_database_create
+    edgedb_describe/index
+    edgedb_list
+    edgedb_query
+    edgedb_info
+    edgedb_project/index
+    edgedb_instance/index
+    edgedb_server/index
+    edgedb_cli_upgrade
+    edgedb_connopts
+    network

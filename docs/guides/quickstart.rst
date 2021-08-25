@@ -1,4 +1,4 @@
-.. eql:section-intro-page:: quickstart
+.. _ref_quickstart:
 
 ==========
 Quickstart

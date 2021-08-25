@@ -1,15 +1,7 @@
 .. _ref_cheatsheet_types:
 
-Types
-=====
-
-.. note::
-
-    Types are commonly defined by :ref:`migrations
-    <ref_cheatsheet_migrations>` using :ref:`SDL <ref_eql_sdl>`.
-
-
-----------
+Object Types
+============
 
 
 Define an abstract type:

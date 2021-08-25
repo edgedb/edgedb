@@ -91,12 +91,12 @@ set roles, passwords, and so on using EdgeDB.
     :hidden:
 
     concepts
-    expressions/__toc__
+    expressions/index
     commands/index
-    operators
     types
     sdl/index
     ddl/index
     introspection/index
     admin/index
     lexical
+    eval

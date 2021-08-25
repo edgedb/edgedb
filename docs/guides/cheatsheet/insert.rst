@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_insert:
 
-Insert
-======
+Inserting Data
+==============
 
 .. note::
 

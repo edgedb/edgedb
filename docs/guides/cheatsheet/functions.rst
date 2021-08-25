@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_functions:
 
-Functions
-=========
+User Functions
+==============
 
 Define a function for counting reviews given a user name:
 

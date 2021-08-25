@@ -1,15 +1,7 @@
 .. _ref_cheatsheet_aliases:
 
-Aliases
-=======
-
-.. note::
-
-    Aliases are commonly defined by :ref:`migrations
-    <ref_cheatsheet_migrations>` using :ref:`SDL <ref_eql_sdl>`.
-
-
-----------
+Expression Aliases
+==================
 
 
 Define an alias that merges some information from links as computed

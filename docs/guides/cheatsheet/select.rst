@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_select:
 
-Select
-======
+Selecting Data
+==============
 
 .. note::
 
