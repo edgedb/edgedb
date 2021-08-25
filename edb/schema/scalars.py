@@ -377,7 +377,7 @@ class CreateScalarType(
             if astnode.final and not context.compat_ver_is_before(
                 (1, 0, verutils.VersionStage.BETA, 4)
             ):
-                raise errors.SchemaError(
+                raise errors.UnsupportFeatureError(
                     f'FINAL is not supported',
                     context=astnode.context,
                 )
@@ -504,7 +504,7 @@ class RebaseScalarType(
         if cur_labels:
 
             if self.removed_bases and not self.added_bases:
-                raise errors.UnsupportedFeatureError(
+                raise errors.SchemaError(
                     f'cannot DROP EXTENDING enum')
 
             all_bases = []
