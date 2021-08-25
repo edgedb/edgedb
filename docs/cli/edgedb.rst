@@ -4,7 +4,7 @@
 edgedb
 ======
 
-:edgedb-alt-title: edgedb -- Interactive Shell
+:edb-alt-title: edgedb — Interactive Shell
 
 EdgeDB interactive shell:
 

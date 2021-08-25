@@ -1,9 +1,9 @@
 .. _ref_std_type:
 
 
-=====
-Types
-=====
+====
+Type
+====
 
 :edb-alt-title: Type Operators
 
@@ -13,6 +13,9 @@ Types
 
     * - :eql:op:`IS type <IS>`
       - :eql:op-desc:`IS`
+
+    * - :eql:op:`type | type <TYPEOR>`
+      - :eql:op-desc:`TYPEOR`
 
     * - :eql:op:`<type> val <CAST>`
       - :eql:op-desc:`CAST`
@@ -30,7 +33,7 @@ Types
 .. eql:operator:: IS: anytype IS type -> bool
                       anytype IS NOT type -> bool
 
-    Type checking operator
+    Type checking operator.
 
     Check if ``A`` is an instance of ``B`` or any of ``B``'s subtypes.
 
@@ -62,7 +65,7 @@ Types
 
     :index: poly polymorphism polymorphic queries nested shapes
 
-    Type union operator
+    Type union operator.
 
     This operator is only valid in contexts where type checking is
     done. The most obvious use case is with the :eql:op:`IS` and

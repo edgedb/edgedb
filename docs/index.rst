@@ -20,5 +20,6 @@ Welcome to the EdgeDB |version| documentation.
     graphql/index
     stdlib/index
     clients/index
-    cli/__toc__
+    cli/index
     internals/index
+    changelog/index

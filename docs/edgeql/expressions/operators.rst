@@ -44,13 +44,17 @@ anyreal <FLOORDIV>`, the modulo :eql:op:`% anyreal <MOD>`, and the
 power :eql:op:`^ anyreal <POW>`.
 
 
-Sequence Operators
-------------------
+Indexing and Slicing Operators
+------------------------------
 
 :ref:`Arrays <ref_std_array>`, :ref:`strings <ref_std_string>` and
 :ref:`bytes <ref_std_bytes>` all support indexing :eql:op:`[i]
 <STRIDX>`, slicing :eql:op:`[from:to] <STRSLICE>`, and
 concatenation :eql:op:`++ <STRPLUS>`.
+
+:ref:`JSON <ref_std_json>` arrays, strings, and objects
+support indexing :eql:op:`[i] <JSONIDX>` and
+slicing :eql:op:`[from:to] <JSONSLICE>`.
 
 
 Set Operators

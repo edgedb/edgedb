@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_update:
 
-Update
-======
+Updating Data
+=============
 
 .. note::
 

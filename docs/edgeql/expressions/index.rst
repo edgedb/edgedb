@@ -1,10 +1,22 @@
 .. _ref_eql_expr:
 
 
-Overview
-========
+Expressions
+===========
 
 :edb-alt-title: Expressions Overview
+
+
+.. toctree::
+    :maxdepth: 3
+    :hidden:
+
+    operators
+    arrays
+    tuples
+    paths
+    shapes
+    parameters
 
 
 Expressions are used to represent a *value* or a *set of values* in EdgeQL
@@ -281,7 +293,7 @@ EdgeQL also supports *named tuples*:
     db> SELECT (height := 180, weight := 82).1;
     {82}
 
-Tuples can be nested in arrays, returned from functions, or 
+Tuples can be nested in arrays, returned from functions, or
 be a valid object property type.
 
 See the :ref:`tuple expression reference <ref_eql_expr_tuple_ctor>`

@@ -1,16 +1,8 @@
-.. _ref_datamodel_overview:
-
-========
-Overview
-========
-
-EdgeDB is a relational database with strongly typed schema.
-
-
 .. _ref_datamodel_typesystem:
 
+===========
 Type System
------------
+===========
 
 An EdgeDB schema is primarily composed from :ref:`object type
 <ref_datamodel_object_types>` definitions, which describe entities in

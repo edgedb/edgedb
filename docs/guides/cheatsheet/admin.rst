@@ -1,6 +1,6 @@
 .. _ref_cheatsheet_admin:
 
-Admin Commands
+Administration
 ==============
 
 Create a database:

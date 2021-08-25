@@ -4,8 +4,8 @@
 Abstract Types
 ==============
 
-These types are used in introspection as well as in definitions of
-functions that are general enough to apply to a broad range of types.
+These types are used in definitions of polymorphic (generic) functions
+that can be applied to a broad range of types.
 
 
 ----------

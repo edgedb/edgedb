@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_delete:
 
-Delete
-======
+Deleting Data
+=============
 
 .. note::
 

@@ -18,6 +18,6 @@ Developing EdgeDB itself:
     :maxdepth: 3
     :hidden:
 
-    protocol/__toc__
+    protocol/index
     dev
     dump_format

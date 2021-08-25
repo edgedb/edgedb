@@ -1,12 +1,22 @@
 .. _ref_protocol_overview:
 
-========
-Overview
-========
+===============
+Binary Protocol
+===============
 
 EdgeDB uses a message-based binary protocol for communication between
 clients and servers.  The protocol is supported over TCP/IP and also over
 Unix-domain sockets.
+
+
+.. toctree::
+    :maxdepth: 3
+    :hidden:
+
+    messages
+    errors
+    typedesc
+    dataformats
 
 
 .. _ref_protocol_conventions:
