@@ -1940,7 +1940,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             SELECT User {
                 name,
                 fire_deck := (
-                    SELECT User.deck {name, element}
+                    SELECT .deck {name, element}
                     FILTER .element = 'Fire'
                     ORDER BY .name
                 )
@@ -1955,7 +1955,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 SELECT DETACHED User {
                     name,
                     fire_deck := (
-                        SELECT User.deck {name, element}
+                        SELECT .deck {name, element}
                         FILTER .element = 'Fire'
                         ORDER BY .name
                     )
@@ -1970,7 +1970,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             SELECT User {
                 name,
                 fire_deck := (
-                    SELECT User.deck {name, element}
+                    SELECT .deck {name, element}
                     FILTER .element = 'Fire'
                     ORDER BY .name
                 ).name
@@ -1985,7 +1985,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 SELECT DETACHED User {
                     name,
                     fire_deck := (
-                        SELECT User.deck {name, element}
+                        SELECT .deck {name, element}
                         FILTER .element = 'Fire'
                         ORDER BY .name
                     ).name
@@ -2001,7 +2001,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 SELECT DETACHED User {
                     name,
                     fire_deck := (
-                        SELECT User.deck {name, element}
+                        SELECT .deck {name, element}
                         FILTER .element = 'Fire'
                         ORDER BY .name
                     ).name
@@ -2125,7 +2125,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
     async def test_edgeql_scope_detached_12(self):
         await self.assert_query_result(
             r"""
-            SELECT DETACHED User { name2 := User.name } ORDER BY .name;
+            SELECT DETACHED (User { name2 := User.name }) ORDER BY .name;
             """,
             [
                 {"name2": "Alice"},

@@ -123,11 +123,6 @@ class P_DISTINCT(Precedence, assoc='right', tokens=('DISTINCT',),
     pass
 
 
-class P_DETACHED(Precedence, assoc='right', tokens=('DETACHED',),
-                 rel_to_last='='):
-    pass
-
-
 class P_POW_OP(Precedence, assoc='right', tokens=('CIRCUMFLEX',)):
     pass
 
@@ -149,6 +144,10 @@ class P_PAREN(Precedence, assoc='left', tokens=('LPAREN', 'RPAREN')):
 
 
 class P_DOT(Precedence, assoc='left', tokens=('DOT', 'DOTBW')):
+    pass
+
+
+class P_DETACHED(Precedence, assoc='right', tokens=('DETACHED',)):
     pass
 
 
