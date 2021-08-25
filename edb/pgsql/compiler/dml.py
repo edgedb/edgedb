@@ -728,6 +728,9 @@ def insert_needs_conflict_cte(
     if ctx.dml_stmts:
         return True
 
+    if ir_stmt.on_conflict and ir_stmt.on_conflict.always_check:
+        return True
+
     for shape_el, _ in ir_stmt.subject.shape:
         assert shape_el.rptr is not None
         ptrref = shape_el.rptr.ptrref
