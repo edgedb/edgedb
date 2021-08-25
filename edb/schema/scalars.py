@@ -504,7 +504,7 @@ class RebaseScalarType(
         if cur_labels:
 
             if self.removed_bases and not self.added_bases:
-                raise errors.SchemaError(
+                raise errors.UnsupportedFeatureError(
                     f'cannot DROP EXTENDING enum')
 
             all_bases = []
@@ -520,7 +520,7 @@ class RebaseScalarType(
                         is_enum_base = base.is_enum(schema)
 
                     if not is_enum_base:
-                        raise errors.UnsupportedFeatureError(
+                        raise errors.SchemaError(
                             f'cannot add another type as supertype, '
                             f'enumeration must be the only supertype specified'
                         )
