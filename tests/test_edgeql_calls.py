@@ -602,17 +602,40 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
 
         await self.assert_query_result(
             r'''SELECT call13_2(b'aaaa');''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT call13_2([1, 2, 3, 4, 5]);''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT call13_2(['a', 'b']);''',
-            [{}],
+            [1],
+        )
+
+    @test.xfail("fails because Function.backend_name logic is busted")
+    async def test_edgeql_calls_13_sdl(self):
+        await self.migrate("""
+            function inner(a: anytype) -> str
+                using ("anytype");
+
+            function inner(a: int64) -> str
+                using ("int64");
+
+            function call13_sdl(a: anytype) -> str
+                using (inner(a));
+        """)
+
+        await self.assert_query_result(
+            r"SELECT call13_sdl(1.0)",
+            ["anytype"],
+        )
+
+        await self.assert_query_result(
+            r"SELECT call13_sdl(1)",
+            ["int64"],
         )
 
     async def test_edgeql_calls_14(self):

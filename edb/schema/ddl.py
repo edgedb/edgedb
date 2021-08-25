@@ -659,11 +659,13 @@ def ddlast_from_delta(
     delta: sd.DeltaRoot,
     *,
     sdlmode: bool = False,
+    testmode: bool = False,
     descriptive_mode: bool = False,
 ) -> Dict[qlast.DDLOperation, sd.Command]:
     context = sd.CommandContext(
         descriptive_mode=descriptive_mode,
         declarative=sdlmode,
+        testmode=testmode,
     )
 
     if schema_a is None:

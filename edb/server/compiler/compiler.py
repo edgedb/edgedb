@@ -999,6 +999,8 @@ class Compiler:
                 ql.target,
                 base_schema=base_schema,
                 current_schema=schema,
+                testmode=(
+                    self.get_config_val(ctx, '__internal_testmode')),
                 allow_dml_in_functions=(
                     self.get_config_val(ctx, 'allow_dml_in_functions')),
             )
@@ -1036,8 +1038,14 @@ class Compiler:
                 debug.header('Populate Migration Diff')
                 debug.dump(diff, schema=schema)
 
-            new_ddl = tuple(s_ddl.ddlast_from_delta(
-                schema, mstate.target_schema, diff))
+            new_ddl = tuple(
+                s_ddl.ddlast_from_delta(
+                    schema,
+                    mstate.target_schema,
+                    diff,
+                    testmode=self.get_config_val(ctx, '__internal_testmode'),
+                ),
+            )
             all_ddl = mstate.accepted_cmds + new_ddl
             mstate = mstate._replace(accepted_cmds=all_ddl)
             if debug.flags.delta_plan:

@@ -51,6 +51,7 @@ from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import properties as s_props
+from edb.schema import pseudo as s_pseudo
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -124,6 +125,14 @@ class TraceContextBase:
                     return std_name
                 else:
                     return qname
+        elif isinstance(ref, qlast.AnyType):
+            # We pretend `anytype` has a fully-qualified name here, because
+            # the tracing machinery really wants to work with fully-qualified
+            # names and wants to distinguish between objects from the standard
+            # library and the user-defines ones.  Ditto for `anytuple` below.
+            return s_name.QualName('std', 'anytype')
+        elif isinstance(ref, qlast.AnyTuple):
+            return s_name.QualName('std', 'anytuple')
         else:
             raise TypeError(
                 "ObjectRef expected "
@@ -328,6 +337,11 @@ def sdl_to_ddl(
         schema,
         local_modules=frozenset(mod for mod in documents),
     )
+
+    ctx.objects[s_name.QualName('std', 'anytype')] = (
+        schema.get_global(s_pseudo.PseudoType, 'anytype'))
+    ctx.objects[s_name.QualName('std', 'anytuple')] = (
+        schema.get_global(s_pseudo.PseudoType, 'anytuple'))
 
     for module_name, declarations in documents.items():
         ctx.set_module(module_name)
