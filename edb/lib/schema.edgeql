@@ -61,6 +61,12 @@ CREATE ABSTRACT TYPE schema::SubclassableObject EXTENDING schema::Object {
 
     # Backwards compatibility.
     CREATE PROPERTY is_abstract := .abstract;
+
+    # Backwards compatibility. (But will maybe become a real property one day.)
+    CREATE PROPERTY final := false;
+
+    # Backwards compatibility.
+    CREATE PROPERTY is_final := .final;
 };
 
 
