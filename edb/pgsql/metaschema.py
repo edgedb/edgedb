@@ -3653,8 +3653,6 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
             False
                 AS {qi(ptr_col_name(schema, Role, 'abstract'))},
             False
-                AS {qi(ptr_col_name(schema, Role, 'final'))},
-            False
                 AS {qi(ptr_col_name(schema, Role, 'is_derived'))},
             ARRAY[]::text[]
                 AS {qi(ptr_col_name(schema, Role, 'inherited_fields'))},

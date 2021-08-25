@@ -2816,13 +2816,6 @@ class SubclassableObject(Object):
         compcoef=0.909,
     )
 
-    final = SchemaField(
-        bool,
-        default=False,
-        inheritable=False,
-        compcoef=0.909,
-    )
-
     def _issubclass(
         self, schema: s_schema.Schema, parent: SubclassableObject
     ) -> bool:
