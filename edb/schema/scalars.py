@@ -24,6 +24,7 @@ from typing import *
 from edb import errors
 
 from edb.common import checked
+from edb.common import verutils
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -370,6 +371,17 @@ class CreateScalarType(
             create_cmd = cmd
 
         if isinstance(astnode, qlast.CreateScalarType):
+            # We don't support FINAL, but old dumps specify it on all
+            # CREATE SCALAR TYPEs, so we need to permit it in those
+            # cases.
+            if astnode.final and not context.compat_ver_is_before(
+                (1, 0, verutils.VersionStage.BETA, 4)
+            ):
+                raise errors.UnsupportedFeatureError(
+                    f'FINAL is not supported',
+                    context=astnode.context,
+                )
+
             bases = [
                 s_utils.ast_to_type_shell(
                     b,

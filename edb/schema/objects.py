@@ -2820,7 +2820,6 @@ class SubclassableObject(Object):
         bool,
         default=False,
         inheritable=False,
-        special_ddl_syntax=True,
         compcoef=0.909,
     )
 

@@ -37,7 +37,6 @@ Introspection of the ``schema::ScalarType``:
                 Object { name: 'enum_values' },
                 Object { name: 'id' },
                 Object { name: 'abstract' },
-                Object { name: 'final' },
                 Object { name: 'name' }
             }
         }
@@ -53,7 +52,6 @@ Introspection of the built-in scalar :eql:type:`str`:
     ...     default,
     ...     enum_values,
     ...     abstract,
-    ...     final,
     ...     bases: { name },
     ...     ancestors: { name },
     ...     annotations: { name, @value },
@@ -66,7 +64,6 @@ Introspection of the built-in scalar :eql:type:`str`:
             default: {},
             enum_values: {},
             abstract: {},
-            final: {},
             bases: {Object { name: 'std::anyscalar' }},
             ancestors: {Object { name: 'std::anyscalar' }},
             annotations: {},
@@ -91,7 +88,6 @@ Introspection of the enum scalar ``Color``:
     ...     default,
     ...     enum_values,
     ...     abstract,
-    ...     final,
     ...     bases: { name },
     ...     ancestors: { name },
     ...     annotations: { name, @value },
@@ -104,7 +100,6 @@ Introspection of the enum scalar ``Color``:
             default: {},
             enum_values: ['Red', 'Green', 'Blue'],
             abstract: {},
-            final: true,
             bases: {Object { name: 'std::anyenum' }},
             ancestors: {
                 Object { name: 'std::anyscalar' },

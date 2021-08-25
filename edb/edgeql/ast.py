@@ -692,6 +692,9 @@ class DropObject(ObjectDDL):
 
 
 class CreateExtendingObject(CreateObject, BasesMixin):
+    # final is not currently implemented, and the syntax is not
+    # supported except in old dumps. We track it only to allow us to
+    # error on it.
     final: bool = False
 
 

@@ -1631,7 +1631,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'proposed': {
                 'statements': [{
                     'text': (
-                        "CREATE FINAL SCALAR TYPE test::EnumType1"
+                        "CREATE SCALAR TYPE test::EnumType1"
                         " EXTENDING enum<foo, bar>;"
                     )
                 }],
@@ -1692,7 +1692,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'proposed': {
                 'statements': [{
                     'text': (
-                        "CREATE FINAL SCALAR TYPE test::EnumType02"
+                        "CREATE SCALAR TYPE test::EnumType02"
                         " EXTENDING enum<foo, bar>;"
                     )
                 }],
@@ -1753,7 +1753,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'proposed': {
                 'statements': [{
                     'text': (
-                        "CREATE FINAL SCALAR TYPE test::EnumType02"
+                        "CREATE SCALAR TYPE test::EnumType02"
                         " EXTENDING enum<foo, bar>;"
                     )
                 }],

@@ -527,7 +527,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
         if (
-            field in {'abstract', 'final'}
+            field in {'abstract'}
             and issubclass(astnode, qlast.CreateObject)
         ):
             return field
@@ -747,9 +747,6 @@ class CreateInheritingObject(
         bases = cls._classbases_from_ast(schema, astnode, context)
         if bases is not None:
             cmd.set_attribute_value('bases', bases)
-
-        if getattr(astnode, 'final', False):
-            cmd.set_attribute_value('final', True)
 
         return cmd
 
@@ -973,9 +970,6 @@ class AlterInheritingObject(
                 )
 
                 cmd.add(rebase_cmd)
-
-        if getattr(astnode, 'final', False):
-            cmd.set_attribute_value('final', True)
 
         return cmd
 

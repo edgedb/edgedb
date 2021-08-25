@@ -41,7 +41,6 @@ Introspection of the ``schema::Constraint``:
                 Object { name: 'finalexpr' },
                 Object { name: 'id' },
                 Object { name: 'abstract' },
-                Object { name: 'final' },
                 Object { name: 'name' },
                 Object { name: 'return_typemod' },
                 Object { name: 'subjectexpr' }

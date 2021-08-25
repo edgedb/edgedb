@@ -1213,13 +1213,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 keywords.extend(('SET', 'DELEGATED'))
             else:
                 keywords.extend(('SET', 'NOT', 'DELEGATED'))
-        elif fname == 'final':
-            if node.value is None:
-                keywords.extend(('RESET', 'FINAL'))
-            elif self._eval_bool_expr(node.value):
-                keywords.extend(('SET', 'FINAL'))
-            else:
-                keywords.extend(('SET', 'NOT', 'FINAL'))
         elif fname == 'cardinality':
             if node.value is None:
                 keywords.extend(('RESET', 'CARDINALITY'))
@@ -1371,8 +1364,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         keywords = []
         if node.abstract:
             keywords.append('ABSTRACT')
-        if node.final:
-            keywords.append('FINAL')
         keywords.append('SCALAR')
         keywords.append('TYPE')
 
@@ -1656,8 +1647,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.abstract:
             keywords.append('ABSTRACT')
-        if node.final:
-            keywords.append('FINAL')
         keywords.append('TYPE')
 
         after_name = lambda: self._ddl_visit_bases(node)
