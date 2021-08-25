@@ -658,6 +658,8 @@ class CallArg(ImmutableBase):
     __ast_mutable_fields__ = frozenset(('cardinality',))
 
     expr: Set
+    """PathId for the __type__ link of object type arguments."""
+    expr_type_path_id: typing.Optional[PathId] = None
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
 
 

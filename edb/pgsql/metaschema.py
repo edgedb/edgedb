@@ -3891,7 +3891,7 @@ def _make_json_caster(
     return _cast
 
 
-def _generate_schema_aliases(
+def _generate_schema_alias_views(
     schema: s_schema.Schema,
     module: s_name.UnqualName,
 ) -> List[dbops.View]:
@@ -3903,37 +3903,60 @@ def _generate_schema_aliases(
     )
 
     for schema_obj in schema_objs:
-        bn = common.get_backend_name(
-            schema,
-            schema_obj,
-            aspect='inhview',
-            catenate=False,
-        )
-
-        if module.name == 'sys' and not schema_obj.get_abstract(schema):
-            bn = ('edgedbss', bn[1])
-
-        targets = []
-
-        for ptr in schema_obj.get_pointers(schema).objects(schema):
-            if ptr.is_pure_computable(schema):
-                continue
-            psi = types.get_pointer_storage_info(ptr, schema=schema)
-            if psi.table_type == 'ObjectType':
-                ptr_name = ptr.get_shortname(schema).name
-                col_name = psi.column_name
-                if col_name != ptr_name:
-                    targets.append(f'{qi(col_name)} AS {qi(ptr_name)}')
-                targets.append(f'{qi(col_name)} AS {qi(col_name)}')
-
-        prefix = module.name.capitalize()
-        alias_view = dbops.View(
-            name=('edgedb', f'_{prefix}{schema_obj.get_name(schema).name}'),
-            query=(f'SELECT {", ".join(targets)} FROM {q(*bn)}')
-        )
-        views.append(alias_view)
+        views.append(_generate_schema_alias_view(schema, schema_obj))
 
     return views
+
+
+def _generate_schema_alias_view(
+    schema: s_schema.Schema,
+    obj: s_sources.Source,
+) -> dbops.View:
+
+    module = obj.get_name(schema).module
+    bn = common.get_backend_name(
+        schema,
+        obj,
+        aspect='inhview',
+        catenate=False,
+    )
+
+    if module == 'sys' and not obj.get_abstract(schema):
+        bn = ('edgedbss', bn[1])
+
+    targets = []
+
+    if isinstance(obj, s_links.Link):
+        expected_tt = "link"
+    else:
+        expected_tt = "ObjectType"
+
+    for ptr in obj.get_pointers(schema).objects(schema):
+        if ptr.is_pure_computable(schema):
+            continue
+        psi = types.get_pointer_storage_info(ptr, schema=schema)
+        if psi.table_type == expected_tt:
+            ptr_name = ptr.get_shortname(schema).name
+            col_name = psi.column_name
+            if col_name != ptr_name:
+                targets.append(f'{qi(col_name)} AS {qi(ptr_name)}')
+            targets.append(f'{qi(col_name)} AS {qi(col_name)}')
+
+    prefix = module.capitalize()
+
+    if isinstance(obj, s_links.Link):
+        objtype = obj.get_source(schema)
+        assert objtype is not None
+        objname = objtype.get_name(schema).name
+        lname = obj.get_shortname(schema).name
+        name = f'_{prefix}{objname}__{lname}'
+    else:
+        name = f'_{prefix}{obj.get_name(schema).name}'
+
+    return dbops.View(
+        name=('edgedb', name),
+        query=(f'SELECT {", ".join(targets)} FROM {q(*bn)}')
+    )
 
 
 async def generate_support_views(
@@ -3942,29 +3965,25 @@ async def generate_support_views(
 ) -> None:
     commands = dbops.CommandGroup()
 
-    schema_alias_views = _generate_schema_aliases(
+    schema_alias_views = _generate_schema_alias_views(
         schema, s_name.UnqualName('schema'))
-    for alias_view in schema_alias_views:
-        commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
     InhObject = schema.get(
         'schema::InheritingObject', type=s_objtypes.ObjectType)
-    InhObject_ancestors = InhObject.getptr(
-        schema, s_name.UnqualName('ancestors'))
+    InhObject__ancestors = InhObject.getptr(
+        schema, s_name.UnqualName('ancestors'), type=s_links.Link)
+    schema_alias_views.append(
+        _generate_schema_alias_view(schema, InhObject__ancestors))
 
-    # "issubclass" SQL functions rely on access to the ancestors link.
-    bn = common.get_backend_name(
-        schema,
-        InhObject_ancestors,
-        aspect='inhview',
-        catenate=False,
-    )
+    ObjectType = schema.get(
+        'schema::ObjectType', type=s_objtypes.ObjectType)
+    ObjectType__ancestors = ObjectType.getptr(
+        schema, s_name.UnqualName('ancestors'), type=s_links.Link)
+    schema_alias_views.append(
+        _generate_schema_alias_view(schema, ObjectType__ancestors))
 
-    alias_view = dbops.View(
-        name=('edgedb', f'_SchemaInheritingObject__ancestors'),
-        query=(f'SELECT * FROM {q(*bn)}')
-    )
-    commands.add_command(dbops.CreateView(alias_view, or_replace=True))
+    for alias_view in schema_alias_views:
+        commands.add_command(dbops.CreateView(alias_view, or_replace=True))
 
     conf = schema.get('cfg::Config', type=s_objtypes.ObjectType)
     cfg_views, _ = _generate_config_type_view(
@@ -4002,7 +4021,7 @@ async def generate_support_views(
     for verview in _generate_schema_ver_views(schema):
         commands.add_command(dbops.CreateView(verview, or_replace=True))
 
-    sys_alias_views = _generate_schema_aliases(
+    sys_alias_views = _generate_schema_alias_views(
         schema, s_name.UnqualName('sys'))
     for alias_view in sys_alias_views:
         commands.add_command(dbops.CreateView(alias_view, or_replace=True))

@@ -2308,6 +2308,19 @@ def _compile_func_args(
         arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(output.output_as_value(arg_ref, env=ctx.env))
 
+        if ir_arg.expr_type_path_id is not None:
+            # Object type arguments are represented by two
+            # SQL arguments: object id and object type id.
+            # The latter is needed for proper overload
+            # dispatch.
+            type_ref = relctx.get_path_var(
+                ctx.rel,
+                ir_arg.expr_type_path_id,
+                aspect='identity',
+                ctx=ctx,
+            )
+            args.append(type_ref)
+
     if expr.has_empty_variadic and expr.variadic_param_type is not None:
         var = pgast.TypeCast(
             arg=pgast.ArrayExpr(elements=[]),
