@@ -1510,6 +1510,16 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 f'is already defined',
                 context=self.source_context)
 
+        if not context.canonical:
+            fullname = self.classname
+            shortname = sn.shortname_from_fullname(fullname)
+            if others := schema.get_functions(
+                    sn.QualName(fullname.module, shortname.name), ()):
+                backend_name = others[0].get_backend_name(schema)
+            else:
+                backend_name = uuidgen.uuid1mc()
+            self.set_attribute_value('backend_name', backend_name)
+
         # Check if other schema objects with the same name (ignoring
         # signature, of course) exist.
         if other := schema.get(
@@ -1700,16 +1710,6 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
     ) -> sd.Command:
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, CreateFunction)
-
-        fullname = cmd.classname
-        shortname = sn.shortname_from_fullname(fullname)
-        if others := schema.get_functions(
-                sn.QualName(fullname.module, shortname.name), ()):
-            backend_name = others[0].get_backend_name(schema)
-        else:
-            backend_name = uuidgen.uuid1mc()
-
-        cmd.set_attribute_value('backend_name', backend_name)
 
         assert isinstance(astnode, qlast.CreateFunction)
         if astnode.code is not None:

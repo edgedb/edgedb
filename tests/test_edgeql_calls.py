@@ -615,7 +615,6 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
             [1],
         )
 
-    @test.xfail("fails because Function.backend_name logic is busted")
     async def test_edgeql_calls_13_sdl(self):
         await self.migrate("""
             function inner(a: anytype) -> str
