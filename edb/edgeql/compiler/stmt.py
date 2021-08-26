@@ -381,6 +381,53 @@ def _constr_matters(
     )
 
 
+ConflictTypeMap = Dict[
+    s_objtypes.ObjectType,
+    Tuple[
+        Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
+        List[s_constr.Constraint],
+    ],
+]
+
+
+def _split_constraints(
+    obj_constrs: Sequence[s_constr.Constraint],
+    constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
+    ctx: context.ContextLevel,
+) -> ConflictTypeMap:
+    schema = ctx.env.schema
+
+    type_maps: ConflictTypeMap = {}
+
+    # Split up pointer constraints by what object types they come from
+    for name, (_, p_constrs) in constrs.items():
+        for p_constr in p_constrs:
+            ancs = (p_constr,) + p_constr.get_ancestors(schema).objects(schema)
+            for anc in ancs:
+                if not _constr_matters(anc, ctx):
+                    continue
+                p_ptr = anc.get_subject(schema)
+                assert isinstance(p_ptr, s_pointers.Pointer)
+                obj = p_ptr.get_source(schema)
+                assert isinstance(obj, s_objtypes.ObjectType)
+                map, _ = type_maps.setdefault(obj, ({}, []))
+                _, entry = map.setdefault(name, (p_ptr, []))
+                entry.append(anc)
+
+    # Split up object constraints by what object types they come from
+    for obj_constr in obj_constrs:
+        ancs = (obj_constr,) + obj_constr.get_ancestors(schema).objects(schema)
+        for anc in ancs:
+            if not _constr_matters(anc, ctx):
+                continue
+            obj = anc.get_subject(schema)
+            assert isinstance(obj, s_objtypes.ObjectType)
+            _, o_constr_entry = type_maps.setdefault(obj, ({}, []))
+            o_constr_entry.append(anc)
+
+    return type_maps
+
+
 def compile_insert_unless_conflict_select(
     stmt: irast.InsertStmt,
     subject_typ: s_objtypes.ObjectType,
@@ -399,40 +446,7 @@ def compile_insert_unless_conflict_select(
     `cnstrs` contains the constraints to consider.
     """
     schema = ctx.env.schema
-
-    type_maps: Dict[
-        s_objtypes.ObjectType,
-        Tuple[
-            Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
-            List[s_constr.Constraint],
-        ],
-    ] = {}
-
-    # Split up pointer constraints by what object types they come from
-    for name, (_, p_constrs) in constrs.items():
-        for p_constr in p_constrs:
-            ancs = (p_constr,) + p_constr.get_ancestors(schema).objects(schema)
-            for anc in ancs:
-                if not _constr_matters(anc, ctx):
-                    continue
-                p_ptr = anc.get_subject(schema)
-                assert isinstance(p_ptr, s_pointers.Pointer)
-                obj = p_ptr.get_source(schema)
-                assert isinstance(obj, s_objtypes.ObjectType)
-                map, _ = type_maps.setdefault(obj, ({}, []))
-                _, entry = map.setdefault(name, (p_ptr, []))
-                entry.append(anc)
-
-    # Split up object constraints by what object typesthey come from
-    for obj_constr in obj_constrs:
-        ancs = (obj_constr,) + obj_constr.get_ancestors(schema).objects(schema)
-        for anc in ancs:
-            if not _constr_matters(anc, ctx):
-                continue
-            obj = anc.get_subject(schema)
-            assert isinstance(obj, s_objtypes.ObjectType)
-            _, o_constr_entry = type_maps.setdefault(obj, ({}, []))
-            o_constr_entry.append(anc)
+    type_maps = _split_constraints(obj_constrs, constrs, ctx=ctx)
 
     # Generate a separate query for each type
     from_parent = False
