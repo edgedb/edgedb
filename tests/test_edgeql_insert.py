@@ -2707,7 +2707,7 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_unless_conflict_16b(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
+                edgedb.UnsupportedFeatureError,
                 "INSERT UNLESS CONFLICT ON does not support volatile "
                 "properties"):
             await self.con.execute('''
@@ -2797,7 +2797,7 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_unless_conflict_20a(self):
         # currently we reject ELSE in these cases
         with self.assertRaisesRegex(
-            edgedb.errors.QueryError,
+            edgedb.errors.UnsupportedFeatureError,
             "UNLESS CONFLICT can not use ELSE when constraint is from a "
             "parent type",
         ):

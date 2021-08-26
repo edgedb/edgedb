@@ -279,7 +279,7 @@ def _compile_insert_unless_conflict_select(
             assert elem.expr
 
             if inference.infer_volatility(elem.expr, ctx.env).is_volatile():
-                raise errors.QueryError(
+                raise errors.UnsupportedFeatureError(
                     'INSERT UNLESS CONFLICT ON does not support volatile '
                     'properties',
                     context=parser_context,
@@ -598,7 +598,7 @@ def compile_insert_unless_conflict_on(
         # TODO: We should support this, but there is some semantic and
         # implementation trickiness.
         if from_anc:
-            raise errors.QueryError(
+            raise errors.UnsupportedFeatureError(
                 'UNLESS CONFLICT can not use ELSE when constraint is from a '
                 'parent type',
                 context=constraint_spec.context,
