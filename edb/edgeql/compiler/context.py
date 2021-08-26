@@ -212,6 +212,11 @@ class Environment:
     functions) that appear in a function body.
     """
 
+    dml_stmts: Set[irast.MutatingStmt]
+    """A list of DML expressions (statements and DML-containing
+    functions) that appear in a function body.
+    """
+
     #: A list of bindings that should be assumed to be singletons.
     singletons: List[irast.PathId]
 
@@ -260,6 +265,7 @@ class Environment:
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
         self.dml_exprs = []
+        self.dml_stmts = set()
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
         self.singletons = []
@@ -528,6 +534,9 @@ class ContextLevel(compiler.ContextLevel):
     path_log: Optional[List[irast.PathId]]
     """An optional list of path ids added to the scope tree in this context."""
 
+    in_temp_scope: bool
+    """Whether we are in a temp scope for view processing."""
+
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -590,6 +599,7 @@ class ContextLevel(compiler.ContextLevel):
             self.disable_shadowing = set()
             self.path_log = None
             self.recompiling_schema_alias = False
+            self.in_temp_scope = False
 
         else:
             self.env = prevlevel.env
@@ -637,6 +647,7 @@ class ContextLevel(compiler.ContextLevel):
             self.disable_shadowing = prevlevel.disable_shadowing
             self.path_log = prevlevel.path_log
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
+            self.in_temp_scope = prevlevel.in_temp_scope
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()

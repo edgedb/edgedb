@@ -841,10 +841,14 @@ class OnConflictClause(Base):
     select_ir: Set
     always_check: bool
     else_ir: typing.Optional[Set]
+    else_fail: typing.Optional[MutatingStmt] = None
 
 
 class InsertStmt(MutatingStmt):
     on_conflict: typing.Optional[OnConflictClause] = None
+    # Conflict checks that we should manually raise constraint violations
+    # for.
+    conflict_checks: typing.Optional[typing.List[OnConflictClause]] = None
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):
