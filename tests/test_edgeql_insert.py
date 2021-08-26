@@ -2707,13 +2707,231 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_unless_conflict_16b(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError,
+                edgedb.UnsupportedFeatureError,
                 "INSERT UNLESS CONFLICT ON does not support volatile "
                 "properties"):
             await self.con.execute('''
                 INSERT Person { name := <str>math::floor(random() * 2) }
                 UNLESS CONFLICT ON (.name) ELSE (Person)
             ''')
+
+    async def test_edgeql_insert_unless_conflict_17(self):
+        await self.con.execute(r'''
+            FOR x IN {"1", "2", "3", "4"} UNION (
+                INSERT Person { name := x }
+            );
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            FOR x IN {"1", "2", "3", "4"} UNION (
+                INSERT Person { name := x }
+                UNLESS CONFLICT ON (.name)
+                ELSE (UPDATE Person SET { tag := "!" })
+            );
+            ''',
+            [{}, {}],
+            implicit_limit=2,
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT Person.tag
+            ''',
+            ["!"] * 4,
+        )
+
+    async def test_edgeql_insert_unless_conflict_18a(self):
+        await self.con.execute(r'''
+            INSERT Person { name := "Phil Emarg" };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            INSERT DerivedPerson { name := "Phil Emarg" } UNLESS CONFLICT;
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+            INSERT DerivedPerson { name := "Phil Emarg" }
+            UNLESS CONFLICT ON (.name);
+            ''',
+            [],
+        )
+
+    async def test_edgeql_insert_unless_conflict_18b(self):
+        await self.con.execute(r'''
+            INSERT DerivedPerson { name := "Phil Emarg" };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            INSERT Person { name := "Phil Emarg" } UNLESS CONFLICT;
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+            INSERT Person { name := "Phil Emarg" }
+            UNLESS CONFLICT ON (.name);
+            ''',
+            [],
+        )
+
+    async def test_edgeql_insert_unless_conflict_19(self):
+        await self.con.execute(r'''
+            INSERT DerivedPerson { name := "Phil Emarg", sub_key := "1" };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            INSERT DerivedPerson { name := "Madeline Hatch", sub_key := "1" }
+            UNLESS CONFLICT;
+            ''',
+            [],
+        )
+
+    async def test_edgeql_insert_unless_conflict_20a(self):
+        # currently we reject ELSE in these cases
+        with self.assertRaisesRegex(
+            edgedb.errors.UnsupportedFeatureError,
+            "UNLESS CONFLICT can not use ELSE when constraint is from a "
+            "parent type",
+        ):
+            await self.con.execute(r'''
+                INSERT DerivedPerson { name := "Madeline Hatch" }
+                UNLESS CONFLICT ON (.name) ELSE (SELECT DerivedPerson)
+            ''')
+
+    @test.not_implemented("""
+        ELSE isn't implemented in inheritance cases
+    """)
+    async def test_edgeql_insert_unless_conflict_20b(self):
+        await self.con.execute(r'''
+            INSERT Person { name := "1" };
+        ''')
+
+        # This is maybe what we want? Though it would also possibly
+        # be reasonable to require filtering Person explicitly?
+        # (we'll also want a test case with inheriting from two parents
+        await self.assert_query_result(
+            r'''
+            FOR x IN {"1", "2"} UNION (
+                INSERT DerivedPerson { name := x }
+                UNLESS CONFLICT ON (.name)
+                ELSE (UPDATE Person SET { tag := "!" })
+            );
+            ''',
+            [{}],
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT Person {name, tag, sub: Person IS DerivedPerson}
+            ORDER BY .name
+            ''',
+            [
+                {'name': "1", 'tag': "!", 'sub': False},
+                {'name': "2", 'tag': None, 'sub': True},
+            ]
+        )
+
+    async def test_edgeql_insert_unless_conflict_21(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Bar {
+                CREATE REQUIRED PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Baz extending Foo, Bar;
+        ''')
+
+        await self.con.execute(r'''
+            INSERT Foo { name := "foo" };
+            INSERT Foo { name := "both" };
+            INSERT Bar { name := "bar" };
+            INSERT Bar { name := "both" };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            FOR x IN {"foo", "bar", "both", "asdf"} UNION (
+                INSERT Baz { name := x }
+                UNLESS CONFLICT ON (.name)
+            );
+            ''',
+            [{}],
+        )
+
+    async def test_edgeql_insert_unless_conflict_22(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY foo -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Bar {
+                CREATE REQUIRED PROPERTY bar -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Baz extending Foo, Bar;
+        ''')
+
+        await self.con.execute(r'''
+            INSERT Foo { foo := "foo" };
+            INSERT Bar { bar := "bar" };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            INSERT Baz { foo := "!", bar := "bar" }
+            UNLESS CONFLICT ON (.bar)
+            ''',
+            [],
+        )
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute(
+                r'''
+                INSERT Baz { foo := "!", bar := "bar" }
+                UNLESS CONFLICT ON (.foo)
+                ''',
+            )
+
+        await self.assert_query_result(
+            r'''
+            INSERT Baz { foo := "foo", bar := "!" }
+            UNLESS CONFLICT
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+            INSERT Baz { foo := "!", bar := "bar" }
+            UNLESS CONFLICT
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+            INSERT Baz { foo := "foo", bar := "bar" }
+            UNLESS CONFLICT
+            ''',
+            [],
+        )
 
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
@@ -3651,6 +3869,38 @@ class TestInsert(tb.QueryTestCase):
             ''',
             [2]
         )
+
+    @test.xfail("Issue #2845")
+    async def test_edgeql_insert_cross_type_conflict_01(self):
+        query = r'''
+            WITH name := 'Madeline Hatch',
+                 B := (INSERT Person {name := name}),
+                 F := (INSERT DerivedPerson {name := name}),
+            SELECT (B, F);
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    @test.xfail("Issue #2845")
+    async def test_edgeql_insert_cross_type_conflict_02(self):
+        # this isn't really an insert test
+        await self.con.execute('''
+            INSERT Person { name := 'Foo' };
+            INSERT DerivedPerson { name := 'Bar' };
+        ''')
+
+        query = r'''
+            WITH name := 'Madeline hatch',
+                 B := (UPDATE Person FILTER .name = 'Bar' SET {name := name}),
+                 F := (UPDATE Person FILTER .name = 'Foo' SET {name := name}),
+            SELECT (B, F);
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "violates exclusivity constraint"):
+            await self.con.execute(query)
 
     async def test_edgeql_insert_and_update_01(self):
         # INSERTing something that would violate a constraint while

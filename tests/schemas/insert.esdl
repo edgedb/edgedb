@@ -63,6 +63,11 @@ type Person {
         constraint exclusive on (str_lower(__subject__));
     }
 }
+type DerivedPerson extending Person {
+    property sub_key -> str {
+        constraint exclusive;
+    }
+};
 
 type Person2 {
     required single property first -> std::str;
