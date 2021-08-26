@@ -766,7 +766,9 @@ class TestServerProto(tb.QueryTestCase):
             async with tg.TaskGroup() as g:
 
                 async def exec_to_fail():
-                    with self.assertRaises(ConnectionResetError):
+                    with self.assertRaises(
+                        edgedb.errors.ClientConnectionClosedError
+                    ):
                         await con2.query(
                             'select sys::_advisory_lock(<int64>$0)', lock_key)
 
