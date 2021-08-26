@@ -233,7 +233,6 @@ def compile_GroupQuery(
 
 def _compile_insert_unless_conflict_select(
     stmt: irast.InsertStmt,
-    insert_subject: qlast.Path,
     subject_typ: s_objtypes.ObjectType,
     *,
     obj_constrs: Sequence[s_constr.Constraint],
@@ -335,6 +334,9 @@ def _compile_insert_unless_conflict_select(
                 left=lhs, right=rhs,
             ))
 
+    insert_subject = qlast.Path(steps=[
+        s_utils.name_to_ast_ref(subject_typ.get_name(ctx.env.schema))])
+
     for constr in obj_constrs:
         subjectexpr = constr.get_subjectexpr(ctx.env.schema)
         assert subjectexpr and isinstance(subjectexpr.qlast, qlast.Expr)
@@ -381,7 +383,6 @@ def _constr_matters(
 
 def compile_insert_unless_conflict_select(
     stmt: irast.InsertStmt,
-    insert_subject: qlast.Path,
     subject_typ: s_objtypes.ObjectType,
     *,
     obj_constrs: Sequence[s_constr.Constraint],
@@ -437,11 +438,8 @@ def compile_insert_unless_conflict_select(
     from_parent = False
     frags = []
     for a_obj, (a_constrs, a_obj_constrs) in type_maps.items():
-        qname = a_obj.get_name(schema)
-        path = qlast.Path(steps=[qlast.ObjectRef(
-            module=qname.module, name=qname.name)])
         frag = _compile_insert_unless_conflict_select(
-            stmt, path, a_obj, obj_constrs=a_obj_constrs, constrs=a_constrs,
+            stmt, a_obj, obj_constrs=a_obj_constrs, constrs=a_constrs,
             parser_context=parser_context, ctx=ctx,
         )
         if frag:
@@ -465,7 +463,7 @@ def compile_insert_unless_conflict_select(
 
 def compile_insert_unless_conflict(
     stmt: irast.InsertStmt,
-    insert_subject: qlast.Path,
+    typ: s_objtypes.ObjectType,
     *, ctx: context.ContextLevel,
 ) -> irast.OnConflictClause:
     """Compile an UNLESS CONFLICT clause with no ON
@@ -476,9 +474,6 @@ def compile_insert_unless_conflict(
 
     schema = ctx.env.schema
 
-    schema, typ = typeutils.ir_typeref_to_type(schema, stmt.subject.typeref)
-    assert isinstance(typ, s_objtypes.ObjectType)
-    real_typ = typ.get_nearest_non_derived_parent(schema)
     pointers = {}
 
     exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
@@ -493,10 +488,10 @@ def compile_insert_unless_conflict(
 
     ctx.env.schema = schema
 
-    obj_constrs = real_typ.get_constraints(schema).objects(schema)
+    obj_constrs = typ.get_constraints(schema).objects(schema)
 
     select_ir, always_check, _ = compile_insert_unless_conflict_select(
-        stmt, insert_subject, real_typ,
+        stmt, typ,
         constrs=pointers,
         obj_constrs=obj_constrs,
         parser_context=stmt.context, ctx=ctx)
@@ -508,7 +503,7 @@ def compile_insert_unless_conflict(
 
 def compile_insert_unless_conflict_on(
     stmt: irast.InsertStmt,
-    insert_subject: qlast.Path,
+    typ: s_objtypes.ObjectType,
     constraint_spec: qlast.Expr,
     else_branch: Optional[qlast.Expr],
     *, ctx: context.ContextLevel,
@@ -544,9 +539,6 @@ def compile_insert_unless_conflict_on(
             )
 
     schema = ctx.env.schema
-    schema, typ = typeutils.ir_typeref_to_type(schema, stmt.subject.typeref)
-    assert isinstance(typ, s_objtypes.ObjectType)
-    real_typ = typ.get_nearest_non_derived_parent(schema)
 
     ptrs = []
     exclusive_constr = schema.get('std::exclusive', type=s_constr.Constraint)
@@ -571,7 +563,7 @@ def compile_insert_unless_conflict_on(
         ptrs.append(ptr)
 
     obj_constrs = inference.cardinality.get_object_exclusive_constraints(
-        real_typ, set(ptrs), ctx.env)
+        typ, set(ptrs), ctx.env)
 
     field_constrs = []
     if len(ptrs) == 1:
@@ -589,7 +581,7 @@ def compile_insert_unless_conflict_on(
     ds = {ptr.get_shortname(schema).name: (ptr, field_constrs)
           for ptr in ptrs}
     select_ir, always_check, from_anc = compile_insert_unless_conflict_select(
-        stmt, insert_subject, real_typ, constrs=ds, obj_constrs=obj_constrs,
+        stmt, typ, constrs=ds, obj_constrs=obj_constrs,
         parser_context=stmt.context, ctx=ctx)
 
     # Compile an else branch
@@ -676,17 +668,18 @@ def compile_InsertQuery(
                 is_insert=True,
                 ctx=bodyctx)
 
+        stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
+
         if expr.unless_conflict is not None:
             constraint_spec, else_branch = expr.unless_conflict
 
             if constraint_spec:
                 stmt.on_conflict = compile_insert_unless_conflict_on(
-                    stmt, expr.subject, constraint_spec, else_branch, ctx=ictx)
+                    stmt, stmt_subject_stype, constraint_spec, else_branch,
+                    ctx=ictx)
             else:
                 stmt.on_conflict = compile_insert_unless_conflict(
-                    stmt, expr.subject, ctx=ictx)
-
-        stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
+                    stmt, stmt_subject_stype, ctx=ictx)
 
         result = setgen.class_set(
             schemactx.get_material_type(stmt_subject_stype, ctx=ctx),
