@@ -287,6 +287,8 @@ class BaseCluster:
         if status != 'running':
             raise ClusterError('cannot dump: cluster is not running')
 
+        if self._pg_bin_dir is None:
+            await self.lookup_postgres()
         pg_dump = self._find_pg_binary('pg_dump')
         conn_spec = self.get_connection_spec()
 
@@ -345,14 +347,20 @@ class BaseCluster:
             )
 
     async def lookup_postgres(self) -> None:
-        pg_config = self._find_pg_config(self._pg_config_path)
-        self._pg_config_data = await self._run_pg_config(pg_config)
-        self._pg_bin_dir = self._pg_config_data.get('bindir')
-        if not self._pg_bin_dir:
+        pg_config = self.find_pg_config(self._pg_config_path)
+        self._pg_config_data = await self.run_pg_config(pg_config)
+        self._pg_bin_dir = self.get_pg_bin_dir(self._pg_config_data)
+
+    @staticmethod
+    def get_pg_bin_dir(pg_config_data: Dict[str, str]) -> str:
+        pg_bin_dir = pg_config_data.get('bindir')
+        if not pg_bin_dir:
             raise ClusterError(
                 'pg_config output did not provide the BINDIR value')
+        return pg_bin_dir
 
-    async def _run_pg_config(self, pg_config_path: str) -> Dict[str, str]:
+    @staticmethod
+    async def run_pg_config(pg_config_path: str) -> Dict[str, str]:
         stdout_lines, _, _ = await _run_logged_text_subprocess(
             [pg_config_path],
             logger=pg_config_logger,
@@ -366,7 +374,8 @@ class BaseCluster:
 
         return config
 
-    def _find_pg_config(self, pg_config_path: str) -> str:
+    @staticmethod
+    def find_pg_config(pg_config_path: str) -> str:
         if pg_config_path is None:
             pg_install = os.environ.get('PGINSTALLATION')
             if pg_install:

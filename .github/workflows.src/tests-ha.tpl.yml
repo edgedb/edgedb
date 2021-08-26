@@ -1,0 +1,49 @@
+<% from "tests.inc.yml" import build, calc_cache_key, restore_cache -%>
+name: High Availability Tests
+
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
+
+jobs:
+  build:
+    runs-on: ubuntu-18.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+    <%- call build() -%>
+    - name: Compute cache keys and download the running times log
+      env:
+        GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
+      run: |
+        << calc_cache_key()|indent >>
+
+        curl \
+          -H "Accept: application/vnd.github.v3+json" \
+          -u edgedb-ci:$GIST_TOKEN \
+          https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c \
+        | jq '.files."time_stats.csv".raw_url' \
+        | xargs curl > .tmp/time_stats.csv
+    <%- endcall %>
+
+  ha-test:
+    needs: build
+    runs-on: ubuntu-18.04
+
+    steps:
+    <<- restore_cache() >>
+
+    # Run the test
+
+    - name: Test
+      env:
+        SHARD: ${{ matrix.shard }}
+        EDGEDB_TEST_HA: 1
+        EDGEDB_TEST_CONSUL_PATH: build/stolon/bin/consul
+        EDGEDB_TEST_STOLON_CTL: build/stolon/bin/stolonctl
+        EDGEDB_TEST_STOLON_SENTINEL: build/stolon/bin/stolon-sentinel
+        EDGEDB_TEST_STOLON_KEEPER: build/stolon/bin/stolon-keeper
+      run: |
+        edb test -j1 -v test_stolon
