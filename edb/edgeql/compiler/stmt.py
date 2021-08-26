@@ -669,6 +669,7 @@ def compile_InsertQuery(
                 ctx=bodyctx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
+        assert isinstance(stmt_subject_stype, s_objtypes.ObjectType)
 
         if expr.unless_conflict is not None:
             constraint_spec, else_branch = expr.unless_conflict
