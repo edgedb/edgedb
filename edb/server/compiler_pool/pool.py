@@ -581,12 +581,17 @@ class Pool(amsg.ServerProtocol):
         finally:
             self._release_worker(worker)
 
-    async def try_compile_rollback(self, eql: bytes):
+    async def try_compile_rollback(
+        self,
+        *compile_args,
+        **compile_kwargs,
+    ):
         worker = await self._acquire_worker()
         try:
             return await worker.call(
                 'try_compile_rollback',
-                eql
+                *compile_args,
+                **compile_kwargs,
             )
         finally:
             self._release_worker(worker)

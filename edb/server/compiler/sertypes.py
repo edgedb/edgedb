@@ -25,16 +25,18 @@ import dataclasses
 import io
 import struct
 import typing
-import uuid
 
 from edb import errors
 from edb.common import binwrapper
 from edb.common import uuidgen
 
+from edb.protocol import enums as p_enums
+
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
+from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 
 from . import enums
@@ -46,13 +48,13 @@ _uint16_packer = struct.Struct('!H').pack
 _uint8_packer = struct.Struct('!B').pack
 
 
-EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple').bytes
-EMPTY_TUPLE_DESC = b'\x04' + EMPTY_TUPLE_ID + b'\x00\x00'
+EMPTY_TUPLE_ID = s_obj.get_known_type_id('empty-tuple')
+EMPTY_TUPLE_DESC = b'\x04' + EMPTY_TUPLE_ID.bytes + b'\x00\x00'
 
 UUID_TYPE_ID = s_obj.get_known_type_id('std::uuid')
 STR_TYPE_ID = s_obj.get_known_type_id('std::str')
 
-NULL_TYPE_ID = b'\x00' * 16
+NULL_TYPE_ID = uuidgen.UUID(b'\x00' * 16)
 NULL_TYPE_DESC = b''
 
 CTYPE_SET = b'\x00'
@@ -65,6 +67,8 @@ CTYPE_ARRAY = b'\x06'
 CTYPE_ENUM = b'\x07'
 
 CTYPE_ANNO_TYPENAME = b'\xff'
+
+EMPTY_BYTEARRAY = bytearray()
 
 
 def cardinality_from_ptr(ptr, schema) -> enums.Cardinality:
@@ -398,6 +402,66 @@ class TypeSerializer:
         self.anno_buffer.append(tn_bytes)
 
     @classmethod
+    def describe_params(
+        cls,
+        *,
+        schema: s_schema.Schema,
+        params: list[tuple[str, s_obj.Object, bool]],
+        protocol_version: tuple[int, int],
+    ) -> tuple[bytes, uuidgen.UUID]:
+        assert protocol_version >= (0, 12)
+
+        if not params:
+            return NULL_TYPE_DESC, NULL_TYPE_ID
+
+        builder = cls(schema)
+        params_buf: list[bytes] = []
+
+        for param_name, param_type, param_req in params:
+            param_type_id = builder._describe_type(
+                param_type,
+                {},
+                {},
+                protocol_version,
+            )
+
+            params_buf.append(_uint32_packer(0))  # flags
+            params_buf.append(_uint8_packer(
+                p_enums.Cardinality.ONE.value if param_req else
+                p_enums.Cardinality.AT_MOST_ONE.value
+            ))
+
+            param_name_bytes = param_name.encode('utf-8')
+            params_buf.append(_uint32_packer(len(param_name_bytes)))
+            params_buf.append(param_name_bytes)
+            params_buf.append(_uint16_packer(
+                builder.uuid_to_pos[param_type_id]
+            ))
+
+        buffer_encoded = b''.join(builder.buffer)
+
+        full_params = EMPTY_BYTEARRAY.join([
+            buffer_encoded,
+
+            CTYPE_SHAPE,
+            NULL_TYPE_ID.bytes,  # will be replaced with `params_id` later
+            _uint16_packer(len(params)),
+            *params_buf,
+
+            *builder.anno_buffer,
+        ])
+
+        params_id = uuidgen.uuid5_bytes(
+            s_types.TYPE_ID_NAMESPACE,
+            full_params
+        )
+
+        id_pos = len(buffer_encoded) + 1
+        full_params[id_pos : id_pos + 16] = params_id.bytes
+
+        return bytes(full_params), params_id
+
+    @classmethod
     def describe(
         cls, schema, typ, view_shapes, view_shapes_metadata,
         *,
@@ -405,7 +469,7 @@ class TypeSerializer:
         follow_links: bool = True,
         inline_typenames: bool = False,
         name_filter: str = "",
-    ) -> typing.Tuple[bytes, uuid.UUID]:
+    ) -> typing.Tuple[bytes, uuidgen.UUID]:
         builder = cls(
             schema,
             inline_typenames=inline_typenames,
@@ -426,7 +490,7 @@ class TypeSerializer:
         return cls._JSON_DESC
 
     @classmethod
-    def _describe_json(cls) -> typing.Tuple[bytes, uuid.UUID]:
+    def _describe_json(cls) -> typing.Tuple[bytes, uuidgen.UUID]:
         json_id = s_obj.get_known_type_id('std::str')
 
         buf = []
@@ -541,7 +605,7 @@ class TypeSerializer:
 
 @dataclasses.dataclass(frozen=True)
 class TypeDesc:
-    tid: uuid.UUID
+    tid: uuidgen.UUID
 
 
 @dataclasses.dataclass(frozen=True)
