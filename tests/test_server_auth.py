@@ -189,13 +189,12 @@ class TestServerAuth(tb.ConnectedTestCase):
             await conn.aclose()
 
             # good password but Auth is not configured
-            with self.assertRaisesRegex(
-                    edgedb.AuthenticationError,
-                    "no authentication method configured for 'bar' role"):
-                await self.connect(
-                    user='bar',
-                    password='bar-pass'
-                )
+            # (should default to SCRAM and succeed)
+            conn2 = await self.connect(
+                user='bar',
+                password='bar-pass'
+            )
+            await conn2.aclose()
         finally:
             await self.con.query('''
                 CONFIGURE INSTANCE RESET Auth FILTER .comment = 'test-02'
