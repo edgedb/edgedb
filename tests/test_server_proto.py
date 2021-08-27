@@ -29,6 +29,7 @@ from edb.common import devmode
 from edb.common import taskgroup as tg
 from edb.testbase import server as tb
 from edb.server.compiler import enums
+from edb.tools import test
 
 
 SERVER_HEADER_CAPABILITIES = 0x1001
@@ -2971,17 +2972,17 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
         };
     '''
 
-    async def test_server_concurrent_conflict_retry(self):
-        await self.execute_conflict('counter2')
+    async def test_server_concurrent_conflict_retry_1(self):
+        await self.execute_conflict_1('counter2')
 
-    async def test_server_concurrent_conflict_no_retry(self):
+    async def test_server_concurrent_conflict_no_retry_1(self):
         with self.assertRaises(edgedb.TransactionSerializationError):
-            await self.execute_conflict(
+            await self.execute_conflict_1(
                 'counter3',
                 edgedb.RetryOptions(attempts=1, backoff=edgedb.default_backoff)
             )
 
-    async def execute_conflict(self, name, options=None):
+    async def execute_conflict_1(self, name, options=None):
         q = '''
             SELECT (
                 INSERT Counter {
@@ -2993,6 +2994,39 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
                     SET { value := .value + 1 }
                 )
             ).value
+        '''
+        f = lambda tx: tx.query_single(q, name=name)
+
+        results, iterations = await self.execute_concurrent_txs(f, f, options)
+        self.assertEqual(set(results), {1, 2})
+        self.assertEqual(iterations, 3)
+
+    @test.xfail("We generate a ConstraintViolationError instead")
+    async def test_server_concurrent_conflict_retry_2(self):
+        await self.execute_conflict_2('counter4')
+
+    @test.xfail("We generate a ConstraintViolationError instead")
+    async def test_server_concurrent_conflict_no_retry_2(self):
+        with self.assertRaises(edgedb.TransactionSerializationError):
+            await self.execute_conflict_2(
+                'counter5',
+                edgedb.RetryOptions(attempts=1, backoff=edgedb.default_backoff)
+            )
+
+    async def execute_conflict_2(self, name, options=None):
+        q = '''
+            FOR name IN {<str>$name} UNION (
+                SELECT (
+                    INSERT Counter {
+                        name := name,
+                        value := 1,
+                    } UNLESS CONFLICT ON .name
+                    ELSE (
+                        UPDATE Counter
+                        SET { value := .value + 1 }
+                    )
+                ).value
+            )
         '''
         f = lambda tx: tx.query_single(q, name=name)
 
@@ -3025,8 +3059,6 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
                         await tx.query("SELECT 1")
 
                         # Start both transactions at the same initial data.
-                        # One should succeed other should fail and retry.
-                        # On next attempt, the latter should succeed
                         await barrier.ready()
 
                         await lock.acquire()
