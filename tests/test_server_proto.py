@@ -29,6 +29,7 @@ from edb.common import devmode
 from edb.common import taskgroup as tg
 from edb.testbase import server as tb
 from edb.server.compiler import enums
+from edb.tools import test
 
 
 SERVER_HEADER_CAPABILITIES = 0x1001
@@ -1710,6 +1711,7 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.query_single('SELECT 1;'),
             1)
 
+    @test.xfail("... we currently always use serializable")
     async def test_server_proto_tx_16(self):
         try:
             for isol, expected in [

@@ -21,7 +21,6 @@ import asyncio
 import edgedb
 
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class Barrier:
@@ -92,17 +91,9 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
         self.assertEqual(set(results), {1, 2})
         self.assertEqual(iterations, 3)
 
-    @test.xfail("""
-        We generate a ConstraintViolationError instead.
-        Issue #2876.
-    """)
     async def test_server_concurrent_conflict_retry_2(self):
         await self.execute_conflict_2('counter4')
 
-    @test.xfail("""
-        We generate a ConstraintViolationError instead.
-        Issue #2876.
-    """)
     async def test_server_concurrent_conflict_no_retry_2(self):
         with self.assertRaises(edgedb.TransactionSerializationError):
             await self.execute_conflict_2(
@@ -143,10 +134,6 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
             [{'name': 'foo'}],
         )
 
-    @test.xfail("""
-       We *succeed* on both inserts. This is real bad.
-       Issue #2875.
-    """)
     async def test_server_concurrent_inserts_2(self):
         f1 = lambda tx: tx.execute('INSERT Foo { name := "foo" }')
         f2 = lambda tx: tx.execute('INSERT Bar { name := "foo" }')
