@@ -42,7 +42,7 @@ except ImportError:
 
 
 RUNTIME_DEPS = [
-    'edgedb>=0.17.0',
+    'edgedb>=0.18.0a1',
 
     'asyncpg~=0.24.0',
     'httptools>=0.3.0',
