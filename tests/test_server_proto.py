@@ -2971,10 +2971,10 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
         };
     '''
 
-    async def test_server_conflict_retry(self):
+    async def test_server_concurrent_conflict_retry(self):
         await self.execute_conflict('counter2')
 
-    async def test_server_conflict_no_retry(self):
+    async def test_server_concurrent_conflict_no_retry(self):
         with self.assertRaises(edgedb.TransactionSerializationError):
             await self.execute_conflict(
                 'counter3',
@@ -2982,6 +2982,25 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
             )
 
     async def execute_conflict(self, name, options=None):
+        q = '''
+            SELECT (
+                INSERT Counter {
+                    name := <str>$name,
+                    value := 1,
+                } UNLESS CONFLICT ON .name
+                ELSE (
+                    UPDATE Counter
+                    SET { value := .value + 1 }
+                )
+            ).value
+        '''
+        f = lambda tx: tx.query_single(q, name=name)
+
+        results, iterations = await self.execute_concurrent_txs(f, f, options)
+        self.assertEqual(set(results), {1, 2})
+        self.assertEqual(iterations, 3)
+
+    async def execute_concurrent_txs(self, f1, f2, options=None):
         con2 = await self.connect(database=self.get_database_name())
         self.addCleanup(con2.aclose)
 
@@ -2989,7 +3008,7 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
         lock = asyncio.Lock()
         iterations = 0
 
-        async def transaction1(con):
+        async def transaction1(con, f):
             async for tx in con.retrying_transaction():
                 nonlocal iterations
                 iterations += 1
@@ -3012,18 +3031,7 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
 
                         await lock.acquire()
                         held = True
-                        res = await tx.query_single('''
-                            SELECT (
-                                INSERT Counter {
-                                    name := <str>$name,
-                                    value := 1,
-                                } UNLESS CONFLICT ON .name
-                                ELSE (
-                                    UPDATE Counter
-                                    SET { value := .value + 1 }
-                                )
-                            ).value
-                        ''', name=name)
+                        res = await f(tx)
                 finally:
                     if held:
                         lock.release()
@@ -3036,16 +3044,15 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
             con2 = con2.with_retry_options(options)
 
         results = await asyncio.wait_for(asyncio.gather(
-            transaction1(con),
-            transaction1(con2),
+            transaction1(con, f1),
+            transaction1(con2, f2),
             return_exceptions=True,
         ), 10)
         for e in results:
             if isinstance(e, BaseException):
                 raise e
 
-        self.assertEqual(set(results), {1, 2})
-        self.assertEqual(iterations, 3)
+        return results, iterations
 
 
 class Barrier:
