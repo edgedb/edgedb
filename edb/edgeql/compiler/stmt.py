@@ -461,7 +461,9 @@ def compile_insert_unless_conflict_select(
                 from_parent = True
             frags.append(frag)
 
-    always_check = from_parent or bool(subject_typ.children(schema))
+    always_check = from_parent or any(
+        not child.is_view(schema) for child in subject_typ.children(schema)
+    )
 
     # Union them all together
     select_ast = qlast.Set(elements=frags)
