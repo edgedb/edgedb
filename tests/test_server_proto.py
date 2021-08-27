@@ -72,6 +72,13 @@ class TestServerProto(tb.QueryTestCase):
         DROP TYPE Tmp;
     '''
 
+    def setUp(self):
+        super().setUp()
+        # Reset cached codecs for every test. That ensures that
+        # tests cannot interfere with each other when the connection
+        # is reused.
+        self.con._clear_codecs_cache()
+
     async def is_testmode_on(self):
         # The idea is that if __internal_testmode value config is lost
         # (no longer "true") then this script fails.
@@ -766,7 +773,7 @@ class TestServerProto(tb.QueryTestCase):
             async with tg.TaskGroup() as g:
 
                 async def exec_to_fail():
-                    with self.assertRaises(ConnectionResetError):
+                    with self.assertRaises(edgedb.ClientConnectionClosedError):
                         await con2.query(
                             'select sys::_advisory_lock(<int64>$0)', lock_key)
 

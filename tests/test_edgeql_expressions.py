@@ -901,9 +901,11 @@ class TestExpressions(tb.QueryTestCase):
         )
 
     async def test_edgeql_expr_variables_04(self):
+        self.con._clear_codecs_cache()
+
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"parameter \$x is required"):
+                edgedb.InvalidArgumentError,
+                r"argument \$x is required"):
             await self.assert_query_result(
                 r'''SELECT <int64>$x;''',
                 None,  # unused
@@ -911,8 +913,8 @@ class TestExpressions(tb.QueryTestCase):
             )
 
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"parameter \$0 is required"):
+                edgedb.InvalidArgumentError,
+                r"argument \$0 is required"):
             await self.assert_query_result(
                 r'''SELECT <int64>$0;''',
                 None,  # unused
@@ -920,8 +922,8 @@ class TestExpressions(tb.QueryTestCase):
             )
 
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"parameter \$x is required"):
+                edgedb.InvalidArgumentError,
+                r"argument \$x is required"):
             await self.assert_query_result(
                 r'''SELECT <REQUIRED int64>$x;''',
                 None,  # unused
@@ -929,8 +931,8 @@ class TestExpressions(tb.QueryTestCase):
             )
 
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"parameter \$0 is required"):
+                edgedb.InvalidArgumentError,
+                r"argument \$0 is required"):
             await self.assert_query_result(
                 r'''SELECT <REQUIRED int64>$0;''',
                 None,  # unused
@@ -971,8 +973,8 @@ class TestExpressions(tb.QueryTestCase):
         # Enforce parameter is passed even if we don't actually care
         # about the value
         with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"parameter \$x is required"):
+                edgedb.InvalidArgumentError,
+                r"argument \$x is required"):
             await self.assert_query_result(
                 r'''SELECT (INTROSPECT TYPEOF <int64>$x).name;''',
                 None,  # unused
