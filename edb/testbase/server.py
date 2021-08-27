@@ -260,6 +260,14 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
             wait_for=wait_for,
         )
 
+    def addCleanup(self, func, *args, **kwargs):
+        @functools.wraps(func)
+        def cleanup():
+            res = func(*args, **kwargs)
+            if inspect.isawaitable(res):
+                self.loop.run_until_complete(res)
+        super().addCleanup(cleanup)
+
     def __getstate__(self):
         # TestCases get pickled when run in in separate OS processes
         # via `edb test -jN`. If they reference any unpickleable objects,
