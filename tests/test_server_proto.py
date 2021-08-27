@@ -2970,6 +2970,13 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
                 SET default := 0;
             };
         };
+
+        CREATE TYPE Foo {
+            CREATE PROPERTY name -> str {
+                CREATE CONSTRAINT exclusive;
+            };
+        };
+        CREATE TYPE Bar EXTENDING Foo;
     '''
 
     async def test_server_concurrent_conflict_retry_1(self):
@@ -3033,6 +3040,35 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
         results, iterations = await self.execute_concurrent_txs(f, f, options)
         self.assertEqual(set(results), {1, 2})
         self.assertEqual(iterations, 3)
+
+    async def test_server_concurrent_inserts_1(self):
+        f = lambda tx: tx.execute('INSERT Foo { name := "foo" }')
+        with self.assertRaises(edgedb.ConstraintViolationError):
+            await self.execute_concurrent_txs(f, f)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo { name } FILTER .name = "foo"
+            """,
+            [{'name': 'foo'}],
+        )
+
+    @test.xfail("""
+       We *succeed* on both inserts. This is real bad.
+       Issue #2875.
+    """)
+    async def test_server_concurrent_inserts_2(self):
+        f1 = lambda tx: tx.execute('INSERT Foo { name := "foo" }')
+        f2 = lambda tx: tx.execute('INSERT Bar { name := "foo" }')
+        with self.assertRaises(edgedb.ConstraintViolationError):
+            await self.execute_concurrent_txs(f1, f2)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo { name } FILTER .name = "foo"
+            """,
+            [{'name': 'foo'}],
+        )
 
     async def execute_concurrent_txs(self, f1, f2, options=None):
         con2 = await self.connect(database=self.get_database_name())
