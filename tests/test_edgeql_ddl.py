@@ -4875,12 +4875,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''')
 
     async def test_edgeql_ddl_scalar_09(self):
-        with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
-                r'FINAL is not supported'):
-            await self.con.execute('''
-                CREATE FINAL SCALAR TYPE myint EXTENDING std::int64;
-            ''')
+        # We need to support CREATE FINAL SCALAR because it is
+        # written out into old migrations.
+        await self.con.execute('''
+            CREATE FINAL SCALAR TYPE myint EXTENDING std::int64;
+        ''')
 
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
