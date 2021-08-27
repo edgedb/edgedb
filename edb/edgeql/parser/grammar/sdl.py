@@ -34,7 +34,6 @@ from .commondl import *  # NOQA
 
 Nonterm = expressions.Nonterm  # type: ignore[misc]
 OptSemicolons = commondl.OptSemicolons  # type: ignore[misc]
-ListNonterm = parsing.ListNonterm  # type: ignore[misc]
 
 
 sdl_nontem_helper = commondl.NewNontermHelper(__name__)
@@ -51,7 +50,7 @@ class SDLStatement(Nonterm):
 
 
 # a list of SDL statements with optional semicolon separators
-class SDLStatements(ListNonterm, element=SDLStatement,
+class SDLStatements(parsing.ListNonterm, element=SDLStatement,
                     separator=OptSemicolons):
     pass
 
@@ -212,7 +211,8 @@ def sdl_commands_block(parent, *commands, opt=True):
     cmd = _new_nonterm(f'{parent}SDLCommandFull', clsdict=clsdict)
 
     # SDLCommandsList := SDLCommandFull [; SDLCommandFull ...]
-    cmdlist = _new_nonterm(f'{parent}SDLCommandsList', clsbases=(ListNonterm,),
+    cmdlist = _new_nonterm(f'{parent}SDLCommandsList',
+                           clsbases=(parsing.ListNonterm,),
                            clskwds=dict(element=cmd, separator=OptSemicolons))
 
     # Command block is tricky, but the inner commands must terminate

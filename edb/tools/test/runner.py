@@ -51,6 +51,7 @@ import click
 import edgedb
 
 from edb.common import devmode
+from edb.testbase import lang as tb_lang
 from edb.testbase import server as tb
 
 from . import cpython_state
@@ -796,12 +797,16 @@ class ParallelTextTestRunner:
             cases, selected_shard, total_shards, self.verbosity, stats,
         )
         setup = tb.get_test_cases_setup(cases)
+        lang_setup = tb_lang.get_test_cases_setup(cases)
         bootstrap_time_taken = 0
         tests_time_taken = 0
         result = None
         cluster = None
         conn = None
         setup_stats = []
+
+        if lang_setup:
+            tb_lang.run_test_cases_setup(lang_setup, jobs=self.num_workers)
 
         try:
             if setup:

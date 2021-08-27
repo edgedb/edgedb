@@ -43,7 +43,6 @@ from .commondl import *  # NOQA
 from .sdl import *  # NOQA
 
 
-ListNonterm = parsing.ListNonterm  # type: ignore[misc]
 Nonterm = expressions.Nonterm  # type: ignore[misc]
 Semicolons = commondl.Semicolons  # type: ignore[misc]
 
@@ -197,7 +196,7 @@ class InnerDDLStmt(Nonterm):
         self.val = kids[0].val
 
 
-class InnerDDLStmtBlock(ListNonterm, element=InnerDDLStmt,
+class InnerDDLStmtBlock(parsing.ListNonterm, element=InnerDDLStmt,
                         separator=Semicolons):
     pass
 
@@ -259,7 +258,8 @@ def commands_block(parent, *commands, opt=True, production_tpl=ProductionTpl):
     cmd = _new_nonterm(parent + 'Command', clsdict=clsdict)
 
     # CommandsList := Command [; Command ...]
-    cmdlist = _new_nonterm(parent + 'CommandsList', clsbases=(ListNonterm,),
+    cmdlist = _new_nonterm(parent + 'CommandsList',
+                           clsbases=(parsing.ListNonterm,),
                            clskwds=dict(element=cmd, separator=Semicolons))
 
     # CommandsBlock :=

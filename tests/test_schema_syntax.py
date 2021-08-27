@@ -33,7 +33,8 @@ class SchemaSyntaxTest(tb.BaseSyntaxTest):
     markup_dump_lexer = 'edgeschema'
     ast_to_source = functools.partial(generate_source, unsorted=True)
 
-    def get_parser(self, *, spec):
+    @classmethod
+    def get_parser(cls):
         return eql_parser.EdgeSDLParser()
 
 

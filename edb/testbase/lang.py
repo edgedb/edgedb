@@ -177,7 +177,8 @@ class BaseSyntaxTest(BaseDocTest):
     ast_to_source: Optional[Any] = None
     markup_dump_lexer: Optional[str] = None
 
-    def get_parser(self, *, spec):
+    @classmethod
+    def get_parser(cls):
         raise NotImplementedError
 
     def run_test(self, *, source, spec, expected=None):
@@ -185,7 +186,7 @@ class BaseSyntaxTest(BaseDocTest):
         if debug:
             markup.dump_code(source, lexer=self.markup_dump_lexer)
 
-        p = self.get_parser(spec=spec)
+        p = self.get_parser()
 
         inast = p.parse(source)
 
@@ -206,13 +207,47 @@ class BaseSyntaxTest(BaseDocTest):
         self.assert_equal(expected_src, processed_src)
 
 
+class TestCasesSetup:
+    def __init__(self, parsers: List[qlparser.EdgeQLParserBase]) -> None:
+        self.parsers = parsers
+
+
+def get_test_cases_setup(
+    cases: Iterable[unittest.TestCase],
+) -> Optional[TestCasesSetup]:
+    parsers: List[qlparser.EdgeQLParserBase] = []
+
+    for case in cases:
+        if not hasattr(case, 'get_parser'):
+            continue
+
+        parser = case.get_parser()
+        if not parser:
+            continue
+
+        parsers.append(parser)
+
+    if not parsers:
+        return None
+    else:
+        return TestCasesSetup(parsers)
+
+
+def run_test_cases_setup(setup: TestCasesSetup, jobs: int) -> None:
+    qlparser.preload(
+        parsers=setup.parsers,
+        allow_rebuild=True,
+        paralellize=jobs > 1,
+    )
+
+
 class AstValueTest(BaseDocTest):
     def run_test(self, *, source, spec=None, expected=None):
         debug = bool(os.environ.get(self.parser_debug_flag))
         if debug:
             markup.dump_code(source, lexer=self.markup_dump_lexer)
 
-        p = self.get_parser(spec=spec)
+        p = self.get_parser()
 
         inast = p.parse(source)
 

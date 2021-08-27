@@ -44,8 +44,6 @@ from edb.schema import reflection as s_refl
 from edb.schema import roles as s_role
 from edb.schema import schema as s_schema
 
-from edb.edgeql import parser as ql_parser
-
 from edb.server import args as srvargs
 from edb.server import cache
 from edb.server import config
@@ -949,7 +947,6 @@ class Server:
             raise AssertionError('startup script is not defined')
         await self._create_compiler_pool()
         try:
-            ql_parser.preload()
             await binary.EdgeConnection.run_script(
                 server=self,
                 database=self._startup_script.database,
@@ -1100,10 +1097,6 @@ class Server:
         self._accept_new_tasks = True
 
         await self._create_compiler_pool()
-
-        # Make sure that EdgeQL parser is preloaded; edgecon might use
-        # it to restore config values.
-        ql_parser.preload()
 
         if self._startup_script:
             await binary.EdgeConnection.run_script(
