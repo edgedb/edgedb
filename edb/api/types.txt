@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 
+# Use `edb gen-types` to regenerate `edb/schema/_types.py` based on this file.
+
 # Base Scalar Types
 
 00000000-0000-0000-0000-000000000001 anytype

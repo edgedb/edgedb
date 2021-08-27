@@ -241,9 +241,9 @@ class QueryUnit:
         enums.Cardinality.NO_RESULT
 
     out_type_data: bytes = sertypes.NULL_TYPE_DESC
-    out_type_id: bytes = sertypes.NULL_TYPE_ID
-    in_type_data: bytes = sertypes.EMPTY_TUPLE_DESC
-    in_type_id: bytes = sertypes.EMPTY_TUPLE_ID
+    out_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
+    in_type_data: bytes = sertypes.NULL_TYPE_DESC
+    in_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
     in_type_args: Optional[List[Param]] = None
 
     # Set only when this unit contains a CONFIGURE INSTANCE command.

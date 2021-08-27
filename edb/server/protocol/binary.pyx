@@ -908,7 +908,10 @@ cdef class EdgeConnection:
         assert self.get_dbview().in_tx_error()
         try:
             compiler_pool = self.server.get_compiler_pool()
-            return await compiler_pool.try_compile_rollback(eql)
+            return await compiler_pool.try_compile_rollback(
+                eql,
+                self.protocol_version
+            )
         except Exception:
             self.get_dbview().raise_in_tx_error()
 

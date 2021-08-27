@@ -234,9 +234,10 @@ def compile_notebook(
 
 
 def try_compile_rollback(
-    eql: bytes
+    *compile_args: Any,
+    **compile_kwargs: Any,
 ):
-    return COMPILER.try_compile_rollback(eql)
+    return COMPILER.try_compile_rollback(*compile_args, **compile_kwargs)
 
 
 def compile_graphql(

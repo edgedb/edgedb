@@ -537,73 +537,6 @@ class Compiler:
 
         return sql.decode(), argmap
 
-    def _compile_query_args(
-            self,
-            ctx: CompileContext,
-            schema: s_schema.Schema,
-            subtypes: List[Tuple[str, Any, bool]],
-    ) -> Tuple[bytes, uuid.UUID]:
-        current_tx = ctx.state.current_tx()
-
-        if not subtypes:
-            arg_ast = qlast.SelectQuery(
-                result=qlast.Path(steps=[qlast.ObjectRef(
-                    name='FreeObject',
-                    module='std',
-                )]),
-            )
-        else:
-            elements = []
-            for name, schema_type, required in subtypes:
-                if required:
-                    card = qlast.CardinalityModifier.Required
-                else:
-                    card = qlast.CardinalityModifier.Optional
-
-                elem = qlast.ShapeElement(
-                    expr=qlast.Path(steps=[qlast.Ptr(
-                        ptr=qlast.ObjectRef(name=f'__arg_{name}'),
-                        direction=s_pointers.PointerDirection.Outbound,
-                    )]),
-                    compexpr=qlast.TypeCast(
-                        cardinality_mod=card,
-                        expr=qlast.Parameter(name=name),
-                        type=s_utils.typeref_to_ast(schema, schema_type),
-                    ),
-                    operation=qlast.ShapeOperation(op=qlast.ShapeOp.ASSIGN),
-                )
-
-                elements.append(elem)
-
-            arg_ast = qlast.SelectQuery(
-                result=qlast.Shape(elements=elements),
-            )
-
-        arg_compile_options = qlcompiler.CompilerOptions(
-            modaliases=current_tx.get_modaliases(),
-            implicit_tid_in_shapes=False,
-            implicit_id_in_shapes=False,
-            implicit_tname_in_shapes=False,
-            apply_query_rewrites=False,
-        )
-
-        ir_expr = qlcompiler.compile_ast_to_ir(
-            arg_ast,
-            schema=schema,
-            options=arg_compile_options,
-        )
-
-        in_type_data, in_type_id = sertypes.TypeSerializer.describe(
-            schema=ir_expr.schema,
-            typ=ir_expr.stype,
-            view_shapes=ir_expr.view_shapes,
-            view_shapes_metadata=ir_expr.view_shapes_metadata,
-            protocol_version=ctx.protocol_version,
-            name_filter="__arg_",
-        )
-
-        return in_type_data, in_type_id
-
     def _compile_ql_query(
         self,
         ctx: CompileContext,
@@ -700,11 +633,13 @@ class Compiler:
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
 
-            params = []
             in_type_args = None
+            params: list[tuple[str, s_obj.Object, bool]] = []
+            has_named_params = False
+
             if ir.params:
                 first_param = next(iter(ir.params))
-                named = not first_param.name.isdecimal()
+                has_named_params = not first_param.name.isdecimal()
                 if (src := ctx.source) is not None:
                     first_extracted = src.first_extra()
                 else:
@@ -716,7 +651,6 @@ class Compiler:
                     user_params = len(ir.params)
 
                 params = [None] * user_params
-                subtypes = [None] * user_params
                 in_type_args = [None] * user_params
                 for param in ir.params:
                     sql_param = argmap[param.name]
@@ -732,37 +666,49 @@ class Compiler:
                     ):
                         el_type = param.schema_type.get_element_type(ir.schema)
                         array_tid = el_type.id
-                        # array_tid = el_type.get_backend_id(ir.schema)
-                        # if array_tid is None:
-                        #     assert array_tid is not None
 
-                    subtypes[idx] = (param.name, param.schema_type)
+                    if not has_named_params and str(idx) != param.name:
+                        raise RuntimeError(
+                            'positional argument name disagrees '
+                            'with its actual position')
+
                     params[idx] = (
                         param.name,
                         param.schema_type,
                         sql_param.required,
                     )
+
                     in_type_args[idx] = dbstate.Param(
                         name=param.name,
                         required=sql_param.required,
                         array_type_id=array_tid,
                     )
 
-                ir.schema, params_type = s_types.Tuple.create(
-                    ir.schema,
-                    element_types=collections.OrderedDict(subtypes),
-                    named=named)
-
-            else:
-                ir.schema, params_type = s_types.Tuple.create(
-                    ir.schema, element_types={}, named=False)
-
             if ctx.protocol_version >= (0, 12):
-                in_type_data, in_type_id = self._compile_query_args(
-                    ctx, ir.schema, params)
+                in_type_data, in_type_id = \
+                    sertypes.TypeSerializer.describe_params(
+                        schema=ir.schema,
+                        params=params,
+                        protocol_version=ctx.protocol_version,
+                    )
             else:
+                # Legacy protocol support
+                if params:
+                    pschema, params_type = s_types.Tuple.create(
+                        ir.schema,
+                        element_types=collections.OrderedDict(
+                            # keep only param_name/param_type
+                            [param[:2] for param in params]
+                        ),
+                        named=has_named_params)
+                else:
+                    pschema, params_type = s_types.Tuple.create(
+                        ir.schema,
+                        element_types={},
+                        named=has_named_params)
+
                 in_type_data, in_type_id = sertypes.TypeSerializer.describe(
-                    ir.schema, params_type, {}, {},
+                    pschema, params_type, {}, {},
                     protocol_version=ctx.protocol_version)
 
             sql_hash = self._hash_sql(
@@ -1721,7 +1667,7 @@ class Compiler:
         if not len(statements):  # pragma: no cover
             raise errors.ProtocolError('nothing to compile')
 
-        units = []
+        units: list[dbstate.QueryUnit] = []
         unit = None
 
         for stmt in statements:
@@ -1905,7 +1851,13 @@ class Compiler:
                     f'expected 1 compiled unit; got {len(units)}')
 
         for unit in units:  # pragma: no cover
+            if ctx.protocol_version < (0, 12):
+                if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
+                    unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
+                    unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
+
             # Sanity checks
+
             na_cardinality = (
                 unit.cardinality is enums.Cardinality.NO_RESULT
             )
@@ -1915,6 +1867,7 @@ class Compiler:
             ):
                 raise errors.InternalServerError(
                     f'QueryUnit {unit!r} is cacheable but has config/aliases')
+
             if not na_cardinality and (
                     len(unit.sql) > 1 or
                     unit.tx_commit or
@@ -1935,7 +1888,7 @@ class Compiler:
     # API
 
     @staticmethod
-    def try_compile_rollback(eql: bytes):
+    def try_compile_rollback(eql: bytes, protocol_version: tuple[int, int]):
         statements = edgeql.parse_block(eql.decode())
 
         stmt = statements[0]
@@ -1957,6 +1910,11 @@ class Compiler:
                 cacheable=False)
 
         if unit is not None:
+            if protocol_version < (0, 12):
+                if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
+                    unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
+                    unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
+
             return unit, len(statements) - 1
 
         raise errors.TransactionError(

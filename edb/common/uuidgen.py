@@ -47,10 +47,16 @@ def uuid4() -> uuid.UUID:
     return UUID(os.urandom(16))  # type: ignore
 
 
+def uuid5_bytes(namespace: uuid.UUID, name: bytes | bytearray) -> uuid.UUID:
+    """Generate a UUID from the SHA-1 hash of a namespace UUID and a name."""
+    hasher = hashlib.sha1(namespace.bytes)
+    hasher.update(name)
+    return UUID(hasher.digest()[:16])  # type: ignore
+
+
 def uuid5(namespace: uuid.UUID, name: str) -> uuid.UUID:
     """Generate a UUID from the SHA-1 hash of a namespace UUID and a name."""
-    hash = hashlib.sha1(namespace.bytes + bytes(name, "utf-8")).digest()
-    return UUID(hash[:16])  # type: ignore
+    return uuid5_bytes(namespace, name.encode("utf-8"))
 
 
 def from_bytes(data: bytes) -> uuid.UUID:
