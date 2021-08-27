@@ -3085,13 +3085,7 @@ class TestServerConcurrentTransactions(tb.QueryTestCase):
                 held = False
                 try:
                     async with tx:
-                        # This magic query makes the test more
-                        # reliable for some reason. I guess this is
-                        # because starting a transaction in EdgeDB
-                        # (and/or Postgres) is accomplished somewhat
-                        # lazily, i.e. only start transaction on the
-                        # first query rather than on the `START
-                        # TRANSACTION`.
+                        # Run SELECT 1 to actually start the transaction.
                         await tx.query("SELECT 1")
 
                         # Start both transactions at the same initial data.
