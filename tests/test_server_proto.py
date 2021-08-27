@@ -2954,3 +2954,112 @@ class TestServerCapabilities(tb.QueryTestCase):
                 'CONFIGURE INSTANCE SET singleprop := "42"',
                 __allow_capabilities__=caps,
             )
+
+
+class TestServerConcurrentTransactions(tb.QueryTestCase):
+
+    TRANSACTION_ISOLATION = False
+
+    SETUP = '''
+        CREATE TYPE Counter {
+            CREATE PROPERTY name -> str {
+                CREATE CONSTRAINT exclusive;
+            };
+            CREATE PROPERTY value -> int32 {
+                SET default := 0;
+            };
+        };
+    '''
+
+    async def test_server_conflict_retry(self):
+        await self.execute_conflict('counter2')
+
+    async def test_server_conflict_no_retry(self):
+        with self.assertRaises(edgedb.TransactionSerializationError):
+            await self.execute_conflict(
+                'counter3',
+                edgedb.RetryOptions(attempts=1, backoff=edgedb.default_backoff)
+            )
+
+    async def execute_conflict(self, name, options=None):
+        con2 = await self.connect(database=self.get_database_name())
+        self.addCleanup(con2.aclose)
+
+        barrier = Barrier(2)
+        lock = asyncio.Lock()
+        iterations = 0
+
+        async def transaction1(con):
+            async for tx in con.retrying_transaction():
+                nonlocal iterations
+                iterations += 1
+                held = False
+                try:
+                    async with tx:
+                        # This magic query makes the test more
+                        # reliable for some reason. I guess this is
+                        # because starting a transaction in EdgeDB
+                        # (and/or Postgres) is accomplished somewhat
+                        # lazily, i.e. only start transaction on the
+                        # first query rather than on the `START
+                        # TRANSACTION`.
+                        await tx.query("SELECT 1")
+
+                        # Start both transactions at the same initial data.
+                        # One should succeed other should fail and retry.
+                        # On next attempt, the latter should succeed
+                        await barrier.ready()
+
+                        await lock.acquire()
+                        held = True
+                        res = await tx.query_single('''
+                            SELECT (
+                                INSERT Counter {
+                                    name := <str>$name,
+                                    value := 1,
+                                } UNLESS CONFLICT ON .name
+                                ELSE (
+                                    UPDATE Counter
+                                    SET { value := .value + 1 }
+                                )
+                            ).value
+                        ''', name=name)
+                finally:
+                    if held:
+                        lock.release()
+                        held = False
+            return res
+
+        con = self.con
+        if options:
+            con = con.with_retry_options(options)
+            con2 = con2.with_retry_options(options)
+
+        results = await asyncio.wait_for(asyncio.gather(
+            transaction1(con),
+            transaction1(con2),
+            return_exceptions=True,
+        ), 10)
+        for e in results:
+            if isinstance(e, BaseException):
+                raise e
+
+        self.assertEqual(set(results), {1, 2})
+        self.assertEqual(iterations, 3)
+
+
+class Barrier:
+    def __init__(self, number):
+        self._counter = number
+        self._cond = asyncio.Condition()
+
+    async def ready(self):
+        if self._counter == 0:
+            return
+        async with self._cond:
+            self._counter -= 1
+            assert self._counter >= 0, self._counter
+            if self._counter == 0:
+                self._cond.notify_all()
+            else:
+                await self._cond.wait_for(lambda: self._counter == 0)
