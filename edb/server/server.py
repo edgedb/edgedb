@@ -1179,10 +1179,7 @@ class Server:
     async def get_auth_method(self, user):
         authlist = self._sys_auth
 
-        if not authlist:
-            default_method = 'SCRAM'
-            return config.get_settings().get_type_by_name(default_method)()
-        else:
+        if authlist:
             for auth in authlist:
                 match = (
                     (user in auth.user or '*' in auth.user)
@@ -1191,9 +1188,7 @@ class Server:
                 if match:
                     return auth.method
 
-        raise errors.AuthenticationError(
-            f"no authentication method configured for {user!r} role"
-        )
+        return config.get_settings().get_type_by_name('SCRAM')()
 
     def get_sys_query(self, key):
         return self._sys_queries[key]
