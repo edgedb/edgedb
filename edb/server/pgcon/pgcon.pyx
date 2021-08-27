@@ -130,17 +130,30 @@ def _set_tcp_keepalive(transport):
     # against AWS RDS. We are keeping the TCP keepalive for generic
     # Postgres connections as the kernel overhead is considered low, and
     # in certain cases it does save us some reconnection time.
+    #
+    # In case of high-availability Postgres, TCP keepalive is necessary to
+    # disconnect from a failing master node, if no other failover information
+    # is available.
     sock = transport.get_extra_info('socket')
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+
+    # TCP_KEEPIDLE: the time (in seconds) the connection needs to remain idle
+    # before TCP starts sending keepalive probes. This is socket.TCP_KEEPIDLE
+    # on Linux, and socket.TCP_KEEPALIVE on macOS from Python 3.10.
     if hasattr(socket, 'TCP_KEEPIDLE'):
         sock.setsockopt(socket.IPPROTO_TCP,
                         socket.TCP_KEEPIDLE, TCP_KEEPIDLE)
     if hasattr(socket, 'TCP_KEEPALIVE'):
         sock.setsockopt(socket.IPPROTO_TCP,
                         socket.TCP_KEEPALIVE, TCP_KEEPIDLE)
+
+    # TCP_KEEPINTVL: The time (in seconds) between individual keepalive probes.
     if hasattr(socket, 'TCP_KEEPINTVL'):
         sock.setsockopt(socket.IPPROTO_TCP,
                         socket.TCP_KEEPINTVL, TCP_KEEPINTVL)
+
+    # TCP_KEEPCNT: The maximum number of keepalive probes TCP should send
+    # before dropping the connection.
     if hasattr(socket, 'TCP_KEEPCNT'):
         sock.setsockopt(socket.IPPROTO_TCP,
                         socket.TCP_KEEPCNT, TCP_KEEPCNT)
