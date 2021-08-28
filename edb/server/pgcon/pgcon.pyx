@@ -1529,7 +1529,7 @@ cdef class PGConnection:
         buf.write_bytestring(b'UTC')
 
         buf.write_bytestring(b'default_transaction_isolation')
-        buf.write_bytestring(b'repeatable read')
+        buf.write_bytestring(b'serializable')
 
         buf.write_bytestring(b'intervalstyle')
         buf.write_bytestring(b'iso_8601')
