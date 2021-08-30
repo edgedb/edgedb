@@ -47,6 +47,7 @@ from edb.ir import utils as irutils
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
+from edb.pgsql import common
 
 from . import astutils
 from . import clauses
@@ -804,8 +805,9 @@ def compile_insert_else_body(
     if not needs_conflict_cte and not else_fail:
         infer = None
         if on_conflict.constraint:
-            constraint_name = f'"{on_conflict.constraint.id};schemaconstr"'
-            infer = pgast.InferClause(conname=constraint_name)
+            constraint_name = common.get_constraint_raw_name(
+                on_conflict.constraint.id)
+            infer = pgast.InferClause(conname=f'"{constraint_name}"')
 
         insert_stmt.on_conflict = pgast.OnConflictClause(
             action='nothing',
@@ -935,7 +937,7 @@ def compile_insert_else_body_failure_check(
         ctx.ptr_rel_overlays[else_fail])
 
     assert on_conflict.constraint
-    cid = on_conflict.constraint.id
+    cid = common.get_constraint_raw_name(on_conflict.constraint.id)
     maybe_raise = pgast.FuncCall(
         name=('edgedb', 'raise'),
         args=[
@@ -948,13 +950,13 @@ def compile_insert_else_body_failure_check(
                 val=pgast.StringConstant(
                     val=(
                         f'duplicate key value violates unique '
-                        f'constraint "{cid};schemaconstr"'
+                        f'constraint "{cid}"'
                     )
                 ),
             ),
             pgast.NamedFuncArg(
                 name='constraint',
-                val=pgast.StringConstant(val=f"{cid};schemaconstr")
+                val=pgast.StringConstant(val=f"{cid}")
             ),
         ],
     )

@@ -77,7 +77,6 @@ def process_view(
         return view_scls
 
     with ctx.newscope(fenced=True) as scopectx:
-        scopectx.in_temp_scope = True
         scopectx.path_scope.is_temporary = True
         view_path_id_ns = None
         new_path_id = path_id

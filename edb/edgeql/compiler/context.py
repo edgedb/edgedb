@@ -534,9 +534,6 @@ class ContextLevel(compiler.ContextLevel):
     path_log: Optional[List[irast.PathId]]
     """An optional list of path ids added to the scope tree in this context."""
 
-    in_temp_scope: bool
-    """Whether we are in a temp scope for view processing."""
-
     def __init__(
         self,
         prevlevel: Optional[ContextLevel],
@@ -599,7 +596,6 @@ class ContextLevel(compiler.ContextLevel):
             self.disable_shadowing = set()
             self.path_log = None
             self.recompiling_schema_alias = False
-            self.in_temp_scope = False
 
         else:
             self.env = prevlevel.env
@@ -647,7 +643,6 @@ class ContextLevel(compiler.ContextLevel):
             self.disable_shadowing = prevlevel.disable_shadowing
             self.path_log = prevlevel.path_log
             self.recompiling_schema_alias = prevlevel.recompiling_schema_alias
-            self.in_temp_scope = prevlevel.in_temp_scope
 
             if mode == ContextSwitchMode.SUBQUERY:
                 self.anchors = prevlevel.anchors.copy()

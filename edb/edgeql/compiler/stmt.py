@@ -702,7 +702,7 @@ def compile_inheritance_conflict_checks(
     subject_stype: s_objtypes.ObjectType,
     *, ctx: context.ContextLevel,
 ) -> Optional[List[irast.OnConflictClause]]:
-    if not ctx.env.dml_stmts or ctx.in_temp_scope:
+    if not ctx.env.dml_stmts or ctx.path_scope.in_temp_scope():
         return None
 
     assert isinstance(subject_stype, s_objtypes.ObjectType)
@@ -797,7 +797,7 @@ def compile_InsertQuery(
         stmt.conflict_checks = compile_inheritance_conflict_checks(
             stmt, stmt_subject_stype, ctx=ictx)
 
-        if not ctx.in_temp_scope:
+        if not ctx.path_scope.in_temp_scope():
             ctx.env.dml_stmts.add(stmt)
 
         if expr.unless_conflict is not None:
@@ -916,7 +916,7 @@ def compile_UpdateQuery(
                 ctx=bodyctx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
-        if not ctx.in_temp_scope:
+        if not ctx.path_scope.in_temp_scope():
             ctx.env.dml_stmts.add(stmt)
 
         result = setgen.class_set(

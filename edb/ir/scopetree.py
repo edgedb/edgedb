@@ -182,6 +182,9 @@ class ScopeTreeNode:
     def optional(self) -> bool:
         return self.optional_count == 0
 
+    def in_temp_scope(self) -> bool:
+        return any(x.is_temporary for x in self.ancestors)
+
     @property
     def fence_info(self) -> FenceInfo:
         return FenceInfo(
