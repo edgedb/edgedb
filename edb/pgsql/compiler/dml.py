@@ -1292,40 +1292,216 @@ def process_link_update(
         if shape_op is qlast.ShapeOp.SUBTRACT:
             data_rvar = relctx.rvar_for_rel(data_select, ctx=ctx)
 
-            # Drop requested link records.
-            delqry = pgast.DeleteStmt(
-                relation=target_rvar,
-                where_clause=astutils.new_binop(
-                    lexpr=astutils.new_binop(
-                        lexpr=source_ref,
-                        op='=',
-                        rexpr=pgast.ColumnRef(
-                            name=[target_alias, 'source'],
+            if target_is_scalar:
+                # MULTI properties are not distinct, and since `-=` must
+                # be a proper inverse of `+=` we cannot simply DELETE
+                # all property values matching the `-=` expression, and
+                # instead have to resort to careful deletion of no more
+                # than the number of tuples returned by the expression.
+                # Here, we rely on the "ctid" system column to refer to
+                # specific tuples.
+                #
+                # DELETE
+                #   FROM <link-tab>
+                # WHERE
+                #   ctid IN (
+                #     SELECT
+                #       shortlist.ctid
+                #     FROM
+                #       (SELECT
+                #         source,
+                #         target,
+                #         count(target) AS cnt
+                #        FROM
+                #         <data-expr>
+                #        GROUP BY source, target
+                #       ) AS counts,
+                #       LATERAL (
+                #         SELECT
+                #           candidates.ctid
+                #         FROM
+                #           (SELECT
+                #             ctid,
+                #             row_number() OVER (
+                #               PARTITION BY data
+                #               ORDER BY data
+                #             ) AS rn
+                #           FROM
+                #             <link-tab>
+                #           WHERE
+                #             source = counts.source
+                #             AND target = counts.target
+                #           ) AS candidates
+                #         WHERE
+                #           candidates.rn <= counts.cnt
+                #       ) AS shortlist
+                #   );
+
+                val_src_ref = pgast.ColumnRef(
+                    name=[data_rvar.alias.aliasname, 'source'],
+                )
+                val_tgt_ref = pgast.ColumnRef(
+                    name=[data_rvar.alias.aliasname, 'target'],
+                )
+                counts_select = pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(name='source', val=val_src_ref),
+                        pgast.ResTarget(name='target', val=val_tgt_ref),
+                        pgast.ResTarget(
+                            name='cnt',
+                            val=pgast.FuncCall(
+                                name=('count',),
+                                args=[val_tgt_ref],
+                            ),
+                        ),
+                    ],
+                    from_clause=[data_rvar],
+                    group_clause=[val_src_ref, val_tgt_ref],
+                )
+
+                counts_rvar = relctx.rvar_for_rel(counts_select, ctx=ctx)
+                counts_alias = counts_rvar.alias.aliasname
+
+                target_ref = pgast.ColumnRef(name=[target_alias, 'target'])
+
+                candidates_select = pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            name='ctid',
+                            val=pgast.ColumnRef(
+                                name=[target_alias, 'ctid'],
+                            ),
+                        ),
+                        pgast.ResTarget(
+                            name='rn',
+                            val=pgast.FuncCall(
+                                name=('row_number',),
+                                args=[],
+                                over=pgast.WindowDef(
+                                    partition_clause=[target_ref],
+                                    order_clause=[
+                                        pgast.SortBy(node=target_ref),
+                                    ],
+                                ),
+                            ),
+                        ),
+                    ],
+                    from_clause=[target_rvar],
+                    where_clause=astutils.new_binop(
+                        lexpr=astutils.new_binop(
+                            lexpr=pgast.ColumnRef(
+                                name=[counts_alias, 'source'],
+                            ),
+                            op='=',
+                            rexpr=pgast.ColumnRef(
+                                name=[target_alias, 'source'],
+                            ),
+                        ),
+                        op='AND',
+                        rexpr=astutils.new_binop(
+                            lexpr=target_ref,
+                            op='=',
+                            rexpr=pgast.ColumnRef(
+                                name=[counts_alias, 'target']),
                         ),
                     ),
-                    op='AND',
-                    rexpr=astutils.new_binop(
+                )
+
+                candidates_rvar = relctx.rvar_for_rel(
+                    candidates_select, ctx=ctx)
+
+                candidates_alias = candidates_rvar.alias.aliasname
+
+                shortlist_select = pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            name='ctid',
+                            val=pgast.ColumnRef(
+                                name=[candidates_alias, 'ctid'],
+                            ),
+                        ),
+                    ],
+                    from_clause=[candidates_rvar],
+                    where_clause=astutils.new_binop(
+                        lexpr=pgast.ColumnRef(name=[candidates_alias, 'rn']),
+                        op='<=',
+                        rexpr=pgast.ColumnRef(name=[counts_alias, 'cnt']),
+                    ),
+                )
+
+                shortlist_rvar = relctx.rvar_for_rel(
+                    shortlist_select, lateral=True, ctx=ctx)
+                shortlist_alias = shortlist_rvar.alias.aliasname
+
+                ctid_select = pgast.SelectStmt(
+                    target_list=[
+                        pgast.ResTarget(
+                            name='ctid',
+                            val=pgast.ColumnRef(name=[shortlist_alias, 'ctid'])
+                        ),
+                    ],
+                    from_clause=[
+                        counts_rvar,
+                        shortlist_rvar,
+                    ],
+                )
+
+                delqry = pgast.DeleteStmt(
+                    relation=target_rvar,
+                    where_clause=astutils.new_binop(
                         lexpr=pgast.ColumnRef(
-                            name=[target_alias, 'target'],
+                            name=[target_alias, 'ctid'],
                         ),
                         op='=',
-                        rexpr=pgast.ColumnRef(
-                            name=[data_rvar.alias.aliasname, 'target'],
+                        rexpr=pgast.SubLink(
+                            type=pgast.SubLinkType.ANY,
+                            expr=ctid_select,
                         ),
                     ),
-                ),
-                using_clause=[
-                    dml_cte_rvar,
-                    data_rvar,
-                ],
-                returning_list=[
-                    pgast.ResTarget(
-                        val=pgast.ColumnRef(
-                            name=[target_alias, pgast.Star()],
+                    returning_list=[
+                        pgast.ResTarget(
+                            val=pgast.ColumnRef(
+                                name=[target_alias, pgast.Star()],
+                            ),
+                        )
+                    ]
+                )
+            else:
+                # Links are always distinct, so we can simply
+                # DELETE the tuples matching the `-=` expression.
+                delqry = pgast.DeleteStmt(
+                    relation=target_rvar,
+                    where_clause=astutils.new_binop(
+                        lexpr=astutils.new_binop(
+                            lexpr=source_ref,
+                            op='=',
+                            rexpr=pgast.ColumnRef(
+                                name=[target_alias, 'source'],
+                            ),
                         ),
-                    )
-                ]
-            )
+                        op='AND',
+                        rexpr=astutils.new_binop(
+                            lexpr=pgast.ColumnRef(
+                                name=[target_alias, 'target'],
+                            ),
+                            op='=',
+                            rexpr=pgast.ColumnRef(
+                                name=[data_rvar.alias.aliasname, 'target'],
+                            ),
+                        ),
+                    ),
+                    using_clause=[
+                        dml_cte_rvar,
+                        data_rvar,
+                    ],
+                    returning_list=[
+                        pgast.ResTarget(
+                            val=pgast.ColumnRef(
+                                name=[target_alias, pgast.Star()],
+                            ),
+                        )
+                    ]
+                )
         else:
             # Drop all previous link records for this source.
             delqry = pgast.DeleteStmt(
@@ -1441,7 +1617,7 @@ def process_link_update(
     cols = [pgast.ColumnRef(name=[col]) for col in specified_cols]
     conflict_cols = ['source', 'target']
 
-    if is_insert:
+    if is_insert or target_is_scalar:
         conflict_clause = None
     elif len(cols) == len(conflict_cols) and delqry is not None:
         # There are no link properties, so we can optimize the
@@ -1551,7 +1727,7 @@ def process_link_update(
     # Record the effect of this insertion in the relation overlay
     # context to ensure that references to the link in the result
     # of this DML statement yield the expected results.
-    if shape_op is qlast.ShapeOp.APPEND:
+    if shape_op is qlast.ShapeOp.APPEND and not target_is_scalar:
         # When doing an UPDATE with +=, we need to do an anti-join
         # based filter to filter out links that were already present
         # and have been re-added.

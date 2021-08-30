@@ -1600,7 +1600,11 @@ class TestUpdate(tb.QueryTestCase):
                 SELECT UpdateTest {
                     name,
                     str_tags,
-                } ORDER BY UpdateTest.name;
+                }
+                FILTER
+                    .name IN {'update-test1', 'update-test2', 'update-test3'}
+                ORDER BY
+                    .name;
             """,
             [
                 {
@@ -2349,6 +2353,126 @@ class TestUpdate(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_update_subtract_non_distinct(self):
+        await self.con.execute("""
+            INSERT UpdateTest {
+                name := 'update-test-subtract-non-distinct-1',
+                str_tags := {'1', '1', '2', '3', '2', '2', '3', '4'},
+            };
+            INSERT UpdateTest {
+                name := 'update-test-subtract-non-distinct-2',
+                str_tags := {'1', '2', '2', '3', '4', '5'},
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    UpdateTest {
+                        str_tags ORDER BY UpdateTest.str_tags
+                    }
+                FILTER
+                    .name LIKE 'update-test-subtract-non-distinct-%'
+                ORDER BY
+                    .name
+            """,
+            [
+                {
+                    'str_tags': ['1', '1', '2', '2', '2', '3', '3', '4'],
+                },
+                {
+                    'str_tags': ['1', '2', '2', '3', '4', '5'],
+                },
+            ],
+        )
+
+        await self.con.execute("""
+            UPDATE UpdateTest
+            FILTER .name LIKE 'update-test-subtract-non-distinct-%'
+            SET {
+                str_tags -= {'1', '2', '2', '3', '5'}
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    UpdateTest {
+                        str_tags ORDER BY UpdateTest.str_tags,
+                    }
+                FILTER
+                    .name LIKE 'update-test-subtract-non-distinct-%'
+                ORDER BY
+                    .name
+            """,
+            [
+                {
+                    'str_tags': {'1', '2', '3', '4'},
+                },
+                {
+                    'str_tags': {'4'},
+                },
+            ],
+        )
+
+        await self.con.execute("""
+            UPDATE UpdateTest
+            FILTER .name LIKE 'update-test-subtract-non-distinct-%'
+            SET {
+                str_tags -= <str>{}
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    UpdateTest {
+                        str_tags ORDER BY UpdateTest.str_tags,
+                    }
+                FILTER
+                    .name LIKE 'update-test-subtract-non-distinct-%'
+                ORDER BY
+                    .name
+            """,
+            [
+                {
+                    'str_tags': {'1', '2', '3', '4'},
+                },
+                {
+                    'str_tags': {'4'},
+                },
+            ],
+        )
+
+        await self.con.execute("""
+            UPDATE UpdateTest
+            FILTER .name LIKE 'update-test-subtract-non-distinct-%'
+            SET {
+                str_tags -= {'10'}
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT
+                    UpdateTest {
+                        str_tags ORDER BY UpdateTest.str_tags,
+                    }
+                FILTER
+                    .name LIKE 'update-test-subtract-non-distinct-%'
+                ORDER BY
+                    .name
+            """,
+            [
+                {
+                    'str_tags': {'1', '2', '3', '4'},
+                },
+                {
+                    'str_tags': {'4'},
+                },
+            ],
+        )
+
     async def test_edgeql_update_subtract_required(self):
         await self.con.execute("""
             INSERT MultiRequiredTest {
@@ -2656,17 +2780,18 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT (
+                WITH _ := (
                     UPDATE UpdateTestSubSubType
                     FILTER .name = 'add-dupes-scalar'
                     SET {
                         str_tags += 'foo'
                     }
-                ) { name, str_tags }
+                )
+                SELECT _ { name, str_tags ORDER BY _.str_tags }
             """,
             [{
                 'name': 'add-dupes-scalar',
-                'str_tags': {'foo', 'bar'},
+                'str_tags': ['bar', 'foo', 'foo'],
             }]
         )
 
@@ -2684,7 +2809,7 @@ class TestUpdate(tb.QueryTestCase):
 
         await self.assert_query_result(
             r"""
-                SELECT (
+                WITH _ := (
                     FOR x in {'foo', 'bar'} UNION (
                         UPDATE UpdateTestSubSubType
                         FILTER .name = 'add-dupes-scalar-' ++ x
@@ -2692,23 +2817,27 @@ class TestUpdate(tb.QueryTestCase):
                             str_tags += x
                         }
                     )
-                ) { name, str_tags };
+                )
+                SELECT _ {
+                    name,
+                    str_tags ORDER BY _.str_tags
+                };
             """,
             [
                 {
                     'name': 'add-dupes-scalar-foo',
-                    'str_tags': {'foo', 'baz'},
+                    'str_tags': ['baz', 'foo', 'foo'],
                 },
                 {
                     'name': 'add-dupes-scalar-bar',
-                    'str_tags': {'bar', 'baz'},
+                    'str_tags': ['bar', 'bar', 'baz'],
                 },
             ]
         )
 
         await self.assert_query_result(
             r"""
-                SELECT (
+                WITH _ := (
                     FOR x in {'foo', 'bar'} UNION (
                         UPDATE UpdateTestSubSubType
                         FILTER .name = 'add-dupes-scalar-' ++ x
@@ -2716,23 +2845,27 @@ class TestUpdate(tb.QueryTestCase):
                             str_tags += {x, ('baz' if x = 'foo' else <str>{})}
                         }
                     )
-                ) { name, str_tags };
+                )
+                SELECT _ {
+                    name,
+                    str_tags ORDER BY _.str_tags
+                };
             """,
             [
                 {
                     'name': 'add-dupes-scalar-foo',
-                    'str_tags': {'foo', 'baz'},
+                    'str_tags': ['baz', 'baz', 'foo', 'foo', 'foo'],
                 },
                 {
                     'name': 'add-dupes-scalar-bar',
-                    'str_tags': {'bar', 'baz'},
+                    'str_tags': ['bar', 'bar', 'bar', 'baz'],
                 },
             ]
         )
 
         await self.assert_query_result(
             r"""
-                SELECT (
+                WITH _ := (
                     FOR x in {'foo', 'bar'} UNION (
                         UPDATE UpdateTestSubSubType
                         FILTER .name = 'add-dupes-scalar-' ++ x
@@ -2740,16 +2873,20 @@ class TestUpdate(tb.QueryTestCase):
                             str_tags += x
                         }
                     )
-                ) { name, str_tags };
+                )
+                SELECT _ {
+                    name,
+                    str_tags ORDER BY _.str_tags
+                };
             """,
             [
                 {
                     'name': 'add-dupes-scalar-foo',
-                    'str_tags': {'foo', 'baz'},
+                    'str_tags': ['baz', 'baz', 'foo', 'foo', 'foo', 'foo'],
                 },
                 {
                     'name': 'add-dupes-scalar-bar',
-                    'str_tags': {'bar', 'baz'},
+                    'str_tags': ['bar', 'bar', 'bar', 'bar', 'baz'],
                 },
             ]
         )

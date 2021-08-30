@@ -368,6 +368,33 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
+    async def test_constraints_exclusive_multi_property_distinct(self):
+        await self.con.execute("""
+            INSERT PropertyContainer {
+                tags := {"one", "two"}
+            };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "tags violates exclusivity constraint",
+        ):
+            await self.con.execute("""
+                INSERT PropertyContainer {
+                    tags := {"one", "three"}
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "tags violates exclusivity constraint",
+        ):
+            await self.con.execute("""
+                INSERT PropertyContainer {
+                    tags := {"four", "four"}
+                };
+            """)
+
     async def test_constraints_objects(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
