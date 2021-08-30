@@ -4121,6 +4121,62 @@ class TestInsert(tb.QueryTestCase):
                 "does not support volatile properties with exclusive"):
             await self.con.execute(query)
 
+    async def test_edgeql_insert_cross_type_conflict_15(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE LINK foo -> Foo;
+                CREATE REQUIRED PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+        ''')
+
+        query = r'''
+            WITH name := 'Alice'
+            INSERT Foo {
+                name := name,
+                foo := (
+                    INSERT Bar {
+                        name := name,
+                    }
+                )
+            };
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_cross_type_conflict_16(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE MULTI LINK foo -> Foo;
+                CREATE REQUIRED PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+        ''')
+
+        query = r'''
+            WITH name := 'Alice'
+            INSERT Foo {
+                name := name,
+                foo := (
+                    INSERT Bar {
+                        name := name,
+                    }
+                )
+            };
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
     @test.xfail("Issue #2845")
     async def test_edgeql_insert_update_cross_type_conflict_01(self):
         await self.con.execute('''

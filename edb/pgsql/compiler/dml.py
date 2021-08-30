@@ -609,17 +609,6 @@ def process_insert_body(
     iterator = ctx.enclosing_cte_iterator
     inner_iterator = on_conflict_fake_iterator or iterator
 
-    for extra_conflict in (ir_stmt.conflict_checks or ()):
-        compile_insert_else_body(
-            insert_stmt,
-            ir_stmt,
-            extra_conflict,
-            inner_iterator,
-            None,
-            dml_parts,
-            ctx=ctx,
-        )
-
     # Compile the shape
     external_inserts = []
 
@@ -724,6 +713,17 @@ def process_insert_body(
         )
         if check_cte is not None:
             dml_parts.check_ctes.append(check_cte)
+
+    for extra_conflict in (ir_stmt.conflict_checks or ()):
+        compile_insert_else_body(
+            insert_stmt,
+            ir_stmt,
+            extra_conflict,
+            inner_iterator,
+            None,
+            dml_parts,
+            ctx=ctx,
+        )
 
 
 def insert_needs_conflict_cte(
