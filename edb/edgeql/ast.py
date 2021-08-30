@@ -1059,7 +1059,7 @@ class ConcreteConstraintOp(ConstraintCommand):
 
     __abstract_node__ = True
     args: typing.List[Expr]
-    subjectexpr: typing.Optional[Expr]
+    subjectexpr: typing.Optional[Expr] = None
 
 
 class CreateConcreteConstraint(ConcreteConstraintOp, CreateObject):

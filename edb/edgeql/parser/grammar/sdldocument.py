@@ -33,29 +33,13 @@ class SDLDocument(Nonterm):
     def reduce_OptSemicolons_EOF(self, *kids):
         self.val = qlast.Schema(declarations=[])
 
-    def reduce_statement_without_semicolons(self, *kids):
-        r"""%reduce \
-            OptSemicolons SDLShortStatement EOF
-        """
-        declarations = [kids[1].val]
-        commondl._validate_declarations(declarations)
-        self.val = qlast.Schema(declarations=declarations)
-
     def reduce_statements_without_optional_trailing_semicolons(self, *kids):
-        r"""%reduce \
-            OptSemicolons SDLStatements \
-            OptSemicolons SDLShortStatement EOF
+        r"""%reduce
+            OptSemicolons
+            SDLStatements
+            OptSemicolons
+            EOF
         """
-        declarations = kids[1].val + [kids[3].val]
-        commondl._validate_declarations(declarations)
-        self.val = qlast.Schema(declarations=declarations)
-
-    def reduce_OptSemicolons_SDLStatements_EOF(self, *kids):
-        declarations = kids[1].val
-        commondl._validate_declarations(declarations)
-        self.val = qlast.Schema(declarations=declarations)
-
-    def reduce_OptSemicolons_SDLStatements_Semicolons_EOF(self, *kids):
         declarations = kids[1].val
         commondl._validate_declarations(declarations)
         self.val = qlast.Schema(declarations=declarations)

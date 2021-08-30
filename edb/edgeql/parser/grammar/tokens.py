@@ -175,6 +175,10 @@ class T_NAMEDONLY(Token):
     pass
 
 
+class T_ONTARGET(Token):
+    pass
+
+
 class T_SETANNOTATION(Token):
     pass
 
