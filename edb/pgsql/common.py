@@ -209,7 +209,10 @@ def update_aspect(name, aspect):
 def get_scalar_backend_name(id, module_name, catenate=True, *, aspect=None):
     if aspect is None:
         aspect = 'domain'
-    if aspect not in ('domain', 'sequence', 'enum'):
+    if aspect not in (
+        'domain', 'sequence', 'enum',
+        'source-del-imm-otl-f', 'source-del-imm-otl-t',
+    ):
         raise ValueError(
             f'unexpected aspect for scalar backend name: {aspect!r}')
     name = s_name.QualName(module=module_name, name=str(id))
