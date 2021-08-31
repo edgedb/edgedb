@@ -121,4 +121,4 @@ def preload(
             with multiprocessing.Pool(len(parsers_to_rebuild)) as pool:
                 pool.map(_load_parser, parsers_to_rebuild)
 
-            preload(allow_rebuild=False)
+            preload(parsers=parsers, allow_rebuild=False)
