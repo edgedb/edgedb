@@ -84,6 +84,7 @@ cdef class PGConnection:
 
         object pgaddr
         object server
+        bint is_system_db
 
         readonly bint idle
 

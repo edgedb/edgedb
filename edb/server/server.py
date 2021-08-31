@@ -260,6 +260,7 @@ class Server(ha_base.ClusterProtocol):
         rv = await pgcon.connect(
             self._get_pgaddr(), pg_dbname, self._tenant_id)
         if ha_serial == self._ha_master_serial:
+            rv.set_server(self)
             return rv
         else:
             rv.terminate()
@@ -294,7 +295,7 @@ class Server(ha_base.ClusterProtocol):
             # Now, once all DBs have been introspected, start listening on
             # any notifications about schema/roles/etc changes.
             await self.__sys_pgcon.listen_for_sysevent()
-            self.__sys_pgcon.set_server(self)
+            self.__sys_pgcon.mark_as_system_db()
             self._sys_pgcon_ready_evt.set()
 
             self._populate_sys_auth()
@@ -947,10 +948,10 @@ class Server(ha_base.ClusterProtocol):
 
             logger.info("Successfully reconnected to the system database.")
             self.__sys_pgcon = conn
-            self.__sys_pgcon.set_server(self)
-            # This await is meant to be after set_server() because we need the
-            # pgcon to be able to trigger another reconnect if its connection
-            # is lost during this await.
+            self.__sys_pgcon.mark_as_system_db()
+            # This await is meant to be after mark_as_system_db() because we
+            # need the pgcon to be able to trigger another reconnect if its
+            # connection is lost during this await.
             await self.__sys_pgcon.listen_for_sysevent()
             self.set_pg_unavailable_msg(None)
         finally:

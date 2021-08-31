@@ -374,6 +374,7 @@ cdef class PGConnection:
 
         self.pgaddr = addr
         self.server = None
+        self.is_system_db = False
 
         self.idle = True
         self.cancel_fut = None
@@ -435,8 +436,11 @@ cdef class PGConnection:
             self.msg_waiter = None
 
     def set_server(self, server):
-        assert defines.EDGEDB_SYSTEM_DB in self.dbname
         self.server = server
+
+    def mark_as_system_db(self):
+        assert defines.EDGEDB_SYSTEM_DB in self.dbname
+        self.is_system_db = True
 
     async def listen_for_sysevent(self):
         try:
@@ -1668,7 +1672,7 @@ cdef class PGConnection:
                     msg = POSTGRES_SHUTDOWN_ERR_CODES.get(fields['C'])
                     if msg:
                         msg = fields.get('M', msg)
-                        if self.server is not None:
+                        if self.is_system_db:
                             self.server.set_pg_unavailable_msg(msg)
                         continue
                 raise RuntimeError(
@@ -1690,8 +1694,9 @@ cdef class PGConnection:
             payload = self.buffer.read_null_str().decode()
             self.buffer.finish_message()
 
-            if self.server is None:
-                # The server is still initializing.
+            if not self.is_system_db:
+                # The server is still initializing, or we're getting
+                # notification from a non-system-db connection.
                 return True
 
             if channel == '__edgedb_sysevent__':
@@ -1826,8 +1831,7 @@ cdef class PGConnection:
 
         self.transport = None
 
-        if self.server is not None:
-            # only system db PGConnection has self.server
+        if self.is_system_db:
             self.server._on_sys_pgcon_connection_lost(exc)
 
         if self.connected_fut is not None and not self.connected_fut.done():
