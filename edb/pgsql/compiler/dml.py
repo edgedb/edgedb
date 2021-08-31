@@ -926,13 +926,16 @@ def compile_insert_else_body_failure_check(
     else_fail = on_conflict.else_fail
     if not else_fail:
         return
+
     # Copy the type rels from the possibly conflicting earlier DML
     # into the None overlays so it gets picked up.
     # TODO: Try to *only* get the overlay, not the base type.
     ctx.type_rel_overlays = ctx.type_rel_overlays.copy()
+    ctx.type_rel_overlays[None] = ctx.type_rel_overlays[None].copy()
     ctx.type_rel_overlays[None].update(
         ctx.type_rel_overlays[else_fail])
     ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
+    ctx.ptr_rel_overlays[None] = ctx.ptr_rel_overlays[None].copy()
     ctx.ptr_rel_overlays[None].update(
         ctx.ptr_rel_overlays[else_fail])
 
