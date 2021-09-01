@@ -535,56 +535,6 @@ def compile_insert_unless_conflict(
         else_ir=None)
 
 
-def compile_inheritance_conflict_selects(
-    stmt: irast.InsertStmt,
-    conflict: irast.MutatingStmt,
-    typ: s_objtypes.ObjectType,
-    *, ctx: context.ContextLevel,
-) -> List[irast.OnConflictClause]:
-    """Compile the selects needed to resolve multiple DML to related types
-
-    Generate a SELECT that finds all objects of type `typ` that conflict with
-    the insert `stmt`. The backend will use this to explicitly check that
-    no conflicts exist, and raise an error if they do.
-
-    This is needed because we mostly use triggers to enforce these
-    cross-type exclusive constraints, and they use a snapshot
-    beginning at the start of the statement.
-    """
-    pointers = _get_exclusive_ptr_constraints(typ, ctx=ctx)
-    obj_constrs = typ.get_constraints(ctx.env.schema).objects(ctx.env.schema)
-
-    # This is a little silly, but for *this* we need to do one per
-    # constraint (so that we can properly identify which constraint
-    # failed in the error messages)
-    entries: List[Tuple[s_constr.Constraint, ConstraintPair]] = []
-    for name, (ptr, ptr_constrs) in pointers.items():
-        for ptr_constr in ptr_constrs:
-            if _constr_matters(ptr_constr, ctx):
-                entries.append((ptr_constr, ({name: (ptr, [ptr_constr])}, [])))
-    for obj_constr in obj_constrs:
-        if _constr_matters(obj_constr, ctx):
-            entries.append((obj_constr, ({}, [obj_constr])))
-
-    clauses = []
-    for cnstr, (p, o) in entries:
-        select_ir, _, _ = compile_conflict_select(
-            stmt, typ,
-            for_inheritance=True,
-            constrs=p,
-            obj_constrs=o,
-            parser_context=stmt.context, ctx=ctx)
-        if isinstance(select_ir, irast.EmptySet):
-            continue
-        cnstr_ref = irast.ConstraintRef(id=cnstr.id)
-        clauses.append(
-            irast.OnConflictClause(
-                constraint=cnstr_ref, select_ir=select_ir, always_check=False,
-                else_ir=None, else_fail=conflict)
-        )
-    return clauses
-
-
 def compile_insert_unless_conflict_on(
     stmt: irast.InsertStmt,
     typ: s_objtypes.ObjectType,
@@ -695,6 +645,56 @@ def compile_insert_unless_conflict_on(
         always_check=always_check,
         else_ir=else_ir
     )
+
+
+def compile_inheritance_conflict_selects(
+    stmt: irast.InsertStmt,
+    conflict: irast.MutatingStmt,
+    typ: s_objtypes.ObjectType,
+    *, ctx: context.ContextLevel,
+) -> List[irast.OnConflictClause]:
+    """Compile the selects needed to resolve multiple DML to related types
+
+    Generate a SELECT that finds all objects of type `typ` that conflict with
+    the insert `stmt`. The backend will use this to explicitly check that
+    no conflicts exist, and raise an error if they do.
+
+    This is needed because we mostly use triggers to enforce these
+    cross-type exclusive constraints, and they use a snapshot
+    beginning at the start of the statement.
+    """
+    pointers = _get_exclusive_ptr_constraints(typ, ctx=ctx)
+    obj_constrs = typ.get_constraints(ctx.env.schema).objects(ctx.env.schema)
+
+    # This is a little silly, but for *this* we need to do one per
+    # constraint (so that we can properly identify which constraint
+    # failed in the error messages)
+    entries: List[Tuple[s_constr.Constraint, ConstraintPair]] = []
+    for name, (ptr, ptr_constrs) in pointers.items():
+        for ptr_constr in ptr_constrs:
+            if _constr_matters(ptr_constr, ctx):
+                entries.append((ptr_constr, ({name: (ptr, [ptr_constr])}, [])))
+    for obj_constr in obj_constrs:
+        if _constr_matters(obj_constr, ctx):
+            entries.append((obj_constr, ({}, [obj_constr])))
+
+    clauses = []
+    for cnstr, (p, o) in entries:
+        select_ir, _, _ = compile_conflict_select(
+            stmt, typ,
+            for_inheritance=True,
+            constrs=p,
+            obj_constrs=o,
+            parser_context=stmt.context, ctx=ctx)
+        if isinstance(select_ir, irast.EmptySet):
+            continue
+        cnstr_ref = irast.ConstraintRef(id=cnstr.id)
+        clauses.append(
+            irast.OnConflictClause(
+                constraint=cnstr_ref, select_ir=select_ir, always_check=False,
+                else_ir=None, else_fail=conflict)
+        )
+    return clauses
 
 
 def compile_inheritance_conflict_checks(
