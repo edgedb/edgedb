@@ -4875,6 +4875,12 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''')
 
     async def test_edgeql_ddl_scalar_09(self):
+        # We need to support CREATE FINAL SCALAR for enums because it
+        # is written out into old migrations.
+        await self.con.execute('''
+            CREATE FINAL SCALAR TYPE my_enum EXTENDING enum<'foo', 'bar'>;
+        ''')
+
         with self.assertRaisesRegex(
                 edgedb.UnsupportedFeatureError,
                 r'FINAL is not supported'):
