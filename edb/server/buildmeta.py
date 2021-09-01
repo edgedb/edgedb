@@ -339,6 +339,8 @@ def scm_local_scheme(root, version):
     )
     commitish = proc.stdout.strip()
 
+    env = dict(os.environ)
+    env['TZ'] = 'UTC'
     proc = subprocess.run(
         ['git', 'show', '-s', '--format=%cd',
          '--date=format-local:%Y%m%d%H', commitish],
@@ -346,7 +348,7 @@ def scm_local_scheme(root, version):
         universal_newlines=True,
         check=True,
         cwd=root,
-        env={'TZ': 'UTC'},
+        env=env,
     )
     rev_date = proc.stdout.strip()
 
