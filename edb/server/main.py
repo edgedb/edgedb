@@ -171,7 +171,7 @@ def _init_parsers():
 
     from edb.edgeql import parser as ql_parser
 
-    ql_parser.preload()
+    ql_parser.preload(allow_rebuild=devmode.is_in_dev_mode(), paralellize=True)
 
 
 async def _run_server(

@@ -18,12 +18,18 @@
 
 
 from __future__ import annotations
-
 from typing import *
+
+import multiprocessing
+
+from edb import errors
+from edb.common import parsing
 
 from . import parser as qlparser
 from .. import ast as qlast
 from .. import tokenizer as qltokenizer
+
+EdgeQLParserBase = qlparser.EdgeQLParserBase
 
 
 def append_module_aliases(tree, aliases):
@@ -76,7 +82,43 @@ def parse_sdl(expr: str):
     return parser.parse(expr)
 
 
-def preload():
-    qlparser.EdgeQLBlockParser().get_parser_spec()
-    qlparser.EdgeQLExpressionParser().get_parser_spec()
-    qlparser.EdgeSDLParser().get_parser_spec()
+def _load_parser(parser: qlparser.EdgeQLParserBase) -> None:
+    parser.get_parser_spec(allow_rebuild=True)
+
+
+def preload(
+    allow_rebuild: bool = True,
+    paralellize: bool = False,
+    parsers: Optional[List[qlparser.EdgeQLParserBase]] = None,
+) -> None:
+    if parsers is None:
+        parsers = [
+            qlparser.EdgeQLBlockParser(),
+            qlparser.EdgeQLExpressionParser(),
+            qlparser.EdgeSDLParser(),
+        ]
+
+    if not paralellize:
+        try:
+            for parser in parsers:
+                parser.get_parser_spec(allow_rebuild)
+        except parsing.ParserSpecIncompatibleError as e:
+            raise errors.InternalServerError(e.args[0]) from None
+    else:
+        parsers_to_rebuild = []
+
+        for parser in parsers:
+            try:
+                parser.get_parser_spec(allow_rebuild=False)
+            except parsing.ParserSpecIncompatibleError:
+                parsers_to_rebuild.append(parser)
+
+        if len(parsers_to_rebuild) == 0:
+            pass
+        elif len(parsers_to_rebuild) == 1:
+            parsers_to_rebuild[0].get_parser_spec(allow_rebuild=True)
+        else:
+            with multiprocessing.Pool(len(parsers_to_rebuild)) as pool:
+                pool.map(_load_parser, parsers_to_rebuild)
+
+            preload(parsers=parsers, allow_rebuild=False)

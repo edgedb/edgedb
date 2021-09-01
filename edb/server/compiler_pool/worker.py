@@ -374,7 +374,7 @@ def main():
     # worker cannot start correctly.
     max_worker_spawns = numproc * 2
 
-    ql_parser.preload()
+    ql_parser.preload(allow_rebuild=False)
     gc.freeze()
 
     children = set()

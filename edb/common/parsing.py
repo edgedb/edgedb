@@ -20,12 +20,12 @@
 from __future__ import annotations
 from typing import *  # NoQA
 
+import functools
 import logging
 import os
 import sys
 import types
 import re
-
 
 import parsing
 
@@ -39,6 +39,10 @@ ParserContext = pctx.ParserContext
 
 logger = logging.getLogger('edb.common.parsing')
 TRAILING_WS_IN_CONTINUATION = re.compile(r'\\ \s+\n')
+
+
+class ParserSpecIncompatibleError(Exception):
+    pass
 
 
 class TokenMeta(type):
@@ -102,7 +106,7 @@ class TokenMeta(type):
 
 class Token(parsing.Token, metaclass=TokenMeta):
     def __init__(self, parser, val, clean_value, context=None):
-        super().__init__(parser)
+        super().__init__()
         self.val = val
         self.clean_value = clean_value
         self.context = context
@@ -295,19 +299,6 @@ class ParserError(Exception):
             return None
 
 
-class Spec(parsing.Spec):
-
-    def __init__(self, mod, *args, **kwargs):
-        self.__modname = mod.__name__
-        super().__init__(mod, *args, **kwargs)
-
-    def _unpickle(self, *args):
-        ret = super()._unpickle(*args)
-        if ret != 'compatible':
-            logger.info('Rebuilding grammar for %s', self.__modname)
-        return ret
-
-
 def _derive_hint(
     input: str,
     message: str,
@@ -321,6 +312,8 @@ def _derive_hint(
 
 
 class Parser:
+    parser_spec: ClassVar[parsing.Spec | None]
+
     def __init__(self, **parser_data):
         self.lexer = None
         self.parser = None
@@ -342,7 +335,10 @@ class Parser:
         else:
             return native_err
 
-    def get_parser_spec(self):
+    def get_parser_spec_module(self) -> types.ModuleType:
+        raise NotImplementedError
+
+    def get_parser_spec(self, allow_rebuild: bool = True) -> None:
         cls = self.__class__
 
         try:
@@ -354,13 +350,34 @@ class Parser:
                 return spec
 
         mod = self.get_parser_spec_module()
-        spec = Spec(
-            mod, pickleFile=self.localpath(mod, "pickle"),
-            skinny=not self.get_debug(), logFile=self.localpath(mod, "log"),
-            verbose=self.get_debug())
+        spec = parsing.Spec(
+            mod,
+            pickleFile=self.localpath(mod, "pickle"),
+            skinny=not self.get_debug(),
+            logFile=self.localpath(mod, "log"),
+            verbose=self.get_debug(),
+            unpickleHook=functools.partial(
+                self.on_spec_unpickle, mod, allow_rebuild)
+        )
 
         self.__class__.parser_spec = spec
         return spec
+
+    def on_spec_unpickle(
+        self,
+        mod: types.ModuleType,
+        allow_rebuild: bool,
+        spec: parsing.Spec,
+        compatibility: str,
+    ) -> None:
+        if compatibility != "compatible":
+            if allow_rebuild:
+                logger.info(f'rebuilding grammar for {mod.__name__}...')
+            else:
+                raise ParserSpecIncompatibleError(
+                    f'parser tables for {mod.__name__} are missing or '
+                    f'incompatible with parser source'
+                )
 
     def localpath(self, mod, type):
         return os.path.join(
@@ -412,7 +429,7 @@ class Parser:
             raise EdgeQLSyntaxError(
                 message, context=self.context(pos=position), hint=hint) from e
 
-        except parsing.SyntaxError as e:
+        except parsing.UnexpectedToken as e:
             raise self.get_exception(
                 e, context=self.context(tok), token=tok) from e
 

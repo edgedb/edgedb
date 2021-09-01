@@ -33,7 +33,8 @@ class EdgeQLSyntaxTest(tb.BaseSyntaxTest):
     markup_dump_lexer = 'sql'
     ast_to_source = edgeql_to_source
 
-    def get_parser(self, *, spec):
+    @classmethod
+    def get_parser(cls):
         return edgeql_parser.EdgeQLBlockParser()
 
 

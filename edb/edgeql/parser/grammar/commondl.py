@@ -40,7 +40,6 @@ from .expressions import *  # NOQA
 
 
 Nonterm = expressions.Nonterm  # type: ignore[misc]
-ListNonterm = parsing.ListNonterm  # type: ignore[misc]
 
 
 def _parse_language(node):
@@ -216,7 +215,7 @@ class FuncDeclArg(Nonterm):
             context=kids[1].context)
 
 
-class FuncDeclArgList(ListNonterm, element=FuncDeclArg,
+class FuncDeclArgList(parsing.ListNonterm, element=FuncDeclArg,
                       separator=tokens.T_COMMA):
     pass
 
