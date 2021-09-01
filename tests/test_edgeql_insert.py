@@ -3976,3 +3976,16 @@ class TestInsert(tb.QueryTestCase):
             ''',
             [True]
         )
+
+    async def test_edgeql_insert_multi_exclusive_01(self):
+        await self.con.execute('''
+            INSERT Person { name := "asdf", multi_prop := "a" };
+        ''')
+
+        await self.con.execute('''
+            DELETE Person;
+        ''')
+
+        await self.con.execute('''
+            INSERT Person { name := "asdf", multi_prop := "a" };
+        ''')

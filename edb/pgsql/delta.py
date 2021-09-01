@@ -3539,6 +3539,20 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
         return (conv_expr, sql_text, alias, expr_is_trivial)
 
+    def schedule_endpoint_delete_action_update(
+            self, link, orig_schema, schema, context):
+        endpoint_delete_actions = context.get(
+            sd.DeltaRootContext).op.update_endpoint_delete_actions
+        link_ops = endpoint_delete_actions.link_ops
+
+        if isinstance(self, sd.DeleteObject):
+            for i, (_, ex_link, _) in enumerate(link_ops):
+                if ex_link == link:
+                    link_ops.pop(i)
+                    break
+
+        link_ops.append((self, link, orig_schema))
+
 
 class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
 
@@ -3611,20 +3625,6 @@ class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
                     create_c.add_command(lc)
 
         return create_c
-
-    def schedule_endpoint_delete_action_update(
-            self, link, orig_schema, schema, context):
-        endpoint_delete_actions = context.get(
-            sd.DeltaRootContext).op.update_endpoint_delete_actions
-        link_ops = endpoint_delete_actions.link_ops
-
-        if isinstance(self, sd.DeleteObject):
-            for i, (_, ex_link, _) in enumerate(link_ops):
-                if ex_link == link:
-                    link_ops.pop(i)
-                    break
-
-        link_ops.append((self, link, orig_schema))
 
 
 class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
@@ -4036,6 +4036,7 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        orig_schema = schema
         schema = s_props.CreateProperty.apply(self, schema, context)
         prop = self.scls
         propname = prop.get_shortname(schema).name
@@ -4113,6 +4114,10 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
                 self._alter_pointer_optionality(
                     schema, schema, context, fill_expr=None)
 
+            if not prop.is_pure_computable(schema):
+                self.schedule_endpoint_delete_action_update(
+                    prop, orig_schema, schema, context)
+
         return schema
 
 
@@ -4138,6 +4143,10 @@ class RebaseProperty(
         if has_table(source, schema):
             self.update_base_inhviews_on_rebase(
                 schema, orig_schema, context, source)
+
+        if not source.is_pure_computable(schema):
+            self.schedule_endpoint_delete_action_update(
+                source, orig_schema, schema, context)
 
         return schema
 
@@ -4254,6 +4263,14 @@ class AlterProperty(
             ctx.original_schema = orig_schema
             self.provide_table(prop, schema, context)
             self.alter_pointer_default(prop, orig_schema, schema, context)
+            card = self.get_resolved_attribute_value(
+                'cardinality',
+                schema=schema,
+                context=context,
+            )
+            if card and not prop.is_pure_computable(schema):
+                self.schedule_endpoint_delete_action_update(
+                    prop, orig_schema, schema, context)
 
         return schema
 
@@ -4311,6 +4328,8 @@ class DeleteProperty(
             self.pgops.add(dbops.DropTable(name=old_table_name, priority=1))
             self.update_base_inhviews(orig_schema, context, prop)
             self.schedule_inhview_deletion(orig_schema, context, prop)
+            self.schedule_endpoint_delete_action_update(
+                prop, orig_schema, schema, context)
 
         if (
             source is not None
@@ -4737,12 +4756,18 @@ class UpdateEndpointDeleteActions(MetaCommand):
             # the triggers for every schema::Type subtype every time a
             # new object type is created containing a __type__ link.
             eff_schema = (
-                orig_schema if isinstance(link_op, DeleteLink) else schema)
-            action = link.get_on_target_delete(eff_schema)
+                orig_schema
+                if isinstance(link_op, (DeleteProperty, DeleteLink))
+                else schema)
+            if not eff_schema.has_object(link.id):
+                continue
+            action = (
+                link.get_on_target_delete(eff_schema)
+                if isinstance(link, s_links.Link) else None)
             target_is_affected = not (
                 (action is DA.Restrict or action is DA.DeferredRestrict)
                 and link.get_implicit_bases(eff_schema)
-            )
+            ) and isinstance(link, s_links.Link)
 
             if (
                 link.generic(eff_schema)
@@ -4753,10 +4778,13 @@ class UpdateEndpointDeleteActions(MetaCommand):
             source = link.get_source(eff_schema)
             target = link.get_target(eff_schema)
 
-            if not isinstance(link_op, CreateLink):
+            if not isinstance(source, s_objtypes.ObjectType):
+                continue
+
+            if not isinstance(link_op, (CreateProperty, CreateLink)):
                 modifications = True
 
-            if isinstance(link_op, DeleteLink):
+            if isinstance(link_op, (DeleteProperty, DeleteLink)):
                 current_source = orig_schema.get_by_id(source.id, None)
                 if (current_source is not None
                         and not current_source.is_view(orig_schema)):
@@ -4773,7 +4801,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 if target_is_affected:
                     affected_targets.add(target)
 
-                if isinstance(link_op, AlterLink):
+                if isinstance(link_op, (AlterProperty, AlterLink)):
                     orig_target = link.get_target(orig_schema)
                     if target != orig_target:
                         current_orig_target = schema.get_by_id(
@@ -4785,8 +4813,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
             links = []
 
             for link in source.get_pointers(src_schema).objects(src_schema):
-                if (not isinstance(link, s_links.Link)
-                        or link.is_pure_computable(src_schema)):
+                if link.is_pure_computable(src_schema):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=src_schema)
@@ -4796,8 +4823,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 links.append(link)
 
             links.sort(
-                key=lambda l: (l.get_on_target_delete(src_schema),
-                               l.get_name(src_schema)))
+                key=lambda l: (
+                    (l.get_on_target_delete(src_schema),)
+                    if isinstance(l, s_links.Link) else (),
+                    l.get_name(src_schema)))
 
             if links or modifications:
                 self._update_action_triggers(

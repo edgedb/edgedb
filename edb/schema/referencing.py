@@ -1528,7 +1528,6 @@ class DeleteReferencedInheritingObject(
 
             cmd = child_ref.init_delta_command(schema, sd.AlterObject)
             cmd.add(rebase_cmd)
-
         else:
             # The ref in child should no longer exist.
             cmd = child_ref.init_delta_command(schema, sd.DeleteObject)
