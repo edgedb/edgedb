@@ -4349,6 +4349,11 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ) -> SET OF int64 {
                 USING (array_unpack(obj.0).i)
             };
+            CREATE FUNCTION obj_func_tuple_not_referring(
+                arg: tuple<array<FuncVol>, int64>
+            ) -> int64 {
+                USING (arg.1)
+            };
             CREATE FUNCTION obj_func_const(obj: FuncVol) -> int64 {
                 USING (1)
             };
@@ -4369,6 +4374,9 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }, {
                 "name": "default::obj_func_tuple",
                 "volatility": "Stable",
+            }, {
+                "name": "default::obj_func_tuple_not_referring",
+                "volatility": "Immutable",
             }]
         )
 
