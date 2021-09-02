@@ -4338,6 +4338,48 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER FUNCTION foo() SET volatility := "volatile";
             ''')
 
+    async def test_edgeql_ddl_function_volatility_09(self):
+        await self.con.execute('''
+            CREATE TYPE FuncVol { CREATE PROPERTY i -> int64 };
+            CREATE FUNCTION obj_func(obj: FuncVol) -> int64 {
+                USING (obj.i)
+            };
+            CREATE FUNCTION obj_func_tuple(
+                obj: tuple<array<FuncVol>>
+            ) -> SET OF int64 {
+                USING (array_unpack(obj.0).i)
+            };
+            CREATE FUNCTION obj_func_tuple_not_referring(
+                arg: tuple<array<FuncVol>, int64>
+            ) -> int64 {
+                USING (arg.1)
+            };
+            CREATE FUNCTION obj_func_const(obj: FuncVol) -> int64 {
+                USING (1)
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            SELECT schema::Function { name, volatility }
+            FILTER .name LIKE 'default::obj_func%'
+            ORDER BY .name;
+            ''',
+            [{
+                "name": "default::obj_func",
+                "volatility": "Stable",
+            }, {
+                "name": "default::obj_func_const",
+                "volatility": "Immutable",
+            }, {
+                "name": "default::obj_func_tuple",
+                "volatility": "Stable",
+            }, {
+                "name": "default::obj_func_tuple_not_referring",
+                "volatility": "Immutable",
+            }]
+        )
+
     async def test_edgeql_ddl_function_fallback_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidFunctionDefinitionError,

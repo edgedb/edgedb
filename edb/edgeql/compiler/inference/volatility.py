@@ -27,6 +27,7 @@ from edb import errors
 from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
 from .. import context
 
@@ -144,7 +145,13 @@ def __infer_set(
     env: context.Environment,
 ) -> InferredVolatility:
     if ir.rptr is not None:
-        vol = _infer_volatility(ir.rptr.source, env)
+        src_vol = _infer_volatility(ir.rptr.source, env)
+        # If source is an object, then a pointer reference implies
+        # a table scan, and so we can assume STABLE at the minimum.
+        if irtyputils.is_object(ir.rptr.source.typeref):
+            vol = _max_volatility((src_vol, STABLE))
+        else:
+            vol = src_vol
     elif ir.expr is not None:
         vol = _infer_volatility(ir.expr, env)
     else:
