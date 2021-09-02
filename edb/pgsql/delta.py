@@ -2297,6 +2297,14 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
             self.schedule_inhviews_update(
                 schema, context, old_base, update_ancestors=True)
 
+    def create_inhview(self, schema, context, obj):
+        inhview = UpdateInheritanceViews.get_inhview(schema, obj)
+        self.pgops.add(
+            dbops.CreateView(
+                view=inhview,
+            ),
+        )
+
     def drop_inhview(
         self,
         schema,
@@ -2493,6 +2501,7 @@ class CreateObjectType(ObjectTypeMetaCommand,
         self.update_lineage_inhviews(schema, context, objtype)
 
         self.attach_alter_table(context)
+        self.create_inhview(schema, context, objtype)
 
         if self.update_search_indexes:
             schema = self.update_search_indexes.apply(schema, context)
@@ -5038,7 +5047,8 @@ class UpdateInheritanceViews(MetaCommand):
         for obj, obj_schema in self.view_deletions.items():
             self.delete_inhview(obj_schema, obj)
 
-    def _get_select_from(self, schema, obj, ptrnames):
+    @classmethod
+    def _get_select_from(cls, schema, obj, ptrnames):
         if isinstance(obj, s_sources.Source):
             ptrs = dict(obj.get_pointers(schema).items(schema))
 
@@ -5073,7 +5083,8 @@ class UpdateInheritanceViews(MetaCommand):
             )
         ''')
 
-    def update_inhview(self, schema, obj):
+    @classmethod
+    def get_inhview(cls, schema, obj):
         inhview_name = common.get_backend_name(
             schema, obj, catenate=False, aspect='inhview')
 
@@ -5099,32 +5110,35 @@ class UpdateInheritanceViews(MetaCommand):
             ptrs['source'] = 'source'
             ptrs['target'] = 'target'
 
-        components = [self._get_select_from(schema, obj, ptrs)]
+        components = [cls._get_select_from(schema, obj, ptrs)]
 
         components.extend(
-            self._get_select_from(schema, descendant, ptrs)
+            cls._get_select_from(schema, descendant, ptrs)
             for descendant in obj.descendants(schema)
             if has_table(descendant, schema)
         )
 
         query = '\nUNION ALL\n'.join(components)
 
-        view = dbops.View(
+        return dbops.View(
             name=inhview_name,
             query=query,
         )
 
+    def update_inhview(self, schema, obj):
+        inhview = self.get_inhview(schema, obj)
+
         self.pgops.add(
             dbops.DropView(
-                inhview_name,
+                inhview.name,
                 priority=1,
-                conditions=[dbops.ViewExists(inhview_name)],
+                conditions=[dbops.ViewExists(inhview.name)],
             ),
         )
 
         self.pgops.add(
             dbops.CreateView(
-                view=view,
+                view=inhview,
                 priority=1,
             ),
         )

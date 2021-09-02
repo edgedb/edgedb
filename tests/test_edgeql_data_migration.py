@@ -2245,9 +2245,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             },
         })
 
-    @test.xfail('''
-       ISE: relation "<blah>" does not exist
-    ''')
     async def test_edgeql_migration_function_01(self):
         await self.migrate('''
             type Note {
