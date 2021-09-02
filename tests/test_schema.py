@@ -1642,9 +1642,6 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 );
             ''')
 
-    @test.xfail('''
-        The cycle is detected, but stragely doesn't mention Foo.
-    ''')
     def test_schema_recursive_05(self):
         schema = self.load_schema(r'''
             type Foo {

@@ -293,15 +293,30 @@ def sort_by_cross_refs(
     It is assumed that the graph has no cycles.
     """
     graph = {}
+
+    # We want to report longer cycles before trivial self references,
+    # since cycles with (for example) computed properties will *also*
+    # lead to self references (because the computed property gets
+    # inlined, essentially).
+    self_ref = None
     for x in objs:
+        referrers = schema.get_referrers(x)
+        if x in referrers:
+            self_ref = x
         graph[x] = topological.DepGraphEntry(
             item=x,
-            deps={ref for ref in schema.get_referrers(x)
-                  if not x.is_parent_ref(schema, ref)},
+            deps={ref for ref in referrers
+                  if not x.is_parent_ref(schema, ref) and x != ref},
             extra=False,
         )
 
-    return topological.sort(graph, allow_unresolved=True)  # type: ignore
+    res = topological.sort(graph, allow_unresolved=True)  # type: ignore
+
+    if self_ref:
+        raise topological.CycleError(
+            f"{self_ref!r} refers to itself", item=self_ref)
+
+    return res
 
 
 CommandMeta_T = TypeVar("CommandMeta_T", bound="CommandMeta")
@@ -1782,17 +1797,17 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 sorted_ref_objs = sort_by_cross_refs(schema, expr_refs.keys())
             except topological.CycleError as e:
                 assert e.item is not None
-                assert e.path is not None
 
                 item_vn = e.item.get_verbosename(schema, with_parent=True)
 
-                if len(e.path):
+                if e.path:
                     # Recursion involving more than one schema object.
                     rec_vn = e.path[-1].get_verbosename(
                         schema, with_parent=True)
+                    # Sort for output determinism
+                    vn1, vn2 = sorted([rec_vn, item_vn])
                     msg = (
-                        f'definition dependency cycle between {rec_vn} '
-                        f'and {item_vn}'
+                        f'definition dependency cycle between {vn1} and {vn2}'
                     )
                 else:
                     # A single schema object with a recursive definition.
