@@ -27,6 +27,7 @@ from edb import errors
 from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
+from edb.ir import typeutils as irtyputils
 
 from .. import context
 
@@ -209,7 +210,10 @@ def __infer_param(
     ir: irast.Parameter,
     env: context.Environment,
 ) -> InferredVolatility:
-    return IMMUTABLE
+    if irtyputils.contains_object(ir.typeref):
+        return STABLE
+    else:
+        return IMMUTABLE
 
 
 @_infer_volatility_inner.register

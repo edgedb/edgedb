@@ -61,6 +61,16 @@ def is_object(typeref: irast.TypeRef) -> bool:
     )
 
 
+def contains_object(typeref: irast.TypeRef) -> bool:
+    return (
+        is_object(typeref)
+        or (
+            is_collection(typeref)
+            and any(contains_object(st) for st in typeref.subtypes)
+        )
+    )
+
+
 def is_view(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes a view."""
     return typeref.is_view
