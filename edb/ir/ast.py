@@ -166,6 +166,19 @@ class TypeRef(ImmutableBase):
     def __repr__(self) -> str:
         return f'<ir.TypeRef \'{self.name_hint}\' at 0x{id(self):x}>'
 
+    @property
+    def real_material_type(self) -> TypeRef:
+        return self.material_type or self
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
+            return False
+
+        return self.id == other.id
+
+    def __hash__(self) -> int:
+        return hash(self.id)
+
 
 class AnyTypeRef(TypeRef):
     pass
@@ -834,6 +847,9 @@ class MutatingStmt(Stmt):
     # the subject later, but making it Optional would cause lots of errors,
     # so we stick a bogus Empty set in.
     subject: Set = EmptySet()  # type: ignore
+    # Conflict checks that we should manually raise constraint violations
+    # for.
+    conflict_checks: typing.Optional[typing.List[OnConflictClause]] = None
 
 
 class OnConflictClause(Base):
@@ -841,14 +857,12 @@ class OnConflictClause(Base):
     select_ir: Set
     always_check: bool
     else_ir: typing.Optional[Set]
+    update_query_set: typing.Optional[Set] = None
     else_fail: typing.Optional[MutatingStmt] = None
 
 
 class InsertStmt(MutatingStmt):
     on_conflict: typing.Optional[OnConflictClause] = None
-    # Conflict checks that we should manually raise constraint violations
-    # for.
-    conflict_checks: typing.Optional[typing.List[OnConflictClause]] = None
 
 
 class UpdateStmt(MutatingStmt, FilteredStmt):

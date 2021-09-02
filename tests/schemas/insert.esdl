@@ -81,6 +81,7 @@ type Person2a extending Person2 {
     single link bff -> Person;
     constraint exclusive on ((.first, .bff));
 }
+type DerivedPerson2a extending Person2a;
 
 type Person2b extending Person2 {
     optional single property last -> std::str;
@@ -90,6 +91,7 @@ type Person2b extending Person2 {
         constraint exclusive;
     }
 }
+type DerivedPerson2b extending Person2b;
 
 type PersonWrapper {
     required single link person -> Person;
