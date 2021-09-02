@@ -331,6 +331,10 @@ def get_constraint_backend_name(
     return convert_name(name, aspect, catenate)
 
 
+def get_constraint_raw_name(id):
+    return f'{id};schemaconstr'
+
+
 def get_index_backend_name(id, module_name, catenate=True, *, aspect=None):
     if aspect is None:
         aspect = 'index'

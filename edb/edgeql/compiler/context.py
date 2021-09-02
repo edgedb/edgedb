@@ -212,6 +212,11 @@ class Environment:
     functions) that appear in a function body.
     """
 
+    dml_stmts: Set[irast.MutatingStmt]
+    """A list of DML expressions (statements and DML-containing
+    functions) that appear in a function body.
+    """
+
     #: A list of bindings that should be assumed to be singletons.
     singletons: List[irast.PathId]
 
@@ -260,6 +265,7 @@ class Environment:
         self.ptr_ref_cache = PointerRefCache()
         self.type_ref_cache = {}
         self.dml_exprs = []
+        self.dml_stmts = set()
         self.pointer_derivation_map = collections.defaultdict(list)
         self.pointer_specified_info = {}
         self.singletons = []

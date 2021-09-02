@@ -47,6 +47,7 @@ from edb.ir import utils as irutils
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
+from edb.pgsql import common
 
 from . import astutils
 from . import clauses
@@ -600,15 +601,17 @@ def process_insert_body(
             insert_stmt,
             ir_stmt,
             ir_stmt.on_conflict,
+            ctx.enclosing_cte_iterator,
             dml_parts.else_cte,
+            dml_parts,
             ctx=ctx,
         )
 
-    # Compile the shape
-    external_inserts = []
-
     iterator = ctx.enclosing_cte_iterator
     inner_iterator = on_conflict_fake_iterator or iterator
+
+    # Compile the shape
+    external_inserts = []
 
     with ctx.newrel() as subctx:
         subctx.enclosing_cte_iterator = inner_iterator
@@ -712,9 +715,21 @@ def process_insert_body(
         if check_cte is not None:
             dml_parts.check_ctes.append(check_cte)
 
+    for extra_conflict in (ir_stmt.conflict_checks or ()):
+        compile_insert_else_body(
+            insert_stmt,
+            ir_stmt,
+            extra_conflict,
+            inner_iterator,
+            None,
+            dml_parts,
+            ctx=ctx,
+        )
+
 
 def insert_needs_conflict_cte(
     ir_stmt: irast.InsertStmt,
+    on_conflict: irast.OnConflictClause,
     *,
     ctx: context.CompilerContextLevel,
 ) -> bool:
@@ -725,10 +740,13 @@ def insert_needs_conflict_cte(
     # seen already.
     # A more fine-grained scheme would check if there are enclosing
     # iterators or INSERT/UPDATEs to types that could conflict.
+    if on_conflict.else_fail:
+        return False
+
     if ctx.dml_stmts:
         return True
 
-    if ir_stmt.on_conflict and ir_stmt.on_conflict.always_check:
+    if on_conflict.always_check or ir_stmt.conflict_checks:
         return True
 
     for shape_el, _ in ir_stmt.subject.shape:
@@ -752,10 +770,16 @@ def compile_insert_else_body(
         insert_stmt: pgast.InsertStmt,
         ir_stmt: irast.InsertStmt,
         on_conflict: irast.OnConflictClause,
+        enclosing_cte_iterator: Optional[pgast.IteratorCTE],
         else_cte_rvar: Optional[
             Tuple[pgast.CommonTableExpr, pgast.PathRangeVar]],
+        dml_parts: DMLParts,
         *,
         ctx: context.CompilerContextLevel) -> Optional[pgast.IteratorCTE]:
+
+    else_select = on_conflict.select_ir
+    else_branch = on_conflict.else_ir
+    else_fail = on_conflict.else_fail
 
     # We need to generate a "conflict CTE" that filters out
     # objects-to-insert that would conflict with existing objects in
@@ -776,22 +800,21 @@ def compile_insert_else_body(
     #
     # When neither case obtains, we use ON CONFLICT because it ought
     # to be more performant.
-    needs_conflict_cte = insert_needs_conflict_cte(ir_stmt, ctx=ctx)
-    if not needs_conflict_cte:
+    needs_conflict_cte = insert_needs_conflict_cte(
+        ir_stmt, on_conflict, ctx=ctx)
+    if not needs_conflict_cte and not else_fail:
         infer = None
         if on_conflict.constraint:
-            constraint_name = f'"{on_conflict.constraint.id};schemaconstr"'
-            infer = pgast.InferClause(conname=constraint_name)
+            constraint_name = common.get_constraint_raw_name(
+                on_conflict.constraint.id)
+            infer = pgast.InferClause(conname=f'"{constraint_name}"')
 
         insert_stmt.on_conflict = pgast.OnConflictClause(
             action='nothing',
             infer=infer,
         )
 
-    else_select = on_conflict.select_ir
-    else_branch = on_conflict.else_ir
-
-    if not else_branch and not needs_conflict_cte:
+    if not else_branch and not needs_conflict_cte and not else_fail:
         return None
 
     subject_id = ir_stmt.subject.path_id
@@ -801,8 +824,10 @@ def compile_insert_else_body(
     with ctx.newrel() as ictx:
         ictx.path_scope[subject_id] = ictx.rel
 
-        merge_iterator(ctx.enclosing_cte_iterator, ictx.rel, ctx=ictx)
-        clauses.setup_iterator_volatility(ctx.enclosing_cte_iterator,
+        compile_insert_else_body_failure_check(on_conflict, ctx=ictx)
+
+        merge_iterator(enclosing_cte_iterator, ictx.rel, ctx=ictx)
+        clauses.setup_iterator_volatility(enclosing_cte_iterator,
                                           is_cte=True, ctx=ictx)
 
         dispatch.compile(else_select, ctx=ictx)
@@ -815,6 +840,9 @@ def compile_insert_else_body(
             query=ictx.rel,
             name=ctx.env.aliases.get('else')
         )
+        if else_fail:
+            dml_parts.check_ctes.append(else_select_cte)
+
         ictx.toplevel_stmt.append_cte(else_select_cte)
 
     else_select_rvar = relctx.rvar_for_rel(else_select_cte, ctx=ctx)
@@ -829,7 +857,7 @@ def compile_insert_else_body(
 
             ictx.enclosing_cte_iterator = pgast.IteratorCTE(
                 path_id=else_select.path_id, cte=else_select_cte,
-                parent=ictx.enclosing_cte_iterator)
+                parent=enclosing_cte_iterator)
             ictx.volatility_ref = ()
             dispatch.compile(else_branch, ctx=ictx)
             pathctx.put_path_id_map(ictx.rel, subject_id, else_branch.path_id)
@@ -847,8 +875,8 @@ def compile_insert_else_body(
         # Compile a CTE that matches rows that didn't appear in the
         # ELSE query of conflicting rows.
         with ctx.newrel() as ictx:
-            merge_iterator(ctx.enclosing_cte_iterator, ictx.rel, ctx=ictx)
-            clauses.setup_iterator_volatility(ctx.enclosing_cte_iterator,
+            merge_iterator(enclosing_cte_iterator, ictx.rel, ctx=ictx)
+            clauses.setup_iterator_volatility(enclosing_cte_iterator,
                                               is_cte=True, ctx=ictx)
 
             # Set up a dummy path to represent all of the rows
@@ -874,8 +902,8 @@ def compile_insert_else_body(
 
             # Do the anti-join
             iter_path_id = (
-                ictx.enclosing_cte_iterator.path_id if
-                ictx.enclosing_cte_iterator else None)
+                enclosing_cte_iterator.path_id if
+                enclosing_cte_iterator else None)
             relctx.anti_join(ictx.rel, subrel, iter_path_id, ctx=ctx)
 
             # Package it up as a CTE
@@ -889,6 +917,55 @@ def compile_insert_else_body(
                 parent=ictx.enclosing_cte_iterator)
 
     return anti_cte_iterator
+
+
+def compile_insert_else_body_failure_check(
+        on_conflict: irast.OnConflictClause,
+        *,
+        ctx: context.CompilerContextLevel) -> None:
+    else_fail = on_conflict.else_fail
+    if not else_fail:
+        return
+
+    # Copy the type rels from the possibly conflicting earlier DML
+    # into the None overlays so it gets picked up.
+    # TODO: Try to *only* get the overlay, not the base type.
+    ctx.type_rel_overlays = ctx.type_rel_overlays.copy()
+    ctx.type_rel_overlays[None] = ctx.type_rel_overlays[None].copy()
+    ctx.type_rel_overlays[None].update(
+        ctx.type_rel_overlays[else_fail])
+    ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
+    ctx.ptr_rel_overlays[None] = ctx.ptr_rel_overlays[None].copy()
+    ctx.ptr_rel_overlays[None].update(
+        ctx.ptr_rel_overlays[else_fail])
+
+    assert on_conflict.constraint
+    cid = common.get_constraint_raw_name(on_conflict.constraint.id)
+    maybe_raise = pgast.FuncCall(
+        name=('edgedb', 'raise'),
+        args=[
+            pgast.TypeCast(
+                arg=pgast.NullConstant(),
+                type_name=pgast.TypeName(name=('text',))),
+            pgast.StringConstant(val='exclusion_violation'),
+            pgast.NamedFuncArg(
+                name='msg',
+                val=pgast.StringConstant(
+                    val=(
+                        f'duplicate key value violates unique '
+                        f'constraint "{cid}"'
+                    )
+                ),
+            ),
+            pgast.NamedFuncArg(
+                name='constraint',
+                val=pgast.StringConstant(val=f"{cid}")
+            ),
+        ],
+    )
+    ctx.rel.target_list.append(
+        pgast.ResTarget(name='error', val=maybe_raise)
+    )
 
 
 def compile_insert_shape_element(

@@ -60,8 +60,7 @@ class ConstraintCommon:
         return self._schema_constr_name
 
     def raw_constraint_name(self):
-        name = '{};{}'.format(self._constr_id, 'schemaconstr')
-        return name
+        return common.get_constraint_raw_name(self._constr_id)
 
     def generate_extra(self, block):
         text = self.raw_constraint_name()

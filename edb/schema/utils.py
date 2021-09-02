@@ -614,10 +614,10 @@ def is_nontrivial_container(value: Any) -> Optional[Iterable[Any]]:
         return None
 
 
-def get_class_nearest_common_ancestor(
+def get_class_nearest_common_ancestors(
     schema: s_schema.Schema,
     classes: Iterable[so.InheritingObjectT]
-) -> Optional[so.InheritingObjectT]:
+) -> List[so.InheritingObjectT]:
     # First, find the intersection of parents
     classes = list(classes)
     first = [classes[0]]
@@ -626,6 +626,22 @@ def get_class_nearest_common_ancestor(
         *[set(c.get_ancestors(schema).objects(schema)) | {c}
           for c in classes[1:]])
     common_list = sorted(common, key=lambda i: first.index(i))
+    nearests: List[so.InheritingObjectT] = []
+    # Then find the common ancestors that don't have any subclasses that
+    # are also nearest common ancestors.
+    for anc in common_list:
+        if not any(x.issubclass(schema, anc) for x in nearests):
+            nearests.append(anc)
+
+    return nearests
+
+
+def get_class_nearest_common_ancestor(
+    schema: s_schema.Schema,
+    classes: Iterable[so.InheritingObjectT]
+) -> Optional[so.InheritingObjectT]:
+    common_list = get_class_nearest_common_ancestors(schema, classes)
+    # FIXME: This is arbitrary and probably not meaningful
     if common_list:
         return common_list[0]
     else:
