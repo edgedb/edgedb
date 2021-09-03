@@ -2047,7 +2047,13 @@ cdef class EdgeConnection:
         out_buf.write_int32(0x00010001)
 
         # number of elements in the tuple
-        recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
+        # for empty tuple it's okay to send zero-length arguments
+        # TODO(tailhook) force zero-length arguments for protocol 0.12 after
+        # upgrading the bindings
+        if frb_get_len(&in_buf) == 0:
+            recv_args = 0
+        else:
+            recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
         decl_args = len(query.query_unit.in_type_args or ())
 
         if recv_args != decl_args:
