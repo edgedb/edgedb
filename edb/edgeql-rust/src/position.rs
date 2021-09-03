@@ -7,7 +7,7 @@ use edgeql_parser::position::InflatedPos;
 
 py_class!(pub class SourcePoint |py| {
     data _position: InflatedPos;
-    @classmethod def from_offsets(cls, data: PyBytes, offsets: PyObject)
+    @classmethod def from_offsets(_cls, data: PyBytes, offsets: PyObject)
         -> PyResult<PyList>
     {
         let mut list: Vec<usize> = offsets.extract(py)?;
