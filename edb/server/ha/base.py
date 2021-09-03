@@ -47,3 +47,5 @@ def get_backend(parsed_dsn: urllib.parse.ParseResult) -> Optional[HABackend]:
         from . import stolon
 
         return stolon.get_backend(sub_scheme, parsed_dsn)
+
+    return None

@@ -480,6 +480,8 @@ def parse_args(**kwargs: Any):
         if not kwargs['backend_dsn']:
             kwargs['backend_dsn'] = kwargs['postgres_dsn']
 
+    del kwargs['postgres_dsn']
+
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
             abort('--temp-dir is incompatible with --data-dir/-D')
