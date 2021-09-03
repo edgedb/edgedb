@@ -145,6 +145,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 a := (SELECT A6 LIMIT 1),
                 b := 'foo'
             };
+            INSERT Object6;
         """)
 
         await self.assert_query_result(
@@ -184,7 +185,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SELECT Object6 {
                 a: {name},
                 b,
-            }
+            } FILTER EXISTS .a
             """,
             [{
                 'a': {'name': 'a6'},
@@ -240,7 +241,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SELECT Object6 {
                 a: {name},
                 b,
-            }
+            } FILTER EXISTS .a
             """,
             [{
                 'a': [{'name': 'a6'}],
@@ -297,7 +298,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             SELECT Object6 {
                 a: {name},
                 b,
-            }
+            } FILTER EXISTS .a
             """,
             [{
                 'a': {'name': 'a6'},

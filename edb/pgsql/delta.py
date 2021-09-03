@@ -3113,23 +3113,6 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
 
             self.pgops.add(dbops.Query(update_qry))
 
-            check_qry = textwrap.dedent(f'''\
-                SELECT
-                    edgedb.raise(
-                        NULL::text,
-                        'not_null_violation',
-                        msg => 'missing value for required property',
-                        detail => '{{"object_id": "' || id || '"}}',
-                        "column" => {ql(str(ptr.id))}
-                    )
-                FROM {src_tab}
-                WHERE id != ALL (SELECT source FROM {tab})
-                LIMIT 1
-                INTO _dummy_text;
-            ''')
-
-            self.pgops.add(dbops.Query(check_qry))
-
             self.pgops.add(
                 self.drop_inhview(
                     orig_schema,
