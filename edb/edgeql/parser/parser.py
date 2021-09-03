@@ -20,15 +20,11 @@ from __future__ import annotations
 
 from edb import errors
 from edb.common import debug, parsing
+from edb.common.english import add_a as a
 
 from .grammar import rust_lexer, tokens
 from .grammar import expressions as gr_exprs
 from .grammar import commondl as gr_commondl
-
-
-def a(word):
-    article = 'an' if word[0] in 'aeiou' else 'a'
-    return f'{article} {word}'
 
 
 class EdgeQLParserBase(parsing.Parser):

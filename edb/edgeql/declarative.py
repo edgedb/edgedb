@@ -39,6 +39,7 @@ from edb import errors
 
 from edb.common import parsing
 from edb.common import topological
+from edb.common import english
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
@@ -50,8 +51,10 @@ from edb.schema import constraints as s_constr
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
+from edb.schema import objtypes as s_objtypes
 from edb.schema import properties as s_props
 from edb.schema import pseudo as s_pseudo
+from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
@@ -1200,6 +1203,39 @@ def _resolve_type_expr(
         )
 
 
+TRACER_TO_REAL_TYPE_MAP = {
+    qltracer.ObjectType: s_objtypes.ObjectType,
+    qltracer.ScalarType: s_scalars.ScalarType,
+    qltracer.Constraint: s_constr.Constraint,
+    qltracer.Annotation: s_anno.Annotation,
+    qltracer.Property: s_props.Property,
+    qltracer.Link: s_links.Link,
+}
+
+
+def _get_local_obj(
+    refname: s_name.QualName,
+    tracer_type: Type[qltracer.NamedObject],
+    sourcectx: Optional[parsing.ParserContext],
+    *,
+    ctx: LayoutTraceContext,
+) -> Optional[qltracer.NamedObject]:
+
+    obj = ctx.objects.get(refname)
+
+    if obj is not None and not isinstance(obj, tracer_type):
+        obj_type = TRACER_TO_REAL_TYPE_MAP[type(obj)]
+        real_type = TRACER_TO_REAL_TYPE_MAP[tracer_type]
+        raise errors.InvalidReferenceError(
+            f'{str(refname)!r} exists, but is '
+            f'{english.add_a(obj_type.get_schema_class_displayname())}, '
+            f'not {english.add_a(real_type.get_schema_class_displayname())}',
+            context=sourcectx,
+        )
+
+    return obj
+
+
 def _resolve_type_name(
     ref: qlast.BaseObjectRef,
     *,
@@ -1209,10 +1245,9 @@ def _resolve_type_name(
 ) -> qltracer.ObjectLike:
 
     refname = ctx.get_ref_name(ref)
-    local_obj = ctx.objects.get(refname)
+    local_obj = _get_local_obj(refname, tracer_type, ref.context, ctx=ctx)
     obj: qltracer.ObjectLike
     if local_obj is not None:
-        assert isinstance(local_obj, tracer_type)
         obj = local_obj
     else:
         obj = _resolve_schema_ref(
@@ -1235,26 +1270,23 @@ def _get_tracer_and_real_type(
 
     if isinstance(decl, qlast.CreateObjectType):
         tracer_type = qltracer.ObjectType
-        real_type = s_types.Type
     elif isinstance(decl, qlast.CreateScalarType):
         tracer_type = qltracer.ScalarType
-        real_type = s_types.Type
     elif isinstance(decl, (qlast.CreateConstraint,
                            qlast.CreateConcreteConstraint)):
         tracer_type = qltracer.Constraint
-        real_type = s_constr.Constraint
     elif isinstance(decl, (qlast.CreateAnnotation,
                            qlast.CreateAnnotationValue)):
         tracer_type = qltracer.Annotation
-        real_type = s_anno.Annotation
     elif isinstance(decl, (qlast.CreateProperty,
                            qlast.CreateConcreteProperty)):
         tracer_type = qltracer.Property
-        real_type = s_props.Property
     elif isinstance(decl, (qlast.CreateLink,
                            qlast.CreateConcreteLink)):
         tracer_type = qltracer.Link
-        real_type = s_links.Link
+
+    if tracer_type:
+        real_type = TRACER_TO_REAL_TYPE_MAP[tracer_type]
 
     return tracer_type, real_type
 
@@ -1270,11 +1302,9 @@ def _validate_schema_ref(
         # Bail out and rely on some other validation mechanism
         return
 
-    local_obj = ctx.objects.get(refname)
+    local_obj = _get_local_obj(refname, tracer_type, decl.context, ctx=ctx)
 
-    if local_obj is not None:
-        assert isinstance(local_obj, tracer_type)
-    else:
+    if local_obj is None:
         assert real_type is not None
         _resolve_schema_ref(
             refname,

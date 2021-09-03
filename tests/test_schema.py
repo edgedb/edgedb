@@ -606,6 +606,26 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "'test::X' exists, but is a scalar type, not an object type",
+        line=3, col=30)
+    def test_schema_wrong_type_01(self):
+        """
+            scalar type X extending enum<TEST>;
+            type Y extending X {}
+        """
+
+    @tb.must_fail(
+        errors.InvalidReferenceError,
+        "'test::X' exists, but is an object type, not a constraint",
+        line=3, col=22)
+    def test_schema_wrong_type_02(self):
+        """
+            type X;
+            type Y { constraint X; }
+        """
+
     def test_schema_refs_01(self):
         schema = self.load_schema("""
             type Object1;

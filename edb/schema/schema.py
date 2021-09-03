@@ -29,6 +29,7 @@ import itertools
 import immutables as immu
 
 from edb import errors
+from edb.common import english
 
 from . import casts as s_casts
 from . import functions as s_func
@@ -1248,7 +1249,7 @@ class FlatSchema(Schema):
             if type is not None and not isinstance(obj, type):
                 raise errors.InvalidReferenceError(
                     f'schema object {obj_id!r} exists, but is a '
-                    f'{obj.__class__.get_schema_class_displayname()!r} '
+                    f'{obj.__class__.get_schema_class_displayname()!r}, '
                     f'not a {type.get_schema_class_displayname()!r}'
                 )
 
@@ -1287,7 +1288,7 @@ class FlatSchema(Schema):
             if obj_id is None:
                 return None
 
-            obj = schema.get_by_id(obj_id, type=type, default=None)
+            obj = schema.get_by_id(obj_id, default=None)
             if obj is not None and condition is not None:
                 if not condition(obj):
                     obj = None
@@ -1301,6 +1302,18 @@ class FlatSchema(Schema):
         )
 
         if obj is not so.NoDefault:
+            # We do our own type check, instead of using get_by_id's, so
+            # we can produce a user-facing error message.
+            if obj and type is not None and not isinstance(obj, type):
+                refname = str(name)
+                got_name = obj.__class__.get_schema_class_displayname()
+                exp_name = type.get_schema_class_displayname()
+                raise errors.InvalidReferenceError(
+                    f'{refname!r} exists, but is {english.add_a(got_name)}, '
+                    f'not {english.add_a(exp_name)}',
+                    context=sourcectx,
+                )
+
             return obj  # type: ignore
         else:
             self._raise_bad_reference(
