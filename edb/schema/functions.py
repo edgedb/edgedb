@@ -551,6 +551,10 @@ class ParameterLikeList(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def has_objects(self, schema: s_schema.Schema) -> bool:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def find_named_only(
         self,
         schema: s_schema.Schema,
@@ -610,6 +614,10 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
 
     def has_set_of(self, schema: s_schema.Schema) -> bool:
         return any(p.get_typemod(schema) is ft.TypeModifier.SetOfType
+                   for p in self.objects(schema))
+
+    def has_objects(self, schema: s_schema.Schema) -> bool:
+        return any(p.get_type(schema).is_object_type()
                    for p in self.objects(schema))
 
     def find_named_only(
@@ -1301,8 +1309,12 @@ class FunctionCommand(
                 ),
             )
         elif field.name == 'nativecode':
-            return self.compile_function(
-                schema, context, value, track_schema_ref_exprs)
+            return self.compile_this_function(
+                schema,
+                context,
+                value,
+                track_schema_ref_exprs,
+            )
         else:
             return super().compile_expr_field(
                 schema, context, field, value, track_schema_ref_exprs)
@@ -1371,7 +1383,7 @@ class FunctionCommand(
             'nativecode', schema=schema, context=context)
         return schema
 
-    def compile_function(
+    def compile_this_function(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
@@ -1381,32 +1393,24 @@ class FunctionCommand(
         from edb.ir import ast as irast
 
         params = self._get_params(schema, context)
-
         language = self._get_attribute_value(schema, context, 'language')
-        assert language is qlast.Language.EdgeQL
+        return_type = self._get_attribute_value(schema, context, 'return_type')
+        return_typemod = self._get_attribute_value(
+            schema, context, 'return_typemod')
 
-        has_inlined_defaults = bool(params.find_named_only(schema))
-
-        param_anchors = get_params_symtable(
-            params,
+        expr = compile_function(
             schema,
-            inlined_defaults=has_inlined_defaults,
+            context,
+            body=body,
+            params=params,
+            language=language,
+            return_type=return_type,
+            return_typemod=return_typemod,
+            track_schema_ref_exprs=track_schema_ref_exprs,
         )
 
-        compiled = type(body).compiled(
-            body,
-            schema,
-            options=qlcompiler.CompilerOptions(
-                anchors=param_anchors,
-                func_params=params,
-                apply_query_rewrites=not context.stdmode,
-                track_schema_ref_exprs=track_schema_ref_exprs,
-            ),
-        )
-
-        ir = compiled.irast
+        ir = expr.irast
         assert isinstance(ir, irast.Statement)
-        schema = ir.schema
 
         if ir.dml_exprs:
             if context.allow_dml_in_functions:
@@ -1445,31 +1449,7 @@ class FunctionCommand(
                     context=body.qlast.context,
                 )
 
-        return_type = self._get_attribute_value(schema, context, 'return_type')
-        if (not ir.stype.issubclass(schema, return_type)
-                and not ir.stype.implicitly_castable_to(return_type, schema)):
-            raise errors.InvalidFunctionDefinitionError(
-                f'return type mismatch in function declared to return '
-                f'{return_type.get_verbosename(schema)}',
-                details=f'Actual return type is '
-                        f'{ir.stype.get_verbosename(schema)}',
-                context=body.qlast.context,
-            )
-
-        return_typemod = self._get_attribute_value(
-            schema, context, 'return_typemod')
-        if (return_typemod is not ft.TypeModifier.SetOfType
-                and ir.cardinality.is_multi()):
-            raise errors.InvalidFunctionDefinitionError(
-                f'return cardinality mismatch in function declared to return '
-                f'a singleton',
-                details=(
-                    f'Function may return a set with more than one element.'
-                ),
-                context=body.qlast.context,
-            )
-
-        return compiled
+        return expr
 
     @classmethod
     def localnames_from_ast(
@@ -1540,6 +1520,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         from_function = self.scls.get_from_function(schema)
         has_polymorphic = params.has_polymorphic(schema)
         has_set_of = params.has_set_of(schema)
+        has_objects = params.has_objects(schema)
         polymorphic_return_type = return_type.is_polymorphic(schema)
         named_only = params.find_named_only(schema)
         fallback = self.scls.get_fallback(schema)
@@ -1630,6 +1611,49 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'"preserves_optionality" attribute: '
                     f'`{func.get_signature_as_str(schema)}`',
                     context=self.source_context)
+
+            if has_objects and func_params.has_objects(schema):
+                new_params = params.objects(schema)
+                ext_params = func_params.objects(schema)
+                new_pt = (p.get_type(schema) for p in new_params)
+                ext_pt = (p.get_type(schema) for p in ext_params)
+
+                if sum(
+                    new_t != ext_t
+                    for new_t, ext_t in zip(new_pt, ext_pt)
+                ) > 1:
+                    # Multiple dispatch of object-taking functions is not
+                    # supported.
+                    raise errors.UnsupportedFeatureError(
+                        f'cannot create the `{signature}` function: '
+                        f'overloading an object type-receiving function '
+                        f'with differences in the remaining parameters is '
+                        f'not supported',
+                        context=self.source_context,
+                        details=(
+                            f"Other function is defined as "
+                            f"`{func.get_signature_as_str(schema)}`"
+                        )
+                    )
+
+                if not all(
+                    new_p.get_parameter_name(schema)
+                    == ext_p.get_parameter_name(schema)
+                    for new_p, ext_p in zip(new_params, ext_params)
+                ):
+                    # And also _all_ parameter names must match due to
+                    # current implementation constraints.
+                    raise errors.UnsupportedFeatureError(
+                        f'cannot create the `{signature}` function: '
+                        f'overloading an object type-receiving function '
+                        f'with differences in the names of parameters is '
+                        f'not supported',
+                        context=self.source_context,
+                        details=(
+                            f"Other function is defined as "
+                            f"`{func.get_signature_as_str(schema)}`"
+                        )
+                    )
 
         if has_from_function:
             # Ignore the generic fallback when considering
@@ -2063,3 +2087,65 @@ def get_params_symtable(
         )
 
     return anchors
+
+
+def compile_function(
+    schema: s_schema.Schema,
+    context: sd.CommandContext,
+    *,
+    body: s_expr.Expression,
+    params: FuncParameterList,
+    language: qlast.Language,
+    return_type: s_types.Type,
+    return_typemod: ft.TypeModifier,
+    track_schema_ref_exprs: bool=False,
+) -> s_expr.Expression:
+    from edb.ir import ast as irast
+
+    assert language is qlast.Language.EdgeQL
+
+    has_inlined_defaults = bool(params.find_named_only(schema))
+
+    param_anchors = get_params_symtable(
+        params,
+        schema,
+        inlined_defaults=has_inlined_defaults,
+    )
+
+    compiled = type(body).compiled(
+        body,
+        schema,
+        options=qlcompiler.CompilerOptions(
+            anchors=param_anchors,
+            func_params=params,
+            apply_query_rewrites=not context.stdmode,
+            track_schema_ref_exprs=track_schema_ref_exprs,
+        ),
+    )
+
+    ir = compiled.irast
+    assert isinstance(ir, irast.Statement)
+    schema = ir.schema
+
+    if (not ir.stype.issubclass(schema, return_type)
+            and not ir.stype.implicitly_castable_to(return_type, schema)):
+        raise errors.InvalidFunctionDefinitionError(
+            f'return type mismatch in function declared to return '
+            f'{return_type.get_verbosename(schema)}',
+            details=f'Actual return type is '
+                    f'{ir.stype.get_verbosename(schema)}',
+            context=body.qlast.context,
+        )
+
+    if (return_typemod is not ft.TypeModifier.SetOfType
+            and ir.cardinality.is_multi()):
+        raise errors.InvalidFunctionDefinitionError(
+            f'return cardinality mismatch in function declared to return '
+            f'a singleton',
+            details=(
+                f'Function may return a set with more than one element.'
+            ),
+            context=body.qlast.context,
+        )
+
+    return compiled

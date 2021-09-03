@@ -3983,6 +3983,167 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER FUNCTION foo() USING (1);
             ''')
 
+    async def test_edgeql_ddl_function_32(self):
+        await self.con.execute(r'''
+            CREATE TYPE Foo;
+            CREATE TYPE Bar;
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot create the .* function: overloading an object "
+            r"type-receiving function with differences in the remaining "
+            r"parameters is not supported",
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION func32_a(obj: Foo, a: int32) -> str
+                    USING ('foo');
+                CREATE FUNCTION func32_a(obj: Bar, a: int64) -> str
+                    USING ('bar');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot create the .* function: overloading an object "
+            r"type-receiving function with differences in the names "
+            r"of parameters is not supported",
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION func32_a(obj: Foo, a: int32) -> str
+                    USING ('foo');
+                CREATE FUNCTION func32_a(obj: Bar, b: int32) -> str
+                    USING ('bar');
+            """)
+
+    async def test_edgeql_ddl_function_33(self):
+        await self.con.execute(r"""
+            CREATE TYPE Parent;
+            CREATE TYPE Foo EXTENDING Parent;
+            CREATE TYPE Bar EXTENDING Parent;
+            INSERT Foo;
+            INSERT Bar;
+            CREATE FUNCTION func33(obj: Parent) -> str USING ('parent');
+            CREATE FUNCTION func33(obj: Foo) -> str USING ('foo');
+            CREATE FUNCTION func33(obj: Bar) -> str USING ('bar');
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT {
+                    foo := assert_single(func33(Foo)),
+                    bar := assert_single(func33(Bar)),
+                }
+            """,
+            [{
+                "foo": "foo",
+                "bar": "bar",
+            }],
+        )
+
+        await self.con.execute(r'''
+            CREATE TYPE Baz EXTENDING Parent;
+            INSERT Baz;
+        ''')
+
+        # Baz haven't got a specific overload, so it defaults to
+        # Parent's implementation.
+        await self.assert_query_result(
+            r"""
+                SELECT {
+                    baz := assert_single(func33(Baz)),
+                }
+            """,
+            [{
+                "baz": "parent",
+            }],
+        )
+
+        await self.con.execute(r"""
+            CREATE FUNCTION func33(obj: Baz) -> str USING ('baz');
+        """)
+
+        # There is a specific impl now.
+        await self.assert_query_result(
+            r"""
+                SELECT {
+                    baz := assert_single(func33(Baz)),
+                }
+            """,
+            [{
+                "baz": "baz",
+            }],
+        )
+
+        await self.con.execute(r"""
+            DROP FUNCTION func33(obj: Baz);
+        """)
+
+        # Now there isn't.
+        await self.assert_query_result(
+            r"""
+                SELECT {
+                    foo := assert_single(func33(Foo)),
+                    bar := assert_single(func33(Bar)),
+                    baz := assert_single(func33(Baz)),
+                }
+            """,
+            [{
+                "foo": "foo",
+                "bar": "bar",
+                "baz": "parent",
+            }],
+        )
+
+        await self.con.execute(r'''
+            CREATE TYPE PriorityParent;
+            ALTER TYPE Baz EXTENDING PriorityParent FIRST;
+            CREATE FUNCTION func33(obj: PriorityParent) -> str
+                USING ('priority parent');
+        ''')
+
+        # Now there is a new parent earlier in ancestor resolution order.
+        await self.assert_query_result(
+            r"""
+                SELECT {
+                    foo := assert_single(func33(Foo)),
+                    bar := assert_single(func33(Bar)),
+                    baz := assert_single(func33(Baz)),
+                }
+            """,
+            [{
+                "foo": "foo",
+                "bar": "bar",
+                "baz": "priority parent",
+            }],
+        )
+
+        # Test that named-only stuff works just as well.
+        await self.con.execute(
+            r"""
+                CREATE FUNCTION func33_no(NAMED ONLY obj: Parent) -> str
+                    USING ('parent');
+                CREATE FUNCTION func33_no(NAMED ONLY obj: Foo) -> str
+                    USING ('foo');
+                CREATE FUNCTION func33_no(NAMED ONLY obj: Bar) -> str
+                    USING ('bar');
+            """,
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT {
+                    foo := assert_single(func33_no(obj := Foo)),
+                    bar := assert_single(func33_no(obj := Bar)),
+                    baz := assert_single(func33_no(obj := Baz)),
+                }
+            """,
+            [{
+                "foo": "foo",
+                "bar": "bar",
+                "baz": "parent",
+            }],
+        )
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {

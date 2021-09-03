@@ -1417,3 +1417,131 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
             r'''SELECT call42(1, 2).0;''',
             [1, 2],
         )
+
+    async def test_edgeql_calls_obj_01(self):
+        await self.con.execute("""
+            CREATE TYPE Shape;
+            CREATE TYPE FlatShape;
+            CREATE TYPE Rectangle EXTENDING FlatShape {
+                CREATE PROPERTY w -> float64;
+                CREATE PROPERTY h -> float64;
+            };
+
+            CREATE TYPE Circle EXTENDING FlatShape {
+                CREATE PROPERTY r -> float64;
+            };
+
+            # Use -1 as the error indicator, as we don't have the means
+            # to raise errors directly yet.
+            CREATE FUNCTION area(s: FlatShape) -> float64 USING (-1);
+            CREATE FUNCTION area(s: Rectangle) -> float64 USING (s.w * s.h);
+            CREATE FUNCTION area(s: Circle) -> float64 USING (s.r ^ 2 * 3.14);
+
+            INSERT Rectangle { w := 10, h := 20 };
+            INSERT Circle { r := 10 };
+        """)
+
+        # Check for "manual" abstract function dispatch, where the top
+        # function is defined to explicitly return an error condition.
+        await self.assert_query_result(
+            r"""
+                SELECT FlatShape {
+                    tn := .__type__.name,
+                    area := area(FlatShape),
+                }
+                ORDER BY .tn
+            """,
+            [{
+                "tn": "default::Circle",
+                "area": 314.0,
+            }, {
+                "tn": "default::Rectangle",
+                "area": 200.0,
+            }]
+        )
+
+        # Non-polymorphic calls should work also.
+        await self.assert_query_result(
+            r"""
+                SELECT area(Circle);
+            """,
+            [314.0],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT area(Rectangle);
+            """,
+            [200.0],
+        )
+
+        # The top parent does _not_ have a definition of area, so
+        # calling it on it is still an error (even if there are definitions
+        # for all subtypes).
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'function "area\(.*: default::Shape\)" does not exist',
+        ):
+            await self.con.execute("SELECT area(Shape)")
+
+    async def test_edgeql_calls_obj_02(self):
+        # Similar to test_edgeql_calls_obj_01, but
+        # the functions are set-returning.
+        await self.con.execute("""
+            CREATE TYPE Shape;
+            CREATE TYPE FlatShape;
+            CREATE TYPE Rectangle EXTENDING FlatShape {
+                CREATE PROPERTY w -> float64;
+                CREATE PROPERTY h -> float64;
+            };
+
+            CREATE TYPE Circle EXTENDING FlatShape {
+                CREATE PROPERTY r -> float64;
+            };
+
+            # Use -1 as the error indicator, as we don't have the means
+            # to raise errors directly yet.
+            CREATE FUNCTION dimensions(s: FlatShape) -> SET OF float64
+                USING (-1);
+            CREATE FUNCTION dimensions(s: Rectangle) -> SET OF float64
+                USING ({s.w, s.h});
+            CREATE FUNCTION dimensions(s: Circle) -> SET OF float64
+                USING (s.r);
+
+            INSERT Rectangle { w := 10, h := 20 };
+            INSERT Circle { r := 5 };
+        """)
+
+        # Check for "manual" abstract function dispatch, where the top
+        # function is defined to explicitly return an error condition.
+        await self.assert_query_result(
+            r"""
+                SELECT FlatShape {
+                    tn := .__type__.name,
+                    dimensions := dimensions(FlatShape),
+                }
+                ORDER BY .tn
+            """,
+            [{
+                "tn": "default::Circle",
+                "dimensions": [5],
+            }, {
+                "tn": "default::Rectangle",
+                "dimensions": [10, 20],
+            }]
+        )
+
+        # Non-polymorphic calls should work also.
+        await self.assert_query_result(
+            r"""
+                SELECT dimensions(Circle);
+            """,
+            [5],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT dimensions(Rectangle);
+            """,
+            [10, 20],
+        )

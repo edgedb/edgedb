@@ -737,6 +737,7 @@ def finalize_args(
     for i, barg in enumerate(bound_call.args):
         param = barg.param
         arg = barg.val
+        arg_type_path_id: Optional[irast.PathId] = None
         if param is None:
             # defaults bitmask
             args.append(irast.CallArg(expr=arg))
@@ -778,6 +779,15 @@ def finalize_args(
 
             elif arg_scope is not None:
                 arg_scope.collapse()
+
+            arg_type = setgen.get_set_type(arg, ctx=ctx)
+            if isinstance(arg_type, s_objtypes.ObjectType):
+                arg_type_path_id = pathctx.extend_path_id(
+                    arg.path_id,
+                    ptrcls=arg_type.getptr(
+                        ctx.env.schema, sn.UnqualName('__type__')),
+                    ctx=ctx,
+                )
         else:
             process_path_log(arg_ctx, arg_scope)
             is_array_agg = (
@@ -827,7 +837,8 @@ def finalize_args(
             arg = casts.compile_cast(
                 arg, paramtype, srcctx=None, ctx=ctx)
 
-        args.append(irast.CallArg(expr=arg))
+        args.append(
+            irast.CallArg(expr=arg, expr_type_path_id=arg_type_path_id))
 
         # If we have any logged paths left over and our enclosing
         # context is logging paths, propagate them up.

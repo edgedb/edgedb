@@ -832,7 +832,11 @@ class FunctionCommand:
             if compile_defaults and param_default is not None:
                 default = self.compile_default(func, param_default, schema)
 
-            args.append((param.get_parameter_name(schema), pg_at, default))
+            pn = param.get_parameter_name(schema)
+            args.append((pn, pg_at, default))
+
+            if param_type.is_object_type():
+                args.append((f'__{pn}__type', ('uuid',), None))
 
         return args
 
@@ -852,10 +856,27 @@ class FunctionCommand:
     def compile_sql_function(self, func: s_funcs.Function, schema):
         return self.make_function(func, func.get_code(schema), schema)
 
+    def _compile_edgeql_function(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        func: s_funcs.Function,
+        body: s_expr.Expression,
+    ) -> s_expr.Expression:
+        return s_funcs.compile_function(
+            schema,
+            context,
+            body=body,
+            params=func.get_params(schema),
+            language=ql_ast.Language.EdgeQL,
+            return_type=func.get_return_type(schema),
+            return_typemod=func.get_return_typemod(schema),
+        )
+
     def fix_return_type(
             self, func: s_funcs.Function, nativecode, schema, context):
 
-        return_type = self._get_attribute_value(schema, context, 'return_type')
+        return_type = func.get_return_type(schema)
         ir = nativecode.irast
 
         if not (
@@ -868,15 +889,29 @@ class FunctionCommand:
                 type=s_utils.typeref_to_ast(schema, return_type),
                 expr=nativecode.qlast,
             ))
-            nativecode = self.compile_function(
-                schema, context, type(nativecode).from_ast(qlexpr, schema))
+            nativecode = self._compile_edgeql_function(
+                schema,
+                context,
+                func,
+                type(nativecode).from_ast(qlexpr, schema),
+            )
 
         return nativecode
 
-    def compile_edgeql_function(self, func: s_funcs.Function, schema, context):
+    def compile_edgeql_function_body(
+        self,
+        func: s_funcs.Function,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> str:
         nativecode = func.get_nativecode(schema)
         if nativecode.irast is None:
-            nativecode = self.compile_function(schema, context, nativecode)
+            nativecode = self._compile_edgeql_function(
+                schema,
+                context,
+                func,
+                nativecode,
+            )
 
         nativecode = self.fix_return_type(func, nativecode, schema, context)
 
@@ -888,7 +923,158 @@ class FunctionCommand:
             output_format=compiler.OutputFormat.NATIVE,
             use_named_params=True)
 
-        return self.make_function(func, sql_text, schema)
+        return sql_text
+
+    def compile_edgeql_overloaded_function_body(
+        self,
+        func: s_funcs.Function,
+        overloads: List[s_funcs.Function],
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> str:
+        func_return_typemod = func.get_return_typemod(schema)
+        set_returning = func_return_typemod is ql_ft.TypeModifier.SetOfType
+        ov_params = overloads[0].get_params(schema).objects(schema)
+        my_params = func.get_params(schema).objects(schema)
+        my_pt = tuple(p.get_type(schema) for p in my_params)
+        ov_pt = (p.get_type(schema) for p in ov_params)
+        ov_param_idx = -1
+        for i, (my_t, ov_t) in enumerate(zip(my_pt, ov_pt)):
+            if my_t != ov_t:
+                if ov_param_idx != -1:
+                    raise AssertionError(
+                        "unexpected overload on multiple parameters "
+                        "in object-taking function"
+                    )
+                ov_param_idx = i
+
+        if (
+            ov_param_idx == -1
+            or not my_pt[ov_param_idx].is_object_type()
+        ):
+            raise AssertionError(
+                "could not find generic parameter in "
+                "overloaded function"
+            )
+
+        param_name = my_params[ov_param_idx].get_parameter_name(schema)
+        type_param_name = f'__{param_name}__type'
+        cases = {}
+        all_overloads = list(overloads)
+        if not isinstance(self, DeleteFunction):
+            all_overloads.append(func)
+        for overload in all_overloads:
+            ov_p = tuple(overload.get_params(schema).objects(schema))
+            ov_p_t = ov_p[ov_param_idx].get_type(schema)
+            ov_body = self.compile_edgeql_function_body(
+                overload, schema, context)
+
+            if set_returning:
+                case = (
+                    f"(SELECT * FROM ({ov_body}) AS q "
+                    f"WHERE ancestor = {ql(str(ov_p_t.id))})"
+                )
+            else:
+                case = (
+                    f"WHEN ancestor = {ql(str(ov_p_t.id))} "
+                    f"THEN \n({ov_body})"
+                )
+
+            cases[ov_p_t] = case
+
+        impl_ids = ', '.join(f'{ql(str(t.id))}::uuid' for t in cases)
+        branches = list(cases.values())
+
+        # N.B: edgedb.raise and coalesce are used below instead of
+        #      raise_on_null, because the latter somehow results in a
+        #      significantly more complex query plan.
+        matching_impl = f"""
+            coalesce(
+                (
+                    SELECT
+                        ancestor
+                    FROM
+                        (SELECT
+                            {qi(type_param_name)} AS ancestor,
+                            -1 AS index
+                        UNION ALL
+                        SELECT
+                            target AS ancestor,
+                            index
+                        FROM
+                            edgedb."_SchemaObjectType__ancestors"
+                            WHERE source = {qi(type_param_name)}
+                        ) a
+                    WHERE ancestor IN ({impl_ids})
+                    ORDER BY index
+                    LIMIT 1
+                ),
+
+                edgedb.raise(
+                    NULL::uuid,
+                    'assert_failure',
+                    msg => format(
+                        'unhandled object type %s in overloaded function',
+                        {qi(type_param_name)}
+                    )
+                )
+            ) AS impl(ancestor)
+        """
+
+        if set_returning:
+            arms = "\nUNION ALL\n".join(branches)
+            return f"""
+                SELECT
+                    q.*
+                FROM
+                    {matching_impl},
+                    LATERAL (
+                        {arms}
+                    ) AS q
+            """
+        else:
+            arms = "\n".join(branches)
+            return f"""
+                SELECT
+                    (CASE {arms} END)
+                FROM
+                    {matching_impl}
+            """
+
+    def compile_edgeql_function(self, func: s_funcs.Function, schema, context):
+        nativecode = func.get_nativecode(schema)
+        params = func.get_params(schema)
+
+        if nativecode.irast is None:
+            nativecode = self._compile_edgeql_function(
+                schema,
+                context,
+                func,
+                nativecode,
+            )
+
+        nativecode = self.fix_return_type(func, nativecode, schema, context)
+
+        replace = False
+
+        sn = func.get_shortname(schema)
+        if (
+            params.has_objects(schema)
+            and (ov := [f for f in schema.get_functions(sn) if f != func])
+        ):
+            body = self.compile_edgeql_overloaded_function_body(
+                func, ov, schema, context)
+            replace = True
+        else:
+            body, _ = compiler.compile_ir_to_sql(
+                nativecode.irast,
+                ignore_shapes=True,
+                explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
+                    schema, func.get_return_type(schema)),
+                output_format=compiler.OutputFormat.NATIVE,
+                use_named_params=True)
+
+        return self.make_function(func, body, schema), replace
 
     def sql_rval_consistency_check(
         self,
@@ -991,7 +1177,10 @@ class FunctionCommand:
             if func_language is ql_ast.Language.SQL:
                 dbf = self.compile_sql_function(func, schema)
             elif func_language is ql_ast.Language.EdgeQL:
-                dbf = self.compile_edgeql_function(func, schema, context)
+                dbf, overload_replace = self.compile_edgeql_function(
+                    func, schema, context)
+                if overload_replace:
+                    or_replace = True
             else:
                 raise errors.QueryError(
                     f'cannot compile function {func.get_shortname(schema)}: '
@@ -1051,24 +1240,32 @@ class DeleteFunction(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        orig_schema = schema
-        schema = super().apply(schema, context)
-        func = self.scls
+        func = self.get_object(schema, context)
+        nativecode = func.get_nativecode(schema)
 
-        if func.get_code(orig_schema) or func.get_nativecode(orig_schema):
+        if func.get_code(schema) or nativecode:
             # An EdgeQL or a SQL function
             # (not just an alias to a SQL function).
 
-            variadic = func.get_params(orig_schema).find_variadic(orig_schema)
-            self.pgops.add(
-                dbops.DropFunction(
-                    name=self.get_pgname(func, orig_schema),
-                    args=self.compile_args(func, orig_schema),
-                    has_variadic=variadic is not None,
-                )
-            )
+            overload = False
+            if nativecode:
+                dbf, overload_replace = self.compile_edgeql_function(
+                    func, schema, context)
+                if overload_replace:
+                    self.pgops.add(dbops.CreateFunction(dbf, or_replace=True))
+                    overload = True
 
-        return schema
+            if not overload:
+                variadic = func.get_params(schema).find_variadic(schema)
+                self.pgops.add(
+                    dbops.DropFunction(
+                        name=self.get_pgname(func, schema),
+                        args=self.compile_args(func, schema),
+                        has_variadic=variadic is not None,
+                    )
+                )
+
+        return super().apply(schema, context)
 
 
 class OperatorCommand(FunctionCommand):
