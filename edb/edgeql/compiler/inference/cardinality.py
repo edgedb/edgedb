@@ -358,26 +358,26 @@ def _infer_pointer_cardinality(
     ptrcls: s_pointers.Pointer,
     ptrref: Optional[irast.BasePointerRef],
     irexpr: irast.Base,
-    specified_required: bool = False,
+    specified_required: Optional[bool] = None,
     specified_card: Optional[qltypes.SchemaCardinality] = None,
     is_mut_assignment: bool = False,
     shape_op: qlast.ShapeOp = qlast.ShapeOp.ASSIGN,
     source_ctx: Optional[parsing.ParserContext] = None,
-
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> None:
 
     env = ctx.env
 
-    # Convert the SchemaCardinality into Cardinality used for inference.
-    if not specified_required and specified_card is None:
-        ir_specified_card = None
+    if specified_required is None:
+        spec_lower_bound = None
     else:
-        ir_specified_card = qltypes.Cardinality.from_schema_value(
-            specified_required,
-            specified_card or qltypes.SchemaCardinality.One
-        )
+        spec_lower_bound = CardinalityBound.from_required(specified_required)
+
+    if specified_card is None:
+        spec_upper_bound = None
+    else:
+        spec_upper_bound = CardinalityBound.from_schema_value(specified_card)
 
     expr_card = infer_cardinality(
         irexpr, scope_tree=scope_tree, ctx=ctx)
@@ -403,45 +403,47 @@ def _infer_pointer_cardinality(
         else:
             inferred_card = expr_card
 
-    if ir_specified_card is None:
+    if spec_upper_bound is None and spec_lower_bound is None:
+        # Common case of no explicit specifier and no overloading.
         ptr_card = inferred_card
     else:
-        if is_subset_cardinality(inferred_card, ir_specified_card):
-            # The inferred cardinality is within the boundaries of
-            # specified cardinality, use the maximum lower and upper bounds.
-            ptr_card = max_cardinality(
-                (ir_specified_card, inferred_card),
-            )
+        # Verify that the explicitly specified (or inherited) cardinality is
+        # within the cardinality bounds inferred from the expression, except
+        # for mutations we punt the lower cardinality bound check to the
+        # runtime DML constraint as that would produce a more meaningful error.
+        inf_lower_bound, inf_upper_bound = _card_to_bounds(inferred_card)
+
+        if spec_upper_bound is None:
+            upper_bound = inf_upper_bound
         else:
-            desc = ptrcls.get_verbosename(env.schema)
-            if not is_mut_assignment:
-                desc = f'computed {desc}'
-            sp_req, sp_card = ir_specified_card.to_schema_value()
-            ic_req, ic_card = inferred_card.to_schema_value()
-            # Specified cardinality is stricter than inferred (e.g.
-            # ONE vs MANY), this is an error.
-            if sp_card.is_single() and ic_card.is_multi():
+            if inf_upper_bound > spec_upper_bound:
+                desc = ptrcls.get_verbosename(env.schema)
+                if not is_mut_assignment:
+                    desc = f"computed {desc}"
                 raise errors.QueryError(
-                    f'possibly more than one element returned by an '
+                    f"possibly more than one element returned by an "
                     f"expression for a {desc} declared as 'single'",
-                    context=source_ctx
+                    context=source_ctx,
                 )
-            elif sp_req and not ic_req:
+            upper_bound = spec_upper_bound
+
+        if spec_lower_bound is None:
+            lower_bound = inf_lower_bound
+        else:
+            if inf_lower_bound < spec_lower_bound:
                 if is_mut_assignment:
-                    # For mutations we punt the lower cardinality bound
-                    # check to the runtime constraint.  Doing it statically
-                    # is impractical because it is impossible to prove
-                    # non-emptiness of object-selecting expressions bound
-                    # for required links.
-                    ptr_card = cartesian_cardinality(
-                        (ir_specified_card, inferred_card),
-                    )
+                    lower_bound = inf_lower_bound
                 else:
+                    desc = f"computed {ptrcls.get_verbosename(env.schema)}"
                     raise errors.QueryError(
-                        f'possibly an empty set returned by an '
+                        f"possibly an empty set returned by an "
                         f"expression for a {desc} declared as 'required'",
-                        context=source_ctx
+                        context=source_ctx,
                     )
+            else:
+                lower_bound = spec_lower_bound
+
+        ptr_card = _bounds_to_card(lower_bound, upper_bound)
 
     if (
         not ptrcls_schema_card.is_known()
@@ -519,7 +521,6 @@ def _infer_shape(
                 is_mut_assignment=is_mutation,
                 specified_card=specified_card,
                 specified_required=specified_required,
-
                 shape_op=shape_op,
                 scope_tree=new_scope,
                 ctx=ctx,

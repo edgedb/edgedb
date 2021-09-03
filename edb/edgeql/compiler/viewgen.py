@@ -912,21 +912,34 @@ def _normalize_view_ptr_expr(
             ctx.env.pointer_derivation_map[base_ptrcls].append(ptrcls)
 
         base_cardinality = None
-        base_required = False
+        base_required = None
         if base_ptrcls is not None and not base_ptrcls_is_alias:
             base_cardinality = _get_base_ptr_cardinality(base_ptrcls, ctx=ctx)
             base_required = base_ptrcls.get_required(ctx.env.schema)
 
         if base_cardinality is None or not base_cardinality.is_known():
+            # If the base cardinality is not known the we can't make
+            # any checks here and will rely on validation in the
+            # cardinality inferer.
             specified_cardinality = shape_el.cardinality
             specified_required = shape_el.required
         else:
             specified_cardinality = base_cardinality
-            specified_required = base_required
 
-            if (shape_el.cardinality is not None
-                    and base_ptrcls is not None
-                    and shape_el.cardinality != base_cardinality):
+            # Inferred optionality overrides that of the base pointer
+            # if base pointer is not `required`, hence the is True check.
+            if shape_el.required is not None:
+                specified_required = shape_el.required
+            elif base_required is True:
+                specified_required = base_required
+            else:
+                specified_required = None
+
+            if (
+                shape_el.cardinality is not None
+                and base_ptrcls is not None
+                and shape_el.cardinality != base_cardinality
+            ):
                 base_src = base_ptrcls.get_source(ctx.env.schema)
                 assert base_src is not None
                 base_src_name = base_src.get_verbosename(ctx.env.schema)
@@ -937,8 +950,22 @@ def _normalize_view_ptr_expr(
                     f'in the base {base_src_name}',
                     context=compexpr and compexpr.context,
                 )
-            # The required flag may be inherited from the base
-            specified_required = shape_el.required or base_required
+
+            if (
+                shape_el.required is False
+                and base_ptrcls is not None
+                and base_required
+            ):
+                base_src = base_ptrcls.get_source(ctx.env.schema)
+                assert base_src is not None
+                base_src_name = base_src.get_verbosename(ctx.env.schema)
+                raise errors.SchemaError(
+                    f'cannot redefine '
+                    f'{ptrcls.get_verbosename(ctx.env.schema)} '
+                    f'as optional: it is defined as required '
+                    f'in the base {base_src_name}',
+                    context=compexpr and compexpr.context,
+                )
 
         ctx.env.pointer_specified_info[ptrcls] = (
             specified_cardinality, specified_required, shape_el.context)

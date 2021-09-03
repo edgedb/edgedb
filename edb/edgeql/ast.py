@@ -517,7 +517,7 @@ class ShapeElement(OffsetLimitMixin, OrderByMixin, FilterMixin, Expr):
     elements: typing.Optional[typing.List[ShapeElement]] = None
     compexpr: typing.Optional[Expr] = None
     cardinality: typing.Optional[qltypes.SchemaCardinality] = None
-    required: bool = False
+    required: typing.Optional[bool] = None
     operation: ShapeOperation = ShapeOperation(op=ShapeOp.ASSIGN)
 
 

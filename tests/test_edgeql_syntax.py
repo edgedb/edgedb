@@ -1465,6 +1465,24 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_shape_43a(self):
+        """
+        SELECT Foo {
+            optional multi foo := Foo {
+                name
+            }
+        };
+        """
+
+    def test_edgeql_syntax_shape_43b(self):
+        """
+        SELECT Foo {
+            optional single foo := Foo {
+                name
+            }
+        };
+        """
+
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token:.+foo',
                   hint=r"It appears that a ',' is missing in a shape "
