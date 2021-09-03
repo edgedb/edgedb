@@ -1309,8 +1309,8 @@ class FlatSchema(Schema):
                 got_name = obj.__class__.get_schema_class_displayname()
                 exp_name = type.get_schema_class_displayname()
                 raise errors.InvalidReferenceError(
-                    f'{refname!r} exists, but is '
-                    f'{english.add_a(got_name)}, not {english.add_a(exp_name)}',
+                    f'{refname!r} exists, but is {english.add_a(got_name)}, '
+                    f'not {english.add_a(exp_name)}',
                     context=sourcectx,
                 )
 
