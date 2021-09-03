@@ -39,6 +39,7 @@ from edb import errors
 
 from edb.common import parsing
 from edb.common import topological
+from edb.common import english
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
@@ -1226,9 +1227,9 @@ def _get_local_obj(
         obj_type = TRACER_TO_REAL_TYPE_MAP[type(obj)]
         real_type = TRACER_TO_REAL_TYPE_MAP[tracer_type]
         raise errors.InvalidReferenceError(
-            f'{str(refname)!r} exists, but is a '
-            f'{obj_type.get_schema_class_displayname()!r}, '
-            f'not a {real_type.get_schema_class_displayname()!r}',
+            f'{str(refname)!r} exists, but is '
+            f'{english.add_a(obj_type.get_schema_class_displayname())}, '
+            f'not {english.add_a(real_type.get_schema_class_displayname())}',
             context=sourcectx,
         )
 

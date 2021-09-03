@@ -608,7 +608,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.InvalidReferenceError,
-        "'test::X' exists, but is a 'scalar type', not a 'object type'",
+        "'test::X' exists, but is a scalar type, not an object type",
         line=3, col=30)
     def test_schema_wrong_type_01(self):
         """
@@ -618,7 +618,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
 
     @tb.must_fail(
         errors.InvalidReferenceError,
-        "'test::X' exists, but is a 'object type', not a 'constraint'",
+        "'test::X' exists, but is an object type, not a constraint",
         line=3, col=22)
     def test_schema_wrong_type_02(self):
         """

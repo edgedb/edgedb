@@ -11514,7 +11514,7 @@ type default::Foo {
     async def test_edgeql_ddl_extending_scalar_wrongly(self):
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
-            "'str' exists, but is a 'scalar type', not a 'object type'",
+            "'str' exists, but is a scalar type, not an object type",
             _line=1, _col=29
         ):
             await self.con.execute(

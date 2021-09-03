@@ -29,6 +29,7 @@ import itertools
 import immutables as immu
 
 from edb import errors
+from edb.common import english
 
 from . import casts as s_casts
 from . import functions as s_func
@@ -1305,10 +1306,11 @@ class FlatSchema(Schema):
             # we can produce a user-facing error message.
             if obj and type is not None and not isinstance(obj, type):
                 refname = str(name)
+                got_name = obj.__class__.get_schema_class_displayname()
+                exp_name = type.get_schema_class_displayname()
                 raise errors.InvalidReferenceError(
-                    f'{refname!r} exists, but is a '
-                    f'{obj.__class__.get_schema_class_displayname()!r}, '
-                    f'not a {type.get_schema_class_displayname()!r}',
+                    f'{refname!r} exists, but is '
+                    f'{english.add_a(got_name)}, not {english.add_a(exp_name)}',
                     context=sourcectx,
                 )
 
