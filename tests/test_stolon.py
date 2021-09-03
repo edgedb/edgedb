@@ -373,11 +373,15 @@ class TestStolon(tb.TestCase):
                 print('=' * 80)
                 print('Stolon is ready')
             async with tb.start_edgedb_server(
-                postgres_dsn=f"postgresql://suname:supass@stolon/postgres",
-                runstate_dir=str(pathlib.Path(consul.tmp_dir.name) / "edb"),
-                ha_cluster=(
-                    f"stolon+consul://127.0.0.1:{consul.http_port}"
+                postgres_dsn=(
+                    f"stolon+consul+http://127.0.0.1:{consul.http_port}"
                     f"/{pg1.cluster_name}"
+                ),
+                runstate_dir=str(pathlib.Path(consul.tmp_dir.name) / "edb"),
+                env=dict(
+                    PGUSER="suname",
+                    PGPASSWORD="supass",
+                    PGDATABASE="postgres",
                 ),
                 reset_auth=True,
                 debug=debug,

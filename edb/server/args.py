@@ -100,8 +100,6 @@ class ServerConfig(NamedTuple):
 
     instance_name: Optional[str]
 
-    ha_cluster: Optional[str]
-
 
 class PathPath(click.Path):
     name = 'path'
@@ -236,7 +234,9 @@ _server_options = [
         help='database cluster directory'),
     click.option(
         '--postgres-dsn', type=str,
-        help='DSN of a remote Postgres cluster, if using one'),
+        help='DSN of a remote Postgres cluster, if using one. '
+             'Also supports HA clusters, for example: stolon+consul+http://'
+             'localhost:8500/test_cluster'),
     click.option(
         '--tenant-id',
         type=str,
@@ -397,11 +397,6 @@ _server_options = [
         type=str, default=None, hidden=True,
         help='Server instance name.'),
     click.option(
-        '--ha-cluster',
-        help='URI of the high availability cluster, if enabling HA. '
-             'The format of the URI depends on the HA backend, e.g. '
-             'stolon+consul://<consul-agent-addr>:8500/<cluster-name>'),
-    click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
 ]
@@ -545,11 +540,6 @@ def parse_args(**kwargs: Any):
 
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]
-
-    if kwargs['ha_cluster']:
-        if not kwargs['postgres_dsn']:
-            abort('--ha-cluster requires --postgres-dsn for login and '
-                  'database info (host:port in --postgres-dsn is ignored)')
 
     bootstrap_script_text: Optional[str]
     if kwargs['bootstrap_script']:

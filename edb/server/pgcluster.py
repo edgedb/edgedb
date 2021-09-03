@@ -32,6 +32,7 @@ import shlex
 import shutil
 import textwrap
 import time
+import urllib.parse
 
 import asyncpg
 from asyncpg import serverversion
@@ -904,11 +905,22 @@ async def get_remote_pg_cluster(
     dsn: str,
     *,
     tenant_id: Optional[str] = None,
-    ha_backend: Optional[ha_base.HABackend] = None,
 ) -> RemoteCluster:
+    parsed = urllib.parse.urlparse(dsn)
+    ha_backend = None
+
+    if parsed.scheme not in {'postgresql', 'postgres'}:
+        ha_backend = ha_base.get_backend(parsed)
+        if ha_backend is None:
+            raise ValueError(
+                'invalid DSN: scheme is expected to be "postgresql", '
+                '"postgres" or one of the supported HA backend, '
+                'got {!r}'.format(parsed.scheme))
+
+        addr = await ha_backend.get_cluster_consensus()
+        dsn = 'postgresql://{}:{}'.format(*addr)
+
     addrs, params = pgconnparams.parse_dsn(dsn)
-    if ha_backend:
-        addrs = (await ha_backend.get_cluster_consensus(),)
     if len(addrs) > 1:
         raise ValueError('multiple hosts in Postgres DSN are not supported')
     pg_config = buildmeta.get_pg_config_path()

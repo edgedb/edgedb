@@ -41,22 +41,9 @@ class HABackend:
         raise NotImplementedError
 
 
-class HAClusterInfo(NamedTuple):
-    backend: str
-    store: str
-    host: Optional[str]
-    port: Optional[int]
-    name: str
+def get_backend(parsed_dsn: urllib.parse.ParseResult) -> Optional[HABackend]:
+    backend, _, sub_scheme = parsed_dsn.scheme.partition("+")
+    if backend == "stolon":
+        from . import stolon
 
-
-def parse_ha_uri(uri: str) -> HAClusterInfo:
-    parsed = urllib.parse.urlparse(uri)
-    backend, _, store = parsed.scheme.partition("+")
-
-    return HAClusterInfo(
-        backend=backend,
-        store=store,
-        host=parsed.hostname,
-        port=parsed.port,
-        name=parsed.path.lstrip("/"),
-    )
+        return stolon.get_backend(sub_scheme, parsed_dsn)

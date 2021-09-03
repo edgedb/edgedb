@@ -52,7 +52,6 @@ from . import daemon
 from . import defines
 from . import pgconnparams
 from . import pgcluster
-from .ha import base as ha_base
 
 
 if TYPE_CHECKING:
@@ -356,23 +355,9 @@ async def run_server(
             ),
         )
     elif args.postgres_dsn:
-        ha_backend = None
-        if args.ha_cluster:
-            ha_info = ha_base.parse_ha_uri(args.ha_cluster)
-            if ha_info.backend == 'stolon':
-                from edb.server.ha import stolon
-
-                try:
-                    ha_backend = stolon.get_backend(ha_info)
-                except ValueError as e:
-                    abort(e.args[0])
-            else:
-                abort(f'--ha-cluster={ha_info.backend}* is not supported.')
-
         cluster = await pgcluster.get_remote_pg_cluster(
             args.postgres_dsn,
             tenant_id=tenant_id,
-            ha_backend=ha_backend,
         )
 
         instance_params = cluster.get_runtime_params().instance_params

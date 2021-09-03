@@ -1449,7 +1449,7 @@ class _EdgeDBServer:
         tenant_id: Optional[str] = None,
         allow_insecure_binary_clients: bool = False,
         allow_insecure_http_clients: bool = False,
-        ha_cluster: Optional[str] = None,
+        env: Optional[Dict[str, str]] = None,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
@@ -1465,7 +1465,7 @@ class _EdgeDBServer:
         self.data = None
         self.allow_insecure_binary_clients = allow_insecure_binary_clients
         self.allow_insecure_http_clients = allow_insecure_http_clients
-        self.ha_cluster = ha_cluster
+        self.env = env
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -1532,10 +1532,6 @@ class _EdgeDBServer:
             cmd.extend([
                 '--postgres-dsn', self.postgres_dsn,
             ])
-            if self.ha_cluster is not None:
-                cmd.extend([
-                    '--ha-cluster', self.ha_cluster,
-                ])
         elif self.adjacent_to is not None:
             settings = self.adjacent_to.get_settings()
             pgaddr = settings.get('pgaddr')
@@ -1593,10 +1589,15 @@ class _EdgeDBServer:
                 f'{" ".join(shlex.quote(c) for c in cmd)}'
             )
 
+        env = os.environ.copy()
+        if self.env:
+            env.update(self.env)
+
         stat_reader, stat_writer = await asyncio.open_connection(sock=status_r)
 
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
+            env=env,
             stdout=None,
             stderr=subprocess.STDOUT,
             pass_fds=(status_w.fileno(),),
@@ -1642,7 +1643,7 @@ def start_edgedb_server(
     tenant_id: Optional[str] = None,
     allow_insecure_binary_clients: bool = False,
     allow_insecure_http_clients: bool = False,
-    ha_cluster: Optional[str] = None,
+    env: Optional[Dict[str, str]] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
         if postgres_dsn or adjacent_to:
@@ -1664,7 +1665,7 @@ def start_edgedb_server(
         reset_auth=reset_auth,
         allow_insecure_binary_clients=allow_insecure_binary_clients,
         allow_insecure_http_clients=allow_insecure_http_clients,
-        ha_cluster=ha_cluster,
+        env=env,
     )
 
 

@@ -21,6 +21,8 @@ import base64
 import functools
 import json
 import logging
+import ssl
+import urllib.parse
 from typing import *
 
 import httptools
@@ -198,34 +200,46 @@ class ConsulProtocol(asyncio.Protocol):
 
 
 class ConsulBackend(StolonBackend):
-    def __init__(self, cluster_name, *, host="127.0.0.1", port=8500):
+    def __init__(self, cluster_name, *, host="127.0.0.1", port=8500, ssl=None):
         super().__init__()
         self._cluster_name = cluster_name
         self._host = host
         self._port = port
+        self._ssl = ssl
 
     async def _start_watching(self):
         loop = asyncio.get_running_loop()
         tr, pr = await loop.create_connection(
-            functools.partial(ConsulProtocol, self), self._host, self._port
+            functools.partial(ConsulProtocol, self),
+            self._host,
+            self._port,
+            ssl=self._ssl,
         )
         return pr
 
 
-def get_backend(ha_info: base.HAClusterInfo) -> StolonBackend:
-    if not ha_info.name:
+def get_backend(
+    sub_scheme: str, parsed_dsn: urllib.parse.ParseResult
+) -> StolonBackend:
+    name = parsed_dsn.path.lstrip("/")
+    if not name:
         raise ValueError("Stolon requires cluster name in the URI as path.")
 
     cls = None
-    if ha_info.store == "consul":
+    storage, _, wire_protocol = sub_scheme.partition("+")
+    if storage == "consul":
         cls = ConsulBackend
     if not cls:
-        raise ValueError(f"stolon+{ha_info.store} is not supported")
+        raise ValueError(f"{parsed_dsn.scheme} is not supported")
+    if wire_protocol not in {"", "http", "https"}:
+        raise ValueError(f"Wire protocol {wire_protocol} is not supported")
 
     args: Dict[str, Any] = {}
-    if ha_info.host:
-        args["host"] = ha_info.host
-    if ha_info.port:
-        args["port"] = ha_info.port
+    if parsed_dsn.hostname:
+        args["host"] = parsed_dsn.hostname
+    if parsed_dsn.port:
+        args["port"] = parsed_dsn.port
+    if wire_protocol == "https":
+        args["ssl"] = ssl.create_default_context()
 
-    return cls(ha_info.name, **args)
+    return cls(name, **args)

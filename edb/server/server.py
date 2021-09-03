@@ -921,6 +921,7 @@ class Server(ha_base.ClusterProtocol):
                     #   3. The Postgres cluster is still starting up, or the
                     #      HA failover is still in progress
                     if not (
+                        e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED) or
                         e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW) or
                         e.code_is(pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION)
                     ):
