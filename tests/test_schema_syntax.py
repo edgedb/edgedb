@@ -369,7 +369,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         """
 
     def test_eschema_syntax_type_22(self):
-        """
+        r"""
         module test {
             type Foo {
                 property foo -> str {
@@ -403,13 +403,11 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
                 };
                 property bar -> str {
                     # multi-line definition with correct indentation
-                    default := some_func('
-                        1, 2, 3');
+                    default := some_func('\n                        1, 2, 3');
                 };
                 property baz -> str {
                     # multi-line definition with correct indentation
-                    default := 'some_func(
-                        1, 2, 3)';
+                    default := 'some_func(\n                        1, 2, 3)';
                 };
             };
         };
