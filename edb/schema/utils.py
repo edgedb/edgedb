@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from . import objtypes as s_objtypes
     from . import schema as s_schema
     from . import types as s_types
+    from edb.common import parsing
 
     T = TypeVar('T')
 
@@ -73,6 +74,7 @@ def resolve_name(
     lname: sn.Name,
     *,
     metaclass: Optional[Type[so.Object]] = None,
+    sourcectx: Optional[parsing.ParserContext] = None,
     modaliases: Mapping[Optional[str], str],
     schema: s_schema.Schema,
 ) -> sn.Name:
@@ -81,6 +83,7 @@ def resolve_name(
         type=metaclass,
         module_aliases=modaliases,
         default=None,
+        sourcectx=sourcectx,
     )
     if obj is not None:
         name = obj.get_name(schema)
@@ -116,6 +119,7 @@ def ast_objref_to_object_shell(
         metaclass=metaclass,
         modaliases=modaliases,
         schema=schema,
+        sourcectx=ref.context,
     )
 
     return so.ObjectShell(
@@ -146,6 +150,7 @@ def ast_objref_to_type_shell(
         metaclass=mcls,
         modaliases=modaliases,
         schema=schema,
+        sourcectx=ref.context,
     )
 
     return s_types.TypeShell(
