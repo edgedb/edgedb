@@ -55,7 +55,7 @@ RUNTIME_DEPS = [
     'parsing~=2.0',
     'psutil~=5.8',
     'setproctitle~=1.2',
-    'setuptools_scm~=6.0',
+    'setuptools_scm~=6.0,!=6.3.0',
     'wcwidth~=0.2',
 ]
 
