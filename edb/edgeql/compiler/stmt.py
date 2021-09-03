@@ -232,10 +232,11 @@ def compile_GroupQuery(
 
 
 def _compile_conflict_select(
-    stmt: irast.InsertStmt,
+    stmt: irast.MutatingStmt,
     subject_typ: s_objtypes.ObjectType,
     *,
     for_inheritance: bool,
+    fake_dml_set: Optional[irast.Set],
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]],
     parser_context: Optional[pctx.ParserContext],
@@ -270,11 +271,25 @@ def _compile_conflict_select(
 
     ctx.anchors = ctx.anchors.copy()
 
+    # If we are given a fake_dml_set to directly represent the result
+    # of our DML, use that instead of populating the result.
+    if fake_dml_set:
+        for p in needed_ptrs | {'id'}:
+            ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
+            val = setgen.extend_path(fake_dml_set, ptr, ctx=ctx)
+
+            source_alias = ctx.aliases.get(p)
+            ctx.anchors[source_alias] = val
+            ptr_anchors[p] = (
+                qlast.Path(steps=[qlast.ObjectRef(name=source_alias)]))
+
     # Find the IR corresponding to the fields we care about and
     # produce anchors for them
+    ptrs_in_shape = set()
     for elem, _ in stmt.subject.shape:
         assert elem.rptr is not None
         name = elem.rptr.ptrref.shortname.name
+        ptrs_in_shape.add(name)
         if name in needed_ptrs and name not in ptr_anchors:
             assert elem.expr
             if inference.infer_volatility(elem.expr, ctx.env).is_volatile():
@@ -299,6 +314,9 @@ def _compile_conflict_select(
             ctx.anchors[source_alias] = setgen.ensure_set(elem.expr, ctx=ctx)
             ptr_anchors[name] = (
                 qlast.Path(steps=[qlast.ObjectRef(name=source_alias)]))
+
+    if for_inheritance and not ptrs_in_shape:
+        return None
 
     # Fill in empty sets for pointers that are needed but not present
     present_ptrs = set(ptr_anchors)
@@ -347,6 +365,7 @@ def _compile_conflict_select(
         s_utils.name_to_ast_ref(subject_typ.get_name(ctx.env.schema))])
 
     for constr in obj_constrs:
+        # TODO: learn to skip irrelevant ones for UPDATEs at least?
         subjectexpr = constr.get_subjectexpr(ctx.env.schema)
         assert subjectexpr and isinstance(subjectexpr.qlast, qlast.Expr)
         lhs = qlutils.subject_paths_substitute(subjectexpr.qlast, ptr_anchors)
@@ -366,10 +385,22 @@ def _compile_conflict_select(
             args=[qlast.Set(elements=conds)],
         )
 
+    # For the result filtering we need to *ignore* the same object
+    if fake_dml_set:
+        anchor = qlutils.subject_paths_substitute(
+            ptr_anchors['id'], ptr_anchors)
+        ptr_val = qlast.Path(partial=True, steps=[
+            qlast.Ptr(ptr=qlast.ObjectRef(name='id'))
+        ])
+        cond = qlast.BinOp(
+            op='AND',
+            left=cond,
+            right=qlast.BinOp(op='!=', left=anchor, right=ptr_val),
+        )
+
     # Produce a query that finds the conflicting objects
-    select_ast = qlast.SelectQuery(
-        result=insert_subject,
-        where=cond,
+    select_ast = qlast.DetachedExpr(
+        expr=qlast.SelectQuery(result=insert_subject, where=cond)
     )
 
     return select_ast
@@ -437,10 +468,11 @@ def _split_constraints(
 
 
 def compile_conflict_select(
-    stmt: irast.InsertStmt,
+    stmt: irast.MutatingStmt,
     subject_typ: s_objtypes.ObjectType,
     *,
     for_inheritance: bool=False,
+    fake_dml_set: Optional[irast.Set]=None,
     obj_constrs: Sequence[s_constr.Constraint],
     constrs: PointerConstraintMap,
     parser_context: Optional[pctx.ParserContext],
@@ -468,6 +500,7 @@ def compile_conflict_select(
         frag = _compile_conflict_select(
             stmt, a_obj, obj_constrs=a_obj_constrs, constrs=a_constrs,
             for_inheritance=for_inheritance,
+            fake_dml_set=fake_dml_set,
             parser_context=parser_context, ctx=ctx,
         )
         if frag:
@@ -648,9 +681,10 @@ def compile_insert_unless_conflict_on(
 
 
 def compile_inheritance_conflict_selects(
-    stmt: irast.InsertStmt,
+    stmt: irast.MutatingStmt,
     conflict: irast.MutatingStmt,
     typ: s_objtypes.ObjectType,
+    subject_type: s_objtypes.ObjectType,
     *, ctx: context.ContextLevel,
 ) -> List[irast.OnConflictClause]:
     """Compile the selects needed to resolve multiple DML to related types
@@ -664,7 +698,8 @@ def compile_inheritance_conflict_selects(
     beginning at the start of the statement.
     """
     pointers = _get_exclusive_ptr_constraints(typ, ctx=ctx)
-    obj_constrs = typ.get_constraints(ctx.env.schema).objects(ctx.env.schema)
+    obj_constrs = typ.get_constraints(ctx.env.schema).objects(
+        ctx.env.schema)
 
     # This is a little silly, but for *this* we need to do one per
     # constraint (so that we can properly identify which constraint
@@ -678,11 +713,21 @@ def compile_inheritance_conflict_selects(
         if _constr_matters(obj_constr, ctx):
             entries.append((obj_constr, ({}, [obj_constr])))
 
+    # For updates, we need to pull from the actual result overlay,
+    # since the final row can depend on things not in the query.
+    fake_dml_set = None
+    if isinstance(stmt, irast.UpdateStmt):
+        fake_subject = qlast.DetachedExpr(expr=qlast.Path(steps=[
+            s_utils.name_to_ast_ref(subject_type.get_name(ctx.env.schema))]))
+
+        fake_dml_set = dispatch.compile(fake_subject, ctx=ctx)
+
     clauses = []
     for cnstr, (p, o) in entries:
         select_ir, _, _ = compile_conflict_select(
             stmt, typ,
             for_inheritance=True,
+            fake_dml_set=fake_dml_set,
             constrs=p,
             obj_constrs=o,
             parser_context=stmt.context, ctx=ctx)
@@ -692,13 +737,14 @@ def compile_inheritance_conflict_selects(
         clauses.append(
             irast.OnConflictClause(
                 constraint=cnstr_ref, select_ir=select_ir, always_check=False,
-                else_ir=None, else_fail=conflict)
+                else_ir=None, else_fail=conflict,
+                update_query_set=fake_dml_set)
         )
     return clauses
 
 
 def compile_inheritance_conflict_checks(
-    stmt: irast.InsertStmt,
+    stmt: irast.MutatingStmt,
     subject_stype: s_objtypes.ObjectType,
     *, ctx: context.ContextLevel,
 ) -> Optional[List[irast.OnConflictClause]]:
@@ -706,32 +752,57 @@ def compile_inheritance_conflict_checks(
         return None
 
     assert isinstance(subject_stype, s_objtypes.ObjectType)
-    # TODO: support UPDATEs
     # TODO: when the conflicting statement is an UPDATE, only
     # look at things it updated
     modified_ancestors = set()
     base_object = ctx.env.schema.get(
         'std::BaseObject', type=s_objtypes.ObjectType)
+
+    subject_stypes = [subject_stype]
+    # For updates, we need to also consider all descendants, because
+    # those could also have interesting constraints of their own.
+    if isinstance(stmt, irast.UpdateStmt):
+        subject_stypes.extend(subject_stype.descendants(ctx.env.schema))
+
+    # N.B that for updates, the update itself will be in dml_stmts,
+    # since an update can conflict with itself if there are subtypes.
     for ir in ctx.env.dml_stmts:
         typ = setgen.get_set_type(ir.subject, ctx=ctx)
         assert isinstance(typ, s_objtypes.ObjectType)
         typ = typ.get_nearest_non_derived_parent(ctx.env.schema)
 
-        # If the earlier DML has a shared ancestor that isn't
-        # BaseObject and isn't (if it's an insert) the same type,
-        # then we need to see if we need a conflict select
-        if subject_stype == typ and not isinstance(ir, irast.UpdateStmt):
-            continue
-        ancs = s_utils.get_class_nearest_common_ancestors(
-            ctx.env.schema, [subject_stype, typ])
-        for anc in ancs:
-            if anc != base_object:
-                modified_ancestors.add((anc, ir))
+        typs = [typ]
+        # As mentioned above, need to consider descendants of updates
+        if isinstance(ir, irast.UpdateStmt):
+            typs.extend(typ.descendants(ctx.env.schema))
+
+        for typ in typs:
+            if typ.is_view(ctx.env.schema):
+                continue
+
+            for subject_stype in subject_stypes:
+                if subject_stype.is_view(ctx.env.schema):
+                    continue
+
+                # If the earlier DML has a shared ancestor that isn't
+                # BaseObject and isn't (if it's an insert) the same type,
+                # then we need to see if we need a conflict select
+                if (
+                    subject_stype == typ
+                    and not isinstance(ir, irast.UpdateStmt)
+                    and not isinstance(stmt, irast.UpdateStmt)
+                ):
+                    continue
+                ancs = s_utils.get_class_nearest_common_ancestors(
+                    ctx.env.schema, [subject_stype, typ])
+                for anc in ancs:
+                    if anc != base_object:
+                        modified_ancestors.add((subject_stype, anc, ir))
 
     conflicters = []
-    for anc_type, ir in modified_ancestors:
+    for subject_stype, anc_type, ir in modified_ancestors:
         conflicters.extend(compile_inheritance_conflict_selects(
-            stmt, ir, anc_type, ctx=ctx))
+            stmt, ir, anc_type, subject_stype, ctx=ctx))
 
     return conflicters or None
 
@@ -916,6 +987,8 @@ def compile_UpdateQuery(
                 ctx=bodyctx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
+        assert isinstance(stmt_subject_stype, s_objtypes.ObjectType)
+
         if not ctx.path_scope.in_temp_scope():
             ctx.env.dml_stmts.add(stmt)
 
@@ -936,6 +1009,9 @@ def compile_UpdateQuery(
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
             )
+
+        stmt.conflict_checks = compile_inheritance_conflict_checks(
+            stmt, stmt_subject_stype, ctx=ictx)
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

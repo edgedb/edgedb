@@ -1706,6 +1706,7 @@ def add_type_rel_overlay(
         typeref: irast.TypeRef,
         op: str,
         rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
+        stop_ref: Optional[irast.TypeRef]=None,
         dml_stmts: Iterable[irast.MutatingStmt] = (),
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
@@ -1715,7 +1716,13 @@ def add_type_rel_overlay(
     objs = [typeref]
     if typeref.ancestors:
         objs.extend(typeref.ancestors)
+
     for obj in objs:
+        if stop_ref and (
+            obj == stop_ref or
+            (stop_ref.ancestors and obj in stop_ref.ancestors)
+        ):
+            continue
         _add_type_rel_overlay(
             obj.id, op, rel,
             dml_stmts=dml_stmts, path_id=path_id, ctx=ctx)

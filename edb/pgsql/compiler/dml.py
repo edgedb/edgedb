@@ -385,6 +385,50 @@ def fini_dml_stmt(
 
     relctx.include_rvar(ctx.rel, union_rvar, ir_stmt.subject.path_id, ctx=ctx)
 
+    # Record the effect of this insertion in the relation overlay
+    # context to ensure that the RETURNING clause potentially
+    # referencing this class yields the expected results.
+    dml_stack = ctx.dml_stmt_stack
+    if isinstance(ir_stmt, irast.InsertStmt):
+        # The union CTE might have a SELECT from an ELSE clause, which
+        # we don't actually want to include.
+        assert len(parts.dml_ctes) == 1
+        cte = next(iter(parts.dml_ctes.values()))[0]
+        relctx.add_type_rel_overlay(
+            ir_stmt.subject.typeref, 'union', cte,
+            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
+    elif isinstance(ir_stmt, irast.UpdateStmt):
+        base_typeref = ir_stmt.subject.typeref.real_material_type
+
+        for typeref, (cte, _) in parts.dml_ctes.items():
+            # Because we have a nice union_cte for the base type,
+            # we don't need to propagate the children overlays to
+            # that type or its ancestors, hence the stop_ref argument.
+            if typeref.id == base_typeref.id:
+                cte = union_cte
+                stop_ref = None
+            else:
+                stop_ref = base_typeref
+
+            # The overlay for update is in two parts:
+            # First, filter out objects that have been updated, then union them
+            # back in. (If we just did union, we'd see the old values also.)
+            relctx.add_type_rel_overlay(
+                typeref, 'filter', cte,
+                stop_ref=stop_ref,
+                dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
+            relctx.add_type_rel_overlay(
+                typeref, 'union', cte,
+                stop_ref=stop_ref,
+                dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
+
+        process_update_conflicts(
+            ir_stmt=ir_stmt, update_cte=union_cte, dml_parts=parts, ctx=ctx)
+    elif isinstance(ir_stmt, irast.DeleteStmt):
+        relctx.add_type_rel_overlay(
+            ir_stmt.subject.typeref, 'except', union_cte,
+            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
+
     # Scan the check CTEs to enforce constraints that are checked
     # as explicit queries and not Postgres constraints or triggers.
     for check_cte in parts.check_ctes:
@@ -405,33 +449,6 @@ def fini_dml_stmt(
         )
         check_rvar = relctx.rvar_for_rel(check, ctx=ctx)
         ctx.rel.from_clause.append(check_rvar)
-
-    # Record the effect of this insertion in the relation overlay
-    # context to ensure that the RETURNING clause potentially
-    # referencing this class yields the expected results.
-    dml_stack = ctx.dml_stmt_stack
-    if isinstance(ir_stmt, irast.InsertStmt):
-        # The union CTE might have a SELECT from an ELSE clause, which
-        # we don't actually want to include.
-        assert len(parts.dml_ctes) == 1
-        cte = next(iter(parts.dml_ctes.values()))[0]
-        relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'union', cte,
-            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
-    elif isinstance(ir_stmt, irast.UpdateStmt):
-        # The overlay for update is in two parts:
-        # First, filter out objects that have been updated, then union them
-        # back in. (If we just did union, we'd see the old values also.)
-        relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'filter', union_cte,
-            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
-        relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'union', union_cte,
-            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
-    elif isinstance(ir_stmt, irast.DeleteStmt):
-        relctx.add_type_rel_overlay(
-            ir_stmt.subject.typeref, 'except', union_cte,
-            dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
     clauses.compile_output(ir_stmt.result, ctx=ctx)
     clauses.fini_stmt(wrapper, ctx, parent_ctx)
@@ -728,7 +745,7 @@ def process_insert_body(
 
 
 def insert_needs_conflict_cte(
-    ir_stmt: irast.InsertStmt,
+    ir_stmt: irast.MutatingStmt,
     on_conflict: irast.OnConflictClause,
     *,
     ctx: context.CompilerContextLevel,
@@ -767,8 +784,8 @@ def insert_needs_conflict_cte(
 
 
 def compile_insert_else_body(
-        insert_stmt: pgast.InsertStmt,
-        ir_stmt: irast.InsertStmt,
+        stmt: Optional[pgast.InsertStmt],
+        ir_stmt: irast.MutatingStmt,
         on_conflict: irast.OnConflictClause,
         enclosing_cte_iterator: Optional[pgast.IteratorCTE],
         else_cte_rvar: Optional[
@@ -809,7 +826,8 @@ def compile_insert_else_body(
                 on_conflict.constraint.id)
             infer = pgast.InferClause(conname=f'"{constraint_name}"')
 
-        insert_stmt.on_conflict = pgast.OnConflictClause(
+        assert isinstance(stmt, pgast.InsertStmt)
+        stmt.on_conflict = pgast.OnConflictClause(
             action='nothing',
             infer=infer,
         )
@@ -929,11 +947,21 @@ def compile_insert_else_body_failure_check(
 
     # Copy the type rels from the possibly conflicting earlier DML
     # into the None overlays so it gets picked up.
-    # TODO: Try to *only* get the overlay, not the base type.
     ctx.type_rel_overlays = ctx.type_rel_overlays.copy()
-    ctx.type_rel_overlays[None] = ctx.type_rel_overlays[None].copy()
-    ctx.type_rel_overlays[None].update(
-        ctx.type_rel_overlays[else_fail])
+    overlays_map = ctx.type_rel_overlays[None].copy()
+    ctx.type_rel_overlays[None] = overlays_map
+    overlays_map.update(ctx.type_rel_overlays[else_fail])
+
+    # Do some work so that we aren't looking at the existing on-disk
+    # data, just newly data created data.
+    for k, overlays in overlays_map.items():
+        # Strip out filters, which we don't care about in this context
+        overlays = [(k, r, p) for k, r, p in overlays if k != 'filter']
+        # Drop the initial set
+        if overlays and overlays[0][0] == 'union':
+            overlays[0] = ('replace', *overlays[0][1:])
+        overlays_map[k] = overlays
+
     ctx.ptr_rel_overlays = ctx.ptr_rel_overlays.copy()
     ctx.ptr_rel_overlays[None] = ctx.ptr_rel_overlays[None].copy()
     ctx.ptr_rel_overlays[None].update(
@@ -1168,6 +1196,41 @@ def process_update_body(
 
         if check_cte is not None:
             dml_parts.check_ctes.append(check_cte)
+
+
+def process_update_conflicts(
+    *,
+    ir_stmt: irast.UpdateStmt,
+    update_cte: pgast.CommonTableExpr,
+    dml_parts: DMLParts,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    if not ir_stmt.conflict_checks:
+        return
+
+    for extra_conflict in ir_stmt.conflict_checks:
+        q_set = extra_conflict.update_query_set
+        assert q_set
+        typeref = q_set.path_id.target.real_material_type
+        cte, _ = dml_parts.dml_ctes[typeref]
+
+        pathctx.put_path_id_map(
+            cte.query, q_set.path_id, ir_stmt.subject.path_id)
+
+        conflict_iterator = pgast.IteratorCTE(
+            path_id=q_set.path_id, cte=cte,
+            parent=ctx.enclosing_cte_iterator,
+            is_dml_pseudo_iterator=True)
+
+        compile_insert_else_body(
+            None,
+            ir_stmt,
+            extra_conflict,
+            conflict_iterator,
+            None,
+            dml_parts,
+            ctx=ctx,
+        )
 
 
 def check_update_type(

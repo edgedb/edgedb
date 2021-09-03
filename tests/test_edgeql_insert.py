@@ -911,9 +911,6 @@ class TestInsert(tb.QueryTestCase):
     async def test_edgeql_insert_returning_13(self):
         await self.con.execute(r'''
             INSERT DerivedNote { name := "dnote", note := "a" };
-        ''')
-
-        await self.con.execute(r'''
             INSERT DerivedNote { name := "anote", note := "some note" };
         ''')
 
@@ -935,6 +932,43 @@ class TestInsert(tb.QueryTestCase):
                 {
                     "name": "test",
                     "notes": [
+                        {"name": "anote", "note": "some note"},
+                        {"name": "dnote", "note": "b"},
+                        {"name": "new note", "note": "hi"}
+                    ]
+                }
+            ]
+        )
+
+    async def test_edgeql_insert_returning_14(self):
+        await self.con.execute(r'''
+            INSERT DerivedNote { name := "dnote", note := "a" };
+            INSERT DerivedNote { name := "anote", note := "some note" };
+        ''')
+
+        # test that subtypes get returned by a nested update
+        # same as 13, but test that it happens even after doing a type filter!
+        await self.assert_query_result(
+            r'''
+            SELECT
+            (INSERT Person {
+                name := "test",
+                notes := {
+                    (SELECT Note FILTER .name = "anote"),
+                    (INSERT DerivedNote { name := "new note", note := "hi" }),
+                    (UPDATE Note FILTER .name = "dnote" SET { note := "b" }),
+                }
+            })
+            {
+                name,
+                dnotes := (SELECT .notes[IS DerivedNote] {name, note}
+                           ORDER BY .name)
+            }
+            ''',
+            [
+                {
+                    "name": "test",
+                    "dnotes": [
                         {"name": "anote", "note": "some note"},
                         {"name": "dnote", "note": "b"},
                         {"name": "new note", "note": "hi"}
@@ -4177,7 +4211,6 @@ class TestInsert(tb.QueryTestCase):
                 "name violates exclusivity constraint"):
             await self.con.execute(query)
 
-    @test.xfail("Issue #2845")
     async def test_edgeql_insert_update_cross_type_conflict_01(self):
         await self.con.execute('''
             INSERT DerivedPerson { name := 'Bar' };
@@ -4194,7 +4227,6 @@ class TestInsert(tb.QueryTestCase):
                                     "name violates exclusivity constraint"):
             await self.con.execute(query)
 
-    @test.xfail("Issue #2845")
     async def test_edgeql_insert_update_cross_type_conflict_02(self):
         # this isn't really an insert test
         await self.con.execute('''
@@ -4212,6 +4244,303 @@ class TestInsert(tb.QueryTestCase):
         with self.assertRaisesRegex(edgedb.ConstraintViolationError,
                                     "name violates exclusivity constraint"):
             await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_03(self):
+        await self.con.execute('''
+            INSERT DerivedPerson { name := 'Bar' };
+        ''')
+
+        query = r'''
+            WITH
+                 F := (INSERT Person {name := 'Bar!'}),
+                 B := (UPDATE Person FILTER .name = 'Bar'
+                       SET {name := .name ++ "!"}),
+            SELECT (B, F);
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_04(self):
+        await self.con.execute('''
+            INSERT DerivedPerson { name := 'Bar' };
+        ''')
+
+        query = r'''
+            WITH
+                 F := (INSERT Person {name := 'Bar?'}),
+                 B := (UPDATE Person FILTER .name = 'Bar'
+                       SET {name := .name ++ "!"}),
+            SELECT (B, F);
+        '''
+
+        # This should be fine.
+        await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_05(self):
+        # this isn't really an insert test
+        await self.con.execute('''
+            INSERT Person { name := 'Foo' };
+            INSERT DerivedPerson { name := 'Bar' };
+        ''')
+
+        query = r'''
+            UPDATE Person FILTER true SET { name := "!" };
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_06(self):
+        # this isn't really an insert test
+        await self.con.execute('''
+            INSERT Person { name := 'Foo' };
+            INSERT DerivedPerson { name := 'Bar' };
+        ''')
+
+        query = r'''
+            UPDATE Person FILTER true SET { multi_prop := "!" };
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "multi_prop violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_07a(self):
+        await self.con.execute('''
+            INSERT Person2a { first := 'foo', last := 'bar' };
+        ''')
+
+        query = r'''
+            WITH
+                 F := (INSERT DerivedPerson2a {first := 'foo', last := 'baz'}),
+                 B := (UPDATE Person2a FILTER .first = 'foo' and .last = 'bar'
+                       SET {last := 'baz'}),
+            SELECT (B, F);
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "Person2a violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_07b(self):
+        # this should be fine, though
+        await self.con.execute('''
+            INSERT Person2a { first := 'foo', last := 'bar' };
+            INSERT DerivedPerson2a { first := 'spam', last := 'eggs' };
+        ''')
+
+        query = r'''
+            UPDATE Person2a SET { first := "!" };
+        '''
+
+        await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_08a(self):
+        await self.con.execute('''
+            INSERT Person2b { first := 'foo', last := 'bar' };
+        ''')
+
+        query = r'''
+            WITH
+                 F := (INSERT DerivedPerson2b {first := 'foo', last := 'baz'}),
+                 B := (UPDATE Person2b FILTER .first = 'foo' and .last = 'bar'
+                       SET {last := 'baz'}),
+            SELECT (B, F);
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_08b(self):
+        # this should be fine, though
+        await self.con.execute('''
+            INSERT Person2b { first := 'foo', last := 'bar' };
+            INSERT DerivedPerson2b { first := 'spam', last := 'eggs' };
+        ''')
+
+        query = r'''
+            UPDATE Person2b SET { first := "!" };
+        '''
+
+        await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_09a(self):
+        # a constraint that is just on the children
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+            CREATE TYPE Bar EXTENDING Foo  {
+                ALTER PROPERTY name {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Baz EXTENDING Bar;
+
+            INSERT Bar { name := "bar" };
+            INSERT Baz { name := "baz" };
+        ''')
+
+        query = r'''
+            UPDATE Foo FILTER true SET { name := "!" };
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_09b(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+            CREATE TYPE Bar EXTENDING Foo  {
+                ALTER PROPERTY name {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Baz EXTENDING Bar;
+
+            INSERT Bar { name := "bar" };
+            # INSERT Baz { name := "baz" };
+        ''')
+
+        query = r'''
+            WITH name := '!',
+                 B := (UPDATE Foo FILTER .name = 'bar' SET {name := name}),
+                 F := (INSERT Bar {name := name}),
+            SELECT (B, F);
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_09c(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+            CREATE TYPE Bar EXTENDING Foo  {
+                ALTER PROPERTY name {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Baz EXTENDING Bar;
+
+            INSERT Bar { name := "bar" };
+            INSERT Baz { name := "baz" };
+        ''')
+
+        query = r'''
+            WITH name := '!',
+                 B := (UPDATE Foo FILTER .name = 'bar' SET {name := name}),
+                 Z := (UPDATE Foo FILTER .name = 'baz' SET {name := name}),
+            SELECT (B, Z);
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_10(self):
+        # a constraint that is just on the children
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str;
+                CREATE MULTI PROPERTY tags -> str;
+            };
+            CREATE TYPE Bar EXTENDING Foo  {
+                ALTER PROPERTY tags {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Baz EXTENDING Bar;
+
+            INSERT Bar { name := "bar" };
+            INSERT Baz { name := "baz" };
+        ''')
+
+        query = r'''
+            UPDATE Foo FILTER true SET { tags := "!" };
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "tags violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_11(self):
+        # a constraint that is on an unrelated type
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str;
+            };
+            CREATE TYPE Bar {
+                CREATE PROPERTY name -> str {
+                    CREATE CONSTRAINT exclusive;
+                };
+            };
+            CREATE TYPE Baz EXTENDING Foo, Bar;
+
+            INSERT Baz { name := "baz" };
+        ''')
+
+        query = r'''
+            WITH name := '!',
+                 F := (INSERT Bar {name := name}),
+                 B := (UPDATE Foo FILTER .name = 'baz' SET {name := name}),
+            SELECT (B, F);
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_12(self):
+        # a constraint that is just on the children, using data only
+        # in the children
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str;
+                CREATE REQUIRED PROPERTY x -> int64;
+            };
+            CREATE TYPE Bar EXTENDING Foo {
+                CREATE REQUIRED PROPERTY y -> int64;
+                CREATE CONSTRAINT exclusive on
+                    ((__subject__.x + __subject__.y));
+            };
+            CREATE TYPE Baz EXTENDING Bar;
+
+            INSERT Bar { name := "bar", x := 1, y := 1 };
+            INSERT Baz { name := "baz", x := 2, y := 2 };
+        ''')
+
+        query = r'''
+            UPDATE Foo FILTER true SET { x := - .x };
+        '''
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "Bar violates exclusivity constraint"):
+            await self.con.execute(query)
+
+        await self.con.execute('''
+            UPDATE Foo FILTER .name = 'baz' SET { x := 3 };
+        ''')
+
+        # now it should be fine
+        await self.con.execute(query)
 
     async def test_edgeql_insert_and_update_01(self):
         # INSERTing something that would violate a constraint while
