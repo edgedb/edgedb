@@ -1906,7 +1906,7 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
         )
 
         async with tb.start_edgedb_server(
-            adjacent_to=self.con, postgres_dsn=self.postgres_dsn
+            adjacent_to=self.con, backend_dsn=self.backend_dsn
         ) as sd:
 
             con2 = await sd.connect(

@@ -354,9 +354,9 @@ async def run_server(
                 database='template1',
             ),
         )
-    elif args.postgres_dsn:
+    elif args.backend_dsn:
         cluster = await pgcluster.get_remote_pg_cluster(
-            args.postgres_dsn,
+            args.backend_dsn,
             tenant_id=tenant_id,
         )
 

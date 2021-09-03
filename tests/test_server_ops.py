@@ -221,7 +221,7 @@ class TestServerOps(tb.TestCase):
             async with tb.start_edgedb_server(
                 auto_shutdown=True,
                 max_allowed_connections=None,
-                postgres_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
+                backend_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
                 reset_auth=True,
                 runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
             ) as sd:
@@ -259,7 +259,7 @@ class TestServerOps(tb.TestCase):
                 auto_shutdown=True,
                 tenant_id=tenant,
                 reset_auth=True,
-                postgres_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
+                backend_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
                 runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
             ) as sd:
                 con = await sd.connect()
@@ -294,7 +294,7 @@ class TestServerOps(tb.TestCase):
     async def test_server_ops_postgres_recovery(self):
         async def test(pgdata_path):
             async with tb.start_edgedb_server(
-                postgres_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
+                backend_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
                 reset_auth=True,
                 runstate_dir=None if devmode.is_in_dev_mode() else pgdata_path,
             ) as sd:
@@ -305,9 +305,8 @@ class TestServerOps(tb.TestCase):
 
                     # stop the postgres
                     await cluster.stop()
-                    # TODO: Use BackendUnavailableError here, same below
                     with self.assertRaisesRegex(
-                        errors.EdgeDBError,
+                        errors.BackendUnavailableError,
                         'Postgres is not available',
                     ):
                         await con.query_single('SELECT 123+456')
@@ -321,7 +320,7 @@ class TestServerOps(tb.TestCase):
                         try:
                             val = await con.query_single('SELECT 123+456')
                             break
-                        except errors.EdgeDBError:  # TODO: ditto
+                        except errors.BackendUnavailableError:
                             pass
                     self.assertEqual(int(val), 579)
                 finally:

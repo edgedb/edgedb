@@ -444,7 +444,7 @@ class RunningCluster(BaseCluster):
 class TempClusterWithRemotePg(BaseCluster):
     def __init__(
         self,
-        postgres_dsn: str,
+        backend_dsn: str,
         *,
         data_dir_suffix: Optional[str] = None,
         data_dir_prefix: Optional[str] = None,
@@ -460,10 +460,10 @@ class TempClusterWithRemotePg(BaseCluster):
                 dir=data_dir_parent,
             ),
         )
-        self._pg_dsn = postgres_dsn
+        self._backend_dsn = backend_dsn
         super().__init__(
             runstate_dir, env=env, testmode=testmode, log_level=log_level)
-        self._edgedb_cmd.extend(['--postgres-dsn', postgres_dsn])
+        self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
 
     async def _new_pg_cluster(self) -> pgcluster.BaseCluster:
-        return await pgcluster.get_remote_pg_cluster(self._pg_dsn)
+        return await pgcluster.get_remote_pg_cluster(self._backend_dsn)

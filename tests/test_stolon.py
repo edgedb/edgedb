@@ -373,7 +373,7 @@ class TestStolon(tb.TestCase):
                 print('=' * 80)
                 print('Stolon is ready')
             async with tb.start_edgedb_server(
-                postgres_dsn=(
+                backend_dsn=(
                     f"stolon+consul+http://127.0.0.1:{consul.http_port}"
                     f"/{pg1.cluster_name}"
                 ),
