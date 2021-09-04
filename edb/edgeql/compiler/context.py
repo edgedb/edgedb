@@ -185,8 +185,11 @@ class Environment:
 
     pointer_specified_info: Dict[
         s_pointers.Pointer,
-        Tuple[Optional[qltypes.SchemaCardinality], bool,
-              Optional[parsing.ParserContext]],
+        Tuple[
+            Optional[qltypes.SchemaCardinality],
+            Optional[bool],
+            Optional[parsing.ParserContext],
+        ],
     ]
     """Cardinality/source context for pointers with unclear cardinality."""
 

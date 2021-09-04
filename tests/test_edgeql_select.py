@@ -2041,6 +2041,19 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             """)
 
+    async def test_edgeql_select_tvariant_bad_09(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot redefine link 'status' as optional: it is "
+            "defined as required in the base object type 'default::Issue'",
+            _position=71,
+        ):
+            await self.con.execute("""
+                SELECT Issue {
+                    optional status := (SELECT Status FILTER .name = "Open")
+                }
+            """)
+
     async def test_edgeql_select_instance_01(self):
         await self.assert_query_result(
             r'''

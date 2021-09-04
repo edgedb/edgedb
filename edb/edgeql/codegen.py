@@ -525,8 +525,11 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         # and must not be quoted.
 
         quals = []
-        if node.required:
-            quals.append('required')
+        if node.required is not None:
+            if node.required:
+                quals.append('required')
+            else:
+                quals.append('optional')
 
         if node.cardinality:
             quals.append(node.cardinality.as_ptr_qual())
