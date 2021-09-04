@@ -681,7 +681,19 @@ def __infer_func_call(
 
     ret_lower_bound, ret_upper_bound = _card_to_bounds(return_card)
 
-    if ir.preserves_optionality:
+    if ir.func_shortname == sn.QualName('std', 'assert_exists'):
+        arg_cards = []
+
+        for arg in ir.args:
+            arg.cardinality = infer_cardinality(
+                arg.expr, scope_tree=scope_tree, ctx=ctx)
+            arg_cards.append(arg.cardinality)
+
+        arg_card = zip(*(_card_to_bounds(card) for card in arg_cards))
+        _, arg_upper = arg_card
+        return _bounds_to_card(CardinalityBound.ONE, max(arg_upper))
+
+    elif ir.preserves_optionality:
         # This is a generic aggregate function which preserves the
         # optionality of its generic argument.  For simplicity we
         # are deliberately not checking the parameters here as that

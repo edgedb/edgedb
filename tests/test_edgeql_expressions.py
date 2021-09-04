@@ -4875,3 +4875,107 @@ aa \
                 single foo := assert_single(.name) ++ "!"
             }
         """)
+
+    async def test_edgeql_assert_exists_01(self):
+        await self.con.execute("""
+            INSERT User {
+                name := "User 1",
+            };
+            INSERT User {
+                name := "User 2",
+            }
+        """)
+
+        await self.assert_query_result(
+            """
+                SELECT assert_exists((
+                    SELECT User { name } FILTER .name IN {"User 1", "User 2"}
+                )) ORDER BY .name
+            """,
+            [{
+                "name": "User 1",
+            }, {
+                "name": "User 2",
+            }],
+        )
+
+        await self.assert_query_result(
+            """
+                SELECT {
+                    user := assert_exists(
+                        (SELECT User FILTER .name = "User 1").name
+                    )
+                }
+            """,
+            [{
+                "user": "User 1",
+            }],
+        )
+
+        # Same but with explicit lower cardinality
+        await self.assert_query_result(
+            """
+                SELECT {
+                    required user := assert_exists(
+                        (SELECT User FILTER .name = "User 1").name
+                    )
+                }
+            """,
+            [{
+                "user": "User 1",
+            }],
+        )
+
+        await self.con.query_single(
+            """
+                SELECT {
+                    required all_users := assert_exists(User)
+                }
+            """,
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_exists violation",
+        ):
+            await self.con.query("""
+                SELECT assert_exists(<str>{});
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_exists violation",
+        ):
+            await self.con.query("""
+                SELECT assert_exists(
+                    (SELECT User FILTER .name = "nonexistent")
+                );
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_exists violation",
+        ):
+            await self.con.query("""
+                SELECT User {
+                    bff := assert_exists((
+                        SELECT User FILTER .name = "nonexistent"))
+                }
+                FILTER .name = "User 2";
+            """)
+
+    async def test_edgeql_assert_exists_no_op(self):
+        await self.con.query("""
+            SELECT assert_exists(1)
+        """)
+
+        await self.con.query("""
+            FOR x IN {User}
+            UNION assert_exists(x.name)
+        """)
+
+        await self.con.query("""
+            SELECT User {
+                single foo := assert_exists(.name) ++ "!"
+            }
+        """)

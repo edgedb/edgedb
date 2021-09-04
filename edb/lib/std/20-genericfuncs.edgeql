@@ -19,8 +19,8 @@
 ## Fundamental polymorphic functions
 
 
-# std::assert_single -- runtime cardinality assertion
-# ---------------------------------------------------
+# std::assert_single -- runtime cardinality assertion (upper bound)
+# -----------------------------------------------------------------
 
 CREATE FUNCTION
 std::assert_single(input: SET OF anytype) -> OPTIONAL anytype
@@ -30,6 +30,20 @@ std::assert_single(input: SET OF anytype) -> OPTIONAL anytype
          CardinalityViolationError otherwise.";
     SET volatility := 'Stable';
     SET preserves_optionality := true;
+    USING SQL EXPRESSION;
+};
+
+
+# std::assert_exists -- runtime cardinality assertion (lower bound)
+# -----------------------------------------------------------------
+
+CREATE FUNCTION
+std::assert_exists(input: SET OF anytype) -> SET OF anytype
+{
+    CREATE ANNOTATION std::description :=
+        "Check that the input set contains at least one element, raise
+         CardinalityViolationError otherwise.";
+    SET volatility := 'Stable';
     USING SQL EXPRESSION;
 };
 

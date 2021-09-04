@@ -35,6 +35,9 @@ Set
     * - :eql:func:`assert_single`
       - :eql:func-desc:`assert_single`
 
+    * - :eql:func:`assert_exists`
+      - :eql:func-desc:`assert_exists`
+
     * - :eql:func:`count`
       - :eql:func-desc:`count`
 
@@ -299,6 +302,32 @@ Set
         db> SELECT assert_single((SELECT User))
         ERROR: CardinalityViolationError: assert_single violation: more than
                one element returned by an expression
+
+
+----------
+
+
+.. eql:function:: std::assert_exists(s: SET OF anytype) -> SET OF anytype
+
+    :index: cardinality existence empty
+
+    Check that the input set contains at least one element.
+
+    If the input set is empty, ``assert_exists`` raises a
+    ``CardinalityViolationError``.  This function is useful
+    as a runtime existence assertion in queries and computed
+    expressions that should always return sets with at least a single
+    element, but where static cardinality inference is not capable
+    enough or outright impossible.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT assert_exists((SELECT User FILTER .name = "Administrator"))
+        {default::User {id: ...}}
+
+        db> SELECT assert_exists((SELECT User FILTER .name = "Nonexistent"))
+        ERROR: CardinalityViolationError: assert_exists violation: expression
+               returned an empty set.
 
 
 ----------
