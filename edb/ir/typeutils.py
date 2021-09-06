@@ -828,55 +828,33 @@ def find_actual_ptrref(
         link_ptr: irast.BasePointerRef = ptrref.source_ptr
         if link_ptr.material_ptr:
             link_ptr = link_ptr.material_ptr
-        if link_ptr.dir_source(dir).id != source_typeref.id:
-            # We are updating a subtype, find the
-            # correct descendant ptrref.
-            for dp in ptrref.children:
-                assert dp.source_ptr is not None
-                if dp.source_ptr.dir_source(dir).id == source_typeref.id:
-                    actual_ptrref = dp
-                    break
-                else:
-                    candidate = maybe_find_actual_ptrref(
-                        source_typeref, dp, material=material, dir=dir)
-                    if candidate is not None:
-                        actual_ptrref = candidate
-                        break
-            else:
-                raise LookupError(
-                    f'cannot find ptrref matching typeref {source_typeref.id}')
+        if link_ptr.dir_source(dir).id == source_typeref.id:
+            return ptrref
+    elif ptrref.dir_source(dir).id == source_typeref.id:
+        return ptrref
+
+    # We are updating a subtype, find the
+    # correct descendant ptrref.
+    for dp in (
+        (ptrref.union_components or set())
+        | (ptrref.intersection_components or set())
+    ):
+        candidate = maybe_find_actual_ptrref(
+            source_typeref, dp, material=material, dir=dir)
+        if candidate is not None:
+            return candidate
+
+    for dp in ptrref.children:
+        if dp.dir_source(dir) and dp.dir_source(dir).id == source_typeref.id:
+            return dp
         else:
-            actual_ptrref = ptrref
-    elif ptrref.dir_source(dir).id != source_typeref.id:
-        # We are updating a subtype, find the
-        # correct descendant ptrref.
-        for dp in (
-            (ptrref.union_components or set())
-            | (ptrref.intersection_components or set())
-        ):
             candidate = maybe_find_actual_ptrref(
                 source_typeref, dp, material=material, dir=dir)
             if candidate is not None:
-                actual_ptrref = candidate
-                break
-        else:
-            for dp in ptrref.children:
-                if dp.dir_source(dir).id == source_typeref.id:
-                    actual_ptrref = dp
-                    break
-                else:
-                    candidate = maybe_find_actual_ptrref(
-                        source_typeref, dp, material=material, dir=dir)
-                    if candidate is not None:
-                        actual_ptrref = candidate
-                        break
-            else:
-                raise LookupError(
-                    f'cannot find ptrref matching typeref {source_typeref.id}')
-    else:
-        actual_ptrref = ptrref
+                return candidate
 
-    return actual_ptrref
+    raise LookupError(
+        f'cannot find ptrref matching typeref {source_typeref.id}')
 
 
 def maybe_find_actual_ptrref(
