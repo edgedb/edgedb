@@ -696,9 +696,10 @@ def process_set_as_link_property_ref(
         assert link_path_id is not None
         orig_link_path_id = link_path_id
 
-        rptr_specialization: Set[irast.PointerRef] = set()
+        rptr_specialization: Optional[Set[irast.PointerRef]] = None
 
         if link_path_id.is_type_intersection_path():
+            rptr_specialization = set()
             link_prefix, ind_ptrs = (
                 irutils.collapse_type_intersection(ir_source))
             for ind_ptr in ind_ptrs:
@@ -721,18 +722,22 @@ def process_set_as_link_property_ref(
                 link_prefix.rptr, src_rvar=src_rvar,
                 link_bias=True, ctx=newctx)
 
-        if rptr_specialization and astutils.is_set_op_query(link_rvar.query):
-            # This is a link property reference to a link union narrowed
-            # by a type intersection.  We already know which union components
+        if astutils.is_set_op_query(link_rvar.query):
+            # If we have an rptr_specialization, then this is a link
+            # property reference to a link union narrowed by a type
+            # intersection.  We already know which union components
             # match the indirection expression, and can route the link
             # property references to correct UNION subqueries.
-            ptr_ids = {spec.id for spec in rptr_specialization}
+            ptr_ids = (
+                {spec.id for spec in rptr_specialization}
+                if rptr_specialization is not None else None
+            )
 
             def cb(subquery: pgast.Query) -> None:
                 if isinstance(subquery, pgast.SelectStmt):
                     rvar = subquery.from_clause[0]
                     assert isinstance(rvar, pgast.PathRangeVar)
-                    if rvar.schema_object_id in ptr_ids:
+                    if ptr_ids is None or rvar.schema_object_id in ptr_ids:
                         pathctx.put_path_source_rvar(
                             subquery, orig_link_path_id, rvar, env=ctx.env
                         )

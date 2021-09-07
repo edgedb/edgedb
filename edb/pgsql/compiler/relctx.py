@@ -1484,8 +1484,10 @@ def table_from_ptrref(
 
     # Pseudo pointers (tuple and type intersection) have no schema id.
     sobj_id = ptrref.id if isinstance(ptrref, irast.PointerRef) else None
+    typeref = ptrref.out_source if ptrref else None
     rvar = pgast.RelRangeVar(
         schema_object_id=sobj_id,
+        typeref=typeref,
         relation=relation,
         include_inherited=include_descendants,
         alias=pgast.Alias(

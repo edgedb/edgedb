@@ -1023,3 +1023,141 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
                 {"name": "Bob", "avatar": None}
             ],
         )
+
+    async def test_edgeql_props_link_union_01(self):
+        await self.con.execute(r'''
+            CREATE TYPE Tgt;
+            CREATE TYPE Tgt2 EXTENDING Tgt;
+            CREATE TYPE Bar {
+                CREATE LINK l -> Tgt {
+                    CREATE PROPERTY x -> str;
+                };
+            };
+            CREATE TYPE Foo {
+                CREATE LINK l -> Tgt {
+                    CREATE PROPERTY x -> str;
+                };
+            };
+            CREATE TYPE Baz {
+                CREATE LINK fubar -> (Bar | Foo);
+            };
+
+            INSERT Baz {
+                fubar := (INSERT Bar {
+                    l := (INSERT Tgt2 { @x := "test" })
+                })
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Baz.fubar.l@x;
+            ''',
+            ["test"],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Baz.fubar.l[IS Tgt2]@x;
+            ''',
+            ["test"],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo UNION Bar).l@x;
+            ''',
+            ["test"],
+        )
+
+    async def test_edgeql_props_link_union_02(self):
+        await self.con.execute(r'''
+            CREATE TYPE Tgt;
+            CREATE TYPE Tgt2 EXTENDING Tgt;
+            CREATE TYPE Bar {
+                CREATE MULTI LINK l -> Tgt {
+                    CREATE PROPERTY x -> str;
+                };
+            };
+            CREATE TYPE Foo {
+                CREATE MULTI LINK l -> Tgt {
+                    CREATE PROPERTY x -> str;
+                };
+            };
+            CREATE TYPE Baz {
+                CREATE LINK fubar -> (Bar | Foo);
+            };
+
+            INSERT Baz {
+                fubar := (INSERT Bar {
+                    l := (INSERT Tgt2 { @x := "test" })
+                })
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Baz.fubar.l@x;
+            ''',
+            ["test"],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Baz.fubar.l[IS Tgt2]@x;
+            ''',
+            ["test"],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo UNION Bar).l@x;
+            ''',
+            ["test"],
+        )
+
+    async def test_edgeql_props_link_union_03(self):
+        await self.con.execute(r'''
+            CREATE TYPE Tgt;
+            CREATE TYPE Tgt2 EXTENDING Tgt;
+            CREATE TYPE Bar {
+                CREATE LINK l -> Tgt {
+                    CREATE PROPERTY x -> str;
+                };
+            };
+            CREATE TYPE Foo {
+                CREATE MULTI LINK l -> Tgt {
+                    CREATE PROPERTY x -> str;
+                };
+            };
+            CREATE TYPE Baz {
+                CREATE LINK fubar -> (Bar | Foo);
+            };
+
+            INSERT Baz {
+                fubar := (INSERT Bar {
+                    l := (INSERT Tgt2 { @x := "test" })
+                })
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Baz.fubar.l@x;
+            ''',
+            ["test"],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Baz.fubar.l[IS Tgt2]@x;
+            ''',
+            ["test"],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Foo UNION Bar).l@x;
+            ''',
+            ["test"],
+        )

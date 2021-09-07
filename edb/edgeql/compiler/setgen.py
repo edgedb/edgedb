@@ -979,18 +979,22 @@ def type_intersection_set(
                 rptr_specialization.append(component)
             elif stype.issubclass(ctx.env.schema, component_endpoint):
                 assert isinstance(stype, s_objtypes.ObjectType)
-                narrow_ptr = stype.getptr(
-                    ctx.env.schema,
-                    component.shortname.get_local_name(),
-                )
-                rptr_specialization.append(
-                    irtyputils.ptrref_from_ptrcls(
-                        schema=ctx.env.schema,
-                        ptrcls=narrow_ptr,
-                        cache=ctx.env.ptr_ref_cache,
-                        typeref_cache=ctx.env.type_ref_cache,
-                    ),
-                )
+                if rptr.direction is s_pointers.PointerDirection.Inbound:
+                    narrow_ptr = stype.getptr(
+                        ctx.env.schema,
+                        component.shortname.get_local_name(),
+                    )
+                    rptr_specialization.append(
+                        irtyputils.ptrref_from_ptrcls(
+                            schema=ctx.env.schema,
+                            ptrcls=narrow_ptr,
+                            cache=ctx.env.ptr_ref_cache,
+                            typeref_cache=ctx.env.type_ref_cache,
+                        ),
+                    )
+                else:
+                    assert isinstance(component, irast.PointerRef)
+                    rptr_specialization.append(component)
 
     ptrcls = irast.TypeIntersectionLink(
         arg_type,
