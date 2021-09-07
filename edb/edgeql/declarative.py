@@ -1144,13 +1144,11 @@ def _get_bases(
         else:
             for base_ref in decl.bases:
                 # Validate that the base actually exists.
-                tracer_type, real_type = _get_tracer_and_real_type(decl)
+                tracer_type = _get_tracer_type(decl)
                 assert tracer_type is not None
-                assert real_type is not None
                 obj = _resolve_type_name(
                     base_ref.maintype,
                     tracer_type=tracer_type,
-                    real_type=real_type,
                     ctx=ctx
                 )
                 name = obj.get_name(ctx.schema)
@@ -1180,7 +1178,6 @@ def _resolve_type_expr(
                 _resolve_type_name(
                     texpr.maintype,
                     tracer_type=qltracer.Type,
-                    real_type=s_types.Type,
                     ctx=ctx,
                 )
             )
@@ -1204,6 +1201,7 @@ def _resolve_type_expr(
 
 
 TRACER_TO_REAL_TYPE_MAP = {
+    qltracer.Type: s_types.Type,
     qltracer.ObjectType: s_objtypes.ObjectType,
     qltracer.ScalarType: s_scalars.ScalarType,
     qltracer.Constraint: s_constr.Constraint,
@@ -1240,7 +1238,6 @@ def _resolve_type_name(
     ref: qlast.BaseObjectRef,
     *,
     tracer_type: Type[qltracer.NamedObject],
-    real_type: Type[s_obj.Object_T],
     ctx: LayoutTraceContext,
 ) -> qltracer.ObjectLike:
 
@@ -1252,7 +1249,7 @@ def _resolve_type_name(
     else:
         obj = _resolve_schema_ref(
             refname,
-            type=real_type,
+            type=tracer_type,
             sourcectx=ref.context,
             ctx=ctx,
         )
@@ -1260,13 +1257,11 @@ def _resolve_type_name(
     return obj
 
 
-def _get_tracer_and_real_type(
+def _get_tracer_type(
     decl: qlast.CreateObject,
-) -> Tuple[Optional[Type[qltracer.NamedObject]],
-           Optional[Type[s_obj.Object]]]:
+) -> Optional[Type[qltracer.NamedObject]]:
 
     tracer_type: Optional[Type[qltracer.NamedObject]] = None
-    real_type: Optional[Type[s_obj.Object]] = None
 
     if isinstance(decl, qlast.CreateObjectType):
         tracer_type = qltracer.ObjectType
@@ -1285,10 +1280,7 @@ def _get_tracer_and_real_type(
                            qlast.CreateConcreteLink)):
         tracer_type = qltracer.Link
 
-    if tracer_type:
-        real_type = TRACER_TO_REAL_TYPE_MAP[tracer_type]
-
-    return tracer_type, real_type
+    return tracer_type
 
 
 def _validate_schema_ref(
@@ -1297,7 +1289,7 @@ def _validate_schema_ref(
     ctx: LayoutTraceContext,
 ) -> None:
     refname = ctx.get_ref_name(decl.name)
-    tracer_type, real_type = _get_tracer_and_real_type(decl)
+    tracer_type = _get_tracer_type(decl)
     if tracer_type is None:
         # Bail out and rely on some other validation mechanism
         return
@@ -1305,10 +1297,9 @@ def _validate_schema_ref(
     local_obj = _get_local_obj(refname, tracer_type, decl.context, ctx=ctx)
 
     if local_obj is None:
-        assert real_type is not None
         _resolve_schema_ref(
             refname,
-            type=real_type,
+            type=tracer_type,
             sourcectx=decl.context,
             ctx=ctx,
         )
@@ -1316,20 +1307,21 @@ def _validate_schema_ref(
 
 def _resolve_schema_ref(
     name: s_name.Name,
-    type: Type[s_obj.Object_T],
+    type: Type[qltracer.NamedObject],
     sourcectx: Optional[parsing.ParserContext],
     *,
     ctx: LayoutTraceContext,
-) -> s_obj.Object_T:
+) -> s_obj.SubclassableObject:
+    real_type = TRACER_TO_REAL_TYPE_MAP[type]
     try:
-        return ctx.schema.get(name, type=type, sourcectx=sourcectx)
+        return ctx.schema.get(name, type=real_type, sourcectx=sourcectx)
     except errors.InvalidReferenceError as e:
         s_utils.enrich_schema_lookup_error(
             e,
             name,
             schema=ctx.schema,
             modaliases=ctx.modaliases,
-            item_type=type,
+            item_type=real_type,
             context=sourcectx,
         )
         raise
