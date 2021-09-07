@@ -6182,3 +6182,33 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             [],
         )
+
+    async def test_edgeql_select_reverse_overload_03(self):
+        await self.con.execute('''
+            CREATE TYPE Dummy1 {
+                CREATE LINK whatever -> User;
+            };
+            CREATE TYPE Dummy2 {
+                CREATE LINK whatever := (SELECT User FILTER .name = 'Elvis');
+            };
+            INSERT Dummy1 { whatever := (SELECT User FILTER .name = 'Yury') };
+        ''')
+
+        # We should be able to query the whatever backlink as long as we
+        # filter it properly
+        await self.assert_query_result(
+            r'''
+                SELECT User.<whatever[IS Dummy1];
+            ''',
+            [{}],
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"cannot follow backlink 'whatever' because link 'whatever' "
+                r"of object type 'default::Dummy2' is computed"):
+            await self.con.query(
+                r'''
+                    SELECT User.<whatever
+                ''',
+            )
