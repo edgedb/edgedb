@@ -398,12 +398,21 @@ class BasePool(typing.Generic[C]):
         return self._max_capacity
 
     @property
+    def current_capacity(self) -> int:
+        return self._cur_capacity
+
+    @property
     def failed_connects(self) -> int:
         return self._failed_connects
 
     @property
     def failed_disconnects(self) -> int:
         return self._failed_disconnects
+
+    def get_pending_conns(self) -> int:
+        return sum(
+            block.count_pending_conns() for block in self._blocks.values()
+        )
 
     def _get_loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None:

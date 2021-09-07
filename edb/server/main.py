@@ -197,6 +197,7 @@ async def _run_server(
             startup_script=args.startup_script,
             allow_insecure_binary_clients=args.allow_insecure_binary_clients,
             allow_insecure_http_clients=args.allow_insecure_http_clients,
+            backend_passive_ha=args.backend_passive_ha,
         )
         await sc.wait_for(ss.init())
 

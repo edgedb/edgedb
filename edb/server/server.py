@@ -52,6 +52,7 @@ from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
 from edb.server.ha import base as ha_base
+from edb.server.ha import passive
 from edb.server.protocol import binary  # type: ignore
 from edb.server import pgcon
 from edb.server.pgcon import errors as pgcon_errors
@@ -93,6 +94,7 @@ class Server(ha_base.ClusterProtocol):
 
     _task_group: Optional[taskgroup.TaskGroup]
     _binary_conns: Set[binary.EdgeConnection]
+    _backend_passive_ha: Optional[passive.PassiveHASupport]
 
     def __init__(
         self,
@@ -110,6 +112,7 @@ class Server(ha_base.ClusterProtocol):
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
         startup_script: Optional[srvargs.StartupScript] = None,
+        backend_passive_ha: bool = False,
     ):
 
         self._loop = asyncio.get_running_loop()
@@ -192,6 +195,10 @@ class Server(ha_base.ClusterProtocol):
 
         self._allow_insecure_binary_clients = allow_insecure_binary_clients
         self._allow_insecure_http_clients = allow_insecure_http_clients
+        if backend_passive_ha:
+            self._backend_passive_ha = passive.PassiveHASupport(self)
+        else:
+            self._backend_passive_ha = None
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -261,6 +268,10 @@ class Server(ha_base.ClusterProtocol):
             self._get_pgaddr(), pg_dbname, self._tenant_id)
         if ha_serial == self._ha_master_serial:
             rv.set_server(self)
+            if self._backend_passive_ha is not None:
+                self._backend_passive_ha.on_pgcon_made(
+                    dbname == defines.EDGEDB_SYSTEM_DB
+                )
             return rv
         else:
             rv.terminate()
@@ -905,6 +916,15 @@ class Server(ha_base.ClusterProtocol):
         self.__sys_pgcon = None
         self._sys_pgcon_ready_evt.clear()
         self._loop.create_task(self._reconnect_sys_pgcon())
+        self._on_pgcon_broken(True)
+
+    def _on_pgcon_broken(self, is_sys_pgcon=False):
+        if self._backend_passive_ha:
+            self._backend_passive_ha.on_pgcon_broken(is_sys_pgcon)
+
+    def _on_pgcon_lost(self):
+        if self._backend_passive_ha:
+            self._backend_passive_ha.on_pgcon_lost()
 
     async def _reconnect_sys_pgcon(self):
         try:
@@ -1214,7 +1234,7 @@ class Server(ha_base.ClusterProtocol):
         if msg is None or self._pg_unavailable_msg is None:
             self._pg_unavailable_msg = msg
 
-    def on_switch_over(self, old_master, new_master):
+    def on_switch_over(self):
         # Bumping this serial counter will "cancel" all pending connections
         # to the old master.
         self._ha_master_serial += 1
@@ -1229,6 +1249,11 @@ class Server(ha_base.ClusterProtocol):
             # Brutally close the sys_pgcon to the old master - this should
             # trigger a reconnect task.
             self.__sys_pgcon.abort()
+
+    def get_active_pgcon_num(self) -> int:
+        return (
+            self._pg_pool.current_capacity - self._pg_pool.get_pending_conns()
+        )
 
 
 async def _resolve_localhost() -> List[str]:

@@ -116,9 +116,7 @@ class StolonBackend(base.HABackend):
                     master_addr,
                 )
                 if self._cluster_protocol is not None:
-                    self._cluster_protocol.on_switch_over(
-                        self._master_addr, master_addr
-                    )
+                    self._cluster_protocol.set_state_failover()
             self._master_addr = master_addr
 
         if self._waiter is not None:

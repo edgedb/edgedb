@@ -375,6 +375,7 @@ cdef class PGConnection:
         self.pgaddr = addr
         self.server = None
         self.is_system_db = False
+        self.close_requested = False
 
         self.idle = True
         self.cancel_fut = None
@@ -419,6 +420,7 @@ cdef class PGConnection:
     def abort(self):
         if not self.transport:
             return
+        self.close_requested = True
         self.transport.abort()
         self.transport = None
         self.connected = False
@@ -426,6 +428,7 @@ cdef class PGConnection:
     def terminate(self):
         if not self.transport:
             return
+        self.close_requested = True
         self.write(WriteBuffer.new_message(b'X').end_message())
         self.transport.close()
         self.transport = None
@@ -1833,6 +1836,11 @@ cdef class PGConnection:
 
         if self.is_system_db:
             self.server._on_sys_pgcon_connection_lost(exc)
+        elif self.server is not None:
+            if not self.close_requested:
+                self.server._on_pgcon_broken()
+            else:
+                self.server._on_pgcon_lost()
 
         if self.connected_fut is not None and not self.connected_fut.done():
             self.connected_fut.set_exception(ConnectionAbortedError())

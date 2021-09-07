@@ -63,6 +63,7 @@ class ServerConfig(NamedTuple):
     insecure: bool
     data_dir: pathlib.Path
     backend_dsn: str
+    backend_passive_ha: bool
     tenant_id: Optional[str]
     ignore_other_tenants: bool
     log_level: str
@@ -240,6 +241,13 @@ _server_options = [
         help='DSN of a remote backend cluster, if using one. '
              'Also supports HA clusters, for example: stolon+consul+http://'
              'localhost:8500/test_cluster'),
+    click.option(
+        '--enable-backend-passive-ha', 'backend_passive_ha', is_flag=True,
+        help='If backend passive HA is enabled, the EdgeDB server will '
+             'monitor the health of the backend cluster and shutdown all '
+             'backend connections if threshold is reached, until reconnected '
+             'again using the same DSN (HA should have updated the DNS '
+             'value). Default is disabled.'),
     click.option(
         '--tenant-id',
         type=str,
