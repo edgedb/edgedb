@@ -493,6 +493,8 @@ def _normalize_view_ptr_expr(
         # Schema computables that point to opaque unions will just have
         # BaseObject as their target, but in order to properly compile
         # it, we need to know the actual type here, so we recompute it.
+        # XXX: This is a hack, though, and hopefully we can fix it once
+        # the computable/alias rework lands.
         is_opaque_schema_computable = (
             ptrcls.is_pure_computable(ctx.env.schema)
             and (t := ptrcls.get_target(ctx.env.schema))
