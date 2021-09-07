@@ -534,6 +534,8 @@ def compile_iterator_cte(
                                           ctx=ictx)
 
         clauses.compile_iterator_expr(ictx.rel, iterator_set, ctx=ictx)
+        if iterator_set.path_id.is_objtype_path():
+            relgen.ensure_source_rvar(iterator_set, ictx.rel, ctx=ictx)
         ictx.rel.path_id = iterator_set.path_id
         pathctx.put_path_bond(ictx.rel, iterator_set.path_id)
         iterator_cte = pgast.CommonTableExpr(
