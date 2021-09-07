@@ -658,31 +658,42 @@ def resolve_ptr(
         ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name,
                                       sources=far_endpoints)
         if ptrs:
-            if track_ref is not False:
-                # If this reverse pointer access is followed by
-                # intersections, we filter out any pointers that
-                # couldn't be picked up by the intersections. This avoids
-                # creating spurious dependencies when reverse
-                # links are used in schemas.
-                dep_ptrs = {
-                    ptr for ptr in ptrs
-                    if (src := ptr.get_source(ctx.env.schema))
-                    and all(
-                        src.issubclass(ctx.env.schema, typ)
-                        or any(
-                            dsrc.issubclass(ctx.env.schema, typ)
-                            for dsrc in src.descendants(ctx.env.schema)
-                        )
-                        for typ in upcoming_intersections
+            # If this reverse pointer access is followed by
+            # intersections, we filter out any pointers that
+            # couldn't be picked up by the intersections. This avoids
+            # creating spurious dependencies when reverse
+            # links are used in schemas.
+            dep_ptrs = {
+                ptr for ptr in ptrs
+                if (src := ptr.get_source(ctx.env.schema))
+                and all(
+                    src.issubclass(ctx.env.schema, typ)
+                    or any(
+                        dsrc.issubclass(ctx.env.schema, typ)
+                        for dsrc in src.descendants(ctx.env.schema)
                     )
-                }
+                    for typ in upcoming_intersections
+                )
+            }
 
+            if track_ref is not False:
                 for p in dep_ptrs:
                     ctx.env.add_schema_ref(
                         p.get_nearest_non_derived_parent(ctx.env.schema),
                         track_ref)
+
+            # We can only compute backlinks for non-computed pointers,
+            # but we need to make sure that a computed pointer doesn't
+            # break properly-filtered backlinks.
+            concrete_ptrs = [
+                ptr for ptr in ptrs
+                if not ptr.is_pure_computable(ctx.env.schema)]
+
             for ptr in ptrs:
-                if ptr.is_pure_computable(ctx.env.schema):
+                if (
+                    ptr.is_pure_computable(ctx.env.schema)
+                    and (ptr in dep_ptrs or not concrete_ptrs)
+                ):
                     vname = ptr.get_verbosename(ctx.env.schema,
                                                 with_parent=True)
                     raise errors.InvalidReferenceError(
@@ -697,7 +708,7 @@ def resolve_ptr(
                 ptrname=s_name.UnqualName(pointer_name),
                 source=near_endpoint,
                 direction=direction,
-                components=ptrs,
+                components=concrete_ptrs,
                 opaque=opaque,
                 modname=ctx.derived_target_module,
             )
