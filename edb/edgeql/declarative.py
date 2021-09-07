@@ -1201,6 +1201,7 @@ def _resolve_type_expr(
 
 
 TRACER_TO_REAL_TYPE_MAP = {
+    qltracer.Type: s_types.Type,
     qltracer.ObjectType: s_objtypes.ObjectType,
     qltracer.ScalarType: s_scalars.ScalarType,
     qltracer.Constraint: s_constr.Constraint,
@@ -1310,7 +1311,7 @@ def _resolve_schema_ref(
     sourcectx: Optional[parsing.ParserContext],
     *,
     ctx: LayoutTraceContext,
-) -> s_obj.InheritingObject:
+) -> s_obj.SubclassableObject:
     real_type = TRACER_TO_REAL_TYPE_MAP[type]
     try:
         return ctx.schema.get(name, type=real_type, sourcectx=sourcectx)
