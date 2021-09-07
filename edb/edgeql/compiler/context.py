@@ -86,11 +86,6 @@ class ViewRPtr:
 
 
 @dataclasses.dataclass
-class StatementMetadata:
-    iterator_target: bool = False
-
-
-@dataclasses.dataclass
 class ScopeInfo:
     path_scope: irast.ScopeTreeNode
     pinned_path_id_ns: Optional[FrozenSet[str]] = None
@@ -388,9 +383,6 @@ class ContextLevel(compiler.ContextLevel):
     func: Optional[s_func.Function]
     """Schema function object required when compiling functions bodies."""
 
-    stmt_metadata: Dict[qlast.Statement, StatementMetadata]
-    """Extra statement metadata needed by the compiler, but not in AST."""
-
     source_map: Dict[s_pointers.PointerLike, irast.ComputableInfo]
     """A mapping of computable pointers to QL source AST and context."""
 
@@ -554,7 +546,6 @@ class ContextLevel(compiler.ContextLevel):
             self.aliases = compiler.AliasGenerator()
             self.anchors = {}
             self.modaliases = {}
-            self.stmt_metadata = {}
 
             self.source_map = {}
             self.view_nodes = {}
@@ -576,7 +567,6 @@ class ContextLevel(compiler.ContextLevel):
             self.view_map = collections.ChainMap()
             self.path_scope = env.path_scope
             self.path_scope_map = {}
-            self.iterator_ctx = None
             self.iterator_path_ids = frozenset()
             self.scope_id_ctr = compiler.SimpleCounter()
             self.view_scls = None
@@ -604,7 +594,6 @@ class ContextLevel(compiler.ContextLevel):
             self.env = prevlevel.env
             self.derived_target_module = prevlevel.derived_target_module
             self.aliases = prevlevel.aliases
-            self.stmt_metadata = prevlevel.stmt_metadata
 
             self.source_map = prevlevel.source_map
             self.view_nodes = prevlevel.view_nodes
@@ -614,7 +603,6 @@ class ContextLevel(compiler.ContextLevel):
             self.expr_view_cache = prevlevel.expr_view_cache
             self.shape_type_cache = prevlevel.shape_type_cache
 
-            self.iterator_ctx = prevlevel.iterator_ctx
             self.iterator_path_ids = prevlevel.iterator_path_ids
             self.path_id_namespace = prevlevel.path_id_namespace
             self.pending_stmt_own_path_id_namespace = \
@@ -680,7 +668,6 @@ class ContextLevel(compiler.ContextLevel):
                 self.pending_stmt_full_path_id_namespace = frozenset()
                 self.banned_paths = set()
 
-                self.iterator_ctx = None
                 self.iterator_path_ids = frozenset()
 
                 self.view_rptr = None

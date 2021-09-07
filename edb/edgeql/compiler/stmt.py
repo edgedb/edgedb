@@ -125,29 +125,20 @@ def compile_ForQuery(
         if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
             iterator = iterator.elements[0]
 
-        # Compile the iterator
-        iterator_ctx = None
-        if (ctx.expr_exposed and ctx.iterator_ctx is not None
-                and ctx.iterator_ctx is not sctx):
-            iterator_ctx = ctx.iterator_ctx
-
-        ictx = iterator_ctx or sctx
-
         contains_dml = qlutils.contains_dml(qlstmt.result)
         # If the body contains DML, then we need to prohibit
         # correlation between the iterator and the enclosing
         # query, since the correlation imposes compilation issues
         # we aren't willing to tackle.
         if contains_dml:
-            ictx.path_scope.factoring_allowlist.update(
-                ctx.iterator_path_ids)
+            sctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
         iterator_view = stmtctx.declare_view(
             iterator,
             s_name.UnqualName(qlstmt.iterator_alias),
             factoring_fence=contains_dml,
-            path_id_namespace=ictx.path_id_namespace,
+            path_id_namespace=sctx.path_id_namespace,
             is_for_view=True,
-            ctx=ictx,
+            ctx=sctx,
         )
 
         iterator_stmt = setgen.new_set_from_set(
@@ -166,7 +157,7 @@ def compile_ForQuery(
 
         pathctx.register_set_in_scope(
             iterator_stmt,
-            path_scope=ictx.path_scope,
+            path_scope=sctx.path_scope,
             ctx=sctx,
         )
 
@@ -174,10 +165,9 @@ def compile_ForQuery(
         # of the UNION argument, but is perfectly legal to be referenced
         # inside a factoring fence that is an immediate child of this
         # scope.
-        ictx.path_scope.factoring_allowlist.add(
-            stmt.iterator_stmt.path_id)
+        sctx.path_scope.factoring_allowlist.add(stmt.iterator_stmt.path_id)
         sctx.iterator_path_ids |= {stmt.iterator_stmt.path_id}
-        node = ictx.path_scope.find_descendant(iterator_stmt.path_id)
+        node = sctx.path_scope.find_descendant(iterator_stmt.path_id)
         if node is not None:
             # See above about why we need a factoring fence.
             # We need to do this again when we move the branch so
@@ -871,11 +861,6 @@ def init_stmt(
     if pending_full_ns:
         ctx.path_id_namespace |= pending_full_ns
 
-    metadata = ctx.stmt_metadata.get(qlstmt)
-    if metadata is not None:
-        if metadata.iterator_target:
-            ctx.iterator_ctx = ctx
-
     irstmt.parent_stmt = parent_ctx.stmt
 
     irstmt.bindings = process_with_block(
@@ -884,7 +869,6 @@ def init_stmt(
     if isinstance(irstmt, irast.MutatingStmt):
         ctx.path_scope.factoring_fence = True
         parent_ctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
-        ctx.iterator_ctx = None
 
 
 def fini_stmt(
