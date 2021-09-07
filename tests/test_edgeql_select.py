@@ -756,6 +756,21 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_select_computable_34(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"possibly not a distinct set returned by an expression for "
+            r"a computed link 'foo'",
+            _position=78,
+        ):
+            await self.con.query("""\
+                SELECT Issue{
+                    number,
+                    foo := .owner.todo UNION .owner.todo,
+                }
+                FILTER Issue.number = '1';
+            """)
+
     async def test_edgeql_select_match_01(self):
         await self.assert_query_result(
             r"""

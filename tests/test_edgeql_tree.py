@@ -1015,7 +1015,7 @@ class TestTree(tb.QueryTestCase):
                         UPDATE (SELECT TP.parent)
                         SET {
                             children := (
-                                SELECT _ := {.children, T000}
+                                SELECT _ := assert_distinct({.children, T000})
                                 FILTER _ != TP
                             )
                         }
@@ -1023,7 +1023,7 @@ class TestTree(tb.QueryTestCase):
                 # update node '000'
                 UPDATE (SELECT _ := TPP.children FILTER _ = T000)
                 SET {
-                    children := {.children, TP}
+                    children := assert_distinct({.children, TP})
                 };
             """
         )

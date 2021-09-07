@@ -34,7 +34,9 @@ type Tag {
 }
 
 type UpdateTest {
-    required property name -> str;
+    required property name -> str {
+        constraint exclusive;
+    }
     property comment -> str;
 
     # for testing singleton links

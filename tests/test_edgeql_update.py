@@ -667,7 +667,7 @@ class TestUpdate(tb.QueryTestCase):
                 UPDATE UpdateTest
                 FILTER UpdateTest.name = 'update-test1'
                 SET {
-                    tags := UpdateTest.tags UNION (
+                    tags += (
                         SELECT Tag
                         FILTER Tag.name = 'wow'
                     )
@@ -2361,7 +2361,7 @@ class TestUpdate(tb.QueryTestCase):
             UPDATE UpdateTest
             FILTER .name = 'update-test-subtract-1'
             SET {
-                annotated_tests := (
+                annotated_tests := DISTINCT(
                     FOR v IN {
                         ('update-test-subtract-2', 'one'),
                         ('update-test-subtract-3', 'two'),
@@ -2893,26 +2893,28 @@ class TestUpdate(tb.QueryTestCase):
     async def test_edgeql_update_inheritance_02(self):
         await self.con.execute('''
             INSERT UpdateTest {
-                name := 'update-test-inh-supertype-1',
+                name := 'update-test-inh-supertype-2',
                 related := (
                     SELECT (DETACHED UpdateTest)
-                    FILTER .name = 'update-test1'
+                    FILTER .name = 'update-test2'
                 )
             };
 
             INSERT UpdateTestSubType {
-                name := 'update-test-inh-subtype-1',
+                name := 'update-test-inh-subtype-2',
+                comment := 'update-test-inh-02',
                 related := (
                     SELECT (DETACHED UpdateTest)
-                    FILTER .name = 'update-test1'
+                    FILTER .name = 'update-test2'
                 )
             };
 
             INSERT UpdateTestSubSubType {
-                name := 'update-test-inh-subtype-1',
+                name := 'update-test-inh-subsubtype-2',
+                comment := 'update-test-inh-02',
                 related := (
                     SELECT (DETACHED UpdateTest)
-                    FILTER .name = 'update-test1'
+                    FILTER .name = 'update-test2'
                 )
             };
         ''')
@@ -2920,7 +2922,7 @@ class TestUpdate(tb.QueryTestCase):
         await self.assert_query_result(
             r"""
                 UPDATE UpdateTest
-                FILTER .name = 'update-test-inh-subtype-1'
+                FILTER .comment = 'update-test-inh-02'
                 SET {
                     comment := 'updated',
                     related := (
@@ -2946,24 +2948,24 @@ class TestUpdate(tb.QueryTestCase):
             """,
             [
                 {
-                    'name': 'update-test-inh-subtype-1',
+                    'name': 'update-test-inh-subsubtype-2',
                     'comment': 'updated',
                     'related': [{
                         'name': 'update-test2'
                     }]
                 },
                 {
-                    'name': 'update-test-inh-subtype-1',
+                    'name': 'update-test-inh-subtype-2',
                     'comment': 'updated',
                     'related': [{
                         'name': 'update-test2'
                     }]
                 },
                 {
-                    'name': 'update-test-inh-supertype-1',
+                    'name': 'update-test-inh-supertype-2',
                     'comment': None,
                     'related': [{
-                        'name': 'update-test1'
+                        'name': 'update-test2'
                     }]
                 },
             ]

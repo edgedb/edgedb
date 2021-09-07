@@ -40,7 +40,6 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
             qltree,
             self.schema,
             options=compiler.CompilerOptions(
-                validate_multiplicity=True,
                 modaliases={None: 'default'},
             )
         )
@@ -678,7 +677,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         """
 
     @tb.must_fail(errors.QueryError,
-                  r"possibly not a strict set.+computed bad_link",
+                  r"possibly not a distinct set.+computed link 'bad_link'",
                   line=3, col=13)
     def test_edgeql_ir_mult_inference_error_01(self):
         """
@@ -689,7 +688,7 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         """
 
     @tb.must_fail(errors.QueryError,
-                  r"possibly not a strict set.+computed bad_link",
+                  r"possibly not a distinct set.+computed link 'bad_link'",
                   line=5, col=13)
     def test_edgeql_ir_mult_inference_error_02(self):
         """

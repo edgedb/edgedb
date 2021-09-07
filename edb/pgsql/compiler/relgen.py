@@ -331,13 +331,17 @@ def _get_set_rvar(
             if str(expr.func_shortname) == 'std::enumerate':
                 arg_set = expr.args[0].expr
                 arg_expr = arg_set.expr
+                arg_subj = irutils.unwrap_set(arg_set).expr
                 if (
-                    isinstance(irutils.unwrap_set(arg_set).expr,
-                               irast.FunctionCall)
+                    isinstance(arg_subj, irast.FunctionCall)
+                    and not arg_subj.func_sql_expr
                     and not (
-                        isinstance(arg_expr, irast.SelectStmt) and (
-                            arg_expr.where or arg_expr.orderby
-                            or arg_expr.limit or arg_expr.offset
+                        isinstance(arg_expr, irast.SelectStmt)
+                        and (
+                            arg_expr.where
+                            or arg_expr.orderby
+                            or arg_expr.limit
+                            or arg_expr.offset
                         )
                     )
                 ):
@@ -2020,6 +2024,14 @@ def process_set_as_multiplicity_assertion(
 
     ir_arg = expr.args[0]
     ir_arg_set = ir_arg.expr
+
+    if not ir_arg.multiplicity.is_many():
+        # If the argument has been statically proven to be distinct,
+        # elide the entire assertion.
+        arg_ref = dispatch.compile(ir_arg_set, ctx=ctx)
+        pathctx.put_path_value_var(stmt, ir_set.path_id, arg_ref, env=ctx.env)
+        pathctx.put_path_id_map(stmt, ir_set.path_id, ir_arg_set.path_id)
+        return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
     # Generate a distinct set assertion as the following SQL:
     #

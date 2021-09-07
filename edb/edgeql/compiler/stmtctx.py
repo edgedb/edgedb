@@ -127,14 +127,12 @@ def fini_expression(
         scope_tree=ctx.path_scope,
         ctx=inf_ctx,
     )
-    if not ctx.env.options.validate_multiplicity:
-        multiplicity = None
-    else:
-        multiplicity = inference.infer_multiplicity(
-            ir,
-            scope_tree=ctx.path_scope,
-            ctx=inf_ctx,
-        )
+
+    multiplicity = inference.infer_multiplicity(
+        ir,
+        scope_tree=ctx.path_scope,
+        ctx=inf_ctx,
+    )
 
     # Fix up weak namespaces
     _rewrite_weak_namespaces(ir, ctx)

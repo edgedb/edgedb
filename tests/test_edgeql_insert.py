@@ -920,11 +920,11 @@ class TestInsert(tb.QueryTestCase):
             SELECT
             (INSERT Person {
                 name := "test",
-                notes := {
+                notes := assert_distinct({
                     (SELECT Note FILTER .name = "anote"),
                     (INSERT DerivedNote { name := "new note", note := "hi" }),
                     (UPDATE Note FILTER .name = "dnote" SET { note := "b" }),
-                }
+                })
             })
             { name, notes: {name, note} ORDER BY .name };
             ''',
@@ -953,11 +953,11 @@ class TestInsert(tb.QueryTestCase):
             SELECT
             (INSERT Person {
                 name := "test",
-                notes := {
+                notes := assert_distinct({
                     (SELECT Note FILTER .name = "anote"),
                     (INSERT DerivedNote { name := "new note", note := "hi" }),
                     (UPDATE Note FILTER .name = "dnote" SET { note := "b" }),
-                }
+                })
             })
             {
                 name,
@@ -1776,7 +1776,7 @@ class TestInsert(tb.QueryTestCase):
 
             INSERT InsertTest {
                 l2 := 99,
-                subordinates := (
+                subordinates := DISTINCT(
                     FOR x IN {('a', '1'), ('b', '2'), ('c', '3')} UNION (
                         SELECT Subordinate {@comment := x.0}
                         FILTER .name[-1] = x.1
