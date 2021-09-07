@@ -490,6 +490,17 @@ def _normalize_view_ptr_expr(
             name=ptrcls.get_shortname(ctx.env.schema).name,
         )
 
+        # Schema computables that point to opaque unions will just have
+        # BaseObject as their target, but in order to properly compile
+        # it, we need to know the actual type here, so we recompute it.
+        # XXX: This is a hack, though, and hopefully we can fix it once
+        # the computable/alias rework lands.
+        is_opaque_schema_computable = (
+            ptrcls.is_pure_computable(ctx.env.schema)
+            and (t := ptrcls.get_target(ctx.env.schema))
+            and t.get_name(ctx.env.schema) == sn.QualName('std', 'BaseObject')
+        )
+
         base_required = base_ptrcls.get_required(ctx.env.schema)
         base_cardinality = _get_base_ptr_cardinality(base_ptrcls, ctx=ctx)
         base_is_singleton = False
@@ -504,6 +515,7 @@ def _normalize_view_ptr_expr(
             or is_polymorphic
             or target_typexpr is not None
             or (ctx.implicit_limit and not base_is_singleton)
+            or is_opaque_schema_computable
         ):
 
             if target_typexpr is None:

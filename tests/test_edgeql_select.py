@@ -6162,3 +6162,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             [{"z": [{"name": "Regression."}, {"name": "Release EdgeDB"}]}],
         )
+
+    async def test_edgeql_select_bare_backlink_01(self):
+        await self.con.execute('''
+            CREATE ABSTRACT TYPE Action;
+            CREATE TYPE Post EXTENDING Action;
+            CREATE TYPE Thing;
+            ALTER TYPE Action {
+                CREATE REQUIRED LINK thing -> Thing;
+            };
+            ALTER TYPE Thing {
+                CREATE LINK posts := (.<thing);
+            };
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                 SELECT Thing { posts: {id} };
+            ''',
+            [],
+        )
