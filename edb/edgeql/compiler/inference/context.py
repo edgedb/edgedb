@@ -30,7 +30,12 @@ from .. import context
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class MultiplicityInfo:
+    """Extended multiplicity descriptor"""
+
+    #: Actual multiplicity number
     own: qltypes.Multiplicity
+    #: Whether this multiplicity descriptor describes
+    #: part of a disjoint set.
     disjoint_union: bool = False
 
     def is_one(self) -> bool:

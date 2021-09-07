@@ -33,6 +33,7 @@ import itertools
 
 from edb import errors
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
 from edb.schema import objtypes as s_objtypes
@@ -59,6 +60,9 @@ DISTINCT_UNION = inf_ctx.MultiplicityInfo(
 
 @dataclasses.dataclass(frozen=True, eq=False)
 class ContainerMultiplicityInfo(inf_ctx.MultiplicityInfo):
+    """Multiplicity descriptor for an expression returning a container"""
+
+    #: Individual multiplicity values for container elements.
     elements: Tuple[inf_ctx.MultiplicityInfo, ...] = ()
 
 
@@ -189,21 +193,33 @@ def _infer_shape(
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> None:
-    for shape_set, _ in ir.shape:
+    for shape_set, shape_op in ir.shape:
         new_scope = inf_utils.get_set_scope(shape_set, scope_tree, ctx=ctx)
         if shape_set.expr and shape_set.rptr:
             expr_mult = infer_multiplicity(
                 shape_set.expr, scope_tree=new_scope, ctx=ctx)
 
             ptrref = shape_set.rptr.ptrref
-            if expr_mult is MANY and irtyputils.is_object(ptrref.out_target):
+            if (
+                expr_mult is MANY
+                and shape_op is not qlast.ShapeOp.APPEND
+                and shape_op is not qlast.ShapeOp.SUBTRACT
+                and irtyputils.is_object(ptrref.out_target)
+            ):
+                ctx.env.schema, ptrcls = irtyputils.ptrcls_from_ptrref(
+                    ptrref, schema=ctx.env.schema)
+                assert isinstance(ptrcls, s_pointers.Pointer)
+                desc = ptrcls.get_verbosename(ctx.env.schema)
+                if not is_mutation:
+                    desc = f"computed {desc}"
                 raise errors.QueryError(
-                    f'possibly not a strict set returned by an '
-                    f'expression for a computed '
-                    f'{ptrref.shortname.name}.',
+                    f'possibly not a distinct set returned by an '
+                    f'expression for a {desc}',
                     hint=(
-                        f'Use DISTINCT for the entire computed expression '
-                        f'to resolve this.'
+                        f'You can use assert_distinct() around the expression '
+                        f'to turn this into a runtime assertion, or the '
+                        f'DISTINCT operator to silently discard duplicate '
+                        f'elements.'
                     ),
                     context=shape_set.context
                 )

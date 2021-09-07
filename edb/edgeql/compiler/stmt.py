@@ -90,6 +90,10 @@ def compile_SelectQuery(
                 isinstance(expr.result, qlast.UnaryOp)
                 and expr.result.op == 'DISTINCT'
             )
+            or (
+                isinstance(expr.result, qlast.FunctionCall)
+                and expr.result.func == 'assert_distinct'
+            )
         )
 
         if (

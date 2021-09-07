@@ -2461,15 +2461,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_scope_computables_10(self):
-        await self.assert_query_result(
-            r"""
-                WITH U := User { cards := (.deck UNION .deck) },
-                SELECT count(U.cards);
-            """,
-            [9],
-        )
-
     async def test_edgeql_scope_computables_11a(self):
         await self.assert_query_result(
             r"""
