@@ -1370,6 +1370,80 @@ class TestInsert(tb.QueryTestCase):
               "note": {"name": "Madeline Hatch"}}],
         )
 
+    async def test_edgeql_insert_for_19(self):
+        await self.con.execute(r"""
+            FOR t IN { array_unpack(<array<InsertTest>>[]) }
+            UNION (
+                INSERT InsertTest {
+                    name := t.name, l2 := t.l2,
+                }
+            );
+        """)
+
+        await self.assert_query_result(
+            "SELECT InsertTest",
+            [],
+        )
+
+    async def test_edgeql_insert_for_20(self):
+        await self.con.execute(r"""
+            INSERT InsertTest { name := "a", l2 := 1 };
+        """)
+
+        await self.con.execute(r"""
+            FOR t IN { array_unpack([InsertTest]) }
+            UNION (
+                INSERT InsertTest {
+                    name := t.name ++ "!", l2 := t.l2 + 1,
+                }
+            );
+        """)
+
+        await self.assert_query_result(
+            "SELECT InsertTest { name, l2 } ORDER BY .l2",
+            [
+                {'name': "a", 'l2': 1},
+                {'name': "a!", 'l2': 2},
+            ],
+        )
+
+    async def test_edgeql_insert_for_21(self):
+        await self.con.execute(r"""
+            FOR t IN { array_unpack(<array<tuple<InsertTest>>>[]) }
+            UNION (
+                INSERT InsertTest {
+                    name := t.0.name, l2 := t.0.l2,
+                }
+            );
+        """)
+
+        await self.assert_query_result(
+            "SELECT InsertTest",
+            [],
+        )
+
+    async def test_edgeql_insert_for_22(self):
+        await self.con.execute(r"""
+            INSERT InsertTest { name := "a", l2 := 1 };
+        """)
+
+        await self.con.execute(r"""
+            FOR t IN { array_unpack([(InsertTest,)]) }
+            UNION (
+                INSERT InsertTest {
+                    name := t.0.name ++ "!", l2 := t.0.l2 + 1,
+                }
+            );
+        """)
+
+        await self.assert_query_result(
+            "SELECT InsertTest { name, l2 } ORDER BY .l2",
+            [
+                {'name': "a", 'l2': 1},
+                {'name': "a!", 'l2': 2},
+            ],
+        )
+
     async def test_edgeql_insert_for_bad_01(self):
         with self.assertRaisesRegex(
             edgedb.errors.QueryError,

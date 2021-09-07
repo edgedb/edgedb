@@ -418,7 +418,7 @@ def _get_set_rvar(
     return rvars
 
 
-def _ensure_source_rvar(
+def ensure_source_rvar(
     ir_set: irast.Set,
     stmt: pgast.Query,
     *,
@@ -957,7 +957,7 @@ def process_set_as_path(
             # (The returned one won't be a source rvar if it comes
             # from a function, for example)
             if not ir_source.path_id.is_type_intersection_path():
-                src_rvar = _ensure_source_rvar(ir_source, ctx.rel, ctx=srcctx)
+                src_rvar = ensure_source_rvar(ir_source, ctx.rel, ctx=srcctx)
             set_rvar = relctx.semi_join(stmt, ir_set, src_rvar, ctx=srcctx)
             rvars.append(SetRVar(set_rvar, ir_set.path_id,
                                  ['value', 'source']))
@@ -974,7 +974,7 @@ def process_set_as_path(
             if is_inline_primitive_ref:
                 # Semi-join variant for inline scalar links,
                 # which is, essentially, just filtering out NULLs.
-                _ensure_source_rvar(ir_source, srcctx.rel, ctx=srcctx)
+                ensure_source_rvar(ir_source, srcctx.rel, ctx=srcctx)
 
                 var = pathctx.get_path_value_var(
                     srcctx.rel, path_id=ir_set.path_id, env=ctx.env)
@@ -996,7 +996,7 @@ def process_set_as_path(
 
     elif is_id_ref_to_inline_source:
         main_rvar = SetRVar(
-            _ensure_source_rvar(ir_source, stmt, ctx=ctx),
+            ensure_source_rvar(ir_source, stmt, ctx=ctx),
             path_id=ir_set.path_id,
             aspects=['value']
         )
@@ -1007,7 +1007,7 @@ def process_set_as_path(
         # complex field indirections, so rely on tuple_getattr()
         # fallback for tuple properties for now.
         main_rvar = SetRVar(
-            _ensure_source_rvar(ir_source, stmt, ctx=ctx),
+            ensure_source_rvar(ir_source, stmt, ctx=ctx),
             path_id=ir_set.path_id,
             aspects=['value']
         )
@@ -1018,7 +1018,7 @@ def process_set_as_path(
             aspects = ['value']
             # If this is a link that is stored inline, make sure
             # the source aspect is actually accessible (not just value).
-            src_rvar = _ensure_source_rvar(ir_source, stmt, ctx=ctx)
+            src_rvar = ensure_source_rvar(ir_source, stmt, ctx=ctx)
         else:
             aspects = ['value', 'source']
             src_rvar = get_set_rvar(ir_source, ctx=ctx)

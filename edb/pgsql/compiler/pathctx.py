@@ -292,7 +292,11 @@ def _find_rel_rvar(
             src_aspect = aspect
 
         if src_path_id.is_tuple_path():
-            if (var := _find_in_output_tuple(rel, path_id, aspect, env=env)):
+            if src_aspect == 'identity':
+                src_aspect = 'value'
+
+            if (var := _find_in_output_tuple(
+                    rel, path_id, src_aspect, env=env)):
                 return src_aspect, None, var
 
             rel_rvar = maybe_get_path_rvar(
