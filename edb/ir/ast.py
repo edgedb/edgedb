@@ -528,7 +528,7 @@ class Statement(Command):
     params: typing.List[Param]
     cardinality: qltypes.Cardinality
     volatility: qltypes.Volatility
-    multiplicity: typing.Optional[qltypes.Multiplicity]
+    multiplicity: typing.Optional[qltypes.MultiplicityValue]
     stype: s_types.Type
     view_shapes: typing.Dict[so.Object, typing.List[s_pointers.Pointer]]
     view_shapes_metadata: typing.Dict[s_types.Type, ViewShapeMetadata]

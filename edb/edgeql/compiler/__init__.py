@@ -319,7 +319,7 @@ def compile_ast_fragment_to_ir(
         params=[],
         # These values are nonsensical, but ideally the caller does not care
         cardinality=qltypes.Cardinality.UNKNOWN,
-        multiplicity=qltypes.Multiplicity.ZERO,
+        multiplicity=qltypes.MultiplicityValue.ZERO,
         volatility=qltypes.Volatility.Volatile,
         view_shapes={},
         view_shapes_metadata={},

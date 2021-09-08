@@ -39,7 +39,6 @@ from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 
 from edb.edgeql import ast as qlast
-from edb.edgeql import qltypes
 from edb.edgeql import parser as qlparser
 
 from edb.common.ast import visitor as ast_visitor
@@ -128,8 +127,9 @@ def fini_expression(
         scope_tree=ctx.path_scope,
         ctx=inf_ctx,
     )
-    multiplicity: Optional[qltypes.Multiplicity] = None
-    if ctx.env.options.validate_multiplicity:
+    if not ctx.env.options.validate_multiplicity:
+        multiplicity = None
+    else:
         multiplicity = inference.infer_multiplicity(
             ir,
             scope_tree=ctx.path_scope,
@@ -229,7 +229,7 @@ def fini_expression(
         scope_tree=ctx.env.path_scope,
         cardinality=cardinality,
         volatility=volatility,
-        multiplicity=multiplicity,
+        multiplicity=multiplicity.own if multiplicity is not None else None,
         stype=expr_type,
         view_shapes={
             src: [ptr for ptr, op in ptrs if op != qlast.ShapeOp.MATERIALIZE]

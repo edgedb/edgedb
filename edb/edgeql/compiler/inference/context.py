@@ -35,7 +35,7 @@ class InfCtx(NamedTuple):
         Tuple[irast.Base, irast.ScopeTreeNode],
         qltypes.Multiplicity]
     singletons: Collection[irast.PathId]
-    bindings: Dict[irast.PathId, irast.ScopeTreeNode]
+    distinct_iterators: Set[irast.PathId]
 
 
 def make_ctx(env: context.Environment) -> InfCtx:
@@ -44,5 +44,5 @@ def make_ctx(env: context.Environment) -> InfCtx:
         inferred_cardinality={},
         inferred_multiplicity={},
         singletons=frozenset(env.singletons),
-        bindings={},
+        distinct_iterators=set(),
     )

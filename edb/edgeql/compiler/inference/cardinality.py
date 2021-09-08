@@ -47,8 +47,9 @@ from edb.ir import utils as irutils
 from edb.ir import typeutils
 from edb.edgeql import ast as qlast
 
-from . import volatility
 from . import context as inference_context
+from . import utils as inf_utils
+from . import volatility
 
 from .. import context
 
@@ -112,24 +113,6 @@ def _bounds_to_card(
         lower.as_required(),
         upper.as_schema_cardinality(),
     )
-
-
-def _get_set_scope(
-        ir_set: irast.Set,
-        scope_tree: irast.ScopeTreeNode,
-        ctx: inference_context.InfCtx) -> irast.ScopeTreeNode:
-
-    if ir_set.path_scope_id:
-        new_scope = ctx.env.scope_tree_nodes.get(ir_set.path_scope_id)
-        if new_scope is None:
-            raise errors.InternalServerError(
-                f'dangling scope pointer to node with uid'
-                f':{ir_set.path_scope_id} in {ir_set!r}'
-            )
-    else:
-        new_scope = scope_tree
-
-    return new_scope
 
 
 def cartesian_cardinality(
@@ -337,22 +320,6 @@ def __infer_type_introspection(
     return ONE
 
 
-def _find_visible(
-    ir: irast.Set,
-    scope_tree: irast.ScopeTreeNode,
-) -> Optional[irast.ScopeTreeNode]:
-    parent_branch = scope_tree.parent_branch
-    if parent_branch is not None:
-        if scope_tree.namespaces:
-            path_id = ir.path_id.strip_namespace(scope_tree.namespaces)
-        else:
-            path_id = ir.path_id
-
-        return parent_branch.find_visible(path_id)
-    else:
-        return None
-
-
 def _infer_pointer_cardinality(
     *,
     ptrcls: s_pointers.Pointer,
@@ -501,7 +468,7 @@ def _infer_shape(
     ctx: inference_context.InfCtx,
 ) -> None:
     for shape_set, shape_op in ir.shape:
-        new_scope = _get_set_scope(shape_set, scope_tree, ctx=ctx)
+        new_scope = inf_utils.get_set_scope(shape_set, scope_tree, ctx=ctx)
         if shape_set.expr and shape_set.rptr:
             ptrref = shape_set.rptr.ptrref
 
@@ -558,7 +525,7 @@ def _infer_set_inner(
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
     rptr = ir.rptr
-    new_scope = _get_set_scope(ir, scope_tree, ctx=ctx)
+    new_scope = inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
 
     if ir.expr:
         expr_card = infer_cardinality(ir.expr, scope_tree=new_scope, ctx=ctx)
@@ -588,7 +555,7 @@ def _infer_set_inner(
 
     if ir.path_id in ctx.singletons:
         return ONE
-    if (node := _find_visible(ir, scope_tree)) is not None:
+    if (node := inf_utils.find_visible(ir, scope_tree)) is not None:
         return AT_MOST_ONE if node.optional else ONE
 
     if rptr is not None:
@@ -610,7 +577,7 @@ def _infer_set_inner(
                 # link union into account.
                 # We're basically restating the body of this function
                 # in this block, but with extra conditions.
-                if _find_visible(ind_prefix, new_scope) is not None:
+                if inf_utils.find_visible(ind_prefix, new_scope) is not None:
                     return AT_MOST_ONE
                 else:
                     rptr_spec: Set[irast.PointerRef] = set()
@@ -895,15 +862,11 @@ def extract_filters(
     filter_set: irast.Set,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
-    *,
-    # When strict=False, ignore any clauses in the filter_set we don't
-    # care about. If True, return None if any exist.
-    strict: bool = False,
-) -> Optional[Sequence[Tuple[s_pointers.Pointer, irast.Set]]]:
+) -> Sequence[Tuple[s_pointers.Pointer, irast.Set]]:
 
     env = ctx.env
     schema = env.schema
-    scope_tree = _get_set_scope(filter_set, scope_tree, ctx=ctx)
+    scope_tree = inf_utils.get_set_scope(filter_set, scope_tree, ctx=ctx)
 
     ptr: s_pointers.Pointer
 
@@ -967,25 +930,50 @@ def extract_filters(
             )
 
             ptr_filters: List[Tuple[s_pointers.Pointer, irast.Set]] = []
-            if left_filters is not None:
-                ptr_filters.extend(left_filters)
-            elif strict:
-                return None
-            if right_filters is not None:
-                ptr_filters.extend(right_filters)
-            elif strict:
-                return None
+            ptr_filters.extend(left_filters)
+            ptr_filters.extend(right_filters)
 
             return ptr_filters
 
-    return None
+    return []
+
+
+def extract_exclusive_filters(
+    result_set: irast.Set,
+    filter_set: irast.Set,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> Iterator[Tuple[Tuple[s_pointers.Pointer, irast.Set], ...]]:
+
+    filtered_ptrs = extract_filters(result_set, filter_set, scope_tree, ctx)
+
+    if filtered_ptrs:
+        filtered_ptrs_map = dict(filtered_ptrs)
+        schema = ctx.env.schema
+        ptr_set = set()
+        # First look at each referenced pointer and see if it has
+        # an exclusive constraint.
+        for ptr, expr in filtered_ptrs:
+            ptr = ptr.get_nearest_non_derived_parent(schema)
+            ptr_set.add(ptr)
+            if ptr.is_exclusive(schema):
+                # Bingo, got an equality filter on a pointer with a
+                # unique constraint
+                yield ((ptr, expr),)
+
+        # Then look at all the object exclusive constraints
+        result_stype = ctx.env.set_types[result_set]
+        obj_exclusives = get_object_exclusive_constraints(
+            result_stype, ptr_set, ctx.env)
+        for _, obj_exc_ptrs in obj_exclusives.items():
+            yield tuple((ptr, filtered_ptrs_map[ptr]) for ptr in obj_exc_ptrs)
 
 
 def get_object_exclusive_constraints(
     typ: s_types.Type,
     ptr_set: Set[s_pointers.Pointer],
     env: context.Environment,
-) -> Sequence[s_constraints.Constraint]:
+) -> Dict[s_constraints.Constraint, FrozenSet[s_pointers.Pointer]]:
     """Collect any exclusive object constraints that apply.
 
     An object constraint applies if all of the pointers referenced
@@ -993,12 +981,12 @@ def get_object_exclusive_constraints(
     """
 
     if not isinstance(typ, s_objtypes.ObjectType):
-        return ()
+        return {}
 
     schema = env.schema
     exclusive = schema.get('std::exclusive', type=s_constraints.Constraint)
 
-    cnstrs = []
+    cnstrs = {}
     typ = typ.get_nearest_non_derived_parent(schema)
     for constr in typ.get_constraints(schema).objects(schema):
         if (
@@ -1007,14 +995,14 @@ def get_object_exclusive_constraints(
         ):
             if subjectexpr.refs is None:
                 continue
-            pointer_refs = {
+            pointer_refs = frozenset({
                 x for x in subjectexpr.refs.objects(schema)
                 if isinstance(x, s_pointers.Pointer)
-            }
+            })
             # If all of the referenced pointers are filtered on,
             # we match.
             if pointer_refs.issubset(ptr_set):
-                cnstrs.append(constr)
+                cnstrs[constr] = pointer_refs
 
     return cnstrs
 
@@ -1026,31 +1014,13 @@ def _analyse_filter_clause(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-
-    schema = ctx.env.schema
-    filtered_ptrs = extract_filters(
+    exc_filters = extract_exclusive_filters(
         result_set, filter_clause, scope_tree, ctx)
 
-    if filtered_ptrs:
-        ptr_set = set()
-        # First look at each referenced pointer and see if it has
-        # an exclusive constraint.
-        for ptr, _ in filtered_ptrs:
-            ptr = ptr.get_nearest_non_derived_parent(schema)
-            ptr_set.add(ptr)
-            if ptr.is_exclusive(schema):
-                # Bingo, got an equality filter on a link with a
-                # unique constraint
-                return AT_MOST_ONE
-
-        # Then look at all the object exclusive constraints
-        result_stype = ctx.env.set_types[result_set]
-        obj_exclusives = get_object_exclusive_constraints(
-            result_stype, ptr_set, ctx.env)
-        if obj_exclusives:
-            return AT_MOST_ONE
-
-    return result_card
+    for _ in exc_filters:
+        return AT_MOST_ONE
+    else:
+        return result_card
 
 
 def _infer_matset_cardinality(
@@ -1111,10 +1081,6 @@ def __infer_select_stmt(
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
 
-    if ir.bindings:
-        for x in ir.bindings:
-            ctx.bindings[x.path_id] = scope_tree
-
     if ir.iterator_stmt:
         iter_card = infer_cardinality(
             ir.iterator_stmt, scope_tree=scope_tree, ctx=ctx,
@@ -1125,7 +1091,7 @@ def __infer_select_stmt(
     for part in [ir.limit, ir.offset] + [
             sort.expr for sort in (ir.orderby or ())]:
         if part:
-            new_scope = _get_set_scope(part, scope_tree, ctx=ctx)
+            new_scope = inf_utils.get_set_scope(part, scope_tree, ctx=ctx)
             card = infer_cardinality(part, scope_tree=new_scope, ctx=ctx)
             if card.is_multi():
                 raise errors.QueryError(
@@ -1156,7 +1122,7 @@ def __infer_insert_stmt(
     infer_cardinality(
         ir.subject, is_mutation=True, scope_tree=scope_tree, ctx=ctx
     )
-    new_scope = _get_set_scope(ir.result, scope_tree, ctx=ctx)
+    new_scope = inf_utils.get_set_scope(ir.result, scope_tree, ctx=ctx)
     infer_cardinality(
         ir.result, is_mutation=True, scope_tree=new_scope, ctx=ctx
     )

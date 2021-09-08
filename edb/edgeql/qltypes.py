@@ -20,6 +20,8 @@
 from __future__ import annotations
 from typing import *
 
+import dataclasses
+
 from edb.common import enum as s_enum
 
 
@@ -172,10 +174,35 @@ class Volatility(s_enum.StrEnum):
         return cls(name.title())
 
 
-class Multiplicity(s_enum.StrEnum):
+class MultiplicityValue(s_enum.StrEnum):
     ZERO = 'ZERO'  # This is valid for empty sets
     ONE = 'ONE'
     MANY = 'MANY'
+    UNKNOWN = 'UNKNOWN'
+
+    def is_one(self) -> bool:
+        return self is MultiplicityValue.ONE
+
+    def is_many(self) -> bool:
+        return self is MultiplicityValue.MANY
+
+    def is_zero(self) -> bool:
+        return self is MultiplicityValue.ZERO
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class Multiplicity:
+    own: MultiplicityValue
+    disjoint_union: bool = False
+
+    def is_one(self) -> bool:
+        return self.own.is_one()
+
+    def is_many(self) -> bool:
+        return self.own.is_many()
+
+    def is_zero(self) -> bool:
+        return self.own.is_zero()
 
 
 class DescribeLanguage(s_enum.StrEnum):
