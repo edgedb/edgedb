@@ -176,6 +176,16 @@ class Multiplicity(s_enum.StrEnum):
     ZERO = 'ZERO'  # This is valid for empty sets
     ONE = 'ONE'
     MANY = 'MANY'
+    UNKNOWN = 'UNKNOWN'
+
+    def is_one(self) -> bool:
+        return self is Multiplicity.ONE
+
+    def is_many(self) -> bool:
+        return self is Multiplicity.MANY
+
+    def is_zero(self) -> bool:
+        return self is Multiplicity.ZERO
 
 
 class DescribeLanguage(s_enum.StrEnum):
