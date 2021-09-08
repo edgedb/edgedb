@@ -24,11 +24,11 @@ import sys
 
 import click
 
+from edb import buildmeta
 from edb.common import debug
 from edb.common import devmode as dm
 from edb.server import args as srv_args
 from edb.server import main as srv_main
-from edb.server import buildmeta
 
 
 @click.group(

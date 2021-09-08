@@ -36,10 +36,10 @@ import time
 import asyncpg
 from asyncpg import serverversion
 
+from edb import buildmeta
 from edb.common import supervisor
 from edb.common import uuidgen
 
-from edb.server import buildmeta
 from edb.server import defines
 from edb.pgsql import common as pgcommon
 

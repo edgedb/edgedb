@@ -20,8 +20,8 @@
 from __future__ import annotations
 from typing import *
 
-import functools
 import hashlib
+import importlib.util
 import json
 import logging
 import os
@@ -31,20 +31,14 @@ import re
 import subprocess
 import tempfile
 
-import immutables as immu
-from importlib.util import find_spec
 
-import edb
+from edb.common import debug
 from edb.common import devmode
 from edb.common import verutils
-from edb.common import debug
 
-from . import defines
 
-try:
-    import setuptools_scm
-except ImportError:
-    setuptools_scm = None  # type: ignore
+# Increment this whenever the database layout or stdlib changes.
+EDGEDB_CATALOG_VERSION = 2021_09_03_00_00
 
 
 class MetadataError(Exception):
@@ -61,13 +55,12 @@ def get_build_metadata_value(prop: str) -> str:
         return getattr(_buildmeta, prop)
     except (ImportError, AttributeError):
         raise MetadataError(
-            f'could not find {prop} in build metadata') from None
+            f'could not find {prop} in EdgeDB distribution metadata') from None
 
 
 def get_pg_config_path() -> pathlib.Path:
     if devmode.is_in_dev_mode():
-        edb_path: os.PathLike = edb.server.__path__[0]  # type: ignore
-        root = pathlib.Path(edb_path).parent.parent
+        root = pathlib.Path(__file__).parent.parent
         pg_config = (root / 'build' / 'postgres' /
                      'install' / 'bin' / 'pg_config').resolve()
         if not pg_config.is_file():
@@ -196,16 +189,8 @@ def write_data_cache(
 
 def get_version() -> verutils.Version:
     if devmode.is_in_dev_mode():
-        root = pathlib.Path(__file__).parent.parent.parent.resolve()
-        if setuptools_scm is None:
-            raise MetadataError(
-                'cannot determine build version: no setuptools_scm module')
-        version = setuptools_scm.get_version(
-            root=str(root),
-            version_scheme=functools.partial(scm_version_scheme, root),
-            local_scheme=functools.partial(scm_local_scheme, root),
-        )
-        version = verutils.parse_version(version)
+        root = pathlib.Path(__file__).parent.parent.resolve()
+        version = verutils.parse_version(get_version_from_scm(root))
     else:
         vertuple: List[Any] = list(get_build_metadata_value('VERSION'))
         vertuple[2] = verutils.VersionStage(vertuple[2])
@@ -214,21 +199,21 @@ def get_version() -> verutils.Version:
     return version
 
 
-_version_dict: Optional[immu.Map[str, Any]] = None
+_version_dict: Optional[Mapping[str, Any]] = None
 
 
-def get_version_dict() -> immu.Map[str, Any]:
+def get_version_dict() -> Mapping[str, Any]:
     global _version_dict
 
     if _version_dict is None:
         ver = get_version()
-        _version_dict = immu.Map({
+        _version_dict = {
             'major': ver.major,
             'minor': ver.minor,
             'stage': ver.stage.name.lower(),
             'stage_no': ver.stage_no,
             'local': tuple(ver.local) if ver.local else (),
-        })
+        }
 
     return _version_dict
 
@@ -239,11 +224,11 @@ _version_json: Optional[str] = None
 def get_version_json() -> str:
     global _version_json
     if _version_json is None:
-        _version_json = json.dumps(dict(get_version_dict()))
+        _version_json = json.dumps(get_version_dict())
     return _version_json
 
 
-def scm_version_scheme(root, version):
+def get_version_from_scm(root: pathlib.Path) -> str:
     pretend = os.environ.get('SETUPTOOLS_SCM_PRETEND_VERSION')
     if pretend:
         return pretend
@@ -322,13 +307,7 @@ def scm_version_scheme(root, version):
         minor = str(int(minor) + 1)
 
     incremented_ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
-    return f'{incremented_ver}.dev{commits_on_branch}'
-
-
-def scm_local_scheme(root, version):
-    pretend = os.environ.get('SETUPTOOLS_SCM_PRETEND_VERSION')
-    if pretend:
-        return ''
+    ver = f'{incremented_ver}.dev{commits_on_branch}'
 
     proc = subprocess.run(
         ['git', 'rev-parse', '--verify', '--quiet', 'HEAD'],
@@ -352,11 +331,13 @@ def scm_local_scheme(root, version):
     )
     rev_date = proc.stdout.strip()
 
-    catver = defines.EDGEDB_CATALOG_VERSION
-    return f'+d{rev_date}.g{commitish[:9]}.cv{catver}'
+    catver = EDGEDB_CATALOG_VERSION
+    return f'{ver}+d{rev_date}.g{commitish[:9]}.cv{catver}'
 
 
 def get_cache_src_dirs():
+    find_spec = importlib.util.find_spec
+
     edgeql = pathlib.Path(find_spec('edb.edgeql').origin).parent
     return (
         (pathlib.Path(find_spec('edb.schema').origin).parent, '.py'),
@@ -368,5 +349,5 @@ def get_cache_src_dirs():
 
 
 def get_default_tenant_id() -> str:
-    catver = defines.EDGEDB_CATALOG_VERSION
+    catver = EDGEDB_CATALOG_VERSION
     return f'V{catver:x}'

@@ -29,6 +29,7 @@ import re
 
 import immutables
 
+from edb import buildmeta
 from edb import errors
 
 from edb import edgeql
@@ -51,7 +52,6 @@ from edb.schema import schema as s_schema
 from edb.schema import std as s_std
 
 from edb.server import args as edbargs
-from edb.server import buildmeta
 from edb.server import config
 from edb.server import compiler as edbcompiler
 from edb.server import defines as edbdef

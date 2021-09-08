@@ -37,6 +37,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
 
 import immutables
 
+from edb import buildmeta
 from edb import edgeql
 from edb.edgeql import qltypes
 
@@ -57,7 +58,6 @@ from edb.server.dbview cimport dbview
 
 from edb.server import config
 
-from edb.server import buildmeta
 from edb.server import compiler
 from edb.server import defines as edbdef
 from edb.server.compiler import errormech

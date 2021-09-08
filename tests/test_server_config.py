@@ -29,13 +29,13 @@ import immutables
 
 import edgedb
 
+from edb import buildmeta
 from edb import errors
 from edb.edgeql import qltypes
 
 from edb.testbase import server as tb
 from edb.schema import objects as s_obj
 
-from edb.server import buildmeta
 from edb.server import config
 from edb.server.config import ops
 from edb.server.config import spec

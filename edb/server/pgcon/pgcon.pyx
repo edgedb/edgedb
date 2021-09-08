@@ -36,6 +36,7 @@ from libc.stdint cimport int8_t, uint8_t, int16_t, uint16_t, \
                          int32_t, uint32_t, int64_t, uint64_t, \
                          UINT32_MAX
 
+from edb import buildmeta
 from edb import errors
 from edb.edgeql import qltypes
 
@@ -58,7 +59,6 @@ from edb.server.pgproto.pgproto cimport (
     frb_slice_from,
 )
 
-from edb.server import buildmeta
 from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache

@@ -42,12 +42,12 @@ import setproctitle
 from . import logsetup
 logsetup.early_setup()
 
+from edb import buildmeta
 from edb.common import devmode
 from edb.common import signalctl
 from edb.common import exceptions
 
 from . import args as srvargs
-from . import buildmeta
 from . import daemon
 from . import defines
 from . import pgconnparams
