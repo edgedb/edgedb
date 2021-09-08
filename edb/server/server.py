@@ -918,6 +918,19 @@ class Server(ha_base.ClusterProtocol):
         self._loop.create_task(self._reconnect_sys_pgcon())
         self._on_pgcon_broken(True)
 
+    def _on_sys_pgcon_parameter_status_updated(self, name, value):
+        if name == 'in_hot_standby' and value == 'on':
+            if self._backend_passive_ha:
+                # It is a strong evidence of failover if the sys_pgcon receives
+                # a notification that in_hot_standby is turned on.
+                self._backend_passive_ha.set_state_failover()
+            elif getattr(self._cluster, '_ha_backend', None) is None:
+                # If the server is not using an HA backend, nor has enabled the
+                # passive HA monitoring, we still tries to "switch over" by
+                # disconnecting all pgcons if in_hot_standby is turned on.
+                self.on_switch_over()
+            # Else, the HA backend should take care of calling on_switch_over()
+
     def _on_pgcon_broken(self, is_sys_pgcon=False):
         if self._backend_passive_ha:
             self._backend_passive_ha.on_pgcon_broken(is_sys_pgcon)
@@ -946,6 +959,8 @@ class Server(ha_base.ClusterProtocol):
                         e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW) or
                         e.code_is(pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION)
                     ):
+                        # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
+                        # once PostgreSQL supports SERIALIZABLE in hot standbys
                         raise
 
                 if self._serving:

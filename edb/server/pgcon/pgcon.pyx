@@ -26,6 +26,7 @@ import os.path
 import socket
 import ssl as ssl_mod
 import struct
+import textwrap
 
 cimport cython
 cimport cpython
@@ -88,8 +89,23 @@ cdef object POSTGRES_SHUTDOWN_ERR_CODES = {
 cdef bytes INIT_CON_SCRIPT = None
 
 
-def _build_init_con_script() -> bytes:
-    return (f'''
+def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
+    if check_pg_is_in_recovery:
+        pg_is_in_recovery = ('''
+        SELECT CASE WHEN pg_is_in_recovery() THEN
+            edgedb.raise(
+                NULL::bigint,
+                'read_only_sql_transaction',
+                msg => 'cannot use a hot standby'
+            )
+        END;
+        ''').strip()
+    else:
+        pg_is_in_recovery = ''
+
+    return textwrap.dedent(f'''
+        {pg_is_in_recovery}
+
         CREATE TEMPORARY TABLE _edgecon_state (
             name text NOT NULL,
             value jsonb NOT NULL,
@@ -121,7 +137,7 @@ def _build_init_con_script() -> bytes:
             (name, value, type)
         VALUES
             ('server_version', {pg_ql(buildmeta.get_version_json())}, 'R');
-    ''').encode('utf-8')
+    ''').strip().encode('utf-8')
 
 
 def _set_tcp_keepalive(transport):
@@ -289,8 +305,26 @@ async def connect(connargs, dbname, tenant_id):
             ignore_data=True,
         )
 
-    if INIT_CON_SCRIPT is None:
-        INIT_CON_SCRIPT = _build_init_con_script()
+    if 'in_hot_standby' in pgcon.parameter_status:
+        # in_hot_standby is present in Postgres 14 and above
+        if pgcon.parameter_status['in_hot_standby'] == 'on':
+            # Abort if we're connecting to a hot standby
+            pgcon.terminate()
+            raise pgerror.BackendError(fields=dict(
+                M="cannot use a hot standby",
+                C=pgerror.ERROR_READ_ONLY_SQL_TRANSACTION,
+            ))
+        if INIT_CON_SCRIPT is None:
+            INIT_CON_SCRIPT = _build_init_con_script(
+                check_pg_is_in_recovery=False
+            )
+    else:
+        # On lower versions of Postgres we use pg_is_in_recovery() to check if
+        # it is a hot standby, and error out if it is.
+        if INIT_CON_SCRIPT is None:
+            INIT_CON_SCRIPT = _build_init_con_script(
+                check_pg_is_in_recovery=True
+            )
 
     await pgcon.simple_query(INIT_CON_SCRIPT, ignore_data=True)
 
@@ -368,6 +402,7 @@ cdef class PGConnection:
 
         self.backend_pid = -1
         self.backend_secret = -1
+        self.parameter_status = dict()
 
         self.last_parse_prep_stmts = []
         self.debug = debug.flags.server_proto
@@ -1597,6 +1632,11 @@ cdef class PGConnection:
                     self.connected = True
                     break
 
+                elif mtype == b'S':
+                    # ParameterStatus
+                    name, value = self.parse_parameter_status_message()
+                    self.parameter_status[name] = value
+
                 else:
                     self.fallthrough()
 
@@ -1687,7 +1727,10 @@ cdef class PGConnection:
 
         if mtype == b'S':
             # ParameterStatus
-            self.buffer.discard_message()
+            name, value = self.parse_parameter_status_message()
+            if self.is_system_db:
+                self.server._on_sys_pgcon_parameter_status_updated(name, value)
+            self.parameter_status[name] = value
             return True
 
         elif mtype == b'A':
@@ -1791,6 +1834,15 @@ cdef class PGConnection:
 
         self.buffer.finish_message()
 
+    cdef parse_parameter_status_message(self):
+        cdef:
+            str name
+            str value
+        assert self.buffer.get_message_type() == b'S'
+        name = self.buffer.read_null_str().decode()
+        value = self.buffer.read_null_str().decode()
+        return name, value
+
     cdef make_clean_stmt_message(self, bytes stmt_name):
         cdef WriteBuffer buf
         buf = WriteBuffer.new_message(b'C')
@@ -1817,6 +1869,8 @@ cdef class PGConnection:
     async def wait_for_message(self):
         if self.buffer.take_message():
             return
+        if self.transport is None:
+            raise ConnectionAbortedError()
         self.msg_waiter = self.loop.create_future()
         await self.msg_waiter
 
