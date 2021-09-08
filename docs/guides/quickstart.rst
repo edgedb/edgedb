@@ -200,7 +200,7 @@ these questions to make sure you aren't making any unintended changes.
 
 .. code-block:: bash
 
-    $ edgedb create-migration
+    $ edgedb migration create
     did you create object type 'default::Person'? [y,n,l,c,b,s,q,?]
     > y
     did you create object type 'default::Movie'? [y,n,l,c,b,s,q,?]
