@@ -214,6 +214,13 @@ def unwrap_set(ir_set: irast.Set) -> irast.Set:
         return ir_set
 
 
+def get_path_root(ir_set: irast.Set) -> irast.Set:
+    result = ir_set
+    while result.rptr is not None:
+        result = result.rptr.source
+    return result
+
+
 def get_source_context_as_json(
     expr: irast.Base,
     exctype: Type[errors.EdgeDBError] = errors.InternalServerError,

@@ -463,7 +463,7 @@ def compile_insert_unless_conflict_on(
     ds = {ptr.get_shortname(schema).name: (ptr, field_constrs)
           for ptr in ptrs}
     select_ir, always_check, from_anc = compile_conflict_select(
-        stmt, typ, constrs=ds, obj_constrs=obj_constrs,
+        stmt, typ, constrs=ds, obj_constrs=list(obj_constrs),
         parser_context=stmt.context, ctx=ctx)
 
     # Compile an else branch

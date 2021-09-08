@@ -27,44 +27,61 @@ multiplicity fields and performing multiplicity checks.
 from __future__ import annotations
 from typing import *
 
+import dataclasses
 import functools
+import itertools
 
 from edb import errors
 
 from edb.edgeql import qltypes
 
+from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
+from edb.ir import utils as irutils
 
 from . import cardinality
-from . import context as inference_context
+from . import context as inf_ctx
+from . import types as inf_types
+from . import utils as inf_utils
 
 
-ZERO = qltypes.Multiplicity.ZERO
-ONE = qltypes.Multiplicity.ONE
-MANY = qltypes.Multiplicity.MANY
+ZERO = inf_ctx.MultiplicityInfo(own=qltypes.Multiplicity.ZERO)
+ONE = inf_ctx.MultiplicityInfo(own=qltypes.Multiplicity.ONE)
+MANY = inf_ctx.MultiplicityInfo(own=qltypes.Multiplicity.MANY)
+DISTINCT_UNION = inf_ctx.MultiplicityInfo(
+    own=qltypes.Multiplicity.ONE,
+    disjoint_union=True,
+)
+
+
+@dataclasses.dataclass(frozen=True, eq=False)
+class ContainerMultiplicityInfo(inf_ctx.MultiplicityInfo):
+    elements: Tuple[inf_ctx.MultiplicityInfo, ...] = ()
 
 
 def _max_multiplicity(
-    args: Iterable[qltypes.Multiplicity]
-) -> qltypes.Multiplicity:
+    args: Iterable[inf_ctx.MultiplicityInfo]
+) -> inf_ctx.MultiplicityInfo:
     # Coincidentally, the lexical order of multiplicity is opposite of
     # order of multiplicity values.
-    arg_list = list(args)
+    arg_list = [a.own for a in args]
     if not arg_list:
-        return ZERO
+        max_mult = qltypes.Multiplicity.ZERO
     else:
-        return min(arg_list)
+        max_mult = min(arg_list)
+
+    return inf_ctx.MultiplicityInfo(own=max_mult)
 
 
 def _common_multiplicity(
     args: Iterable[irast.Base],
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     return _max_multiplicity(
         infer_multiplicity(a, scope_tree=scope_tree, ctx=ctx) for a in args)
 
@@ -74,8 +91,8 @@ def _infer_multiplicity(
     ir: irast.Expr,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # return MANY
     raise ValueError(f'infer_multiplicity: cannot handle {ir!r}')
 
@@ -85,8 +102,8 @@ def __infer_none(
     ir: None,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # Here for debugging purposes.
     raise ValueError('invalid infer_multiplicity(None, schema) call')
 
@@ -96,10 +113,46 @@ def __infer_statement(
     ir: irast.Statement,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     return infer_multiplicity(
         ir.expr, scope_tree=scope_tree, ctx=ctx)
+
+
+@_infer_multiplicity.register
+def __infer_config_insert(
+    ir: irast.ConfigInsert,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    return infer_multiplicity(
+        ir.expr, scope_tree=scope_tree, ctx=ctx)
+
+
+@_infer_multiplicity.register
+def __infer_config_set(
+    ir: irast.ConfigSet,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    return infer_multiplicity(
+        ir.expr, scope_tree=scope_tree, ctx=ctx)
+
+
+@_infer_multiplicity.register
+def __infer_config_reset(
+    ir: irast.ConfigReset,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    if ir.selector:
+        return infer_multiplicity(
+            ir.selector, scope_tree=scope_tree, ctx=ctx)
+    else:
+        return ONE
 
 
 @_infer_multiplicity.register
@@ -107,8 +160,8 @@ def __infer_empty_set(
     ir: irast.EmptySet,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     return ZERO
 
 
@@ -117,8 +170,8 @@ def __infer_type_introspection(
     ir: irast.TypeIntrospection,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # TODO: The result is always ONE, but we still want to actually
     # introspect the expression. Unfortunately, currently the
     # expression is not available at this stage.
@@ -134,10 +187,10 @@ def _infer_shape(
     *,
     is_mutation: bool=False,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
+    ctx: inf_ctx.InfCtx,
 ) -> None:
     for shape_set, _ in ir.shape:
-        new_scope = cardinality._get_set_scope(shape_set, scope_tree, ctx=ctx)
+        new_scope = inf_utils.get_set_scope(shape_set, scope_tree, ctx=ctx)
         if shape_set.expr and shape_set.rptr:
             expr_mult = infer_multiplicity(
                 shape_set.expr, scope_tree=new_scope, ctx=ctx)
@@ -164,8 +217,8 @@ def _infer_set(
     *,
     is_mutation: bool=False,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     result = _infer_set_inner(
         ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
     ctx.inferred_multiplicity[ir, scope_tree] = result
@@ -180,31 +233,40 @@ def _infer_set_inner(
     *,
     is_mutation: bool=False,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     rptr = ir.rptr
-    new_scope = cardinality._get_set_scope(ir, scope_tree, ctx=ctx)
+    new_scope = cardinality.inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
 
-    if rptr is not None:
-        # Validate the source
-        infer_multiplicity(rptr.source, scope_tree=new_scope, ctx=ctx)
-
-    if ir.expr:
+    if ir.expr is None:
+        expr_mult = None
+    else:
         expr_mult = infer_multiplicity(ir.expr, scope_tree=new_scope, ctx=ctx)
 
     if rptr is not None:
         rptrref = rptr.ptrref
+        src_mult = infer_multiplicity(
+            rptr.source, scope_tree=new_scope, ctx=ctx)
 
-        if isinstance(rptr.ptrref, irast.TupleIndirectionPointerRef):
-            # All bets are off for tuple elements.
-            return MANY
+        if isinstance(rptrref, irast.TupleIndirectionPointerRef):
+            if isinstance(src_mult, ContainerMultiplicityInfo):
+                idx = irtyputils.get_tuple_element_index(rptrref)
+                path_mult = src_mult.elements[idx]
+            else:
+                # All bets are off for tuple elements coming from
+                # opaque tuples.
+                path_mult = MANY
         elif not irtyputils.is_object(ir.typeref):
             # This is not an expression and is some kind of scalar, so
             # multiplicity cannot be guaranteed to be ONE (most scalar
             # expressions don't have an implicit requirement to be sets)
             # unless we also have an exclusive constraint.
-
-            if rptr is not None:
+            if (
+                expr_mult is not None
+                and inf_utils.find_visible(rptr.source, new_scope) is not None
+            ):
+                path_mult = expr_mult
+            else:
                 schema = ctx.env.schema
                 # We should only have some kind of path terminating in a
                 # property here.
@@ -212,22 +274,29 @@ def _infer_set_inner(
                 ptr = schema.get_by_id(rptrref.id, type=s_pointers.Pointer)
                 if ptr.is_exclusive(schema):
                     # Got an exclusive constraint
-                    return ONE
-
-            return MANY
-
+                    path_mult = ONE
+                else:
+                    path_mult = MANY
         else:
             # This is some kind of a link at the end of a path.
             # Therefore the target is a proper set.
-            return ONE
+            path_mult = ONE
 
-    elif ir.expr is not None:
-        return expr_mult
+    elif expr_mult is not None:
+        path_mult = expr_mult
 
     else:
         # Evidently this is not a pointer, expression, or a scalar.
         # This is an object type and therefore a proper set.
-        return ONE
+        path_mult = ONE
+
+    if (
+        not path_mult.is_many()
+        and irutils.get_path_root(ir).path_id in ctx.distinct_iterators
+    ):
+        path_mult = dataclasses.replace(path_mult, disjoint_union=True)
+
+    return path_mult
 
 
 @_infer_multiplicity.register
@@ -235,24 +304,30 @@ def __infer_func_call(
     ir: irast.FunctionCall,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # If the function returns a set (for any reason), all bets are off
     # and the maximum multiplicity cannot be inferred.
     card = cardinality.infer_cardinality(
         ir, scope_tree=scope_tree, ctx=ctx)
 
-    # We still want to validate the multiplicity of the arguments, though.
-    for arg in ir.args:
+    args_mult = tuple(
         infer_multiplicity(arg.expr, scope_tree=scope_tree, ctx=ctx)
+        for arg in ir.args
+    )
 
     if card is not None and card.is_single():
         return ONE
+    elif str(ir.func_shortname) == 'std::assert_exists':
+        return args_mult[0]
     elif str(ir.func_shortname) == 'std::enumerate':
-        # Technically the output of enumerate is always of
-        # multiplicity ONE because it's a set of tuples with first
-        # elements being guaranteed to be distinct.
-        return ONE
+        # The output of enumerate is always of multiplicity ONE because
+        # it's a set of tuples with first elements being guaranteed to be
+        # distinct.
+        return ContainerMultiplicityInfo(
+            own=qltypes.Multiplicity.ONE,
+            elements=(ONE,) + args_mult,
+        )
     else:
         return MANY
 
@@ -262,8 +337,8 @@ def __infer_oper_call(
     ir: irast.OperatorCall,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     mult = []
     cards = []
     for arg in ir.args:
@@ -278,19 +353,50 @@ def __infer_oper_call(
 
     if op_name == 'std::UNION':
         # UNION will produce multiplicity MANY unless most or all of
-        # the elements multiplicity is ZERO (from an empty set).
+        # the elements multiplicity is ZERO (from an empty set), or
+        # all of the elements are sets of unrelated object types of
+        # multiplicity at most ONE, or if all elements have been
+        # proven to be disjoint (e.g. a UNION of INSERTs).
         result = ZERO
+
+        arg_type = inf_types.infer_type(ir.args[0].expr, env=ctx.env)
+        if isinstance(arg_type, s_objtypes.ObjectType):
+            types: List[s_objtypes.ObjectType] = [
+                inf_types.infer_type(arg.expr, env=ctx.env)  # type: ignore
+                for arg in ir.args
+            ]
+
+            lineages = [
+                (t,) + tuple(t.descendants(ctx.env.schema))
+                for t in types
+            ]
+            flattened = tuple(itertools.chain.from_iterable(lineages))
+            types_disjoint = len(flattened) == len(frozenset(flattened))
+        else:
+            types_disjoint = False
+
         for m in mult:
-            if m is ONE and result is ZERO:
-                result = m
-            elif m is ONE and result is not ZERO:
-                return MANY
-            elif m is MANY:
-                return MANY
+            if m.is_one():
+                if (
+                    result.is_zero()
+                    or types_disjoint
+                    or (result.disjoint_union and m.disjoint_union)
+                ):
+                    result = m
+                else:
+                    result = MANY
+                    break
+            elif m.is_many():
+                result = MANY
+                break
+            else:
+                # ZERO
+                pass
+
         return result
 
     elif op_name == 'std::DISTINCT':
-        if mult[0] is ZERO:
+        if mult[0] == ZERO:
             return ZERO
         else:
             return ONE
@@ -303,14 +409,15 @@ def __infer_oper_call(
             return _max_multiplicity((mult[0], mult[2]))
         else:
             return MANY
-
+    elif op_name == 'std::??':
+        return _max_multiplicity((mult[0], mult[1]))
     else:
         # The rest of the operators (other than UNION, DISTINCT, or
         # IF..ELSE). We can ignore the SET OF args because the results
         # are actually proportional to the element-wise args in our
         # operators.
         result = _max_multiplicity(mult)
-        if result is MANY:
+        if result == MANY:
             return result
 
         # Even when arguments are of multiplicity ONE, we cannot
@@ -329,8 +436,8 @@ def __infer_const(
     ir: irast.BaseConstant,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     return ONE
 
 
@@ -339,8 +446,8 @@ def __infer_param(
     ir: irast.Parameter,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     return ONE
 
 
@@ -349,8 +456,8 @@ def __infer_const_set(
     ir: irast.ConstantSet,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     if len(ir.elements) == len({el.value for el in ir.elements}):
         return ONE
     else:
@@ -362,8 +469,8 @@ def __infer_typecheckop(
     ir: irast.TypeCheckOp,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # Unless this is a singleton, the multiplicity cannot be assumed to be ONE.
     card = cardinality.infer_cardinality(
         ir, scope_tree=scope_tree, ctx=ctx)
@@ -378,8 +485,8 @@ def __infer_typecast(
     ir: irast.TypeCast,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     return infer_multiplicity(
         ir.expr, scope_tree=scope_tree, ctx=ctx,
     )
@@ -389,22 +496,37 @@ def _infer_stmt_multiplicity(
     ir: irast.FilteredStmt,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    # WITH block bindings need to be validated, they don't have to
+    # have multiplicity ONE, but their sub-expressions must be valid.
+    for part in (ir.bindings or []):
+        infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
+
+    subj = ir.subject if isinstance(ir, irast.MutatingStmt) else ir.result
     result = infer_multiplicity(
-        ir.subject if isinstance(ir, irast.MutatingStmt) else ir.result,
+        subj,
         scope_tree=scope_tree,
         ctx=ctx,
     )
 
-    # WITH block bindings need to be validated, they don't have to
-    # have multiplicity ONE, but their sub-expressions must be valid.
-    #
-    # Inferring how the FILTER clause affects multiplicity is in
-    # general impossible, but we still want to ensure that the FILTER
-    # expression has valid multiplicity.
-    for part in (ir.bindings or []) + ([ir.where] if ir.where else []):
-        infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
+    if ir.where:
+        infer_multiplicity(ir.where, scope_tree=scope_tree, ctx=ctx)
+        filtered_ptrs = cardinality.extract_filters(
+            subj, ir.where, scope_tree, ctx)
+        for _, flt_expr in filtered_ptrs:
+            # Check if any of the singleton filter expressions in FILTER
+            # reference enclosing iterators with multiplicity ONE, and
+            # if so, indicate to the enclosing iterator that this UNION
+            # is guaranteed to be disjoint.
+            if (
+                (irutils.get_path_root(flt_expr).path_id
+                 in ctx.distinct_iterators)
+                and not infer_multiplicity(
+                    flt_expr, scope_tree=scope_tree, ctx=ctx
+                ).is_many()
+            ):
+                return DISTINCT_UNION
 
     return result
 
@@ -413,66 +535,28 @@ def _infer_for_multiplicity(
     ir: irast.SelectStmt,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    itset = ir.iterator_stmt
+    assert itset is not None
+    itexpr = itset.expr
+    assert itexpr is not None
+    itmult = infer_multiplicity(itset, scope_tree=scope_tree, ctx=ctx)
 
-    assert ir.iterator_stmt is not None
-    itexpr = ir.iterator_stmt.expr
+    if itmult != MANY:
+        ctx.distinct_iterators.add(itset.path_id)
+    result_mult = infer_multiplicity(ir.result, scope_tree=scope_tree, ctx=ctx)
 
-    if isinstance(ir.result.expr, irast.SelectStmt):
-        union = ir.result.expr
-        if (isinstance(union.where, irast.Set) and
-                isinstance(union.where.expr, irast.OperatorCall) and
-                str(union.where.expr.func_shortname) == 'std::='):
-
-            op = union.where.expr
-            left, right = (a.expr for a in op.args)
-
-            # The iterator set may be wrapped in an `enumerate`, this
-            # requires different handling.
-            has_enumerate = (
-                isinstance(itexpr, irast.SelectStmt) and
-                isinstance(itfn := itexpr.result.expr, irast.FunctionCall) and
-                str(itfn.func_shortname) == 'std::enumerate'
-            )
-
-            # First make sure that the cardinality of the FILTER
-            # expression is is no more than 1. Then make sure both
-            # operands are paths.
-            if union.where_card.is_single():
-                it = None
-                if left.rptr is not None:
-                    it = right
-                elif right.rptr is not None:
-                    it = left
-
-                if it is not None:
-                    if has_enumerate:
-                        assert isinstance(itfn, irast.FunctionCall)
-                        enumerate_mult = infer_multiplicity(
-                            itfn.args[0].expr, scope_tree=scope_tree, ctx=ctx,
-                        )
-                        if (
-                            enumerate_mult is ONE
-                            and it.rptr is not None
-                            and isinstance(
-                                it.rptr,
-                                irast.TupleIndirectionPointer
-                            )
-                            # Tuple comes from the iterator set
-                            and it.rptr.source.expr is itexpr
-                            # the indirection is accessing element 1
-                            and str(it.rptr.ptrref.name) == '__tuple__::1'
-                        ):
-                            return ONE
-                    elif (it.is_binding and it.expr is itexpr):
-                        return ONE
-
-    elif isinstance(ir.result.expr, irast.InsertStmt):
+    if isinstance(ir.result.expr, irast.InsertStmt):
         # A union of inserts always has multiplicity ONE
         return ONE
-
-    return MANY
+    elif itmult.is_many():
+        return MANY
+    else:
+        if result_mult.disjoint_union:
+            return result_mult
+        else:
+            return MANY
 
 
 @_infer_multiplicity.register
@@ -480,41 +564,25 @@ def __infer_select_stmt(
     ir: irast.SelectStmt,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
-    result = _infer_stmt_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
-    itmult = None
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
 
-    if ir.iterator_stmt:
-        # If this is a FOR, then there's a common pattern which can be
-        # detected and the multiplicity of it is ONE. Otherwise it
-        # cannot be reliably inferred.
-        #
-        # The pattern is: FOR x IN {<set of multiplicity ONE>} UNION
-        # (SELECT ... FILTER .prop = x) As long as the FILTER has just
-        # a single .prop = x expression, this is going to be a bunch
-        # of disjoint unions and the final multiplicity will be ONE.
-        itmult = infer_multiplicity(
-            ir.iterator_stmt, scope_tree=scope_tree, ctx=ctx,
+    if ir.iterator_stmt is not None:
+        return _infer_for_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
+    else:
+        stmt_mult = _infer_stmt_multiplicity(
+            ir, scope_tree=scope_tree, ctx=ctx)
+
+        clauses = (
+            [ir.limit, ir.offset]
+            + [sort.expr for sort in (ir.orderby or ())]
         )
 
-    # OFFSET, LIMIT and ORDER BY have already been validated to be
-    # singletons, but their sub-expressions (if any) still need to be
-    # validated.
-    for part in [ir.limit, ir.offset] + [
-            sort.expr for sort in (ir.orderby or ())]:
-        if part:
-            new_scope = cardinality._get_set_scope(part, scope_tree, ctx=ctx)
-            infer_multiplicity(part, scope_tree=new_scope, ctx=ctx)
+        for clause in filter(None, clauses):
+            new_scope = inf_utils.get_set_scope(clause, scope_tree, ctx=ctx)
+            infer_multiplicity(clause, scope_tree=new_scope, ctx=ctx)
 
-    if itmult is not None:
-        if itmult is ONE:
-            return _infer_for_multiplicity(
-                ir, scope_tree=scope_tree, ctx=ctx)
-
-        return MANY
-    else:
-        return result
+        return stmt_mult
 
 
 @_infer_multiplicity.register
@@ -522,14 +590,14 @@ def __infer_insert_stmt(
     ir: irast.InsertStmt,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # INSERT will always return a proper set, but we still want to
     # process the sub-expressions.
     infer_multiplicity(
         ir.subject, is_mutation=True, scope_tree=scope_tree, ctx=ctx
     )
-    new_scope = cardinality._get_set_scope(ir.result, scope_tree, ctx=ctx)
+    new_scope = inf_utils.get_set_scope(ir.result, scope_tree, ctx=ctx)
     infer_multiplicity(
         ir.result, is_mutation=True, scope_tree=new_scope, ctx=ctx
     )
@@ -539,7 +607,7 @@ def __infer_insert_stmt(
             if part:
                 infer_multiplicity(part, scope_tree=scope_tree, ctx=ctx)
 
-    return ONE
+    return DISTINCT_UNION
 
 
 @_infer_multiplicity.register
@@ -547,8 +615,8 @@ def __infer_update_stmt(
     ir: irast.UpdateStmt,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # Presumably UPDATE will always return a proper set, even if it's
     # fed something with higher multiplicity, but we still want to
     # process the expression being updated.
@@ -567,8 +635,8 @@ def __infer_delete_stmt(
     ir: irast.DeleteStmt,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # Presumably DELETE will always return a proper set, even if it's
     # fed something with higher multiplicity, but we still want to
     # process the expression being deleted.
@@ -587,8 +655,8 @@ def __infer_group_stmt(
     ir: irast.GroupStmt,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     raise NotImplementedError
 
 
@@ -597,8 +665,8 @@ def __infer_slice(
     ir: irast.SliceIndirection,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # Slice indirection multiplicity is guaranteed to be ONE as long
     # as the cardinality of this expression is at most one, otherwise
     # the results of index indirection can contain values with
@@ -616,8 +684,8 @@ def __infer_index(
     ir: irast.IndexIndirection,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     # Index indirection multiplicity is guaranteed to be ONE as long
     # as the cardinality of this expression is at most one, otherwise
     # the results of index indirection can contain values with
@@ -635,8 +703,8 @@ def __infer_array(
     ir: irast.Array,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
     return _common_multiplicity(ir.elements, scope_tree=scope_tree, ctx=ctx)
 
 
@@ -645,10 +713,15 @@ def __infer_tuple(
     ir: irast.Tuple,
     *,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
-    return _common_multiplicity(
-        [el.val for el in ir.elements], scope_tree=scope_tree, ctx=ctx
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
+    els = tuple(
+        infer_multiplicity(el.val, scope_tree=scope_tree, ctx=ctx)
+        for el in ir.elements
+    )
+    return ContainerMultiplicityInfo(
+        own=_max_multiplicity(els).own,
+        elements=els,
     )
 
 
@@ -657,8 +730,8 @@ def infer_multiplicity(
     *,
     is_mutation: bool=False,
     scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Multiplicity:
+    ctx: inf_ctx.InfCtx,
+) -> inf_ctx.MultiplicityInfo:
 
     result = ctx.inferred_multiplicity.get((ir, scope_tree))
     if result is not None:
@@ -669,19 +742,21 @@ def infer_multiplicity(
     card = cardinality.infer_cardinality(
         ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
 
-    if isinstance(ir, irast.Set):
+    if isinstance(ir, irast.EmptySet):
+        result = ZERO
+    elif isinstance(ir, irast.Set):
         result = _infer_set(
             ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx,
         )
     else:
         result = _infer_multiplicity(ir, scope_tree=scope_tree, ctx=ctx)
 
-    if card is not None and card.is_single():
+    if card is not None and card.is_single() and result.is_many():
         # We've validated multiplicity, so now we can just override it
         # safely.
         result = ONE
 
-    if result not in {ZERO, ONE, MANY}:
+    if not isinstance(result, inf_ctx.MultiplicityInfo):
         raise errors.QueryError(
             'could not determine the multiplicity of '
             'set produced by expression',

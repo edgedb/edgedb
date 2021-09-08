@@ -759,6 +759,18 @@ def is_computable_ptrref(ptrref: irast.BasePointerRef) -> bool:
     return ptrref.is_computable
 
 
+def get_tuple_element_index(ptrref: irast.TupleIndirectionPointerRef) -> int:
+    name = ptrref.name.name
+    if name.isdecimal() and name.isascii():
+        return int(name)
+    else:
+        for i, st in enumerate(ptrref.out_source.subtypes):
+            if st.element_name == name:
+                return i
+
+        raise AssertionError(f"element {name} is not found in tuple type")
+
+
 def type_contains(
     parent: irast.TypeRef,
     typeref: irast.TypeRef,
