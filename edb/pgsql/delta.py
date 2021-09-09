@@ -929,34 +929,13 @@ class FunctionCommand:
         self,
         func: s_funcs.Function,
         overloads: List[s_funcs.Function],
+        ov_param_idx: int,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> str:
         func_return_typemod = func.get_return_typemod(schema)
         set_returning = func_return_typemod is ql_ft.TypeModifier.SetOfType
-        ov_params = overloads[0].get_params(schema).objects(schema)
         my_params = func.get_params(schema).objects(schema)
-        my_pt = tuple(p.get_type(schema) for p in my_params)
-        ov_pt = (p.get_type(schema) for p in ov_params)
-        ov_param_idx = -1
-        for i, (my_t, ov_t) in enumerate(zip(my_pt, ov_pt)):
-            if my_t != ov_t:
-                if ov_param_idx != -1:
-                    raise AssertionError(
-                        "unexpected overload on multiple parameters "
-                        "in object-taking function"
-                    )
-                ov_param_idx = i
-
-        if (
-            ov_param_idx == -1
-            or not my_pt[ov_param_idx].is_object_type()
-        ):
-            raise AssertionError(
-                "could not find generic parameter in "
-                "overloaded function"
-            )
-
         param_name = my_params[ov_param_idx].get_parameter_name(schema)
         type_param_name = f'__{param_name}__type'
         cases = {}
@@ -1043,7 +1022,6 @@ class FunctionCommand:
 
     def compile_edgeql_function(self, func: s_funcs.Function, schema, context):
         nativecode = func.get_nativecode(schema)
-        params = func.get_params(schema)
 
         if nativecode.irast is None:
             nativecode = self._compile_edgeql_function(
@@ -1057,13 +1035,11 @@ class FunctionCommand:
 
         replace = False
 
-        sn = func.get_shortname(schema)
-        if (
-            params.has_objects(schema)
-            and (ov := [f for f in schema.get_functions(sn) if f != func])
-        ):
+        obj_overload = func.find_object_param_overloads(schema)
+        if obj_overload is not None:
+            ov, ov_param_idx = obj_overload
             body = self.compile_edgeql_overloaded_function_body(
-                func, ov, schema, context)
+                func, ov, ov_param_idx, schema, context)
             replace = True
         else:
             body, _ = compiler.compile_ir_to_sql(

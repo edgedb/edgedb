@@ -26,6 +26,7 @@ from typing import *
 
 from edb import errors
 
+from edb.common import parsing
 from edb.common import struct
 from edb.common import verutils
 
@@ -1251,6 +1252,121 @@ class Function(
 
         return s_expr.Expression(text=text)
 
+    def find_object_param_overloads(
+        self,
+        schema: s_schema.Schema,
+        *,
+        srcctx: Optional[parsing.ParserContext] = None,
+    ) -> Optional[Tuple[List[Function], int]]:
+        """Find if this function overloads another in object parameter.
+
+        If so, check the following rules:
+
+            - in the signatures of functions, only the overloaded object
+              parameter must differ, the number and the types of other
+              parameters must be the same across all object-overloaded
+              functions;
+            - the names of arguments in object-overloaded functions must
+              match.
+
+        If there are object overloads, return a tuple containing the list
+        of overloaded functions and the position of the overloaded parameter.
+        """
+        params = self.get_params(schema)
+        if not params.has_objects(schema):
+            return None
+
+        new_params = params.objects(schema)
+        new_pt = tuple(p.get_type(schema) for p in new_params)
+
+        diff_param = -1
+        overloads = []
+        sn = self.get_shortname(schema)
+        for f in schema.get_functions(sn):
+            if f == self:
+                continue
+
+            f_params = f.get_params(schema)
+            if not f_params.has_objects(schema):
+                continue
+
+            ext_params = f_params.objects(schema)
+            ext_pt = (p.get_type(schema) for p in ext_params)
+
+            this_diff_param = -1
+            non_obj_param_diff = False
+            multi_overload = False
+
+            for i, (new_t, ext_t) in enumerate(zip(new_pt, ext_pt)):
+                if new_t != ext_t:
+                    if new_t.is_object_type() and ext_t.is_object_type():
+                        if (
+                            this_diff_param != -1
+                            or (
+                                this_diff_param != -1
+                                and diff_param != -1
+                                and diff_param != this_diff_param
+                            )
+                            or non_obj_param_diff
+                        ):
+                            multi_overload = True
+                            break
+                        else:
+                            this_diff_param = i
+                    else:
+                        non_obj_param_diff = True
+                        if this_diff_param != -1:
+                            multi_overload = True
+                            break
+
+            if this_diff_param != -1:
+                if not multi_overload:
+                    multi_overload = len(new_params) != len(ext_params)
+
+                if multi_overload:
+                    # Multiple dispatch of object-taking functions is
+                    # not supported.
+                    my_sig = self.get_signature_as_str(schema)
+                    other_sig = f.get_signature_as_str(schema)
+                    raise errors.UnsupportedFeatureError(
+                        f'cannot create the `{my_sig}` function: '
+                        f'overloading an object type-receiving '
+                        f'function with differences in the remaining '
+                        f'parameters is not supported',
+                        context=srcctx,
+                        details=(
+                            f"Other function is defined as `{other_sig}`"
+                        )
+                    )
+
+                if not all(
+                    new_p.get_parameter_name(schema)
+                    == ext_p.get_parameter_name(schema)
+                    for new_p, ext_p in zip(new_params, ext_params)
+                ):
+                    # And also _all_ parameter names must match due to
+                    # current implementation constraints.
+                    my_sig = self.get_signature_as_str(schema)
+                    other_sig = f.get_signature_as_str(schema)
+                    raise errors.UnsupportedFeatureError(
+                        f'cannot create the `{my_sig}` '
+                        f'function: overloading an object type-receiving '
+                        f'function with differences in the names of '
+                        f'parameters is not supported',
+                        context=srcctx,
+                        details=(
+                            f"Other function is defined as `{other_sig}`"
+                        )
+                    )
+
+                diff_param = this_diff_param
+                overloads.append(f)
+
+        if diff_param == -1:
+            return None
+        else:
+            return (overloads, diff_param)
+
 
 class FunctionCommandContext(CallableCommandContext):
     pass
@@ -1612,48 +1728,9 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'`{func.get_signature_as_str(schema)}`',
                     context=self.source_context)
 
-            if has_objects and func_params.has_objects(schema):
-                new_params = params.objects(schema)
-                ext_params = func_params.objects(schema)
-                new_pt = (p.get_type(schema) for p in new_params)
-                ext_pt = (p.get_type(schema) for p in ext_params)
-
-                if sum(
-                    new_t != ext_t
-                    for new_t, ext_t in zip(new_pt, ext_pt)
-                ) > 1:
-                    # Multiple dispatch of object-taking functions is not
-                    # supported.
-                    raise errors.UnsupportedFeatureError(
-                        f'cannot create the `{signature}` function: '
-                        f'overloading an object type-receiving function '
-                        f'with differences in the remaining parameters is '
-                        f'not supported',
-                        context=self.source_context,
-                        details=(
-                            f"Other function is defined as "
-                            f"`{func.get_signature_as_str(schema)}`"
-                        )
-                    )
-
-                if not all(
-                    new_p.get_parameter_name(schema)
-                    == ext_p.get_parameter_name(schema)
-                    for new_p, ext_p in zip(new_params, ext_params)
-                ):
-                    # And also _all_ parameter names must match due to
-                    # current implementation constraints.
-                    raise errors.UnsupportedFeatureError(
-                        f'cannot create the `{signature}` function: '
-                        f'overloading an object type-receiving function '
-                        f'with differences in the names of parameters is '
-                        f'not supported',
-                        context=self.source_context,
-                        details=(
-                            f"Other function is defined as "
-                            f"`{func.get_signature_as_str(schema)}`"
-                        )
-                    )
+        if has_objects:
+            self.scls.find_object_param_overloads(
+                schema, srcctx=self.source_context)
 
         if has_from_function:
             # Ignore the generic fallback when considering
