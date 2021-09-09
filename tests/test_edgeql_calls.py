@@ -1475,6 +1475,15 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
             [200.0],
         )
 
+        # Test that opaque object sources work as well.
+        await self.assert_query_result(
+            r"""
+                WITH r := (Rectangle, [Rectangle])
+                SELECT (area(r.0), area(r.1[0]))
+            """,
+            [[200.0, 200.0]],
+        )
+
         # The top parent does _not_ have a definition of area, so
         # calling it on it is still an error (even if there are definitions
         # for all subtypes).
