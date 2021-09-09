@@ -1276,6 +1276,9 @@ class Function(
         if not params.has_objects(schema):
             return None
 
+        new_params = params.objects(schema)
+        new_pt = tuple(p.get_type(schema) for p in new_params)
+
         diff_param = -1
         overloads = []
         sn = self.get_shortname(schema)
@@ -1287,9 +1290,7 @@ class Function(
             if not f_params.has_objects(schema):
                 continue
 
-            new_params = params.objects(schema)
             ext_params = f_params.objects(schema)
-            new_pt = (p.get_type(schema) for p in new_params)
             ext_pt = (p.get_type(schema) for p in ext_params)
 
             this_diff_param = -1
@@ -1302,7 +1303,8 @@ class Function(
                         if (
                             this_diff_param != -1
                             or (
-                                diff_param != -1
+                                this_diff_param != -1
+                                and diff_param != -1
                                 and diff_param != this_diff_param
                             )
                             or non_obj_param_diff
