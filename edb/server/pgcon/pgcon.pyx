@@ -1717,6 +1717,7 @@ cdef class PGConnection:
                         msg = fields.get('M', msg)
                         if self.is_system_db:
                             self.server.set_pg_unavailable_msg(msg)
+                            self.server._on_sys_pgcon_failover_signal()
                         continue
                 raise RuntimeError(
                     f'unexpected message type {chr(mtype)!r} in IDLE state')

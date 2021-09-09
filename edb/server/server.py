@@ -920,16 +920,21 @@ class Server(ha_base.ClusterProtocol):
 
     def _on_sys_pgcon_parameter_status_updated(self, name, value):
         if name == 'in_hot_standby' and value == 'on':
-            if self._backend_passive_ha:
-                # It is a strong evidence of failover if the sys_pgcon receives
-                # a notification that in_hot_standby is turned on.
-                self._backend_passive_ha.set_state_failover()
-            elif getattr(self._cluster, '_ha_backend', None) is None:
-                # If the server is not using an HA backend, nor has enabled the
-                # passive HA monitoring, we still tries to "switch over" by
-                # disconnecting all pgcons if in_hot_standby is turned on.
-                self.on_switch_over()
-            # Else, the HA backend should take care of calling on_switch_over()
+            # It is a strong evidence of failover if the sys_pgcon receives
+            # a notification that in_hot_standby is turned on.
+            self._on_sys_pgcon_failover_signal()
+
+    def _on_sys_pgcon_failover_signal(self):
+        if self._backend_passive_ha is not None:
+            # Switch to FAILOVER if passive HA is enabled
+            self._backend_passive_ha.set_state_failover()
+        elif getattr(self._cluster, '_ha_backend', None) is None:
+            # If the server is not using an HA backend, nor has enabled the
+            # passive HA monitoring, we still tries to "switch over" by
+            # disconnecting all pgcons if failover signal is received, allowing
+            # reconnection to happen sooner.
+            self.on_switch_over()
+        # Else, the HA backend should take care of calling on_switch_over()
 
     def _on_pgcon_broken(self, is_sys_pgcon=False):
         if self._backend_passive_ha:
