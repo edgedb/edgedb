@@ -1328,11 +1328,6 @@ def computable_ptr_set(
                 != s_types.ExprType.Select):
             subctx.expr_exposed = True
 
-        if isinstance(qlexpr, qlast.Statement):
-            subctx.stmt_metadata[qlexpr] = context.StatementMetadata(
-                iterator_target=True,
-            )
-
         comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 
     comp_ir_set = new_set_from_set(
