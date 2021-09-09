@@ -3988,7 +3988,49 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.con.execute(r'''
             CREATE TYPE Foo;
             CREATE TYPE Bar;
+            INSERT Foo;
+            INSERT Bar;
         ''')
+
+        # All these overloads are OK.
+        await self.con.execute(r"""
+            CREATE FUNCTION func32_ok(obj: Foo, a: int64) -> str
+                USING ('Foo int64');
+            CREATE FUNCTION func32_ok(obj: Bar, a: int64) -> str
+                USING ('Bar int64');
+            CREATE FUNCTION func32_ok(s: str, a: int64) -> str
+                USING ('str int64');
+            CREATE FUNCTION func32_ok(s: str, a: Foo) -> str
+                USING ('str Foo');
+            CREATE FUNCTION func32_ok(s: str, a: Bar) -> str
+                USING ('str Bar');
+            CREATE FUNCTION func32_ok(s: str, a: str, b: str) -> str
+                USING ('str str str');
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    Foo := assert_single(Foo),
+                    Bar := assert_single(Bar),
+                SELECT {
+                    Foo_int64 := func32_ok(Foo, 1),
+                    Bar_int64 := func32_ok(Bar, 1),
+                    str_int64 := func32_ok("a", 1),
+                    str_Foo := func32_ok("a", Foo),
+                    str_Bar := func32_ok("a", Bar),
+                    str_str_str := func32_ok("a", "b", "c"),
+                }
+            """,
+            [{
+                "Foo_int64": "Foo int64",
+                "Bar_int64": "Bar int64",
+                "str_int64": "str int64",
+                "str_Foo": "str Foo",
+                "str_Bar": "str Bar",
+                "str_str_str": "str str str",
+            }]
+        )
 
         async with self.assertRaisesRegexTx(
             edgedb.UnsupportedFeatureError,
@@ -4000,6 +4042,32 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE FUNCTION func32_a(obj: Foo, a: int32) -> str
                     USING ('foo');
                 CREATE FUNCTION func32_a(obj: Bar, a: int64) -> str
+                    USING ('bar');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot create the .* function: overloading an object "
+            r"type-receiving function with differences in the remaining "
+            r"parameters is not supported",
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION func32_a(obj: Foo, obj2: Bar) -> str
+                    USING ('foo');
+                CREATE FUNCTION func32_a(obj: Bar, obj2: Foo) -> str
+                    USING ('bar');
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot create the .* function: overloading an object "
+            r"type-receiving function with differences in the remaining "
+            r"parameters is not supported",
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION func32_a(obj: Foo, a: int32, b: int64) -> str
+                    USING ('foo');
+                CREATE FUNCTION func32_a(obj: Bar, a: int32) -> str
                     USING ('bar');
             """)
 

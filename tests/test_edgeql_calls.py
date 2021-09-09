@@ -1545,3 +1545,94 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
             """,
             [10, 20],
         )
+
+    async def test_edgeql_calls_obj_03(self):
+        await self.con.execute("""
+            CREATE TYPE Person {
+                CREATE PROPERTY name -> str;
+            };
+            CREATE FUNCTION fight(one: Person, two: Person) -> str
+                USING (one.name ++ " fights " ++ two.name);
+            CREATE FUNCTION fight(one: str, two: str) -> str
+                USING (one ++ " fights " ++ two);
+            CREATE FUNCTION fight(one: Person, two: str) -> str
+                USING (one.name ++ " fights " ++ two);
+            CREATE FUNCTION fight(one: str, two: Person) -> str
+                USING (one ++ " fights " ++ two.name);
+            CREATE FUNCTION fight(names: array<str>) -> str
+                USING (array_join(names, " fights "));
+
+            INSERT Person { name := "Sub-Zero" };
+            INSERT Person { name := "Scorpion" };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    Scorpion := (SELECT Person FILTER .name = "Scorpion"),
+                    SubZero := (SELECT Person FILTER .name = "Sub-Zero"),
+                SELECT
+                    fight(Scorpion, SubZero);
+            """,
+            ["Scorpion fights Sub-Zero"],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    Scorpion := (SELECT Person FILTER .name = "Scorpion"),
+                    SubZero := (SELECT Person FILTER .name = "Sub-Zero"),
+                SELECT
+                    fight(Scorpion.name, SubZero.name);
+            """,
+            ["Scorpion fights Sub-Zero"],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    Scorpion := (SELECT Person FILTER .name = "Scorpion"),
+                    SubZero := (SELECT Person FILTER .name = "Sub-Zero"),
+                SELECT
+                    fight(Scorpion.name, SubZero);
+            """,
+            ["Scorpion fights Sub-Zero"],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    Scorpion := (SELECT Person FILTER .name = "Scorpion"),
+                    SubZero := (SELECT Person FILTER .name = "Sub-Zero"),
+                SELECT
+                    fight(Scorpion, SubZero.name);
+            """,
+            ["Scorpion fights Sub-Zero"],
+        )
+
+        await self.assert_query_result(
+            r"""
+                WITH
+                    Scorpion := (SELECT Person FILTER .name = "Scorpion"),
+                    SubZero := (SELECT Person FILTER .name = "Sub-Zero"),
+                SELECT
+                    fight([Scorpion.name, SubZero.name]);
+            """,
+            ["Scorpion fights Sub-Zero"],
+        )
+
+        await self.con.execute("DROP FUNCTION fight(one: Person, two: Person)")
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'function "fight\(.*default::Person.*\)" does not exist',
+        ):
+            await self.con.execute(
+                r"""
+                WITH
+                    Scorpion := (SELECT Person FILTER .name = "Scorpion"),
+                    SubZero := (SELECT Person FILTER .name = "Sub-Zero"),
+                SELECT
+                    fight(Scorpion, SubZero);SELECT area(Shape)
+                """,
+            )
