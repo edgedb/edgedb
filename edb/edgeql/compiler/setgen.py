@@ -1282,8 +1282,13 @@ def computable_ptr_set(
     newctx: Callable[[], ContextManager[context.ContextLevel]]
 
     if qlctx is None:
-        # Schema-level computable, completely detached context
-        newctx = ctx.detached
+        # Schema-level computed link or property, the context should
+        # still have a source.
+        newctx = _get_schema_computed_ctx(
+            rptr=rptr,
+            source=source_set,
+            ctx=ctx)
+
     else:
         newctx = _get_computable_ctx(
             rptr=rptr,
@@ -1339,6 +1344,38 @@ def computable_ptr_set(
     maybe_materialize(ptrcls, comp_ir_set, ctx=ctx)
 
     return comp_ir_set
+
+
+def _get_schema_computed_ctx(
+    *,
+    rptr: irast.Pointer,
+    source: irast.Set,
+    ctx: context.ContextLevel
+) -> Callable[[], ContextManager[context.ContextLevel]]:
+
+    @contextlib.contextmanager
+    def newctx() -> Iterator[context.ContextLevel]:
+        with ctx.detached() as subctx:
+            source_stype = get_set_type(source, ctx=ctx)
+
+            source_scope = pathctx.get_set_scope(rptr.source, ctx=ctx)
+            if source_scope and source_scope.namespaces:
+                subctx.path_id_namespace |= source_scope.namespaces
+
+            inner_path_id = pathctx.get_path_id(source_stype, ctx=subctx)
+
+            remapped_source = new_set_from_set(
+                rptr.source,
+                rptr=rptr.source.rptr,
+                preserve_scope_ns=True,
+                ctx=ctx,
+            )
+            key = inner_path_id.strip_namespace(inner_path_id.namespace)
+            subctx.view_map[key] = ((inner_path_id, remapped_source),)
+
+            yield subctx
+
+    return newctx
 
 
 def _get_computable_ctx(

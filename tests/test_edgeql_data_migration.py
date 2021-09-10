@@ -2388,7 +2388,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.fast_forward_describe_migration()
 
-    async def test_edgeql_migration_computable_01(self):
+    async def test_edgeql_migration_computed_01(self):
         await self.migrate(r'''
             type Foo {
                 property val -> str;
@@ -2433,7 +2433,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    async def test_edgeql_migration_computable_02(self):
+    async def test_edgeql_migration_computed_02(self):
         await self.migrate(r'''
             type Foo { property foo := '1' };
             type Bar extending Foo;
@@ -2443,6 +2443,710 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type Foo { property foo := 1 };
             type Bar extending Foo;
         ''')
+
+    async def test_edgeql_migration_computed_03(self):
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi link tweets := Tweet;
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.con.execute("""
+            INSERT Tweet {
+                text := 'Hello',
+                author := (
+                    INSERT User {name := 'Alice'}
+                )
+            };
+            INSERT Tweet {
+                text := 'Hi',
+                author := (
+                    INSERT User {name := 'Billie'}
+                )
+            };
+        """)
+
+        # Validate our structures
+        await self.assert_query_result(
+            r"""
+                SELECT Tweet {
+                    text,
+                    author: {
+                        name
+                    },
+                } ORDER BY .text;
+            """,
+            [{
+                'text': 'Hello',
+                'author': {
+                    'name': 'Alice'
+                },
+            }, {
+                'text': 'Hi',
+                'author': {
+                    'name': 'Billie'
+                },
+            }],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets: {
+                        text
+                    } ORDER BY .text,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': [{
+                    'text': 'Hello'
+                }, {
+                    'text': 'Hi'
+                }],
+            }, {
+                'name': 'Billie',
+                'tweets': [{
+                    'text': 'Hello'
+                }, {
+                    'text': 'Hi'
+                }],
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi link tweets := User.<author[IS Tweet];
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets: {
+                        text
+                    } ORDER BY .text,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': [{
+                    'text': 'Hello'
+                }],
+            }, {
+                'name': 'Billie',
+                'tweets': [{
+                    'text': 'Hi'
+                }],
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi link tweets := .<author[IS Tweet];
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets: {
+                        text
+                    } ORDER BY .text,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': [{
+                    'text': 'Hello'
+                }],
+            }, {
+                'name': 'Billie',
+                'tweets': [{
+                    'text': 'Hi'
+                }],
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi link tweets := (
+                    SELECT Tweet FILTER .author = User
+                );
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets: {
+                        text
+                    } ORDER BY .text,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': [{
+                    'text': 'Hello'
+                }],
+            }, {
+                'name': 'Billie',
+                'tweets': [{
+                    'text': 'Hi'
+                }],
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi link tweets := (
+                    WITH U := User
+                    SELECT Tweet FILTER .author = U
+                );
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets: {
+                        text
+                    } ORDER BY .text,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': [{
+                    'text': 'Hello'
+                }],
+            }, {
+                'name': 'Billie',
+                'tweets': [{
+                    'text': 'Hi'
+                }],
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi link tweets := (
+                    WITH U := DETACHED User
+                    SELECT Tweet FILTER .author = U
+                );
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets: {
+                        text
+                    } ORDER BY .text,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': [{
+                    'text': 'Hello'
+                }, {
+                    'text': 'Hi'
+                }],
+            }, {
+                'name': 'Billie',
+                'tweets': [{
+                    'text': 'Hello'
+                }, {
+                    'text': 'Hi'
+                }],
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi link tweets := (
+                    WITH U := User
+                    SELECT U.<author[IS Tweet]
+                );
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets: {
+                        text
+                    } ORDER BY .text,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': [{
+                    'text': 'Hello'
+                }],
+            }, {
+                'name': 'Billie',
+                'tweets': [{
+                    'text': 'Hi'
+                }],
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi link tweets := (
+                    WITH User := DETACHED User
+                    SELECT User.<author[IS Tweet]
+                );
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets: {
+                        text
+                    } ORDER BY .text,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': [{
+                    'text': 'Hello'
+                }, {
+                    'text': 'Hi'
+                }],
+            }, {
+                'name': 'Billie',
+                'tweets': [{
+                    'text': 'Hello'
+                }, {
+                    'text': 'Hi'
+                }],
+            }],
+        )
+
+    async def test_edgeql_migration_computed_04(self):
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi property tweets := Tweet.text;
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.con.execute("""
+            INSERT Tweet {
+                text := 'Hello',
+                author := (
+                    INSERT User {name := 'Alice'}
+                )
+            };
+            INSERT Tweet {
+                text := 'Hi',
+                author := (
+                    INSERT User {name := 'Billie'}
+                )
+            };
+        """)
+
+        # Validate our structures
+        await self.assert_query_result(
+            r"""
+                SELECT Tweet {
+                    text,
+                    author: {
+                        name
+                    },
+                } ORDER BY .text;
+            """,
+            [{
+                'text': 'Hello',
+                'author': {
+                    'name': 'Alice'
+                },
+            }, {
+                'text': 'Hi',
+                'author': {
+                    'name': 'Billie'
+                },
+            }],
+        )
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': {'Hello', 'Hi'},
+            }, {
+                'name': 'Billie',
+                'tweets': {'Hello', 'Hi'},
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi property tweets := User.<author[IS Tweet].text;
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': {'Hello'},
+            }, {
+                'name': 'Billie',
+                'tweets': {'Hi'},
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi property tweets := .<author[IS Tweet].text;
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': {'Hello'},
+            }, {
+                'name': 'Billie',
+                'tweets': {'Hi'},
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi property tweets := (
+                    SELECT Tweet FILTER .author = User
+                ).text;
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': {'Hello'},
+            }, {
+                'name': 'Billie',
+                'tweets': {'Hi'},
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi property tweets := (
+                    WITH U := User
+                    SELECT Tweet FILTER .author = U
+                ).text;
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': {'Hello'},
+            }, {
+                'name': 'Billie',
+                'tweets': {'Hi'},
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi property tweets := (
+                    WITH U := DETACHED User
+                    SELECT Tweet FILTER .author = U
+                ).text;
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': {'Hello', 'Hi'},
+            }, {
+                'name': 'Billie',
+                'tweets': {'Hello', 'Hi'},
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi property tweets := (
+                    WITH U := User
+                    SELECT U.<author[IS Tweet].text
+                );
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': {'Hello'},
+            }, {
+                'name': 'Billie',
+                'tweets': {'Hi'},
+            }],
+        )
+
+        await self.migrate(r'''
+            type User {
+                property name -> str;
+                multi property tweets := (
+                    WITH User := DETACHED User
+                    SELECT User.<author[IS Tweet].text
+                );
+            }
+            type Tweet {
+                property text -> str;
+                link author -> User;
+            }
+        ''', module='default')
+
+        await self.assert_query_result(
+            r"""
+                SELECT User {
+                    name,
+                    tweets,
+                } ORDER BY .name;
+            """,
+            [{
+                'name': 'Alice',
+                'tweets': {'Hello', 'Hi'},
+            }, {
+                'name': 'Billie',
+                'tweets': {'Hello', 'Hi'},
+            }],
+        )
+
+    async def test_edgeql_migration_computed_05(self):
+        await self.migrate(r'''
+            type Bar {
+                multi link foo := Foo;
+                property name -> str;
+            };
+            type Foo {
+                link bar -> Bar;
+                property val -> str;
+            };
+        ''', module='default')
+
+        await self.con.execute("""
+            INSERT Foo {
+                val := 'foo0',
+                bar := (
+                    INSERT Bar {name := 'bar0'}
+                ),
+            };
+            INSERT Foo {
+                val := 'foo1',
+                bar := (
+                    INSERT Bar {name := 'bar1'}
+                ),
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo {
+                    val,
+                    bar: {
+                        name,
+                        foo: {
+                            val
+                        } ORDER BY .val,
+                    },
+                } ORDER BY .val;
+            """,
+            [{
+                'val': 'foo0',
+                'bar': {
+                    'name': 'bar0',
+                    'foo': [{'val': 'foo0'}, {'val': 'foo1'}],
+                },
+            }, {
+                'val': 'foo1',
+                'bar': {
+                    'name': 'bar1',
+                    'foo': [{'val': 'foo0'}, {'val': 'foo1'}],
+                },
+            }],
+        )
+
+    async def test_edgeql_migration_computed_06(self):
+        await self.migrate(r'''
+            type Bar {
+                multi property foo := Foo.val;
+                property name -> str;
+            };
+            type Foo {
+                link bar -> Bar;
+                property val -> str;
+            };
+        ''', module='default')
+
+        await self.con.execute("""
+            INSERT Foo {
+                val := 'foo0',
+                bar := (
+                    INSERT Bar {name := 'bar0'}
+                ),
+            };
+            INSERT Foo {
+                val := 'foo1',
+                bar := (
+                    INSERT Bar {name := 'bar1'}
+                ),
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo {
+                    val,
+                    bar: {
+                        name,
+                        foo,
+                    },
+                } ORDER BY .val;
+            """,
+            [{
+                'val': 'foo0',
+                'bar': {
+                    'name': 'bar0',
+                    'foo': {'foo0', 'foo1'},
+                },
+            }, {
+                'val': 'foo1',
+                'bar': {
+                    'name': 'bar1',
+                    'foo': {'foo0', 'foo1'},
+                },
+            }],
+        )
 
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
