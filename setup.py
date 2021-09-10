@@ -18,7 +18,6 @@
 
 
 import binascii
-import functools
 import os
 import os.path
 import pathlib
@@ -55,7 +54,6 @@ RUNTIME_DEPS = [
     'parsing~=2.0',
     'psutil~=5.8',
     'setproctitle~=1.2',
-    'setuptools_scm~=6.0',
     'wcwidth~=0.2',
 ]
 
@@ -176,7 +174,7 @@ def _compile_build_meta(build_lib, version, pg_config, runstatedir,
         shared_dir=shared_dir,
     )
 
-    directory = build_lib / 'edb' / 'server'
+    directory = build_lib / 'edb'
     if not directory.exists():
         directory.mkdir(parents=True)
 
@@ -259,7 +257,7 @@ def _compile_postgres(build_base, *,
 
 
 def _check_rust():
-    import packaging
+    import packaging.version
 
     try:
         rustc_ver = (
@@ -412,7 +410,7 @@ class ci_helper(setuptools.Command):
 
     def run(self):
         import edb as _edb
-        from edb.server.buildmeta import hash_dirs, get_cache_src_dirs
+        from edb.buildmeta import hash_dirs, get_cache_src_dirs
 
         build = self.get_finalized_command('build')
         pkg_dir = pathlib.Path(_edb.__path__[0])
@@ -715,22 +713,15 @@ else:
     rust_extensions = []
 
 
-def custom_scm_version():
-    from edb.server import buildmeta
-    return {
-        'version_scheme': (
-            functools.partial(buildmeta.scm_version_scheme, ROOT_PATH)
-        ),
-        'local_scheme': (
-            functools.partial(buildmeta.scm_local_scheme, ROOT_PATH)
-        ),
-    }
+def _version():
+    from edb import buildmeta
+    return buildmeta.get_version_from_scm(ROOT_PATH)
 
 
 setuptools.setup(
+    version=_version(),
     setup_requires=RUNTIME_DEPS + BUILD_DEPS,
     python_requires='>=3.9.0',
-    use_scm_version=custom_scm_version,
     name='edgedb-server',
     description='EdgeDB Server',
     author='MagicStack Inc.',
@@ -742,7 +733,7 @@ setuptools.setup(
         'console_scripts': [
             'edgedb-server = edb.server.main:main',
             'edgedb = edb.cli:rustcli',
-        ]
+        ],
     },
     ext_modules=[
         setuptools_extension.Extension(

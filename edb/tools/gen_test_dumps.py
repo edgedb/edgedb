@@ -30,7 +30,7 @@ import unittest
 
 import click
 
-from edb.server import buildmeta
+from edb import buildmeta
 from edb.server import cluster as edgedb_cluster
 from edb.testbase import server as tb
 from edb.tools.edb import edbcommands

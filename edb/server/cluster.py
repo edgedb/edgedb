@@ -33,10 +33,10 @@ import time
 import asyncpg
 import edgedb
 
+from edb import buildmeta
 from edb.common import devmode
 from edb.edgeql import quote
 
-from edb.server import buildmeta
 from edb.server import defines as edgedb_defines
 
 from . import pgcluster

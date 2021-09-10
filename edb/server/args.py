@@ -30,10 +30,10 @@ import tempfile
 import click
 import psutil
 
+from edb import buildmeta
 from edb.common import devmode
 from edb.schema import defines as schema_defines
 
-from . import buildmeta
 from . import defines
 
 

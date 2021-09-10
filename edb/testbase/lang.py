@@ -33,12 +33,12 @@ from edb.common import debug
 from edb.common import devmode
 from edb.common import markup
 
+from edb import buildmeta
 from edb import errors
 from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser
 
-from edb.server import buildmeta
 from edb.server import defines
 from edb.server import compiler as edbcompiler
 
