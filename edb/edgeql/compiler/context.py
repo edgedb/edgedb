@@ -658,6 +658,7 @@ class ContextLevel(compiler.ContextLevel):
                 self.anchors = prevlevel.anchors.copy()
                 self.modaliases = prevlevel.modaliases.copy()
                 self.aliased_views = collections.ChainMap()
+                self.view_map = collections.ChainMap()
                 self.class_view_overrides = {}
                 self.expr_exposed = prevlevel.expr_exposed
 
