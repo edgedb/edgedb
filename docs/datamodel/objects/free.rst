@@ -25,7 +25,7 @@ Consider the following query:
     };
 
 The ``matches`` are potentially ``{}``, yet the query will always
-return a single *free object* with ``resutls``, ``total``, and
+return a single *free object* with ``results``, ``total``, and
 ``total_users``. To achieve the same using a :eql:type:`named tuple
 <tuple>`, the query would have to be modified like this:
 
