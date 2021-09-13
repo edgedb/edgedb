@@ -347,7 +347,7 @@ class TestStolon(tb.TestCase):
         else:
             self.assertEqual(rv, 1)
 
-    async def test_stolon(self):
+    async def test_ha_stolon(self):
         if not os.environ.get("EDGEDB_TEST_HA"):
             self.skipTest("EDGEDB_TEST_HA is not set")
 
