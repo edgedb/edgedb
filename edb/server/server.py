@@ -52,7 +52,7 @@ from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
 from edb.server.ha import base as ha_base
-from edb.server.ha import passive
+from edb.server.ha import adaptive as adaptive_ha
 from edb.server.protocol import binary  # type: ignore
 from edb.server import pgcon
 from edb.server.pgcon import errors as pgcon_errors
@@ -94,7 +94,7 @@ class Server(ha_base.ClusterProtocol):
 
     _task_group: Optional[taskgroup.TaskGroup]
     _binary_conns: Set[binary.EdgeConnection]
-    _backend_passive_ha: Optional[passive.PassiveHASupport]
+    _backend_adaptive_ha: Optional[adaptive_ha.AdaptiveHASupport]
 
     def __init__(
         self,
@@ -112,7 +112,7 @@ class Server(ha_base.ClusterProtocol):
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
         startup_script: Optional[srvargs.StartupScript] = None,
-        backend_passive_ha: bool = False,
+        backend_adaptive_ha: bool = False,
     ):
 
         self._loop = asyncio.get_running_loop()
@@ -120,7 +120,7 @@ class Server(ha_base.ClusterProtocol):
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
 
-        # Increase-only counter to reject outdated connects
+        # Increase-only counter to reject outdated attempts to connect
         self._ha_master_serial = 0
 
         self._serving = False
@@ -195,10 +195,10 @@ class Server(ha_base.ClusterProtocol):
 
         self._allow_insecure_binary_clients = allow_insecure_binary_clients
         self._allow_insecure_http_clients = allow_insecure_http_clients
-        if backend_passive_ha:
-            self._backend_passive_ha = passive.PassiveHASupport(self)
+        if backend_adaptive_ha:
+            self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(self)
         else:
-            self._backend_passive_ha = None
+            self._backend_adaptive_ha = None
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -268,8 +268,8 @@ class Server(ha_base.ClusterProtocol):
             self._get_pgaddr(), pg_dbname, self._tenant_id)
         if ha_serial == self._ha_master_serial:
             rv.set_server(self)
-            if self._backend_passive_ha is not None:
-                self._backend_passive_ha.on_pgcon_made(
+            if self._backend_adaptive_ha is not None:
+                self._backend_adaptive_ha.on_pgcon_made(
                     dbname == defines.EDGEDB_SYSTEM_DB
                 )
             return rv
@@ -925,24 +925,24 @@ class Server(ha_base.ClusterProtocol):
             self._on_sys_pgcon_failover_signal()
 
     def _on_sys_pgcon_failover_signal(self):
-        if self._backend_passive_ha is not None:
-            # Switch to FAILOVER if passive HA is enabled
-            self._backend_passive_ha.set_state_failover()
+        if self._backend_adaptive_ha is not None:
+            # Switch to FAILOVER if adaptive HA is enabled
+            self._backend_adaptive_ha.set_state_failover()
         elif getattr(self._cluster, '_ha_backend', None) is None:
             # If the server is not using an HA backend, nor has enabled the
-            # passive HA monitoring, we still tries to "switch over" by
+            # adaptive HA monitoring, we still tries to "switch over" by
             # disconnecting all pgcons if failover signal is received, allowing
             # reconnection to happen sooner.
             self.on_switch_over()
         # Else, the HA backend should take care of calling on_switch_over()
 
     def _on_pgcon_broken(self, is_sys_pgcon=False):
-        if self._backend_passive_ha:
-            self._backend_passive_ha.on_pgcon_broken(is_sys_pgcon)
+        if self._backend_adaptive_ha:
+            self._backend_adaptive_ha.on_pgcon_broken(is_sys_pgcon)
 
     def _on_pgcon_lost(self):
-        if self._backend_passive_ha:
-            self._backend_passive_ha.on_pgcon_lost()
+        if self._backend_adaptive_ha:
+            self._backend_adaptive_ha.on_pgcon_lost()
 
     async def _reconnect_sys_pgcon(self):
         try:

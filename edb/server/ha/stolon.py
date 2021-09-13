@@ -88,7 +88,7 @@ class StolonBackend(base.HABackend):
         master_db = cluster_status.get("master")
         cluster_phase = cluster_status.get("phase")
         if cluster_phase != "normal":
-            logger.debug("Stolon cluster phase: %s", cluster_phase)
+            logger.debug("Stolon cluster phase: %r", cluster_phase)
 
         if not master_db:
             return
@@ -108,10 +108,10 @@ class StolonBackend(base.HABackend):
         master_addr = master_host, int(master_port)
         if master_addr != self._master_addr:
             if self._master_addr is None:
-                logger.info("Discovered master Postgres at %s", master_addr)
+                logger.info("Discovered master Postgres at %r", master_addr)
             else:
                 logger.critical(
-                    f"Switching over the master Postgres from %s to %s",
+                    f"Switching over the master Postgres from %r to %r",
                     self._master_addr,
                     master_addr,
                 )
@@ -160,6 +160,7 @@ class ConsulProtocol(asyncio.Protocol):
 
     def on_status(self, status: bytes):
         if self._parser.get_status_code() != 200:
+            logger.debug("Consul is returning non-200 responses")
             self._transport.close()
 
     def on_body(self, body: bytes):

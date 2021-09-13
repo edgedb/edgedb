@@ -37,7 +37,56 @@ class State(enum.Enum):
     FAILOVER = 3
 
 
-class PassiveHASupport:
+class AdaptiveHASupport:
+    # Adaptive HA support is used to detect HA backends that does not actively
+    # send clear failover signals to EdgeDB. It can be enabled through command
+    # line argument --enable-backend-adaptive-ha.
+    #
+    # This class evaluates the events on the backend connection pool into 3
+    # states representing the status of the backend:
+    #
+    #   * Healthy - all is good
+    #   * Unhealthy - a staging state before failover
+    #   * Failover - backend failover is in process
+    #
+    # When entering Unhealthy state, we will start to count events for a
+    # threshold; when reached, we'll switch to Failover state - that means we
+    # will actively disconnect all backend connections and wait for sys_pgcon
+    # to reconnect. In any of the 3 states, client connections will not be
+    # dropped. Whether the clients could issue queries is irrelevant to the 3
+    # states - `BackendUnavailableError` or `BackendInFailoverError` is only
+    # raised if the sys_pgcon is broken. But even with that said,
+    # `BackendUnavailableError` is only seen in Unhealthy (not always), and
+    # Failover always means `BackendInFailoverError` for any queries.
+    #
+    # Rules of state switches:
+    #
+    # Unhealthy -> Healthy
+    #   * Successfully connected to a non-hot-standby backend.
+    #   * Data received from any pgcon (not implemented).
+    #
+    # Unhealthy -> Failover
+    #   * More than 60% (UNEXPECTED_DISCONNECTS_THRESHOLD) of existing pgcons
+    #     are "unexpectedly disconnected" (number of existing pgcons is
+    #     captured at the moment we change to Unhealthy state, and maintained
+    #     on "expected disconnects" too).
+    #   * (and) In Unhealthy state for more than UNHEALTHY_MIN_TIME seconds.
+    #   * (and) sys_pgcon is down.
+    #   * (or) Postgres shutdown/hot-standby notification received.
+    #
+    # Healthy -> Unhealthy
+    #   * Any unexpected disconnect.
+    #   * (or) Failed to connect due to ConnectionError (not implemented).
+    #   * (or) Last active time is greater than 10 seconds (depends on the
+    #     sys_pgcon idle-poll interval) (not implemented).
+    #
+    # Healthy -> Failover
+    #   * Postgres shutdown/hot-standby notification received.
+    #
+    # Failover -> Healthy
+    #   * Successfully connected to a non-hot-standby backend.
+    #   * (and) sys_pgcon is healthy.
+
     _state: State
     _unhealthy_timer_handle: Optional[asyncio.TimerHandle]
 
@@ -51,7 +100,7 @@ class PassiveHASupport:
 
     def set_state_failover(self):
         self._state = State.FAILOVER
-        logger.critical("Passive HA failover detected")
+        logger.critical("adaptive: HA failover detected")
         self._reset()
         self._cluster_protocol.on_switch_over()
 
@@ -70,7 +119,7 @@ class PassiveHASupport:
                 self._cluster_protocol.get_active_pgcon_num(), 0
             ) + 1
             logger.warning(
-                "Passive HA cluster is unhealthy. "
+                "adaptive: Backend HA cluster is unhealthy. "
                 "Captured number of pgcons: %d",
                 self._pgcon_count,
             )
@@ -94,12 +143,14 @@ class PassiveHASupport:
             self._sys_pgcon_healthy = True
         if self._state == State.UNHEALTHY:
             self._state = State.HEALTHY
-            logger.info("Passive HA cluster is healthy")
+            logger.info("adaptive: Backend HA cluster is healthy")
             self._reset()
         elif self._state == State.FAILOVER:
             if self._sys_pgcon_healthy:
                 self._state = State.HEALTHY
-                logger.info("Passive HA cluster has recovered from failover")
+                logger.info(
+                    "adaptive: Backend HA cluster has recovered from failover"
+                )
 
     def _reset(self):
         self._pgcon_count = 0

@@ -306,7 +306,7 @@ async def connect(connargs, dbname, tenant_id):
         )
 
     if 'in_hot_standby' in pgcon.parameter_status:
-        # in_hot_standby is present in Postgres 14 and above
+        # in_hot_standby is always present in Postgres 14 and above
         if pgcon.parameter_status['in_hot_standby'] == 'on':
             # Abort if we're connecting to a hot standby
             pgcon.terminate()
@@ -1842,6 +1842,9 @@ cdef class PGConnection:
         assert self.buffer.get_message_type() == b'S'
         name = self.buffer.read_null_str().decode()
         value = self.buffer.read_null_str().decode()
+        self.buffer.finish_message()
+        if self.debug:
+            self.debug_print('PARAMETER STATUS MSG', name, value)
         return name, value
 
     cdef make_clean_stmt_message(self, bytes stmt_name):
