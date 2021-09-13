@@ -46,4 +46,4 @@ jobs:
         EDGEDB_TEST_STOLON_SENTINEL: build/stolon/bin/stolon-sentinel
         EDGEDB_TEST_STOLON_KEEPER: build/stolon/bin/stolon-keeper
       run: |
-        edb test -j1 -v test_stolon
+        edb test -j1 -v -k test_ha_
