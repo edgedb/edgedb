@@ -91,12 +91,12 @@ def init_worker(status_queue: multiprocessing.SimpleQueue,
 
     result = ChannelingTestResult(result_queue)
     if not param_queue.empty():
-        server_addr, postgres_dsn = param_queue.get()
+        server_addr, backend_dsn = param_queue.get()
 
         if server_addr is not None:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = json.dumps(server_addr)
-        if postgres_dsn:
-            os.environ['EDGEDB_TEST_POSTGRES_DSN'] = postgres_dsn
+        if backend_dsn:
+            os.environ['EDGEDB_TEST_BACKEND_DSN'] = backend_dsn
 
     os.environ['EDGEDB_TEST_PARALLEL'] = '1'
     coverage_run = devmode.CoverageConfig.start_coverage_if_requested()
@@ -264,12 +264,12 @@ def monitor_thread(queue, result):
 
 
 class ParallelTestSuite(unittest.TestSuite):
-    def __init__(self, tests, server_conn, num_workers, postgres_dsn):
+    def __init__(self, tests, server_conn, num_workers, backend_dsn):
         self.tests = tests
         self.server_conn = server_conn
         self.num_workers = num_workers
         self.stop_requested = False
-        self.postgres_dsn = postgres_dsn
+        self.backend_dsn = backend_dsn
 
     def run(self, result):
         # We use SimpleQueues because they are more predictable.
@@ -282,7 +282,7 @@ class ParallelTestSuite(unittest.TestSuite):
         # Prepopulate the worker param queue with server connection
         # information.
         for _ in range(self.num_workers):
-            worker_param_queue.put((self.server_conn, self.postgres_dsn))
+            worker_param_queue.put((self.server_conn, self.backend_dsn))
 
         result_thread = threading.Thread(
             name='test-monitor', target=monitor_thread,
@@ -332,11 +332,11 @@ class ParallelTestSuite(unittest.TestSuite):
 
 class SequentialTestSuite(unittest.TestSuite):
 
-    def __init__(self, tests, server_conn, postgres_dsn):
+    def __init__(self, tests, server_conn, backend_dsn):
         self.tests = tests
         self.server_conn = server_conn
         self.stop_requested = False
-        self.postgres_dsn = postgres_dsn
+        self.backend_dsn = backend_dsn
 
     def run(self, result_):
         global result
@@ -345,8 +345,8 @@ class SequentialTestSuite(unittest.TestSuite):
         if self.server_conn:
             os.environ['EDGEDB_TEST_CLUSTER_ADDR'] = \
                 json.dumps(self.server_conn)
-        if self.postgres_dsn:
-            os.environ['EDGEDB_TEST_POSTGRES_DSN'] = self.postgres_dsn
+        if self.backend_dsn:
+            os.environ['EDGEDB_TEST_BACKEND_DSN'] = self.backend_dsn
 
         random.seed(py_random_seed)
 
@@ -773,7 +773,7 @@ class ParallelTextTestRunner:
 
     def __init__(self, *, stream=None, num_workers=1, verbosity=1,
                  output_format=OutputFormat.auto, warnings=True,
-                 failfast=False, shuffle=False, postgres_dsn=None):
+                 failfast=False, shuffle=False, backend_dsn=None):
         self.stream = stream if stream is not None else sys.stderr
         self.num_workers = num_workers
         self.verbosity = verbosity
@@ -781,7 +781,7 @@ class ParallelTextTestRunner:
         self.failfast = failfast
         self.shuffle = shuffle
         self.output_format = output_format
-        self.postgres_dsn = postgres_dsn
+        self.backend_dsn = backend_dsn
 
     def run(self, test, selected_shard, total_shards, running_times_log_file):
         session_start = time.monotonic()
@@ -829,7 +829,7 @@ class ParallelTextTestRunner:
                     nonlocal conn
 
                     cluster = await tb.init_cluster(
-                        postgres_dsn=self.postgres_dsn,
+                        backend_dsn=self.backend_dsn,
                         cleanup_atexit=False,
                     )
 
@@ -866,13 +866,13 @@ class ParallelTextTestRunner:
                     self._sort_tests(cases),
                     conn,
                     self.num_workers,
-                    self.postgres_dsn,
+                    self.backend_dsn,
                 )
             else:
                 suite = SequentialTestSuite(
                     self._sort_tests(cases),
                     conn,
-                    self.postgres_dsn,
+                    self.backend_dsn,
                 )
 
             result = ParallelTextTestResult(

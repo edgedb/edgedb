@@ -1,20 +1,15 @@
-name: Tests
+name: High Availability Tests
 
 on:
-  push:
-    branches:
-      - master
-      - ci
-      - "releases/*"
-  pull_request:
-    branches:
-      - '*'
-  schedule:
-    - cron: "0 */3 * * *"
+  workflow_run:
+    workflows: ["Tests"]
+    types:
+      - completed
 
 jobs:
   build:
     runs-on: ubuntu-18.04
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
     - uses: actions/checkout@v2
@@ -306,76 +301,9 @@ jobs:
       run: |
         edb server --bootstrap-only
 
-  cargo-test:
+  ha-test:
     needs: build
     runs-on: ubuntu-18.04
-
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-        submodules: false
-
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.9
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.1
-      id: venv-cache
-      with:
-        requirement_files: setup.py
-
-    - name: Stop if we cannot retrieve the cache
-      if: steps.venv-cache.outputs.cache-hit != 'true'
-      run: |
-        echo ::error::Cannot retrieve venv cache.
-        exit 1
-
-    - name: Download cache key
-      uses: actions/download-artifact@v2
-      with:
-        name: shared-artifacts
-        path: .tmp
-
-    - name: Generate environment variables
-      run: |
-        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
-
-    - name: Handle Rust extensions build cache
-      uses: actions/cache@v2
-      id: rust-cache
-      with:
-        path: ${{ env.BUILD_TEMP }}/rust/extensions
-        key: edb-rust-build-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
-
-    - name: Install rust toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-        default: true
-
-    - name: Cargo test
-      uses: actions-rs/cargo@v1
-      env:
-        CARGO_TARGET_DIR: ${{ env.BUILD_TEMP }}/rust/extensions
-        CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/extensions/cargo_home
-      with:
-        command: test
-
-  python-test:
-    needs: build
-    runs-on: ubuntu-18.04
-    strategy:
-      matrix:
-        shard: [
-             1/16,  2/16,  3/16,  4/16,
-             5/16,  6/16,  7/16,  8/16,
-             9/16, 10/16, 11/16, 12/16,
-            13/16, 14/16, 15/16, 16/16,
-        ]
 
     steps:
     - uses: actions/checkout@v2
@@ -494,222 +422,10 @@ jobs:
     - name: Test
       env:
         SHARD: ${{ matrix.shard }}
+        EDGEDB_TEST_HA: 1
+        EDGEDB_TEST_CONSUL_PATH: build/stolon/bin/consul
+        EDGEDB_TEST_STOLON_CTL: build/stolon/bin/stolonctl
+        EDGEDB_TEST_STOLON_SENTINEL: build/stolon/bin/stolon-sentinel
+        EDGEDB_TEST_STOLON_KEEPER: build/stolon/bin/stolon-keeper
       run: |
-        mkdir -p .results/
-        cp .tmp/time_stats.csv .results/shard_${SHARD/\//_}.csv
-        edb test -j2 -v -s ${SHARD} --running-times-log=.results/shard_${SHARD/\//_}.csv
-
-    - name: Upload test results
-      uses: actions/upload-artifact@v2
-      with:
-        name: python-test-results
-        path: .results
-        retention-days: 1
-
-  collect:
-    needs: build
-    runs-on: ubuntu-18.04
-    steps:
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-        submodules: false
-
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 50
-        submodules: true
-
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.9
-
-    - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.1
-      id: venv-cache
-      with:
-        requirement_files: setup.py
-
-    # Restore the artifacts and environment variables
-
-    - name: Download shared artifacts
-      uses: actions/download-artifact@v2
-      with:
-        name: shared-artifacts
-        path: .tmp
-
-    - name: Set environment variables
-      run: |
-        echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
-        echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
-        echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
-        echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
-        echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
-
-    # Restore build cache
-
-    - name: Restore cached EdgeDB CLI binaries
-      uses: actions/cache@v2
-      id: cli-cache
-      with:
-        path: build/cli
-        key: edb-cli-v2-${{ env.EDGEDBCLI_GIT_REV }}
-
-    - name: Restore cached Rust extensions
-      uses: actions/cache@v2
-      id: rust-cache
-      with:
-        path: build/rust_extensions
-        key: edb-rust-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
-
-    - name: Restore cached Cython extensions
-      uses: actions/cache@v2
-      id: ext-cache
-      with:
-        path: build/extensions
-        key: edb-ext-v2-${{ hashFiles('.tmp/ext_cache_key.txt') }}
-
-    - name: Restore compiled parsers cache
-      uses: actions/cache@v2
-      id: parsers-cache
-      with:
-        path: build/lib
-        key: edb-parsers-v1-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
-
-    - name: Restore cached PostgreSQL build
-      uses: actions/cache@v2
-      id: postgres-cache
-      with:
-        path: build/postgres/install
-        key: edb-postgres-v1-${{ env.POSTGRES_GIT_REV }}
-
-    - name: Restore cached Stolon build
-      uses: actions/cache@v2
-      id: stolon-cache
-      with:
-        path: build/stolon/bin
-        key: edb-stolon-v2-${{ env.STOLON_GIT_REV }}
-
-    - name: Restore bootstrap cache
-      uses: actions/cache@v2
-      id: bootstrap-cache
-      with:
-        path: build/cache
-        key: edb-bootstrap-v1-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
-
-    - name: Stop if we cannot retrieve the cache
-      if: |
-        steps.venv-cache.outputs.cache-hit != 'true' ||
-        steps.cli-cache.outputs.cache-hit != 'true' ||
-        steps.rust-cache.outputs.cache-hit != 'true' ||
-        steps.ext-cache.outputs.cache-hit != 'true' ||
-        steps.parsers-cache.outputs.cache-hit != 'true' ||
-        steps.postgres-cache.outputs.cache-hit != 'true' ||
-        steps.stolon-cache.outputs.cache-hit != 'true' ||
-        steps.bootstrap-cache.outputs.cache-hit != 'true'
-      run: |
-        echo ::error::Cannot retrieve build cache.
-        exit 1
-
-    - name: Restore cache into the source tree
-      run: |
-        cp -v build/cli/bin/edgedb edb/cli/edgedb
-        rsync -aP ./build/rust_extensions/edb/ ./edb/
-        rsync -aP ./build/extensions/edb/ ./edb/
-        rsync -aP ./build/lib/edb/ ./edb/
-        cp build/postgres/install/stamp build/postgres/
-        rsync -aP $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
-
-    # Collect tests and upload
-
-    - name: Generate complete list of tests for verification
-      env:
-        SHARD: ${{ matrix.shard }}
-      run: |
-        edb test --list > .tmp/all_tests.txt
-
-    - name: Update shared artifacts
-      uses: actions/upload-artifact@v2
-      with:
-        name: shared-artifacts
-        path: .tmp
-        retention-days: 1
-
-  test-conclusion:
-    needs: [cargo-test, python-test, collect]
-    runs-on: ubuntu-18.04
-    steps:
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: 3.9
-
-      - name: Install Python deps
-        run: |
-          pip install requests
-
-      - name: Download shared artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: shared-artifacts
-          path: .tmp
-
-      - name: Download python-test results
-        uses: actions/download-artifact@v2
-        with:
-          name: python-test-results
-          path: .results
-
-      - name: Merge stats and verify tests completion
-        shell: python
-        env:
-          GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
-          GIT_REF: ${{ github.ref }}
-        run: |
-          import csv
-          import glob
-          import io
-          import os
-          import requests
-
-          orig = {}
-          new = {}
-          all_tests = set()
-          with open(".tmp/time_stats.csv") as f:
-              for name, t, c in csv.reader(f):
-                  assert name not in orig, "duplicate test name in original stats!"
-                  orig[name] = (t, int(c))
-
-          with open(".tmp/all_tests.txt") as f:
-              for line in f:
-                  assert line not in all_tests, "duplicate test name in this run!"
-                  all_tests.add(line.strip())
-
-          for new_file in glob.glob(".results/*.csv"):
-              with open(new_file) as f:
-                  for name, t, c in csv.reader(f):
-                      if int(c) > orig.get(name, (0, 0))[1]:
-                          if name.startswith("setup::"):
-                              new[name] = (t, c)
-                          else:
-                              assert name not in new, f"duplicate test! {name}"
-                              new[name] = (t, c)
-                              all_tests.remove(name)
-
-          assert not all_tests, "Tests not run! \n" + "\n".join(all_tests)
-
-          if os.environ["GIT_REF"] == "refs/heads/master":
-              buf = io.StringIO()
-              writer = csv.writer(buf)
-              orig.update(new)
-              for k, v in sorted(orig.items()):
-                  writer.writerow((k,) + v)
-
-              resp = requests.patch(
-                  "https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c",
-                  headers={"Accept": "application/vnd.github.v3+json"},
-                  auth=("edgedb-ci", os.environ["GIST_TOKEN"]),
-                  json={"files": {"time_stats.csv": {"content": buf.getvalue()}}},
-              )
-              resp.raise_for_status()
+        edb test -j1 -v test_stolon

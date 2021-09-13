@@ -385,20 +385,20 @@ _default_cluster = None
 
 async def init_cluster(
     data_dir=None,
-    postgres_dsn=None,
+    backend_dsn=None,
     *,
     cleanup_atexit=True,
     init_settings=None,
 ) -> edgedb_cluster.BaseCluster:
-    if data_dir is not None and postgres_dsn is not None:
+    if data_dir is not None and backend_dsn is not None:
         raise ValueError(
-            "data_dir and postgres_dsn cannot be set at the same time")
+            "data_dir and backend_dsn cannot be set at the same time")
     if init_settings is None:
         init_settings = {}
 
-    if postgres_dsn:
+    if backend_dsn:
         cluster = edgedb_cluster.TempClusterWithRemotePg(
-            postgres_dsn, testmode=True, log_level='s',
+            backend_dsn, testmode=True, log_level='s',
             data_dir_prefix='edb-test-')
         destroy = True
     elif data_dir is None:
@@ -434,11 +434,11 @@ def _start_cluster(*, loop: asyncio.AbstractEventLoop, cleanup_atexit=True):
             # This branch is not usually used - `edb test` will call
             # init_cluster() separately and set EDGEDB_TEST_CLUSTER_ADDR
             data_dir = os.environ.get('EDGEDB_TEST_DATA_DIR')
-            postgres_dsn = os.environ.get('EDGEDB_TEST_POSTGRES_DSN')
+            backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
             _default_cluster = loop.run_until_complete(
                 init_cluster(
                     data_dir=data_dir,
-                    postgres_dsn=postgres_dsn,
+                    backend_dsn=backend_dsn,
                     cleanup_atexit=cleanup_atexit,
                 )
             )
@@ -458,7 +458,7 @@ def _shutdown_cluster(cluster, *, destroy=True):
 class ClusterTestCase(TestCase):
 
     BASE_TEST_CLASS = True
-    postgres_dsn: Optional[str] = None
+    backend_dsn: Optional[str] = None
 
     # Some tests may want to manage transactions manually,
     # or affect non-transactional state, in which case
@@ -490,7 +490,7 @@ class ClusterTestCase(TestCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.cluster = _start_cluster(loop=cls.loop, cleanup_atexit=True)
-        cls.postgres_dsn = os.environ.get('EDGEDB_TEST_POSTGRES_DSN')
+        cls.backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
 
     @classmethod
     def get_connect_args(cls, *,
@@ -1443,12 +1443,13 @@ class _EdgeDBServer:
         max_allowed_connections: Optional[int],
         compiler_pool_size: int,
         debug: bool,
-        postgres_dsn: Optional[str] = None,
+        backend_dsn: Optional[str] = None,
         runstate_dir: Optional[str] = None,
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
         allow_insecure_binary_clients: bool = False,
         allow_insecure_http_clients: bool = False,
+        env: Optional[Dict[str, str]] = None,
     ) -> None:
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
@@ -1456,7 +1457,7 @@ class _EdgeDBServer:
         self.max_allowed_connections = max_allowed_connections
         self.compiler_pool_size = compiler_pool_size
         self.debug = debug
-        self.postgres_dsn = postgres_dsn
+        self.backend_dsn = backend_dsn
         self.runstate_dir = runstate_dir
         self.reset_auth = reset_auth
         self.tenant_id = tenant_id
@@ -1464,6 +1465,7 @@ class _EdgeDBServer:
         self.data = None
         self.allow_insecure_binary_clients = allow_insecure_binary_clients
         self.allow_insecure_http_clients = allow_insecure_http_clients
+        self.env = env
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
         while True:
@@ -1526,9 +1528,9 @@ class _EdgeDBServer:
             cmd.extend([
                 '--max-backend-connections', str(self.max_allowed_connections),
             ])
-        if self.postgres_dsn is not None:
+        if self.backend_dsn is not None:
             cmd.extend([
-                '--postgres-dsn', self.postgres_dsn,
+                '--backend-dsn', self.backend_dsn,
             ])
         elif self.adjacent_to is not None:
             settings = self.adjacent_to.get_settings()
@@ -1541,7 +1543,7 @@ class _EdgeDBServer:
                 f'&host={pgaddr["host"]}'
             )
             cmd += [
-                '--postgres-dsn', pgdsn
+                '--backend-dsn', pgdsn
             ]
         else:
             cmd += ['--temp-dir']
@@ -1587,10 +1589,15 @@ class _EdgeDBServer:
                 f'{" ".join(shlex.quote(c) for c in cmd)}'
             )
 
+        env = os.environ.copy()
+        if self.env:
+            env.update(self.env)
+
         stat_reader, stat_writer = await asyncio.open_connection(sock=status_r)
 
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
+            env=env,
             stdout=None,
             stderr=subprocess.STDOUT,
             pass_fds=(status_w.fileno(),),
@@ -1630,15 +1637,16 @@ def start_edgedb_server(
     compiler_pool_size: int=2,
     adjacent_to: Optional[edgedb.AsyncIOConnection]=None,
     debug: bool=False,
-    postgres_dsn: Optional[str] = None,
+    backend_dsn: Optional[str] = None,
     runstate_dir: Optional[str] = None,
     reset_auth: Optional[bool] = None,
     tenant_id: Optional[str] = None,
     allow_insecure_binary_clients: bool = False,
     allow_insecure_http_clients: bool = False,
+    env: Optional[Dict[str, str]] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
-        if postgres_dsn or adjacent_to:
+        if backend_dsn or adjacent_to:
             # We don't want to implicitly "fix the issue" for the test author
             print('WARNING: starting an EdgeDB server with the default '
                   'runstate_dir; the test is likely to fail or hang. '
@@ -1651,12 +1659,13 @@ def start_edgedb_server(
         adjacent_to=adjacent_to,
         compiler_pool_size=compiler_pool_size,
         debug=debug,
-        postgres_dsn=postgres_dsn,
+        backend_dsn=backend_dsn,
         tenant_id=tenant_id,
         runstate_dir=runstate_dir,
         reset_auth=reset_auth,
         allow_insecure_binary_clients=allow_insecure_binary_clients,
         allow_insecure_http_clients=allow_insecure_http_clients,
+        env=env,
     )
 
 

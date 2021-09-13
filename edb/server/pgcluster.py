@@ -32,6 +32,7 @@ import shlex
 import shutil
 import textwrap
 import time
+import urllib.parse
 
 import asyncpg
 from asyncpg import serverversion
@@ -41,6 +42,7 @@ from edb.common import supervisor
 from edb.common import uuidgen
 
 from edb.server import defines
+from edb.server.ha import base as ha_base
 from edb.pgsql import common as pgcommon
 
 from . import pgconnparams
@@ -196,6 +198,14 @@ class BaseCluster:
 
         return conn
 
+    async def start_watching(
+        self, cluster_protocol: Optional[ha_base.ClusterProtocol] = None
+    ) -> None:
+        pass
+
+    def stop_watching(self) -> None:
+        pass
+
     def get_runtime_params(self) -> BackendRuntimeParams:
         params = self.get_connection_params()
         login_role: Optional[str] = params.user
@@ -278,6 +288,8 @@ class BaseCluster:
         if status != 'running':
             raise ClusterError('cannot dump: cluster is not running')
 
+        if self._pg_bin_dir is None:
+            await self.lookup_postgres()
         pg_dump = self._find_pg_binary('pg_dump')
         conn_spec = self.get_connection_spec()
 
@@ -336,14 +348,20 @@ class BaseCluster:
             )
 
     async def lookup_postgres(self) -> None:
-        pg_config = self._find_pg_config(self._pg_config_path)
-        self._pg_config_data = await self._run_pg_config(pg_config)
-        self._pg_bin_dir = self._pg_config_data.get('bindir')
-        if not self._pg_bin_dir:
+        pg_config = self.find_pg_config(self._pg_config_path)
+        self._pg_config_data = await self.run_pg_config(pg_config)
+        self._pg_bin_dir = self.get_pg_bin_dir(self._pg_config_data)
+
+    @staticmethod
+    def get_pg_bin_dir(pg_config_data: Dict[str, str]) -> str:
+        pg_bin_dir = pg_config_data.get('bindir')
+        if not pg_bin_dir:
             raise ClusterError(
                 'pg_config output did not provide the BINDIR value')
+        return pg_bin_dir
 
-    async def _run_pg_config(self, pg_config_path: str) -> Dict[str, str]:
+    @staticmethod
+    async def run_pg_config(pg_config_path: str) -> Dict[str, str]:
         stdout_lines, _, _ = await _run_logged_text_subprocess(
             [pg_config_path],
             logger=pg_config_logger,
@@ -357,7 +375,8 @@ class BaseCluster:
 
         return config
 
-    def _find_pg_config(self, pg_config_path: str) -> str:
+    @staticmethod
+    def find_pg_config(pg_config_path: str) -> str:
         if pg_config_path is None:
             pg_install = os.environ.get('PGINSTALLATION')
             if pg_install:
@@ -786,6 +805,7 @@ class RemoteCluster(BaseCluster):
         *,
         pg_config_path: str,
         instance_params: Optional[BackendInstanceParams] = None,
+        ha_backend: Optional[ha_base.HABackend] = None,
     ):
         super().__init__(
             pg_config_path=pg_config_path,
@@ -793,6 +813,12 @@ class RemoteCluster(BaseCluster):
         )
         self._connection_addr = addr
         self._connection_params = params
+        self._ha_backend = ha_backend
+
+    def _get_connection_addr(self) -> Optional[Tuple[str, int]]:
+        if self._ha_backend is not None:
+            return self._ha_backend.get_master_addr()
+        return self._connection_addr
 
     async def ensure_initialized(self, **settings: Any) -> bool:
         return False
@@ -836,6 +862,16 @@ class RemoteCluster(BaseCluster):
     ) -> None:
         raise ClusterError('cannot modify HBA records of unmanaged cluster')
 
+    async def start_watching(
+        self, cluster_protocol: Optional[ha_base.ClusterProtocol] = None
+    ) -> None:
+        if self._ha_backend is not None:
+            await self._ha_backend.start_watching(cluster_protocol)
+
+    def stop_watching(self) -> None:
+        if self._ha_backend is not None:
+            self._ha_backend.stop_watching()
+
 
 async def get_local_pg_cluster(
     data_dir: pathlib.Path,
@@ -870,6 +906,20 @@ async def get_remote_pg_cluster(
     *,
     tenant_id: Optional[str] = None,
 ) -> RemoteCluster:
+    parsed = urllib.parse.urlparse(dsn)
+    ha_backend = None
+
+    if parsed.scheme not in {'postgresql', 'postgres'}:
+        ha_backend = ha_base.get_backend(parsed)
+        if ha_backend is None:
+            raise ValueError(
+                'invalid DSN: scheme is expected to be "postgresql", '
+                '"postgres" or one of the supported HA backend, '
+                'got {!r}'.format(parsed.scheme))
+
+        addr = await ha_backend.get_cluster_consensus()
+        dsn = 'postgresql://{}:{}'.format(*addr)
+
     addrs, params = pgconnparams.parse_dsn(dsn)
     if len(addrs) > 1:
         raise ValueError('multiple hosts in Postgres DSN are not supported')
@@ -991,6 +1041,7 @@ async def get_remote_pg_cluster(
         params,
         pg_config_path=str(pg_config),
         instance_params=instance_params,
+        ha_backend=ha_backend,
     )
 
 

@@ -398,12 +398,21 @@ class BasePool(typing.Generic[C]):
         return self._max_capacity
 
     @property
+    def current_capacity(self) -> int:
+        return self._cur_capacity
+
+    @property
     def failed_connects(self) -> int:
         return self._failed_connects
 
     @property
     def failed_disconnects(self) -> int:
         return self._failed_disconnects
+
+    def get_pending_conns(self) -> int:
+        return sum(
+            block.count_pending_conns() for block in self._blocks.values()
+        )
 
     def _get_loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None:
@@ -1184,6 +1193,20 @@ class Pool(BasePool[C]):
                 *(self._discard_conn(block, conn) for conn in conns),
                 return_exceptions=True
             )
+
+    async def prune_all_connections(self) -> None:
+        # Brutally close all connections. This is used by HA failover.
+        coros = []
+        for block in self._blocks.values():
+            block.conn_stack.clear()
+            for conn in block.conns:
+                coros.append(self._disconnect(conn, block))
+            block.conns.clear()
+            self._log_to_snapshot(
+                dbname=block.dbname, event='disconnect', value=0)
+        await asyncio.gather(*coros, return_exceptions=True)
+        # We don't have to worry about pending_conns here -
+        # Server._pg_connect() will honor the failover and raise an error.
 
 
 class _NaivePool(BasePool[C]):

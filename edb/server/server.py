@@ -51,6 +51,8 @@ from edb.server import connpool
 from edb.server import compiler_pool
 from edb.server import defines
 from edb.server import protocol
+from edb.server.ha import base as ha_base
+from edb.server.ha import adaptive as adaptive_ha
 from edb.server.protocol import binary  # type: ignore
 from edb.server import pgcon
 from edb.server.pgcon import errors as pgcon_errors
@@ -73,7 +75,7 @@ class StartupError(Exception):
     pass
 
 
-class Server:
+class Server(ha_base.ClusterProtocol):
 
     _sys_pgcon: Optional[pgcon.PGConnection]
 
@@ -92,6 +94,7 @@ class Server:
 
     _task_group: Optional[taskgroup.TaskGroup]
     _binary_conns: Set[binary.EdgeConnection]
+    _backend_adaptive_ha: Optional[adaptive_ha.AdaptiveHASupport]
 
     def __init__(
         self,
@@ -109,12 +112,16 @@ class Server:
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
         startup_script: Optional[srvargs.StartupScript] = None,
+        backend_adaptive_ha: bool = False,
     ):
 
         self._loop = asyncio.get_running_loop()
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
+
+        # Increase-only counter to reject outdated attempts to connect
+        self._ha_master_serial = 0
 
         self._serving = False
         self._initing = False
@@ -188,6 +195,10 @@ class Server:
 
         self._allow_insecure_binary_clients = allow_insecure_binary_clients
         self._allow_insecure_http_clients = allow_insecure_http_clients
+        if backend_adaptive_ha:
+            self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(self)
+        else:
+            self._backend_adaptive_ha = None
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -251,9 +262,20 @@ class Server:
         )
 
     async def _pg_connect(self, dbname):
+        ha_serial = self._ha_master_serial
         pg_dbname = self.get_pg_dbname(dbname)
-        return await pgcon.connect(
+        rv = await pgcon.connect(
             self._get_pgaddr(), pg_dbname, self._tenant_id)
+        if ha_serial == self._ha_master_serial:
+            rv.set_server(self)
+            if self._backend_adaptive_ha is not None:
+                self._backend_adaptive_ha.on_pgcon_made(
+                    dbname == defines.EDGEDB_SYSTEM_DB
+                )
+            return rv
+        else:
+            rv.terminate()
+            raise ConnectionError("connected to outdated Postgres master")
 
     async def _pg_disconnect(self, conn):
         conn.terminate()
@@ -284,7 +306,7 @@ class Server:
             # Now, once all DBs have been introspected, start listening on
             # any notifications about schema/roles/etc changes.
             await self.__sys_pgcon.listen_for_sysevent()
-            self.__sys_pgcon.set_server(self)
+            self.__sys_pgcon.mark_as_system_db()
             self._sys_pgcon_ready_evt.set()
 
             self._populate_sys_auth()
@@ -894,6 +916,33 @@ class Server:
         self.__sys_pgcon = None
         self._sys_pgcon_ready_evt.clear()
         self._loop.create_task(self._reconnect_sys_pgcon())
+        self._on_pgcon_broken(True)
+
+    def _on_sys_pgcon_parameter_status_updated(self, name, value):
+        if name == 'in_hot_standby' and value == 'on':
+            # It is a strong evidence of failover if the sys_pgcon receives
+            # a notification that in_hot_standby is turned on.
+            self._on_sys_pgcon_failover_signal()
+
+    def _on_sys_pgcon_failover_signal(self):
+        if self._backend_adaptive_ha is not None:
+            # Switch to FAILOVER if adaptive HA is enabled
+            self._backend_adaptive_ha.set_state_failover()
+        elif getattr(self._cluster, '_ha_backend', None) is None:
+            # If the server is not using an HA backend, nor has enabled the
+            # adaptive HA monitoring, we still tries to "switch over" by
+            # disconnecting all pgcons if failover signal is received, allowing
+            # reconnection to happen sooner.
+            self.on_switch_over()
+        # Else, the HA backend should take care of calling on_switch_over()
+
+    def _on_pgcon_broken(self, is_sys_pgcon=False):
+        if self._backend_adaptive_ha:
+            self._backend_adaptive_ha.on_pgcon_broken(is_sys_pgcon)
+
+    def _on_pgcon_lost(self):
+        if self._backend_adaptive_ha:
+            self._backend_adaptive_ha.on_pgcon_lost()
 
     async def _reconnect_sys_pgcon(self):
         try:
@@ -908,8 +957,15 @@ class Server:
                     #   2. We still cannot connect to the Postgres cluster, or
                     pass
                 except pgcon_errors.BackendError as e:
-                    #   3. The Postgres cluster is still starting up
-                    if not e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW):
+                    #   3. The Postgres cluster is still starting up, or the
+                    #      HA failover is still in progress
+                    if not (
+                        e.code_is(pgcon_errors.ERROR_FEATURE_NOT_SUPPORTED) or
+                        e.code_is(pgcon_errors.ERROR_CANNOT_CONNECT_NOW) or
+                        e.code_is(pgcon_errors.ERROR_READ_ONLY_SQL_TRANSACTION)
+                    ):
+                        # TODO: ERROR_FEATURE_NOT_SUPPORTED should be removed
+                        # once PostgreSQL supports SERIALIZABLE in hot standbys
                         raise
 
                 if self._serving:
@@ -932,10 +988,10 @@ class Server:
 
             logger.info("Successfully reconnected to the system database.")
             self.__sys_pgcon = conn
-            self.__sys_pgcon.set_server(self)
-            # This await is meant to be after set_server() because we need the
-            # pgcon to be able to trigger another reconnect if its connection
-            # is lost during this await.
+            self.__sys_pgcon.mark_as_system_db()
+            # This await is meant to be after mark_as_system_db() because we
+            # need the pgcon to be able to trigger another reconnect if its
+            # connection is lost during this await.
             await self.__sys_pgcon.listen_for_sysevent()
             self.set_pg_unavailable_msg(None)
         finally:
@@ -1096,6 +1152,7 @@ class Server:
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
 
+        await self._cluster.start_watching(self)
         await self._create_compiler_pool()
 
         if self._startup_script:
@@ -1139,6 +1196,7 @@ class Server:
             self._serving = False
             self._accept_new_tasks = False
 
+            self._cluster.stop_watching()
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
 
@@ -1195,6 +1253,27 @@ class Server:
     def set_pg_unavailable_msg(self, msg):
         if msg is None or self._pg_unavailable_msg is None:
             self._pg_unavailable_msg = msg
+
+    def on_switch_over(self):
+        # Bumping this serial counter will "cancel" all pending connections
+        # to the old master.
+        self._ha_master_serial += 1
+
+        self._loop.create_task(self._pg_pool.prune_all_connections())
+
+        if self.__sys_pgcon is None:
+            # Assume a reconnect task is already running, now that we know the
+            # new master is likely ready, let's just give the task a push.
+            self._sys_pgcon_reconnect_evt.set()
+        else:
+            # Brutally close the sys_pgcon to the old master - this should
+            # trigger a reconnect task.
+            self.__sys_pgcon.abort()
+
+    def get_active_pgcon_num(self) -> int:
+        return (
+            self._pg_pool.current_capacity - self._pg_pool.get_pending_conns()
+        )
 
 
 async def _resolve_localhost() -> List[str]:

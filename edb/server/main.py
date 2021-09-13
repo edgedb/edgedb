@@ -197,6 +197,7 @@ async def _run_server(
             startup_script=args.startup_script,
             allow_insecure_binary_clients=args.allow_insecure_binary_clients,
             allow_insecure_http_clients=args.allow_insecure_http_clients,
+            backend_adaptive_ha=args.backend_adaptive_ha,
         )
         await sc.wait_for(ss.init())
 
@@ -354,9 +355,9 @@ async def run_server(
                 database='template1',
             ),
         )
-    elif args.postgres_dsn:
+    elif args.backend_dsn:
         cluster = await pgcluster.get_remote_pg_cluster(
-            args.postgres_dsn,
+            args.backend_dsn,
             tenant_id=tenant_id,
         )
 

@@ -76,6 +76,7 @@ cdef class PGConnection:
 
         readonly int32_t backend_pid
         readonly int32_t backend_secret
+        readonly object parameter_status
 
         stmt_cache.StatementsCache prep_stmts
         list last_parse_prep_stmts
@@ -84,6 +85,8 @@ cdef class PGConnection:
 
         object pgaddr
         object server
+        bint is_system_db
+        bint close_requested
 
         readonly bint idle
 
@@ -97,6 +100,7 @@ cdef class PGConnection:
 
     cdef parse_error_message(self)
     cdef parse_sync_message(self)
+    cdef parse_parameter_status_message(self)
 
     cdef parse_notification(self)
     cdef fallthrough(self)

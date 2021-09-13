@@ -82,10 +82,10 @@ jobs:
 
     - name: Test
       env:
-        EDGEDB_TEST_POSTGRES_DSN: postgres://edbtest:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-aws-rds.outputs.pghost }}/postgres
+        EDGEDB_TEST_BACKEND_DSN: postgres://edbtest:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-aws-rds.outputs.pghost }}/postgres
       run: |
-        edb server --bootstrap-only --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
-        edb test -j2 -v --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
+        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
 
   teardown-aws-rds:
     runs-on: ubuntu-latest
@@ -194,10 +194,10 @@ jobs:
 
     - name: Test
       env:
-        EDGEDB_TEST_POSTGRES_DSN: postgres://${{ steps.pguser.outputs.stdout }}:${{ steps.pgpass.outputs.stdout }}@${{ steps.pghost.outputs.stdout }}:${{ steps.pgport.outputs.stdout }}/${{ steps.pgdatabase.outputs.stdout }}
+        EDGEDB_TEST_BACKEND_DSN: postgres://${{ steps.pguser.outputs.stdout }}:${{ steps.pgpass.outputs.stdout }}@${{ steps.pghost.outputs.stdout }}:${{ steps.pgport.outputs.stdout }}/${{ steps.pgdatabase.outputs.stdout }}
       run: |
-        edb server --bootstrap-only --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
-        edb test -j2 -v --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
+        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
 
   teardown-do-database:
     runs-on: ubuntu-latest
@@ -269,10 +269,10 @@ jobs:
 
     - name: Test
       env:
-        EDGEDB_TEST_POSTGRES_DSN: postgres://postgres:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-gcp-cloud-sql.outputs.pghost }}/postgres
+        EDGEDB_TEST_BACKEND_DSN: postgres://postgres:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-gcp-cloud-sql.outputs.pghost }}/postgres
       run: |
-        edb server --bootstrap-only --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
-        edb test -j2 -v --postgres-dsn=$EDGEDB_TEST_POSTGRES_DSN
+        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
 
   teardown-gcp-cloud-sql:
     runs-on: ubuntu-latest
