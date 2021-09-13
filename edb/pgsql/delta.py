@@ -122,8 +122,6 @@ class CommandMeta(sd.CommandMeta):
 
 
 class MetaCommand(sd.Command, metaclass=CommandMeta):
-    op_priority = 0
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.pgops = ordered.OrderedSet()
@@ -1474,7 +1472,7 @@ class AnnotationCommand(MetaCommand):
 
 
 class CreateAnnotation(AnnotationCommand, adapts=s_anno.CreateAnnotation):
-    op_priority = 1
+    pass
 
 
 class RenameAnnotation(AnnotationCommand, adapts=s_anno.RenameAnnotation):
@@ -1490,7 +1488,7 @@ class DeleteAnnotation(AnnotationCommand, adapts=s_anno.DeleteAnnotation):
 
 
 class AnnotationValueCommand(MetaCommand):
-    op_priority = 4
+    pass
 
 
 class CreateAnnotationValue(
@@ -1536,8 +1534,6 @@ class DeleteAnnotationValue(
 
 
 class ConstraintCommand(MetaCommand):
-    op_priority = 3
-
     @classmethod
     def constraint_is_effective(cls, schema, constraint):
         subject = constraint.get_subject(schema)
