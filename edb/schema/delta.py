@@ -844,6 +844,25 @@ class Command(
     ) -> s_schema.Schema:
         return schema
 
+    def apply_prerequisites(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        for op in self.get_prerequisites():
+            schema = op.apply(schema, context)
+        return schema
+
+    def apply_subcommands(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        for op in self.get_subcommands(include_prerequisites=False):
+            if not isinstance(op, AlterObjectProperty):
+                schema = op.apply(schema, context=context)
+        return schema
+
     def get_ast(
         self,
         schema: s_schema.Schema,
@@ -1024,8 +1043,8 @@ class CommandGroup(Command):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        for op in self.get_subcommands():
-            schema = op.apply(schema, context)
+        schema = self.apply_prerequisites(schema, context)
+        schema = self.apply_subcommands(schema, context)
         return schema
 
 
@@ -1378,30 +1397,38 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+        with context(DeltaRootContext(schema=schema, op=self)):
+            schema = self.apply_prerequisites(schema, context)
+            schema = self.apply_subcommands(schema, context)
+
+        return schema
+
+    def apply_subcommands(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
         from . import modules
         from . import types as s_types
 
-        context = context or CommandContext()
+        mods = []
 
-        with context(DeltaRootContext(schema=schema, op=self)):
-            mods = []
+        for cmop in self.get_subcommands(type=modules.CreateModule):
+            schema = cmop.apply(schema, context)
+            mods.append(cmop.scls)
 
-            for cmop in self.get_subcommands(type=modules.CreateModule):
-                schema = cmop.apply(schema, context)
-                mods.append(cmop.scls)
+        for amop in self.get_subcommands(type=modules.AlterModule):
+            schema = amop.apply(schema, context)
+            mods.append(amop.scls)
 
-            for amop in self.get_subcommands(type=modules.AlterModule):
-                schema = amop.apply(schema, context)
-                mods.append(amop.scls)
+        for objop in self.get_subcommands():
+            if not isinstance(objop, (modules.CreateModule,
+                                      modules.AlterModule,
+                                      s_types.DeleteCollectionType)):
+                schema = objop.apply(schema, context)
 
-            for objop in self.get_subcommands():
-                if not isinstance(objop, (modules.CreateModule,
-                                          modules.AlterModule,
-                                          s_types.DeleteCollectionType)):
-                    schema = objop.apply(schema, context)
-
-            for cop in self.get_subcommands(type=s_types.DeleteCollectionType):
-                schema = cop.apply(schema, context)
+        for cop in self.get_subcommands(type=s_types.DeleteCollectionType):
+            schema = cop.apply(schema, context)
 
         return schema
 
@@ -2703,8 +2730,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
     ) -> s_schema.Schema:
         self._validate_legal_command(schema, context)
 
-        for op in self.get_prerequisites():
-            schema = op.apply(schema, context)
+        schema = self.apply_prerequisites(schema, context)
 
         if context.schema_object_ids is not None:
             mcls = self.get_schema_metaclass()
@@ -2788,10 +2814,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        for op in self.get_subcommands(include_prerequisites=False):
-            if not isinstance(op, AlterObjectProperty):
-                schema = op.apply(schema, context=context)
-        return schema
+        return self.apply_subcommands(schema, context)
 
     def _create_finalize(
         self,
@@ -2908,9 +2931,7 @@ class AlterObjectOrFragment(ObjectCommand[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        for op in self.get_prerequisites():
-            schema = op.apply(schema, context)
-
+        schema = self.apply_prerequisites(schema, context)
         if not context.canonical:
             schema = self.populate_ddl_identity(schema, context)
             schema = self.canonicalize_attributes(schema, context)
@@ -2927,10 +2948,7 @@ class AlterObjectOrFragment(ObjectCommand[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        for op in self.get_subcommands(include_prerequisites=False):
-            if not isinstance(op, AlterObjectProperty):
-                schema = op.apply(schema, context=context)
-        return schema
+        return self.apply_subcommands(schema, context)
 
     def _alter_finalize(
         self,
@@ -3304,6 +3322,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         from . import ordering
 
         self._validate_legal_command(schema, context)
+        schema = self.apply_prerequisites(schema, context)
 
         if not context.canonical:
             schema = self.populate_ddl_identity(schema, context)
@@ -3364,10 +3383,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        for op in self.get_subcommands(metaclass=so.Object):
-            schema = op.apply(schema, context=context)
-
-        return schema
+        return self.apply_subcommands(schema, context)
 
     def _delete_finalize(
         self,
