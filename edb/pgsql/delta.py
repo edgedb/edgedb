@@ -122,6 +122,8 @@ class CommandMeta(sd.CommandMeta):
 
 
 class MetaCommand(sd.Command, metaclass=CommandMeta):
+    op_priority = 0
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.pgops = ordered.OrderedSet()
@@ -202,31 +204,6 @@ class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
     pass
 
 
-class ObjectMetaCommand(MetaCommand, sd.ObjectCommand,
-                        metaclass=CommandMeta):
-    op_priority = 0
-
-
-class CreateObject(ObjectMetaCommand):
-    pass
-
-
-class RenameObject(ObjectMetaCommand):
-    pass
-
-
-class RebaseObject(ObjectMetaCommand):
-    pass
-
-
-class AlterObject(ObjectMetaCommand):
-    pass
-
-
-class DeleteObject(ObjectMetaCommand):
-    pass
-
-
 class Nop(MetaCommand, adapts=sd.Nop):
     pass
 
@@ -265,13 +242,12 @@ class AlterObjectProperty(MetaCommand, adapts=sd.AlterObjectProperty):
     pass
 
 
-class SchemaVersionCommand(ObjectMetaCommand):
+class SchemaVersionCommand(MetaCommand):
     pass
 
 
 class CreateSchemaVersion(
     SchemaVersionCommand,
-    CreateObject,
     adapts=s_ver.CreateSchemaVersion,
 ):
     pass
@@ -279,7 +255,6 @@ class CreateSchemaVersion(
 
 class AlterSchemaVersion(
     SchemaVersionCommand,
-    AlterObject,
     adapts=s_ver.AlterSchemaVersion,
 ):
 
@@ -316,12 +291,12 @@ class AlterSchemaVersion(
         return schema
 
 
-class GlobalSchemaVersionCommand(ObjectMetaCommand):
+class GlobalSchemaVersionCommand(MetaCommand):
     pass
 
 
 class CreateGlobalSchemaVersion(
-    ObjectMetaCommand,
+    MetaCommand,
     adapts=s_ver.CreateGlobalSchemaVersion,
 ):
 
@@ -355,7 +330,7 @@ class CreateGlobalSchemaVersion(
 
 
 class AlterGlobalSchemaVersion(
-    ObjectMetaCommand,
+    MetaCommand,
     adapts=s_ver.AlterGlobalSchemaVersion,
 ):
 
@@ -480,19 +455,18 @@ class AlterGlobalSchemaVersion(
         return schema
 
 
-class PseudoTypeCommand(ObjectMetaCommand):
+class PseudoTypeCommand(MetaCommand):
     pass
 
 
 class CreatePseudoType(
     PseudoTypeCommand,
-    CreateObject,
     adapts=s_pseudo.CreatePseudoType,
 ):
     pass
 
 
-class TupleCommand(ObjectMetaCommand):
+class TupleCommand(MetaCommand):
 
     pass
 
@@ -556,13 +530,12 @@ class DeleteTuple(TupleCommand, adapts=s_types.DeleteTuple):
         return schema
 
 
-class ExprAliasCommand(ObjectMetaCommand):
+class ExprAliasCommand(MetaCommand):
     pass
 
 
 class CreateAlias(
     ExprAliasCommand,
-    CreateObject,
     adapts=s_aliases.CreateAlias,
 ):
     pass
@@ -570,7 +543,6 @@ class CreateAlias(
 
 class RenameAlias(
     ExprAliasCommand,
-    RenameObject,
     adapts=s_aliases.RenameAlias,
 ):
     pass
@@ -578,7 +550,6 @@ class RenameAlias(
 
 class AlterAlias(
     ExprAliasCommand,
-    AlterObject,
     adapts=s_aliases.AlterAlias,
 ):
     pass
@@ -586,46 +557,44 @@ class AlterAlias(
 
 class DeleteAlias(
     ExprAliasCommand,
-    DeleteObject,
     adapts=s_aliases.DeleteAlias,
 ):
     pass
 
 
-class TupleExprAliasCommand(ObjectMetaCommand):
+class TupleExprAliasCommand(MetaCommand):
     pass
 
 
 class CreateTupleExprAlias(
-        TupleExprAliasCommand, CreateObject,
-        adapts=s_types.CreateTupleExprAlias):
-
+    TupleExprAliasCommand,
+    adapts=s_types.CreateTupleExprAlias,
+):
     pass
 
 
 class RenameTupleExprAlias(
-        TupleExprAliasCommand, RenameObject,
-        adapts=s_types.RenameTupleExprAlias):
-
+    TupleExprAliasCommand,
+    adapts=s_types.RenameTupleExprAlias,
+):
     pass
 
 
 class AlterTupleExprAlias(
-        TupleExprAliasCommand, AlterObject,
-        adapts=s_types.AlterTupleExprAlias):
-
+    TupleExprAliasCommand,
+    adapts=s_types.AlterTupleExprAlias,
+):
     pass
 
 
 class DeleteTupleExprAlias(
-        TupleExprAliasCommand, DeleteObject,
-        adapts=s_types.DeleteTupleExprAlias):
-
+    TupleExprAliasCommand,
+    adapts=s_types.DeleteTupleExprAlias,
+):
     pass
 
 
-class ArrayCommand(ObjectMetaCommand):
-
+class ArrayCommand(MetaCommand):
     pass
 
 
@@ -645,69 +614,71 @@ class DeleteArray(ArrayCommand, adapts=s_types.DeleteArray):
     pass
 
 
-class ArrayExprAliasCommand(ObjectMetaCommand):
+class ArrayExprAliasCommand(MetaCommand):
     pass
 
 
 class CreateArrayExprAlias(
-        ArrayExprAliasCommand, CreateObject,
-        adapts=s_types.CreateArrayExprAlias):
-
+    ArrayExprAliasCommand,
+    adapts=s_types.CreateArrayExprAlias,
+):
     pass
 
 
 class RenameArrayExprAlias(
-        ArrayExprAliasCommand, RenameObject,
-        adapts=s_types.RenameArrayExprAlias):
-
+    ArrayExprAliasCommand,
+    adapts=s_types.RenameArrayExprAlias,
+):
     pass
 
 
 class AlterArrayExprAlias(
-        ArrayExprAliasCommand, AlterObject,
-        adapts=s_types.AlterArrayExprAlias):
-
+    ArrayExprAliasCommand,
+    adapts=s_types.AlterArrayExprAlias,
+):
     pass
 
 
 class DeleteArrayExprAlias(
-        ArrayExprAliasCommand, DeleteObject,
-        adapts=s_types.DeleteArrayExprAlias):
-
+    ArrayExprAliasCommand,
+    adapts=s_types.DeleteArrayExprAlias,
+):
     pass
 
 
-class ParameterCommand(sd.ObjectCommand,
-                       metaclass=CommandMeta):
+class ParameterCommand(MetaCommand):
     pass
 
 
-class CreateParameter(ParameterCommand, CreateObject,
-                      adapts=s_funcs.CreateParameter):
-
+class CreateParameter(
+    ParameterCommand,
+    adapts=s_funcs.CreateParameter,
+):
     pass
 
 
-class DeleteParameter(ParameterCommand, DeleteObject,
-                      adapts=s_funcs.DeleteParameter):
-
+class DeleteParameter(
+    ParameterCommand,
+    adapts=s_funcs.DeleteParameter,
+):
     pass
 
 
-class RenameParameter(ParameterCommand, RenameObject,
-                      adapts=s_funcs.RenameParameter):
-
+class RenameParameter(
+    ParameterCommand,
+    adapts=s_funcs.RenameParameter,
+):
     pass
 
 
-class AlterParameter(ParameterCommand, AlterObject,
-                     adapts=s_funcs.AlterParameter):
-
+class AlterParameter(
+    ParameterCommand,
+    adapts=s_funcs.AlterParameter,
+):
     pass
 
 
-class FunctionCommand:
-
+class FunctionCommand(MetaCommand):
     def get_pgname(self, func: s_funcs.Function, schema):
         return common.get_backend_name(schema, func, catenate=False)
 
@@ -1104,9 +1075,10 @@ class FunctionCommand:
             return (op,)
 
 
-class CreateFunction(FunctionCommand, CreateObject,
-                     adapts=s_funcs.CreateFunction):
-
+class CreateFunction(
+    FunctionCommand,
+    adapts=s_funcs.CreateFunction,
+):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1117,14 +1089,11 @@ class CreateFunction(FunctionCommand, CreateObject,
         return schema
 
 
-class RenameFunction(
-        FunctionCommand, RenameObject, adapts=s_funcs.RenameFunction):
+class RenameFunction(FunctionCommand, adapts=s_funcs.RenameFunction):
     pass
 
 
-class AlterFunction(
-        FunctionCommand, AlterObject, adapts=s_funcs.AlterFunction):
-
+class AlterFunction(FunctionCommand, adapts=s_funcs.AlterFunction):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1145,9 +1114,7 @@ class AlterFunction(
         return schema
 
 
-class DeleteFunction(
-        FunctionCommand, DeleteObject, adapts=s_funcs.DeleteFunction):
-
+class DeleteFunction(FunctionCommand, adapts=s_funcs.DeleteFunction):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1260,9 +1227,7 @@ class OperatorCommand(FunctionCommand):
         return op
 
 
-class CreateOperator(OperatorCommand, CreateObject,
-                     adapts=s_opers.CreateOperator):
-
+class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1395,19 +1360,15 @@ class CreateOperator(OperatorCommand, CreateObject,
         return schema
 
 
-class RenameOperator(
-        OperatorCommand, RenameObject, adapts=s_opers.RenameOperator):
+class RenameOperator(OperatorCommand, adapts=s_opers.RenameOperator):
     pass
 
 
-class AlterOperator(
-        OperatorCommand, AlterObject, adapts=s_opers.AlterOperator):
+class AlterOperator(OperatorCommand, adapts=s_opers.AlterOperator):
     pass
 
 
-class DeleteOperator(
-        OperatorCommand, DeleteObject, adapts=s_opers.DeleteOperator):
-
+class DeleteOperator(OperatorCommand, adapts=s_opers.DeleteOperator):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1428,8 +1389,7 @@ class DeleteOperator(
         return schema
 
 
-class CastCommand:
-
+class CastCommand(MetaCommand):
     def make_cast_function(self, cast: s_casts.Cast, schema):
         name = common.get_backend_name(
             schema, cast, catenate=False, aspect='function')
@@ -1449,9 +1409,7 @@ class CastCommand:
         )
 
 
-class CreateCast(CastCommand, CreateObject,
-                 adapts=s_casts.CreateCast):
-
+class CreateCast(CastCommand, adapts=s_casts.CreateCast):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1483,19 +1441,15 @@ class CreateCast(CastCommand, CreateObject,
         return schema
 
 
-class RenameCast(
-        CastCommand, RenameObject, adapts=s_casts.RenameCast):
+class RenameCast(CastCommand, adapts=s_casts.RenameCast):
     pass
 
 
-class AlterCast(
-        CastCommand, AlterObject, adapts=s_casts.AlterCast):
+class AlterCast(CastCommand, adapts=s_casts.AlterCast):
     pass
 
 
-class DeleteCast(
-        CastCommand, DeleteObject, adapts=s_casts.DeleteCast):
-
+class DeleteCast(CastCommand, adapts=s_casts.DeleteCast):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1515,78 +1469,73 @@ class DeleteCast(
         return schema
 
 
-class AnnotationCommand:
+class AnnotationCommand(MetaCommand):
     pass
 
 
-class CreateAnnotation(
-        AnnotationCommand, CreateObject,
-        adapts=s_anno.CreateAnnotation):
+class CreateAnnotation(AnnotationCommand, adapts=s_anno.CreateAnnotation):
     op_priority = 1
 
 
-class RenameAnnotation(
-        AnnotationCommand, RenameObject,
-        adapts=s_anno.RenameAnnotation):
+class RenameAnnotation(AnnotationCommand, adapts=s_anno.RenameAnnotation):
     pass
 
 
-class AlterAnnotation(
-        AnnotationCommand, AlterObject, adapts=s_anno.AlterAnnotation):
+class AlterAnnotation(AnnotationCommand, adapts=s_anno.AlterAnnotation):
     pass
 
 
-class DeleteAnnotation(
-        AnnotationCommand, DeleteObject,
-        adapts=s_anno.DeleteAnnotation):
+class DeleteAnnotation(AnnotationCommand, adapts=s_anno.DeleteAnnotation):
     pass
 
 
-class AnnotationValueCommand(sd.ObjectCommand,
-                             metaclass=CommandMeta):
+class AnnotationValueCommand(MetaCommand):
     op_priority = 4
 
 
 class CreateAnnotationValue(
-        AnnotationValueCommand, CreateObject,
-        adapts=s_anno.CreateAnnotationValue):
+    AnnotationValueCommand,
+    adapts=s_anno.CreateAnnotationValue,
+):
     pass
 
 
 class AlterAnnotationValue(
-        AnnotationValueCommand, AlterObject,
-        adapts=s_anno.AlterAnnotationValue):
+    AnnotationValueCommand,
+    adapts=s_anno.AlterAnnotationValue,
+):
     pass
 
 
 class AlterAnnotationValueOwned(
-        AnnotationValueCommand, AlterObject,
-        adapts=s_anno.AlterAnnotationValueOwned):
+    AnnotationValueCommand,
+    adapts=s_anno.AlterAnnotationValueOwned,
+):
     pass
 
 
 class RenameAnnotationValue(
-        AnnotationValueCommand, RenameObject,
-        adapts=s_anno.RenameAnnotationValue):
+    AnnotationValueCommand,
+    adapts=s_anno.RenameAnnotationValue,
+):
     pass
 
 
 class RebaseAnnotationValue(
     AnnotationValueCommand,
-    RebaseObject,
     adapts=s_anno.RebaseAnnotationValue,
 ):
     pass
 
 
 class DeleteAnnotationValue(
-        AnnotationValueCommand, DeleteObject,
-        adapts=s_anno.DeleteAnnotationValue):
+    AnnotationValueCommand,
+    adapts=s_anno.DeleteAnnotationValue,
+):
     pass
 
 
-class ConstraintCommand(sd.ObjectCommand,
-                        metaclass=CommandMeta):
+class ConstraintCommand(MetaCommand):
     op_priority = 3
 
     @classmethod
@@ -1654,9 +1603,7 @@ class ConstraintCommand(sd.ObjectCommand,
         return op
 
 
-class CreateConstraint(
-        ConstraintCommand, CreateObject,
-        adapts=s_constr.CreateConstraint):
+class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1672,23 +1619,21 @@ class CreateConstraint(
         return schema
 
 
-class RenameConstraint(
-        ConstraintCommand, RenameObject,
-        adapts=s_constr.RenameConstraint):
+class RenameConstraint(ConstraintCommand, adapts=s_constr.RenameConstraint):
     pass
 
 
 class AlterConstraintOwned(
     ConstraintCommand,
-    AlterObject,
     adapts=s_constr.AlterConstraintOwned,
 ):
     pass
 
 
 class AlterConstraint(
-        ConstraintCommand, AlterObject,
-        adapts=s_constr.AlterConstraint):
+    ConstraintCommand,
+    adapts=s_constr.AlterConstraint,
+):
     def apply(self, schema, context):
         orig_schema = schema
         schema = super().apply(schema, context)
@@ -1772,9 +1717,7 @@ class AlterConstraint(
         return schema
 
 
-class DeleteConstraint(
-        ConstraintCommand, DeleteObject,
-        adapts=s_constr.DeleteConstraint):
+class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -1791,17 +1734,15 @@ class DeleteConstraint(
         return schema
 
 
-class RebaseConstraint(
-        ConstraintCommand, RebaseObject,
-        adapts=s_constr.RebaseConstraint):
+class RebaseConstraint(ConstraintCommand, adapts=s_constr.RebaseConstraint):
     pass
 
 
-class AliasCapableObjectMetaCommand(ObjectMetaCommand):
+class AliasCapableMetaCommand(MetaCommand):
     pass
 
 
-class ScalarTypeMetaCommand(AliasCapableObjectMetaCommand):
+class ScalarTypeMetaCommand(AliasCapableMetaCommand):
 
     def is_sequence(self, schema, scalar):
         seq = schema.get('std::sequence', default=None)
@@ -1865,13 +1806,17 @@ class CreateScalarType(ScalarTypeMetaCommand,
         return schema
 
 
-class RenameScalarType(ScalarTypeMetaCommand, RenameObject,
-                       adapts=s_scalars.RenameScalarType):
+class RenameScalarType(
+    ScalarTypeMetaCommand,
+    adapts=s_scalars.RenameScalarType,
+):
     pass
 
 
-class RebaseScalarType(ScalarTypeMetaCommand,
-                       adapts=s_scalars.RebaseScalarType):
+class RebaseScalarType(
+    ScalarTypeMetaCommand,
+    adapts=s_scalars.RebaseScalarType,
+):
     # Actual rebase is taken care of in AlterScalarType
     pass
 
@@ -2268,7 +2213,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         return schema
 
 
-class CompositeObjectMetaCommand(ObjectMetaCommand):
+class CompositeMetaCommand(MetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table_name = None
@@ -2457,12 +2402,11 @@ class CompositeObjectMetaCommand(ObjectMetaCommand):
         return cmd
 
 
-class IndexCommand(sd.ObjectCommand, metaclass=CommandMeta):
+class IndexCommand(MetaCommand):
     pass
 
 
-class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
-
+class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     @classmethod
     def create_index(cls, index, schema, context):
         subject = index.get_subject(schema)
@@ -2525,23 +2469,19 @@ class CreateIndex(IndexCommand, CreateObject, adapts=s_indexes.CreateIndex):
         return schema
 
 
-class RenameIndex(IndexCommand, RenameObject, adapts=s_indexes.RenameIndex):
+class RenameIndex(IndexCommand, adapts=s_indexes.RenameIndex):
     pass
 
 
-class AlterIndexOwned(
-    IndexCommand,
-    AlterObject,
-    adapts=s_indexes.AlterIndexOwned,
-):
+class AlterIndexOwned(IndexCommand, adapts=s_indexes.AlterIndexOwned):
     pass
 
 
-class AlterIndex(IndexCommand, AlterObject, adapts=s_indexes.AlterIndex):
+class AlterIndex(IndexCommand, adapts=s_indexes.AlterIndex):
     pass
 
 
-class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
+class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
     @classmethod
     def delete_index(cls, index, schema, context, priority=3):
         subject = index.get_subject(schema)
@@ -2580,9 +2520,7 @@ class DeleteIndex(IndexCommand, DeleteObject, adapts=s_indexes.DeleteIndex):
         return schema
 
 
-class RebaseIndex(
-        IndexCommand, RebaseObject,
-        adapts=s_indexes.RebaseIndex):
+class RebaseIndex(IndexCommand, adapts=s_indexes.RebaseIndex):
     pass
 
 
@@ -2594,8 +2532,8 @@ class CreateUnionType(
     pass
 
 
-class ObjectTypeMetaCommand(AliasCapableObjectMetaCommand,
-                            CompositeObjectMetaCommand):
+class ObjectTypeMetaCommand(AliasCapableMetaCommand,
+                            CompositeMetaCommand):
     def schedule_endpoint_delete_action_update(self, obj, schema, context):
         endpoint_delete_actions = context.get(
             sd.DeltaRootContext).op.update_endpoint_delete_actions
@@ -2655,8 +2593,10 @@ class CreateObjectType(ObjectTypeMetaCommand,
         return schema
 
 
-class RenameObjectType(ObjectTypeMetaCommand, RenameObject,
-                       adapts=s_objtypes.RenameObjectType):
+class RenameObjectType(
+    ObjectTypeMetaCommand,
+    adapts=s_objtypes.RenameObjectType,
+):
     pass
 
 
@@ -2736,8 +2676,7 @@ class CancelPointerCardinalityUpdate(MetaCommand):
     pass
 
 
-class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
-                         metaclass=CommandMeta):
+class PointerMetaCommand(MetaCommand):
     def get_host(self, schema, context):
         if context:
             link = context.get(s_links.LinkCommandContext)
@@ -3659,7 +3598,7 @@ class PointerMetaCommand(MetaCommand, sd.ObjectCommand,
         link_ops.append((self, link, orig_schema))
 
 
-class LinkMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
+class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
 
     @classmethod
     def _create_table(
@@ -3852,7 +3791,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         return schema
 
 
-class RenameLink(LinkMetaCommand, RenameObject, adapts=s_links.RenameLink):
+class RenameLink(LinkMetaCommand, adapts=s_links.RenameLink):
     pass
 
 
@@ -3952,11 +3891,7 @@ class AlterLinkLowerCardinality(
         return schema
 
 
-class AlterLinkOwned(
-    LinkMetaCommand,
-    AlterObject,
-    adapts=s_links.AlterLinkOwned,
-):
+class AlterLinkOwned(LinkMetaCommand, adapts=s_links.AlterLinkOwned):
     pass
 
 
@@ -4065,7 +4000,7 @@ class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
         return schema
 
 
-class PropertyMetaCommand(CompositeObjectMetaCommand, PointerMetaCommand):
+class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
 
     @classmethod
     def _create_table(
@@ -4218,13 +4153,11 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
         return schema
 
 
-class RenameProperty(
-        PropertyMetaCommand, RenameObject, adapts=s_props.RenameProperty):
+class RenameProperty(PropertyMetaCommand, adapts=s_props.RenameProperty):
     pass
 
 
-class RebaseProperty(
-        PropertyMetaCommand, adapts=s_props.RebaseProperty):
+class RebaseProperty(PropertyMetaCommand, adapts=s_props.RebaseProperty):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -4247,9 +4180,7 @@ class RebaseProperty(
         return schema
 
 
-class SetPropertyType(
-        PropertyMetaCommand, adapts=s_props.SetPropertyType):
-
+class SetPropertyType(PropertyMetaCommand, adapts=s_props.SetPropertyType):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -4325,14 +4256,12 @@ class AlterPropertyLowerCardinality(
 
 class AlterPropertyOwned(
     PropertyMetaCommand,
-    AlterObject,
     adapts=s_props.AlterPropertyOwned,
 ):
     pass
 
 
-class AlterProperty(
-        PropertyMetaCommand, adapts=s_props.AlterProperty):
+class AlterProperty(PropertyMetaCommand, adapts=s_props.AlterProperty):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -5235,7 +5164,7 @@ class UpdateInheritanceViews(MetaCommand):
         )
 
 
-class ModuleMetaCommand(ObjectMetaCommand):
+class ModuleMetaCommand(MetaCommand):
     pass
 
 
@@ -5251,7 +5180,7 @@ class DeleteModule(ModuleMetaCommand, adapts=s_mod.DeleteModule):
     pass
 
 
-class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):
+class CreateDatabase(MetaCommand, adapts=s_db.CreateDatabase):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -5281,7 +5210,7 @@ class CreateDatabase(ObjectMetaCommand, adapts=s_db.CreateDatabase):
         return schema
 
 
-class DropDatabase(ObjectMetaCommand, adapts=s_db.DropDatabase):
+class DropDatabase(MetaCommand, adapts=s_db.DropDatabase):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -5295,7 +5224,7 @@ class DropDatabase(ObjectMetaCommand, adapts=s_db.DropDatabase):
         return schema
 
 
-class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
+class CreateRole(MetaCommand, adapts=s_roles.CreateRole):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -5354,7 +5283,7 @@ class CreateRole(ObjectMetaCommand, adapts=s_roles.CreateRole):
         return schema
 
 
-class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
+class AlterRole(MetaCommand, adapts=s_roles.AlterRole):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -5415,7 +5344,7 @@ class AlterRole(ObjectMetaCommand, adapts=s_roles.AlterRole):
         return schema
 
 
-class RebaseRole(ObjectMetaCommand, adapts=s_roles.RebaseRole):
+class RebaseRole(MetaCommand, adapts=s_roles.RebaseRole):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -5446,7 +5375,7 @@ class RebaseRole(ObjectMetaCommand, adapts=s_roles.RebaseRole):
         return schema
 
 
-class DeleteRole(ObjectMetaCommand, adapts=s_roles.DeleteRole):
+class DeleteRole(MetaCommand, adapts=s_roles.DeleteRole):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -5461,7 +5390,7 @@ class DeleteRole(ObjectMetaCommand, adapts=s_roles.DeleteRole):
 
 
 class CreateExtensionPackage(
-    ObjectMetaCommand,
+    MetaCommand,
     adapts=s_exts.CreateExtensionPackage,
 ):
 
@@ -5504,7 +5433,7 @@ class CreateExtensionPackage(
 
 
 class DeleteExtensionPackage(
-    ObjectMetaCommand,
+    MetaCommand,
     adapts=s_exts.DeleteExtensionPackage,
 ):
 
@@ -5532,17 +5461,15 @@ class DeleteExtensionPackage(
         return schema
 
 
-class CreateExtension(
-    CreateObject,
-    adapts=s_exts.CreateExtension,
-):
+class ExtensionCommand(MetaCommand):
     pass
 
 
-class DeleteExtension(
-    DeleteObject,
-    adapts=s_exts.DeleteExtension,
-):
+class CreateExtension(ExtensionCommand, adapts=s_exts.CreateExtension):
+    pass
+
+
+class DeleteExtension(ExtensionCommand, adapts=s_exts.DeleteExtension):
     pass
 
 
@@ -5593,13 +5520,12 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
                 queue.append(op)
 
 
-class MigrationCommand(ObjectMetaCommand):
+class MigrationCommand(MetaCommand):
     pass
 
 
 class CreateMigration(
     MigrationCommand,
-    CreateObject,
     adapts=s_migrations.CreateMigration,
 ):
     pass
@@ -5607,7 +5533,6 @@ class CreateMigration(
 
 class AlterMigration(
     MigrationCommand,
-    AlterObject,
     adapts=s_migrations.AlterMigration,
 ):
     pass
@@ -5615,7 +5540,6 @@ class AlterMigration(
 
 class DeleteMigration(
     MigrationCommand,
-    DeleteObject,
     adapts=s_migrations.DeleteMigration,
 ):
     pass
