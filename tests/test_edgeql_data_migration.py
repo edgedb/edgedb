@@ -2319,6 +2319,28 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ["bar"],
         )
 
+    async def test_edgeql_migration_function_05(self):
+        await self.migrate("""
+            type Person {
+                required property name -> str {
+                    constraint exclusive;
+                }
+                multi link places_visited -> Place;
+            }
+
+            type Place {
+                required property name -> str {
+                    constraint exclusive;
+                }
+            }
+
+            function visited(person: str, city: str) -> bool
+                using (
+                    WITH person := (SELECT Person FILTER .name = person),
+                    SELECT city IN person.places_visited.name
+                );
+        """)
+
     async def test_edgeql_migration_constraint_01(self):
         await self.migrate('''
             abstract constraint not_bad {
