@@ -1288,8 +1288,6 @@ class AlterConstraint(
                 **props,
             )
 
-            self.set_attribute_value('subject', subject)
-
         return super()._alter_begin(schema, context)
 
     @classmethod

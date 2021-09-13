@@ -1225,6 +1225,15 @@ class Compiler:
                     context=ql.context,
                 )
 
+            if debug.flags.delta_plan:
+                debug.header('Commit Migration DDL AST')
+                text = []
+                for cmd in mstate.accepted_cmds:
+                    debug.dump(cmd)
+                    text.append(qlcodegen.generate_source(cmd, pretty=True))
+                debug.header('Commit Migration DDL Text')
+                debug.dump_code(';\n'.join(text) + ';')
+
             last_migration = schema.get_last_migration()
             if last_migration:
                 last_migration_ref = s_utils.name_to_ast_ref(

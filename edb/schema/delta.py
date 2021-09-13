@@ -1363,6 +1363,22 @@ class CommandContext:
 
         return None
 
+    def get_topmost_ancestor(
+        self,
+        cls: Union[Type[Command], Type[CommandContextToken[Command]]],
+    ) -> Optional[CommandContextToken[Command]]:
+        if issubclass(cls, Command):
+            ctxcls = cls.get_context_class()
+            assert ctxcls is not None
+        else:
+            ctxcls = cls
+
+        for item in self.stack:
+            if isinstance(item, ctxcls):
+                return item
+
+        return None
+
     def top(self) -> CommandContextToken[Command]:
         if self.stack:
             return self.stack[0]
@@ -1384,11 +1400,6 @@ class CommandContext:
     def copy(self) -> CommandContext:
         ctx = CommandContext()
         ctx.stack = self.stack[:]
-        return ctx
-
-    def at_top(self) -> CommandContext:
-        ctx = CommandContext()
-        ctx.stack = ctx.stack[:1]
         return ctx
 
     def cache_value(self, key: Hashable, value: Any) -> None:

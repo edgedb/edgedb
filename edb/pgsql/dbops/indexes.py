@@ -266,8 +266,8 @@ class IndexExists(base.Condition):
                    INNER JOIN pg_catalog.pg_namespace icn
                         ON icn.oid = ic.relnamespace
                WHERE
-                   icn.nspname = {ql(self.index_name[1])}
-                   AND ic.relname = {ql(self.index_name[0])}
+                   icn.nspname = {ql(self.index_name[0])}
+                   AND ic.relname = {ql(self.index_name[1])}
         ''')
 
 

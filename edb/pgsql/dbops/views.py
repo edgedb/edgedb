@@ -34,6 +34,12 @@ class View(base.DBObject):
         self.name = name
         self.query = query
 
+    def get_type(self) -> str:
+        return "VIEW"
+
+    def get_id(self):
+        return qn(*self.name)
+
 
 class CreateView(ddl.SchemaObjectOperation):
     def __init__(

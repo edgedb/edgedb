@@ -20,12 +20,11 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import collections.abc
-import dataclasses
 import itertools
 import textwrap
-from typing import *
 
 from edb import errors
 
@@ -62,7 +61,6 @@ from edb.schema import utils as s_utils
 
 from edb.common import markup
 from edb.common import ordered
-from edb.common import topological
 from edb.common import uuidgen
 
 from edb.ir import pathid as irpathid
@@ -210,6 +208,18 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
 
     def _get_tenant_id(self, context: sd.CommandContext) -> str:
         return self._get_instance_params(context).tenant_id
+
+    def schedule_inhview_update(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        source: s_sources.Source,
+        ctxcls: Type[sd.CommandContextToken[sd.Command]],
+    ) -> None:
+        ctx = context.get_topmost_ancestor(ctxcls)
+        if ctx is None:
+            raise AssertionError(f"there is no {ctxcls} in context stack")
+        ctx.op.inhview_updates.add(source)
 
 
 class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
@@ -534,7 +544,6 @@ class DeleteTuple(TupleCommand, adapts=s_types.DeleteTuple):
         if not tup.is_polymorphic(schema):
             self.pgops.add(dbops.DropCompositeType(
                 name=common.get_backend_name(schema, tup, catenate=False),
-                priority=2,
             ))
 
         schema = super().apply(schema, context)
@@ -1681,7 +1690,7 @@ class AlterConstraint(
                 self.source_context,
             )
 
-            op = dbops.CommandGroup(priority=1)
+            op = dbops.CommandGroup()
             if not self.constraint_is_effective(orig_schema, constraint):
                 op.add_command(bconstr.create_ops())
 
@@ -1989,9 +1998,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                 self.pgops.add(
                     ConstraintCommand.delete_constraint(obj, schema, context))
             elif isinstance(obj, s_indexes.Index):
-                self.pgops.add(
-                    DeleteIndex.delete_index(
-                        obj, schema, context, priority=0))
+                self.pgops.add(DeleteIndex.delete_index(obj, schema, context))
 
         cmd = sd.DeltaRoot()
         for prop, new_typ in props:
@@ -2028,6 +2035,28 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         See _get_problematic_refs above for details.
         """
 
+        cmd = sd.DeltaRoot()
+
+        for prop, new_typ in props:
+            delta_alter, cmd_alter, _ = prop.init_delta_branch(
+                schema, context, cmdtype=sd.AlterObject)
+            cmd_alter.set_attribute_value(
+                'target', prop.get_target(orig_schema))
+            cmd.add_prerequisite(delta_alter)
+
+            rnew_typ = new_typ.resolve(schema)
+            if delete := rnew_typ.as_type_delete_if_dead(schema):
+                cmd.add_caused(delete)
+
+        # do an apply of the schema-level command to force it to canonicalize,
+        # which prunes out duplicate deletions
+        cmd.apply(schema, context)
+
+        for sub in cmd.get_subcommands():
+            acmd = CommandMeta.adapt(sub)
+            schema = acmd.apply(schema, context)
+            self.pgops.add(acmd)
+
         for obj in reversed(other):
             if isinstance(obj, s_funcs.Function):
                 # Super hackily recreate the functions
@@ -2044,21 +2073,13 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
         cmd = sd.DeltaRoot()
 
-        for prop, new_typ in props:
-            delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
+        for prop, _ in props:
+            delta_alter, cmd_alter, _ = prop.init_delta_branch(
                 schema, context, cmdtype=sd.AlterObject)
             cmd_alter.set_attribute_value(
-                'target', prop.get_target(orig_schema))
-            cmd_alter.set_attribute_value(
                 'default', prop.get_default(orig_schema))
-            cmd.add_prerequisite(delta_alter)
+            cmd.add(delta_alter)
 
-            rnew_typ = new_typ.resolve(schema)
-            if delete := rnew_typ.as_type_delete_if_dead(schema):
-                cmd.add_caused(delete)
-
-        # do an apply of the schema-level command to force it to canonicalize,
-        # which prunes out duplicate deletions
         cmd.apply(schema, context)
 
         for sub in cmd.get_subcommands():
@@ -2200,20 +2221,14 @@ class DeleteScalarType(ScalarTypeMetaCommand,
         old_domain_name = common.get_backend_name(
             orig_schema, scalar, catenate=False)
 
-        # Domain dropping gets low priority since other things may
-        # depend on it.
         if scalar.is_enum(orig_schema):
             old_enum_name = common.get_backend_name(
                 orig_schema, scalar, catenate=False)
             cond = dbops.EnumExists(old_enum_name)
-            ops.add(
-                dbops.DropEnum(
-                    name=old_enum_name, conditions=[cond], priority=3))
+            ops.add(dbops.DropEnum(name=old_enum_name, conditions=[cond]))
         else:
             cond = dbops.DomainExists(old_domain_name)
-            ops.add(
-                dbops.DropDomain(
-                    name=old_domain_name, conditions=[cond], priority=3))
+            ops.add(dbops.DropDomain(name=old_domain_name, conditions=[cond]))
 
         if self.is_sequence(orig_schema, scalar):
             seq_name = common.get_backend_name(
@@ -2229,6 +2244,7 @@ class CompositeMetaCommand(MetaCommand):
         self.table_name = None
         self._multicommands = {}
         self.update_search_indexes = None
+        self.inhview_updates = set()
 
     def _get_multicommand(
             self, context, cmdtype, object_name, *, priority=0,
@@ -2311,105 +2327,261 @@ class CompositeMetaCommand(MetaCommand):
 
         return source, pointer
 
-    def schedule_inhviews_update(
-        self,
-        schema,
-        context,
-        obj,
-        *,
-        update_ancestors: Optional[bool]=None,
-        update_descendants: Optional[bool]=None,
-    ):
-        self.pgops.add(
-            self.drop_inhview(
-                schema, context, obj, drop_ancestors=update_ancestors)
+    @classmethod
+    def _get_select_from(
+        cls,
+        schema: s_schema.Schema,
+        obj: s_sources.Source,
+        ptrnames: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]],
+    ) -> Optional[str]:
+        if isinstance(obj, s_sources.Source):
+            ptrs = dict(obj.get_pointers(schema).items(schema))
+
+            cols = []
+
+            for ptrname, (alias, pgtype) in ptrnames.items():
+                ptr = ptrs.get(ptrname)
+                if ptr is not None:
+                    ptr_stor_info = types.get_pointer_storage_info(
+                        ptr,
+                        link_bias=isinstance(obj, s_links.Link),
+                        schema=schema,
+                    )
+                    if ptr_stor_info.column_type != pgtype:
+                        return None
+                    cols.append((ptr_stor_info.column_name, alias))
+                else:
+                    return None
+        else:
+            cols = [
+                (ptrname, alias)
+                for ptrname, (alias, _) in ptrnames.items()
+            ]
+
+        tabname = common.get_backend_name(
+            schema,
+            obj,
+            catenate=False,
+            aspect='table',
         )
 
-        root = context.get(sd.DeltaRootContext).op
-        updates = root.update_inhviews.view_updates
-        update = updates.get(obj)
-        if update is None:
-            update = updates[obj] = InheritanceViewUpdate()
+        talias = qi(tabname[1])
 
-        if update_ancestors is not None:
-            update.update_ancestors = update_ancestors
-        if update_descendants is not None:
-            update.update_descendants = update_descendants
+        coltext = ',\n'.join(
+            f'{f"{talias}.{qi(col)}"} AS {qi(alias)}' for col, alias in cols
+        )
 
-    def schedule_inhview_deletion(
-        self,
-        schema,
-        context,
-        obj,
-    ):
-        root = context.get(sd.DeltaRootContext).op
-        updates = root.update_inhviews.view_updates
-        updates.pop(obj, None)
-        deletions = root.update_inhviews.view_deletions
-        deletions[obj] = schema
+        return textwrap.dedent(f'''\
+            (SELECT
+               {coltext}
+             FROM
+               {q(*tabname)} AS {talias}
+            )
+        ''')
 
-    def update_base_inhviews(self, schema, context, obj):
-        for base in obj.get_bases(schema).objects(schema):
-            if not context.is_deleting(base):
-                self.schedule_inhviews_update(
-                    schema, context, base, update_ancestors=True)
+    @classmethod
+    def get_inhview(
+        cls,
+        schema: s_schema.Schema,
+        obj: s_sources.Source,
+        exclude_children: FrozenSet[s_sources.Source] = frozenset(),
+        exclude_ptrs: FrozenSet[s_pointers.Pointer] = frozenset(),
+    ) -> dbops.View:
+        inhview_name = common.get_backend_name(
+            schema, obj, catenate=False, aspect='inhview')
 
-    def update_lineage_inhviews(self, schema, context, obj):
-        self.schedule_inhviews_update(
-            schema, context, obj, update_ancestors=True)
+        ptrs = {}
+
+        if isinstance(obj, s_sources.Source):
+            pointers = list(obj.get_pointers(schema).items(schema))
+            # Sort by UUID timestamp for stable VIEW column order.
+            pointers.sort(key=lambda p: p[1].id.time)
+
+            for ptrname, ptr in pointers:
+                if ptr in exclude_ptrs:
+                    continue
+                ptr_stor_info = types.get_pointer_storage_info(
+                    ptr,
+                    link_bias=isinstance(obj, s_links.Link),
+                    schema=schema,
+                )
+                if (
+                    isinstance(obj, s_links.Link)
+                    or ptr_stor_info.table_type == 'ObjectType'
+                ):
+                    ptrs[ptrname] = (
+                        ptr_stor_info.column_name,
+                        ptr_stor_info.column_type,
+                    )
+
+        else:
+            # MULTI PROPERTY
+            ptrs['source'] = ('source', 'uuid')
+            lp_info = types.get_pointer_storage_info(
+                obj,
+                link_bias=True,
+                schema=schema,
+            )
+            ptrs['target'] = ('target', lp_info.column_type)
+
+        components = [cls._get_select_from(schema, obj, ptrs)]
+
+        components.extend(
+            cls._get_select_from(schema, child, ptrs)
+            for child in obj.descendants(schema)
+            if has_table(child, schema) and child not in exclude_children
+        )
+
+        query = '\nUNION ALL\n'.join(filter(None, components))
+
+        return dbops.View(
+            name=inhview_name,
+            query=query,
+        )
 
     def update_base_inhviews_on_rebase(
         self,
-        schema,
-        orig_schema,
-        context,
-        obj,
-    ):
+        schema: s_schema.Schema,
+        orig_schema: s_schema.Schema,
+        context: sd.CommandContext,
+        obj: s_sources.Source,
+    ) -> None:
         bases = set(obj.get_bases(schema).objects(schema))
         orig_bases = set(obj.get_bases(orig_schema).objects(orig_schema))
 
         for new_base in bases - orig_bases:
-            self.schedule_inhviews_update(
-                schema, context, new_base, update_ancestors=True)
+            if has_table(new_base, schema):
+                self.alter_inhview(schema, context, new_base)
 
         for old_base in orig_bases - bases:
-            self.schedule_inhviews_update(
-                schema, context, old_base, update_ancestors=True)
+            if has_table(old_base, schema):
+                self.alter_inhview(
+                    schema, context, old_base,
+                    exclude_children=frozenset((obj,)))
 
-    def create_inhview(self, schema, context, obj):
-        inhview = UpdateInheritanceViews.get_inhview(schema, obj)
-        self.pgops.add(
-            dbops.CreateView(
-                view=inhview,
-            ),
+    def alter_ancestor_inhviews(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        obj: s_sources.Source,
+        *,
+        exclude_children: FrozenSet[s_sources.Source] = frozenset(),
+    ) -> None:
+        for base in obj.get_ancestors(schema).objects(schema):
+            if has_table(base, schema):
+                self.alter_inhview(
+                    schema,
+                    context,
+                    base,
+                    exclude_children=exclude_children,
+                    alter_ancestors=False,
+                )
+
+    def create_inhview(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        obj: s_sources.Source,
+        *,
+        exclude_ptrs: FrozenSet[s_pointers.Pointer] = frozenset(),
+        alter_ancestors: bool = True,
+    ) -> None:
+        assert has_table(obj, schema)
+        inhview = self.get_inhview(schema, obj, exclude_ptrs=exclude_ptrs)
+        self.pgops.add(dbops.CreateView(view=inhview))
+        self.pgops.add(dbops.Comment(
+            object=inhview,
+            text=(
+                f"{obj.get_verbosename(schema, with_parent=True)} "
+                f"and descendants"
+            )
+        ))
+        if alter_ancestors:
+            self.alter_ancestor_inhviews(schema, context, obj)
+
+    def alter_inhview(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        obj: s_sources.Source,
+        *,
+        exclude_children: FrozenSet[s_sources.Source] = frozenset(),
+        alter_ancestors: bool = True,
+    ) -> None:
+        assert has_table(obj, schema)
+
+        inhview = self.get_inhview(
+            schema,
+            obj,
+            exclude_children=exclude_children,
+        )
+        self.pgops.add(dbops.CreateView(view=inhview, or_replace=True))
+        self.pgops.add(dbops.Comment(
+            object=inhview,
+            text=(
+                f"{obj.get_verbosename(schema, with_parent=True)} "
+                f"and descendants"
+            )
+        ))
+        if alter_ancestors:
+            self.alter_ancestor_inhviews(
+                schema, context, obj, exclude_children=exclude_children)
+
+    def recreate_inhview(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        obj: s_sources.Source,
+        *,
+        exclude_ptrs: FrozenSet[s_pointers.Pointer] = frozenset(),
+        alter_ancestors: bool = True,
+    ) -> None:
+        # We cannot use the regular CREATE OR REPLACE VIEW flow
+        # when removing or altering VIEW columns, because postgres
+        # does not allow that.
+        self.drop_inhview(schema, context, obj, conditional=True)
+        self.create_inhview(
+            schema,
+            context,
+            obj,
+            exclude_ptrs=exclude_ptrs,
+            alter_ancestors=alter_ancestors,
         )
 
     def drop_inhview(
         self,
-        schema,
-        context,
-        obj,
-        *,
-        drop_ancestors=False,
-    ) -> dbops.CommandGroup:
-        cmd = dbops.CommandGroup()
-        objs = [obj]
-        if drop_ancestors:
-            objs.extend(obj.get_ancestors(schema).objects(schema))
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        obj: s_sources.Source,
+        conditional: bool = False,
+    ) -> None:
+        inhview_name = common.get_backend_name(
+            schema, obj, catenate=False, aspect='inhview')
+        conditions = []
+        if conditional:
+            conditions.append(dbops.ViewExists(inhview_name))
+        self.pgops.add(dbops.DropView(inhview_name, conditions=conditions))
 
-        for obj in objs:
-            if not has_table(obj, schema):
-                continue
-            inhview_name = common.get_backend_name(
-                schema, obj, catenate=False, aspect='inhview')
-            cmd.add_command(
-                dbops.DropView(
-                    inhview_name,
-                    conditions=[dbops.ViewExists(inhview_name)],
-                ),
-            )
+    def apply_scheduled_inhview_updates(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        if self.inhview_updates:
+            to_recreate = self.inhview_updates
+            to_alter = set(itertools.chain.from_iterable(
+                s.get_ancestors(schema).objects(schema)
+                for s in self.inhview_updates
+            )) - to_recreate
 
-        return cmd
+            for s in to_recreate:
+                self.recreate_inhview(
+                    schema, context, s, alter_ancestors=False)
+
+            for s in to_alter:
+                if has_table(s, schema):
+                    self.alter_inhview(
+                        schema, context, s, alter_ancestors=False)
 
 
 class IndexCommand(MetaCommand):
@@ -2465,7 +2637,7 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
             name=index_name[1], table_name=table_name, expr=sql_expr,
             unique=False, inherit=True,
             metadata={'schemaname': str(index.get_name(schema))})
-        return dbops.CreateIndex(pg_index, priority=3)
+        return dbops.CreateIndex(pg_index)
 
     def _create_begin(
         self,
@@ -2493,7 +2665,7 @@ class AlterIndex(IndexCommand, adapts=s_indexes.AlterIndex):
 
 class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
     @classmethod
-    def delete_index(cls, index, schema, context, priority=3):
+    def delete_index(cls, index, schema, context):
         subject = index.get_subject(schema)
         table_name = common.get_backend_name(
             schema, subject, catenate=False)
@@ -2504,9 +2676,7 @@ class DeleteIndex(IndexCommand, adapts=s_indexes.DeleteIndex):
             name=orig_idx_name[1], table_name=table_name, inherit=True)
         index_exists = dbops.IndexExists(
             (table_name[0], index.name_in_catalog))
-        conditions = (index_exists, ) if priority else ()
-        return dbops.DropIndex(
-            index, priority=priority, conditions=conditions)
+        return dbops.DropIndex(index, conditions=(index_exists,))
 
     def apply(
         self,
@@ -2564,10 +2734,7 @@ class CreateObjectType(ObjectTypeMetaCommand,
         if objtype.is_compound_type(schema) or objtype.get_is_derived(schema):
             return schema
 
-        self.update_lineage_inhviews(schema, context, objtype)
-
         self.attach_alter_table(context)
-        self.create_inhview(schema, context, objtype)
 
         if self.update_search_indexes:
             schema = self.update_search_indexes.apply(schema, context)
@@ -2600,6 +2767,12 @@ class CreateObjectType(ObjectTypeMetaCommand,
             object=objtype_table,
             text=str(objtype.get_verbosename(schema)),
         ))
+        self.create_inhview(schema, context, objtype)
+        return schema
+
+    def _create_finalize(self, schema, context):
+        schema = super()._create_finalize(schema, context)
+        self.apply_scheduled_inhview_updates(schema, context)
         return schema
 
 
@@ -2612,19 +2785,16 @@ class RenameObjectType(
 
 class RebaseObjectType(ObjectTypeMetaCommand,
                        adapts=s_objtypes.RebaseObjectType):
-    def apply(
+    def _alter_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        orig_schema = schema
-        schema = super().apply(schema, context)
-        result = self.scls
-
-        if has_table(result, schema):
+        if has_table(self.scls, schema):
             self.update_base_inhviews_on_rebase(
-                schema, orig_schema, context, self.scls)
+                schema, context.current().original_schema, context, self.scls)
 
+        schema = super()._alter_innards(schema, context)
         self.schedule_endpoint_delete_action_update(self.scls, schema, context)
 
         return schema
@@ -2639,6 +2809,8 @@ class AlterObjectType(ObjectTypeMetaCommand,
     ) -> s_schema.Schema:
         schema = super().apply(schema, context=context)
         objtype = self.scls
+
+        self.apply_scheduled_inhview_updates(schema, context)
 
         self.table_name = common.get_backend_name(
             schema, objtype, catenate=False)
@@ -2668,12 +2840,12 @@ class DeleteObjectType(ObjectTypeMetaCommand,
         orig_schema = schema
         schema = super().apply(schema, context)
 
+        self.apply_scheduled_inhview_updates(schema, context)
+
         if has_table(objtype, orig_schema):
             self.attach_alter_table(context)
-            self.pgops.add(dbops.DropTable(name=old_table_name, priority=3))
-            self.update_base_inhviews(orig_schema, context, objtype)
-
-        self.schedule_inhview_deletion(orig_schema, context, objtype)
+            self.drop_inhview(orig_schema, context, objtype)
+            self.pgops.add(dbops.DropTable(name=old_table_name))
 
         return schema
 
@@ -2696,44 +2868,11 @@ class PointerMetaCommand(MetaCommand):
             if objtype:
                 return objtype
 
-    def alter_host_table_column(self, ptr, schema, orig_schema, context):
-
-        old_target = ptr.get_target(orig_schema)
-        new_target = ptr.get_target(schema)
-
-        alter_table = context.get(
-            s_objtypes.ObjectTypeCommandContext).op.get_alter_table(
-                schema, context, priority=1)
-
-        ptr_stor_info = types.get_pointer_storage_info(ptr, schema=schema)
-
-        if isinstance(new_target, s_scalars.ScalarType):
-            target_type = types.pg_type_from_object(schema, new_target)
-
-            if isinstance(old_target, s_scalars.ScalarType):
-                alter_type = dbops.AlterTableAlterColumnType(
-                    ptr_stor_info.column_name, common.qname(*target_type))
-                alter_table.add_operation(alter_type)
-            else:
-                cols = self.get_columns(ptr, schema)
-                ops = [dbops.AlterTableAddColumn(col) for col in cols]
-                for op in ops:
-                    alter_table.add_operation(op)
-        else:
-            col = dbops.Column(
-                name=ptr_stor_info.column_name,
-                type=ptr_stor_info.column_type)
-            alter_table.add_operation(dbops.AlterTableDropColumn(col))
-
     def get_pointer_default(self, ptr, schema, context):
         if ptr.is_pure_computable(schema):
             return None
 
-        default = self.get_resolved_attribute_value(
-            'default',
-            schema=schema,
-            context=context,
-        )
+        default = ptr.get_default(schema)
         default_value = None
 
         if default is not None:
@@ -2753,28 +2892,6 @@ class PointerMetaCommand(MetaCommand):
             default_value = f'nextval({seq_name}::regclass)'
 
         return default_value
-
-    def alter_pointer_default(self, pointer, orig_schema, schema, context):
-        default_value = self.get_pointer_default(pointer, schema, context)
-        if default_value is None and not (
-            not orig_schema
-            or pointer.get_default(orig_schema)
-            or (tgt := pointer.get_target(orig_schema)) and tgt.issubclass(
-                orig_schema, schema.get('std::sequence'))
-        ):
-            return
-
-        source_ctx = context.get_ancestor(
-            s_sources.SourceCommandContext, self)
-        alter_table = source_ctx.op.get_alter_table(
-            schema, context, contained=True, priority=0)
-
-        ptr_stor_info = types.get_pointer_storage_info(
-            pointer, schema=schema)
-        alter_table.add_operation(
-            dbops.AlterTableAlterColumnDefault(
-                column_name=ptr_stor_info.column_name,
-                default=default_value))
 
     @classmethod
     def get_columns(cls, pointer, schema, default=None, sets_required=False):
@@ -2806,14 +2923,11 @@ class PointerMetaCommand(MetaCommand):
             ),
         ]
 
-    def create_table(self, ptr, schema, context, conditional=False):
-        c = self._create_table(ptr, schema, context, conditional=conditional)
-        self.pgops.add(c)
-
-    def provide_table(self, ptr, schema, context):
+    def create_table(self, ptr, schema, context):
         if has_table(ptr, schema):
-            self.create_table(ptr, schema, context, conditional=True)
-            self.update_lineage_inhviews(schema, context, ptr)
+            c = self._create_table(ptr, schema, context, conditional=True)
+            self.pgops.add(c)
+            self.alter_inhview(schema, context, ptr)
             return True
         else:
             return False
@@ -2834,7 +2948,8 @@ class PointerMetaCommand(MetaCommand):
         is_required = ptr.get_required(schema)
         is_scalar = ptr.is_property(schema)
 
-        ref_op = self.get_referrer_context_or_die(context).op
+        ref_ctx = self.get_referrer_context_or_die(context)
+        ref_op = ref_ctx.op
 
         if is_multi:
             if isinstance(self, sd.AlterObjectFragment):
@@ -2917,39 +3032,19 @@ class PointerMetaCommand(MetaCommand):
             ''')
             self.pgops.add(dbops.Query(update_qry))
 
+            # A link might still own a table if it has properties.
             if not has_table(ptr, schema):
-                self.pgops.add(
-                    self.drop_inhview(
-                        orig_schema,
-                        context,
-                        source_op.scls,
-                        drop_ancestors=True,
-                    ),
-                )
-
-                self.pgops.add(
-                    self.drop_inhview(
-                        orig_schema,
-                        context,
-                        ptr,
-                        drop_ancestors=True
-                    ),
-                )
+                self.drop_inhview(orig_schema, context, ptr)
                 otabname = common.get_backend_name(
                     orig_schema, ptr, catenate=False)
                 condition = dbops.TableExists(name=otabname)
                 dt = dbops.DropTable(name=otabname, conditions=[condition])
                 self.pgops.add(dt)
 
-            self.schedule_inhviews_update(
-                schema,
-                context,
-                source_op.scls,
-                update_descendants=True,
-            )
+            self.alter_inhview(schema, context, source_op.scls)
         else:
             # Moving from source table to pointer table.
-            self.provide_table(ptr, schema, context)
+            self.create_table(ptr, schema, context)
             source = ptr.get_source(orig_schema)
             src_tab = q(*common.get_backend_name(
                 orig_schema,
@@ -2978,14 +3073,7 @@ class PointerMetaCommand(MetaCommand):
 
             self.pgops.add(dbops.Query(update_qry))
 
-            self.pgops.add(
-                self.drop_inhview(
-                    orig_schema,
-                    context,
-                    ref_op.scls,
-                    drop_ancestors=True,
-                ),
-            )
+            self.recreate_inhview(schema, context, ref_op.scls)
 
             ref_op = self.get_referrer_context_or_die(context).op
             alter_table = ref_op.get_alter_table(
@@ -2996,14 +3084,6 @@ class PointerMetaCommand(MetaCommand):
             )
             alter_table.add_operation(dbops.AlterTableDropColumn(col))
             self.pgops.add(alter_table)
-
-            self.schedule_inhviews_update(
-                schema,
-                context,
-                ref_op.scls,
-                update_descendants=True,
-                update_ancestors=True,
-            )
 
     def _alter_pointer_optionality(
         self,
@@ -3030,7 +3110,7 @@ class PointerMetaCommand(MetaCommand):
         if isinstance(source_op, sd.CreateObject):
             return
 
-        ops = dbops.CommandGroup(priority=1)
+        ops = dbops.CommandGroup()
 
         # For multi pointers, if there is no fill expression, we
         # synthesize a bogus one so that an error will trip if there
@@ -3272,12 +3352,9 @@ class PointerMetaCommand(MetaCommand):
         )
 
         if changing_col_type:
-            self.pgops.add(source_op.drop_inhview(
-                schema,
-                context,
-                source,
-                drop_ancestors=True,
-            ))
+            self.drop_inhview(schema, context, source)
+            self.alter_ancestor_inhviews(
+                schema, context, source, exclude_children=frozenset((source,)))
 
         tab = q(*old_ptr_stor_info.table_name)
         target_col = old_ptr_stor_info.column_name
@@ -3425,13 +3502,7 @@ class PointerMetaCommand(MetaCommand):
         self._recreate_constraints(pointer, schema, context)
 
         if changing_col_type:
-            self.schedule_inhviews_update(
-                schema,
-                context,
-                source,
-                update_descendants=True,
-                update_ancestors=True,
-            )
+            self.create_inhview(schema, context, source)
 
     def _compile_conversion_expr(
         self,
@@ -3600,12 +3671,12 @@ class PointerMetaCommand(MetaCommand):
         link_ops = endpoint_delete_actions.link_ops
 
         if isinstance(self, sd.DeleteObject):
-            for i, (_, ex_link, _) in enumerate(link_ops):
+            for i, (_, ex_link, _, _) in enumerate(link_ops):
                 if ex_link == link:
                     link_ops.pop(i)
                     break
 
-        link_ops.append((self, link, orig_schema))
+        link_ops.append((self, link, orig_schema, schema))
 
 
 class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
@@ -3666,7 +3737,12 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
         c.add_command(ct)
         c.add_command(ci)
 
-        c.add_command(dbops.Comment(table, str(link.get_name(schema))))
+        c.add_command(
+            dbops.Comment(
+                table,
+                str(link.get_verbosename(schema, with_parent=True)),
+            ),
+        )
 
         create_c.add_command(c)
 
@@ -3682,23 +3758,21 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
 
 
 class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
-    def apply(
+    def _create_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        # Need to do this early, since potential table alters triggered by
-        # sub-commands need this.
         orig_schema = schema
-        schema = super().apply(schema, context)
+        schema = super()._create_begin(schema, context)
+
+        if has_table(self.scls, schema):
+            self.create_table(self.scls, schema, context)
 
         link = self.scls
         self.table_name = common.get_backend_name(schema, link, catenate=False)
 
-        self.provide_table(link, schema, context)
-
         objtype = context.get(s_objtypes.ObjectTypeCommandContext)
-        extra_ops = []
 
         source = link.get_source(schema)
         if source is not None:
@@ -3719,13 +3793,12 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                     type=s_pointers.AlterPointerLowerCardinality))
 
             if ptr_stor_info.table_type == 'ObjectType':
-                default_value = self.get_pointer_default(link, schema, context)
                 cols = self.get_columns(
-                    link, schema, default_value, sets_required)
+                    link, schema, None, sets_required)
                 table_name = common.get_backend_name(
                     schema, objtype.scls, catenate=False)
                 objtype_alter_table = objtype.op.get_alter_table(
-                    schema, context)
+                    schema, context, manual=True)
 
                 for col in cols:
                     cmd = dbops.AlterTableAddColumn(col)
@@ -3752,8 +3825,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                             dbops.AlterTableAddConstraint(cid_constraint),
                         )
 
-                if default_value is not None:
-                    self.alter_pointer_default(link, None, schema, context)
+                self.pgops.add(objtype_alter_table)
 
                 index_name = common.get_backend_name(
                     schema, link, catenate=False, aspect='index'
@@ -3764,16 +3836,14 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                     unique=False, columns=[c.name for c in cols],
                     inherit=True)
 
-                ci = dbops.CreateIndex(pg_index, priority=3)
-                extra_ops.append(ci)
+                ci = dbops.CreateIndex(pg_index)
+                self.pgops.add(ci)
 
-                self.update_lineage_inhviews(schema, context, link)
-
-                self.schedule_inhviews_update(
+                self.schedule_inhview_update(
                     schema,
                     context,
                     source,
-                    update_descendants=True,
+                    s_objtypes.ObjectTypeCommandContext,
                 )
 
             # If we're creating a required multi pointer without a SET
@@ -3787,17 +3857,15 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
                 self._alter_pointer_optionality(
                     schema, schema, context, fill_expr=None)
 
-        objtype = context.get(s_objtypes.ObjectTypeCommandContext)
+            if not link.is_pure_computable(schema):
+                self.schedule_endpoint_delete_action_update(
+                    link, orig_schema, schema, context)
 
-        self.attach_alter_table(context)
+        return schema
 
-        self.pgops.update(extra_ops)
-
-        if (source is not None and not source_is_view
-                and not link.is_pure_computable(schema)):
-            self.schedule_endpoint_delete_action_update(
-                link, orig_schema, schema, context)
-
+    def _create_finalize(self, schema, context):
+        schema = super()._create_finalize(schema, context)
+        self.apply_scheduled_inhview_updates(schema, context)
         return schema
 
 
@@ -3806,37 +3874,34 @@ class RenameLink(LinkMetaCommand, adapts=s_links.RenameLink):
 
 
 class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
-    def apply(
+    def _alter_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        orig_schema = schema
-        schema = super().apply(schema, context)
-
-        link_ctx = context.get(s_links.LinkCommandContext)
-        source = link_ctx.scls
-
-        if has_table(source, schema):
+        orig_schema = context.current().original_schema
+        if has_table(self.scls, schema):
             self.update_base_inhviews_on_rebase(
-                schema, orig_schema, context, source)
+                schema, orig_schema, context, self.scls)
 
-        if not source.is_pure_computable(schema):
+        schema = super()._alter_innards(schema, context)
+
+        if not self.scls.is_pure_computable(schema):
             self.schedule_endpoint_delete_action_update(
-                source, orig_schema, schema, context)
+                self.scls, orig_schema, schema, context)
 
         return schema
 
 
 class SetLinkType(LinkMetaCommand, adapts=s_links.SetLinkType):
 
-    def apply(
+    def _alter_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         orig_schema = schema
-        schema = super().apply(schema, context)
+        schema = super()._alter_begin(schema, context)
         pop = self.get_parent_op(context)
         orig_type = self.scls.get_target(orig_schema)
         new_type = self.scls.get_target(schema)
@@ -3906,106 +3971,104 @@ class AlterLinkOwned(LinkMetaCommand, adapts=s_links.AlterLinkOwned):
 
 
 class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
-    def apply(
+    def _alter_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        orig_schema = schema
-        schema = super().apply(schema, context)
+        orig_schema = context.current().original_schema
+        schema = super()._alter_innards(schema, context)
         link = self.scls
 
-        with context(s_links.LinkCommandContext(schema, self, link)) as ctx:
-            ctx.original_schema = orig_schema
-            self.provide_table(link, schema, context)
-            self.attach_alter_table(context)
+        if not has_table(link, orig_schema) and has_table(link, schema):
+            self.create_table(link, schema, context)
 
-            otd = self.get_resolved_attribute_value(
-                'on_target_delete',
-                schema=schema,
-                context=context,
-            )
-            card = self.get_resolved_attribute_value(
-                'cardinality',
-                schema=schema,
-                context=context,
-            )
-            if (otd or card) and not link.is_pure_computable(schema):
-                self.schedule_endpoint_delete_action_update(
-                    link, orig_schema, schema, context)
+        otd = self.get_resolved_attribute_value(
+            'on_target_delete',
+            schema=schema,
+            context=context,
+        )
+        card = self.get_resolved_attribute_value(
+            'cardinality',
+            schema=schema,
+            context=context,
+        )
+        if (otd or card) and not link.is_pure_computable(schema):
+            self.schedule_endpoint_delete_action_update(
+                link, orig_schema, schema, context)
 
+        return schema
+
+    def _alter_finalize(self, schema, context):
+        schema = super()._alter_finalize(schema, context)
+        self.apply_scheduled_inhview_updates(schema, context)
         return schema
 
 
 class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
-    def apply(
+    def _delete_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        delta_root_ctx = context.top()
-        orig_schema = delta_root_ctx.original_schema
+        orig_schema = context.current().original_schema
         link = schema.get(self.classname)
 
         old_table_name = common.get_backend_name(
             schema, link, catenate=False)
 
-        schema = super().apply(schema, context)
+        schema = super()._delete_innards(schema, context)
 
         if (
             not link.generic(orig_schema)
             and has_table(link.get_source(orig_schema), orig_schema)
         ):
-            link_name = link.get_shortname(orig_schema).name
             ptr_stor_info = types.get_pointer_storage_info(
                 link, schema=orig_schema)
 
             objtype = context.get(s_objtypes.ObjectTypeCommandContext)
 
             if (not isinstance(objtype.op, s_objtypes.DeleteObjectType)
-                    and ptr_stor_info.table_type == 'ObjectType'
-                    and objtype.scls.maybe_get_ptr(schema, link_name) is None):
-                # Only drop the column if the parent is not being dropped
-                # and the link was not reinherited in the same delta.
-                if objtype.scls.maybe_get_ptr(schema, link_name) is None:
-                    # This must be a separate so that objects depending
-                    # on this column can be dropped correctly.
-                    #
-                    alter_table = objtype.op.get_alter_table(
-                        schema, context, manual=True, priority=2)
-                    col = dbops.Column(
-                        name=ptr_stor_info.column_name,
-                        type=common.qname(*ptr_stor_info.column_type))
-                    col = dbops.AlterTableDropColumn(col)
-                    alter_table.add_operation(col)
-                    self.pgops.add(alter_table)
-
-                    self.schedule_inhviews_update(
-                        schema,
-                        context,
-                        objtype.scls,
-                        update_descendants=True,
-                    )
-
-            self.schedule_endpoint_delete_action_update(
-                link, orig_schema, schema, context)
+                    and ptr_stor_info.table_type == 'ObjectType'):
+                self.recreate_inhview(
+                    schema,
+                    context,
+                    objtype.scls,
+                    exclude_ptrs=frozenset((link,)),
+                )
+                alter_table = objtype.op.get_alter_table(
+                    schema, context, manual=True)
+                col = dbops.Column(
+                    name=ptr_stor_info.column_name,
+                    type=common.qname(*ptr_stor_info.column_type))
+                col = dbops.AlterTableDropColumn(col)
+                alter_table.add_operation(col)
+                self.pgops.add(alter_table)
 
             self.attach_alter_table(context)
 
-        self.pgops.add(
-            self.drop_inhview(orig_schema, context, link, drop_ancestors=True)
-        )
+        if has_table(link, schema):
+            self.drop_inhview(orig_schema, context, link)
+            self.alter_ancestor_inhviews(
+                schema, context, link, exclude_children=frozenset((link,)))
+            self.pgops.add(dbops.DropTable(name=old_table_name))
 
-        self.pgops.add(
-            dbops.DropTable(
-                name=old_table_name,
-                priority=1,
-                conditions=[dbops.TableExists(old_table_name)],
-            )
-        )
+        return schema
 
-        self.update_base_inhviews(orig_schema, context, link)
-        self.schedule_inhview_deletion(orig_schema, context, link)
+    def apply(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        orig_schema = schema
+        link = schema.get(self.classname)
+        schema = super().apply(schema, context)
+
+        self.apply_scheduled_inhview_updates(schema, context)
+
+        if has_table(link, orig_schema):
+            self.schedule_endpoint_delete_action_update(
+                link, orig_schema, schema, context)
 
         return schema
 
@@ -4058,7 +4121,12 @@ class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
         c.add_command(ct)
         c.add_command(ci)
 
-        c.add_command(dbops.Comment(table, str(prop.get_name(schema))))
+        c.add_command(
+            dbops.Comment(
+                table,
+                str(prop.get_verbosename(schema, with_parent=True)),
+            ),
+        )
 
         create_c.add_command(c)
 
@@ -4074,23 +4142,28 @@ class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
 
 
 class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
-    def apply(
+    def _create_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         orig_schema = schema
-        schema = super().apply(schema, context)
+        schema = super()._create_begin(schema, context)
         prop = self.scls
         propname = prop.get_shortname(schema).name
 
         src = context.get(s_sources.SourceCommandContext)
 
-        self.provide_table(prop, schema, context)
+        if has_table(prop, schema):
+            self.create_table(prop, schema, context)
 
         if src and has_table(src.scls, schema):
-            if isinstance(src.scls, s_links.Link):
-                src.op.provide_table(src.scls, schema, context)
+            if (
+                isinstance(src.scls, s_links.Link)
+                and not has_table(src.scls, orig_schema)
+            ):
+                ct = src.op._create_table(src.scls, schema, context)
+                self.pgops.add(ct)
 
             ptr_stor_info = types.get_pointer_storage_info(
                 prop, resolve_type=False, schema=schema)
@@ -4099,51 +4172,47 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
                 self.get_subcommands(
                     type=s_pointers.AlterPointerLowerCardinality))
             if (
-                (
-                    not isinstance(src.scls, s_objtypes.ObjectType)
-                    or ptr_stor_info.table_type == 'ObjectType'
-                )
-                and (
+                not isinstance(src.scls, s_objtypes.ObjectType)
+                or ptr_stor_info.table_type == 'ObjectType'
+            ):
+                if (
                     not isinstance(src.scls, s_links.Link)
                     or propname not in {'source', 'target'}
-                )
-            ):
-                alter_table = src.op.get_alter_table(
-                    schema,
-                    context,
-                    force_new=True,
-                    manual=True,
-                )
-
-                default_value = self.get_pointer_default(prop, schema, context)
-
-                cols = self.get_columns(
-                    prop, schema, default_value, sets_required)
-
-                for col in cols:
-                    cmd = dbops.AlterTableAddColumn(col)
-                    alter_table.add_operation(cmd)
-
-                    if col.name == 'id':
-                        constraint = dbops.PrimaryKey(
-                            table_name=alter_table.name,
-                            columns=[col.name],
-                        )
-                        alter_table.add_operation(
-                            dbops.AlterTableAddConstraint(constraint),
-                        )
-
-                self.pgops.add(alter_table)
-
-                self.update_lineage_inhviews(schema, context, prop)
-
-                if has_table(src.op.scls, schema):
-                    self.schedule_inhviews_update(
+                ):
+                    alter_table = src.op.get_alter_table(
                         schema,
                         context,
-                        src.op.scls,
-                        update_descendants=True,
+                        force_new=True,
+                        manual=True,
                     )
+
+                    default_value = self.get_pointer_default(
+                        prop, schema, context)
+
+                    cols = self.get_columns(
+                        prop, schema, default_value, sets_required)
+
+                    for col in cols:
+                        cmd = dbops.AlterTableAddColumn(col)
+                        alter_table.add_operation(cmd)
+
+                        if col.name == 'id':
+                            constraint = dbops.PrimaryKey(
+                                table_name=alter_table.name,
+                                columns=[col.name],
+                            )
+                            alter_table.add_operation(
+                                dbops.AlterTableAddConstraint(constraint),
+                            )
+
+                    self.pgops.add(alter_table)
+
+                self.schedule_inhview_update(
+                    schema,
+                    context,
+                    src.op.scls,
+                    s_sources.SourceCommandContext,
+                )
 
             # If we're creating a required multi pointer without a SET
             # REQUIRED USING inside, run the alter_pointer_optionality
@@ -4168,37 +4237,34 @@ class RenameProperty(PropertyMetaCommand, adapts=s_props.RenameProperty):
 
 
 class RebaseProperty(PropertyMetaCommand, adapts=s_props.RebaseProperty):
-    def apply(
+    def _alter_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        orig_schema = schema
-        schema = super().apply(schema, context)
-
-        prop_ctx = context.get(s_props.PropertyCommandContext)
-        source = prop_ctx.scls
-
-        if has_table(source, schema):
+        orig_schema = context.current().original_schema
+        if has_table(self.scls, schema):
             self.update_base_inhviews_on_rebase(
-                schema, orig_schema, context, source)
+                schema, orig_schema, context, self.scls)
 
-        if not source.is_pure_computable(schema):
+        schema = super()._alter_innards(schema, context)
+
+        if not self.scls.is_pure_computable(schema):
             self.schedule_endpoint_delete_action_update(
-                source, orig_schema, schema, context)
+                self.scls, orig_schema, schema, context)
 
         return schema
 
 
 class SetPropertyType(PropertyMetaCommand, adapts=s_props.SetPropertyType):
-    def apply(
+    def _alter_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         pop = self.get_parent_op(context)
         orig_schema = schema
-        schema = super().apply(schema, context)
+        schema = super()._alter_begin(schema, context)
         orig_type = self.scls.get_target(orig_schema)
         new_type = self.scls.get_target(schema)
         if (
@@ -4272,40 +4338,123 @@ class AlterPropertyOwned(
 
 
 class AlterProperty(PropertyMetaCommand, adapts=s_props.AlterProperty):
-    def apply(
+    def _alter_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        orig_schema = schema
-        schema = super().apply(schema, context)
+        schema = super()._alter_innards(schema, context)
         prop = self.scls
+        orig_schema = context.current().original_schema
+        is_comp = prop.is_pure_computable(schema)
 
         if self.metadata_only:
             return schema
 
-        if prop.is_pure_computable(orig_schema):
-            return schema
+        if not has_table(prop, orig_schema) and has_table(prop, schema):
+            self.create_table(prop, schema, context)
 
-        with context(
-                s_props.PropertyCommandContext(schema, self, prop)) as ctx:
-            ctx.original_schema = orig_schema
-            self.provide_table(prop, schema, context)
-            self.alter_pointer_default(prop, orig_schema, schema, context)
+        if not is_comp:
+            orig_def_val = self.get_pointer_default(prop, orig_schema, context)
+            def_val = self.get_pointer_default(prop, schema, context)
+
+            if (
+                orig_def_val != def_val
+                and (
+                    (tgt := prop.get_target(orig_schema)) is None
+                    or not tgt.issubclass(
+                        orig_schema,
+                        schema.get('std::sequence'),
+                    )
+                )
+            ):
+                source_ctx = context.get_ancestor(
+                    s_sources.SourceCommandContext, self)
+                alter_table = source_ctx.op.get_alter_table(
+                    schema, context, manual=True)
+
+                ptr_stor_info = types.get_pointer_storage_info(
+                    prop, schema=schema)
+                alter_table.add_operation(
+                    dbops.AlterTableAlterColumnDefault(
+                        column_name=ptr_stor_info.column_name,
+                        default=def_val))
+
+                self.pgops.add(alter_table)
+
             card = self.get_resolved_attribute_value(
                 'cardinality',
                 schema=schema,
                 context=context,
             )
-            if card and not prop.is_pure_computable(schema):
+            if card:
                 self.schedule_endpoint_delete_action_update(
                     prop, orig_schema, schema, context)
 
         return schema
 
 
-class DeleteProperty(
-        PropertyMetaCommand, adapts=s_props.DeleteProperty):
+class DeleteProperty(PropertyMetaCommand, adapts=s_props.DeleteProperty):
+
+    def _delete_innards(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._delete_innards(schema, context)
+        prop = self.scls
+        orig_schema = context.current().original_schema
+
+        source_ctx = self.get_referrer_context(context)
+        if source_ctx is not None:
+            source = source_ctx.scls
+            source_op = source_ctx.op
+        else:
+            source = source_op = None
+
+        if source:
+            if has_table(source, schema):
+                ptr_stor_info = types.get_pointer_storage_info(
+                    prop,
+                    schema=schema,
+                    link_bias=prop.is_link_property(schema),
+                )
+
+                if (
+                    ptr_stor_info.table_type == 'ObjectType'
+                    or prop.is_link_property(schema)
+                ):
+                    alter_table = source_op.get_alter_table(
+                        schema, context, force_new=True, manual=True)
+
+                    self.recreate_inhview(
+                        schema,
+                        context,
+                        source,
+                        exclude_ptrs=frozenset((prop,)),
+                    )
+
+                    col = dbops.AlterTableDropColumn(
+                        dbops.Column(name=ptr_stor_info.column_name,
+                                     type=ptr_stor_info.column_type))
+
+                    alter_table.add_operation(col)
+
+                    self.pgops.add(alter_table)
+            elif (
+                prop.is_link_property(schema)
+                and has_table(source, orig_schema)
+            ):
+                self.drop_inhview(orig_schema, context, source)
+                self.alter_ancestor_inhviews(
+                    orig_schema, context, source,
+                    exclude_children=frozenset((source,)))
+                old_table_name = common.get_backend_name(
+                    orig_schema, source, catenate=False)
+                self.pgops.add(dbops.DropTable(name=old_table_name))
+
+        return schema
+
     def apply(
         self,
         schema: s_schema.Schema,
@@ -4313,62 +4462,15 @@ class DeleteProperty(
     ) -> s_schema.Schema:
         orig_schema = schema
         prop = schema.get(self.classname)
-
         schema = super().apply(schema, context)
 
-        source_ctx = context.get(s_sources.SourceCommandContext)
-        if source_ctx is not None:
-            source = source_ctx.scls
-            source_op = source_ctx.op
-        else:
-            source = source_op = None
-
-        if (source
-                and not source.maybe_get_ptr(
-                    schema, prop.get_shortname(orig_schema).name)
-                and has_table(source, schema)):
-
-            self.pgops.add(
-                self.drop_inhview(schema, context, source, drop_ancestors=True)
-            )
-            alter_table = source_op.get_alter_table(
-                schema, context, force_new=True)
-            ptr_stor_info = types.get_pointer_storage_info(
-                prop,
-                schema=orig_schema,
-                link_bias=prop.is_link_property(orig_schema),
-            )
-
-            if ptr_stor_info.table_type == 'ObjectType':
-                col = dbops.AlterTableDropColumn(
-                    dbops.Column(name=ptr_stor_info.column_name,
-                                 type=ptr_stor_info.column_type))
-
-                alter_table.add_operation(col)
-
         if has_table(prop, orig_schema):
-            self.pgops.add(
-                self.drop_inhview(
-                    orig_schema, context, prop, drop_ancestors=True)
-            )
+            self.drop_inhview(orig_schema, context, prop)
             old_table_name = common.get_backend_name(
                 orig_schema, prop, catenate=False)
-            self.pgops.add(dbops.DropTable(name=old_table_name, priority=1))
-            self.update_base_inhviews(orig_schema, context, prop)
-            self.schedule_inhview_deletion(orig_schema, context, prop)
+            self.pgops.add(dbops.DropTable(name=old_table_name))
             self.schedule_endpoint_delete_action_update(
                 prop, orig_schema, schema, context)
-
-        if (
-            source is not None
-            and not context.is_deleting(source)
-        ):
-            self.schedule_inhviews_update(
-                schema,
-                context,
-                source,
-                update_descendants=True,
-            )
 
         return schema
 
@@ -4777,16 +4879,12 @@ class UpdateEndpointDeleteActions(MetaCommand):
             for op, _ in self.changed_targets
         )
 
-        for link_op, link, orig_schema in self.link_ops:
+        for link_op, link, orig_schema, eff_schema in self.link_ops:
             # If our link has a restrict policy, we don't need to update
             # the target on changes to inherited links.
             # Most importantly, this optimization lets us avoid updating
             # the triggers for every schema::Type subtype every time a
             # new object type is created containing a __type__ link.
-            eff_schema = (
-                orig_schema
-                if isinstance(link_op, (DeleteProperty, DeleteLink))
-                else schema)
             if not eff_schema.has_object(link.id):
                 continue
             action = (
@@ -5020,158 +5118,6 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     )]
                 )
             )
-
-
-@dataclasses.dataclass
-class InheritanceViewUpdate:
-
-    update_ancestors: bool = True
-    update_descendants: bool = False
-
-
-class UpdateInheritanceViews(MetaCommand):
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.view_updates = {}
-        self.view_deletions = {}
-
-    def apply(self, schema, context):
-        all_updates = set()
-
-        for obj, update_info in self.view_updates.items():
-            if not schema.has_object(obj.id):
-                continue
-
-            all_updates.add(obj)
-            if update_info.update_ancestors:
-                all_updates.update(obj.get_ancestors(schema).objects(schema))
-            if update_info.update_descendants:
-                all_updates.update(obj.descendants(schema))
-
-        graph = {}
-        for obj in all_updates:
-            objname = obj.get_name(schema)
-            graph[objname] = topological.DepGraphEntry(
-                item=obj,
-                deps=obj.get_bases(schema).names(schema),
-                extra=False,
-            )
-
-        ordered = topological.sort(graph, allow_unresolved=True)
-        for obj in reversed(list(ordered)):
-            if has_table(obj, schema):
-                self.update_inhview(schema, obj)
-
-        for obj, obj_schema in self.view_deletions.items():
-            self.delete_inhview(obj_schema, obj)
-
-    @classmethod
-    def _get_select_from(cls, schema, obj, ptrnames):
-        if isinstance(obj, s_sources.Source):
-            ptrs = dict(obj.get_pointers(schema).items(schema))
-
-            cols = []
-
-            for ptrname, alias in ptrnames.items():
-                ptr = ptrs[ptrname]
-                ptr_stor_info = types.get_pointer_storage_info(
-                    ptr,
-                    link_bias=isinstance(obj, s_links.Link),
-                    schema=schema,
-                )
-                cols.append((ptr_stor_info.column_name, alias))
-        else:
-            cols = list(ptrnames.items())
-
-        coltext = ',\n'.join(
-            f'{qi(col)} AS {qi(alias)}' for col, alias in cols)
-
-        tabname = common.get_backend_name(
-            schema,
-            obj,
-            catenate=False,
-            aspect='table',
-        )
-
-        return textwrap.dedent(f'''\
-            (SELECT
-               {coltext}
-             FROM
-               {q(*tabname)}
-            )
-        ''')
-
-    @classmethod
-    def get_inhview(cls, schema, obj):
-        inhview_name = common.get_backend_name(
-            schema, obj, catenate=False, aspect='inhview')
-
-        ptrs = {}
-
-        if isinstance(obj, s_sources.Source):
-            pointers = list(obj.get_pointers(schema).items(schema))
-            pointers.sort(key=lambda p: p[1].id)
-            for ptrname, ptr in pointers:
-                ptr_stor_info = types.get_pointer_storage_info(
-                    ptr,
-                    link_bias=isinstance(obj, s_links.Link),
-                    schema=schema,
-                )
-                if (
-                    isinstance(obj, s_links.Link)
-                    or ptr_stor_info.table_type == 'ObjectType'
-                ):
-                    ptrs[ptrname] = ptr_stor_info.column_name
-
-        else:
-            # MULTI PROPERTY
-            ptrs['source'] = 'source'
-            ptrs['target'] = 'target'
-
-        components = [cls._get_select_from(schema, obj, ptrs)]
-
-        components.extend(
-            cls._get_select_from(schema, descendant, ptrs)
-            for descendant in obj.descendants(schema)
-            if has_table(descendant, schema)
-        )
-
-        query = '\nUNION ALL\n'.join(components)
-
-        return dbops.View(
-            name=inhview_name,
-            query=query,
-        )
-
-    def update_inhview(self, schema, obj):
-        inhview = self.get_inhview(schema, obj)
-
-        self.pgops.add(
-            dbops.DropView(
-                inhview.name,
-                priority=1,
-                conditions=[dbops.ViewExists(inhview.name)],
-            ),
-        )
-
-        self.pgops.add(
-            dbops.CreateView(
-                view=inhview,
-                priority=1,
-            ),
-        )
-
-    def delete_inhview(self, schema, obj):
-        inhview_name = common.get_backend_name(
-            schema, obj, catenate=False, aspect='inhview')
-        self.pgops.add(
-            dbops.DropView(
-                inhview_name,
-                conditions=[dbops.ViewExists(inhview_name)],
-                priority=1,
-            ),
-        )
 
 
 class ModuleMetaCommand(MetaCommand):
@@ -5494,15 +5440,11 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         self.update_endpoint_delete_actions = UpdateEndpointDeleteActions()
-        self.update_inhviews = UpdateInheritanceViews()
 
         schema = super().apply(schema, context)
 
         self.update_endpoint_delete_actions.apply(schema, context)
         self.pgops.add(self.update_endpoint_delete_actions)
-
-        self.update_inhviews.apply(schema, context)
-        self.pgops.add(self.update_inhviews)
 
         return schema
 

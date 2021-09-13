@@ -354,7 +354,7 @@ class SchemaTableConstraint:
         return constr
 
     def create_ops(self):
-        ops = dbops.CommandGroup(priority=1)
+        ops = dbops.CommandGroup()
 
         tabconstr = self._table_constraint(self)
         add_constr = deltadbops.AlterTableAddConstraint(
