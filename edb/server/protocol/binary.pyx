@@ -62,6 +62,7 @@ from edb.server import compiler
 from edb.server import defines as edbdef
 from edb.server.compiler import errormech
 from edb.server.compiler import enums
+from edb.server.compiler import sertypes
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
 
@@ -2048,10 +2049,23 @@ cdef class EdgeConnection:
 
         # number of elements in the tuple
         # for empty tuple it's okay to send zero-length arguments
-        # TODO(tailhook) force zero-length arguments for protocol 0.12 after
-        # upgrading the bindings
-        if frb_get_len(&in_buf) == 0:
-            recv_args = 0
+        if self.protocol_version >= (0, 12):
+            is_null_type = \
+                query.query_unit.in_type_id == sertypes.NULL_TYPE_ID.bytes
+            if frb_get_len(&in_buf) == 0:
+                if not is_null_type:
+                    raise errors.ProtocolError(
+                        f"insufficient data for type-id "
+                        f"{query.query_unit.in_type_id}")
+                recv_args = 0
+            else:
+                if is_null_type:
+                    raise errors.ProtocolError(
+                        "absence of query arguments must be encoded with a "
+                        "'zero' type "
+                        "(id: 00000000-0000-0000-0000-000000000000, "
+                        "encoded with zero bytes)")
+                recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
         else:
             recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
         decl_args = len(query.query_unit.in_type_args or ())
