@@ -2379,6 +2379,7 @@ def _compile_func_args(
             # SQL arguments: object id and object type id.
             # The latter is needed for proper overload
             # dispatch.
+            ensure_source_rvar(ir_arg.expr, ctx.rel, ctx=ctx)
             type_ref = relctx.get_path_var(
                 ctx.rel,
                 ir_arg.expr_type_path_id,
