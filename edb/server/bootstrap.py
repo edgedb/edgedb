@@ -27,8 +27,6 @@ import pathlib
 import pickle
 import re
 
-import immutables
-
 from edb import buildmeta
 from edb import errors
 
@@ -938,38 +936,9 @@ async def _configure(
     ctx: BootstrapContext,
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
-    *,
-    insecure: bool = False,
 ) -> None:
     config_spec = config.get_settings()
-
-    scripts = []
     settings: Mapping[str, config.SettingValue] = {}
-
-    if insecure:
-        scripts.append('''
-            CONFIGURE INSTANCE INSERT Auth {
-                priority := 0,
-                method := (INSERT Trust),
-            };
-        ''')
-
-    for script in scripts:
-        _, sql = compile_bootstrap_script(
-            compiler,
-            schema,
-            script,
-            single_statement=True,
-        )
-
-        if debug.flags.bootstrap:
-            debug.header('Bootstrap')
-            debug.dump_code(sql, lexer='sql')
-
-        config_op_data = await ctx.conn.fetchval(sql)
-        if config_op_data is not None and isinstance(config_op_data, str):
-            config_op = config.Operation.from_json(config_op_data)
-            settings = config_op.apply(config_spec, immutables.Map())
 
     config_json = config.to_json(config_spec, settings, include_source=False)
     block = dbops.PLTopBlock()
@@ -1376,7 +1345,6 @@ async def _bootstrap(
             ctx._replace(conn=conn),
             schema=schema,
             compiler=compiler,
-            insecure=args.insecure,
         )
     finally:
         await conn.close()

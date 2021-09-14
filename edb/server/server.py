@@ -113,6 +113,7 @@ class Server(ha_base.ClusterProtocol):
         status_sink: Optional[Callable[[str], None]] = None,
         startup_script: Optional[srvargs.StartupScript] = None,
         backend_adaptive_ha: bool = False,
+        default_auth_method: str,
     ):
 
         self._loop = asyncio.get_running_loop()
@@ -193,6 +194,7 @@ class Server(ha_base.ClusterProtocol):
         self._tls_cert_file = None
         self._sslctx = None
 
+        self._default_auth_method = default_auth_method
         self._allow_insecure_binary_clients = allow_insecure_binary_clients
         self._allow_insecure_http_clients = allow_insecure_http_clients
         if backend_adaptive_ha:
@@ -1239,7 +1241,9 @@ class Server(ha_base.ClusterProtocol):
                 if match:
                     return auth.method
 
-        return config.get_settings().get_type_by_name('SCRAM')()
+        auth_type = config.get_settings().get_type_by_name(
+            self._default_auth_method)
+        return auth_type()
 
     def get_sys_query(self, key):
         return self._sys_queries[key]

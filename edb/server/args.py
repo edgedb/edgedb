@@ -60,7 +60,6 @@ class StartupScript(NamedTuple):
 
 class ServerConfig(NamedTuple):
 
-    insecure: bool
     data_dir: pathlib.Path
     backend_dsn: str
     backend_adaptive_ha: bool
@@ -96,6 +95,7 @@ class ServerConfig(NamedTuple):
     tls_key_file: Optional[pathlib.Path]
     generate_self_signed_cert: bool
 
+    default_auth_method: str
     allow_insecure_binary_clients: bool
     allow_insecure_http_clients: bool
 
@@ -403,6 +403,18 @@ _server_options = [
         type=bool, is_flag=True, hidden=True,
         help='Allow non-TLS client HTTP connections.'),
     click.option(
+        "--default-auth-method",
+        envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD",
+        type=click.Choice(
+            ['SCRAM', 'Trust'],
+            case_sensitive=True,
+        ),
+        help=(
+            "The default authentication method to use when none is "
+            "explicitly configured. Defaults to 'SCRAM'."
+        ),
+    ),
+    click.option(
         '--instance-name',
         envvar="EDGEDB_SERVER_INSTANCE_NAME",
         type=str, default=None, hidden=True,
@@ -489,6 +501,9 @@ def parse_args(**kwargs: Any):
             kwargs['backend_dsn'] = kwargs['postgres_dsn']
 
     del kwargs['postgres_dsn']
+
+    if not kwargs['default_auth_method']:
+        kwargs['default_auth_method'] = 'SCRAM'
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
