@@ -198,6 +198,7 @@ async def _run_server(
             allow_insecure_binary_clients=args.allow_insecure_binary_clients,
             allow_insecure_http_clients=args.allow_insecure_http_clients,
             backend_adaptive_ha=args.backend_adaptive_ha,
+            default_auth_method=args.default_auth_method,
         )
         await sc.wait_for(ss.init())
 
@@ -315,6 +316,10 @@ async def run_server(
         logger.info(f'EdgeDB server ({info_details}) is starting in DEV mode.')
     else:
         logger.info(f'EdgeDB server ({info_details}) is starting.')
+
+    logger.debug(
+        f"defaulting to the '{args.default_auth_method}' authentication method"
+    )
 
     _init_parsers()
 
@@ -486,7 +491,7 @@ def bump_rlimit_nofile() -> None:
                 logger.warning('could not set RLIMIT_NOFILE')
 
 
-def server_main(*, insecure=False, **kwargs):
+def server_main(**kwargs):
     logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
 
@@ -497,7 +502,7 @@ def server_main(*, insecure=False, **kwargs):
     if kwargs['devmode'] is not None:
         devmode.enable_dev_mode(kwargs['devmode'])
 
-    server_args = srvargs.parse_args(insecure=insecure, **kwargs)
+    server_args = srvargs.parse_args(**kwargs)
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}

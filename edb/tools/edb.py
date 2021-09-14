@@ -51,7 +51,9 @@ def server(version=False, **kwargs):
 
     os.environ['EDGEDB_DEBUG_SERVER'] = '1'
     debug.init_debug_flags()
-    srv_main.server_main(insecure=True, **kwargs)
+    if not kwargs.get('default_auth_method'):
+        kwargs['default_auth_method'] = 'Trust'
+    srv_main.server_main(**kwargs)
 
 
 # Import at the end of the file so that "edb.tools.edb.edbcommands"
