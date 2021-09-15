@@ -143,7 +143,21 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super().apply_subcommands(schema, context)
-        for op in self.get_subcommands(include_prerequisites=False):
+        for op in self.get_subcommands(
+            include_prerequisites=False,
+            include_caused=False,
+        ):
+            if not isinstance(op, sd.AlterObjectProperty):
+                self.pgops.add(op)
+        return schema
+
+    def apply_caused(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().apply_caused(schema, context)
+        for op in self.get_caused():
             if not isinstance(op, sd.AlterObjectProperty):
                 self.pgops.add(op)
         return schema
@@ -2041,7 +2055,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
             rnew_typ = new_typ.resolve(schema)
             if delete := rnew_typ.as_type_delete_if_dead(schema):
-                cmd.add(delete)
+                cmd.add_caused(delete)
 
         # do an apply of the schema-level command to force it to canonicalize,
         # which prunes out duplicate deletions

@@ -400,8 +400,17 @@ class Command(
 
     _context_class: Optional[Type[CommandContextToken[Command]]] = None
 
-    ops: List[Command]
+    #: An optional list of commands that are prerequisites of this
+    #: command and must run before any of the operations in this
+    #: command or its subcommands in ops or caused_ops.
     before_ops: List[Command]
+    #: An optional list of subcommands that are considered to be
+    #: integral part of this command.
+    ops: List[Command]
+    #: An optional list of commands that are _caused_ by this command,
+    #: such as any propagation to children or any other side-effects
+    #: that are not considered integral to this command.
+    caused_ops: List[Command]
 
     #: AlterObjectProperty lookup table for get|set_attribute_value
     _attrs: Dict[str, AlterObjectProperty]
@@ -412,14 +421,16 @@ class Command(
         super().__init__(**kwargs)
         self.ops = []
         self.before_ops = []
+        self.caused_ops = []
         self.qlast: qlast.DDLOperation
         self._attrs = {}
         self._special_attrs = {}
 
     def copy(self: Command_T) -> Command_T:
         result = super().copy()
-        result.ops = [op.copy() for op in self.ops]
         result.before_ops = [op.copy() for op in self.before_ops]
+        result.ops = [op.copy() for op in self.ops]
+        result.caused_ops = [op.copy() for op in self.caused_ops]
         return result
 
     def get_verb(self) -> str:
@@ -447,8 +458,13 @@ class Command(
         mcls = cast(CommandMeta, type(cls))
         for op in obj.get_prerequisites():
             result.add_prerequisite(mcls.adapt(op))
-        for op in obj.get_subcommands(include_prerequisites=False):
+        for op in obj.get_subcommands(
+            include_prerequisites=False,
+            include_caused=False,
+        ):
             result.add(mcls.adapt(op))
+        for op in obj.get_caused():
+            result.add_caused(mcls.adapt(op))
         return result
 
     def is_data_safe(self) -> bool:
@@ -680,6 +696,7 @@ class Command(
         metaclass: Optional[Type[so.Object]] = None,
         exclude: Union[Type[Command], Tuple[Type[Command], ...], None] = None,
         include_prerequisites: bool = True,
+        include_caused: bool = True,
     ) -> Tuple[Command_T, ...]:
         ...
 
@@ -691,6 +708,7 @@ class Command(
         metaclass: Optional[Type[so.Object]] = None,
         exclude: Union[Type[Command], Tuple[Type[Command], ...], None] = None,
         include_prerequisites: bool = True,
+        include_caused: bool = True,
     ) -> Tuple[Command, ...]:
         ...
 
@@ -701,12 +719,14 @@ class Command(
         metaclass: Optional[Type[so.Object]] = None,
         exclude: Union[Type[Command], Tuple[Type[Command], ...], None] = None,
         include_prerequisites: bool = True,
+        include_caused: bool = True,
     ) -> Tuple[Command, ...]:
-        ops: Iterable[Command]
+        ops: Iterable[Command] = self.ops
         if include_prerequisites:
-            ops = itertools.chain(self.before_ops, self.ops)
-        else:
-            ops = self.ops
+            ops = itertools.chain(self.before_ops, ops)
+
+        if include_caused:
+            ops = itertools.chain(ops, self.caused_ops)
 
         filters = []
 
@@ -737,7 +757,6 @@ class Command(
         self,
         *,
         type: Type[Command_T],
-        include_prerequisites: bool = True,
     ) -> Tuple[Command_T, ...]:
         ...
 
@@ -753,7 +772,6 @@ class Command(
         self,
         *,
         type: Union[Type[Command_T], None] = None,
-        include_prerequisites: bool = True,
     ) -> Tuple[Command, ...]:
         if type is not None:
             t = type
@@ -761,19 +779,39 @@ class Command(
         else:
             return tuple(self.before_ops)
 
+    @overload
+    def get_caused(
+        self,
+        *,
+        type: Type[Command_T],
+    ) -> Tuple[Command_T, ...]:
+        ...
+
+    @overload
+    def get_caused(  # NoQA: F811
+        self,
+        *,
+        type: None = None,
+    ) -> Tuple[Command, ...]:
+        ...
+
+    def get_caused(  # NoQA: F811
+        self,
+        *,
+        type: Union[Type[Command_T], None] = None,
+    ) -> Tuple[Command, ...]:
+        if type is not None:
+            t = type
+            return tuple(filter(lambda i: isinstance(i, t), self.caused_ops))
+        else:
+            return tuple(self.caused_ops)
+
     def has_subcommands(self) -> bool:
-        return bool(self.ops) or bool(self.before_ops)
+        return bool(self.ops) or bool(self.before_ops) or bool(self.caused_ops)
 
     def get_nonattr_subcommand_count(self) -> int:
-        count = 0
         attr_cmds = (AlterObjectProperty, AlterSpecialObjectField)
-        for op in self.ops:
-            if not isinstance(op, attr_cmds):
-                count += 1
-        for op in self.before_ops:
-            if not isinstance(op, attr_cmds):
-                count += 1
-        return count
+        return len(self.get_subcommands(exclude=attr_cmds))
 
     def prepend_prerequisite(self, command: Command) -> None:
         if isinstance(command, CommandGroup):
@@ -787,6 +825,19 @@ class Command(
             self.before_ops.extend(command.get_subcommands())
         else:
             self.before_ops.append(command)
+
+    def prepend_caused(self, command: Command) -> None:
+        if isinstance(command, CommandGroup):
+            for op in reversed(command.get_subcommands()):
+                self.prepend_caused(op)
+        else:
+            self.caused_ops.insert(0, command)
+
+    def add_caused(self, command: Command) -> None:
+        if isinstance(command, CommandGroup):
+            self.caused_ops.extend(command.get_subcommands())
+        else:
+            self.caused_ops.append(command)
 
     def prepend(self, command: Command) -> None:
         if isinstance(command, CommandGroup):
@@ -832,6 +883,10 @@ class Command(
             self.before_ops.remove(command)
         except ValueError:
             pass
+        try:
+            self.caused_ops.remove(command)
+        except ValueError:
+            pass
         if isinstance(command, AlterObjectProperty):
             self._attrs.pop(command.property)
         elif isinstance(command, AlterSpecialObjectField):
@@ -858,9 +913,21 @@ class Command(
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
-        for op in self.get_subcommands(include_prerequisites=False):
+        for op in self.get_subcommands(
+            include_prerequisites=False,
+            include_caused=False,
+        ):
             if not isinstance(op, AlterObjectProperty):
                 schema = op.apply(schema, context=context)
+        return schema
+
+    def apply_caused(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        for op in self.get_caused():
+            schema = op.apply(schema, context)
         return schema
 
     def get_ast(
@@ -1045,6 +1112,7 @@ class CommandGroup(Command):
     ) -> s_schema.Schema:
         schema = self.apply_prerequisites(schema, context)
         schema = self.apply_subcommands(schema, context)
+        schema = self.apply_caused(schema, context)
         return schema
 
 
@@ -1400,6 +1468,7 @@ class DeltaRoot(CommandGroup, context_class=DeltaRootContext):
         with context(DeltaRootContext(schema=schema, op=self)):
             schema = self.apply_prerequisites(schema, context)
             schema = self.apply_subcommands(schema, context)
+            schema = self.apply_caused(schema, context)
 
         return schema
 
@@ -2847,6 +2916,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             objctx = cast(ObjectCommandContext[so.Object_T], ctx)
             objctx.scls = self.scls
             schema = self._create_innards(schema, context)
+            schema = self.apply_caused(schema, context)
             schema = self._create_finalize(schema, context)
         return schema
 
@@ -2868,6 +2938,7 @@ class CreateExternalObject(
 
             schema = self._create_begin(schema, context)
             schema = self._create_innards(schema, context)
+            schema = self.apply_caused(schema, context)
             schema = self._create_finalize(schema, context)
 
         return schema
@@ -2975,6 +3046,7 @@ class AlterObjectFragment(AlterObjectOrFragment[so.Object_T]):
 
         schema = self._alter_begin(schema, context)
         schema = self._alter_innards(schema, context)
+        schema = self.apply_caused(schema, context)
         schema = self._alter_finalize(schema, context)
 
         return schema
@@ -3291,6 +3363,7 @@ class AlterObject(AlterObjectOrFragment[so.Object_T], Generic[so.Object_T]):
         with self.new_context(schema, context, scls):
             schema = self._alter_begin(schema, context)
             schema = self._alter_innards(schema, context)
+            schema = self.apply_caused(schema, context)
             schema = self._alter_finalize(schema, context)
 
         return schema
@@ -3464,6 +3537,7 @@ class DeleteObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
 
             schema = self._delete_begin(schema, context)
             schema = self._delete_innards(schema, context)
+            schema = self.apply_caused(schema, context)
             schema = self._delete_finalize(schema, context)
 
         return schema
@@ -3507,6 +3581,7 @@ class DeleteExternalObject(
         with self.new_context(schema, context, self.scls):
             schema = self._delete_begin(schema, context)
             schema = self._delete_innards(schema, context)
+            schema = self.apply_caused(schema, context)
             schema = self._delete_finalize(schema, context)
 
         return schema
