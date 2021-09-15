@@ -2272,17 +2272,17 @@ class DeleteCollectionType(
     CollectionTypeCommand[CollectionTypeT],
     sd.DeleteObject[CollectionTypeT],
 ):
-    def _canonicalize(
+    def _delete_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: CollectionTypeT,
-    ) -> List[sd.Command]:
-        ops = super()._canonicalize(schema, context, scls)
-        for el in scls.get_subtypes(schema):
-            if op := el.as_type_delete_if_dead(schema):
-                ops.append(op)
-        return ops
+    ) -> s_schema.Schema:
+        schema = super()._delete_begin(schema, context)
+        if not context.canonical:
+            for el in self.scls.get_subtypes(schema):
+                if op := el.as_type_delete_if_dead(schema):
+                    self.add_caused(op)
+        return schema
 
 
 class CreateCollectionExprAlias(

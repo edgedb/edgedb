@@ -1224,7 +1224,7 @@ class RenameConstraint(
         schema = super()._alter_begin(schema, context)
 
         if not context.canonical and self.scls.get_abstract(schema):
-            schema = self._propagate_ref_rename(schema, context, self.scls)
+            self._propagate_ref_rename(schema, context, self.scls)
 
         return schema
 

@@ -2134,14 +2134,13 @@ class SetPointerType(
                 action=self.get_friendly_description(schema=schema),
             )
 
-            if orig_target is not None:
+            if orig_target is not None and scls.is_property(schema):
                 if cleanup_op := orig_target.as_type_delete_if_dead(schema):
                     parent_op = self.get_parent_op(context)
-                    parent_op.add(cleanup_op)
-                    schema = cleanup_op.apply(schema, context)
+                    parent_op.add_caused(cleanup_op)
 
             if context.enable_recursion:
-                schema = self._propagate_ref_field_alter_in_inheritance(
+                self._propagate_ref_field_alter_in_inheritance(
                     schema,
                     context,
                     field_name='target',
@@ -2305,7 +2304,7 @@ class AlterPointerUpperCardinality(
                     )
 
             schema = self._propagate_if_expr_refs(schema, context, action=desc)
-            schema = self._propagate_ref_field_alter_in_inheritance(
+            self._propagate_ref_field_alter_in_inheritance(
                 schema,
                 context,
                 field_name='cardinality',

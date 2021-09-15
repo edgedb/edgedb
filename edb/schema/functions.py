@@ -508,17 +508,16 @@ class CreateParameter(ParameterCommand, sd.CreateObject[Parameter]):
 
 
 class DeleteParameter(ParameterCommand, sd.DeleteObject[Parameter]):
-    def _canonicalize(
+    def _delete_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: Parameter,
-    ) -> List[sd.Command]:
-        ops = super()._canonicalize(schema, context, scls)
-        typ = scls.get_type(schema)
-        if op := typ.as_type_delete_if_dead(schema):
-            ops.append(op)
-        return ops
+    ) -> s_schema.Schema:
+        schema = super()._delete_begin(schema, context)
+        if not context.canonical:
+            if op := self.scls.get_type(schema).as_type_delete_if_dead(schema):
+                self.add_caused(op)
+        return schema
 
 
 class RenameParameter(ParameterCommand, sd.RenameObject[Parameter]):
@@ -1122,26 +1121,26 @@ class DeleteCallableObject(
     CallableCommand[CallableObjectT],
     sd.DeleteObject[CallableObjectT],
 ):
-    def _canonicalize(
+    def _delete_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: CallableObjectT,
-    ) -> List[sd.Command]:
-        ops = super()._canonicalize(schema, context, scls)
+    ) -> s_schema.Schema:
+        schema = super()._delete_begin(schema, context)
+        scls = self.scls
+        if (
+            not context.canonical
+            # Don't do anything for concrete constraints
+            and (isinstance(scls, Function) or scls.get_abstract(schema))
+        ):
+            for param in scls.get_params(schema).objects(schema):
+                self.add(param.init_delta_command(schema, sd.DeleteObject))
 
-        # Don't do anything for concrete constraints
-        if not isinstance(scls, Function) and not scls.get_abstract(schema):
-            return ops
+            return_type = scls.get_return_type(schema)
+            if op := return_type.as_type_delete_if_dead(schema):
+                self.add_caused(op)
 
-        for param in scls.get_params(schema).objects(schema):
-            ops.append(param.init_delta_command(schema, sd.DeleteObject))
-
-        return_type = scls.get_return_type(schema)
-        if op := return_type.as_type_delete_if_dead(schema):
-            ops.append(op)
-
-        return ops
+        return schema
 
 
 class Function(

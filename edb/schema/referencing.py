@@ -645,29 +645,19 @@ class CreateReferencedObject(
             ref.module = parent.get_shortname(schema).module
         return ref
 
-    def _create_innards(
+    def _create_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        schema = super()._create_begin(schema, context)
         referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is None:
-            return super()._create_innards(schema, context)
-        else:
+        if referrer_ctx is not None:
             referrer = referrer_ctx.scls
-            schema = self._create_ref(schema, context, referrer)
-            return super()._create_innards(schema, context)
-
-    def _create_ref(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        referrer: so.Object,
-    ) -> s_schema.Schema:
-        referrer_cls = type(referrer)
-        mcls = type(self.scls)
-        refdict = referrer_cls.get_refdict_for_class(mcls)
-        schema = referrer.add_classref(schema, refdict.attr, self.scls)
+            referrer_cls = type(referrer)
+            mcls = type(self.scls)
+            refdict = referrer_cls.get_refdict_for_class(mcls)
+            schema = referrer.add_classref(schema, refdict.attr, self.scls)
         return schema
 
 
@@ -682,14 +672,11 @@ class DeleteReferencedObjectCommand(
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super()._delete_innards(schema, context)
-
         referrer_ctx = self.get_referrer_context(context)
-        if referrer_ctx is None:
-            return schema
-        else:
+        if referrer_ctx is not None:
             referrer = referrer_ctx.scls
             schema = self._delete_ref(schema, context, referrer)
-            return schema
+        return schema
 
     def _delete_ref(
         self,
@@ -733,8 +720,11 @@ class ReferencedInheritingObjectCommand(
             refname = ref_field_type.get_key_for_name(schema, fq_name_in_child)
             parent_coll = ref_base.get_field_value(schema, referrer_field)
             parent_item = parent_coll.get(schema, refname, default=None)
-            if (parent_item is not None
-                    and parent_item.should_propagate(schema)):
+            if (
+                parent_item is not None
+                and parent_item.should_propagate(schema)
+                and not context.is_deleting(parent_item)
+            ):
                 implicit_bases.append(parent_item)
 
         return implicit_bases
@@ -845,13 +835,13 @@ class ReferencedInheritingObjectCommand(
         context: sd.CommandContext,
         scls: ReferencedInheritingObject,
         cb: Callable[[sd.ObjectCommand[so.Object], sn.Name], None]
-    ) -> s_schema.Schema:
+    ) -> None:
         for ctx in reversed(context.stack):
             if (
                 isinstance(ctx.op, sd.ObjectCommand)
                 and ctx.op.get_annotation('implicit_propagation')
             ):
-                return schema
+                return
 
         referrer_ctx = self.get_referrer_context(context)
         if referrer_ctx:
@@ -872,9 +862,7 @@ class ReferencedInheritingObjectCommand(
             with ctx_stack():
                 cb(d_alter_cmd, refname)
 
-            self.add(d_alter_root)
-
-        return schema
+            self.add_caused(d_alter_root)
 
     def _propagate_ref_field_alter_in_inheritance(
         self,
@@ -882,7 +870,7 @@ class ReferencedInheritingObjectCommand(
         context: sd.CommandContext,
         field_name: str,
         require_inheritance_consistency: bool = True,
-    ) -> s_schema.Schema:
+    ) -> None:
         """Validate and propagate a field alteration to children.
 
         This method also performs consistency checks against base objects
@@ -954,10 +942,7 @@ class ReferencedInheritingObjectCommand(
             )
             alter_cmd.add(s_t)
 
-        schema = self._propagate_ref_op(
-            schema, context, scls, cb=_propagate)
-
-        return schema
+        self._propagate_ref_op(schema, context, scls, cb=_propagate)
 
     def _drop_owned_refs(
         self,
@@ -1101,8 +1086,27 @@ class CreateReferencedInheritingObject(
 
         return super()._create_begin(schema, context)
 
+    def _create_innards(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if (
+            not context.canonical
+            and context.enable_recursion
+            and (referrer_ctx := self.get_referrer_context(context))
+            and isinstance(referrer := referrer_ctx.scls, so.InheritingObject)
+            and self.scls.should_propagate(schema)
+        ):
+            # Propagate the creation of a new ref to
+            # descendants of our referrer.
+            self._propagate_ref_creation(schema, context, referrer)
+
+        return super()._create_innards(schema, context)
+
     def _create_finalize(
-        self, schema: s_schema.Schema,
+        self,
+        schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         schema = super()._create_finalize(schema, context)
@@ -1113,31 +1117,12 @@ class CreateReferencedInheritingObject(
 
         return schema
 
-    def _create_ref(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        referrer: so.Object,
-    ) -> s_schema.Schema:
-
-        schema = super()._create_ref(schema, context, referrer)
-
-        if (self.scls.should_propagate(schema)
-                and isinstance(referrer, so.InheritingObject)
-                and not context.canonical
-                and context.enable_recursion):
-            # Propagate the creation of a new ref to descendants of
-            # our referrer.
-            schema = self._propagate_ref_creation(schema, context, referrer)
-
-        return schema
-
     def _propagate_ref_creation(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         referrer: so.InheritingObject,
-    ) -> s_schema.Schema:
+    ) -> None:
 
         get_cmd = sd.get_object_command_class_or_die
 
@@ -1208,9 +1193,7 @@ class CreateReferencedInheritingObject(
                 alter.add(ref_alter)
                 alter.add(ref_create)
 
-            self.add(alter_root)
-
-        return schema
+            self.add_caused(alter_root)
 
 
 class AlterReferencedInheritingObject(
@@ -1382,15 +1365,16 @@ class RenameReferencedInheritingObject(
                         context=self.source_context,
                     )
 
-            schema = self._propagate_ref_rename(schema, context, scls)
+            self._propagate_ref_rename(schema, context, scls)
 
         return schema
 
-    def _propagate_ref_rename(self,
-                              schema: s_schema.Schema,
-                              context: sd.CommandContext,
-                              scls: ReferencedInheritingObject
-                              ) -> s_schema.Schema:
+    def _propagate_ref_rename(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        scls: ReferencedInheritingObject
+    ) -> None:
         rename_cmdcls = sd.get_object_command_class_or_die(
             sd.RenameObject, type(scls))
 
@@ -1404,7 +1388,7 @@ class RenameReferencedInheritingObject(
 
             alter_cmd.add(rename_cmd)
 
-        return self._propagate_ref_op(schema, context, scls, cb=_ref_rename)
+        self._propagate_ref_op(schema, context, scls, cb=_ref_rename)
 
     def _get_ast(
         self,
@@ -1425,88 +1409,89 @@ class DeleteReferencedInheritingObject(
     ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
 ):
 
-    def _delete_ref(
+    def _delete_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        referrer: so.Object,
     ) -> s_schema.Schema:
+        if (
+            not context.canonical
+            and (referrer_ctx := self.get_referrer_context(context))
+            and isinstance(referrer := referrer_ctx.scls, so.InheritingObject)
+            and self.scls.should_propagate(schema)
+        ):
+            self._propagate_ref_deletion(schema, context, referrer)
 
+        return super()._delete_innards(schema, context)
+
+    def _propagate_ref_deletion(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        referrer: so.InheritingObject,
+    ) -> None:
         scls = self.scls
+        self_name = scls.get_name(schema)
         referrer_class = type(referrer)
         mcls = type(scls)
         refdict = referrer_class.get_refdict_for_class(mcls)
         reftype = referrer_class.get_field(refdict.attr).type
-        refname = reftype.get_key_for(schema, self.scls)
-        self_name = self.scls.get_name(schema)
 
-        schema = referrer.del_classref(schema, refdict.attr, refname)
+        if (
+            not context.in_deletion(offset=1)
+            and not context.disable_dep_verification
+        ):
+            implicit_bases = set(self._get_implicit_ref_bases(
+                schema, context, referrer, refdict.attr, self_name))
 
-        if (isinstance(referrer, so.InheritingObject)
-                and not context.canonical):
+            if implicit_bases:
+                # Cannot remove inherited objects.
+                vn = scls.get_verbosename(schema, with_parent=True)
+                parents = [
+                    b.get_field_value(schema, refdict.backref_attr)
+                    for b in implicit_bases
+                ]
 
-            if (not context.in_deletion(offset=1)
-                    and not context.disable_dep_verification):
-                implicit_bases = set(self._get_implicit_ref_bases(
-                    schema, context, referrer, refdict.attr, self_name))
-
-                deleted_bases = set()
-                for ctx in context.stack:
-                    if isinstance(ctx.op, type(self)):
-                        deleted_bases.add(ctx.op.scls)
-
-                implicit_bases -= deleted_bases
-
-                if implicit_bases:
-                    # Cannot remove inherited objects.
-                    vn = scls.get_verbosename(schema, with_parent=True)
-                    parents = [
-                        b.get_field_value(schema, refdict.backref_attr)
-                        for b in implicit_bases
-                    ]
-
-                    pnames = '\n- '.join(
-                        p.get_verbosename(schema, with_parent=True)
-                        for p in parents
-                    )
-
-                    raise errors.SchemaError(
-                        f'cannot drop inherited {vn}',
-                        context=self.source_context,
-                        details=f'{vn} is inherited from:\n- {pnames}'
-                    )
-
-            for child in referrer.children(schema):
-                assert isinstance(child, so.QualifiedObject)
-                child_coll = child.get_field_value(schema, refdict.attr)
-                fq_refname_in_child = self._classname_from_name(
-                    self_name,
-                    child.get_name(schema),
+                pnames = '\n- '.join(
+                    p.get_verbosename(schema, with_parent=True)
+                    for p in parents
                 )
-                child_refname = reftype.get_key_for_name(
-                    schema, fq_refname_in_child)
-                existing = child_coll.get(schema, child_refname, None)
 
-                if existing is not None:
-                    alter_root, alter_leaf, ctx_stack = (
-                        existing.init_parent_delta_branch(
-                            schema, context, referrer=child))
-                    with ctx_stack():
-                        schema, cmd = self._propagate_ref_deletion(
-                            schema, context, refdict, child, existing)
-                        alter_leaf.add(cmd)
-                    self.add(alter_root)
+                raise errors.SchemaError(
+                    f'cannot drop inherited {vn}',
+                    context=self.source_context,
+                    details=f'{vn} is inherited from:\n- {pnames}'
+                )
 
-        return schema
+        for child in referrer.children(schema):
+            assert isinstance(child, so.QualifiedObject)
+            child_coll = child.get_field_value(schema, refdict.attr)
+            fq_refname_in_child = self._classname_from_name(
+                self_name,
+                child.get_name(schema),
+            )
+            child_refname = reftype.get_key_for_name(
+                schema, fq_refname_in_child)
+            existing = child_coll.get(schema, child_refname, None)
 
-    def _propagate_ref_deletion(
+            if existing is not None:
+                alter_root, alter_leaf, ctx_stack = (
+                    existing.init_parent_delta_branch(
+                        schema, context, referrer=child))
+                with ctx_stack():
+                    cmd = self._propagate_child_ref_deletion(
+                        schema, context, refdict, child, existing)
+                    alter_leaf.add(cmd)
+                self.add_caused(alter_root)
+
+    def _propagate_child_ref_deletion(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
         refdict: so.RefDict,
         child: so.InheritingObject,
         child_ref: ReferencedInheritingObjectT,
-    ) -> Tuple[s_schema.Schema, sd.Command]:
+    ) -> sd.Command:
         name = child_ref.get_name(schema)
         implicit_bases = self._get_implicit_ref_bases(
             schema, context, child, refdict.attr, name)
@@ -1532,9 +1517,7 @@ class DeleteReferencedInheritingObject(
             # The ref in child should no longer exist.
             cmd = child_ref.init_delta_command(schema, sd.DeleteObject)
 
-        schema = cmd.apply(schema, context)
-
-        return schema, cmd
+        return cmd
 
     def _get_ast(
         self,

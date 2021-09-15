@@ -463,22 +463,21 @@ class DeleteProperty(
 
     referenced_astnode = qlast.DropConcreteProperty
 
-    def _canonicalize(
+    def _delete_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: Property,
-    ) -> List[sd.Command]:
-        cmds = super()._canonicalize(schema, context, scls)
+    ) -> s_schema.Schema:
+        schema = super()._delete_begin(schema, context)
+        if (
+            not context.canonical
+            and (target := self.scls.get_target(schema)) is not None
+            and not self.scls.is_link_source_property(schema)
+            and (del_cmd := target.as_type_delete_if_dead(schema)) is not None
+        ):
+            self.add_caused(del_cmd)
 
-        target = scls.get_target(schema)
-        if target is not None and not scls.is_link_source_property(schema):
-            if del_cmd := target.as_type_delete_if_dead(schema):
-                subcmds = del_cmd._canonicalize(schema, context, target)
-                del_cmd.update(subcmds)
-                cmds.append(del_cmd)
-
-        return cmds
+        return schema
 
     def _get_ast(
         self,

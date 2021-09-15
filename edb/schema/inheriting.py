@@ -1040,7 +1040,7 @@ class RebaseInheritingObject(
                     with ctx_stack():
                         schema = d_alter_cmd._recompute_inheritance(
                             schema, context)
-                    self.add(d_root_cmd)
+                    self.add_caused(d_root_cmd)
 
         assert isinstance(scls, so.InheritingObject)
 
