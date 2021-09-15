@@ -4649,6 +4649,25 @@ class TestInsert(tb.QueryTestCase):
                 )
             ''')
 
+    async def test_edgeql_insert_and_delete_02(self):
+        # Assigning the result of a DELETE as a link during an INSERT
+        # should be an error.
+        await self.con.execute('''
+            INSERT Note { name := 'delete me' };
+        ''')
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    r"deletion of default::Note.+ is "
+                                    r"prohibited by link target policy"):
+            await self.con.execute('''
+                INSERT Person {
+                    name := 'foo',
+                    note := (
+                        DELETE Note FILTER .name = 'delete me' LIMIT 1
+                    )
+                }
+            ''')
+
     async def test_edgeql_insert_cardinality_assertion(self):
         async with self.assertRaisesRegexTx(
                 edgedb.QueryError,
