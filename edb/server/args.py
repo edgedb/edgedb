@@ -98,6 +98,7 @@ class ServerConfig(NamedTuple):
     default_auth_method: str
     allow_insecure_binary_clients: bool
     allow_insecure_http_clients: bool
+    insecure_dev_mode: bool
 
     instance_name: Optional[str]
 
@@ -403,6 +404,16 @@ _server_options = [
         type=bool, is_flag=True, hidden=True,
         help='Allow non-TLS client HTTP connections.'),
     click.option(
+        '--insecure-dev-mode',
+        envvar="EDGEDB_SERVER_INSECURE_DEV_MODE",
+        type=bool, is_flag=True, hidden=True,
+        help=(
+            'Set default authentication method to `Trust` '
+            'and enable non-TLS client HTTP connections. '
+            'Also implies `--generate-self-signed-cert`.'
+        ),
+    ),
+    click.option(
         "--default-auth-method",
         envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD",
         type=click.Choice(
@@ -502,7 +513,13 @@ def parse_args(**kwargs: Any):
 
     del kwargs['postgres_dsn']
 
-    if not kwargs['default_auth_method']:
+    if kwargs['insecure_dev_mode']:
+        kwargs['allow_insecure_http_clients'] = True
+        if not kwargs['default_auth_method']:
+            kwargs['default_auth_method'] = 'Trust'
+        if not (kwargs['tls_cert_file'] or kwargs['tls_key_file']):
+            kwargs['generate_self_signed_cert'] = True
+    elif not kwargs['default_auth_method']:
         kwargs['default_auth_method'] = 'SCRAM'
 
     if kwargs['temp_dir']:

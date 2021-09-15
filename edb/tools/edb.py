@@ -51,8 +51,7 @@ def server(version=False, **kwargs):
 
     os.environ['EDGEDB_DEBUG_SERVER'] = '1'
     debug.init_debug_flags()
-    if not kwargs.get('default_auth_method'):
-        kwargs['default_auth_method'] = 'Trust'
+    kwargs['insecure_dev_mode'] = True
     srv_main.server_main(**kwargs)
 
 
