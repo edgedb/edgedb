@@ -274,7 +274,6 @@ def parse_dsn(
     passfile = None
     database = None
     sslmode_str = None
-    sslcompression = None
     sslcert = None
     sslkey = None
     sslpassword = None
@@ -364,9 +363,6 @@ def parse_dsn(
 
         if 'sslmode' in query:
             sslmode_str = query.pop('sslmode')
-
-        if 'sslcompression' in query:
-            sslcompression = query.pop('sslcompression')
 
         if 'sslcert' in query:
             sslcert = query.pop('sslcert')
@@ -562,11 +558,6 @@ def parse_dsn(
                 keylogfile = os.environ.get('SSLKEYLOGFILE')
                 if keylogfile and not sys.flags.ignore_environment:
                     setattr(ssl, 'keylog_filename', keylogfile)  # noqa
-
-            if sslcompression is None:
-                sslcompression = os.getenv('PGSSLCOMPRESSION')
-            if sslcompression == '1':
-                ssl.options &= ~ssl_module.OP_NO_COMPRESSION
 
             if ssl_min_protocol_version is None:
                 ssl_min_protocol_version = os.getenv('PGSSLMINPROTOCOLVERSION')
