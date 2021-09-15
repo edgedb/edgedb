@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 
+from edb import edgeql
 from edb.testbase import lang as tb
 from edb.testbase import server as tbs
 from edb.server import compiler as edbcompiler
@@ -276,15 +277,16 @@ class TestCompilerPool(tbs.TestCase):
                 os.kill(w2.get_pid(), signal.SIGTERM)
                 await asyncio.wait_for(pool_._ready_evt.wait(), 10)
 
-                w1 = await pool_._acquire_worker()
-                w2 = await pool_._acquire_worker()
-                with self.assertRaises(AttributeError):
-                    await w1.call('nonexist')
-                with self.assertRaises(AttributeError):
-                    await w2.call('nonexist')
-                with self.assertRaises(asyncio.TimeoutError):
-                    await asyncio.wait_for(pool_._acquire_worker(), 0.1)
-                pool_._release_worker(w1)
-                pool_._release_worker(w2)
+                context = edbcompiler.new_compiler_context(
+                    user_schema=self._std_schema,
+                    modaliases={None: 'default'},
+                )
+                await asyncio.gather(*(pool_.compile_in_tx(
+                    context.state.current_tx().id,
+                    pickle.dumps(context.state),
+                    edgeql.Source.from_string('SELECT 123'),
+                    edbcompiler.IoFormat.BINARY,
+                    False, 101, False, True, 'single', (0, 12), True
+                ) for _ in range(4)))
             finally:
                 await pool_.stop()
