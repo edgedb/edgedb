@@ -2457,6 +2457,23 @@ class TestExpressions(tb.QueryTestCase):
             [1],
         )
 
+    async def test_edgeql_expr_cast_10(self):
+        await self.assert_query_result(
+            r'''
+                SELECT <array<tuple<EmulatedEnum>>>
+                  (SELECT [('v1',)] ++ [('v2',)])
+            ''',
+            [[["v1"], ["v2"]]],
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT <tuple<array<EmulatedEnum>>>
+                  (SELECT (['v1'] ++ ['v2'],))
+            ''',
+            [[["v1", "v2"]]],
+        )
+
     async def test_edgeql_expr_implicit_cast_01(self):
         await self.assert_query_result(
             r'''SELECT (INTROSPECT TYPEOF(<int32>1 + 3)).name;''',
