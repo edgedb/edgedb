@@ -10,6 +10,7 @@ Changes introduced in all of the releases of EdgeDB so far:
 .. toctree::
     :maxdepth: 1
 
+    1_0_rc1
     1_0_b3
     1_0_b2
     1_0_b1
