@@ -1,0 +1,162 @@
+========
+1.0 RC 1
+========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 RC 1 "Ran".
+
+
+Migrations
+==========
+
+We continue fixing bugs that affect schema definitions and migrations:
+
+* Always escape newlines when string literals appear in automatically
+  generated code, such as in migrations (:eql:gh:`#2704`).
+* Fix behavior of ``SET MULTI`` to make sure that it does not imply
+  ``SET REQUIRED`` (:eql:gh:`#2778`).
+* Make properties non-distinct by default (:eql:gh:`#2853`).
+
+  All values in EdgeQL are considered to be :ref:`multisets
+  <ref_eql_fundamentals_set>`, which are a generalization of the set
+  concept that allows duplicate elements. For brevity we refer to
+  multisets as just "sets", and use "proper set" or "distinct set"
+  when referring to proper mathematical sets.
+
+  In EdgeDB the data is modeled as a directed graph, where objects are
+  vertices and links are edges.  Query path expressions
+  (``Foo.bar.baz``) are graph traversal operators and, by definition,
+  always return a *distinct set*.  This means that there can be no
+  link of the same name between a pair of objects, and this also means
+  that a set of objects pointed to by a ``multi`` link is always
+  distinct.  Computed links must follow this rule too so as to behave
+  exactly like materialized links externally.  To illustrate, consider
+  a common case of finding a set of "friends of friends" of a
+  particular user.  In EdgeQL this is simply ``SELECT
+  User.friends.friends``.
+
+  Properties are different, because their value is scalar, and scalars
+  lack true identity, which makes any proper set mechanics on scalar
+  sets expensive due to explicit elimination of duplicates.
+  Furthermore, non-distinct scalar sets are actually *desirable* in
+  many queries, especially where analytics and tuples are involved.
+  Finally, we should enforce consistent multiplicity rules on computed
+  properties, and static inference of multiplicity on scalars is weak
+  and will effectively force users to pollute queries with pointless
+  and expensive :eql:op:`DISTINCT`.
+
+  Here we change EdgeDB behavior to allow multiplicity greater than
+  one in ``multi`` properties.
+
+* Fix the error when an object function is created alongside its
+  object (:eql:gh:`#2834`).
+
+* Fix handling of function overloads on object type parameters
+  (:eql:gh:`#2889`).
+
+  The current approach places a number of restrictions on overloads
+  of object type functions:
+
+  - there must be no difference in any but one parameter type, i.e.
+    this is single dispatch
+  - the names of all parameters must match
+
+  These restrictions apply only to functions that are actually
+  overloaded with a different object type. Overloading with scalar
+  types is perfectly OK even if the rest of the parameter types differ:
+
+  .. code-block:: sdl
+
+    function func(a: Foo, b: int32) -> int64 using ( BODY );
+    function func(a: Bar, b: int32) -> int64 using ( BODY );
+    function func(a: str, b: int32, c: int64) -> int64 using ( BODY );
+
+* Make computed links and properties defined in the schema behave the
+  same way as the equivalent computed links and properties defined
+  ad-hoc directly in the query (:eql:gh:`#2558`).
+
+
+EdgeQL
+======
+
+* Drop ``FINAL`` from the syntax (:eql:gh:`#2607`).
+* Restore the precedence of :ref:`DETACHED <ref_eql_with_detached>` to
+  no longer match that of :eql:op:`EXISTS` undoing the change
+  :eql:gh:`#2638`.
+* Fix ``UNLESS CONFLICT`` with inheritance hierarchies (:eql:gh:`#2525`).
+* Always use serializable isolation (:eql:gh:`#2877`).
+* Correctly raise exclusive constraints when performing an ``INSERT``
+  or an ``UPDATE`` on related types (:eql:gh:`#2845`).
+* Enforce link or property cardinality in mutations (:eql:gh:`#2827`).
+* Fix cardinality inference in "optionality-preserving" functions
+  (:eql:gh:`#2844`).
+
+  A certain number of standard aggregate functions are guaranteed to
+  preserve the lower cardinality bound of their argument.  These
+  functions are :eql:func:`assert_single`, :eql:func:`enumerate`,
+  :eql:func:`min`, and :eql:func:`max`.
+
+  Unfortunately, there is currently no way to signal that lower
+  cardinality is preserved for user-defined functions. We introduce
+  the new std-only ``preserves_cardinality`` field, which is also
+  exposed in the public introspection schema for the benefit of query
+  builders and such.
+
+* Implement :eql:func:`assert_exists` which allows to perform a
+  cardinality check in run-time (:eql:gh:`#2901`):
+
+  .. code-block:: edgeql-repl
+
+    db> SELECT assert_exists((SELECT User FILTER .name = "Administrator"))
+    {default::User {id: ...}}
+
+    db> SELECT assert_exists((SELECT User FILTER .name = "Nonexistent"))
+    ERROR: CardinalityViolationError: assert_exists violation: expression
+           returned an empty set.
+
+* Fix deletion issues for multi properties (:eql:gh:`#2883`).
+
+* Disallow some broken DML/volatile interactions (:eql:gh:`#2811`).
+* Fix volatility inference of functions taking object arguments to be
+  at most ``Stable`` because it triggers a table scan
+  (:eql:gh:`#2890`).
+* Fix a regression when objects from opaque sources are passed to
+  functions (:eql:gh:`#2924`).
+
+* Fix accessing link properties on union types (:eql:gh:`#2513`).
+* Fix some introspection issues with backlinks (:eql:gh:`#2599`)
+* Fix bare backlink schema-defined computed link (:eql:gh:`#2605`).
+* Make filtered backlinks work even when there exists a computed
+  backlink (:eql:gh:`#2698`).
+
+* Fix handling of the ``optional`` specifier in shapes to be similar
+  to SDL (:eql:gh:`#2900`).
+
+
+Command-Line Tools
+==================
+
+* Make SCRAM the default auth method (:eql:gh:`#2848`).
+* Add a server option to specify the default authentication method
+  (:eql:gh:`#2936`).
+
+  This patch adds the new ``--default-auth-method`` argument as well as
+  its companion ``EDGEDB_SERVER_DEFAULT_AUTH_METHOD`` environment
+  variable to set the default authentication method.
+
+
+Bindings
+========
+
+We've updated the binary protocol to version 0.12 which brings some
+performance and other improvements.
+
+* Support protocol 0.12 features features for `edgedb-python
+  <https://github.com/edgedb/edgedb-python>`_ and release v0.19.0
+  driver.
+* Support protocol 0.12 features features for `edgedb-js
+  <https://github.com/edgedb/edgedb-js>`_ and release v0.16.0
+  driver.
+* Support protocol 0.12 features features for `edgedb-go
+  <https://github.com/edgedb/edgedb-go>`_ and release v0.8.2
+  driver.
