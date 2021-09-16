@@ -452,9 +452,9 @@ class Pool(amsg.ServerProtocol):
 
         return preargs, callback
 
-    async def _acquire_worker(self, **kwargs):
+    async def _acquire_worker(self, *, condition=None):
         while (
-            worker := await self._workers_queue.acquire(**kwargs)
+            worker := await self._workers_queue.acquire(condition=condition)
         ).get_pid() not in self._workers:
             # The worker was disconnected; skip to the next one.
             pass
