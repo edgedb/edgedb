@@ -452,9 +452,9 @@ class Pool(amsg.ServerProtocol):
 
         return preargs, callback
 
-    async def _acquire_worker(self):
+    async def _acquire_worker(self, *, condition=None):
         while (
-            worker := await self._workers_queue.acquire()
+            worker := await self._workers_queue.acquire(condition=condition)
         ).get_pid() not in self._workers:
             # The worker was disconnected; skip to the next one.
             pass
@@ -521,7 +521,7 @@ class Pool(amsg.ServerProtocol):
         # because `pickled_state` is saved on the Worker instance and
         # stored in edgecon; we never modify it, so `is` is sufficient and
         # is faster than `==`.
-        worker = await self._workers_queue.acquire(
+        worker = await self._acquire_worker(
             condition=lambda w: (w._last_pickled_state is pickled_state)
         )
 
