@@ -2778,7 +2778,14 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> None:
-        pass
+        # Check if functions by this name exist
+        fn = self.get_attribute_value('name')
+        if fn is not None and not sn.is_fullname(str(fn)):
+            funcs = schema.get_functions(fn, tuple())
+            if funcs:
+                raise errors.SchemaError(
+                    f'{funcs[0].get_verbosename(schema)} is already present '
+                    f'in the schema {schema!r}')
 
     def _create_begin(
         self,
@@ -2788,6 +2795,29 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         self._validate_legal_command(schema, context)
 
         schema = self.apply_prerequisites(schema, context)
+
+        if not context.canonical:
+            schema = self.populate_ddl_identity(schema, context)
+            schema = self.canonicalize_attributes(schema, context)
+            self.update_field_status(schema, context)
+            self.validate_create(schema, context)
+
+        props = self.get_resolved_attributes(schema, context)
+        metaclass = self.get_schema_metaclass()
+        schema, self.scls = metaclass.create_in_schema(schema, **props)
+
+        if not props.get('id'):
+            # Record the generated ID.
+            self.set_attribute_value('id', self.scls.id)
+
+        return schema
+
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
 
         if context.schema_object_ids is not None:
             mcls = self.get_schema_metaclass()
@@ -2809,38 +2839,6 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             if specified_id is not None:
                 self.set_attribute_value('id', specified_id)
 
-        if not context.canonical:
-            schema = self.populate_ddl_identity(schema, context)
-            schema = self.canonicalize_attributes(schema, context)
-            self.update_field_status(schema, context)
-            self.validate_create(schema, context)
-
-        props = self.get_resolved_attributes(schema, context)
-        metaclass = self.get_schema_metaclass()
-
-        # Check if functions by this name exist
-        fn = props.get('name')
-        if fn is not None and not sn.is_fullname(str(fn)):
-            funcs = schema.get_functions(fn, tuple())
-            if funcs:
-                raise errors.SchemaError(
-                    f'{funcs[0].get_verbosename(schema)} is already present '
-                    f'in the schema {schema!r}')
-
-        schema, self.scls = metaclass.create_in_schema(schema, **props)
-
-        if not props.get('id'):
-            # Record the generated ID.
-            self.set_attribute_value('id', self.scls.id)
-
-        return schema
-
-    def canonicalize_attributes(
-        self,
-        schema: s_schema.Schema,
-        context: CommandContext,
-    ) -> s_schema.Schema:
-        schema = super().canonicalize_attributes(schema, context)
         self.set_attribute_value('builtin', context.stdmode)
         if not self.has_attribute_value('builtin'):
             self.set_attribute_value('builtin', context.stdmode)

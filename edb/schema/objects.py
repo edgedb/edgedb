@@ -358,10 +358,11 @@ class Field(struct.ProtoField, Generic[T]):
 
         if (
             merge_fn is default_field_merge
-            and callable(getattr(self.type, 'merge_values', None))
+            and callable(
+                type_merge_fn := getattr(self.type, 'merge_values', None)
+            )
         ):
-            # type ignore due to https://github.com/python/mypy/issues/1424
-            self.merge_fn = self.type.merge_values  # type: ignore
+            self.merge_fn = type_merge_fn
         else:
             self.merge_fn = merge_fn
 

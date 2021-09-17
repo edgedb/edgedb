@@ -1026,23 +1026,11 @@ class RebaseInheritingObject(
         context: sd.CommandContext
     ) -> s_schema.Schema:
         schema = super().apply(schema, context)
-        scls = self.scls
-
-        assert isinstance(scls, so.InheritingObject)
 
         if not context.canonical:
-            bases = self._apply_base_delta(schema, context, scls)
-            self.set_attribute_value(
-                'bases',
-                bases,
-                orig_value=scls.get_bases(schema),
-            )
-            schema = scls.set_field_value(schema, 'bases', bases)
-
             schema = self._recompute_inheritance(schema, context)
-
             if context.enable_recursion:
-                for descendant in scls.ordered_descendants(schema):
+                for descendant in self.scls.ordered_descendants(schema):
                     d_root_cmd, d_alter_cmd, ctx_stack = (
                         descendant.init_delta_branch(
                             schema, context, sd.AlterObject))
@@ -1052,18 +1040,34 @@ class RebaseInheritingObject(
                             schema, context)
                     self.add_caused(d_root_cmd)
 
-        assert isinstance(scls, so.InheritingObject)
-
         return schema
 
-    def _apply_base_delta(
+    def canonicalize_attributes(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: so.InheritingObjectT,
-    ) -> so.ObjectList[so.InheritingObjectT]:
-        bases = list(scls.get_bases(schema).objects(schema))
-        default_base_name = scls.get_default_base_name()
+    ) -> s_schema.Schema:
+        schema = super().canonicalize_attributes(schema, context)
+
+        orig_bases = self.scls.get_bases(schema)
+        new_bases = self._compute_new_bases(schema, context, orig_bases)
+        self.set_attribute_value(
+            'bases',
+            so.ObjectList[so.InheritingObjectT].create(schema, new_bases),
+            orig_value=orig_bases,
+        )
+
+        return schema
+
+    def _compute_new_bases(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        orig_bases: so.ObjectList[so.InheritingObjectT],
+    ) -> List[so.InheritingObjectT]:
+        mcls = self.get_schema_metaclass()
+        default_base_name = mcls.get_default_base_name()
+        bases = list(orig_bases.objects(schema))
         if default_base_name:
             default_base: Optional[so.InheritingObjectT] = self.get_object(
                 schema, context, name=default_base_name)
@@ -1103,7 +1107,7 @@ class RebaseInheritingObject(
         if not bases and default_base:
             bases = [default_base]
 
-        return so.ObjectList[so.InheritingObjectT].create(schema, bases)
+        return bases
 
     def _get_ast(
         self,
