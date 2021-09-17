@@ -1314,7 +1314,7 @@ class RebaseReferencedInheritingObject(
 
 class RenameReferencedInheritingObject(
     ReferencedInheritingObjectCommand[ReferencedInheritingObjectT],
-    sd.RenameObject[ReferencedInheritingObjectT],
+    inheriting.RenameInheritingObject[ReferencedInheritingObjectT],
 ):
 
     def _alter_begin(

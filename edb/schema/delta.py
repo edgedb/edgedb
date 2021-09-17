@@ -2060,27 +2060,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         context: CommandContext,
         update: Mapping[str, bool],
     ) -> None:
-        cur_comp_fields = self.scls.get_computed_fields(schema)
-        comp_fields = set(cur_comp_fields)
-        for fn, computed in update.items():
-            if computed:
-                comp_fields.add(fn)
-            else:
-                comp_fields.discard(fn)
-
-        if cur_comp_fields != comp_fields:
-            if comp_fields:
-                self.set_attribute_value(
-                    'computed_fields',
-                    frozenset(comp_fields),
-                    orig_value=cur_comp_fields if cur_comp_fields else None,
-                )
-            else:
-                self.set_attribute_value(
-                    'computed_fields',
-                    None,
-                    orig_value=cur_comp_fields if cur_comp_fields else None,
-                )
+        raise NotImplementedError
 
     def _append_subcmd_ast(
         self,
@@ -2370,11 +2350,19 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         """Resolve, canonicalize and amend field mutations in this command.
 
         This is called just before the object described by this command
-        is created or updated but after all prerequisite command have
+        is created or updated but after all prerequisite commands have
         been applied, so it is safe to resolve object shells and do
         other schema inquiries here.
         """
         return schema
+
+    def update_field_status(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+    ) -> None:
+        computed_status = self._get_computed_status_of_fields(schema, context)
+        self._update_computed_fields(schema, context, computed_status)
 
     def populate_ddl_identity(
         self,
@@ -2824,13 +2812,8 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         if not context.canonical:
             schema = self.populate_ddl_identity(schema, context)
             schema = self.canonicalize_attributes(schema, context)
+            self.update_field_status(schema, context)
             self.validate_create(schema, context)
-            computed_status = self._get_computed_status_of_fields(
-                schema, context)
-            computed_fields = {n for n, v in computed_status.items() if v}
-            if computed_fields:
-                self.set_attribute_value(
-                    'computed_fields', frozenset(computed_fields))
 
         props = self.get_resolved_attributes(schema, context)
         metaclass = self.get_schema_metaclass()
@@ -2864,6 +2847,17 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         if not self.has_attribute_value('internal'):
             self.set_attribute_value('internal', context.internal_schema_mode)
         return schema
+
+    def _update_computed_fields(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        update: Mapping[str, bool],
+    ) -> None:
+        computed_fields = {n for n, v in update.items() if v}
+        if computed_fields:
+            self.set_attribute_value(
+                'computed_fields', frozenset(computed_fields))
 
     def _get_ast(
         self,
@@ -2953,13 +2947,8 @@ class CreateExternalObject(
         if not context.canonical:
             schema = self.populate_ddl_identity(schema, context)
             schema = self.canonicalize_attributes(schema, context)
+            self.update_field_status(schema, context)
             self.validate_create(schema, context)
-            computed_status = self._get_computed_status_of_fields(
-                schema, context)
-            computed_fields = {n for n, v in computed_status.items() if v}
-            if computed_fields:
-                self.set_attribute_value(
-                    'computed_fields', frozenset(computed_fields))
 
         props = self.get_resolved_attributes(schema, context)
         metaclass = self.get_schema_metaclass()
@@ -3006,9 +2995,7 @@ class AlterObjectOrFragment(ObjectCommand[so.Object_T]):
         if not context.canonical:
             schema = self.populate_ddl_identity(schema, context)
             schema = self.canonicalize_attributes(schema, context)
-            computed_status = self._get_computed_status_of_fields(
-                schema, context)
-            self._update_computed_fields(schema, context, computed_status)
+            self.update_field_status(schema, context)
             self.validate_alter(schema, context)
 
         props = self.get_resolved_attributes(schema, context)
@@ -3030,6 +3017,34 @@ class AlterObjectOrFragment(ObjectCommand[so.Object_T]):
         if not context.canonical:
             self.validate_object(schema, context)
         return schema
+
+    def _update_computed_fields(
+        self,
+        schema: s_schema.Schema,
+        context: CommandContext,
+        update: Mapping[str, bool],
+    ) -> None:
+        cur_comp_fields = self.scls.get_computed_fields(schema)
+        comp_fields = set(cur_comp_fields)
+        for fn, computed in update.items():
+            if computed:
+                comp_fields.add(fn)
+            else:
+                comp_fields.discard(fn)
+
+        if cur_comp_fields != comp_fields:
+            if comp_fields:
+                self.set_attribute_value(
+                    'computed_fields',
+                    frozenset(comp_fields),
+                    orig_value=cur_comp_fields if cur_comp_fields else None,
+                )
+            else:
+                self.set_attribute_value(
+                    'computed_fields',
+                    None,
+                    orig_value=cur_comp_fields if cur_comp_fields else None,
+                )
 
 
 class AlterObjectFragment(AlterObjectOrFragment[so.Object_T]):
