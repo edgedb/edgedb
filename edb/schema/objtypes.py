@@ -464,7 +464,10 @@ class CreateObjectType(
             return super()._get_ast_node(schema, context)
 
 
-class RenameObjectType(ObjectTypeCommand, s_types.RenameType[ObjectType]):
+class RenameObjectType(
+    ObjectTypeCommand,
+    s_types.RenameInheritingType[ObjectType],
+):
     pass
 
 

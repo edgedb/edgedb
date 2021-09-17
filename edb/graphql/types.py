@@ -59,7 +59,6 @@ from edb.schema import pointers as s_pointers
 from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
-from edb.schema import objects as s_objects
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
@@ -668,7 +667,8 @@ class GQLCoreSchema:
                     # We want to look at the pointer lineage because that
                     # will be reflected into GraphQL interface that is
                     # being extended and the type cannot be changed.
-                    lineage = s_objects.compute_lineage(self.edb_schema, ptr)
+                    ancestors = ptr.get_ancestors(
+                        self.edb_schema).objects(self.edb_schema)
 
                     # We want the first non-generic ancestor of this
                     # pointer as its target type will dictate the target
@@ -677,7 +677,7 @@ class GQLCoreSchema:
                     # NOTE: We're guaranteed to have a non-generic one
                     # since we're inspecting the lineage of a pointer
                     # belonging to an actual type.
-                    for ancestor in reversed(lineage):
+                    for ancestor in reversed((ptr,) + ancestors):
                         if not ancestor.generic(self.edb_schema):
                             ptr = ancestor
                             break

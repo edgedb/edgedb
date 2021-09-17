@@ -479,7 +479,10 @@ class CreateScalarType(
             super()._apply_field_ast(schema, context, node, op)
 
 
-class RenameScalarType(ScalarTypeCommand, s_types.RenameType[ScalarType]):
+class RenameScalarType(
+    ScalarTypeCommand,
+    s_types.RenameInheritingType[ScalarType],
+):
     pass
 
 
@@ -593,7 +596,7 @@ class AlterScalarType(
 
 class DeleteScalarType(
     ScalarTypeCommand,
-    inheriting.DeleteInheritingObject[ScalarType],
+    s_types.DeleteInheritingType[ScalarType],
 ):
     astnode = qlast.DropScalarType
 

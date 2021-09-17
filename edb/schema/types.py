@@ -734,6 +734,20 @@ class DeleteType(sd.DeleteObject[TypeT]):
             return super()._get_ast(schema, context, parent_node=parent_node)
 
 
+class RenameInheritingType(
+    RenameType[InheritingTypeT],
+    inheriting.RenameInheritingObject[InheritingTypeT],
+):
+    pass
+
+
+class DeleteInheritingType(
+    DeleteType[InheritingTypeT],
+    inheriting.DeleteInheritingObject[InheritingTypeT],
+):
+    pass
+
+
 class CompoundTypeCommandContext(sd.ObjectCommandContext[InheritingType]):
     pass
 
