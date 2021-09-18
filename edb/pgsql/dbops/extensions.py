@@ -40,13 +40,8 @@ class Extension:
 
 
 class CreateExtension(ddl.DDLOperation):
-    def __init__(
-            self, extension, *, conditions=None, neg_conditions=None,
-            priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-
+    def __init__(self, extension, *, conditions=None, neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.extension = extension
         self.opid = extension.name
 

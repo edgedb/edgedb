@@ -274,11 +274,10 @@ class BaseCommand(markup.MarkupCapableMixin):
 
 
 class Command(BaseCommand):
-    def __init__(self, *, conditions=None, neg_conditions=None, priority=0):
+    def __init__(self, *, conditions=None, neg_conditions=None):
         self.opid = id(self)
         self.conditions = conditions or set()
         self.neg_conditions = neg_conditions or set()
-        self.priority = priority
 
     def generate(self, block) -> None:
         self_block = self.generate_self_block(block)
@@ -303,10 +302,8 @@ class Command(BaseCommand):
 
 
 class CommandGroup(Command):
-    def __init__(self, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+    def __init__(self, *, conditions=None, neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.commands = []
 
     def add_command(self, cmd):

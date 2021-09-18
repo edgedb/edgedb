@@ -44,12 +44,8 @@ class SchemaExists(base.Condition):
 
 
 class CreateSchema(ddl.DDLOperation):
-    def __init__(
-            self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-
+    def __init__(self, name, *, conditions=None, neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
         self.opid = name
 
@@ -61,11 +57,8 @@ class CreateSchema(ddl.DDLOperation):
 
 
 class DropSchema(ddl.DDLOperation):
-    def __init__(
-            self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+    def __init__(self, name, *, conditions=None, neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
 
     def code(self, block: base.PLBlock) -> str:

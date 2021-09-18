@@ -56,12 +56,9 @@ class Enum(base.DBObject):
 
 
 class CreateEnum(ddl.SchemaObjectOperation):
-    def __init__(
-            self, enum, *, conditions=None, neg_conditions=None,
-            priority=0):
+    def __init__(self, enum, *, conditions=None, neg_conditions=None):
         super().__init__(
-            enum.name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            enum.name, conditions=conditions, neg_conditions=neg_conditions)
         self.values = enum.values
 
     def code(self, block: base.PLBlock) -> str:
@@ -70,11 +67,8 @@ class CreateEnum(ddl.SchemaObjectOperation):
 
 
 class AlterEnum(ddl.DDLOperation):
-    def __init__(
-            self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+    def __init__(self, name, *, conditions=None, neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
 
     def prefix_code(self) -> str:

@@ -286,10 +286,9 @@ class ColumnIsInherited(base.Condition):
 class CreateTable(ddl.SchemaObjectOperation):
     def __init__(
             self, table, temporary=False, *, conditions=None,
-            neg_conditions=None, priority=0):
+            neg_conditions=None):
         super().__init__(
-            table.name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            table.name, conditions=conditions, neg_conditions=neg_conditions)
         self.table = table
         self.temporary = temporary
 
@@ -344,10 +343,9 @@ class AlterTableBaseMixin:
 class AlterTableBase(AlterTableBaseMixin, ddl.DDLOperation):
     def __init__(
             self, name, *, contained=False, conditions=None,
-            neg_conditions=None, priority=0):
+            neg_conditions=None):
         ddl.DDLOperation.__init__(
-            self, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            self, conditions=conditions, neg_conditions=neg_conditions)
         AlterTableBaseMixin.__init__(self, name=name, contained=contained)
 
     def get_attribute_term(self):
@@ -366,10 +364,9 @@ class AlterTable(
         AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGroup):
     def __init__(
             self, name, *, contained=False, conditions=None,
-            neg_conditions=None, priority=0):
+            neg_conditions=None):
         base.CompositeCommandGroup.__init__(
-            self, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            self, conditions=conditions, neg_conditions=neg_conditions)
         AlterTableBaseMixin.__init__(self, name=name, contained=contained)
         self.ops = self.commands
 

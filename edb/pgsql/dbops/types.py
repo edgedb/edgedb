@@ -102,11 +102,9 @@ class CompositeTypeAttributeExists(base.Condition):
 
 
 class CreateCompositeType(ddl.SchemaObjectOperation):
-    def __init__(
-            self, type, *, conditions=None, neg_conditions=None, priority=0):
+    def __init__(self, type, *, conditions=None, neg_conditions=None):
         super().__init__(
-            type.name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            type.name, conditions=conditions, neg_conditions=neg_conditions)
         self.type = type
 
     def code(self, block: base.PLBlock) -> str:
@@ -130,10 +128,9 @@ class AlterCompositeTypeBaseMixin:
 
 class AlterCompositeTypeBase(AlterCompositeTypeBaseMixin, ddl.DDLOperation):
     def __init__(
-            self, name, *, conditions=None, neg_conditions=None, priority=0):
+            self, name, *, conditions=None, neg_conditions=None):
         ddl.DDLOperation.__init__(
-            self, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            self, conditions=conditions, neg_conditions=neg_conditions)
         AlterCompositeTypeBaseMixin.__init__(self, name=name)
 
 
@@ -144,11 +141,9 @@ class AlterCompositeTypeFragment(ddl.DDLOperation):
 
 class AlterCompositeType(
         AlterCompositeTypeBaseMixin, base.CompositeCommandGroup):
-    def __init__(
-            self, name, *, conditions=None, neg_conditions=None, priority=0):
+    def __init__(self, name, *, conditions=None, neg_conditions=None):
         base.CompositeCommandGroup.__init__(
-            self, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            self, conditions=conditions, neg_conditions=neg_conditions)
         AlterCompositeTypeBaseMixin.__init__(self, name=name)
 
 
@@ -172,11 +167,15 @@ class AlterCompositeTypeAlterAttributeType(
 
 class DropCompositeType(ddl.SchemaObjectOperation):
     def __init__(
-            self, name, *, cascade=False, conditions=None, neg_conditions=None,
-            priority=0):
+        self,
+        name,
+        *,
+        cascade=False,
+        conditions=None,
+        neg_conditions=None,
+    ):
         super().__init__(
-            name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            name, conditions=conditions, neg_conditions=neg_conditions)
         self.cascade = cascade
 
     def code(self, block: base.PLBlock) -> str:

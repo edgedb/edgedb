@@ -56,12 +56,9 @@ class Domain(base.DBObject):
 
 
 class CreateDomain(ddl.SchemaObjectOperation):
-    def __init__(
-            self, domain, *, conditions=None, neg_conditions=None,
-            priority=0):
+    def __init__(self, domain, *, conditions=None, neg_conditions=None):
         super().__init__(
-            domain.name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            domain.name, conditions=conditions, neg_conditions=neg_conditions)
         self.domain = domain
 
     def code(self, block: base.PLBlock) -> str:
@@ -77,11 +74,8 @@ class CreateDomain(ddl.SchemaObjectOperation):
 
 
 class AlterDomain(ddl.DDLOperation):
-    def __init__(
-            self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+    def __init__(self, name, *, conditions=None, neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
 
     def prefix_code(self) -> str:
@@ -125,11 +119,9 @@ class AlterDomainAlterNull(AlterDomain):
 
 class AlterDomainAlterConstraint(AlterDomain):
     def __init__(
-            self, name, constraint, *, conditions=None, neg_conditions=None,
-            priority=0):
+            self, name, constraint, *, conditions=None, neg_conditions=None):
         super().__init__(
-            name, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            name, conditions=conditions, neg_conditions=neg_conditions)
         self._constraint = constraint
 
 

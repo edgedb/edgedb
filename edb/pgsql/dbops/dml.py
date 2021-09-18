@@ -35,10 +35,8 @@ class DMLOperation(base.Command):
 class Insert(DMLOperation):
     def __init__(
             self, table, records, returning=None, *, conditions=None,
-            neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
 
         self.table = table
         self.records = records
@@ -87,15 +85,15 @@ class Insert(DMLOperation):
             rows = (', '.join('{}={!r}'.format(c, v) for c, v in row.items())
                     for row in self.records)
             vals = ', '.join('({})'.format(r) for r in rows)
-        return '<{} {} ({}) priority={}>'.format(
-            self.__class__.__name__, self.table.name, vals, self.priority)
+        return '<{} {} ({})>'.format(
+            self.__class__.__name__, self.table.name, vals)
 
 
 class Update(DMLOperation):
     def __init__(
             self, table, record, condition, returning=None, *,
-            include_children=True, priority=0, table_alias=None):
-        super().__init__(priority=priority)
+            include_children=True, table_alias=None):
+        super().__init__()
 
         self.table = table
         self.table_alias = table_alias
@@ -173,14 +171,13 @@ class Update(DMLOperation):
             '%s=%s' % (f, getattr(self.record, f)) for f in self.fields)
         where = ','.join('%s=%s' % (c[0], c[1])
                          for c in self.condition) if self.condition else ''
-        return '<%s %s %s (%s) priority=%s>' % (
-            self.__class__.__name__, self.table.name, expr, where,
-            self.priority)
+        return '<%s %s %s (%s)>' % (
+            self.__class__.__name__, self.table.name, expr, where)
 
 
 class Delete(DMLOperation):
-    def __init__(self, table, condition, *, include_children=True, priority=0):
-        super().__init__(priority=priority)
+    def __init__(self, table, condition, *, include_children=True):
+        super().__init__()
 
         self.table = table
         self.condition = condition
