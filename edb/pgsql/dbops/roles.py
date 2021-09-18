@@ -136,9 +136,9 @@ class AlterRoleAddMember(ddl.SchemaObjectOperation):
 
     def __init__(
             self, name, member, *, conditions=None,
-            neg_conditions=None, priority=0):
+            neg_conditions=None):
         super().__init__(name, conditions=conditions,
-                         neg_conditions=neg_conditions, priority=priority)
+                         neg_conditions=neg_conditions)
         self.member = member
 
     def code(self, block: base.PLBlock) -> str:
@@ -147,11 +147,9 @@ class AlterRoleAddMember(ddl.SchemaObjectOperation):
 
 class AlterRoleDropMember(ddl.SchemaObjectOperation):
 
-    def __init__(
-            self, name, member, *, conditions=None,
-            neg_conditions=None, priority=0):
-        super().__init__(name, conditions=conditions,
-                         neg_conditions=neg_conditions, priority=priority)
+    def __init__(self, name, member, *, conditions=None, neg_conditions=None):
+        super().__init__(
+            name, conditions=conditions, neg_conditions=neg_conditions)
         self.member = member
 
     def code(self, block: base.PLBlock) -> str:
@@ -161,10 +159,9 @@ class AlterRoleDropMember(ddl.SchemaObjectOperation):
 class AlterRoleAddMembership(ddl.SchemaObjectOperation):
 
     def __init__(
-            self, name, membership, *, conditions=None,
-            neg_conditions=None, priority=0):
-        super().__init__(name, conditions=conditions,
-                         neg_conditions=neg_conditions, priority=priority)
+            self, name, membership, *, conditions=None, neg_conditions=None):
+        super().__init__(
+            name, conditions=conditions, neg_conditions=neg_conditions)
         self.membership = membership
 
     def code(self, block: base.PLBlock) -> str:

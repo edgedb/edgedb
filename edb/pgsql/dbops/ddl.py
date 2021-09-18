@@ -48,11 +48,8 @@ class NonTransactionalDDLOperation(DDLOperation):
 
 class SchemaObjectOperation(DDLOperation):
     def __init__(
-            self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
-
+            self, name, *, conditions=None, neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
         self.opid = name
 

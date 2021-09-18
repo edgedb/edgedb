@@ -169,8 +169,7 @@ class CreateOrReplaceFunction(ddl.DDLOperation, FunctionOperation):
 class DropFunction(ddl.DDLOperation, FunctionOperation):
     def __init__(
             self, name, args, *,
-            has_variadic=False, conditions=None, neg_conditions=None,
-            priority=0):
+            has_variadic=False, conditions=None, neg_conditions=None):
         self.conditional = False
         if conditions:
             c = []
@@ -181,9 +180,7 @@ class DropFunction(ddl.DDLOperation, FunctionOperation):
                 else:
                     c.append(cond)
             conditions = c
-        super().__init__(
-            conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
         self.name = name
         self.args = args
         self.has_variadic = has_variadic

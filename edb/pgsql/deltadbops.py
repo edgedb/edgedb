@@ -338,11 +338,10 @@ class AlterTableDropMultiConstraint(dbops.AlterTableDropConstraint):
 class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
     def __init__(
             self, name, *, constraint, contained=False, conditions=None,
-            neg_conditions=None, priority=0):
+            neg_conditions=None):
 
         dbops.CompositeCommandGroup.__init__(
-            self, conditions=conditions, neg_conditions=neg_conditions,
-            priority=priority)
+            self, conditions=conditions, neg_conditions=neg_conditions)
 
         dbops.AlterTableBaseMixin.__init__(
             self, name=name, contained=contained)

@@ -49,10 +49,9 @@ class CreateView(ddl.SchemaObjectOperation):
         conditions=None,
         neg_conditions=None,
         or_replace=False,
-        priority=0,
     ):
         super().__init__(view.name, conditions=conditions,
-                         neg_conditions=neg_conditions, priority=priority)
+                         neg_conditions=neg_conditions)
         self.view = view
         self.or_replace = or_replace
 

@@ -161,9 +161,7 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         return schema
 
     def generate(self, block: dbops.PLBlock) -> None:
-        for op in sorted(
-                self.pgops, key=lambda i: getattr(i, 'priority', 0),
-                reverse=True):
+        for op in self.pgops:
             op.generate(block)
 
     @classmethod
@@ -2247,11 +2245,11 @@ class CompositeMetaCommand(MetaCommand):
         self.inhview_updates = set()
 
     def _get_multicommand(
-            self, context, cmdtype, object_name, *, priority=0,
+            self, context, cmdtype, object_name, *,
             force_new=False, manual=False, cmdkwargs=None):
         if cmdkwargs is None:
             cmdkwargs = {}
-        key = (object_name, priority, frozenset(cmdkwargs.items()))
+        key = (object_name, frozenset(cmdkwargs.items()))
 
         try:
             typecommands = self._multicommands[cmdtype]
@@ -2261,7 +2259,7 @@ class CompositeMetaCommand(MetaCommand):
         commands = typecommands.get(key)
 
         if commands is None or force_new or manual:
-            command = cmdtype(object_name, priority=priority, **cmdkwargs)
+            command = cmdtype(object_name, **cmdkwargs)
 
             if not manual:
                 try:
@@ -2285,11 +2283,10 @@ class CompositeMetaCommand(MetaCommand):
                 itertools.chain.from_iterable(typecommands.values()))
 
             if commands:
-                commands = sorted(commands, key=lambda i: i.priority)
                 self.pgops.update(commands)
 
     def get_alter_table(
-            self, schema, context, priority=0, force_new=False,
+            self, schema, context, force_new=False,
             contained=False, manual=False, table_name=None):
 
         tabname = table_name if table_name else self.table_name
@@ -2302,7 +2299,7 @@ class CompositeMetaCommand(MetaCommand):
                 self.table_name = tabname
 
         return self._get_multicommand(
-            context, dbops.AlterTable, tabname, priority=priority,
+            context, dbops.AlterTable, tabname,
             force_new=force_new, manual=manual,
             cmdkwargs={'contained': contained})
 
@@ -3375,7 +3372,7 @@ class PointerMetaCommand(MetaCommand):
         if not sql_expr_is_trivial:
             if need_temp_col:
                 alter_table = source_op.get_alter_table(
-                    schema, context, priority=0, force_new=True, manual=True)
+                    schema, context, force_new=True, manual=True)
                 temp_column = dbops.Column(
                     name=f'??{pointer.id}_{common.get_unique_random_name()}',
                     type=qt(new_type),
@@ -3413,7 +3410,7 @@ class PointerMetaCommand(MetaCommand):
 
         if changing_col_type or need_temp_col:
             alter_table = source_op.get_alter_table(
-                schema, context, priority=0, force_new=True, manual=True)
+                schema, context, force_new=True, manual=True)
 
         if is_multi:
             # Remove all rows where the conversion expression produced NULLs.
@@ -5452,24 +5449,8 @@ class DeltaRoot(MetaCommand, adapts=sd.DeltaRoot):
         return True
 
     def generate(self, block: dbops.PLBlock) -> None:
-        for op in self.serialize_ops():
+        for op in self.pgops:
             op.generate(block)
-
-    def serialize_ops(self):
-        queues = {}
-        self._serialize_ops(self, queues)
-        queues = (i[1] for i in sorted(queues.items(), key=lambda i: i[0]))
-        return itertools.chain.from_iterable(queues)
-
-    def _serialize_ops(self, obj, queues):
-        for op in obj.pgops:
-            if isinstance(op, MetaCommand):
-                self._serialize_ops(op, queues)
-            else:
-                queue = queues.get(op.priority)
-                if not queue:
-                    queues[op.priority] = queue = []
-                queue.append(op)
 
 
 class MigrationCommand(MetaCommand):
