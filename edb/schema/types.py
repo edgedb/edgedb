@@ -2509,8 +2509,11 @@ def is_type_compatible(
                        t_b.iter_subtypes(schema))
             )
         elif isinstance(t_a, Array) and isinstance(t_b, Array):
-            return labels_compatible(
-                t_a.get_element_type(schema), t_b.get_element_type(schema))
+            t_as = t_a.get_element_type(schema)
+            t_bs = t_b.get_element_type(schema)
+            return (
+                not isinstance(t_as, Tuple) and labels_compatible(t_as, t_bs)
+            )
         else:
             return True
 

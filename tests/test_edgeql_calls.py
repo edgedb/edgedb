@@ -1292,6 +1292,20 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
             ]
         )
 
+    async def test_edgeql_calls_35c(self):
+        # Array return with a tuple forcing a cast
+
+        await self.con.execute('''
+            CREATE SCALAR TYPE Foo extending str;
+            CREATE FUNCTION call35() -> array<tuple<Foo>>
+            USING (SELECT [('1',)] ++ [('2',)]);
+        ''')
+
+        await self.assert_query_result(
+            r'''SELECT call35();''',
+            [[["1"], ["2"]]],
+        )
+
     async def test_edgeql_calls_36(self):
         await self.con.execute('''
             CREATE FUNCTION call36(
