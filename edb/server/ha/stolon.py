@@ -37,6 +37,7 @@ class StolonBackend(base.HABackend):
 
     def __init__(self):
         self._waiter = None
+        self._stop_waiter = None
         self._master_addr = None
         self._protocol = None
         self._watching = False
@@ -53,6 +54,7 @@ class StolonBackend(base.HABackend):
             finally:
                 if started_by_us:
                     self.stop_watching()
+                    await self.wait_stopped_watching()
         assert self._master_addr
         return self._master_addr
 
@@ -75,7 +77,12 @@ class StolonBackend(base.HABackend):
         self._cluster_protocol = None
         protocol, self._protocol = self._protocol, None
         if protocol is not None:
+            self._stop_waiter = asyncio.get_running_loop().create_future()
             protocol.close()
+
+    async def wait_stopped_watching(self):
+        if self._stop_waiter is not None:
+            await self._stop_waiter
 
     def get_master_addr(self):
         return self._master_addr
@@ -109,15 +116,16 @@ class StolonBackend(base.HABackend):
         if master_addr != self._master_addr:
             if self._master_addr is None:
                 logger.info("Discovered master Postgres at %r", master_addr)
+                self._master_addr = master_addr
             else:
                 logger.critical(
                     f"Switching over the master Postgres from %r to %r",
                     self._master_addr,
                     master_addr,
                 )
+                self._master_addr = master_addr
                 if self._cluster_protocol is not None:
-                    self._cluster_protocol.set_state_failover()
-            self._master_addr = master_addr
+                    self._cluster_protocol.on_switch_over()
 
         if self._waiter is not None:
             if not self._waiter.done():
@@ -127,11 +135,18 @@ class StolonBackend(base.HABackend):
     def connection_lost(self):
         self._protocol = None
         if self._watching:
+            cluster_protocol = self._cluster_protocol
             self.stop_watching()
             loop = asyncio.get_running_loop()
-            loop.create_task(self.start_watching()).add_done_callback(
+            loop.create_task(
+                self.start_watching(cluster_protocol)
+            ).add_done_callback(
                 self._start_watching_cb
             )
+        else:
+            waiter, self._stop_waiter = self._stop_waiter, None
+            if waiter is not None:
+                waiter.set_result(None)
 
     def _start_watching_cb(self, fut: asyncio.Task):
         try:

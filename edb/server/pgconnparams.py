@@ -465,15 +465,21 @@ def parse_dsn(
                 passfile=passfile_path)
 
     addrs: List[Tuple[str, int]] = []
+    have_tcp_addrs = False
     for h, p in zip(host, port):
         addrs.append((h, p))
+        if not h.startswith('/'):
+            have_tcp_addrs = True
 
     if not addrs:
         raise ValueError(
             'could not determine the database address to connect to')
 
     if sslmode_str is None:
-        sslmode_str = os.getenv('PGSSLMODE', 'prefer')
+        sslmode_str = os.getenv('PGSSLMODE')
+
+    if sslmode_str is None and have_tcp_addrs:
+        sslmode_str = 'prefer'
 
     if sslmode_str:
         try:
@@ -579,13 +585,10 @@ def parse_dsn(
         ssl = None
         sslmode = SSLMode.disable
 
-    if ssl:
-        for addr in addrs:
-            if isinstance(addr, str):
-                # UNIX socket
-                raise ValueError(
-                    '`ssl` parameter can only be enabled for TCP addresses, '
-                    'got a UNIX socket path: {!r}'.format(addr))
+    if ssl and not have_tcp_addrs:
+        raise ValueError(
+            '`ssl` parameter can only be enabled for TCP addresses, '
+            'got a UNIX socket paths: {!r}'.format(addrs))
 
     if server_settings is not None and (
             not isinstance(server_settings, dict) or

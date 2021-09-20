@@ -26,6 +26,7 @@ import asyncio
 import atexit
 import contextlib
 import decimal
+import errno
 import functools
 import heapq
 import inspect
@@ -1449,6 +1450,7 @@ class _EdgeDBServer:
         tenant_id: Optional[str] = None,
         allow_insecure_binary_clients: bool = False,
         allow_insecure_http_clients: bool = False,
+        enable_backend_adaptive_ha: bool = False,
         env: Optional[Dict[str, str]] = None,
     ) -> None:
         self.auto_shutdown = auto_shutdown
@@ -1465,6 +1467,7 @@ class _EdgeDBServer:
         self.data = None
         self.allow_insecure_binary_clients = allow_insecure_binary_clients
         self.allow_insecure_http_clients = allow_insecure_http_clients
+        self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
         self.env = env
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
@@ -1583,6 +1586,9 @@ class _EdgeDBServer:
         if self.allow_insecure_http_clients:
             cmd += ['--allow-insecure-http-clients']
 
+        if self.enable_backend_adaptive_ha:
+            cmd += ['--enable-backend-adaptive-ha']
+
         if self.debug:
             print(
                 f'Starting EdgeDB cluster with the following params:\n'
@@ -1643,6 +1649,7 @@ def start_edgedb_server(
     tenant_id: Optional[str] = None,
     allow_insecure_binary_clients: bool = False,
     allow_insecure_http_clients: bool = False,
+    enable_backend_adaptive_ha: bool = False,
     env: Optional[Dict[str, str]] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
@@ -1665,6 +1672,7 @@ def start_edgedb_server(
         reset_auth=reset_auth,
         allow_insecure_binary_clients=allow_insecure_binary_clients,
         allow_insecure_http_clients=allow_insecure_http_clients,
+        enable_backend_adaptive_ha=enable_backend_adaptive_ha,
         env=env,
     )
 
@@ -1806,3 +1814,27 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
               f' / {int(total_est / 60)}m {int(total_est % 60)}s, '
               f'{len(setups)}/{setup_count} databases to setup.')
     return cases
+
+
+def find_available_port(port_range=(49152, 65535), max_tries=1000):
+    low, high = port_range
+
+    try_no = 0
+
+    while try_no < max_tries:
+        try_no += 1
+        port = random.randint(low, high)
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.bind(("localhost", port))
+        except socket.error as e:
+            if e.errno == errno.EADDRINUSE:
+                continue
+        finally:
+            sock.close()
+
+        break
+    else:
+        port = None
+
+    return port
