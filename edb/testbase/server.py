@@ -26,7 +26,6 @@ import asyncio
 import atexit
 import contextlib
 import decimal
-import errno
 import functools
 import heapq
 import inspect
@@ -82,7 +81,7 @@ def get_test_cases(tests):
     for test in tests:
         if isinstance(test, unittest.TestSuite):
             result.update(get_test_cases(test._tests))
-        else:
+        elif not getattr(test, '__unittest_skip__', False):
             _add_test(result, test)
 
     return result
@@ -1816,25 +1815,10 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     return cases
 
 
-def find_available_port(port_range=(49152, 65535), max_tries=1000):
-    low, high = port_range
-
-    try_no = 0
-
-    while try_no < max_tries:
-        try_no += 1
-        port = random.randint(low, high)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.bind(("localhost", port))
-        except socket.error as e:
-            if e.errno == errno.EADDRINUSE:
-                continue
-        finally:
-            sock.close()
-
-        break
-    else:
-        port = None
-
-    return port
+def find_available_port():
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(("localhost", 0))
+        return sock.getsockname()[1]
+    finally:
+        sock.close()

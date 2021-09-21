@@ -111,6 +111,7 @@ class TestServerConfigUtils(unittest.TestCase):
 
     def tearDown(self):
         config.set_settings(self._cfgspec)
+        self._cfgspec = None  # some settings cannot be pickled by runner.py
 
     def test_server_config_01(self):
         conf = immutables.Map({

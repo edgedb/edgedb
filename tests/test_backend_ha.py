@@ -392,8 +392,6 @@ async def stolon_setup(*, debug=False):
 
 def setUpModule():
     debug = False
-    if not os.environ.get("EDGEDB_TEST_HA"):
-        raise unittest.SkipTest("EDGEDB_TEST_HA is not set")
 
     try:
         consul_path = os.environ.get("EDGEDB_TEST_CONSUL_PATH", "consul")
@@ -412,6 +410,9 @@ def setUpModule():
         raise unittest.SkipTest("Consul not installed")
 
 
+@unittest.skipIf(
+    not os.environ.get("EDGEDB_TEST_HA"), "EDGEDB_TEST_HA is not set"
+)
 class TestBackendHA(tb.TestCase):
     async def _wait_for_failover(self, con):
         async for tx in con.with_retry_options(
