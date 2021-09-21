@@ -17,6 +17,9 @@
 #
 
 
+from edb.server.protocol cimport binary
+
+
 cdef class HttpRequest:
 
     cdef:
@@ -59,6 +62,7 @@ cdef class HttpProtocol:
 
         HttpRequest current_request
 
+    cdef _return_binary_error(self, binary.EdgeConnection proto)
     cdef _write(self, bytes req_version, bytes resp_status,
                 bytes content_type, dict custom_headers, bytes body,
                 bint close_connection)

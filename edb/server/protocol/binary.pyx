@@ -427,7 +427,7 @@ cdef class EdgeConnection:
                 f'accept connections'
             )
 
-        await self._start_connection(database, user)
+        self._start_connection(database, user)
 
         # The user has already been authenticated by other means
         # (such as the ability to write to a protected socket).
@@ -440,7 +440,7 @@ cdef class EdgeConnection:
         if authmethod_name == 'SCRAM':
             await self._auth_scram(user)
         elif authmethod_name == 'Trust':
-            await self._auth_trust(user)
+            self._auth_trust(user)
         else:
             raise errors.InternalServerError(
                 f'unimplemented auth method: {authmethod_name}')
@@ -548,7 +548,7 @@ cdef class EdgeConnection:
         script: str,
     ) -> None:
         conn = cls(server)
-        await conn._start_connection(database, user)
+        conn._start_connection(database, user)
         try:
             await conn._simple_query(
                 script.encode('utf-8'),
@@ -556,7 +556,7 @@ cdef class EdgeConnection:
                 'all',
             )
         except pgerror.BackendError as e:
-            exc = await conn._interpret_backend_error(e)
+            exc = conn.interpret_backend_error(e)
             if isinstance(exc, errors.EdgeDBError):
                 raise exc from None
             else:
@@ -564,7 +564,7 @@ cdef class EdgeConnection:
         finally:
             conn.close()
 
-    async def _start_connection(self, database: str, user: str) -> None:
+    def _start_connection(self, database: str, user: str) -> None:
         dbv = self.server.new_dbview(
             dbname=database,
             user=user,
@@ -583,7 +583,7 @@ cdef class EdgeConnection:
             self.server.remove_dbview(self._dbview)
             self._dbview = None
 
-    async def _auth_trust(self, user):
+    def _auth_trust(self, user):
         roles = self.server.get_roles()
         if user not in roles:
             raise errors.AuthenticationError('authentication failed')
@@ -1103,13 +1103,13 @@ cdef class EdgeConnection:
                     side_effects = _dbview.on_success(
                         query_unit, new_types)
                     if side_effects:
-                        await self.signal_side_effects(side_effects)
+                        self.signal_side_effects(side_effects)
         finally:
             self.maybe_release_pgcon(conn)
 
         return query_unit
 
-    async def signal_side_effects(self, side_effects):
+    def signal_side_effects(self, side_effects):
         if side_effects & dbview.SideEffects.SchemaChanges:
             self.server.create_task(
                 self.server._signal_sysevent(
@@ -1563,7 +1563,7 @@ cdef class EdgeConnection:
         else:
             side_effects = _dbview.on_success(query_unit, new_types)
             if side_effects:
-                await self.signal_side_effects(side_effects)
+                self.signal_side_effects(side_effects)
 
             self.write(self.make_command_complete_msg(query_unit))
         finally:
@@ -1696,7 +1696,7 @@ cdef class EdgeConnection:
                 # was aborted, in which case we don't really care about
                 # reporting the exception.
 
-                await self.write_error(ex)
+                self.write_error(ex)
                 self.close()
 
                 if not isinstance(ex, (errors.ProtocolError,
@@ -1795,7 +1795,7 @@ cdef class EdgeConnection:
                     self.get_dbview().tx_error()
                     self.buffer.finish_message()
 
-                    await self.write_error(ex)
+                    self.write_error(ex)
                     self.flush()
 
                     # The connection was aborted while we were
@@ -1867,7 +1867,7 @@ cdef class EdgeConnection:
             else:
                 self.buffer.discard_message()
 
-    async def write_error(self, exc):
+    cdef write_error(self, exc):
         cdef:
             WriteBuffer buf
             int16_t fields_len
@@ -1892,7 +1892,7 @@ cdef class EdgeConnection:
         exc_code = None
 
         if isinstance(exc, pgerror.BackendError):
-            exc = await self._interpret_backend_error(exc)
+            exc = self.interpret_backend_error(exc)
 
         fields = {}
         if (isinstance(exc, errors.EdgeDBError) and
@@ -1941,7 +1941,7 @@ cdef class EdgeConnection:
 
         self.write(buf)
 
-    async def _interpret_backend_error(self, exc):
+    cdef interpret_backend_error(self, exc):
         try:
             static_exc = errormech.static_interpret_backend_error(
                 exc.fields)

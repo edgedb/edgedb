@@ -120,6 +120,8 @@ cdef class EdgeConnection:
 
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
+    cdef interpret_backend_error(self, exc)
+
     cdef parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef parse_prepare_query_part(self, bint account_for_stmt_name)
@@ -144,6 +146,7 @@ cdef class EdgeConnection:
     cdef inline reject_headers(self)
     cdef dict parse_headers(self)
     cdef write_headers(self, WriteBuffer buf, dict headers)
+    cdef write_error(self, exc)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 
