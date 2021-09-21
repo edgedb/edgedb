@@ -34,7 +34,10 @@ from edb.common import markup
 
 from edb.graphql import extension as graphql_ext
 
-from edb.server.protocol import binary
+from edb.server.protocol cimport binary
+# Without an explicit cimport of `pgproto.debug`, we
+# can't cimport `protocol.binary` for some reason.
+from edb.server.pgproto.debug cimport PG_DEBUG
 
 from . import edgeql_ext
 from . import notebook_ext
@@ -134,9 +137,9 @@ cdef class HttpProtocol:
                 if self.allow_insecure_binary_clients:
                     self._switch_to_binary_protocol(data)
                 else:
-                    self.loop.create_task(self._return_binary_error(
+                    self._return_binary_error(
                         self._switch_to_binary_protocol()
-                    ))
+                    )
                 return
             else:
                 # HTTP.
@@ -295,8 +298,8 @@ cdef class HttpProtocol:
             # this is an error based on the ALPN result.
             self._init_http_parser()
 
-    async def _return_binary_error(self, proto):
-        await proto.write_error(errors.BinaryProtocolError(
+    cdef _return_binary_error(self, binary.EdgeConnection proto):
+        proto.write_error(errors.BinaryProtocolError(
             'TLS Required',
             details='The server requires Transport Layer Security (TLS)',
             hint='Upgrade the client to a newer version that supports TLS'
