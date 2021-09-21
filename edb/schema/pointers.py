@@ -2660,8 +2660,11 @@ def get_or_create_union_pointer(
             comp_set.add(c)
     components = list(comp_set)
 
-    if (any(p.is_pure_computable(schema) for p in components) and
-            len(components) > 1):
+    if (
+        any(p.is_pure_computable(schema) for p in components)
+        and len(components) > 1
+        and ptrname.name not in ('__tname__', '__tid__')
+    ):
         p = components[0]
         raise errors.SchemaError(
             f'it is illegal to create a type union that causes '

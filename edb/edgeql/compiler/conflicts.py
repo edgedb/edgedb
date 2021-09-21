@@ -563,7 +563,7 @@ def compile_inheritance_conflict_checks(
     subject_stype: s_objtypes.ObjectType,
     *, ctx: context.ContextLevel,
 ) -> Optional[List[irast.OnConflictClause]]:
-    if not ctx.env.dml_stmts or ctx.path_scope.in_temp_scope():
+    if not ctx.env.dml_stmts:
         return None
 
     assert isinstance(subject_stype, s_objtypes.ObjectType)

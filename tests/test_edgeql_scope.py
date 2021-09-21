@@ -2493,9 +2493,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [27],
         )
 
-    @test.xfail('''
-        We fail to generate a proper shape output
-    ''')
     async def test_edgeql_scope_computables_11c(self):
         # ... make sure we output legit objects in this case
         await self.assert_query_result(
@@ -2897,6 +2894,25 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     cards := .deck {
                         name,
                         multi tag := AliasedFriends.name ++ " - " ++ .name,
+                    }
+                } FILTER .name = 'Alice'),
+                SELECT _ := A.cards.tag ORDER BY _;
+            """,
+            [
+                "Alice - Bog monster",
+                "Alice - Dragon",
+                "Alice - Giant turtle",
+                "Alice - Imp"
+            ]
+        )
+
+        await self.assert_query_result(
+            """
+                WITH A := (SELECT AliasedFriends {
+                    cards := .deck {
+                        name,
+                        multi tag := (
+                            SELECT _ := AliasedFriends.name ++ " - " ++ .name),
                     }
                 } FILTER .name = 'Alice'),
                 SELECT _ := A.cards.tag ORDER BY _;

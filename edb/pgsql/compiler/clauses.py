@@ -155,7 +155,6 @@ def compile_materialized_exprs(
         for mat_set in stmt.materialized_sets.values():
             if len(mat_set.uses) <= 1:
                 continue
-            assert mat_set.materialized
             assert mat_set.finalized
             if relctx.find_rvar(
                     query, flavor='packed',

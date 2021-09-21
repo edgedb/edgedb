@@ -282,8 +282,7 @@ def compile_InsertQuery(
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, stmt_subject_stype, ctx=ictx)
 
-        if not ctx.path_scope.in_temp_scope():
-            ctx.env.dml_stmts.add(stmt)
+        ctx.env.dml_stmts.add(stmt)
 
         if expr.unless_conflict is not None:
             constraint_spec, else_branch = expr.unless_conflict
@@ -403,8 +402,7 @@ def compile_UpdateQuery(
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
         assert isinstance(stmt_subject_stype, s_objtypes.ObjectType)
 
-        if not ctx.path_scope.in_temp_scope():
-            ctx.env.dml_stmts.add(stmt)
+        ctx.env.dml_stmts.add(stmt)
 
         result = setgen.class_set(
             schemactx.get_material_type(stmt_subject_stype, ctx=ctx),
@@ -799,19 +797,15 @@ def compile_Shape(
                 f'{expr_stype.get_verbosename(ctx.env.schema)}',
                 context=shape.context,
             )
-        view_type = viewgen.process_view(
-            stype=expr_stype, path_id=expr.path_id,
-            elements=shape.elements, parser_context=shape.context, ctx=subctx)
 
         stmt.result = compile_query_subject(
             expr,
-            view_scls=view_type,
+            shape=shape.elements,
             compile_views=False,
             ctx=subctx,
             parser_context=expr.context)
 
-        ir_result = setgen.ensure_set(
-            stmt, type_override=view_type, ctx=subctx)
+        ir_result = setgen.ensure_set(stmt, ctx=subctx)
 
     return ir_result
 
@@ -1127,6 +1121,7 @@ def compile_query_subject(
             (
                 ctx.expr_exposed
                 and expr_stype.is_object_type()
+
                 and not forward_rptr
                 and (
                     viewgen.has_implicit_type_computables(
@@ -1175,9 +1170,9 @@ def compile_query_subject(
                 context=parser_context,
             )
 
-        view_scls = viewgen.process_view(
+        view_scls, expr = viewgen.process_view(
+            expr,
             stype=expr_stype,
-            path_id=expr.path_id,
             elements=shape,
             view_rptr=view_rptr,
             view_name=view_name,
@@ -1192,15 +1187,9 @@ def compile_query_subject(
         expr = setgen.ensure_set(expr, type_override=view_scls, ctx=ctx)
         expr_stype = view_scls
 
-    if compile_views or (
-            view_scls and setgen.should_materialize_type(view_scls, ctx=ctx)):
+    if compile_views:
         rptr = view_rptr.rptr if view_rptr is not None else None
-        if is_update:
-            with ctx.new() as subctx:
-                subctx.compiling_update_shape = True
-                viewgen.compile_view_shapes(expr, rptr=rptr, ctx=subctx)
-        else:
-            viewgen.compile_view_shapes(expr, rptr=rptr, ctx=ctx)
+        viewgen.late_compile_view_shapes(expr, rptr=rptr, ctx=ctx)
 
     if (shape is not None or view_scls is not None) and len(expr.path_id) == 1:
         ctx.class_view_overrides[expr.path_id.target.id] = expr_stype

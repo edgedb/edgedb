@@ -133,7 +133,7 @@ def compile_cast(
                 subctx.implicit_id_in_shapes = False
                 subctx.implicit_tid_in_shapes = False
                 subctx.implicit_tname_in_shapes = False
-                viewgen.compile_view_shapes(ir_set, ctx=subctx)
+                viewgen.late_compile_view_shapes(ir_set, ctx=subctx)
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
               and new_stype.is_enum(ctx.env.schema)):
             # Casts from json to enums need some special handling

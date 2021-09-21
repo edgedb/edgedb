@@ -137,6 +137,7 @@ def new_set_from_set(
         path_id: Optional[irast.PathId]=None,
         stype: Optional[s_types.Type]=None,
         rptr: Optional[irast.Pointer]=None,
+        expr: Optional[irast.Expr]=None,
         context: Optional[parsing.ParserContext]=None,
         is_binding: Optional[irast.BindingKind]=None,
         ctx: context.ContextLevel) -> irast.Set:
@@ -155,6 +156,8 @@ def new_set_from_set(
         stype = get_set_type(ir_set, ctx=ctx)
     if rptr is None:
         rptr = ir_set.rptr
+    if expr is None:
+        expr = ir_set.expr
     if context is None:
         context = ir_set.context
     if is_binding is None:
@@ -163,7 +166,7 @@ def new_set_from_set(
         path_id=path_id,
         path_scope_id=ir_set.path_scope_id,
         stype=stype,
-        expr=ir_set.expr,
+        expr=expr,
         rptr=rptr,
         context=context,
         is_binding=is_binding,
@@ -485,9 +488,10 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         for inner_path_id, mapped in entries:
             fixed_inner = inner_path_id.merge_namespace(ctx.path_id_namespace)
             if fixed_inner == path_tip.path_id:
-                path_tip = new_set(
+                path_tip = new_set_from_set(
+                    path_tip,
                     path_id=mapped.path_id,
-                    stype=get_set_type(path_tip, ctx=ctx),
+                    preserve_scope_ns=True,
                     expr=mapped.expr,
                     rptr=mapped.rptr,
                     ctx=ctx)
@@ -789,6 +793,7 @@ def extend_path(
         target=target_set,
         direction=direction,
         ptrref=not_none(path_id.rptr()),
+        is_definition=False,
     )
 
     target_set.rptr = ptr
@@ -1173,19 +1178,12 @@ def ensure_stmt(
     return expr
 
 
-def computable_ptr_set(
-    rptr: irast.Pointer,
+def fixup_computable_source_set(
+    source_set: irast.Set,
     *,
-    same_computable_scope: bool=False,
-    srcctx: Optional[parsing.ParserContext]=None,
     ctx: context.ContextLevel,
 ) -> irast.Set:
-    """Return ir.Set for a pointer defined as a computable."""
-    ptrcls = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
-    source_set = rptr.source
     source_scls = get_set_type(source_set, ctx=ctx)
-    ptrcls_to_shadow = None
-
     # process_view() may generate computable pointer expressions
     # in the form "self.linkname".  To prevent infinite recursion,
     # self must resolve to the parent type of the view NOT the view
@@ -1206,7 +1204,23 @@ def computable_ptr_set(
                 target=source_set,
                 ptrref=source_rptrref,
                 direction=source_set.rptr.direction,
+                is_definition=True,
             )
+    return source_set
+
+
+def computable_ptr_set(
+    rptr: irast.Pointer,
+    *,
+    same_computable_scope: bool=False,
+    srcctx: Optional[parsing.ParserContext]=None,
+    ctx: context.ContextLevel,
+) -> irast.Set:
+    """Return ir.Set for a pointer defined as a computable."""
+    ptrcls = typegen.ptrcls_from_ptrref(rptr.ptrref, ctx=ctx)
+    source_scls = get_set_type(rptr.source, ctx=ctx)
+    source_set = fixup_computable_source_set(rptr.source, ctx=ctx)
+    ptrcls_to_shadow = None
 
     qlctx: Optional[context.ContextLevel]
     inner_source_path_id: Optional[irast.PathId]
@@ -1378,6 +1392,18 @@ def _get_schema_computed_ctx(
     return newctx
 
 
+def update_view_map(
+    path_id: irast.PathId,
+    remapped_source: irast.Set,
+    *,
+    ctx: context.ContextLevel
+) -> None:
+    ctx.view_map = ctx.view_map.new_child()
+    key = path_id.strip_namespace(path_id.namespace)
+    old = ctx.view_map.get(key, ())
+    ctx.view_map[key] = ((path_id, remapped_source),) + old
+
+
 def _get_computable_ctx(
     *,
     rptr: irast.Pointer,
@@ -1423,6 +1449,7 @@ def _get_computable_ctx(
                 frozenset(pending_pid_ns))
 
             subns = set(pending_pid_ns)
+            subns.add(ctx.aliases.get('ns'))
 
             self_view = ctx.view_sets.get(source_stype)
             if self_view:
@@ -1451,9 +1478,7 @@ def _get_computable_ctx(
             remapped_source = new_set_from_set(
                 rptr.source, rptr=rptr.source.rptr,
                 preserve_scope_ns=True, ctx=ctx)
-            key = inner_path_id.strip_namespace(inner_path_id.namespace)
-            old = subctx.view_map.get(key, ())
-            subctx.view_map[key] = ((inner_path_id, remapped_source),) + old
+            update_view_map(inner_path_id, remapped_source, ctx=subctx)
 
             yield subctx
 
@@ -1489,13 +1514,9 @@ def maybe_materialize(
 
     assert not isinstance(stype, s_pointers.PseudoPointer)
     if stype.id not in materialize_in_stmt.materialized_sets:
-        saved = (
-            None if isinstance(stype, s_pointers.Pointer) and not ir.rptr
-            else ir
-        )
         materialize_in_stmt.materialized_sets[stype.id] = (
             irast.MaterializedSet(
-                materialized=saved, reason=reason, use_sets=[]))
+                materialized=ir, reason=reason, use_sets=[]))
 
     mat_set = materialize_in_stmt.materialized_sets[stype.id]
     mat_set.use_sets.append(ir)
