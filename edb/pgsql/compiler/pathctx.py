@@ -1068,9 +1068,18 @@ def _get_path_output(
     ref: pgast.BaseExpr
     alias = None
     rptr = path_id.rptr()
-    if rptr is not None and irtyputils.is_id_ptrref(rptr):
+    if rptr is not None and irtyputils.is_id_ptrref(rptr) and not (
+        (src_path_id := path_id.src_path())
+        and (src_rptr := src_path_id.rptr())
+        and (
+            src_rptr.is_computable
+            or src_rptr.out_cardinality.is_multi()
+        )
+    ):
         # A value reference to Object.id is the same as a value
-        # reference to the Object itself.
+        # reference to the Object itself. (Though we want to only
+        # apply this in the cases that process_set_as_path does this
+        # optimization, which means not for multi props.)
         src_path_id = path_id.src_path()
         assert src_path_id is not None
         id_output = maybe_get_path_output(rel, src_path_id,
