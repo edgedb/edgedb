@@ -76,7 +76,21 @@ def compile_SelectQuery(
 
         # If there is an offset or a limit, this query was a wrapper
         # around something else, and we need to forward_rptr
-        forward_rptr = bool(expr.offset or expr.limit)
+
+        forward_rptr = (
+            bool(expr.offset)
+            or bool(expr.limit)
+            # We need to preserve view_rptr if this SELECT is just
+            # an implicit wrapping of a single DISTINCT, because otherwise
+            # using a DISTINCT to satisfy link multiplicity requirement
+            # will kill the link properties.
+            #
+            # This includes problems with initializing the schema itself.
+            or (
+                isinstance(expr.result, qlast.UnaryOp)
+                and expr.result.op == 'DISTINCT'
+            )
+        )
 
         if (
             (ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
