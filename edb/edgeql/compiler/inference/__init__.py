@@ -21,7 +21,7 @@ from __future__ import annotations
 
 __all__ = (
     'amend_empty_set_type',
-    'infer_toplevel_cardinality',
+    'infer_cardinality',
     'infer_type',
     'infer_volatility',
     'infer_multiplicity',
@@ -29,7 +29,7 @@ __all__ = (
     'make_ctx',
 )
 
-from .cardinality import infer_toplevel_cardinality  # NOQA
+from .cardinality import infer_cardinality  # NOQA
 from .context import InfCtx, make_ctx  # NOQA
 from .multiplicity import infer_multiplicity  # NOQA
 from .types import amend_empty_set_type, infer_type  # NOQA

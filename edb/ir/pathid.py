@@ -424,7 +424,8 @@ class PathId:
             )
 
             if debug:
-                ptr = f'({ptrspec[0].name})'
+                link_name = str(ptrspec[0].path_id_name or ptrspec[0].name)
+                ptr = f'({link_name})'
             else:
                 ptr = ptrspec[0].shortname.name
             ptrdir = ptrspec[1]

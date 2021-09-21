@@ -197,7 +197,8 @@ class BasePointerRef(ImmutableBase):
     # cardinality fields need to be mutable for lazy cardinality inference.
     # and children because we update pointers with newly derived children
     __ast_mutable_fields__ = frozenset(
-        ('in_cardinality', 'out_cardinality', 'children')
+        ('in_cardinality', 'out_cardinality', 'children',
+         'is_computable')
     )
 
     # The defaults set here are mostly to try to reduce debug spew output.
@@ -413,6 +414,7 @@ class Pointer(Base):
     target: Set
     ptrref: BasePointerRef
     direction: s_pointers.PointerDirection
+    is_definition: bool
     anchor: typing.Optional[str] = None
     show_as_anchor: typing.Optional[str] = None
 
@@ -429,11 +431,13 @@ class TypeIntersectionPointer(Pointer):
 
     optional: bool
     ptrref: TypeIntersectionPointerRef
+    is_definition: bool = False
 
 
 class TupleIndirectionPointer(Pointer):
 
     ptrref: TupleIndirectionPointerRef
+    is_definition: bool = False
 
 
 class Expr(Base):
@@ -780,7 +784,7 @@ class TypeCast(ImmutableExpr):
 class MaterializedSet(Base):
     # Hide uses to reduce spew; we produce our own simpler uses
     __ast_hidden__ = {'use_sets'}
-    materialized: typing.Optional[Set]
+    materialized: Set
     reason: typing.Sequence[MaterializeReason]
 
     # We really only want the *paths* of all the places it is used,

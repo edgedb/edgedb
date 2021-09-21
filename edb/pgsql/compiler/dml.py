@@ -842,6 +842,7 @@ def compile_insert_else_body(
     # Compile the query CTE that selects out the existing rows
     # that we would conflict with
     with ctx.newrel() as ictx:
+        ictx.expr_exposed = False
         ictx.path_scope[subject_id] = ictx.rel
 
         compile_insert_else_body_failure_check(on_conflict, ctx=ictx)

@@ -123,10 +123,9 @@ def fini_expression(
     # The inference context object will be shared between
     # cardinality and multiplicity inferrers.
     inf_ctx = inference.make_ctx(env=ctx.env)
-    cardinality = inference.infer_toplevel_cardinality(
+    cardinality = inference.infer_cardinality(
         ir,
         scope_tree=ctx.path_scope,
-        source_map=ctx.source_map,
         ctx=inf_ctx,
     )
     multiplicity: Optional[qltypes.Multiplicity] = None
@@ -139,8 +138,6 @@ def fini_expression(
 
     # Fix up weak namespaces
     _rewrite_weak_namespaces(ir, ctx)
-
-    _prune_temp_namespaces(ir, ctx)
 
     ctx.path_scope.validate_unique_ids()
 
@@ -274,18 +271,6 @@ def _fixup_materialized_sets(
                 del stmt.materialized_sets[key]
                 continue
 
-            # Find the right set to compile by looking for the one
-            # with a matching rptr.
-            if not mat_set.materialized:
-                for use in mat_set.use_sets:
-                    if use.rptr and use.rptr.source == stmt.result:
-                        mat_set.materialized = use
-                        break
-                else:
-                    raise AssertionError(
-                        f"couldn't find the source for {mat_set.uses} on "
-                        f"{stmt.result}!")
-
             ir_set = mat_set.materialized
             assert ir_set.path_scope_id is not None
             new_scope = ctx.env.scope_tree_nodes[ir_set.path_scope_id]
@@ -314,7 +299,7 @@ def _fixup_materialized_sets(
                 subctx.implicit_tid_in_shapes = False
                 subctx.implicit_tname_in_shapes = False
                 subctx.path_scope = new_scope
-                viewgen.compile_view_shapes(ir_set, ctx=subctx)
+                viewgen.late_compile_view_shapes(ir_set, ctx=subctx)
 
             assert (
                 not any(use.src_path() for use in mat_set.uses)
@@ -373,14 +358,6 @@ def _rewrite_weak_namespaces(
             # in temporary scopes, so we need to just skip those.
             if scope := ctx.env.scope_tree_nodes.get(path_scope_id):
                 _try_namespace_fix(scope, ir_set)
-
-
-def _prune_temp_namespaces(
-    ir: irast.Base, ctx: context.ContextLevel
-) -> None:
-    for node in ctx.path_scope.descendants:
-        if node.is_temporary:
-            node.remove()
 
 
 def _elide_derived_ancestors(
