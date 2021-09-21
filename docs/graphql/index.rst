@@ -1,3 +1,5 @@
+.. eql:section-intro-page:: graphql
+
 .. _ref_graphql_index:
 
 =======
