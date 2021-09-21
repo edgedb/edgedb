@@ -546,6 +546,11 @@ Format:
 
 .. eql:struct:: edb.protocol.ParameterStatus
 
+Known statuses:
+
+* ``suggested_pool_concurrency`` -- suggested default size for clients
+  connection pools.
+
 
 .. _ref_protocol_msg_prepare_complete:
 
