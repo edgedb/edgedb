@@ -461,6 +461,8 @@ cdef class EdgeConnection:
         msg_buf.end_message()
         buf.write_buffer(msg_buf)
 
+        self.write(buf)
+
         if self.server.in_dev_mode():
             pgaddr = dict(self.server._get_pgaddr())
             if pgaddr.get('password'):
@@ -471,19 +473,15 @@ cdef class EdgeConnection:
             pgaddr.pop('ssl', None)
             if 'sslmode' in pgaddr:
                 pgaddr['sslmode'] = pgaddr['sslmode'].name
-            msg_buf = WriteBuffer.new_message(b'S')
-            msg_buf.write_len_prefixed_bytes(b'pgaddr')
-            msg_buf.write_len_prefixed_utf8(json.dumps(pgaddr))
-            msg_buf.end_message()
-            buf.write_buffer(msg_buf)
+            self.write_status(b'pgaddr', json.dumps(pgaddr).encode())
 
-        msg_buf = WriteBuffer.new_message(b'Z')
-        msg_buf.write_int16(0)  # no headers
-        msg_buf.write_byte(b'I')
-        msg_buf.end_message()
-        buf.write_buffer(msg_buf)
+        self.write_status(
+            b'suggested_pool_concurrency',
+            str(self.server.get_suggested_client_pool_size()).encode()
+        )
 
-        self.write(buf)
+        self.write(self.sync_status())
+
         self.flush()
 
     async def do_handshake(self):
@@ -1961,6 +1959,17 @@ cdef class EdgeConnection:
                 'run with EDGEDB_DEBUG_SERVER to debug.')
 
         return exc
+
+    cdef write_status(self, bytes name, bytes value):
+        cdef:
+            WriteBuffer buf
+
+        buf = WriteBuffer.new_message(b'S')
+        buf.write_len_prefixed_bytes(name)
+        buf.write_len_prefixed_bytes(value)
+        buf.end_message()
+
+        self.write(buf)
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message):
         cdef:

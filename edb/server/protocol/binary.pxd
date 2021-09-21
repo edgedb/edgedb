@@ -145,6 +145,8 @@ cdef class EdgeConnection:
 
     cdef inline reject_headers(self)
     cdef dict parse_headers(self)
+
+    cdef write_status(self, bytes name, bytes value)
     cdef write_headers(self, WriteBuffer buf, dict headers)
     cdef write_error(self, exc)
 

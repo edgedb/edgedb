@@ -150,6 +150,11 @@ class Server(ha_base.ClusterProtocol):
         self._max_backend_connections = max_backend_connections
         self._compiler_pool = None
         self._compiler_pool_size = compiler_pool_size
+        self._suggested_client_pool_size = max(
+            min(max_backend_connections,
+                defines.MAX_SUGGESTED_CLIENT_POOL_SIZE),
+            defines.MIN_SUGGESTED_CLIENT_POOL_SIZE
+        )
 
         self._listen_hosts = nethosts
         self._listen_port = netport
@@ -358,6 +363,9 @@ class Server(ha_base.ClusterProtocol):
 
     def get_compiler_pool(self):
         return self._compiler_pool
+
+    def get_suggested_client_pool_size(self) -> int:
+        return self._suggested_client_pool_size
 
     def get_db(self, *, dbname: str):
         assert self._dbindex is not None
