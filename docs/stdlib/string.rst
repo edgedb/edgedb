@@ -6,9 +6,11 @@ String
 
 :edb-alt-title: String Functions and Operators
 
-
 .. list-table::
     :class: funcoptable
+
+    * - :eql:type:`str`
+      - String
 
     * - :eql:op:`str[i] <STRIDX>`
       - :eql:op-desc:`STRIDX`
@@ -86,6 +88,67 @@ String
 ----------
 
 
+.. eql:type:: std::str
+
+    :index: continuation cont
+
+    A unicode string of text.
+
+    Any other type (except :eql:type:`bytes`) can be
+    :eql:op:`cast <CAST>` to and from a string:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT <str>42;
+        {'42'}
+        db> SELECT <bool>'true';
+        {true}
+        db> SELECT "I ❤️ EdgeDB";
+        {'I ❤️ EdgeDB'}
+
+    Note that when a :eql:type:`str` is cast into a :eql:type:`json`,
+    the result is a JSON string value. Same applies for casting back
+    from :eql:type:`json` - only a JSON string value can be cast into
+    a :eql:type:`str`:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT <json>'Hello, world';
+        {'"Hello, world"'}
+
+    There are two kinds of string literals in EdgeQL: regular and *raw*.
+    Raw string literals do not evaluate ``\``, so ``\n`` in in a raw string
+    is two characters ``\`` and ``n``.
+
+    The regular string literal syntax is ``'a string'`` or a ``"a string"``.
+    Two *raw* string syntaxes are illustrated below:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT r'a raw \\\ string';
+        {'a raw \\\ string'}
+        db> SELECT $$something$$;
+        {'something'}
+        db> SELECT $marker$something $$
+        ... nested \!$$$marker$;
+        {'something $$
+        nested \!$$'}
+
+    Regular strings use ``\`` to indicate line continuation. When a
+    line continuation symbol is encountered, the symbol itself as well
+    as all the whitespace characters up to the next non-whitespace
+    character are omitted from the string:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 'Hello, \
+        ...         world';
+        {'"Hello, world"'}
+
+
+----------
+
+
 .. eql:operator:: STRIDX: str [ int64 ] -> str
 
     String indexing.
@@ -157,7 +220,7 @@ String
 
     In particular, this means that if there are no special symbols in
     the *pattern*, the operators :eql:op:`LIKE` and :eql:op:`NOT
-    LIKE<LIKE>` work identical to :eql:op:`EQ` and :eql:op:`NEQ`,
+    LIKE<LIKE>` work identical to :eql:op:`= <EQ>` and :eql:op:`\!= <NEQ>`,
     respectively.
 
     .. code-block:: edgeql-repl

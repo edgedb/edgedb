@@ -15,7 +15,7 @@ EdgeDB.
 
     typesystem
     objects/index
-    scalars/index
+    scalars
     colltypes
     functions
     links
@@ -73,23 +73,19 @@ be used in different modules without conflict.  For example, both
 ``module1`` and ``module2`` can contain a ``User`` object type.
 
 Schema objects can be referred to by a fully-qualified name using the
-``<module>::<name>`` notation.
+``module::Name`` notation.
 
 Every EdgeDB schema contains the following standard modules:
 
-* ``std``: standard types, functions and other declarations
+* ``std``: standard types, functions and other elements of the
+  :ref:`standard library <ref_std>`
 * ``schema``: types describing the :ref:`introspection <ref_eql_introspection>`
   schema
 * ``sys``: system-wide entities, such as user roles and
   :ref:`databases <ref_datamodel_databases>`
 * ``cfg``: configuration and settings
-* ``stdgraphql``: GraphQL-related types
-* ``math``: algebraic and statistical functions
+* ``math``: algebraic and statistical :ref:`functions <ref_std_math>`
 * ``default``: the default module for user-defined types, functions, etc.
-
-.. TODO::
-
-    Cross-link this with the "Standard Library" section.
 
 EdgeDB provides :ref:`migration tools <ref_cli_edgedb_migration>` that
 use a a high-level declarative :ref:`schema definition

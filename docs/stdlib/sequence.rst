@@ -1,20 +1,46 @@
 .. _ref_std_sequence:
 
-========
-Sequence
-========
-
-:edb-alt-title: Sequence Manipulation Functions
-
+=========
+Sequences
+=========
 
 .. list-table::
     :class: funcoptable
+
+    * - :eql:type:`sequence`
+      - Auto-incrementing sequence of :eql:type:`int64`.
 
     * - :eql:func:`sequence_next`
       - :eql:func-desc:`sequence_next`
 
     * - :eql:func:`sequence_reset`
       - :eql:func-desc:`sequence_reset`
+
+
+----------
+
+
+.. eql:type:: std::sequence
+
+    Auto-incrementing sequence of :eql:type:`int64`.
+
+    This type can be used to create auto-incrementing :ref:`properties
+    <ref_datamodel_props>`.
+
+    .. code-block:: sdl
+
+        scalar type TicketNo extending sequence;
+
+        type Ticket {
+            property number -> TicketNo {
+                constraint exclusive;
+            }
+        }
+
+    The sequence is bound to the scalar type, not to the property, so
+    if multiple properties use the same ``sequence`` type they will
+    share the same counter. For each distinct counter, a separate
+    scalar type that is extending ``sequence`` should be used.
 
 
 ---------

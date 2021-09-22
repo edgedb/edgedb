@@ -18,15 +18,37 @@ of :eql:type:`int64`:
     db> SELECT len({'hello', 'world'});
     {5, 5}
 
+This behavior is known as an *element-wise* operation. Many built-in
+and user-defined functions operate on elements. In case of multiple
+arguments, a cross-product of all the input sets is computed to
+determine all the input combinations that the function needs to be
+applied to. After that, the function is applied to each element of the
+cross-product. The results of this function application form the
+output set. This implies that if any of the input sets are empty, the
+result of applying an element-wise function is also empty.
+
 Compare that with the :ref:`aggregate <ref_eql_fundamentals_aggregates>`
 function :eql:func:`count` that transforms a set of :eql:type:`str`
 into a single :eql:type:`int64` value, representing the set
-cardinality:
+cardinality.
+
+For example, :eql:func:`count` maps a set to an integer, specifically
+it returns the number of elements in a set:
 
 .. code-block:: edgeql-repl
 
     db> SELECT count({'hello', 'world'});
     {2}
+
+
+Here's an example of :eql:func:`array_agg` mapping a set to an array and
+ordering it in the process:
+
+.. code-block:: edgeql-repl
+
+    db> WITH names := {'Alice', 'Dana', 'Billie', 'Cameron'}
+    ... SELECT array_agg(names ORDER BY names);
+    {['Alice', 'Billie', 'Cameron', 'Dana']}
 
 
 User-defined Functions

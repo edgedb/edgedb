@@ -11,7 +11,7 @@ expressions. They can be broken down into several categories:
 Equality Operators
 ------------------
 
-These are :eql:op:`= <EQ>`, :eql:op:`!= <NEQ>` and their counter-parts
+These are :eql:op:`= <EQ>`, :eql:op:`\!= <NEQ>` and their counter-parts
 that handle ``{}`` in a special way: :eql:op:`?= <COALEQ>`,
 :eql:op:`?!= <COALNEQ>`. They handle identity comparisons.
 

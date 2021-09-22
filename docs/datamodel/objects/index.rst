@@ -31,6 +31,5 @@ types out of combinations of more basic types.
     :maxdepth: 3
     :hidden:
 
-    base
     user
     free
