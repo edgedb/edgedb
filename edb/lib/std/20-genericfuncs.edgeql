@@ -48,6 +48,21 @@ std::assert_exists(input: SET OF anytype) -> SET OF anytype
 };
 
 
+# std::assert_distinct -- runtime multiplicity assertion
+# ------------------------------------------------------
+
+CREATE FUNCTION
+std::assert_distinct(input: SET OF anytype) -> SET OF anytype
+{
+    CREATE ANNOTATION std::description :=
+        "Check that the input set is a proper set, i.e. all elements
+         are unique";
+    SET volatility := 'Stable';
+    SET preserves_optionality := true;
+    USING SQL EXPRESSION;
+};
+
+
 # std::len
 # --------
 

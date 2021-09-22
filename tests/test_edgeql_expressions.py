@@ -4996,3 +4996,99 @@ aa \
                 single foo := assert_exists(.name) ++ "!"
             }
         """)
+
+    async def test_edgeql_assert_distinct_01(self):
+        await self.con.execute("""
+            INSERT File {
+                name := "File 1",
+            };
+            INSERT File {
+                name := "File 2",
+            };
+            INSERT User {
+                name := "User 1",
+            };
+            INSERT Status {
+                name := "Open",
+            };
+            INSERT Issue {
+                name := "Issue 1",
+                body := "Issue 1",
+                owner := (SELECT User FILTER .name = "User 1"),
+                number := "1",
+                status := (SELECT Status FILTER .name = "Open"),
+                references := (SELECT File FILTER .name = "File 1"),
+            };
+            INSERT Issue {
+                name := "Issue 2",
+                body := "Issue 2",
+                owner := (SELECT User FILTER .name = "User 1"),
+                number := "2",
+                status := (SELECT Status FILTER .name = "Open"),
+                references := (SELECT File FILTER .name = "File 2"),
+            }
+        """)
+
+        await self.assert_query_result(
+            """
+                SELECT assert_distinct((
+                    (SELECT Issue FILTER .references[IS File].name = "File 1")
+                    UNION
+                    (SELECT Issue FILTER .references[IS File].name = "File 2")
+                )) {
+                    number
+                }
+                ORDER BY .number
+            """,
+            [{
+                "number": "1",
+            }, {
+                "number": "2",
+            }],
+        )
+
+        await self.assert_query_result(
+            "SELECT assert_distinct({2, 1, 3, 4})",
+            [2, 1, 3, 4],
+        )
+
+        await self.assert_query_result(
+            "SELECT assert_distinct(array_unpack([2, 1, 3, 4]))",
+            [2, 1, 3, 4],
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "assert_distinct violation",
+        ):
+            await self.con.query("""
+                SELECT assert_distinct({1, 2, 1});
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "assert_distinct violation",
+        ):
+            await self.con.query("""
+                SELECT assert_distinct(
+                    (SELECT User FILTER .name = "User 1")
+                    UNION
+                    (SELECT User FILTER .name = "User 1")
+                );
+            """)
+
+    async def test_edgeql_assert_distinct_no_op(self):
+        await self.con.query("""
+            SELECT assert_distinct(<int64>{})
+        """)
+
+        await self.con.query("""
+            FOR x IN {User}
+            UNION assert_distinct(x.name)
+        """)
+
+        await self.con.query("""
+            SELECT User {
+                single foo := assert_distinct(.name)
+            }
+        """)

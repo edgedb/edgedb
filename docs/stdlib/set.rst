@@ -32,6 +32,9 @@ Set
     * - :eql:op:`anytype [IS type] <ISINTERSECT>`
       - :eql:op-desc:`ISINTERSECT`
 
+    * - :eql:func:`assert_distinct`
+      - :eql:func-desc:`assert_distinct`
+
     * - :eql:func:`assert_single`
       - :eql:func-desc:`assert_single`
 
@@ -276,6 +279,39 @@ Set
         # With the use of type intersection it's possible to refer to
         # specific property of Issue now:
         SELECT User.<owner[IS Issue].title;
+
+
+----------
+
+
+.. eql:function:: std::assert_distinct(s: SET OF anytype) -> SET OF anytype
+
+    :index: multiplicity uniqueness
+
+    Check that the input set contains only unique elements, i.e a *proper set*.
+
+    If the input set contains duplicate elements, ``assert_distinct`` raises a
+    ``ConstraintViolationError``.  This function is useful
+    as a runtime distinctness assertion in queries and computed
+    expressions that should always return proper sets, but where static
+    multiplicity inference is not capable enough or outright impossible.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT assert_distinct(
+        ...   (SELECT User FILTER .groups.name = "Administrators")
+        ...   UNION
+        ...   (SELECT User FILTER .groups.name = "Guests")
+        ... )
+        {default::User {id: ...}}
+
+        db> SELECT assert_distinct(
+        ...   (SELECT User FILTER .groups.name = "Users")
+        ...   UNION
+        ...   (SELECT User FILTER .groups.name = "Guests")
+        ... )
+        ERROR: ConstraintViolationError: assert_distinct violation: expression
+               returned a set with duplicate elements.
 
 
 ----------
