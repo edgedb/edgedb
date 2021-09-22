@@ -627,6 +627,7 @@ class ConnectedTestCaseMixin:
             '--port', str(conargs['port']),
             '--database', self.con.dbname,
             '--user', conargs['user'],
+            '--tls-ca-file', conargs['tls_ca_file'],
         ]
 
         env = os.environ.copy()
