@@ -659,12 +659,13 @@ class CallArg(ImmutableBase):
     """Call argument."""
 
     # cardinality fields need to be mutable for lazy cardinality inference.
-    __ast_mutable_fields__ = frozenset(('cardinality',))
+    __ast_mutable_fields__ = frozenset(('cardinality', 'multiplicity'))
 
     expr: Set
     """PathId for the __type__ link of object type arguments."""
     expr_type_path_id: typing.Optional[PathId] = None
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
+    multiplicity: qltypes.Multiplicity = qltypes.Multiplicity.UNKNOWN
 
 
 class Call(ImmutableExpr):

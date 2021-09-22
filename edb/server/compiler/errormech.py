@@ -321,6 +321,12 @@ def static_interpret_backend_error(fields):
     ):
         return errors.CardinalityViolationError(err_details.message)
 
+    elif (
+        err_details.code == pgerrors.ERROR_CARDINALITY_VIOLATION
+        and err_details.constraint_name == 'std::assert_distinct'
+    ):
+        return errors.ConstraintViolationError(err_details.message)
+
     return errors.InternalServerError(err_details.message)
 
 
