@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import warnings
 from typing import *
 
 import asyncio
@@ -1109,7 +1109,7 @@ class TestConnection(ClusterTestCase):
             await self.con.restore(None, b'', {})
 
     async def test_connection_ssl_to_no_ssl_server(self):
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_context.load_verify_locations(SSL_CA_CERT_FILE)
 
         with self.assertRaisesRegex(ConnectionError, 'rejected SSL'):
@@ -1221,7 +1221,7 @@ class TestSSLConnection(BaseTestSSLConnection):
             auth_method='trust')
 
     async def test_ssl_connection_custom_context(self):
-        ssl_context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ssl_context.load_verify_locations(SSL_CA_CERT_FILE)
 
         con = await self.connect(
@@ -1321,20 +1321,22 @@ class TestSSLConnection(BaseTestSSLConnection):
                     dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
                         '?sslmode=require&ssl_min_protocol_version=TLSv1.3'
                 )
-            with self.assertRaises(ssl.SSLError):
-                await self.connect(
-                    dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                        '?sslmode=require'
-                        '&ssl_min_protocol_version=TLSv1.1'
-                        '&ssl_max_protocol_version=TLSv1.1'
-                )
-            with self.assertRaisesRegex(ssl.SSLError, 'no protocols'):
-                await self.connect(
-                    dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
-                        '?sslmode=require'
-                        '&ssl_min_protocol_version=TLSv1.2'
-                        '&ssl_max_protocol_version=TLSv1.1'
-                )
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', DeprecationWarning)
+                with self.assertRaises(ssl.SSLError):
+                    await self.connect(
+                        dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
+                            '?sslmode=require'
+                            '&ssl_min_protocol_version=TLSv1.1'
+                            '&ssl_max_protocol_version=TLSv1.1'
+                    )
+                with self.assertRaisesRegex(ssl.SSLError, 'no protocols'):
+                    await self.connect(
+                        dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
+                            '?sslmode=require'
+                            '&ssl_min_protocol_version=TLSv1.2'
+                            '&ssl_max_protocol_version=TLSv1.1'
+                    )
             con = await self.connect(
                 dsn=f'postgresql://ssl_user@localhost/{self.dbname}'
                     '?sslmode=require'

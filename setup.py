@@ -63,7 +63,7 @@ DOCS_DEPS = [
     'docutils~=0.17.0',
     'lxml~=4.6.3',
     'Pygments~=2.10.0',
-    'Sphinx~=4.1.2',
+    'Sphinx~=4.2.0',
     'sphinxcontrib-asyncio~=0.3.0',
 ]
 
@@ -100,6 +100,7 @@ BUILD_DEPS = [
     CYTHON_DEPENDENCY,
     'packaging>=21.0',
     'setuptools-rust~=0.12.1',
+    'wheel',  # needed by PyYAML and immutables, refs pypa/pip#5865
 ]
 
 RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst
@@ -679,6 +680,7 @@ if setuptools_rust is not None:
         def run(self):
             _check_rust()
             build_ext = self.get_finalized_command("build_ext")
+            self.plat_name = build_ext.plat_name
             copy_list = []
             if not build_ext.inplace:
                 for ext in self.distribution.rust_extensions:
@@ -798,6 +800,9 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
     ],
     rust_extensions=rust_extensions,
-    install_requires=RUNTIME_DEPS,
+    install_requires=(
+        # BUILD_DEPS are needed until pypa/pip#5865 is fixed
+        RUNTIME_DEPS + BUILD_DEPS if os.getenv('_EDGEDB_CI_DOWNLOAD') else []
+    ),
     extras_require=EXTRA_DEPS,
 )
