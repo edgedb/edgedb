@@ -1036,7 +1036,7 @@ class GraphQLTranslator:
 
             # NOTE: there will be more operations in the future
             if fname == 'set':
-                return self._visit_insert_value(field.value)
+                return self._get_input_expr_for_pointer_mutaiton(field)
             elif fname == 'clear':
                 cond = field.value
                 if isinstance(cond, gql_ast.VariableNode):
@@ -1142,6 +1142,7 @@ class GraphQLTranslator:
         for field in node.fields:
             # set-up the current path to point to the thing being inserted
             with self._update_path_for_insert_field(field):
+                compexpr = self._get_input_expr_for_pointer_mutaiton(field)
                 result.append(
                     qlast.ShapeElement(
                         expr=qlast.Path(
@@ -1151,11 +1152,27 @@ class GraphQLTranslator:
                                 )
                             ]
                         ),
-                        compexpr=self._visit_insert_value(field.value),
+                        compexpr=compexpr,
                     )
                 )
 
         return result
+
+    def _get_input_expr_for_pointer_mutaiton(self, field):
+        compexpr = self._visit_insert_value(field.value)
+
+        # get the type of the value being inserted
+        _, target = self._get_parent_and_current_type()
+        if (isinstance(field.value, gql_ast.ListValueNode) and
+                target.is_object_type):
+            # Need to wrap the set into an "assert_distinct()" if the
+            # target is an object.
+            compexpr = qlast.FunctionCall(
+                func='assert_distinct',
+                args=[compexpr],
+            )
+
+        return compexpr
 
     @contextlib.contextmanager
     def _update_path_for_insert_field(self, node):
