@@ -3416,3 +3416,39 @@ class TestUpdate(tb.QueryTestCase):
                     tags := (DELETE Tag FILTER .name = 'fun')
                 };
             ''')
+
+    async def test_edgeql_update_subtract_backlink_overload_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE Clash { CREATE LINK statuses -> Status; };
+        """)
+
+        await self.con.execute(r"""
+            UPDATE UpdateTest FILTER .name = 'update-test1'
+            SET { statuses := MajorLifeEvent };
+        """)
+
+        await self.assert_query_result(
+            r"""
+            SELECT (
+                UPDATE UpdateTest FILTER .name = "update-test1" SET {
+                    statuses -= (SELECT Status
+                                 FILTER .name = "Downloaded a Car")
+                }
+            ) {
+                statuses: {
+                    name,
+                    backlinks := .<statuses[IS UpdateTest].name
+                }
+            };
+            """,
+            [
+                {
+                    "statuses": [
+                        {
+                            "backlinks": ["update-test1"],
+                            "name": "Broke a Type System"
+                        }
+                    ]
+                }
+            ]
+        )

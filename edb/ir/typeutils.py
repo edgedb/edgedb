@@ -511,6 +511,7 @@ def ptrref_from_ptrcls(  # NoQA: F811
             assert isinstance(source, s_types.Type)
             source_ref = type_to_typeref(schema,
                                          source,
+                                         include_ancestors=True,
                                          cache=typeref_cache)
         else:
             source_ref = source
