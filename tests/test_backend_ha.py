@@ -29,12 +29,82 @@ import unittest
 import urllib.parse
 
 import edgedb
-import requests
+import httptools
 
 from edb import buildmeta
 from edb.testbase import server as tb
 from edb.server import pgcluster
 from edb.server.ha import base as ha_base
+
+
+class HTTPGet(asyncio.Protocol):
+    def __init__(self, path, host="127.0.0.1", port=None, timeout=10):
+        self._buffers = []
+        self._transport = None
+        self._host = host
+        self._path = path
+        self._waiter = asyncio.Future()
+        self._parser = httptools.HttpResponseParser(self)
+        self._timeout_handle = None
+
+        loop = asyncio.get_running_loop()
+        loop.create_task(
+            loop.create_connection(lambda: self, host, port or 80)
+        ).add_done_callback(
+            self._connect_cb
+        )
+        if timeout:
+            self._timeout_handle = loop.call_later(timeout, self._on_timeout)
+
+    def _set_result(self, result):
+        if self._timeout_handle is not None:
+            self._timeout_handle.cancel()
+        if not self._waiter.done():
+            if isinstance(result, BaseException):
+                self._waiter.set_exception(result)
+            else:
+                self._waiter.set_result(result)
+
+    def _connect_cb(self, task: asyncio.Task):
+        ex = task.exception()
+        if ex is not None:
+            self._set_result(ex)
+
+    def _on_timeout(self):
+        self._set_result(TimeoutError("HTTP request timeout"))
+
+    def connection_made(self, transport):
+        self._transport = transport
+        transport.write(
+            f"GET {self._path} HTTP/1.1\r\n"
+            f"Host: {self._host}\r\n"
+            f"\r\n".encode()
+        )
+
+    def data_received(self, data: bytes):
+        try:
+            self._parser.feed_data(data)
+        except Exception as ex:
+            self._set_result(ex)
+            self._transport.close()
+
+    def connection_lost(self, exc):
+        self._set_result(exc or RuntimeError("Connection broken unexpectedly"))
+
+    def on_status(self, status: bytes):
+        code = self._parser.get_status_code()
+        if code != 200:
+            raise RuntimeError(f"Server returned {code}: {status.decode()}")
+
+    def on_body(self, body: bytes):
+        self._buffers.append(body)
+
+    def on_message_complete(self):
+        self._set_result(b"".join(self._buffers))
+        self._transport.close()
+
+    def __await__(self):
+        return self._waiter.__await__()
 
 
 class ServerContext:
@@ -266,10 +336,11 @@ class StolonKeeper(ServerContext):
     async def wait_for_healthy(self):
         start = time.monotonic()
         while True:
-            payload = requests.get(
-                f"http://127.0.0.1:{self.consul_http_port}"
-                f"/v1/kv/stolon/cluster/test-cluster/clusterdata"
-            ).json()[0]
+            payload = await HTTPGet(
+                "/v1/kv/stolon/cluster/test-cluster/clusterdata",
+                port=self.consul_http_port,
+            )
+            payload = json.loads(payload)[0]
             cluster_data = json.loads(base64.b64decode(payload["Value"]))
             for db in cluster_data.get("dbs", {}).values():
                 if db.get("spec", {}).get("keeperUID") == f"pg{self.port}":
@@ -283,10 +354,11 @@ class StolonKeeper(ServerContext):
     async def wait_for_stop(self):
         start = time.monotonic()
         while True:
-            payload = requests.get(
-                f"http://127.0.0.1:{self.consul_http_port}"
-                f"/v1/kv/stolon/cluster/test-cluster/clusterdata"
-            ).json()[0]
+            payload = await HTTPGet(
+                "/v1/kv/stolon/cluster/test-cluster/clusterdata",
+                port=self.consul_http_port,
+            )
+            payload = json.loads(payload)[0]
             cluster_data = json.loads(base64.b64decode(payload["Value"]))
             for db in cluster_data.get("dbs", {}).values():
                 if db.get("spec", {}).get("keeperUID") == f"pg{self.port}":
@@ -447,6 +519,9 @@ class TestBackendHA(tb.TestCase):
 
     async def test_ha_adaptive(self):
         debug = False
+        env = dict(
+            EDGEDB_SERVER_BACKEND_ADAPTIVE_HA_UNHEALTHY_MIN_TIME="3"
+        )
         async with stolon_setup(debug=debug) as (consul, pg1, pg2):
             async with AdaptiveHAProxy(consul.http_port, debug=debug) as port:
                 async with tb.start_edgedb_server(
@@ -459,9 +534,7 @@ class TestBackendHA(tb.TestCase):
                     enable_backend_adaptive_ha=True,
                     reset_auth=True,
                     debug=debug,
-                    env=dict(
-                        EDGEDB_BACKEND_ADAPTIVE_HA_UNHEALTHY_MIN_TIME="3"
-                    ),
+                    env=env,
                 ) as sd:
                     await self._test_failover(pg1, pg2, sd, debug=debug)
 
