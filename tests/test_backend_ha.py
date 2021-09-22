@@ -19,46 +19,92 @@
 import asyncio
 import base64
 import contextlib
-import errno
 import json
 import os
 import pathlib
-import random
-import socket
 import subprocess
 import tempfile
 import time
+import unittest
+import urllib.parse
 
 import edgedb
-import requests
+import httptools
 
 from edb import buildmeta
 from edb.testbase import server as tb
 from edb.server import pgcluster
+from edb.server.ha import base as ha_base
 
 
-def find_available_port(port_range=(49152, 65535), max_tries=1000):
-    low, high = port_range
+class HTTPGet(asyncio.Protocol):
+    def __init__(self, path, host="127.0.0.1", port=None, timeout=10):
+        self._buffers = []
+        self._transport = None
+        self._host = host
+        self._path = path
+        self._waiter = asyncio.Future()
+        self._parser = httptools.HttpResponseParser(self)
+        self._timeout_handle = None
 
-    try_no = 0
+        loop = asyncio.get_running_loop()
+        loop.create_task(
+            loop.create_connection(lambda: self, host, port or 80)
+        ).add_done_callback(
+            self._connect_cb
+        )
+        if timeout:
+            self._timeout_handle = loop.call_later(timeout, self._on_timeout)
 
-    while try_no < max_tries:
-        try_no += 1
-        port = random.randint(low, high)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    def _set_result(self, result):
+        if self._timeout_handle is not None:
+            self._timeout_handle.cancel()
+        if not self._waiter.done():
+            if isinstance(result, BaseException):
+                self._waiter.set_exception(result)
+            else:
+                self._waiter.set_result(result)
+
+    def _connect_cb(self, task: asyncio.Task):
+        ex = task.exception()
+        if ex is not None:
+            self._set_result(ex)
+
+    def _on_timeout(self):
+        self._set_result(TimeoutError("HTTP request timeout"))
+
+    def connection_made(self, transport):
+        self._transport = transport
+        transport.write(
+            f"GET {self._path} HTTP/1.1\r\n"
+            f"Host: {self._host}\r\n"
+            f"\r\n".encode()
+        )
+
+    def data_received(self, data: bytes):
         try:
-            sock.bind(("localhost", port))
-        except socket.error as e:
-            if e.errno == errno.EADDRINUSE:
-                continue
-        finally:
-            sock.close()
+            self._parser.feed_data(data)
+        except Exception as ex:
+            self._set_result(ex)
+            self._transport.close()
 
-        break
-    else:
-        port = None
+    def connection_lost(self, exc):
+        self._set_result(exc or RuntimeError("Connection broken unexpectedly"))
 
-    return port
+    def on_status(self, status: bytes):
+        code = self._parser.get_status_code()
+        if code != 200:
+            raise RuntimeError(f"Server returned {code}: {status.decode()}")
+
+    def on_body(self, body: bytes):
+        self._buffers.append(body)
+
+    def on_message_complete(self):
+        self._set_result(b"".join(self._buffers))
+        self._transport.close()
+
+    def __await__(self):
+        return self._waiter.__await__()
 
 
 class ServerContext:
@@ -100,8 +146,8 @@ class ConsulAgent(ServerContext):
     title = "Consul Log"
 
     async def __aenter__(self):
-        self.server_port = find_available_port()
-        self.http_port = find_available_port()
+        self.server_port = tb.find_available_port()
+        self.http_port = tb.find_available_port()
         self.tmp_dir = tempfile.TemporaryDirectory()
         tmp_dir = pathlib.Path(self.tmp_dir.name)
         config_file = tmp_dir / "config.json"
@@ -111,7 +157,7 @@ class ConsulAgent(ServerContext):
                     ports=dict(
                         server=self.server_port,
                         http=self.http_port,
-                        serf_lan=find_available_port(),
+                        serf_lan=tb.find_available_port(),
                         dns=-1,
                         grpc=-1,
                         serf_wan=-1,
@@ -225,7 +271,7 @@ class StolonKeeper(ServerContext):
         self.tmp_dir = None
 
     async def __aenter__(self):
-        self.port = find_available_port()
+        self.port = tb.find_available_port()
         self.tmp_dir = tempfile.TemporaryDirectory()
         await self.start()
         return self
@@ -290,10 +336,11 @@ class StolonKeeper(ServerContext):
     async def wait_for_healthy(self):
         start = time.monotonic()
         while True:
-            payload = requests.get(
-                f"http://127.0.0.1:{self.consul_http_port}"
-                f"/v1/kv/stolon/cluster/test-cluster/clusterdata"
-            ).json()[0]
+            payload = await HTTPGet(
+                "/v1/kv/stolon/cluster/test-cluster/clusterdata",
+                port=self.consul_http_port,
+            )
+            payload = json.loads(payload)[0]
             cluster_data = json.loads(base64.b64decode(payload["Value"]))
             for db in cluster_data.get("dbs", {}).values():
                 if db.get("spec", {}).get("keeperUID") == f"pg{self.port}":
@@ -307,18 +354,96 @@ class StolonKeeper(ServerContext):
     async def wait_for_stop(self):
         start = time.monotonic()
         while True:
-            payload = requests.get(
-                f"http://127.0.0.1:{self.consul_http_port}"
-                f"/v1/kv/stolon/cluster/test-cluster/clusterdata"
-            ).json()[0]
+            payload = await HTTPGet(
+                "/v1/kv/stolon/cluster/test-cluster/clusterdata",
+                port=self.consul_http_port,
+            )
+            payload = json.loads(payload)[0]
             cluster_data = json.loads(base64.b64decode(payload["Value"]))
             for db in cluster_data.get("dbs", {}).values():
                 if db.get("spec", {}).get("keeperUID") == f"pg{self.port}":
                     if not db.get("status", {}).get("healthy", False):
                         return True
+                    break
+            else:
+                return True
             await asyncio.sleep(1)
-            if time.monotonic() - start > 30:
+            if time.monotonic() - start > 60:
                 return False
+
+
+class AdaptiveHAProxy(ha_base.ClusterProtocol):
+    def __init__(
+        self, consul_http_port, debug=False, cluster_name="test-cluster"
+    ):
+        self.parsed_dsn = urllib.parse.urlparse(
+            f"stolon+consul+http://127.0.0.1:{consul_http_port}/{cluster_name}"
+        )
+        self.debug = debug
+        self.server = None
+        self.port = None
+        self.master_addr = None
+
+    async def __aenter__(self):
+        self.consul = ha_base.get_backend(self.parsed_dsn)
+        self.master_addr = await self.consul.get_cluster_consensus()
+        self.port = tb.find_available_port()
+        await self.consul.start_watching(self)
+        self.server = await asyncio.start_server(
+            self._proxy_connection, "127.0.0.1", self.port
+        )
+        return self.port
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.consul.stop_watching()
+        self.server.close()
+        await self.server.wait_closed()
+
+    async def _proxy_connection(self, reader, writer):
+        try:
+            pg_reader, pg_writer = await asyncio.open_connection(
+                *self.master_addr
+            )
+        except Exception as e:
+            if self.debug:
+                print(
+                    f"AdaptiveHAProxy: failed to proxy connection to "
+                    f"{self.master_addr}, reason: {e!r}"
+                )
+            writer.close()
+            await writer.wait_closed()
+        else:
+            if self.debug:
+                print(
+                    f"AdaptiveHAProxy: proxying connection to "
+                    f"{self.master_addr}"
+                )
+            await asyncio.gather(
+                self._proxy_traffic(reader, pg_writer),
+                self._proxy_traffic(pg_reader, writer),
+            )
+
+    @staticmethod
+    async def _proxy_traffic(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ):
+        try:
+            while True:
+                data = await reader.read(32768)
+                if not data:
+                    return
+                writer.write(data)
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    def on_switch_over(self):
+        self.master_addr = self.consul.get_master_addr()
+        if self.debug:
+            print(f"AdaptiveHAProxy: master switched to {self.master_addr}")
+
+    def get_active_pgcon_num(self) -> int:
+        return 0
 
 
 @contextlib.asynccontextmanager
@@ -337,41 +462,45 @@ async def stolon_setup(*, debug=False):
                     yield consul, pg1, pg2
 
 
-class TestStolon(tb.TestCase):
+def setUpModule():
+    debug = False
+
+    try:
+        consul_path = os.environ.get("EDGEDB_TEST_CONSUL_PATH", "consul")
+        subprocess.check_call(
+            [consul_path, "--version"],
+            stdout=None if debug else subprocess.DEVNULL,
+            stderr=None if debug else subprocess.DEVNULL,
+        )
+        stolon_path = os.environ.get("EDGEDB_TEST_STOLON_CTL", "stolonctl")
+        subprocess.check_call(
+            [stolon_path, "--version"],
+            stdout=None if debug else subprocess.DEVNULL,
+            stderr=None if debug else subprocess.DEVNULL,
+        )
+    except Exception:
+        raise unittest.SkipTest("Consul not installed")
+
+
+@unittest.skipIf(
+    not os.environ.get("EDGEDB_TEST_HA"), "EDGEDB_TEST_HA is not set"
+)
+class TestBackendHA(tb.TestCase):
     async def _wait_for_failover(self, con):
         async for tx in con.with_retry_options(
             edgedb.RetryOptions(60, lambda x: 1)
         ).retrying_transaction():
             async with tx:
-                rv = await tx.query_single('SELECT 1')
+                rv = await tx.query_single("SELECT 1")
         else:
             self.assertEqual(rv, 1)
 
     async def test_ha_stolon(self):
-        if not os.environ.get("EDGEDB_TEST_HA"):
-            self.skipTest("EDGEDB_TEST_HA is not set")
-
         debug = False
-        try:
-            consul_path = os.environ.get("EDGEDB_TEST_CONSUL_PATH", "consul")
-            subprocess.check_call(
-                [consul_path, "--version"],
-                stdout=None if debug else subprocess.DEVNULL,
-                stderr=None if debug else subprocess.DEVNULL,
-            )
-            stolon_path = os.environ.get("EDGEDB_TEST_STOLON_CTL", "stolonctl")
-            subprocess.check_call(
-                [stolon_path, "--version"],
-                stdout=None if debug else subprocess.DEVNULL,
-                stderr=None if debug else subprocess.DEVNULL,
-            )
-        except Exception:
-            self.skipTest("Consul not installed")
-
         async with stolon_setup(debug=debug) as (consul, pg1, pg2):
             if debug:
-                print('=' * 80)
-                print('Stolon is ready')
+                print("=" * 80)
+                print("Stolon is ready")
             async with tb.start_edgedb_server(
                 backend_dsn=(
                     f"stolon+consul+http://127.0.0.1:{consul.http_port}"
@@ -386,77 +515,81 @@ class TestStolon(tb.TestCase):
                 reset_auth=True,
                 debug=debug,
             ) as sd:
-                if debug:
-                    print('=' * 80)
-                    print('Initialize the State')
-                con = await sd.connect()
-                await con.execute(
-                    'CREATE TYPE State { '
-                    '   CREATE REQUIRED PROPERTY value -> int32;'
-                    '};'
-                )
-                await con.execute('INSERT State { value := 1 };')
+                await self._test_failover(pg1, pg2, sd, debug=debug)
+
+    async def test_ha_adaptive(self):
+        debug = False
+        env = dict(
+            EDGEDB_SERVER_BACKEND_ADAPTIVE_HA_UNHEALTHY_MIN_TIME="3"
+        )
+        async with stolon_setup(debug=debug) as (consul, pg1, pg2):
+            async with AdaptiveHAProxy(consul.http_port, debug=debug) as port:
+                async with tb.start_edgedb_server(
+                    backend_dsn=(
+                        f"postgresql://suname:supass@127.0.0.1:{port}/postgres"
+                    ),
+                    runstate_dir=str(
+                        pathlib.Path(consul.tmp_dir.name) / "edb"
+                    ),
+                    enable_backend_adaptive_ha=True,
+                    reset_auth=True,
+                    debug=debug,
+                    env=env,
+                ) as sd:
+                    await self._test_failover(pg1, pg2, sd, debug=debug)
+
+    async def _test_failover(self, pg1, pg2, sd, debug=False):
+        if debug:
+            print("=" * 80)
+            print("Initialize the State")
+        con = await sd.connect()
+        await con.execute(
+            "CREATE TYPE State { "
+            "   CREATE REQUIRED PROPERTY value -> int32;"
+            "};"
+        )
+        await con.execute("INSERT State { value := 1 };")
+        self.assertEqual(
+            await con.query_single("SELECT State.value LIMIT 1"), 1
+        )
+        if debug:
+            print("=" * 80)
+            print("Stop the master, failover to slave")
+        await pg1.stop()
+        if debug:
+            print("=" * 80)
+            print("Master stopped")
+        async for tx in con.with_retry_options(
+            edgedb.RetryOptions(60, lambda x: 1)
+        ).retrying_transaction():
+            async with tx:
                 self.assertEqual(
-                    await con.query_single('SELECT State.value LIMIT 1'), 1
+                    await tx.query_single("SELECT State.value LIMIT 1"),
+                    1,
                 )
-                # give it some time to sync the replica
-                # await asyncio.sleep(30)
-
-                if debug:
-                    print('=' * 80)
-                    print('Stop the master, failover to slave')
-                await pg1.stop()
-                if debug:
-                    print('=' * 80)
-                    print('Master stopped')
-                try:
-                    async for tx in con.with_retry_options(
-                        edgedb.RetryOptions(60, lambda x: 1)
-                    ).retrying_transaction():
-                        async with tx:
-                            self.assertEqual(
-                                await tx.query_single(
-                                    'SELECT State.value LIMIT 1'
-                                ),
-                                1,
-                            )
-                            await tx.execute(
-                                'UPDATE State SET { value := 2 };'
-                            )
-                except BaseException:
-                    print('=' * 80)
-                    import traceback
-                    traceback.print_exc()
-                    raise
-                if debug:
-                    print('=' * 80)
-                    print('State updated to 2')
+                await tx.execute("UPDATE State SET { value := 2 };")
+        if debug:
+            print("=" * 80)
+            print("State updated to 2")
+        self.assertEqual(
+            await con.query_single("SELECT State.value LIMIT 1"), 2
+        )
+        if debug:
+            print("=" * 80)
+            print("Start the old master as slave")
+        await pg1.start()
+        if debug:
+            print("=" * 80)
+            print("Stop the new master, failover to old master again")
+        await pg2.stop()
+        if debug:
+            print("=" * 80)
+            print("State should still be 2")
+        async for tx in con.with_retry_options(
+            edgedb.RetryOptions(60, lambda x: 1)
+        ).retrying_transaction():
+            async with tx:
                 self.assertEqual(
-                    await con.query_single('SELECT State.value LIMIT 1'), 2
+                    await tx.query_single("SELECT State.value LIMIT 1"),
+                    2,
                 )
-
-                if debug:
-                    print('=' * 80)
-                    print('Start the old master as slave')
-                await pg1.start()
-
-                # give it some more time to sync
-                # await asyncio.sleep(60)
-
-                if debug:
-                    print('=' * 80)
-                    print('Stop the new master, failover to old master again')
-                await pg2.stop()
-                if debug:
-                    print('=' * 80)
-                    print('State should still be 2')
-                async for tx in con.with_retry_options(
-                    edgedb.RetryOptions(60, lambda x: 1)
-                ).retrying_transaction():
-                    async with tx:
-                        self.assertEqual(
-                            await tx.query_single(
-                                'SELECT State.value LIMIT 1'
-                            ),
-                            2,
-                        )

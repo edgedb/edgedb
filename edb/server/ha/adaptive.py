@@ -21,11 +21,14 @@ from typing import *
 import asyncio
 import enum
 import logging
+import os
 
 from . import base
 
 
-UNHEALTHY_MIN_TIME = 30
+UNHEALTHY_MIN_TIME = int(os.getenv(
+    'EDGEDB_SERVER_BACKEND_ADAPTIVE_HA_UNHEALTHY_MIN_TIME', 30
+))
 UNEXPECTED_DISCONNECTS_THRESHOLD = 0.6
 
 logger = logging.getLogger("edb.pgcluster")
@@ -98,11 +101,12 @@ class AdaptiveHASupport:
         self._unhealthy_timer_handle = None
         self._sys_pgcon_healthy = False
 
-    def set_state_failover(self):
+    def set_state_failover(self, *, call_on_switch_over=True):
         self._state = State.FAILOVER
-        logger.critical("adaptive: HA failover detected")
         self._reset()
-        self._cluster_protocol.on_switch_over()
+        if call_on_switch_over:
+            logger.critical("adaptive: HA failover detected")
+            self._cluster_protocol.on_switch_over()
 
     def on_pgcon_broken(self, is_sys_pgcon: bool):
         if is_sys_pgcon:

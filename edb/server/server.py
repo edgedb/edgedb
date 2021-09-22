@@ -1281,6 +1281,11 @@ class Server(ha_base.ClusterProtocol):
             # Brutally close the sys_pgcon to the old master - this should
             # trigger a reconnect task.
             self.__sys_pgcon.abort()
+        if self._backend_adaptive_ha is not None:
+            # Switch to FAILOVER if adaptive HA is enabled
+            self._backend_adaptive_ha.set_state_failover(
+                call_on_switch_over=False
+            )
 
     def get_active_pgcon_num(self) -> int:
         return (

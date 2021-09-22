@@ -245,6 +245,7 @@ async def _connect(connargs, dbname, ssl):
     try:
         await pgcon.connect()
     except pgerror.BackendError as e:
+        pgcon.terminate()
         if not e.code_is(pgerror.ERROR_INVALID_AUTHORIZATION_SPECIFICATION):
             raise
 
