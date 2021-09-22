@@ -1474,7 +1474,17 @@ class GQLBaseType(metaclass=GQLTypeMeta):
 
     @property
     def is_array(self) -> bool:
-        return isinstance(self.edb_base, s_types.Array)
+        if self.edb_base is None:
+            return False
+        else:
+            return self.edb_base.is_array()
+
+    @property
+    def is_object_type(self) -> bool:
+        if self.edb_base is None:
+            return False
+        else:
+            return self.edb_base.is_object_type()
 
     @property
     def name(self) -> str:
