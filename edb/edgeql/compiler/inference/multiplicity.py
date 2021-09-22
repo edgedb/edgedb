@@ -306,17 +306,16 @@ def __infer_func_call(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Multiplicity:
-    # If the function returns a set (for any reason), all bets are off
-    # and the maximum multiplicity cannot be inferred.
-    card = cardinality.infer_cardinality(
-        ir, scope_tree=scope_tree, ctx=ctx)
+    card = cardinality.infer_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
+    args_mult = []
+    for arg in ir.args:
+        arg_mult = infer_multiplicity(arg.expr, scope_tree=scope_tree, ctx=ctx)
+        args_mult.append(arg_mult)
+        arg.multiplicity = arg_mult.own
 
-    args_mult = tuple(
-        infer_multiplicity(arg.expr, scope_tree=scope_tree, ctx=ctx)
-        for arg in ir.args
-    )
-
-    if card is not None and card.is_single():
+    if card.is_single():
+        return ONE
+    elif str(ir.func_shortname) == 'std::assert_distinct':
         return ONE
     elif str(ir.func_shortname) == 'std::assert_exists':
         return args_mult[0]
@@ -326,9 +325,11 @@ def __infer_func_call(
         # distinct.
         return ContainerMultiplicity(
             own=qltypes.MultiplicityValue.ONE,
-            elements=(ONE,) + args_mult,
+            elements=(ONE,) + tuple(args_mult),
         )
     else:
+        # If the function returns a set (for any reason), all bets are off
+        # and the maximum multiplicity cannot be inferred.
         return MANY
 
 

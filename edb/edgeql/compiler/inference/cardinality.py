@@ -660,6 +660,16 @@ def __infer_func_call(
         _, arg_upper = arg_card
         return _bounds_to_card(CardinalityBound.ONE, max(arg_upper))
 
+    elif ir.func_shortname == sn.QualName('std', 'assert_distinct'):
+        arg_cards = []
+
+        for arg in ir.args:
+            arg.cardinality = infer_cardinality(
+                arg.expr, scope_tree=scope_tree, ctx=ctx)
+            arg_cards.append(arg.cardinality)
+
+        return max_cardinality(arg_cards)
+
     elif ir.preserves_optionality:
         # This is a generic aggregate function which preserves the
         # optionality of its generic argument.  For simplicity we

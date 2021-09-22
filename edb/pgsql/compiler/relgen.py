@@ -357,6 +357,11 @@ def _get_set_rvar(
                 rvars = process_set_as_existence_assertion(
                     ir_set, stmt, ctx=ctx)
 
+            elif str(expr.func_shortname) == 'std::assert_distinct':
+                # Multiplicity assertion
+                rvars = process_set_as_multiplicity_assertion(
+                    ir_set, stmt, ctx=ctx)
+
             elif str(expr.func_shortname) == 'std::min' and expr.func_sql_expr:
                 # Generic std::min
                 rvars = process_set_as_std_min_max(ir_set, stmt, ctx=ctx)
@@ -2001,6 +2006,143 @@ def process_set_as_existence_assertion(
         )
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
+def process_set_as_multiplicity_assertion(
+    ir_set: irast.Set,
+    stmt: pgast.SelectStmt,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> SetRVars:
+    """Implementation of std::assert_distinct"""
+    expr = ir_set.expr
+    assert isinstance(expr, irast.FunctionCall)
+
+    ir_arg = expr.args[0]
+    ir_arg_set = ir_arg.expr
+
+    # Generate a distinct set assertion as the following SQL:
+    #
+    #    SELECT
+    #        <target_set>,
+    #        (CASE WHEN
+    #            <target_set>
+    #            IS DISTINCT FROM
+    #            lag(<target_set>) OVER (ORDER BY <target_set>)
+    #        THEN <target_set>
+    #        ELSE edgedb.raise(ConstraintViolationError))
+    #    FROM
+    #        (SELECT <target_set>, row_number() OVER () AS i) AS q
+    #    ORDER BY
+    #        q.i
+    #
+    # NOTE: sorting over original row_number() is necessary to preserve
+    #       order, as assert_distinct() must be completely transparent for
+    #       compliant sets.
+    with ctx.subrel() as newctx:
+        with newctx.subrel() as subctx:
+            dispatch.compile(ir_arg_set, ctx=subctx)
+            arg_ref = pathctx.get_path_value_output(
+                subctx.rel, ir_arg_set.path_id, env=subctx.env)
+            arg_val = output.output_as_value(arg_ref, env=newctx.env)
+            sub_rvar = relctx.new_rel_rvar(ir_arg_set, subctx.rel, ctx=subctx)
+            relctx.include_rvar(
+                newctx.rel, sub_rvar, ir_arg_set.path_id,
+                aspects=('source', 'value'), ctx=subctx,
+            )
+            alias = ctx.env.aliases.get('i')
+            subctx.rel.target_list.append(
+                pgast.ResTarget(
+                    name=alias,
+                    val=pgast.FuncCall(
+                        name=('row_number',),
+                        args=[],
+                        over=pgast.WindowDef(),
+                    )
+                )
+            )
+
+        do_raise = pgast.FuncCall(
+            name=('edgedb', 'raise'),
+            args=[
+                pgast.TypeCast(
+                    arg=pgast.NullConstant(),
+                    type_name=pgast.TypeName(
+                        name=pg_types.pg_type_from_ir_typeref(
+                            ir_arg_set.typeref),
+                    ),
+                ),
+                pgast.StringConstant(val='cardinality_violation'),
+                pgast.NamedFuncArg(
+                    name='msg',
+                    val=pgast.StringConstant(
+                        val='assert_distinct violation: expression returned '
+                            'a set with duplicate elements',
+                    ),
+                ),
+                pgast.NamedFuncArg(
+                    name='constraint',
+                    val=pgast.StringConstant(val='std::assert_distinct'),
+                ),
+            ],
+        )
+
+        check_expr = pgast.CaseExpr(
+            args=[
+                pgast.CaseWhen(
+                    expr=astutils.new_binop(
+                        lexpr=arg_val,
+                        op='IS DISTINCT FROM',
+                        rexpr=pgast.FuncCall(
+                            name=('lag',),
+                            args=[arg_val],
+                            over=pgast.WindowDef(
+                                order_clause=[pgast.SortBy(node=arg_val)],
+                            ),
+                        ),
+                    ),
+                    result=arg_val,
+                ),
+            ],
+            defresult=do_raise,
+        )
+
+        alias2 = ctx.env.aliases.get('v')
+        newctx.rel.target_list.append(
+            pgast.ResTarget(
+                val=check_expr,
+                name=alias2,
+            )
+        )
+
+        pathctx.put_path_var(
+            newctx.rel,
+            ir_set.path_id,
+            check_expr,
+            aspect='value',
+            env=ctx.env,
+        )
+
+        if newctx.rel.sort_clause is None:
+            newctx.rel.sort_clause = []
+        newctx.rel.sort_clause.extend([
+            pgast.SortBy(
+                node=pgast.ColumnRef(name=[sub_rvar.alias.aliasname, alias]),
+            ),
+            pgast.SortBy(
+                node=pgast.ColumnRef(name=[alias2]),
+            ),
+        ])
+
+        pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
+
+    aspects = ('value', 'source')
+
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
+                        pull_namespace=False, aspects=aspects, ctx=ctx)
+
+    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
 def process_set_as_enumerate(

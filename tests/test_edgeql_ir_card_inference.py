@@ -764,3 +764,33 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         m: AT_MOST_ONE
         """
+
+    def test_edgeql_ir_card_inference_88(self):
+        """
+        SELECT User { m := assert_distinct(1) }
+% OK %
+        m: ONE
+        """
+
+    def test_edgeql_ir_card_inference_89(self):
+        """
+        SELECT User { m := assert_distinct(Card) }
+% OK %
+        m: MANY
+        """
+
+    def test_edgeql_ir_card_inference_90(self):
+        """
+        SELECT User { m := assert_distinct(assert_exists(Card)) }
+% OK %
+        m: AT_LEAST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_91(self):
+        """
+        SELECT User {
+            m := assert_distinct(assert_exists(assert_single(Card)))
+        }
+% OK %
+        m: ONE
+        """

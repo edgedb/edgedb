@@ -669,6 +669,14 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
         ONE
         """
 
+    def test_edgeql_ir_mult_inference_71(self):
+        """
+        FOR card IN {assert_distinct(Card UNION SpecialCard)}
+        UNION card
+% OK %
+        ONE
+        """
+
     @tb.must_fail(errors.QueryError,
                   r"possibly not a strict set.+computed bad_link",
                   line=3, col=13)
