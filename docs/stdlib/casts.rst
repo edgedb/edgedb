@@ -1,4 +1,4 @@
-.. _ref_datamodel_scalars_casts:
+.. _ref_std_casts:
 
 =====
 Casts
@@ -99,6 +99,8 @@ casts* can occur:
 If *implicit* casting is supported for a given pair of types,
 *assignment* and *explicit* casting of those types is also supported.
 
+
+.. _ref_std_casts_table:
 
 Casting Table
 -------------

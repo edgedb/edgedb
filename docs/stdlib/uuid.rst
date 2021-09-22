@@ -4,17 +4,30 @@
 UUID
 ====
 
-:edb-alt-title: UUID Functions and Operators
-
-
 .. list-table::
     :class: funcoptable
+
+    * - :eql:type:`uuid`
+      - UUID type
 
     * - :eql:op:`uuid = uuid <EQ>`, :eql:op:`uuid \< uuid <LT>`, ...
       - Comparison operators.
 
     * - :eql:func:`uuid_generate_v1mc`
       - :eql:func-desc:`uuid_generate_v1mc`
+
+
+---------
+
+
+.. eql:type:: std::uuid
+
+    Universally Unique Identifiers (UUID).
+
+    For formal definition see RFC 4122 and ISO/IEC 9834-8:2005.
+
+    Every :eql:type:`Object` has a globally unique property ``id``
+    represented by a UUID value.
 
 
 ---------

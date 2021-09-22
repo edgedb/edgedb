@@ -11,29 +11,11 @@ other property. This means that the database can have as many
 duplicates of the same *scalar value* as you like.
 
 Even though, some *scalar types* such as :ref:`date and time scalars
-<ref_datamodel_scalars_datetime>` or :eql:type:`json` have internal
+<ref_std_datetime>` or :eql:type:`json` have internal
 structure, they require specialized functions and operators to access
 this structure rather than using the ``.`` like objects or tuples.
 
-Each subsection describes the standard EdgeDB scalar types in greater
-details.
-
-See also scalar type
-:ref:`SDL <ref_eql_sdl_scalars>`,
+See also :ref:`standard library <ref_std>` scalar types
+as well as scalar type :ref:`SDL <ref_eql_sdl_scalars>`,
 :ref:`DDL <ref_eql_ddl_scalars>`,
-:ref:`introspection <ref_eql_introspection_scalar_types>`,
-and :ref:`functions and operators <ref_std>`.
-
-.. toctree::
-    :maxdepth: 3
-    :hidden:
-
-    numeric
-    str
-    bool
-    datetime
-    json
-    enum
-    bytes
-    uuid
-    casts
+and :ref:`introspection <ref_eql_introspection_scalar_types>`.

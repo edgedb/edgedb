@@ -71,7 +71,7 @@ Introspection of the built-in scalar :eql:type:`str`:
         }
     }
 
-For an :ref:`enumerated scalar type <ref_datamodel_scalars_enum>`,
+For an :ref:`enumerated scalar type <ref_std_enum>`,
 consider the following:
 
 .. code-block:: sdl

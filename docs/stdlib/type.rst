@@ -233,6 +233,9 @@ Type
             # a set of Users
         };
 
+    For more information about casting between different types consult
+    the :ref:`casting table <ref_std_casts_table>`.
+
 
 -----------
 

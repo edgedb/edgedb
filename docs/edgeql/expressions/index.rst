@@ -14,6 +14,7 @@ Expressions
     operators
     arrays
     tuples
+    functions
     paths
     shapes
     parameters

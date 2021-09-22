@@ -1,13 +1,27 @@
-.. _ref_datamodel_object_types_base:
+.. _ref_std_object_types:
 
 ============
 Base Objects
 ============
 
+.. list-table::
+    :class: funcoptable
+
+    * - :eql:type:`BaseObject`
+      - Root object type
+
+    * - :eql:type:`Object`
+      - Root for user-defined object types
+
+
 ``std::BaseObject`` is the root of the object type hierarchy and all
 object types in EdgeDB, including system types, extend ``std::BaseObject``
 directly or indirectly.  User-defined object types extend from ``std::Object``,
 which is a subtype of ``std::BaseObject``.
+
+
+---------
+
 
 .. eql:type:: std::BaseObject
 
@@ -25,6 +39,10 @@ which is a subtype of ``std::BaseObject``.
             required readonly link __type__ -> schema::ObjectType;
         }
 
+
+---------
+
+
 .. eql:type:: std::Object
 
     Root object type for user-defined types.
@@ -34,12 +52,3 @@ which is a subtype of ``std::BaseObject``.
     .. code-block:: sdl
 
         abstract type std::Object extending std::BaseObject;
-
-
-See Also
---------
-
-Object type
-:ref:`SDL <ref_eql_sdl_object_types>`,
-:ref:`DDL <ref_eql_ddl_object_types>`,
-and :ref:`introspection <ref_eql_introspection_object_types>`.

@@ -70,7 +70,7 @@ A query is evaluated recursively using the following procedure:
      of User and User.friends would pair each user with all of their
      friends.)
 
-     (Mathematically, ``X' = {(x, y) | x ∈ X, y \in f(x)}``, if ``f(x)``
+     (Mathematically, ``X' = {(x, y) | x ∈ X, y ∈ f(x)}``, if ``f(x)``
      selects the appropriate subset.)
 
      The set produced becomes the new input tuple set and we continue

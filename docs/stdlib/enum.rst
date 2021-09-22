@@ -1,4 +1,4 @@
-.. _ref_datamodel_scalars_enum:
+.. _ref_std_enum:
 
 ====
 Enum
@@ -50,11 +50,3 @@ Enum
         properly reflected. To address this, consider using only
         identifier-like enum values in cases where such compatibility
         is needed.
-
-See Also
---------
-
-Enum scalar type
-:ref:`SDL <ref_eql_sdl_scalars>`,
-:ref:`DDL <ref_eql_ddl_scalars>`,
-and :ref:`introspection <ref_eql_introspection_scalar_types>`.
