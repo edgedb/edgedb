@@ -53,6 +53,7 @@ def cli(args: list[str]):
             "edb.cli",
             "instance",
             "link",
+            "--host=localhost",
             "--non-interactive",
             "--trust-tls-cert",
             "--overwrite",
