@@ -406,6 +406,7 @@ class Cluster(BaseCluster):
         data_dir: pathlib.Path,
         *,
         pg_config_path: str,
+        runstate_dir: Optional[pathlib.Path] = None,
         instance_params: Optional[BackendInstanceParams] = None,
         log_level: str = 'i',
     ):
@@ -414,6 +415,8 @@ class Cluster(BaseCluster):
             instance_params=instance_params,
         )
         self._data_dir = data_dir
+        self._runstate_dir = (
+            runstate_dir if runstate_dir is not None else data_dir)
         self._daemon_pid: Optional[int] = None
         self._daemon_process: Optional[asyncio.subprocess.Process] = None
         self._daemon_supervisor: Optional[supervisor.Supervisor] = None
@@ -530,7 +533,7 @@ class Cluster(BaseCluster):
         start_settings = {
             'listen_addresses': '',  # we use Unix sockets
             'unix_socket_permissions': '0700',
-            'unix_socket_directories': str(self._data_dir),
+            'unix_socket_directories': str(self._runstate_dir),
             # here we are not setting superuser_reserved_connections because
             # we're using superuser only now (so all connections available),
             # and we don't support reserving connections for now
@@ -876,6 +879,7 @@ class RemoteCluster(BaseCluster):
 async def get_local_pg_cluster(
     data_dir: pathlib.Path,
     *,
+    runstate_dir: Optional[pathlib.Path] = None,
     max_connections: Optional[int] = None,
     tenant_id: Optional[str] = None,
     log_level: Optional[str] = None,
@@ -893,6 +897,7 @@ async def get_local_pg_cluster(
         ).instance_params
     cluster = Cluster(
         data_dir=data_dir,
+        runstate_dir=runstate_dir,
         pg_config_path=str(pg_config),
         instance_params=instance_params,
         log_level=log_level,

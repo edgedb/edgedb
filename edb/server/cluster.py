@@ -354,6 +354,7 @@ class Cluster(BaseCluster):
     async def _new_pg_cluster(self) -> pgcluster.Cluster:
         return await pgcluster.get_local_pg_cluster(
             self._data_dir,
+            runstate_dir=self._runstate_dir,
             log_level=self._log_level,
         )
 
