@@ -1703,7 +1703,7 @@ def process_link_update(
         # context to ensure that references to the link in the result
         # of this DML statement yield the expected results.
         relctx.add_ptr_rel_overlay(
-            ptrref, 'except', delcte, path_id=path_id,
+            mptrref, 'except', delcte, path_id=path_id,
             dml_stmts=ctx.dml_stmt_stack, ctx=ctx)
         toplevel.append_cte(delcte)
     else:
@@ -1875,12 +1875,12 @@ def process_link_update(
         # based filter to filter out links that were already present
         # and have been re-added.
         relctx.add_ptr_rel_overlay(
-            ptrref, 'filter', updcte, dml_stmts=ctx.dml_stmt_stack,
+            mptrref, 'filter', updcte, dml_stmts=ctx.dml_stmt_stack,
             path_id=path_id.ptr_path(),
             ctx=ctx)
 
     relctx.add_ptr_rel_overlay(
-        ptrref, 'union', updcte, dml_stmts=ctx.dml_stmt_stack,
+        mptrref, 'union', updcte, dml_stmts=ctx.dml_stmt_stack,
         path_id=path_id.ptr_path(),
         ctx=ctx)
 

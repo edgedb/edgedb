@@ -179,7 +179,7 @@ class CompilerContextLevel(compiler.ContextLevel):
     ptr_rel_overlays: DefaultDict[
         Optional[irast.MutatingStmt],
         DefaultDict[
-            str,
+            Tuple[uuid.UUID, str],
             List[
                 Tuple[
                     str,

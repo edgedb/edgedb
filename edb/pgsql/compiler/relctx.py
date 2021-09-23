@@ -1712,9 +1712,7 @@ def add_type_rel_overlay(
         dml_stmts: Iterable[irast.MutatingStmt] = (),
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
-    if typeref.material_type is not None:
-        typeref = typeref.material_type
-
+    typeref = typeref.real_material_type
     objs = [typeref]
     if typeref.ancestors:
         objs.extend(typeref.ancestors)
@@ -1767,14 +1765,16 @@ def reuse_type_rel_overlays(
                 tid, op, rel, dml_stmts=dml_stmts, path_id=path_id, ctx=ctx
             )
     ptr_overlays = ctx.ptr_rel_overlays[dml_source]
-    for ptr, poverlays in ptr_overlays.items():
+    for (obj, ptr), poverlays in ptr_overlays.items():
         for op, rel, path_id in poverlays:
             _add_ptr_rel_overlay(
-                ptr, op, rel, path_id=path_id, dml_stmts=dml_stmts, ctx=ctx
+                obj, ptr, op, rel, path_id=path_id, dml_stmts=dml_stmts,
+                ctx=ctx
             )
 
 
 def _add_ptr_rel_overlay(
+        typeid: uuid.UUID,
         ptrref_name: str,
         op: str,
         rel: Union[pgast.BaseRelation, pgast.CommonTableExpr], *,
@@ -1784,10 +1784,10 @@ def _add_ptr_rel_overlay(
 
     if dml_stmts:
         for dml_stmt in dml_stmts:
-            overlays = ctx.ptr_rel_overlays[dml_stmt][ptrref_name]
+            overlays = ctx.ptr_rel_overlays[dml_stmt][typeid, ptrref_name]
             overlays.append((op, rel, path_id))
     else:
-        overlays = ctx.ptr_rel_overlays[None][ptrref_name]
+        overlays = ctx.ptr_rel_overlays[None][typeid, ptrref_name]
         overlays.append((op, rel, path_id))
 
 
@@ -1798,9 +1798,17 @@ def add_ptr_rel_overlay(
         dml_stmts: Iterable[irast.MutatingStmt] = (),
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
-    _add_ptr_rel_overlay(
-        ptrref.shortname.name, op, rel, path_id=path_id, dml_stmts=dml_stmts,
-        ctx=ctx)
+
+    typeref = ptrref.out_source.real_material_type
+    objs = [typeref]
+    if typeref.ancestors:
+        objs.extend(typeref.ancestors)
+
+    for obj in objs:
+        _add_ptr_rel_overlay(
+            obj.id, ptrref.shortname.name, op, rel, path_id=path_id,
+            dml_stmts=dml_stmts,
+            ctx=ctx)
 
 
 def get_ptr_rel_overlays(
@@ -1814,4 +1822,5 @@ def get_ptr_rel_overlays(
         irast.PathId,
     ]
 ]:
-    return ctx.ptr_rel_overlays[dml_source][ptrref.shortname.name]
+    typeref = ptrref.out_source.real_material_type
+    return ctx.ptr_rel_overlays[dml_source][typeref.id, ptrref.shortname.name]
