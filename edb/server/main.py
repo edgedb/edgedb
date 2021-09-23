@@ -299,6 +299,7 @@ def _generate_cert(
 
 async def _get_local_pgcluster(
     args: srvargs.ServerConfig,
+    runstate_dir: pathlib.Path,
     tenant_id: str,
 ) -> Tuple[pgcluster.Cluster, srvargs.ServerConfig]:
     pg_max_connections = args.max_backend_connections
@@ -315,6 +316,7 @@ async def _get_local_pgcluster(
 
     cluster = await pgcluster.get_local_pg_cluster(
         args.data_dir,
+        runstate_dir=runstate_dir,
         # Plus two below to account for system connections.
         max_connections=pg_max_connections + 2,
         tenant_id=tenant_id,
@@ -418,7 +420,8 @@ async def run_server(
 
     with runstate_dir_mgr as runstate_dir:
         if args.data_dir:
-            cluster, args = await _get_local_pgcluster(args, tenant_id)
+            cluster, args = await _get_local_pgcluster(
+                args, runstate_dir, tenant_id)
         elif args.backend_dsn:
             cluster, args = await _get_remote_pgcluster(args, tenant_id)
         else:
