@@ -651,7 +651,8 @@ def compile_call_arg(
         # Similarly, delay the decision to inject the implicit limit to
         # `finalize_args()`.
         arg_ql = qlast.SelectQuery(
-            result=arg_ql, context=arg_ql.context, implicit=True)
+            result=arg_ql, context=arg_ql.context,
+            implicit=True, rptr_passthrough=True)
         argctx.inhibit_implicit_limit = True
         return dispatch.compile(arg_ql, ctx=argctx), argctx
 

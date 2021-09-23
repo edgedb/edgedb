@@ -80,6 +80,7 @@ def compile_SelectQuery(
         forward_rptr = (
             bool(expr.offset)
             or bool(expr.limit)
+            or expr.rptr_passthrough
             # We need to preserve view_rptr if this SELECT is just
             # an implicit wrapping of a single DISTINCT, because otherwise
             # using a DISTINCT to satisfy link multiplicity requirement
@@ -92,7 +93,8 @@ def compile_SelectQuery(
             )
             or (
                 isinstance(expr.result, qlast.FunctionCall)
-                and expr.result.func == 'assert_distinct'
+                and expr.result.func in (
+                    'assert_distinct', 'assert_single', 'assert_exists')
             )
         )
 
