@@ -1208,12 +1208,15 @@ cdef class EdgeConnection:
             return CARD_MANY
         elif card[0] == CARD_AT_MOST_ONE.value:
             return CARD_AT_MOST_ONE
-        elif card[0] == CARD_NO_RESULT:
-            raise errors.BinaryProtocolError(
-                'cardinality NO_RESULT cannot be requested')
         else:
-            raise errors.BinaryProtocolError(
-                f'unknown expected cardinality "{repr(card)[2:-1]}"')
+            try:
+                card_name = compiler.Cardinality(card[0]).name
+            except ValueError:
+                raise errors.BinaryProtocolError(
+                    f'unknown expected cardinality "{repr(card)[2:-1]}"')
+            else:
+                raise errors.BinaryProtocolError(
+                    f'cardinality {card_name} cannot be requested')
 
     cdef char render_cardinality(self, query_unit) except -1:
         return query_unit.cardinality.value
