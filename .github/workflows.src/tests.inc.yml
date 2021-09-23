@@ -79,7 +79,7 @@
       id: postgres-cache
       with:
         path: build/postgres/install
-        key: edb-postgres-v1-${{ env.POSTGRES_GIT_REV }}
+        key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Handle cached Stolon build
       uses: actions/cache@v2
@@ -346,7 +346,7 @@
       id: postgres-cache
       with:
         path: build/postgres/install
-        key: edb-postgres-v1-${{ env.POSTGRES_GIT_REV }}
+        key: edb-postgres-v2-${{ env.POSTGRES_GIT_REV }}
 
     - name: Restore cached Stolon build
       uses: actions/cache@v2

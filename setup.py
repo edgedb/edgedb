@@ -231,6 +231,7 @@ def _compile_postgres(build_base, *,
             subprocess.run([
                 str(postgres_src / 'configure'),
                 '--prefix=' + str(postgres_build / 'install'),
+                '--with-openssl',
                 '--with-uuid=' + uuidlib,
             ], check=True, cwd=str(build_dir))
 
