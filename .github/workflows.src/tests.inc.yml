@@ -12,7 +12,7 @@
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
+        python-version: '3.10.0-rc.2'
 <%- endmacro %>
 
 <% macro _init_venv() -%>
@@ -33,7 +33,7 @@
     - name: Install Python dependencies
       if: steps.venv-cache.outputs.cache-hit != 'true'
       run: |
-        pip download --dest=$VIRTUAL_ENV/deps .[test,docs]
+        _EDGEDB_CI_DOWNLOAD=1 pip download --use-feature=in-tree-build --dest=$VIRTUAL_ENV/deps .[test,docs]
         pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
 
     # Prepare environment variables and shared artifacts
@@ -61,18 +61,18 @@
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v2-${{ hashFiles('.tmp/rust_cache_key.txt') }}
         restore-keys: |
-          edb-rust-v1-
+          edb-rust-v2-
 
     - name: Handle cached Cython extensions
       uses: actions/cache@v2
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v2-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
         restore-keys: |
-          edb-ext-v2-
+          edb-ext-v3-
 
     - name: Handle cached PostgreSQL build
       uses: actions/cache@v2
@@ -165,9 +165,9 @@
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
-        key: edb-ext-build-v2-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-build-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
         restore-keys: |
-          edb-ext-build-v2-
+          edb-ext-build-v3-
 
     - name: Build Cython extensions
       env:
@@ -190,9 +190,9 @@
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v1-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
         restore-keys: |
-          edb-parsers-v1-
+          edb-parsers-v2-
 
     - name: Build parsers
       env:
@@ -264,9 +264,9 @@
       id: bootstrap-cache
       with:
         path: build/cache
-        key: edb-bootstrap-v1-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
         restore-keys: |
-          edb-bootstrap-v1-
+          edb-bootstrap-v2-
 
     - name: Bootstrap EdgeDB Server
       if: steps.bootstrap-cache.outputs.cache-hit != 'true'
@@ -325,21 +325,21 @@
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v1-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v2-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v2
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v2-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v2
       id: parsers-cache
       with:
         path: build/lib
-        key: edb-parsers-v1-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
+        key: edb-parsers-v2-${{ hashFiles('.tmp/parsers_cache_key.txt') }}
 
     - name: Restore cached PostgreSQL build
       uses: actions/cache@v2
@@ -360,7 +360,7 @@
       id: bootstrap-cache
       with:
         path: build/cache
-        key: edb-bootstrap-v1-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
+        key: edb-bootstrap-v2-${{ hashFiles('.tmp/bootstrap_cache_key.txt') }}
 
     - name: Stop if we cannot retrieve the cache
       if: |

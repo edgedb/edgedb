@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
@@ -30,7 +30,7 @@ jobs:
 
   ha-test:
     needs: build
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
     <<- restore_cache() >>

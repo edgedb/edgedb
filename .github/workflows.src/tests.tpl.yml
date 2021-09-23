@@ -15,7 +15,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
     <%- call build() -%>
@@ -35,7 +35,7 @@ jobs:
 
   cargo-test:
     needs: build
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v2
@@ -46,7 +46,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.9
+        python-version: '3.10.0-rc.2'
 
     - name: Handle virtualenv
       uses: syphar/restore-virtualenv@v1.1
@@ -94,7 +94,7 @@ jobs:
 
   python-test:
     needs: build
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         shard: [
@@ -126,7 +126,7 @@ jobs:
 
   collect:
     needs: build
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
     <<- restore_cache() >>
 
@@ -147,12 +147,12 @@ jobs:
 
   test-conclusion:
     needs: [cargo-test, python-test, collect]
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: 3.9
+          python-version: '3.10.0-rc.2'
 
       - name: Install Python deps
         run: |
