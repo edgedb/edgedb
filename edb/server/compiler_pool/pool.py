@@ -180,8 +180,7 @@ class Pool(amsg.ServerProtocol):
 
         self._runstate_dir = runstate_dir
 
-        self._poolsock_name = os.path.join(
-            self._runstate_dir, 'compilers.socket')
+        self._poolsock_name = os.path.join(self._runstate_dir, 'ipc')
 
         assert pool_size >= 1
         self._pool_size = pool_size
