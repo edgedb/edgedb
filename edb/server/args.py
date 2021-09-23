@@ -267,6 +267,7 @@ _server_options = [
     ),
     click.option(
         '-l', '--log-level',
+        envvar="EDGEDB_SERVER_LOG_LEVEL",
         default='i',
         type=click.Choice(
             ['debug', 'd', 'info', 'i', 'warn', 'w',
