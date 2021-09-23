@@ -1053,11 +1053,16 @@ class TestServerConfig(tb.QueryTestCase):
         "loopback aliases aren't set up on macOS by default"
     )
     async def test_server_proto_configure_listen_addresses(self):
-        con1 = None
-        con2 = None
+        con1 = con2 = con3 = con4 = con5 = None
 
         async with tb.start_edgedb_server(auto_shutdown=True) as sd:
             try:
+                with self.assertRaises(
+                    edgedb.ClientConnectionFailedTemporarilyError
+                ):
+                    await sd.connect(
+                        host="127.0.0.2", timeout=1, wait_until_available=1
+                    )
                 con1 = await sd.connect()
                 await con1.execute("""
                     CONFIGURE INSTANCE SET listen_addresses := {
@@ -1070,10 +1075,38 @@ class TestServerConfig(tb.QueryTestCase):
                 self.assertEqual(await con1.query_single("SELECT 1"), 1)
                 self.assertEqual(await con2.query_single("SELECT 2"), 2)
 
+                with self.assertRaises(
+                    edgedb.ClientConnectionFailedTemporarilyError
+                ):
+                    await sd.connect(timeout=1, wait_until_available=1)
+
+                await con1.execute("""
+                    CONFIGURE INSTANCE SET listen_addresses := {
+                        '127.0.0.1', '127.0.0.2',
+                    };
+                """)
+                con3 = await sd.connect()
+
+                for i, con in enumerate((con1, con2, con3)):
+                    self.assertEqual(await con.query_single(f"SELECT {i}"), i)
+
+                await con1.execute("""
+                    CONFIGURE INSTANCE SET listen_addresses := {};
+                """)
+                await con1.execute("""
+                    CONFIGURE INSTANCE SET listen_addresses := {
+                        '0.0.0.0',
+                    };
+                """)
+                con4 = await sd.connect()
+                con5 = await sd.connect(host="127.0.0.2")
+
+                for i, con in enumerate((con1, con2, con3, con4, con5)):
+                    self.assertEqual(await con.query_single(f"SELECT {i}"), i)
+
             finally:
                 closings = []
-                if con1 is not None:
-                    closings.append(con1.aclose())
-                if con2 is not None:
-                    closings.append(con2.aclose())
+                for con in (con1, con2, con3, con4, con5):
+                    if con is not None:
+                        closings.append(con.aclose())
                 await asyncio.gather(*closings)
