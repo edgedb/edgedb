@@ -251,10 +251,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             }
         )
 
-    @test.xfail("""
-        assert_distinct causes
-        "invalid reference to link property in top level shape"
-    """)
     async def test_edgeql_for_in_computable_01(self):
         await self.assert_query_result(
             r'''
@@ -346,7 +342,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT User {
-                    select_deck := (
+                    select_deck := ((
                         WITH cards := (
                             FOR letter IN {'I', 'B'}
                             UNION (
@@ -361,16 +357,13 @@ class TestEdgeQLFor(tb.QueryTestCase):
                             )
                         )
                         SELECT cards ORDER BY .name THEN .letter
-                    )
+                    ),)
                 } FILTER .name = 'Alice';
             ''',
             [
                 {
                     'select_deck': [
-                        {'name': 'Bog monster', 'letter': 'B1'},
-                        {'name': 'Bog monster', 'letter': 'B2'},
-                        {'name': 'Imp', 'letter': 'I1'},
-                        {'name': 'Imp', 'letter': 'I2'},
+                        [{}], [{}], [{}], [{}],
                     ]
                 }
             ]
@@ -451,6 +444,40 @@ class TestEdgeQLFor(tb.QueryTestCase):
                         {'name': 'Bog monster', 'letter': 'B2'},
                         {'name': 'Ice Elemental', 'letter': 'I10'},
                         {'name': 'Imp', 'letter': 'I1'},
+                    ]
+                }
+            ]
+        )
+
+    async def test_edgeql_for_in_computable_02e(self):
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    select_deck := ((
+                        WITH cards := (
+                            FOR letter IN {'I', 'B'}
+                            UNION (
+                                FOR copy IN {'1', '2'}
+                                UNION (
+                                    SELECT User.deck {
+                                        name,
+                                        letter := letter ++ copy
+                                    }
+                                    FILTER User.deck.name[0] = letter
+                                )
+                            )
+                        )
+                        SELECT cards {name, letter} ORDER BY .name THEN .letter
+                    ),)
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        [{'name': 'Bog monster', 'letter': 'B1'}],
+                        [{'name': 'Bog monster', 'letter': 'B2'}],
+                        [{'name': 'Imp', 'letter': 'I1'}],
+                        [{'name': 'Imp', 'letter': 'I2'}],
                     ]
                 }
             ]
@@ -753,15 +780,15 @@ class TestEdgeQLFor(tb.QueryTestCase):
                             FILTER User.deck.name[0] = letter
                         )
                     ),
-                    SELECT Z
+                    SELECT assert_distinct(Z)
                 )
             } FILTER .name = 'Alice') { select_deck: {name, letter} };
             ''',
             [
                 {
                     'select_deck': [
-                        {'name': 'Bog monster', '@letter': 'B'},
-                        {'name': 'Imp', '@letter': 'I'},
+                        {'name': 'Bog monster', 'letter': 'B'},
+                        {'name': 'Imp', 'letter': 'I'},
                     ]
                 }
             ],

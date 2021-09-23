@@ -242,7 +242,7 @@ def _build_object_mutation_shape(
             # TODO: replace this hack by a generic implementation of
             # an ObjectKeyDict collection that allow associating objects
             # with arbitrary values (a transposed ObjectDict).
-            target_expr = f"""DISTINCT(
+            target_expr = f"""assert_distinct((
                 FOR v IN {{ json_array_unpack(<json>${var_n}) }}
                 UNION (
                     SELECT {target.get_name(schema)} {{
@@ -250,7 +250,7 @@ def _build_object_mutation_shape(
                     }}
                     FILTER .id = <uuid>v[0]
                 )
-            )"""
+            ))"""
             args = props.get('args', [])
             target_value = []
             if v is not None:

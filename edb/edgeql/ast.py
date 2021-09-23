@@ -496,6 +496,10 @@ class ReturningMixin(Base):
 class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
     __abstract_node__ = True
     implicit: bool = False
+    # This is a hack, indicating that rptr should be forwarded through
+    # this select. Used when we generate implicit selects that need to
+    # not interfere with linkprops.
+    rptr_passthrough: bool = False
 
 
 class ShapeOp(s_enum.StrEnum):
