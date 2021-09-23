@@ -40,7 +40,7 @@ jobs:
     - name: Install Python dependencies
       if: steps.venv-cache.outputs.cache-hit != 'true'
       run: |
-        _EDGEDB_CI_DOWNLOAD=1 pip download --use-feature=in-tree-build --dest=$VIRTUAL_ENV/deps .[test,docs]
+        pip download --use-feature=in-tree-build --dest=$VIRTUAL_ENV/deps .[test,docs,build]
         pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
 
     # Prepare environment variables and shared artifacts

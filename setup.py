@@ -110,6 +110,7 @@ EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 EXTRA_DEPS = {
     'test': TEST_DEPS,
     'docs': DOCS_DEPS,
+    'build': BUILD_DEPS,
 }
 
 EXT_CFLAGS = ['-O2']
@@ -800,9 +801,6 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
     ],
     rust_extensions=rust_extensions,
-    install_requires=(
-        # BUILD_DEPS are needed until pypa/pip#5865 is fixed
-        RUNTIME_DEPS + BUILD_DEPS if os.getenv('_EDGEDB_CI_DOWNLOAD') else []
-    ),
+    install_requires=RUNTIME_DEPS,
     extras_require=EXTRA_DEPS,
 )
