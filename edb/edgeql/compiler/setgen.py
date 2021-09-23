@@ -453,6 +453,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             # works right.
             is_subquery = isinstance(step, qlast.Statement)
             with ctx.newscope(fenced=is_subquery) as subctx:
+                subctx.view_rptr = None
                 path_tip = dispatch.compile(step, ctx=subctx)
 
                 # If the head of the path is a direct object
