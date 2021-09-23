@@ -127,8 +127,7 @@ def _ensure_runstate_dir(
 @contextlib.contextmanager
 def _internal_state_dir(runstate_dir):
     try:
-        with tempfile.TemporaryDirectory(prefix='edgedb-internal-',
-                                         dir=runstate_dir) as td:
+        with tempfile.TemporaryDirectory(prefix="", dir=runstate_dir) as td:
             yield td
     except PermissionError as ex:
         abort(f'cannot write to the runstate directory: '
@@ -410,16 +409,17 @@ async def run_server(
             specified_runstate_dir,
         )
 
-        with runstate_dir_mgr as runstate_dir, \
-                _internal_state_dir(runstate_dir) as internal_runstate_dir:
+        with (
+            runstate_dir_mgr as runstate_dir,
+            _internal_state_dir(runstate_dir) as internal_runstate_dir,
+        ):
 
             if cluster_status == 'stopped':
                 await cluster.start()
                 pg_cluster_started_by_us = True
 
             elif cluster_status != 'running':
-                abort('Could not start database cluster in %s',
-                      args.data_dir)
+                abort('Could not start database cluster in %s', args.data_dir)
 
             need_cluster_restart = await _init_cluster(cluster, args)
 
