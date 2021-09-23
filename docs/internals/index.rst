@@ -21,3 +21,4 @@ Developing EdgeDB itself:
     protocol/index
     dev
     dump_format
+    backend_ha
