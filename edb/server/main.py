@@ -297,6 +297,66 @@ def _generate_cert(
     return cert_file, key_file
 
 
+async def _get_local_pgcluster(
+    args: srvargs.ServerConfig,
+    tenant_id: str,
+) -> Tuple[pgcluster.Cluster, srvargs.ServerConfig]:
+    pg_max_connections = args.max_backend_connections
+    if not pg_max_connections:
+        max_conns = srvargs.compute_default_max_backend_connections()
+        pg_max_connections = max_conns
+        if args.testmode:
+            max_conns = srvargs.adjust_testmode_max_connections(max_conns)
+            logger.info(f'Configuring Postgres max_connections='
+                        f'{pg_max_connections} under test mode.')
+        args = args._replace(max_backend_connections=max_conns)
+        logger.info(f'Using {max_conns} max backend connections based on '
+                    f'total memory.')
+
+    cluster = await pgcluster.get_local_pg_cluster(
+        args.data_dir,
+        # Plus two below to account for system connections.
+        max_connections=pg_max_connections + 2,
+        tenant_id=tenant_id,
+        log_level=args.log_level,
+    )
+    cluster.set_connection_params(
+        pgconnparams.ConnectionParameters(
+            user='postgres',
+            database='template1',
+        ),
+    )
+    return cluster, args
+
+
+async def _get_remote_pgcluster(
+    args: srvargs.ServerConfig,
+    tenant_id: str,
+) -> Tuple[pgcluster.RemoteCluster, srvargs.ServerConfig]:
+
+    cluster = await pgcluster.get_remote_pg_cluster(
+        args.backend_dsn,
+        tenant_id=tenant_id,
+    )
+
+    instance_params = cluster.get_runtime_params().instance_params
+    max_conns = (
+        instance_params.max_connections -
+        instance_params.reserved_connections)
+    if not args.max_backend_connections:
+        logger.info(f'Detected {max_conns} backend connections available.')
+        if args.testmode:
+            max_conns = srvargs.adjust_testmode_max_connections(max_conns)
+            logger.info(f'Using max_backend_connections={max_conns} '
+                        f'under test mode.')
+        args = args._replace(max_backend_connections=max_conns)
+    elif args.max_backend_connections > max_conns:
+        abort(f'--max-backend-connections is too large for this backend; '
+              f'detected maximum available NUM: {max_conns}')
+
+    return cluster, args
+
+
 async def run_server(
     args: srvargs.ServerConfig,
     *,
@@ -332,87 +392,44 @@ async def run_server(
 
     cluster: Union[pgcluster.Cluster, pgcluster.RemoteCluster]
     default_runstate_dir: Optional[pathlib.Path]
+
     if args.data_dir:
-        pg_max_connections = args.max_backend_connections
-        if not pg_max_connections:
-            max_conns = srvargs.compute_default_max_backend_connections()
-            pg_max_connections = max_conns
-            if args.testmode:
-                max_conns = srvargs.adjust_testmode_max_connections(max_conns)
-                logger.info(f'Configuring Postgres max_connections='
-                            f'{pg_max_connections} under test mode.')
-            args = args._replace(max_backend_connections=max_conns)
-            logger.info(f'Using {max_conns} max backend connections based on '
-                        f'total memory.')
-
-        cluster = await pgcluster.get_local_pg_cluster(
-            args.data_dir,
-            # Plus two below to account for system connections.
-            max_connections=pg_max_connections + 2,
-            tenant_id=tenant_id,
-            log_level=args.log_level,
-        )
-        default_runstate_dir = cluster.get_data_dir()
-        cluster.set_connection_params(
-            pgconnparams.ConnectionParameters(
-                user='postgres',
-                database='template1',
-            ),
-        )
-    elif args.backend_dsn:
-        cluster = await pgcluster.get_remote_pg_cluster(
-            args.backend_dsn,
-            tenant_id=tenant_id,
-        )
-
-        instance_params = cluster.get_runtime_params().instance_params
-        max_conns = (
-            instance_params.max_connections -
-            instance_params.reserved_connections)
-        if not args.max_backend_connections:
-            logger.info(f'Detected {max_conns} backend connections available.')
-            if args.testmode:
-                max_conns = srvargs.adjust_testmode_max_connections(max_conns)
-                logger.info(f'Using max_backend_connections={max_conns} '
-                            f'under test mode.')
-            args = args._replace(max_backend_connections=max_conns)
-        elif args.max_backend_connections > max_conns:
-            abort(f'--max-backend-connections is too large for this backend; '
-                  f'detected maximum available NUM: {max_conns}')
-
-        default_runstate_dir = None
+        default_runstate_dir = args.data_dir
     else:
-        # This should have been checked by main() already,
-        # but be extra careful.
-        abort('Neither the data directory nor the remote Postgres DSN '
-              'are specified')
+        default_runstate_dir = None
 
-    try:
-        pg_cluster_init_by_us = await cluster.ensure_initialized()
-        cluster_status = await cluster.get_status()
+    specified_runstate_dir: Optional[pathlib.Path]
+    if args.runstate_dir:
+        specified_runstate_dir = args.runstate_dir
+    elif args.bootstrap_only:
+        # When bootstrapping a new EdgeDB instance it is often necessary
+        # to avoid using the main runstate dir due to lack of permissions,
+        # possibility of conflict with another running instance, etc.
+        # The --bootstrap mode is also often runs unattended, i.e.
+        # as a post-install hook during package installation.
+        specified_runstate_dir = default_runstate_dir
+    else:
+        specified_runstate_dir = None
 
-        specified_runstate_dir: Optional[pathlib.Path]
-        if args.runstate_dir:
-            specified_runstate_dir = args.runstate_dir
-        elif args.bootstrap_only:
-            # When bootstrapping a new EdgeDB instance it is often necessary
-            # to avoid using the main runstate dir due to lack of permissions,
-            # possibility of conflict with another running instance, etc.
-            # The --bootstrap mode is also often runs unattended, i.e.
-            # as a post-install hook during package installation.
-            specified_runstate_dir = default_runstate_dir
+    runstate_dir_mgr = _ensure_runstate_dir(
+        default_runstate_dir,
+        specified_runstate_dir,
+    )
+
+    with runstate_dir_mgr as runstate_dir:
+        if args.data_dir:
+            cluster, args = await _get_local_pgcluster(args, tenant_id)
+        elif args.backend_dsn:
+            cluster, args = await _get_remote_pgcluster(args, tenant_id)
         else:
-            specified_runstate_dir = None
+            # This should have been checked by main() already,
+            # but be extra careful.
+            abort('neither the data directory nor the remote Postgres DSN '
+                  'have been specified')
 
-        runstate_dir_mgr = _ensure_runstate_dir(
-            default_runstate_dir,
-            specified_runstate_dir,
-        )
-
-        with (
-            runstate_dir_mgr as runstate_dir,
-            _internal_state_dir(runstate_dir) as internal_runstate_dir,
-        ):
+        try:
+            pg_cluster_init_by_us = await cluster.ensure_initialized()
+            cluster_status = await cluster.get_status()
 
             if cluster_status == 'stopped':
                 await cluster.start()
@@ -445,34 +462,36 @@ async def run_server(
                         ),
                     )
 
-                await _run_server(
-                    cluster,
-                    args,
-                    runstate_dir,
-                    internal_runstate_dir,
-                    do_setproctitle=do_setproctitle,
-                )
+                with _internal_state_dir(runstate_dir) as int_runstate_dir:
+                    await _run_server(
+                        cluster,
+                        args,
+                        runstate_dir,
+                        int_runstate_dir,
+                        do_setproctitle=do_setproctitle,
+                    )
 
-    except server.StartupError as e:
-        abort(str(e))
+        except server.StartupError as e:
+            abort(str(e))
 
-    except BaseException:
-        if pg_cluster_init_by_us and not _server_initialized:
-            logger.warning('server bootstrap did not complete successfully, '
-                           'removing the data directory')
-            if await cluster.get_status() == 'running':
+        except BaseException:
+            if pg_cluster_init_by_us and not _server_initialized:
+                logger.warning(
+                    'server bootstrap did not complete successfully, '
+                    'removing the data directory')
+                if await cluster.get_status() == 'running':
+                    await cluster.stop()
+                cluster.destroy()
+            raise
+
+        finally:
+            if args.temp_dir:
+                if await cluster.get_status() == 'running':
+                    await cluster.stop()
+                cluster.destroy()
+
+            elif pg_cluster_started_by_us:
                 await cluster.stop()
-            cluster.destroy()
-        raise
-
-    finally:
-        if args.temp_dir:
-            if await cluster.get_status() == 'running':
-                await cluster.stop()
-            cluster.destroy()
-
-        elif pg_cluster_started_by_us:
-            await cluster.stop()
 
 
 def bump_rlimit_nofile() -> None:
