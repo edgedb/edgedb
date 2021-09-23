@@ -35,7 +35,6 @@ import time
 import urllib.parse
 
 import asyncpg
-from asyncpg import serverversion
 
 from edb import buildmeta
 from edb.common import supervisor
@@ -135,7 +134,6 @@ class BaseCluster:
     def __init__(
         self,
         *,
-        pg_config_path: str,
         instance_params: Optional[BackendInstanceParams] = None,
     ) -> None:
         self._connection_addr: Optional[Tuple[str, int]] = None
@@ -143,9 +141,8 @@ class BaseCluster:
             pgconnparams.ConnectionParameters
         ] = None
         self._default_session_auth: Optional[str] = None
-        self._pg_config_path = pg_config_path
         self._pg_config_data: Dict[str, str] = {}
-        self._pg_bin_dir: Optional[str] = None
+        self._pg_bin_dir: Optional[pathlib.Path] = None
         if instance_params is None:
             self._instance_params = (
                 get_default_runtime_params().instance_params)
@@ -323,13 +320,13 @@ class BaseCluster:
 
     def _find_pg_binary(self, binary: str) -> str:
         assert self._pg_bin_dir is not None
-        bpath = os.path.join(self._pg_bin_dir, binary)
-        if not os.path.isfile(bpath):
+        bpath = self._pg_bin_dir / binary
+        if not bpath.is_file():
             raise ClusterError(
                 'could not find {} executable: '.format(binary) +
                 '{!r} does not exist or is not a file'.format(bpath))
 
-        return bpath
+        return str(bpath)
 
     def _subprocess_error(
         self,
@@ -348,56 +345,7 @@ class BaseCluster:
             )
 
     async def lookup_postgres(self) -> None:
-        pg_config = self.find_pg_config(self._pg_config_path)
-        self._pg_config_data = await self.run_pg_config(pg_config)
-        self._pg_bin_dir = self.get_pg_bin_dir(self._pg_config_data)
-
-    @staticmethod
-    def get_pg_bin_dir(pg_config_data: Dict[str, str]) -> str:
-        pg_bin_dir = pg_config_data.get('bindir')
-        if not pg_bin_dir:
-            raise ClusterError(
-                'pg_config output did not provide the BINDIR value')
-        return pg_bin_dir
-
-    @staticmethod
-    async def run_pg_config(pg_config_path: str) -> Dict[str, str]:
-        stdout_lines, _, _ = await _run_logged_text_subprocess(
-            [pg_config_path],
-            logger=pg_config_logger,
-        )
-
-        config = {}
-        for line in stdout_lines:
-            k, eq, v = line.partition('=')
-            if eq:
-                config[k.strip().lower()] = v.strip()
-
-        return config
-
-    @staticmethod
-    def find_pg_config(pg_config_path: str) -> str:
-        if pg_config_path is None:
-            pg_install = os.environ.get('PGINSTALLATION')
-            if pg_install:
-                pg_config_path = os.path.join(pg_install, 'pg_config')
-            else:
-                pathenv = os.environ.get('PATH').split(os.pathsep)
-                for path in pathenv:
-                    pg_config_path = os.path.join(path, 'pg_config')
-                    if os.path.exists(pg_config_path):
-                        break
-                else:
-                    pg_config_path = None
-
-        if not pg_config_path:
-            raise ClusterError('could not find pg_config executable')
-
-        if not os.path.isfile(pg_config_path):
-            raise ClusterError('{!r} is not an executable'.format(
-                pg_config_path))
-
-        return pg_config_path
+        self._pg_bin_dir = await get_pg_bin_dir()
 
 
 class Cluster(BaseCluster):
@@ -405,15 +353,11 @@ class Cluster(BaseCluster):
         self,
         data_dir: pathlib.Path,
         *,
-        pg_config_path: str,
         runstate_dir: Optional[pathlib.Path] = None,
         instance_params: Optional[BackendInstanceParams] = None,
         log_level: str = 'i',
     ):
-        super().__init__(
-            pg_config_path=pg_config_path,
-            instance_params=instance_params,
-        )
+        super().__init__(instance_params=instance_params)
         self._data_dir = data_dir
         self._runstate_dir = (
             runstate_dir if runstate_dir is not None else data_dir)
@@ -421,9 +365,6 @@ class Cluster(BaseCluster):
         self._daemon_process: Optional[asyncio.subprocess.Process] = None
         self._daemon_supervisor: Optional[supervisor.Supervisor] = None
         self._log_level = log_level
-
-    def get_pg_version(self) -> asyncpg.ServerVersion:
-        return self._pg_version
 
     def is_managed(self) -> bool:
         return True
@@ -699,8 +640,6 @@ class Cluster(BaseCluster):
         await super().lookup_postgres()
         self._pg_ctl = self._find_pg_binary('pg_ctl')
         self._postgres = self._find_pg_binary('postgres')
-        self._pg_version = serverversion.split_server_version_string(
-            self._pg_config_data['version'])
 
     def _get_connection_addr(self) -> Tuple[str, int]:
         if self._connection_addr is None:
@@ -806,14 +745,10 @@ class RemoteCluster(BaseCluster):
         addr: Tuple[str, int],
         params: pgconnparams.ConnectionParameters,
         *,
-        pg_config_path: str,
         instance_params: Optional[BackendInstanceParams] = None,
         ha_backend: Optional[ha_base.HABackend] = None,
     ):
-        super().__init__(
-            pg_config_path=pg_config_path,
-            instance_params=instance_params,
-        )
+        super().__init__(instance_params=instance_params)
         self._connection_addr = addr
         self._connection_params = params
         self._ha_backend = ha_backend
@@ -876,6 +811,30 @@ class RemoteCluster(BaseCluster):
             self._ha_backend.stop_watching()
 
 
+async def get_pg_bin_dir() -> pathlib.Path:
+    pg_config_data = await get_pg_config()
+    pg_bin_dir = pg_config_data.get('bindir')
+    if not pg_bin_dir:
+        raise ClusterError(
+            'pg_config output did not provide the BINDIR value')
+    return pathlib.Path(pg_bin_dir)
+
+
+async def get_pg_config() -> Dict[str, str]:
+    stdout_lines, _, _ = await _run_logged_text_subprocess(
+        [str(buildmeta.get_pg_config_path())],
+        logger=pg_config_logger,
+    )
+
+    config = {}
+    for line in stdout_lines:
+        k, eq, v = line.partition('=')
+        if eq:
+            config[k.strip().lower()] = v.strip()
+
+    return config
+
+
 async def get_local_pg_cluster(
     data_dir: pathlib.Path,
     *,
@@ -886,7 +845,6 @@ async def get_local_pg_cluster(
 ) -> Cluster:
     if log_level is None:
         log_level = 'i'
-    pg_config = buildmeta.get_pg_config_path()
     if tenant_id is None:
         tenant_id = buildmeta.get_default_tenant_id()
     instance_params = None
@@ -898,7 +856,6 @@ async def get_local_pg_cluster(
     cluster = Cluster(
         data_dir=data_dir,
         runstate_dir=runstate_dir,
-        pg_config_path=str(pg_config),
         instance_params=instance_params,
         log_level=log_level,
     )
@@ -928,12 +885,11 @@ async def get_remote_pg_cluster(
     addrs, params = pgconnparams.parse_dsn(dsn)
     if len(addrs) > 1:
         raise ValueError('multiple hosts in Postgres DSN are not supported')
-    pg_config = buildmeta.get_pg_config_path()
     if tenant_id is None:
         t_id = buildmeta.get_default_tenant_id()
     else:
         t_id = tenant_id
-    rcluster = RemoteCluster(addrs[0], params, pg_config_path=str(pg_config))
+    rcluster = RemoteCluster(addrs[0], params)
 
     async def _get_cluster_type(
         conn: asyncpg.Connection,
@@ -1044,7 +1000,6 @@ async def get_remote_pg_cluster(
     return cluster_type(
         addrs[0],
         params,
-        pg_config_path=str(pg_config),
         instance_params=instance_params,
         ha_backend=ha_backend,
     )
