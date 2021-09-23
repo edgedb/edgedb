@@ -38,6 +38,7 @@ import urllib.parse
 import click
 from click.testing import CliRunner
 
+from edb import buildmeta
 from edb.server import args as edb_args
 from edb.server import bootstrap
 from edb.server import pgcluster
@@ -133,7 +134,8 @@ class ClusterTestCase(tb.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cluster = cls.cluster = TempCluster()
+        pg_config_path = buildmeta.get_pg_config_path()
+        cluster = cls.cluster = TempCluster(pg_config_path=str(pg_config_path))
         cls.loop.run_until_complete(cluster.lookup_postgres())
         cluster.set_connection_params(
             pgconnparams.ConnectionParameters(
