@@ -31,7 +31,6 @@ import urllib.parse
 import edgedb
 import httptools
 
-from edb import buildmeta
 from edb.testbase import server as tb
 from edb.server import pgcluster
 from edb.server.ha import base as ha_base
@@ -323,7 +322,7 @@ class StolonKeeper(ServerContext):
             "--pg-port",
             str(self.port),
             "--pg-bin-path",
-            self.pg_bin_dir,
+            str(self.pg_bin_dir),
         )
         try:
             await self.wait_for_healthy()
@@ -448,10 +447,7 @@ class AdaptiveHAProxy(ha_base.ClusterProtocol):
 
 @contextlib.asynccontextmanager
 async def stolon_setup(*, debug=False):
-    pg_config_path = str(buildmeta.get_pg_config_path())
-    pg_config = pgcluster.BaseCluster.find_pg_config(pg_config_path)
-    pg_config_data = await pgcluster.BaseCluster.run_pg_config(pg_config)
-    pg_bin_dir = pgcluster.BaseCluster.get_pg_bin_dir(pg_config_data)
+    pg_bin_dir = await pgcluster.get_pg_bin_dir()
 
     async with ConsulAgent() as consul:
         async with StolonSentinel(consul, debug=debug):

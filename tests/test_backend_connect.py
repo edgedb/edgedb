@@ -38,7 +38,6 @@ import urllib.parse
 import click
 from click.testing import CliRunner
 
-from edb import buildmeta
 from edb.server import args as edb_args
 from edb.server import bootstrap
 from edb.server import pgcluster
@@ -109,11 +108,11 @@ def get_default_args(version, **kwargs):
 class TempCluster(pgcluster.Cluster):
     def __init__(self, *,
                  data_dir_suffix=None, data_dir_prefix=None,
-                 data_dir_parent=None, pg_config_path=None):
+                 data_dir_parent=None):
         self._data_dir = tempfile.mkdtemp(suffix=data_dir_suffix,
                                           prefix=data_dir_prefix,
                                           dir=data_dir_parent)
-        super().__init__(self._data_dir, pg_config_path=pg_config_path)
+        super().__init__(self._data_dir)
 
 
 class ClusterTestCase(tb.TestCase):
@@ -134,8 +133,7 @@ class ClusterTestCase(tb.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        pg_config_path = buildmeta.get_pg_config_path()
-        cluster = cls.cluster = TempCluster(pg_config_path=str(pg_config_path))
+        cluster = cls.cluster = TempCluster()
         cls.loop.run_until_complete(cluster.lookup_postgres())
         cluster.set_connection_params(
             pgconnparams.ConnectionParameters(
