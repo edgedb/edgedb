@@ -133,27 +133,31 @@ class ClusterTestCase(tb.TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
+        cls.loop.run_until_complete(cls.init_temp_cluster())
+
+    @classmethod
+    async def init_temp_cluster(cls):
         cluster = cls.cluster = TempCluster()
-        cls.loop.run_until_complete(cluster.lookup_postgres())
+        await cluster.lookup_postgres()
         cluster.set_connection_params(
             pgconnparams.ConnectionParameters(
                 user='postgres',
                 database='postgres',
             ),
         )
-        cls.loop.run_until_complete(cluster.init(**_get_initdb_options({})))
-        cls.loop.run_until_complete(cluster.trust_local_connections())
+        await cluster.init(**_get_initdb_options({}))
+        await cluster.trust_local_connections()
         port = tb.find_available_port()
-        cls.loop.run_until_complete(cluster.start(
-            port=port, server_settings=cls.get_server_settings()
-        ))
+        await cluster.start(
+            port=port, server_settings=cls.get_server_settings())
         result = CliRunner().invoke(get_default_args, [])
-        args = edb_args.parse_args(**pickle.loads(result.stdout_bytes))
+        arg_input = pickle.loads(result.stdout_bytes)
+        arg_input["data_dir"] = pathlib.Path(cluster.get_data_dir())
+        arg_input["generate_self_signed_cert"] = True
         cls.tenant_id = cluster.get_runtime_params().instance_params.tenant_id
         cls.dbname = cluster.get_db_name('edgedb')
-        cls.loop.run_until_complete(
-            bootstrap.ensure_bootstrapped(cluster, args)
-        )
+        args = edb_args.parse_args(**arg_input)
+        await bootstrap.ensure_bootstrapped(cluster, args)
 
     @classmethod
     def tearDownClass(cls):
