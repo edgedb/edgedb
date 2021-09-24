@@ -4981,6 +4981,26 @@ aa \
                 FILTER .name = "User 2";
             """)
 
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_exists violation",
+        ):
+            await self.con.query_json("""
+                SELECT assert_exists(
+                    (SELECT User { name } FILTER .name = "nonexistent")
+                );
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_exists violation",
+        ):
+            await self.con.query("""
+                SELECT assert_exists(
+                    (SELECT User FILTER .name = "nonexistent")
+                ).name;
+            """)
+
     async def test_edgeql_assert_exists_no_op(self):
         await self.con.query("""
             SELECT assert_exists(1)

@@ -2599,6 +2599,18 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         for row in res:
             self.assertNotEqual(row[1].id, None)
 
+    async def test_edgeql_select_setops_22(self):
+        res = await self.con.query(r'''
+            SELECT (
+                (SELECT Issue.time_spent_log.body FILTER false)
+                 if false else 'asdf',
+                Issue,
+            )
+        ''')
+        self.assertEqual(len(res), 4)
+        for row in res:
+            self.assertNotEqual(row[1].id, None)
+
     async def test_edgeql_select_order_01(self):
         await self.assert_query_result(
             r'''
@@ -6274,3 +6286,105 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     SELECT User.<whatever
                 ''',
             )
+
+    async def test_edgeql_function_source_01a(self):
+        # TODO: I think we might want to eliminate this sort of shape
+        # propagation out of array_unpack instead?
+        await self.assert_query_result(
+            r'''
+                SELECT DISTINCT array_unpack([(
+                    SELECT User {name} FILTER .name[0] = 'E'
+                )]);
+           ''',
+            [{"name": "Elvis"}],
+        )
+
+    async def test_edgeql_function_source_01b(self):
+        await self.assert_query_result(
+            r'''
+                SELECT (DISTINCT array_unpack([(
+                    SELECT User FILTER .name[0] = 'E'
+                )])) { name };
+           ''',
+            [{"name": "Elvis"}],
+        )
+
+    async def test_edgeql_function_source_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT DISTINCT enumerate((
+                    SELECT User {name} FILTER .name[0] = 'E'
+                )).1;
+            ''',
+            [{"name": "Elvis"}],
+        )
+
+    async def test_edgeql_function_source_03(self):
+        await self.assert_query_result(
+            r'''
+                SELECT assert_single(array_unpack([(
+                    SELECT User FILTER .name[0] = 'E'
+                )])) {name};
+           ''',
+            [{"name": "Elvis"}],
+        )
+
+    async def test_edgeql_function_source_04(self):
+        await self.assert_query_result(
+            r'''
+                SELECT assert_distinct(array_unpack([(
+                    SELECT User FILTER .name[0] = 'E'
+                )])) {name} ;
+           ''',
+            [{"name": "Elvis"}],
+        )
+
+    async def test_edgeql_function_source_05(self):
+        await self.assert_query_result(
+            r'''
+                SELECT assert_exists(array_unpack([(
+                    SELECT User FILTER .name[0] = 'E'
+                )])) {name};
+            ''',
+            [{"name": "Elvis"}],
+        )
+
+    async def test_edgeql_function_source_06(self):
+        await self.assert_query_result(
+            r'''
+                SELECT enumerate(array_unpack([(
+                    SELECT User FILTER .name[0] = 'E'
+                )]) {name});
+            ''',
+            [[0, {"name": "Elvis"}]],
+        )
+
+    async def test_edgeql_function_source_07(self):
+        await self.assert_query_result(
+            r'''
+                SELECT (enumerate((
+                    SELECT User FILTER .name[0] = 'E'
+                )).1 UNION (SELECT User FILTER false)) {name};
+            ''',
+            [{"name": "Elvis"}],
+        )
+
+    async def test_edgeql_function_source_08(self):
+        await self.assert_query_result(
+            r'''
+                SELECT (enumerate((
+                    SELECT User FILTER .name[0] = 'E'
+                )).1 ?? (SELECT User FILTER false)) {name};
+            ''',
+            [{"name": "Elvis"}],
+        )
+
+    async def test_edgeql_function_source_09(self):
+        await self.assert_query_result(
+            r'''
+                SELECT (enumerate((
+                    SELECT User FILTER .name[0] = 'E'
+                )).1 if 1 = 1 ELSE (SELECT User FILTER false)) {name};
+            ''',
+            [{"name": "Elvis"}],
+        )
