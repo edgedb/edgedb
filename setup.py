@@ -185,6 +185,55 @@ def _compile_build_meta(build_lib, version, pg_config, runstatedir,
         f.write(content)
 
 
+def _add_macos_openssl_flags(env: dict):
+    if (
+        'openssl' in env.get('LDFLAGS', '').lower() or
+        'openssl' in env.get('CPPFLAGS', '').lower() or
+        'openssl' in env.get('CFLAGS', '').lower() or
+        'openssl' in env.get('PKG_CONFIG_PATH', '').lower()
+    ):
+        return
+
+    try:
+        openssl_prefix = pathlib.Path(subprocess.check_output(
+            ['brew', '--prefix', 'openssl'], text=True
+        ).strip())
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        openssl_prefix = None
+    else:
+        pc_path = str(openssl_prefix / 'lib' / 'pkgconfig')
+        if 'PKG_CONFIG_PATH' in env:
+            env['PKG_CONFIG_PATH'] += f':{pc_path}'
+        else:
+            env['PKG_CONFIG_PATH'] = pc_path
+    try:
+        cflags = subprocess.check_output(
+            ['pkg-config', '--cflags', 'openssl'], text=True, env=env
+        ).strip()
+        ldflags = subprocess.check_output(
+            ['pkg-config', '--libs', 'openssl'], text=True, env=env
+        ).strip()
+    except FileNotFoundError:
+        if openssl_prefix:
+            cflags = f'-I{openssl_prefix / "include"!s}'
+            ldflags = f'-L{openssl_prefix / "lib"!s}'
+        else:
+            return
+    except subprocess.CalledProcessError:
+        return
+
+    if 'CPPFLAGS' in env:
+        env['CPPFLAGS'] += f' {cflags}'
+    elif 'CFLAGS' in env:
+        env['CFLAGS'] += f' {cflags}'
+    else:
+        env['CPPFLAGS'] = cflags
+    if 'LDFLAGS' in env:
+        env['LDFLAGS'] += f' {ldflags}'
+    else:
+        env['LDFLAGS'] = ldflags
+
+
 def _compile_postgres(build_base, *,
                       force_build=False, fresh_build=True,
                       run_configure=True, build_contrib=True):
@@ -228,12 +277,15 @@ def _compile_postgres(build_base, *,
             build_dir.mkdir(parents=True)
 
         if run_configure or fresh_build or is_outdated:
+            env = dict(os.environ)
+            if system == 'Darwin':
+                _add_macos_openssl_flags(env)
             subprocess.run([
                 str(postgres_src / 'configure'),
                 '--prefix=' + str(postgres_build / 'install'),
                 '--with-openssl',
                 '--with-uuid=' + uuidlib,
-            ], check=True, cwd=str(build_dir))
+            ], check=True, cwd=str(build_dir), env=env)
 
         subprocess.run(
             ['make', 'MAKELEVEL=0', '-j', str(max(os.cpu_count() - 1, 1))],
