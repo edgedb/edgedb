@@ -1305,6 +1305,11 @@ def process_set_as_setop(
             pathctx.put_path_id_map(rarg, ir_set.path_id, right.path_id)
             dispatch.visit(right, ctx=scopectx)
 
+    aspects = (
+        pathctx.list_path_aspects(larg, left.path_id, env=ctx.env)
+        & pathctx.list_path_aspects(rarg, right.path_id, env=ctx.env)
+    )
+
     with ctx.subrel() as subctx:
         subqry = subctx.rel
         # There is only one binary set operators possible coming from IR:
@@ -1318,7 +1323,8 @@ def process_set_as_setop(
         # No pull_namespace because we don't want the union arguments to
         # escape, just the final result.
         relctx.include_rvar(
-            stmt, union_rvar, ir_set.path_id, pull_namespace=False, ctx=subctx)
+            stmt, union_rvar, ir_set.path_id, aspects=aspects,
+            pull_namespace=False, ctx=subctx)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -1337,7 +1343,9 @@ def process_set_as_distinct(
         subrvar = relctx.rvar_for_rel(
             subqry, typeref=arg.typeref, lateral=True, ctx=subctx)
 
-    relctx.include_rvar(stmt, subrvar, ir_set.path_id, ctx=ctx)
+    aspects = pathctx.list_path_aspects(subqry, arg.path_id, env=ctx.env)
+    relctx.include_rvar(
+        stmt, subrvar, ir_set.path_id, aspects=aspects, ctx=ctx)
 
     value_var = pathctx.get_rvar_path_var(
         subrvar, ir_set.path_id, aspect='value', env=ctx.env)
@@ -1437,6 +1445,11 @@ def process_set_as_ifelse(
                 astutils.new_unop('NOT', condref)
             )
 
+        aspects = (
+            pathctx.list_path_aspects(larg, if_expr.path_id, env=ctx.env)
+            & pathctx.list_path_aspects(rarg, else_expr.path_id, env=ctx.env)
+        )
+
         with ctx.subrel() as subctx:
             subqry = subctx.rel
             subqry.op = 'UNION'
@@ -1445,7 +1458,10 @@ def process_set_as_ifelse(
             subqry.rarg = rarg
 
             union_rvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=subctx)
-            relctx.include_rvar(stmt, union_rvar, ir_set.path_id, ctx=subctx)
+            relctx.include_rvar(
+                stmt, union_rvar, ir_set.path_id, pull_namespace=False,
+                aspects=aspects,
+                ctx=subctx)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -1624,12 +1640,18 @@ def process_set_as_coalesce(
                     )
                 )
 
+            aspects = (
+                pathctx.list_path_aspects(larg, left_ir.path_id, env=ctx.env)
+                & pathctx.list_path_aspects(
+                    rarg, right_ir.path_id, env=ctx.env)
+            )
+
             subrvar = relctx.rvar_for_rel(subqry, lateral=True, ctx=newctx)
 
             # No pull_namespace because we don't want the coalesce arguments to
             # escape, just the final result.
             relctx.include_rvar(
-                stmt, subrvar, path_id=ir_set.path_id,
+                stmt, subrvar, path_id=ir_set.path_id, aspects=aspects,
                 pull_namespace=False, ctx=newctx)
 
             stmt.where_clause = astutils.extend_binop(
@@ -1947,11 +1969,11 @@ def process_set_as_singleton_assertion(
 
         pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
 
-    aspects = ('value', 'source')
-
+    aspects = pathctx.list_path_aspects(
+        newctx.rel, ir_arg_set.path_id, env=ctx.env)
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
-                        pull_namespace=False, aspects=aspects, ctx=ctx)
+                        aspects=aspects, ctx=ctx)
 
     return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
@@ -1977,10 +1999,11 @@ def process_set_as_existence_assertion(
         pathctx.put_path_id_map(stmt, ir_set.path_id, ir_arg_set.path_id)
         return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
-    with ctx.new() as newctx:
+    with ctx.subrel() as newctx:
         # The solution to assert_exists() is as simple as
         # calling raise_on_null().
         newctx.force_optional.add(ir_arg_set.path_id)
+        pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
         arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
         set_expr = pgast.FuncCall(
@@ -2003,13 +2026,31 @@ def process_set_as_existence_assertion(
         )
 
         pathctx.put_path_value_var(
-            stmt,
-            ir_set.path_id,
+            newctx.rel,
+            ir_arg_set.path_id,
             set_expr,
+            force=True,
             env=newctx.env,
         )
+        if ir_set.path_id.is_objtype_path():
+            pathctx.put_path_identity_var(
+                newctx.rel,
+                ir_arg_set.path_id,
+                set_expr,
+                force=True,
+                env=newctx.env,
+            )
 
-    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+    # It is important that we do not provide source, which could allow
+    # fields on the object to be accessed without triggering the
+    # raise_on_null. Not providing source means another join is
+    # needed, which will trigger it.
+    func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+    relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
+                        aspects=('value',),
+                        ctx=ctx)
+
+    return new_stmt_set_rvar(ir_set, stmt, aspects=('value',), ctx=ctx)
 
 
 def process_set_as_multiplicity_assertion(
@@ -2058,9 +2099,12 @@ def process_set_as_multiplicity_assertion(
                 subctx.rel, ir_arg_set.path_id, env=subctx.env)
             arg_val = output.output_as_value(arg_ref, env=newctx.env)
             sub_rvar = relctx.new_rel_rvar(ir_arg_set, subctx.rel, ctx=subctx)
+
+            aspects = pathctx.list_path_aspects(
+                subctx.rel, ir_arg_set.path_id, env=ctx.env)
             relctx.include_rvar(
                 newctx.rel, sub_rvar, ir_arg_set.path_id,
-                aspects=('source', 'value'), ctx=subctx,
+                aspects=aspects, ctx=subctx,
             )
             alias = ctx.env.aliases.get('i')
             subctx.rel.target_list.append(
@@ -2148,8 +2192,6 @@ def process_set_as_multiplicity_assertion(
 
         pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
 
-    aspects = ('value', 'source')
-
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(
         stmt, func_rvar, ir_set.path_id, aspects=aspects, ctx=ctx)
@@ -2213,11 +2255,12 @@ def process_set_as_enumerate(
         pathctx.put_path_var_if_not_exists(
             newctx.rel, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
 
-    aspects = ('value', 'source')
+    aspects = pathctx.list_path_aspects(
+        newctx.rel, ir_arg.path_id, env=ctx.env)
 
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
-                        pull_namespace=False, aspects=aspects, ctx=ctx)
+                        aspects=aspects, ctx=ctx)
 
     return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
@@ -2401,6 +2444,20 @@ def _process_set_func_with_ordinality(
             pathctx.put_path_value_var(
                 ctx.rel, element.path_id, element.val, env=ctx.env)
 
+    # If there is a shape specified on the argument to enumerate, we need
+    # to compile it here manually, since we are skipping the normal
+    # code path for it.
+    if (output.in_serialization_ctx(ctx) and ir_set.shape
+            and not ctx.env.ignore_object_shapes):
+        ensure_source_rvar(ir_set, ctx.rel, ctx=ctx)
+        exprcomp._compile_shape(ir_set, ir_set.shape, ctx=ctx)
+
+    var = pathctx.maybe_get_path_var(
+        ctx.rel, ir_set.path_id, aspect='serialized', env=ctx.env)
+    if var is not None:
+        pathctx.put_path_var(ctx.rel, set_expr.elements[1].path_id, var,
+                             aspect='serialized', env=ctx.env)
+
     return set_expr
 
 
@@ -2580,8 +2637,9 @@ def process_set_as_func_enumerate(
     assert isinstance(inner_func, irast.FunctionCall)
 
     with ctx.subrel() as newctx:
-        newctx.expr_exposed = False
-        args = _compile_func_args(inner_func_set, ctx=newctx)
+        with newctx.new() as newctx2:
+            newctx2.expr_exposed = False
+            args = _compile_func_args(inner_func_set, ctx=newctx2)
         func_name = get_func_call_backend_name(inner_func, ctx=newctx)
 
         set_expr = _process_set_func_with_ordinality(

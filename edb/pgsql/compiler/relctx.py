@@ -67,7 +67,6 @@ def _pull_path_namespace(
 
     if astutils.is_set_op_query(squery):
         # Set op query
-        squery = cast(pgast.SelectStmt, squery)
         assert squery.larg and squery.rarg
         source_qs = [squery, squery.larg, squery.rarg]
     else:
@@ -183,7 +182,7 @@ def include_rvar(
         overwrite_path_rvar: bool=False,
         pull_namespace: bool=True,
         flavor: str='normal',
-        aspects: Optional[Tuple[str, ...]]=None,
+        aspects: Optional[Tuple[str, ...] | AbstractSet[str]]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
     """Ensure that *rvar* is visible in *stmt* as a value/source aspect.
 

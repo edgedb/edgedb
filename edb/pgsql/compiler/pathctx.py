@@ -768,6 +768,31 @@ def get_packed_path_var(
 
     query = rvar.query
     assert isinstance(query, pgast.Query)
+
+    top_query = query
+    # Handle the optional case in a hacky way, since it is the only
+    # one that should come up currently. Eventually this should be
+    # handled properly.
+    if astutils.is_set_op_query(query):
+        alias = env.aliases.get('null')
+        restarget = pgast.ResTarget(
+            name=alias,
+            val=pgast.NullConstant())
+
+        assert query.larg and query.rarg
+        assert (
+            isinstance(query.rarg, pgast.SelectStmt)
+            and isinstance(query.rarg.from_clause[0], pgast.RelRangeVar)
+            and isinstance(
+                query.rarg.from_clause[0].relation, pgast.NullRelation)
+        )
+        query.rarg.target_list.append(restarget)
+
+        nullref = pgast.ColumnRef(name=[alias], nullable=True)
+        _put_path_output_var(query.rarg, path_id, aspect, nullref, env=env)
+
+        query = query.larg
+
     rel_rvar = get_path_rvar(
         query, path_id, flavor='packed', aspect=aspect, env=env)
 
@@ -786,6 +811,9 @@ def get_packed_path_var(
     result = pgast.ColumnRef(
         name=[alias], nullable=nullable, optional=optional)
     _put_path_output_var(query, path_id, aspect, result, env=env)
+
+    if query is not top_query:
+        _put_path_output_var(top_query, path_id, aspect, result, env=env)
 
     return result, multi
 

@@ -822,7 +822,193 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_for_and_computable_01(self):
+    async def test_edgeql_for_in_computable_12(self):
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    select_deck := (assert_exists((
+                        FOR letter IN {'I', 'B'}
+                        UNION (
+                            SELECT User.deck {
+                                name,
+                                letter := letter
+                            }
+                            FILTER User.deck.name[0] = letter
+                        )
+                    )),)
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        [{'name': 'Bog monster', 'letter': 'B'}],
+                        [{'name': 'Imp', 'letter': 'I'}],
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x[0]['name'],
+            }
+        )
+
+    async def test_edgeql_for_in_computable_13(self):
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    multi select_deck := assert_single((
+                        FOR letter IN {'I', 'Z'}
+                        UNION (
+                            SELECT User.deck {
+                                name,
+                                letter := letter
+                            }
+                            FILTER User.deck.name[0] = letter
+                        )
+                    ))
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Imp', 'letter': 'I'},
+                    ]
+                }
+            ],
+        )
+
+    async def test_edgeql_for_in_computable_14(self):
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    select_deck := DISTINCT assert_exists((
+                        FOR letter IN {'I', 'B'}
+                        UNION (
+                            SELECT User.deck {
+                                name,
+                                letter := letter
+                            }
+                            FILTER User.deck.name[0] = letter
+                        )
+                    ))
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', 'letter': 'B'},
+                        {'name': 'Imp', 'letter': 'I'},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x['name'],
+            }
+        )
+
+    async def test_edgeql_for_in_computable_15(self):
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    select_deck := assert_distinct(assert_exists((
+                        FOR letter IN {'I', 'B'}
+                        UNION (
+                            SELECT User.deck {
+                                name,
+                                letter := letter
+                            }
+                            FILTER User.deck.name[0] = letter
+                        )
+                    )))
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', 'letter': 'B'},
+                        {'name': 'Imp', 'letter': 'I'},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x['name'],
+            }
+        )
+
+    async def test_edgeql_for_in_computable_16(self):
+        await self.assert_query_result(
+            r'''
+                SELECT User {
+                    select_deck := assert_exists(assert_distinct((
+                        FOR letter IN {'I', 'B'}
+                        UNION (
+                            SELECT User.deck {
+                                name,
+                                letter := letter
+                            }
+                            FILTER User.deck.name[0] = letter
+                        )
+                    )))
+                } FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    'select_deck': [
+                        {'name': 'Bog monster', 'letter': 'B'},
+                        {'name': 'Imp', 'letter': 'I'},
+                    ]
+                }
+            ],
+            sort={
+                'select_deck': lambda x: x['name'],
+            }
+        )
+
+    @test.xfail("""
+        This is an issue with materialization and arrays
+    """)
+    async def test_edgeql_for_in_function_01(self):
+        await self.assert_query_result(
+            r'''
+                SELECT array_unpack([(
+                    FOR letter IN {'I', 'Z'}
+                    UNION (
+                        SELECT Card {name, letter := letter}
+                        FILTER .name[0] = letter
+                    )
+                )]);
+            ''',
+            [{"letter": "I", "name": "Imp"}],
+        )
+
+    async def test_edgeql_for_in_function_02(self):
+        await self.assert_query_result(
+            r'''
+                SELECT enumerate((
+                    FOR letter IN {'I', 'Z'}
+                    UNION (
+                        SELECT Card {name, letter := letter}
+                        FILTER .name[0] = letter
+                    )
+                )).1;
+            ''',
+            [{"letter": "I", "name": "Imp"}],
+        )
+
+    async def test_edgeql_for_in_function_03(self):
+        await self.assert_query_result(
+            r'''
+                SELECT DISTINCT assert_exists((
+                    FOR letter IN {'I', 'Z'}
+                    UNION (
+                        SELECT Card {name, letter := letter}
+                        FILTER .name[0] = letter
+                    )
+                ));
+            ''',
+            [{"letter": "I", "name": "Imp"}],
+        )
+
+    async def test_edgeql_for_and_computable_05(self):
         await self.assert_query_result(
             r'''
                 WITH X := (SELECT (FOR x IN {1,2} UNION (

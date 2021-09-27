@@ -30,6 +30,7 @@ from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
 
 if TYPE_CHECKING:
+    from typing_extensions import TypeGuard
     from edb.ir import ast as irast
     from . import context
 
@@ -135,7 +136,7 @@ def is_null_const(expr: pgast.BaseExpr) -> bool:
     return isinstance(expr, pgast.NullConstant)
 
 
-def is_set_op_query(query: pgast.BaseExpr) -> bool:
+def is_set_op_query(query: pgast.BaseExpr) -> TypeGuard[pgast.SelectStmt]:
     return (
         isinstance(query, pgast.SelectStmt)
         and query.op is not None
@@ -145,7 +146,6 @@ def is_set_op_query(query: pgast.BaseExpr) -> bool:
 def get_leftmost_query(query: pgast.Query) -> pgast.Query:
     result = query
     while is_set_op_query(result):
-        result = cast(pgast.SelectStmt, result)
         assert result.larg
         result = result.larg
     return result
@@ -156,7 +156,6 @@ def for_each_query_in_set(
     cb: Callable[[pgast.Query], Any],
 ) -> List[Any]:
     if is_set_op_query(qry):
-        qry = cast(pgast.SelectStmt, qry)
         assert qry.larg and qry.rarg
         result = for_each_query_in_set(qry.larg, cb)
         result.extend(for_each_query_in_set(qry.rarg, cb))
