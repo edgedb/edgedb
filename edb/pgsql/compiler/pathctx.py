@@ -780,6 +780,12 @@ def get_packed_path_var(
             val=pgast.NullConstant())
 
         assert query.larg and query.rarg
+        assert (
+            isinstance(query.rarg, pgast.SelectStmt)
+            and isinstance(query.rarg.from_clause[0], pgast.RelRangeVar)
+            and isinstance(
+                query.rarg.from_clause[0].relation, pgast.NullRelation)
+        )
         query.rarg.target_list.append(restarget)
 
         nullref = pgast.ColumnRef(name=[alias], nullable=True)

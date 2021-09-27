@@ -2444,6 +2444,9 @@ def _process_set_func_with_ordinality(
             pathctx.put_path_value_var(
                 ctx.rel, element.path_id, element.val, env=ctx.env)
 
+    # If there is a shape specified on the argument to enumerate, we need
+    # to compile it here manually, since we are skipping the normal
+    # code path for it.
     if (output.in_serialization_ctx(ctx) and ir_set.shape
             and not ctx.env.ignore_object_shapes):
         ensure_source_rvar(ir_set, ctx.rel, ctx=ctx)
