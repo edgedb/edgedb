@@ -144,3 +144,11 @@ class TestIndexes(tb.DDLTestCase):
             await self.con.execute("""
                 ALTER TYPE User DROP INDEX ON (.name)
             """)
+
+    async def test_index_04(self):
+        await self.con.execute(r"""
+            CREATE TYPE User {
+                CREATE PROPERTY title -> str;
+                CREATE INDEX ON (.title ?? "N/A");
+            }
+        """)

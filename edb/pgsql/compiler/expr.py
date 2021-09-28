@@ -331,8 +331,17 @@ def compile_OperatorCall(
                     result=dispatch.compile(if_expr, ctx=ctx))
             ],
             defresult=dispatch.compile(else_expr, ctx=ctx))
-
-    if expr.typemod is ql_ft.TypeModifier.SetOfType:
+    elif (str(expr.func_shortname) == 'std::??'
+            and expr.args[0].cardinality.is_single()
+            and expr.args[1].cardinality.is_single()):
+        l_expr, r_expr = (a.expr for a in expr.args)
+        return pgast.CoalesceExpr(
+            args=[
+                dispatch.compile(l_expr, ctx=ctx),
+                dispatch.compile(r_expr, ctx=ctx),
+            ],
+        )
+    elif expr.typemod is ql_ft.TypeModifier.SetOfType:
         raise RuntimeError(
             f'set returning operator {expr.func_shortname!r} is not supported '
             f'in simple expressions')

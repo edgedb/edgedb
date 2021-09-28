@@ -1345,6 +1345,58 @@ class TestConstraintsDDL(tb.DDLTestCase):
                 };
             """)
 
+    async def test_constraints_ddl_16(self):
+        await self.con.execute("""
+            CREATE TYPE ObjCnstr {
+                CREATE PROPERTY first_name -> str;
+                CREATE PROPERTY last_name -> str;
+                CREATE CONSTRAINT exclusive ON (
+                    (.first_name ?? "N/A", .last_name ?? "N/A")
+                );
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT ObjCnstr { first_name := "foo", last_name := "bar" }
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "ObjCnstr violates exclusivity constraint",
+        ):
+            await self.con.execute("""
+                INSERT ObjCnstr {
+                    first_name := "foo", last_name := "bar" }
+            """)
+
+        await self.con.execute("""
+            INSERT ObjCnstr { first_name := "test" }
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "ObjCnstr violates exclusivity constraint",
+        ):
+            await self.con.execute("""
+                INSERT ObjCnstr {
+                    first_name := "test"
+                }
+            """)
+
+        await self.con.execute("""
+            INSERT ObjCnstr { last_name := "test" }
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "ObjCnstr violates exclusivity constraint",
+        ):
+            await self.con.execute("""
+                INSERT ObjCnstr {
+                    last_name := "test"
+                }
+            """)
+
     async def test_constraints_ddl_function(self):
         await self.con.execute('''\
             CREATE FUNCTION comp_func(s: str) -> str {
