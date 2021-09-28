@@ -6,7 +6,7 @@ SPHINXOPTS:="-W -n"
 
 cython:
 	find edb -name '*.pyx' | xargs touch
-	python setup.py build_ext --inplace
+	BUILD_EXT_MODE=py-only python setup.py build_ext --inplace
 
 
 docs:

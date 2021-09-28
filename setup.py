@@ -650,17 +650,11 @@ class build_ext(setuptools_build_ext.build_ext):
         super(build_ext, self).finalize_options()
 
     def run(self):
-        if self.build_mode == 'both' and self.distribution.rust_extensions:
-            distutils.log.info("running build_rust")
-            _check_rust()
-            build_rust = self.get_finalized_command("build_rust")
-            build_rust.inplace = self.inplace
-            build_rust.plat_name = self.plat_name
-            build_rust.debug = self.debug
-            build_rust.run()
-
         if self.build_mode != 'skip':
             super().run()
+        else:
+            distutils.log.info(f'Skipping build_ext because '
+                               f'BUILD_EXT_MODE={self.build_mode}')
 
 
 class build_cli(setuptools.Command):
@@ -734,6 +728,10 @@ if setuptools_rust is not None:
         def run(self):
             _check_rust()
             build_ext = self.get_finalized_command("build_ext")
+            if build_ext.build_mode != 'both':
+                distutils.log.info(f'Skipping build_rust because '
+                                   f'BUILD_EXT_MODE={build_ext.build_mode}')
+                return
             self.plat_name = build_ext.plat_name
             copy_list = []
             if not build_ext.inplace:
