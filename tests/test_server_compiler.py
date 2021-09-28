@@ -170,16 +170,28 @@ class TestAmsg(tbs.TestCase):
             await self.check_pid(pid1, server)
             await self.check_pid(pid2, server)
 
+            # Make sure the template process is ready to listen to signals
+            # by testing its restarting feature
+            pids = []
+            os.kill(pid1, signal.SIGTERM)
+            pid = await asyncio.wait_for(proto.disconnected.get(), 1)
+            pids.append(pid)
+            self.assertEqual(pid, pid1)
+            pid3 = await asyncio.wait_for(proto.connected.get(), 1)
+            self.assertNotIn(pid3, (pid1, pid2))
+            await self.check_pid(pid3, server)
+
+            # Kill the template process, it should kill all its children
             proc.terminate()
             await proc.wait()
 
-            pids = []
             for _ in range(2):
                 pid = await asyncio.wait_for(proto.disconnected.get(), 1)
                 pids.append(pid)
 
             self.assertIn(pid1, pids)
             self.assertIn(pid2, pids)
+            self.assertIn(pid3, pids)
 
             # Make sure all the workers are gone
             for pid in pids:
