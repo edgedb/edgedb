@@ -63,6 +63,8 @@ class HTTPGet(asyncio.Protocol):
                 self._waiter.set_exception(result)
             else:
                 self._waiter.set_result(result)
+            if self._transport is not None:
+                self._transport.close()
 
     def _connect_cb(self, task: asyncio.Task):
         ex = task.exception()
@@ -85,9 +87,9 @@ class HTTPGet(asyncio.Protocol):
             self._parser.feed_data(data)
         except Exception as ex:
             self._set_result(ex)
-            self._transport.close()
 
     def connection_lost(self, exc):
+        self._transport = None
         self._set_result(exc or RuntimeError("Connection broken unexpectedly"))
 
     def on_status(self, status: bytes):
@@ -100,7 +102,6 @@ class HTTPGet(asyncio.Protocol):
 
     def on_message_complete(self):
         self._set_result(b"".join(self._buffers))
-        self._transport.close()
 
     def __await__(self):
         return self._waiter.__await__()

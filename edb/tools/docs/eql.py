@@ -1093,9 +1093,9 @@ class StatementTransform(s_transforms.SphinxTransform):
 
     def apply(self):
         for section in self.document.traverse(d_nodes.section):
-            xml_str = section.asdom().toxml()
+            xml_str = section.asdom().toxml(encoding="UTF-8")
             parser = lxml.etree.XMLParser(recover=True, encoding="UTF-8")
-            x = lxml.etree.parse(io.StringIO(xml_str), parser)
+            x = lxml.etree.parse(io.BytesIO(xml_str), parser)
 
             fields = set(x.xpath('field_list/field/field_name/text()'))
             title = x.xpath('title/text()')[0]
