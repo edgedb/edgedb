@@ -185,6 +185,57 @@ def _compile_build_meta(build_lib, version, pg_config, runstatedir,
         f.write(content)
 
 
+def _get_env_with_openssl_flags():
+    env = dict(os.environ)
+    cflags = env.get('EDGEDB_BUILD_OPENSSL_CFLAGS')
+    ldflags = env.get('EDGEDB_BUILD_OPENSSL_LDFLAGS')
+
+    if not (cflags or ldflags) and platform.system() == 'Darwin':
+        try:
+            openssl_prefix = pathlib.Path(subprocess.check_output(
+                ['brew', '--prefix', 'openssl'], text=True
+            ).strip())
+        except (FileNotFoundError, subprocess.CalledProcessError):
+            openssl_prefix = None
+        else:
+            pc_path = str(openssl_prefix / 'lib' / 'pkgconfig')
+            if 'PKG_CONFIG_PATH' in env:
+                env['PKG_CONFIG_PATH'] += f':{pc_path}'
+            else:
+                env['PKG_CONFIG_PATH'] = pc_path
+        try:
+            cflags = subprocess.check_output(
+                ['pkg-config', '--cflags', 'openssl'], text=True, env=env
+            ).strip()
+            ldflags = subprocess.check_output(
+                ['pkg-config', '--libs', 'openssl'], text=True, env=env
+            ).strip()
+        except FileNotFoundError:
+            # pkg-config is not installed
+            if openssl_prefix:
+                cflags = f'-I{openssl_prefix / "include"!s}'
+                ldflags = f'-L{openssl_prefix / "lib"!s}'
+            else:
+                return env
+        except subprocess.CalledProcessError:
+            # Cannot find flags with pkg-config
+            return env
+
+    if cflags:
+        if 'CPPFLAGS' in env:
+            env['CPPFLAGS'] += f' {cflags}'
+        elif 'CFLAGS' in env:
+            env['CFLAGS'] += f' {cflags}'
+        else:
+            env['CPPFLAGS'] = cflags
+    if ldflags:
+        if 'LDFLAGS' in env:
+            env['LDFLAGS'] += f' {ldflags}'
+        else:
+            env['LDFLAGS'] = ldflags
+    return env
+
+
 def _compile_postgres(build_base, *,
                       force_build=False, fresh_build=True,
                       run_configure=True, build_contrib=True):
@@ -228,12 +279,13 @@ def _compile_postgres(build_base, *,
             build_dir.mkdir(parents=True)
 
         if run_configure or fresh_build or is_outdated:
+            env = _get_env_with_openssl_flags()
             subprocess.run([
                 str(postgres_src / 'configure'),
                 '--prefix=' + str(postgres_build / 'install'),
                 '--with-openssl',
                 '--with-uuid=' + uuidlib,
-            ], check=True, cwd=str(build_dir))
+            ], check=True, cwd=str(build_dir), env=env)
 
         subprocess.run(
             ['make', 'MAKELEVEL=0', '-j', str(max(os.cpu_count() - 1, 1))],
