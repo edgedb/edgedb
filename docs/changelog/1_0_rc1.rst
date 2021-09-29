@@ -3,7 +3,7 @@
 ========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 Release Candidate 1 "Ran".
+EdgeDB 1.0 Release Candidate 1 "Epsilon Eridani".
 
 
 Migrations
@@ -156,11 +156,21 @@ We've updated the binary protocol to version 0.12 which brings some
 performance and other improvements.
 
 * Support protocol 0.12 features features for `edgedb-python
-  <https://github.com/edgedb/edgedb-python>`_ and release v0.19.0
+  <https://github.com/edgedb/edgedb-python>`_ and release v0.18.0
   driver.
 * Support protocol 0.12 features features for `edgedb-js
-  <https://github.com/edgedb/edgedb-js>`_ and release v0.16.0
+  <https://github.com/edgedb/edgedb-js>`_ and release v0.15.2
   driver.
 * Support protocol 0.12 features features for `edgedb-go
   <https://github.com/edgedb/edgedb-go>`_ and release v0.8.2
   driver.
+
+In all of the EdgeDB bindings ``connect()`` now returns a *connection
+pool* instead of a single raw connection. To replicate the old
+behavior, just create a pool with concurrency ``1``.
+
+We’re removing all deprecated APIs from our client libraries which
+includes:
+
+* ``query_one`` / ``queryOne`` / ``QueryOne``
+* ``query_one_json`` / ``queryOneJSON`` / ``QueryOneJSON``
