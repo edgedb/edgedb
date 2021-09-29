@@ -3,7 +3,7 @@
 ========
 
 This changelog summarizes new features and breaking changes in
-EdgeDB 1.0 RC 1 "Ran".
+EdgeDB 1.0 Release Candidate 1 "Ran".
 
 
 Migrations
@@ -45,8 +45,8 @@ We continue fixing bugs that affect schema definitions and migrations:
   and will effectively force users to pollute queries with pointless
   and expensive :eql:op:`DISTINCT`.
 
-  Here we change EdgeDB behavior to allow multiplicity greater than
-  one in ``multi`` properties.
+  Here we change EdgeDB behavior to allow multiplicity *greater than
+  one* in ``multi`` properties.
 
 * Fix the error when an object function is created alongside its
   object (:eql:gh:`#2834`).
@@ -135,6 +135,10 @@ EdgeQL
 
 Command-Line Tools
 ==================
+
+* Add the :ref:`cli.toml <ref_cli_edgedb_config>` global configuration
+  file for customizing the CLI and REPL behavior. The location of the
+  file is shown as "Config" by :ref:`ref_cli_edgedb_info`.
 
 * Make SCRAM the default auth method (:eql:gh:`#2848`).
 * Add a server option to specify the default authentication method
