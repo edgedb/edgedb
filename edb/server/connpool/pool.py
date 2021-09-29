@@ -1163,12 +1163,16 @@ class Pool(BasePool[C]):
 
         self._maybe_schedule_tick()
 
-        if discard:
-            self._get_loop().create_task(
-                self._discard_conn(block, conn))
-            return
-
         if not self._maybe_free_conn(block, conn):
+            if discard:
+                # Concurrent `acquire()` may be waiting to reuse the released
+                # connection here - as we should discard this one, let's just
+                # schedule a new one in the same block.
+                self._get_loop().create_task(
+                    self._discard_conn(block, conn))
+                self._schedule_new_conn(block)
+                return
+
             block.release(conn)
 
             # Only request for GC if the connection is released unused

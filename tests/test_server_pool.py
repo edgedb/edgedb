@@ -1417,14 +1417,7 @@ class TestServerConnectionPool(unittest.TestCase):
             return True
 
         def _log(self, level, msg, args, *other, **kwargs):
-            if (
-                'established' in args or
-                '1 were discarded' in args or
-                '1 were established' in args or
-                'transferred out' in args or
-                'transferred in' in args or
-                'discarded' in args
-            ):
+            if len(args) > 1 and ('block_a' in args or 'block_b' in args):
                 self.logs.put_nowait(args)
 
     @unittest.mock.patch('edb.server.connpool.pool.logger',
@@ -1453,14 +1446,16 @@ class TestServerConnectionPool(unittest.TestCase):
             pool.release("block_a", conn1, discard=True)
             start = time.monotonic()
             args = await logger.logs.get()
-            self.assertIn("1 were discarded", args)
+            if "1 were discarded, 1 were established" not in args:
+                self.assertIn("1 were established, 1 were discarded", args)
             self.assertIn("block_a", args)
             self.assertGreater(time.monotonic() - start, 0.2)
 
             pool.release("block_b", conn2, discard=True)
             start = time.monotonic()
             args = await logger.logs.get()
-            self.assertIn("discarded", args)
+            if 'discarded' not in args:
+                self.assertIn("established", args)
             self.assertIn("block_b", args)
             self.assertLess(time.monotonic() - start, 0.2)
 
