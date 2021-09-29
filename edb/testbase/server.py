@@ -1417,7 +1417,7 @@ class _EdgeDBServerData(NamedTuple):
     server_data: Any
     tls_cert_file: str
 
-    async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
+    def get_connect_args(self, **kwargs):
         conn_args = dict(
             user='edgedb',
             password=self.password,
@@ -1427,7 +1427,10 @@ class _EdgeDBServerData(NamedTuple):
         )
 
         conn_args.update(kwargs)
+        return conn_args
 
+    async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
+        conn_args = self.get_connect_args(**kwargs)
         return await edgedb.async_connect(**conn_args)
 
 

@@ -411,7 +411,8 @@ class Server(ha_base.ClusterProtocol):
 
     def release_pgcon(self, dbname, conn, *, discard=False):
         if not conn.is_healthy():
-            logger.warning('Released an unhealthy pgcon; discard now.')
+            if not discard:
+                logger.warning('Released an unhealthy pgcon; discard now.')
             discard = True
         self._pg_pool.release(dbname, conn, discard=discard)
 
