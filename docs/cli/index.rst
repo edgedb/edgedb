@@ -101,6 +101,34 @@ respectively:
    $ edgedb server list-versions --installed
 
 
+.. _ref_cli_edgedb_config:
+
+.. rubric:: Configure CLI and REPL
+
+You can customize the behavior of the ``edgedb`` CLI and REPL with a
+global configuration file. The file is called ``cli.toml`` and its
+location differs between operating systems. Use
+:ref:`ref_cli_edgedb_info` to find the "Config" directory on your
+system.
+
+The ``cli.toml`` has the following structure. All fields are optional:
+
+.. code-block::
+
+    [shell]
+    expand-strings = true         # Stop escaping newlines in quoted strings
+    history-size = 10000          # Set number of entries retained in history
+    implicit-properties = false   # Print implicit properties of objects
+    implicit-limit = 100          # Set implicit LIMIT
+                                  # Defaults to 100, specify 0 to disable
+    input-mode = "emacs"          # Set input mode. One of: vi, emacs
+    output-format = "default"     # Set output format.
+                                  # One of: default, json, json-pretty,
+                                  # json-lines
+    print-stats = false           # Print statistics on each query
+    verbose-errors = false        # Print all errors with maximum verbosity
+
+
 :ref:`Notes on network usage <ref_cli_edgedb_network>`
 
 
