@@ -260,8 +260,11 @@ def get_version_from_scm(root: pathlib.Path) -> str:
         check=True,
         cwd=root,
     )
-    versions = proc.stdout.split('\n')
-    latest_version = max(versions)
+    all_tags = {
+        v[1:]
+        for v in proc.stdout.strip().split('\n')
+        if pep440_version_re.match(v[1:])
+    }
 
     proc = subprocess.run(
         ['git', 'tag', '--points-at', 'HEAD'],
@@ -270,28 +273,19 @@ def get_version_from_scm(root: pathlib.Path) -> str:
         check=True,
         cwd=root,
     )
-    tag_list = proc.stdout.strip()
-    if tag_list:
-        tags = tag_list.split('\n')
+    head_tags = {
+        v[1:]
+        for v in proc.stdout.strip().split('\n')
+        if pep440_version_re.match(v[1:])
+    }
+
+    if all_tags & head_tags:
+        tag = max(head_tags)
     else:
-        tags = []
+        tag = max(all_tags)
 
-    exact_tags = set(versions) & set(tags)
-    if exact_tags:
-        return exact_tags.pop()[1:]
-
-    proc = subprocess.run(
-        ['git', 'rev-list', '--count', 'HEAD'],
-        stdout=subprocess.PIPE,
-        universal_newlines=True,
-        check=True,
-        cwd=root,
-    )
-    commits_on_branch = proc.stdout.strip()
-    m = pep440_version_re.match(latest_version[1:])
-    if not m:
-        return f'{latest_version[1:]}.dev{commits_on_branch}'
-
+    m = pep440_version_re.match(tag)
+    assert m is not None
     major = m.group('major')
     minor = m.group('minor')
     micro = m.group('micro') or ''
@@ -299,15 +293,29 @@ def get_version_from_scm(root: pathlib.Path) -> str:
     prekind = m.group('prekind') or ''
     preval = m.group('preval') or ''
 
-    if prekind and preval:
-        preval = str(int(preval) + 1)
-    elif micro:
-        micro = str(int(micro) + 1)
+    if os.environ.get("EDGEDB_BUILD_IS_RELEASE"):
+        # Release build.
+        ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
     else:
-        minor = str(int(minor) + 1)
+        # Dev/nightly build.
+        if prekind and preval:
+            preval = str(int(preval) + 1)
+        elif micro:
+            micro = str(int(micro) + 1)
+        else:
+            minor = str(int(minor) + 1)
 
-    incremented_ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
-    ver = f'{incremented_ver}.dev{commits_on_branch}'
+        incremented_ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
+
+        proc = subprocess.run(
+            ['git', 'rev-list', '--count', 'HEAD'],
+            stdout=subprocess.PIPE,
+            universal_newlines=True,
+            check=True,
+            cwd=root,
+        )
+        commits_on_branch = proc.stdout.strip()
+        ver = f'{incremented_ver}.dev{commits_on_branch}'
 
     proc = subprocess.run(
         ['git', 'rev-parse', '--verify', '--quiet', 'HEAD'],

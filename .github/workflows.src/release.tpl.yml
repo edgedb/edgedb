@@ -8,7 +8,6 @@ jobs:
   prep:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.whichver.outputs.version }}
       branch: ${{ steps.whichver.outputs.branch }}
     steps:
     - uses: actions/checkout@v2
@@ -17,19 +16,6 @@ jobs:
       shell: bash
       run: |
         branch=${GITHUB_REF#refs/heads/}
-        if [[ $branch != releases/* ]]; then
-          echo ::error::"${branch} is not a release branch."
-          exit 1
-        fi
-        commitish=$(git rev-parse --verify --quiet "${GITHUB_REF}" | cut -c1-9)
-        date=$(env TZ=UTC git show -s \
-               --format=%cd --date=format-local:%Y%m%d%H "$commitish")
-        ver=${branch#releases/}
-        ver+=+d${date}
-        ver+=.g${commitish}
-        ver+=.cv$(sed -n -r 's/EDGEDB_CATALOG_VERSION = ([0-9_]+)/\1/p' \
-                  edb/server/defines.py | sed 's/_//g')
-        echo ::set-output name=version::"${ver}"
         echo ::set-output name=branch::"${branch}"
       id: whichver
 
@@ -43,11 +29,11 @@ jobs:
       uses: edgedb/edgedb-pkg/integration/linux/build/<< tgt.name >>@master
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_VERSION: "${{ needs.prep.outputs.version }}"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         EXTRA_OPTIMIZATIONS: "true"
+        BUILD_IS_RELEASE: "true"
 
     - uses: actions/upload-artifact@v2
       with:
@@ -106,7 +92,7 @@ jobs:
     - name: Build
       env:
         SRC_REF: "${{ needs.prep.outputs.branch }}"
-        PKG_VERSION: "${{ needs.prep.outputs.version }}"
+        BUILD_IS_RELEASE: "true"
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
