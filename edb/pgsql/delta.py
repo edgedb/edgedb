@@ -3849,6 +3849,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
             if (
                 link.get_cardinality(schema).is_multi()
                 and link.get_required(schema)
+                and not link.is_pure_computable(schema)
                 and not sets_required
             ):
                 self._alter_pointer_optionality(
