@@ -11765,6 +11765,20 @@ type default::Foo {
                     .<profile[IS User]
                 )));
             };
+            ALTER TYPE Profile {
+                ALTER LINK user SET OPTIONAL;
+            };
+        ''')
+
+    async def test_edgeql_ddl_required_computed_02(self):
+        await self.con.execute(r'''
+            CREATE TYPE Foo;
+            ALTER TYPE Foo {
+                CREATE PROPERTY z := {1, 2};
+            };
+            ALTER TYPE Foo {
+                ALTER PROPERTY z SET OPTIONAL;
+            };
         ''')
 
 
