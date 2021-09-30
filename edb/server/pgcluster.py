@@ -1210,12 +1210,20 @@ postgres_to_python_level_map = {
 
 postgres_log_re = re.compile(r'^(\w+):\s*(.*)$')
 
+postgres_specific_msg_level_map = {
+    "terminating connection due to administrator command": logging.INFO,
+    "the database system is shutting down": logging.INFO,
+}
+
 
 def postgres_log_processor(msg: str) -> Tuple[str, int]:
     if m := postgres_log_re.match(msg):
         postgres_level = m.group(1)
-        level = postgres_to_python_level_map.get(postgres_level, logging.INFO)
         msg = m.group(2)
+        level = postgres_specific_msg_level_map.get(
+            msg,
+            postgres_to_python_level_map.get(postgres_level, logging.INFO),
+        )
     else:
         level = logging.INFO
 
