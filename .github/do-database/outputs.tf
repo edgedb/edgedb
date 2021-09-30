@@ -12,6 +12,7 @@ output "db_instance_user" {
 
 output "db_instance_password" {
   value = digitalocean_database_cluster.default.password
+  sensitive = true
 }
 
 output "db_instance_database" {

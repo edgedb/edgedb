@@ -2,7 +2,7 @@ name: Tests on Managed PostgreSQL
 
 on:
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 3 * * 6"
   workflow_dispatch:
     inputs: {}
   push:
