@@ -3849,6 +3849,7 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
             if (
                 link.get_cardinality(schema).is_multi()
                 and link.get_required(schema)
+                and not link.is_pure_computable(schema)
                 and not sets_required
             ):
                 self._alter_pointer_optionality(
@@ -3955,6 +3956,7 @@ class AlterLinkLowerCardinality(
             if (
                 not pop.maybe_get_object_aux_data('from_alias')
                 and not self.scls.is_endpoint_pointer(schema)
+                and not self.scls.is_pure_computable(schema)
                 and orig_required != new_required
             ):
                 self._alter_pointer_optionality(
@@ -4217,6 +4219,7 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
             if (
                 prop.get_cardinality(schema).is_multi()
                 and prop.get_required(schema)
+                and not prop.is_pure_computable(schema)
                 and not sets_required
             ):
                 self._alter_pointer_optionality(
@@ -4319,6 +4322,7 @@ class AlterPropertyLowerCardinality(
             if (
                 not pop.maybe_get_object_aux_data('from_alias')
                 and not self.scls.is_endpoint_pointer(schema)
+                and not self.scls.is_pure_computable(schema)
                 and orig_required != new_required
             ):
                 self._alter_pointer_optionality(

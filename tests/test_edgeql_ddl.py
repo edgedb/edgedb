@@ -11751,6 +11751,36 @@ type default::Foo {
                 r'''CREATE TYPE MyStr EXTENDING str;''',
             )
 
+    async def test_edgeql_ddl_required_computed_01(self):
+        await self.con.execute(r'''
+            CREATE TYPE Profile;
+            CREATE TYPE User {
+                CREATE REQUIRED SINGLE LINK profile -> Profile;
+            };
+        ''')
+
+        await self.con.execute(r'''
+            ALTER TYPE Profile {
+                CREATE REQUIRED LINK user := (std::assert_exists((SELECT
+                    .<profile[IS User]
+                )));
+            };
+            ALTER TYPE Profile {
+                ALTER LINK user SET OPTIONAL;
+            };
+        ''')
+
+    async def test_edgeql_ddl_required_computed_02(self):
+        await self.con.execute(r'''
+            CREATE TYPE Foo;
+            ALTER TYPE Foo {
+                CREATE PROPERTY z := {1, 2};
+            };
+            ALTER TYPE Foo {
+                ALTER PROPERTY z SET OPTIONAL;
+            };
+        ''')
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
