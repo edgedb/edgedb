@@ -13,7 +13,7 @@ best to detect and react to backend failovers, whether a proper API is
 available or not.
 
 During backend failover, no frontend connections will be closed; instead, all
-incoming queries with fail with a retryable error until failover has completed
+incoming queries will fail with a retryable error until failover has completed
 successfully. If the query originates from a client that supports retrying
 transactions, these queries may be retried by the client until the backend
 connection is restored and the query can be properly resolved.
