@@ -794,3 +794,14 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         m: ONE
         """
+
+    def test_edgeql_ir_card_inference_92(self):
+        """
+        WITH
+            inserted := (INSERT Award { name := <str>$0 }),
+            all := (inserted UNION (SELECT Award)),
+        SELECT DISTINCT (all { name })
+        ORDER BY .name ASC
+% OK %
+        name: ONE
+        """
