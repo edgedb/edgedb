@@ -56,7 +56,7 @@ Adaptive HA
 -----------
 
 EdgeDB also supports DNS-based generic HA backends. This may be a cloud
-databases with multi-AZ failover or some custom HA Postgres cluster that keeps
+database with multi-AZ failover or some custom HA Postgres cluster that keeps
 a DNS name always resolved to the leader node. Adaptive HA can be enabled with
 a switch in addition to a regular backend DSN:
 
