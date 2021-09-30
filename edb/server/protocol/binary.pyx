@@ -1383,7 +1383,13 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
-        msg.write_int16(0)  # no headers
+        if self.protocol_version >= (0, 9):
+            msg.write_int16(1)
+            msg.write_int16(SERVER_HEADER_CAPABILITIES)
+            msg.write_int32(sizeof(uint64_t))
+            msg.write_int64(<int64_t>(<uint64_t>query.query_unit.capabilities))
+        else:
+            msg.write_int16(0)  # no headers
 
         msg.write_byte(self.render_cardinality(query.query_unit))
 
