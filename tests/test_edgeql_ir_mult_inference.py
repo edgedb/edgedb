@@ -699,3 +699,31 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
             name,
         }
         """
+
+    def test_edgeql_ir_mult_inference_72(self):
+        """
+        SELECT ()
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_mult_inference_73(self):
+        """
+        SELECT {(), ()}
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_mult_inference_74(self):
+        """
+        SELECT <array<str>>[]
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_mult_inference_75(self):
+        """
+        SELECT <str>{}
+% OK %
+        ZERO
+        """

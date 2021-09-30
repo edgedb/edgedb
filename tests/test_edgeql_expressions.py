@@ -5097,6 +5097,33 @@ aa \
                 );
             """)
 
+        await self.assert_query_result(
+            r"""
+                SELECT assert_distinct(
+                    {(0,), (1,)}
+                );
+            """,
+            {(0,), (1,)},
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "assert_distinct violation",
+        ):
+            await self.con.query("""
+                SELECT assert_distinct(
+                    {(0, 1, (0,)), (0, 1, (0,))}
+                );
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "assert_distinct violation",
+        ):
+            await self.con.query("""
+                SELECT assert_distinct({(), ()});
+            """)
+
     async def test_edgeql_assert_distinct_no_op(self):
         await self.con.query("""
             SELECT assert_distinct(<int64>{})
