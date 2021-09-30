@@ -1256,7 +1256,8 @@ def get_path_serialized_or_value_var(
 
 def fix_tuple(
         rel: pgast.Query, ref: pgast.BaseExpr, *,
-        aspect: str, env: context.Environment) -> pgast.BaseExpr:
+        aspect: str, output: bool=False,
+        env: context.Environment) -> pgast.BaseExpr:
 
     if (
         isinstance(ref, pgast.TupleVarBase)
@@ -1266,8 +1267,8 @@ def fix_tuple(
 
         for el in ref.elements:
             assert el.path_id is not None
-            val = get_path_var_and_fix_tuple(
-                rel, el.path_id, aspect=aspect, env=env)
+            val = _get_and_fix_tuple(
+                rel, el.path_id, aspect=aspect, output=output, env=env)
             elements.append(
                 pgast.TupleElement(
                     path_id=el.path_id, name=el.name, val=val))
@@ -1281,12 +1282,31 @@ def fix_tuple(
     return ref
 
 
+def _get_and_fix_tuple(
+        rel: pgast.Query, path_id: irast.PathId, *,
+        output: bool=False,
+        aspect: str, env: context.Environment) -> pgast.BaseExpr:
+
+    ref = (
+        get_path_output(rel, path_id, aspect=aspect, env=env)
+        if output else
+        get_path_var(rel, path_id, aspect=aspect, env=env)
+    )
+    return fix_tuple(rel, ref, aspect=aspect, output=output, env=env)
+
+
 def get_path_var_and_fix_tuple(
         rel: pgast.Query, path_id: irast.PathId, *,
         aspect: str, env: context.Environment) -> pgast.BaseExpr:
+    return _get_and_fix_tuple(
+        rel, path_id, output=False, aspect=aspect, env=env)
 
-    ref = get_path_var(rel, path_id, aspect=aspect, env=env)
-    return fix_tuple(rel, ref, aspect=aspect, env=env)
+
+def get_path_output_and_fix_tuple(
+        rel: pgast.Query, path_id: irast.PathId, *,
+        aspect: str, env: context.Environment) -> pgast.BaseExpr:
+    return _get_and_fix_tuple(
+        rel, path_id, output=True, aspect=aspect, env=env)
 
 
 def get_path_serialized_output(

@@ -73,7 +73,7 @@ def _max_multiplicity(
     # order of multiplicity values.
     arg_list = [a.own for a in args]
     if not arg_list:
-        max_mult = qltypes.Multiplicity.ZERO
+        max_mult = qltypes.Multiplicity.ONE
     else:
         max_mult = min(arg_list)
 
