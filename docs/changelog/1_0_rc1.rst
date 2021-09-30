@@ -165,12 +165,3 @@ performance and other improvements.
   <https://github.com/edgedb/edgedb-go>`_ and release v0.8.2
   driver.
 
-In all of the EdgeDB bindings ``connect()`` now returns a *connection
-pool* instead of a single raw connection. To replicate the old
-behavior, just create a pool with concurrency ``1``.
-
-We’re removing all deprecated APIs from our client libraries which
-includes:
-
-* ``query_one`` / ``queryOne`` / ``QueryOne``
-* ``query_one_json`` / ``queryOneJSON`` / ``QueryOneJSON``
