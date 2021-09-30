@@ -3633,7 +3633,9 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
                     ON (m.roleid = g.oid)
             WHERE
                 m.member = a.oid
-                AND g.rolname = {ql(defines.EDGEDB_SUPERGROUP)}
+                AND g.rolname = edgedb.get_role_backend_name(
+                    {ql(defines.EDGEDB_SUPERGROUP)}
+                )
         )
     '''
 
