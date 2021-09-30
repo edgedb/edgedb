@@ -808,8 +808,8 @@ def unpack_rvar(
     qry = pgast.SelectStmt()
 
     ref: pgast.BaseExpr
-    ref, multi = pathctx.get_packed_path_var(
-        packed_rvar, path_id, 'value', env=ctx.env)
+    ref = pathctx.get_rvar_path_var(
+        packed_rvar, path_id, aspect='value', flavor='packed', env=ctx.env)
 
     view_tvars: List[Tuple[irast.PathId, pgast.TupleVarBase, bool]] = []
     els = []
@@ -1003,7 +1003,7 @@ def unpack_rvar(
 
     ########################
 
-    walk(ref, path_id, multi)
+    walk(ref, path_id, ref.is_packed_multi)
 
     rvar = rvar_for_rel(qry, lateral=True, ctx=ctx)
     include_rvar(stmt, rvar, path_id=path_id, aspects=('value',), ctx=ctx)
@@ -1026,9 +1026,9 @@ def unpack_rvar(
         else:
             cref = pathctx.get_path_output(
                 qry, el_id, aspect='value', env=ctx.env)
+            cref = cref.replace(is_packed_multi=el.multi)
 
-            pathctx.put_path_packed_output(
-                qry, el_id, val=cref, multi=el.multi)
+            pathctx.put_path_packed_output(qry, el_id, val=cref)
 
             pathctx.put_path_rvar(
                 stmt, el_id, rvar, flavor='packed', aspect='value', env=ctx.env

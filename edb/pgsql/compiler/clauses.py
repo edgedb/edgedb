@@ -190,10 +190,12 @@ def compile_materialized_exprs(
             if not mat_qry.target_list[0].name:
                 mat_qry.target_list[0].name = ctx.env.aliases.get('v')
 
-            ref = pgast.ColumnRef(name=[mat_qry.target_list[0].name])
+            ref = pgast.ColumnRef(
+                name=[mat_qry.target_list[0].name],
+                is_packed_multi=not is_singleton,
+            )
             for mat_id in mat_ids:
-                pathctx.put_path_packed_output(
-                    mat_qry, mat_id, ref, multi=not is_singleton)
+                pathctx.put_path_packed_output(mat_qry, mat_id, ref)
 
             mat_rvar = relctx.rvar_for_rel(mat_qry, lateral=True, ctx=matctx)
             for mat_id in mat_ids:

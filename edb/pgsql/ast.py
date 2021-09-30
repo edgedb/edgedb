@@ -115,7 +115,9 @@ class ImmutableBaseExpr(BaseExpr, ImmutableBase):
 
 class OutputVar(ImmutableBaseExpr):
     """A base class representing expression output address."""
-    pass
+
+    # Whether this represents a packed array of data
+    is_packed_multi: bool = False
 
 
 class EdgeQLPathInfo(Base):
@@ -124,7 +126,8 @@ class EdgeQLPathInfo(Base):
     # Ignore the below fields in AST visitor/transformer.
     __ast_meta__ = {
         'path_scope', 'path_outputs', 'path_id', 'is_distinct',
-        'path_id_mask', 'path_namespace'
+        'path_id_mask', 'path_namespace',
+        'packed_path_outputs', 'packed_path_namespace',
     }
 
     # The path id represented by the node.
@@ -144,8 +147,19 @@ class EdgeQLPathInfo(Base):
     # Map of res target names corresponding to materialized paths.
     packed_path_outputs: typing.Optional[typing.Dict[
         typing.Tuple[irast.PathId, str],
-        typing.Tuple[OutputVar, bool],
+        OutputVar,
     ]] = None
+
+    def get_path_outputs(self, flavor: str) -> typing.Dict[
+            typing.Tuple[irast.PathId, str], OutputVar]:
+        if flavor == 'packed':
+            if self.packed_path_outputs is None:
+                self.packed_path_outputs = {}
+            return self.packed_path_outputs
+        elif flavor == 'normal':
+            return self.path_outputs
+        else:
+            raise AssertionError(f'unexpected flavor "{flavor}"')
 
     path_id_mask: typing.Set[irast.PathId] = ast.field(factory=set)
 
@@ -153,6 +167,12 @@ class EdgeQLPathInfo(Base):
     path_namespace: typing.Dict[
         typing.Tuple[irast.PathId, str], BaseExpr
     ] = ast.field(factory=dict)
+
+    # Same, but for packed.
+    packed_path_namespace: typing.Optional[typing.Dict[
+        typing.Tuple[irast.PathId, str],
+        BaseExpr,
+    ]] = None
 
 
 class BaseRangeVar(ImmutableBaseExpr):
@@ -313,10 +333,12 @@ class TupleVarBase(OutputVar):
 
     def __init__(self, elements: typing.List[TupleElementBase], *,
                  named: bool=False, nullable: bool=False,
+                 is_packed_multi: bool=False,
                  typeref: typing.Optional[irast.TypeRef]=None):
         self.elements = elements
         self.named = named
         self.nullable = nullable
+        self.is_packed_multi = is_packed_multi
         self.typeref = typeref
 
     def __repr__(self):
@@ -329,10 +351,12 @@ class TupleVar(TupleVarBase):
 
     def __init__(self, elements: typing.List[TupleElement], *,
                  named: bool=False, nullable: bool=False,
+                 is_packed_multi: bool=False,
                  typeref: typing.Optional[irast.TypeRef]=None):
         self.elements = elements
         self.named = named
         self.nullable = nullable
+        self.is_packed_multi = is_packed_multi
         self.typeref = typeref
 
 
