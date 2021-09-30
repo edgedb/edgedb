@@ -2687,6 +2687,7 @@ def get_or_create_union_pointer(
             cardinality = qltypes.SchemaCardinality.Many
             break
 
+    required = all(component.get_required(schema) for component in components)
     metacls = type(components[0])
     default_base_name = metacls.get_default_base_name()
     assert default_base_name is not None
@@ -2706,6 +2707,7 @@ def get_or_create_union_pointer(
         attrs={
             'union_of': so.ObjectSet.create(schema, components),
             'cardinality': cardinality,
+            'required': required,
         },
     )
 
