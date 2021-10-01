@@ -1,0 +1,54 @@
+<% from "tests.inc.yml" import build, calc_cache_key, restore_cache, setup_terraform -%>
+
+name: Tests on PostgreSQL Versions
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs: {}
+  push:
+    branches:
+      - pg-test
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    <%- call build() -%>
+    - name: Compute cache keys
+      run: |
+        << calc_cache_key()|indent >>
+    <%- endcall %>
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      matrix:
+        postgres-version: [ 12, 13 ]
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    <<- restore_cache() >>
+
+    # Run the test
+
+    - name: Test
+      env:
+        EDGEDB_TEST_BACKEND_DSN: postgres://postgres:postgres@localhost/postgres
+      run: |
+        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
+        edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
