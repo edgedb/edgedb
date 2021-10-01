@@ -21,7 +21,7 @@ name: Tests on Managed PostgreSQL
 
 on:
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 3 * * 6"
   workflow_dispatch:
     inputs: {}
   push:
@@ -84,7 +84,7 @@ jobs:
       env:
         EDGEDB_TEST_BACKEND_DSN: postgres://edbtest:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-aws-rds.outputs.pghost }}/postgres
       run: |
-        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
         edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
 
   teardown-aws-rds:
@@ -196,7 +196,7 @@ jobs:
       env:
         EDGEDB_TEST_BACKEND_DSN: postgres://${{ steps.pguser.outputs.stdout }}:${{ steps.pgpass.outputs.stdout }}@${{ steps.pghost.outputs.stdout }}:${{ steps.pgport.outputs.stdout }}/${{ steps.pgdatabase.outputs.stdout }}
       run: |
-        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
         edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
 
   teardown-do-database:
@@ -271,7 +271,7 @@ jobs:
       env:
         EDGEDB_TEST_BACKEND_DSN: postgres://postgres:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-gcp-cloud-sql.outputs.pghost }}/postgres
       run: |
-        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
         edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
 
   teardown-gcp-cloud-sql:

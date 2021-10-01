@@ -9,7 +9,7 @@ resource "google_sql_database_instance" "default" {
   deletion_protection = false
 
   settings {
-    tier = "db-g1-small"
+    tier = "db-custom-1-3840"
 
     ip_configuration {
       authorized_networks {
