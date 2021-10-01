@@ -410,26 +410,22 @@ class BaseEQLDirective(s_directives.ObjectDescription):
                 desc_cnt = child
                 break
         if desc_cnt is None or not desc_cnt.children:
-            raise shared.DirectiveParseError(
-                self, 'the directive must include a description')
+            raise self.error('the directive must include a description')
 
         first_node = desc_cnt.children[0]
         if isinstance(first_node, d_nodes.field_list):
             if len(desc_cnt.children) < 2:
-                raise shared.DirectiveParseError(
-                    self, 'the directive must include a description')
+                raise self.error('the directive must include a description')
 
             first_node = desc_cnt.children[1]
 
         if not isinstance(first_node, d_nodes.paragraph):
-            raise shared.DirectiveParseError(
-                self,
+            raise self.error(
                 'there must be a short text paragraph after directive fields')
 
         summary = self.strip_ws(first_node.astext())
         if len(summary) > 79:
-            raise shared.DirectiveParseError(
-                self,
+            raise self.error(
                 f'First paragraph is expected to be shorter than 80 '
                 f'characters, got {len(summary)}: {summary!r}')
 
@@ -462,8 +458,7 @@ class BaseEQLDirective(s_directives.ObjectDescription):
                 desc_cnt = child
                 break
         if desc_cnt is None or not desc_cnt.children:
-            raise shared.DirectiveParseError(
-                self, 'the directive must include a description')
+            raise self.error('the directive must include a description')
 
         fields = None
         first_node = desc_cnt.children[0]
@@ -472,8 +467,8 @@ class BaseEQLDirective(s_directives.ObjectDescription):
 
         for child in desc_cnt.children[1:]:
             if isinstance(child, d_nodes.field_list):
-                raise shared.DirectiveParseError(
-                    self, f'fields must be specified before all other content')
+                raise self.error(
+                    f'fields must be specified before all other content')
 
         if fields:
             for field in fields:
@@ -506,7 +501,7 @@ class BaseEQLDirective(s_directives.ObjectDescription):
                             f'check your ReST source.\n\n'
                         )
 
-                raise shared.DirectiveParseError(self, msg)
+                raise self.error(msg)
 
     def run(self):
         indexnode, node = super().run()
@@ -522,8 +517,8 @@ class BaseEQLDirective(s_directives.ObjectDescription):
         target = name.replace(' ', '-')
 
         if target in self.state.document.ids:
-            raise shared.DirectiveParseError(
-                self, f'duplicate {self.objtype} {name} description')
+            raise self.error(
+                f'duplicate {self.objtype} {name} description')
 
         signode['names'].append(target)
         signode['ids'].append(target)
@@ -533,8 +528,8 @@ class BaseEQLDirective(s_directives.ObjectDescription):
         objects = self.env.domaindata['eql']['objects']
 
         if target in objects:
-            raise shared.DirectiveParseError(
-                self, f'duplicate {self.objtype} {name} description')
+            raise self.error(
+                f'duplicate {self.objtype} {name} description')
         objects[target] = (self.env.docname, self.objtype)
 
         self.__eql_target = target
@@ -671,17 +666,15 @@ class EQLOperatorDirective(BaseEQLDirective):
             try:
                 name, sig = sig.split(':', 1)
             except Exception as ex:
-                raise shared.DirectiveParseError(
-                    self,
+                raise self.error(
                     f':eql:operator signature must match "NAME: SIGNATURE" '
-                    f'template',
-                    cause=ex)
+                    f'template'
+                ) from ex
             name = name.strip()
 
         sig = sig.strip()
         if not name or not sig:
-            raise shared.DirectiveParseError(
-                self, f'invalid :eql:operator: signature')
+            raise self.error(f'invalid :eql:operator: signature')
 
         signode['eql-name'] = name
         signode['eql-fullname'] = name
@@ -724,20 +717,18 @@ class EQLFunctionDirective(BaseEQLDirective):
             astnode = parser.parse(
                 f'CREATE FUNCTION {sig} USING SQL FUNCTION "xxx";')[0]
         except Exception as ex:
-            raise shared.DirectiveParseError(
-                self, f'could not parse function signature {sig!r}',
-                cause=ex)
+            raise self.error(
+                f'could not parse function signature {sig!r}') from ex
 
         if (not isinstance(astnode, ql_ast.CreateFunction) or
                 not isinstance(astnode.name, ql_ast.ObjectRef)):
-            raise shared.DirectiveParseError(
-                self, f'EdgeQL parser returned unsupported AST')
+            raise self.error(f'EdgeQL parser returned unsupported AST')
 
         modname = astnode.name.module
         funcname = astnode.name.name
         if not modname:
-            raise shared.DirectiveParseError(
-                self, f'EdgeQL function declaration is missing namespace')
+            raise self.error(
+                f'EdgeQL function declaration is missing namespace')
 
         func_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode)
         m = re.match(r'''(?xs)
@@ -748,8 +739,7 @@ class EQLFunctionDirective(BaseEQLDirective):
             .*$
         ''', func_repr)
         if not m or not m.group('f'):
-            raise shared.DirectiveParseError(
-                self, f'could not recreate function signature from AST')
+            raise self.error(f'could not recreate function signature from AST')
         func_repr = m.group('f')
 
         signode['eql-module'] = modname
@@ -800,20 +790,18 @@ class EQLConstraintDirective(BaseEQLDirective):
             astnode = parser.parse(
                 f'CREATE ABSTRACT CONSTRAINT {sig};')[0]
         except Exception as ex:
-            raise shared.DirectiveParseError(
-                self, f'could not parse constraint signature {sig!r}',
-                cause=ex)
+            raise self.error(
+                f'could not parse constraint signature {sig!r}') from ex
 
         if (not isinstance(astnode, ql_ast.CreateConstraint) or
                 not isinstance(astnode.name, ql_ast.ObjectRef)):
-            raise shared.DirectiveParseError(
-                self, f'EdgeQL parser returned unsupported AST')
+            raise self.error(f'EdgeQL parser returned unsupported AST')
 
         modname = astnode.name.module
         constr_name = astnode.name.name
         if not modname:
-            raise shared.DirectiveParseError(
-                self, f'Missing module in EdgeQL constraint declaration')
+            raise self.error(
+                f'Missing module in EdgeQL constraint declaration')
 
         constr_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode)
 
@@ -824,8 +812,8 @@ class EQLConstraintDirective(BaseEQLDirective):
             $
         ''', constr_repr)
         if not m or not m.group('f'):
-            raise shared.DirectiveParseError(
-                self, f'could not recreate constraint signature from AST')
+            raise self.error(
+                f'could not recreate constraint signature from AST')
         constr_repr = m.group('f')
 
         signode['eql-module'] = modname
@@ -1082,8 +1070,7 @@ class EdgeQLDomain(s_domains.Domain):
     def get_full_qualified_name(self, node):
         fn = node.get('eql-fullname')
         if not fn:
-            raise shared.DirectiveParseError(
-                self, 'no eql-fullname attribute')
+            raise self.error('no eql-fullname attribute')
         return fn
 
 
