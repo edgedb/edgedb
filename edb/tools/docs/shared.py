@@ -23,19 +23,11 @@ from docutils import nodes as d_nodes
 from docutils import utils as d_utils
 from docutils.parsers.rst import roles as d_roles
 
+from sphinx import errors as s_errors
 
-class EdgeSphinxExtensionError(Exception):
+
+class EdgeSphinxExtensionError(s_errors.ExtensionError):
     pass
-
-
-class DirectiveParseError(EdgeSphinxExtensionError):
-
-    def __init__(self, directive, msg, *, cause=None):
-        fn, lineno = directive.state_machine.get_source_and_line()
-        msg = f'{msg} in {fn}:{lineno}'
-        if cause is not None:
-            msg = f'{msg}\nCause: {type(cause).__name__}\n{cause}'
-        super().__init__(msg)
 
 
 class DomainError(EdgeSphinxExtensionError):
