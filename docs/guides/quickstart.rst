@@ -590,7 +590,7 @@ properties of ``Person``. Let's update ``dbschema/default.esdl``:
             property last_name -> str;
 
             # add computable property "name"
-            property name :=
+            property full_name :=
                 .first_name ++ ' ' ++ .last_name
                 IF EXISTS .last_name
                 ELSE .first_name;
