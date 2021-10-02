@@ -608,7 +608,7 @@ Then create and run another migration:
 .. code-block:: bash
 
     $ edgedb migration create
-    did you create property 'name' of object type
+    did you create property 'full_name' of object type
     'default::Person'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00003.edgeql, id:
