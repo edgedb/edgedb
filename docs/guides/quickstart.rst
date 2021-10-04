@@ -194,7 +194,7 @@ Now we're ready to run a migration to apply this schema to the database.
 Generate the migration
 ----------------------
 
-First, we generate a migration file with ``edgedb create-migration``. This
+First, we generate a migration file with ``edgedb migration create``. This
 starts an interactive tool that asks a series of questions. Pay attention to
 these questions to make sure you aren't making any unintended changes.
 
