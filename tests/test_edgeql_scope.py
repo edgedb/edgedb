@@ -35,7 +35,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'cards_setup.edgeql')
 
-    async def test_edgeql_scope_sort_01(self):
+    async def test_edgeql_scope_sort_01a(self):
         await self.assert_query_result(
             r'''
                 WITH
@@ -50,6 +50,51 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [{'name': 'Alice'}, 1],
                 [{'name': 'Bob'}, 2],
                 [{'name': 'Alice'}, 2],
+            ]
+        )
+
+    async def test_edgeql_scope_sort_01b(self):
+        # Make sure it works when we need to eta-expand it also
+        await self.assert_query_result(
+            r'''
+            SELECT assert_exists((
+                WITH
+                    A := {1, 2},
+                    U := (SELECT User FILTER User.name IN {'Alice', 'Bob'})
+                SELECT _ := (U{name}, A)
+                # specifically test the ORDER clause
+                ORDER BY _.1 THEN _.0.name DESC
+            ));
+            ''',
+            [
+                [{'name': 'Bob'}, 1],
+                [{'name': 'Alice'}, 1],
+                [{'name': 'Bob'}, 2],
+                [{'name': 'Alice'}, 2],
+            ]
+        )
+
+    async def test_edgeql_scope_sort_01c(self):
+        # Make sure it works when we need to eta-expand it after
+        # array_agg()ing it
+        await self.assert_query_result(
+            r'''
+            SELECT assert_exists(array_agg((
+                WITH
+                    A := {1, 2},
+                    U := (SELECT User FILTER User.name IN {'Alice', 'Bob'})
+                SELECT _ := (U{name}, A)
+                # specifically test the ORDER clause
+                ORDER BY _.1 THEN _.0.name DESC
+            )));
+            ''',
+            [
+                [
+                    [{'name': 'Bob'}, 1],
+                    [{'name': 'Alice'}, 1],
+                    [{'name': 'Bob'}, 2],
+                    [{'name': 'Alice'}, 2],
+                ]
             ]
         )
 
@@ -386,7 +431,64 @@ class TestEdgeQLScope(tb.QueryTestCase):
         await self.assert_query_result(query, res)
         await self.assert_query_result(query, res, implicit_limit=100)
 
-    async def test_edgeql_scope_tuple_05(self):
+    @test.xfail("Eta-expansion breaks somehow with link properties")
+    async def test_edgeql_scope_tuple_04f(self):
+        # Similar to above tests, but forcing use of eta-expansion
+        query = r'''
+            SELECT _ := [(
+                User.friends {name},
+                User {
+                    name,
+                    friends: {
+                        @nickname
+                    }
+                },
+            )][0]
+            ORDER BY _.1.name THEN _.0.name;
+        '''
+        res = [
+            [
+                {
+                    'name': 'Bob',
+                },
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Swampy'}],
+                },
+            ],
+            [
+                {
+                    'name': 'Carol',
+                },
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Firefighter'}],
+                },
+            ],
+            [
+                {
+                    'name': 'Dave',
+                },
+                {
+                    'name': 'Alice',
+                    'friends': [{'@nickname': 'Grumpy'}],
+                },
+            ],
+            [
+                {
+                    'name': 'Bob',
+                },
+                {
+                    'name': 'Dave',
+                    'friends': [{'@nickname': None}],
+                },
+            ],
+        ]
+
+        await self.assert_query_result(query, res)
+        await self.assert_query_result(query, res, implicit_limit=100)
+
+    async def test_edgeql_scope_tuple_05a(self):
         await self.assert_query_result(
             r'''
                 # Same as above, but with a computable instead of real
@@ -400,6 +502,64 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     },
                     User.friends {name}
                 )
+                ORDER BY _.0.name THEN _.1.name;
+            ''',
+            [
+                [
+                    {
+                        'name': 'Alice',
+                        'fr': {'@nickname': 'Swampy'},
+                    },
+                    {
+                        'name': 'Bob',
+                    },
+                ],
+                [
+                    {
+                        'name': 'Alice',
+                        'fr': {'@nickname': 'Firefighter'},
+                    },
+                    {
+                        'name': 'Carol',
+                    },
+                ],
+                [
+                    {
+                        'name': 'Alice',
+                        'fr': {'@nickname': 'Grumpy'},
+                    },
+                    {
+                        'name': 'Dave',
+                    },
+                ],
+                [
+                    {
+                        'name': 'Dave',
+                        'fr': {'@nickname': None},
+                    },
+                    {
+                        'name': 'Bob',
+                    },
+                ],
+            ]
+        )
+
+    @test.xfail("Eta-expansion breaks somehow with link properties")
+    async def test_edgeql_scope_tuple_05b(self):
+        # Similar to above tests, but forcing use of eta-expansion
+        await self.assert_query_result(
+            r'''
+                # Same as above, but with a computable instead of real
+                # "friends"
+                SELECT _ := [(
+                    User {
+                        name,
+                        fr := User.friends {
+                            @nickname
+                        }
+                    },
+                    User.friends {name}
+                )][0]
                 ORDER BY _.0.name THEN _.1.name;
             ''',
             [

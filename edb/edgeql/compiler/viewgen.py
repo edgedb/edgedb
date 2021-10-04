@@ -44,6 +44,7 @@ from edb.edgeql import qltypes
 from . import astutils
 from . import context
 from . import dispatch
+from . import eta_expand
 from . import inference
 from . import pathctx
 from . import schemactx
@@ -454,6 +455,9 @@ def _compile_qlexpr(
             source_set.path_id, source_set, ctx=shape_expr_ctx)
 
         irexpr = dispatch.compile(qlexpr, ctx=shape_expr_ctx)
+
+    if ctx.expr_exposed:
+        irexpr = eta_expand.eta_expand_ir(irexpr, ctx=ctx)
 
     return irexpr, shape_expr_ctx.view_rptr
 

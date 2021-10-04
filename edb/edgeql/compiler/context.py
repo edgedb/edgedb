@@ -88,8 +88,8 @@ class ViewRPtr:
 @dataclasses.dataclass
 class ScopeInfo:
     path_scope: irast.ScopeTreeNode
+    binding_kind: irast.BindingKind
     pinned_path_id_ns: Optional[FrozenSet[str]] = None
-    is_for_view: bool = False
 
 
 class PointerRefCache(Dict[irtyputils.PtrRefCacheKey, irast.BasePointerRef]):

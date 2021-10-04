@@ -648,6 +648,13 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         MANY
         """
 
+    def test_edgeql_ir_card_inference_71b(self):
+        """
+        SELECT ((1, Card {name}),).0
+% OK %
+        MANY
+        """
+
     def test_edgeql_ir_card_inference_72(self):
         """
         SELECT {a := 42}
