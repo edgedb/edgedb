@@ -5355,6 +5355,91 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Bar extending Foo;
         """])
 
+    @test.xfail('''
+        AssertionError: unexpected difference in schema produced by
+        incremental migration on step 2:
+
+        <DeltaRoot canonical=True at 0x7fd924ff24f0> (
+            <AlterObjectType classname=default::Cell....> (
+                <AlterLink canonical=True,
+                           classname=default::__|left@default|Cell ...> (
+                    <AlterLinkUpperCardinality ...> (
+                        cardinality = <SchemaCardinality.Many: 'Many'> |
+                                      <SchemaCardinality.One: 'One'> # computed
+                    )
+                )
+            )
+        )
+    ''')
+    def test_schema_migrations_equivalence_constraint_06(self):
+        self._assert_migration_equivalence([r"""
+            type Cell {
+                link right -> Cell;
+                # `left` is inferred to be multi
+                link left := .<right[IS Cell];
+            }
+        """, r"""
+            type Cell {
+                link right -> Cell {
+                    # Add the constraint to make it 1-1
+                    constraint exclusive;
+                }
+                # This should now be inferred as single
+                link left := .<right[IS Cell];
+            }
+        """])
+
+    @test.xfail('''
+        SchemaDefinitionError: possibly more than one element returned
+        by an expression for the computed link 'left' of object type
+        'default::Cell' explicitly declared as 'single'
+    ''')
+    def test_schema_migrations_equivalence_constraint_07(self):
+        self._assert_migration_equivalence([r"""
+            type Cell {
+                link right -> Cell;
+                # `left` is inferred to be multi
+                link left := .<right[IS Cell];
+            }
+        """, r"""
+            type Cell {
+                link right -> Cell {
+                    # Add the constraint to make it 1-1
+                    constraint exclusive;
+                }
+                # Explicitly single link
+                single link left := .<right[IS Cell];
+            }
+        """])
+
+    @test.xfail('''
+        SchemaError: cannot automatically convert link 'left' of
+        object type 'default::Cell' to 'single' cardinality
+    ''')
+    def test_schema_migrations_equivalence_constraint_08(self):
+        self._assert_migration_equivalence([r"""
+            type Cell {
+                link right -> Cell;
+                multi link left := .<right[IS Cell];
+            }
+        """, r"""
+            type Cell {
+                link right -> Cell {
+                    # Add the constraint to make it 1-1
+                    constraint exclusive;
+                }
+                multi link left := .<right[IS Cell];
+            }
+        """, r"""
+            type Cell {
+                link right -> Cell {
+                    constraint exclusive;
+                }
+                # Now switch to a single link
+                single link left := .<right[IS Cell];
+            }
+        """])
+
     # NOTE: array<str>, array<int16>, array<json> already exist in std
     # schema, so it's better to use array<float32> or some other
     # non-typical scalars in tests as a way of testing a collection
