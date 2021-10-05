@@ -1,8 +1,8 @@
 .. _ref_cli_edgedb_instance_link:
 
-=====================
-edgedb ionstance link
-=====================
+====================
+edgedb instance link
+====================
 
 Authenticate a connection to a remote EdgeDB instance and assign an
 instance name to simplify future connections.
