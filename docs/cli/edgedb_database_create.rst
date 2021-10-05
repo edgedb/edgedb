@@ -9,7 +9,7 @@ Create a new :ref:`database <ref_datamodel_databases>`.
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...] database create <name>
+    edgedb database create [<options>] <name>
 
 
 Description
@@ -22,10 +22,9 @@ Description
 Options
 =======
 
-:cli:synopsis:`<connection-option>`
-    See the :ref:`ref_cli_edgedb_connopts`.  The
-    ``create-database`` command runs in the EdgeDB instance it is
-    connected to.
+The ``database create`` command runs in the EdgeDB instance it is
+connected to. For specifying the connection target see
+:ref:`connection options <ref_cli_edgedb_connopts>`.
 
 :cli:synopsis:`<name>`
     The name of the new database.

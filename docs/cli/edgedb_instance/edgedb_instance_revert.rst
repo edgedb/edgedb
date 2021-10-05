@@ -9,7 +9,7 @@ Revert a major instance upgrade.
 
 .. cli:synopsis::
 
-     edgedb instance revert [OPTIONS] <name>
+     edgedb instance revert [<options>] <name>
 
 
 Description

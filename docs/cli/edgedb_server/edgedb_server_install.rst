@@ -9,7 +9,7 @@ Install EdgeDB server.
 
 .. cli:synopsis::
 
-     edgedb server install [OPTIONS]
+     edgedb server install [<options>]
 
 
 Description

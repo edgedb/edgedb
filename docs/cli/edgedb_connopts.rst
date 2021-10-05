@@ -17,15 +17,13 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
 
     This option overrides host and port.
 
-:cli:synopsis:`-d <dbname>, --database=<dbname>`
-    Specifies the name of the database to connect to.  Default to the value
-    of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
-    the calculated value of :cli:synopsis:`<username>`.
-
 :cli:synopsis:`--dsn=<dsn>`
     Specifies the DSN for EdgeDB to connect to.
 
     This option overrides all other options except password.
+
+:cli:synopsis:`--credentials-file <credentials_file>`
+    Path to JSON file containing credentials.
 
 :cli:synopsis:`-H <hostname>, --host=<hostname>`
     Specifies the host name of the machine on which the server is running.
@@ -39,6 +37,16 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
     on which the server is listening for connections.  Defaults to the value
     of the ``EDGEDB_PORT`` environment variable or, if not set, to ``5656``.
 
+:cli:synopsis:`-u <username>, --user=<username>`
+    Connect to the database as the user :cli:synopsis:`<username>`.
+    Defaults to the value of the ``EDGEDB_USER`` environment variable, or,
+    if not set, to the login name of the current OS user.
+
+:cli:synopsis:`-d <dbname>, --database=<dbname>`
+    Specifies the name of the database to connect to.  Default to the value
+    of the ``EDGEDB_DATABASE`` environment variable, or, if not set, to
+    the calculated value of :cli:synopsis:`<username>`.
+
 :cli:synopsis:`--password | --no-password`
     If :cli:synopsis:`--password` is specified, force ``edgedb`` to prompt
     for a password before connecting to the database.  This is usually not
@@ -50,10 +58,33 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
 :cli:synopsis:`--password-from-stdin`
     Use the first line of standard input as the password.
 
-:cli:synopsis:`-u <username>, --user=<username>`
-    Connect to the database as the user :cli:synopsis:`<username>`.
-    Defaults to the value of the ``EDGEDB_USER`` environment variable, or,
-    if not set, to the login name of the current OS user.
+:cli:synopsis:`--tls-ca-file <tls_ca_file>`
+    Certificate to match server against.
+
+    This might either be full self-signed server certificate or
+    certificate authority (CA) certificate that server certificate is
+    signed with.
+
+:cli:synopsis:`--tls-verify-hostname`
+    Verify hostname of the server using provided certificate.
+
+    It's useful when certificate authority (CA) is used for handling
+    certificate and usually not used for self-signed certificates.
+
+    By default it's enabled when no specific certificate is present
+    (via :cli:synopsis:`--tls-ca-file` or in credentials JSON file).
+
+:cli:synopsis:`--no-tls-verify-hostname`
+    Do not verify hostname of the server.
+
+    This allows using any certificate for any hostname. However,
+    certificate must be present and match certificate specified with
+    :cli:synopsis:`--tls-ca-file` or credentials file or signed by one
+    of the root certificate authorities.
+
+:cli:synopsis:`--wait-until-available=<wait_time>`
+    In case EdgeDB connection can't be established, keep retrying up
+    to :cli:synopsis:`<wait_time>` (e.g. ``30s``).
 
 :cli:synopsis:`--connect-timeout=<timeout>`
     Specifies a :cli:synopsis:`<timeout>` period. In case EdgeDB
@@ -62,7 +93,3 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
     :cli:synopsis:`<timeout>` value must be given using time units
     (e.g. ``hr``, ``min``, ``sec``, ``ms``, etc.). The default
     value is ``10s``.
-
-:cli:synopsis:`--wait-until-available=<wait_time>`
-    In case EdgeDB connection can't be established, keep retrying up
-    to :cli:synopsis:`<wait_time>` (e.g. ``30s``).

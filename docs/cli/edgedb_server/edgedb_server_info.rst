@@ -9,7 +9,7 @@ Show server information.
 
 .. cli:synopsis::
 
-     edgedb server info [OPTIONS]
+     edgedb server info [<options>]
 
 
 Description

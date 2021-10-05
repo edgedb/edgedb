@@ -9,7 +9,7 @@ Show instance information.
 
 .. cli:synopsis::
 
-     edgedb instance status [OPTIONS] [<name>]
+     edgedb instance status [<options>] [<name>]
 
 
 Description

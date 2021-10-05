@@ -5,11 +5,11 @@
 edgedb instance upgrade
 =======================
 
-Upgrade EdgeDB instance or installatio
+Upgrade EdgeDB instance or installation.
 
 .. cli:synopsis::
 
-    edgedb instance upgrade [OPTIONS] [<name>]
+    edgedb instance upgrade [<options>] [<name>]
 
 
 Description
@@ -36,6 +36,9 @@ Options
 
 :cli:synopsis:`--local-minor`
     Upgrade all local instances to the latest minor versions.
+
+:cli:synopsis:`--to-version=<version>`
+    Upgrade to a specified major version.
 
 :cli:synopsis:`-v, --verbose`
     Verbose output.

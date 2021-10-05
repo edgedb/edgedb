@@ -9,7 +9,7 @@ Upgrade EdgeDB instance used for the current project
 
 .. cli:synopsis::
 
-    edgedb project upgrade [OPTIONS]
+    edgedb project upgrade [<options>]
 
 
 Description

@@ -9,7 +9,7 @@ Uninstall EdgeDB server.
 
 .. cli:synopsis::
 
-     edgedb server uninstall [OPTIONS]
+     edgedb server uninstall [<options>]
 
 
 Description

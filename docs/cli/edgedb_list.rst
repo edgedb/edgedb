@@ -9,7 +9,7 @@ List matching database objects by name and type.
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...] list <type> [OPTIONS] <pattern>
+    edgedb list <type> [<options>] <pattern>
 
 
 Description
@@ -49,8 +49,9 @@ Types
 Options
 =======
 
-:cli:synopsis:`<connection-option>`
-    See the :ref:`ref_cli_edgedb_connopts`.
+The ``list`` command runs in the database it is connected to. For
+specifying the connection target see :ref:`connection options
+<ref_cli_edgedb_connopts>`.
 
 :cli:synopsis:`-c, --case-sensitive`
     Indicates that the pattern should be treated in a case-sensitive

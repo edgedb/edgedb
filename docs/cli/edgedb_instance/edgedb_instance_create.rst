@@ -9,7 +9,7 @@ Initialize a new EdgeDB instance.
 
 .. cli:synopsis::
 
-     edgedb instance create [OPTIONS] <name>
+     edgedb instance create [<options>] <name>
 
 
 Description
@@ -39,16 +39,6 @@ Options
     exist. This is mainly useful for recovering from interrupted
     initializations.
 
-:cli:synopsis:`--method=<method>`
-    Specifies which EdgeDB server should be used to run the new
-    instance: ``package`` or ``docker``. To list the currently
-    available options use :ref:`ref_cli_edgedb_server_list_versions`.
-
-:cli:synopsis:`--version=<version>`
-    Specifies the version of the EdgeDB server to be used to run the
-    new instance. To list the currently available options use
-    :ref:`ref_cli_edgedb_server_list_versions`.
-
 :cli:synopsis:`--default-database=<default-database>`
     Specifies the default database name (created during
     initialization, and saved in credentials file). Defaults to
@@ -57,6 +47,11 @@ Options
 :cli:synopsis:`--default-user=<default-user>`
     Specifies the default user name (created during initialization,
     and saved in credentials file). Defaults to: ``edgedb``.
+
+:cli:synopsis:`--method=<method>`
+    Specifies which EdgeDB server should be used to run the new
+    instance: ``package`` or ``docker``. To list the currently
+    available options use :ref:`ref_cli_edgedb_server_list_versions`.
 
 :cli:synopsis:`--port=<port>`
     Specifies which port should the instance be configured on. By
@@ -69,3 +64,8 @@ Options
     turn that off so that the instance can be manually started with
     :ref:`ref_cli_edgedb_instance_start` on demand. Defaults to:
     ``auto``.
+
+:cli:synopsis:`--version=<version>`
+    Specifies the version of the EdgeDB server to be used to run the
+    new instance. To list the currently available options use
+    :ref:`ref_cli_edgedb_server_list_versions`.
