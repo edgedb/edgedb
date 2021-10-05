@@ -1221,13 +1221,7 @@ def range_for_material_objtype(
         set_ops.append(('union', qry))
 
         for op, cte, cte_path_id in overlays:
-            rvar = pgast.RelRangeVar(
-                relation=cte,
-                typeref=typeref,
-                alias=pgast.Alias(
-                    aliasname=env.aliases.get(hint=cte.name or '')
-                )
-            )
+            rvar = rvar_for_rel(cte, typeref=typeref, ctx=ctx)
 
             qry = pgast.SelectStmt(
                 from_clause=[rvar],
@@ -1585,12 +1579,7 @@ def range_for_ptrref(
                     qry, path_id, table, env=ctx.env)
 
             for op, cte, cte_path_id in overlays:
-                rvar = pgast.RelRangeVar(
-                    relation=cte,
-                    alias=pgast.Alias(
-                        aliasname=ctx.env.aliases.get(cte.name or '')
-                    )
-                )
+                rvar = rvar_for_rel(cte, ctx=ctx)
 
                 qry = pgast.SelectStmt(
                     target_list=[

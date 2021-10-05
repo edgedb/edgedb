@@ -37,6 +37,7 @@ from . import dispatch
 from . import expr as expr_compiler  # NOQA
 from . import relgen
 from . import relctx
+from . import pathctx
 
 
 def compile_shape(
@@ -44,6 +45,15 @@ def compile_shape(
         shape: Sequence[Tuple[irast.Set, qlast.ShapeOp]], *,
         ctx: context.CompilerContextLevel) -> pgast.TupleVar:
     elements = []
+
+    # If the object identity is potentially nullable, filter it out
+    # to prevent shapes with bogusly null insides.
+    var = pathctx.get_path_value_var(
+        ctx.rel, path_id=ir_set.path_id, env=ctx.env)
+    if var.nullable:
+        ctx.rel.where_clause = astutils.extend_binop(
+            ctx.rel.where_clause,
+            pgast.NullTest(arg=var, negated=True))
 
     with ctx.newscope() as shapectx:
         shapectx.disable_semi_join.add(ir_set.path_id)

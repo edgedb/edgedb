@@ -529,7 +529,11 @@ class ScopeTreeNode:
 
                 # This path is already present in the tree, discard,
                 # but merge its OPTIONAL status, if any.
-                desc_fenced = descendant.fence is not node.fence or was_fenced
+                desc_fenced = (
+                    descendant.fence is not node.fence
+                    or was_fenced
+                    or visible.fence not in {self, self.parent_fence}
+                )
                 descendant.remove()
                 descendant._gravestone = visible
                 keep_optional = desc_optional or desc_fenced

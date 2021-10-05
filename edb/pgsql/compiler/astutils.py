@@ -273,8 +273,12 @@ def get_column(
     if nullable is None:
         if isinstance(rvar, pgast.RelRangeVar):
             # Range over a relation, we cannot infer nullability in
-            # this context, so assume it's true.
-            nullable = True
+            # this context, so assume it's true, unless we are looking
+            # at a colspec that says it is false
+            if isinstance(colspec, pgast.ColumnRef):
+                nullable = colspec.nullable
+            else:
+                nullable = True
 
         elif isinstance(rvar, pgast.RangeSubselect):
             col_idx = find_column_in_subselect_rvar(rvar, colname)

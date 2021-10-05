@@ -3088,3 +3088,36 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 {"name": "Dwarf", "user": "Dave"},
             ]
         )
+
+    async def test_edgeql_scope_tuple_correlate_01(self):
+        await self.assert_query_result(
+            """
+            SELECT _ := (User {friends: {name}}, User.friends.name ?? 'n/a')
+            ORDER BY _.1;
+            """,
+            [
+                [{"friends": [{"name": "Bob"}]}, "Bob"],
+                [{"friends": [{"name": "Bob"}]}, "Bob"],
+                [{"friends": [{"name": "Carol"}]}, "Carol"],
+                [{"friends": [{"name": "Dave"}]}, "Dave"],
+                [{"friends": []}, "n/a"],
+                [{"friends": []}, "n/a"]
+            ]
+        )
+
+    async def test_edgeql_scope_tuple_correlate_02(self):
+        await self.assert_query_result(
+            """
+            SELECT _ := (User {z := .friends {name}},
+                         User.friends.name ?? 'n/a')
+            ORDER BY _.1;
+            """,
+            [
+                [{"z": {"name": "Bob"}}, "Bob"],
+                [{"z": {"name": "Bob"}}, "Bob"],
+                [{"z": {"name": "Carol"}}, "Carol"],
+                [{"z": {"name": "Dave"}}, "Dave"],
+                [{"z": None}, "n/a"],
+                [{"z": None}, "n/a"]
+            ]
+        )
