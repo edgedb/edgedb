@@ -9,7 +9,7 @@ Show instance logs.
 
 .. cli:synopsis::
 
-     edgedb instance logs [OPTIONS] <name>
+     edgedb instance logs [<options>] <name>
 
 
 Description

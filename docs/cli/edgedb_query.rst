@@ -9,7 +9,7 @@ Execute one or more EdgeQL queries.
 
 .. cli:synopsis::
 
-    edgedb query [OPTIONS] <edgeql-query>...
+    edgedb query [<options>] <edgeql-query>...
 
 
 Description
@@ -21,6 +21,10 @@ provided as space-separated strings.
 
 Options
 =======
+
+The ``query`` command runs on the database it is connected
+to. For specifying the connection target see :ref:`connection options
+<ref_cli_edgedb_connopts>`.
 
 :cli:synopsis:`-F, --output-format=<output_format>`
     Output format: ``json``, ``json-pretty``, ``json-lines``,

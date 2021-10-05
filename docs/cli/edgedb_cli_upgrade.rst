@@ -9,7 +9,7 @@ Upgrade the CLI binary.
 
 .. cli:synopsis::
 
-    edgedb cli upgrade [OPTIONS]
+    edgedb cli upgrade [<options>]
 
 
 Description

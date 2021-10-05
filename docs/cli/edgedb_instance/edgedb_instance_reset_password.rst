@@ -9,7 +9,7 @@ Reset password for a user in the EdgeDB instance.
 
 .. cli:synopsis::
 
-     edgedb instance reset-password [OPTIONS] <name>
+     edgedb instance reset-password [<options>] <name>
 
 
 Description

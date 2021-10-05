@@ -10,7 +10,7 @@ database specified by the connection options.
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...] describe schema
+    edgedb describe schema [<options>]
 
 
 Description
@@ -23,6 +23,6 @@ Description
 Options
 =======
 
-:cli:synopsis:`<connection-option>`
-    See the :ref:`ref_cli_edgedb_connopts`.  The ``describe`` command
-    runs in the database it is connected to.
+The ``describe`` command runs in the database it is connected to. For
+specifying the connection target see :ref:`connection options
+<ref_cli_edgedb_connopts>`.

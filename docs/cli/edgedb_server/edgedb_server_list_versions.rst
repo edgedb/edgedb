@@ -9,7 +9,7 @@ List available and installed versions of the EdgeDB server.
 
 .. cli:synopsis::
 
-     edgedb server list-versions [OPTIONS]
+     edgedb server list-versions [<options>]
 
 
 Description

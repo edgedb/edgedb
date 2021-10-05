@@ -10,7 +10,7 @@ instance.
 
 .. cli:synopsis::
 
-    edgedb project unlink [OPTIONS]
+    edgedb project unlink [<options>]
 
 
 Description
@@ -24,13 +24,13 @@ destroyed with an explicit option.
 Options
 =======
 
-:cli:synopsis:`--project-dir=<project-dir>`
-    The project directory can be specified explicitly. Defaults to the
-    current directory.
-
 :cli:synopsis:`-D, --destroy-server-instance`
     If specified, the associated EdgeDB instance is destroyed by
     running :ref:`ref_cli_edgedb_instance_destroy`.
 
 :cli:synopsis:`--non-interactive`
     Do not prompts user for input.
+
+:cli:synopsis:`--project-dir=<project-dir>`
+    The project directory can be specified explicitly. Defaults to the
+    current directory.

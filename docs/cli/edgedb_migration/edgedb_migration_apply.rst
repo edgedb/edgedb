@@ -10,7 +10,7 @@ the database by this command:
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...] migration apply [OPTIONS]
+    edgedb migration apply [<options>]
 
 The tool will find all the unapplied migrations in
 ``dbschema/migrations/`` directory and sequentially run them on the
@@ -19,9 +19,12 @@ target instance.
 Options
 =======
 
-:cli:synopsis:`<connection-option>`
-    See the :ref:`ref_cli_edgedb_connopts`.  The ``migrate``
-    command runs on the database it is connected to.
+The ``migration apply`` command runs on the database it is connected
+to. For specifying the connection target see :ref:`connection options
+<ref_cli_edgedb_connopts>`.
+
+:cli:synopsis:`--quiet`
+    Do not print any messages, only indicate success by exit status.
 
 :cli:synopsis:`--schema-dir=<schema-dir>`
     Directory where the schema files are located. Defaults to

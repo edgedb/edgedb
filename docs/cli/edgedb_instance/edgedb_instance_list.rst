@@ -9,7 +9,7 @@ Show all EdgeDB instances.
 
 .. cli:synopsis::
 
-    edgedb instance list [OPTIONS]
+    edgedb instance list [<options>]
 
 
 Description

@@ -1,15 +1,15 @@
 .. _ref_cli_edgedb_instance_link:
 
-=====================
-edgedb ionstance link
-=====================
+====================
+edgedb instance link
+====================
 
 Authenticate a connection to a remote EdgeDB instance and assign an
 instance name to simplify future connections.
 
 .. cli:synopsis::
 
-    edgedb instance link [OPTIONS] <name>
+    edgedb instance link [<options>] <name>
 
 
 Description
@@ -26,9 +26,9 @@ instance.
 Options
 =======
 
-:cli:synopsis:`<connection-option>`
-    See the :ref:`ref_cli_edgedb_connopts`.  The ``restore`` command
-    restores the backup file into the database it is connected to.
+The ``instance link`` command uses the standard :ref:`connection
+options <ref_cli_edgedb_connopts>` for specifying the instance to be
+linked.
 
 :cli:synopsis:`<name>`
     Specifies a new instance name to associate with the connection
@@ -37,3 +37,12 @@ Options
 
 :cli:synopsis:`--non-interactive`
     Run in non-interactive mode (accepting all defaults).
+
+:cli:synopsis:`--quiet`
+    Reduce command verbosity.
+
+:cli:synopsis:`--trust-tls-cert`
+    Trust peer certificate.
+
+:cli:synopsis:`--overwrite`
+    Overwrite existing credential file if any.

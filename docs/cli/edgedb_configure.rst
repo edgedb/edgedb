@@ -8,8 +8,9 @@ Configure the EdgeDB server.
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...] configure [ <option> ... ] \
-        <action> <parameter-class> [ --<property>=<value> ... ]
+    edgedb configure [<connection-options>] <action> \
+        [<parameter> <value>] \
+        [<parameter-class> --<property>=<value> ...]
 
 Description
 ===========
@@ -39,8 +40,8 @@ Options
 Most of the options are the same across all of the different
 configuration actions.
 
-:cli:synopsis:`<connection-option>`
-    See the :ref:`ref_cli_edgedb_connopts`.
+:cli:synopsis:`<connection-options>`
+    See :ref:`connection options <ref_cli_edgedb_connopts>`.
 
 :cli:synopsis:`<parameter>`
     The name of a primitive configuration parameter.  Available

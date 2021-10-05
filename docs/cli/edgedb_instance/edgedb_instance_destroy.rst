@@ -9,7 +9,7 @@ Remove an EdgeDB instance.
 
 .. cli:synopsis::
 
-     edgedb instance destroy [OPTIONS] <name>
+     edgedb instance destroy [<options>] <name>
 
 
 Description

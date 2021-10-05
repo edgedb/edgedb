@@ -9,7 +9,7 @@ Setup a new project.
 
 .. cli:synopsis::
 
-    edgedb project init [OPTIONS]
+    edgedb project init [<options>]
 
 
 Description
@@ -24,6 +24,25 @@ how the project should be setup.
 
 Options
 =======
+
+:cli:synopsis:`--link`
+    Specifies whether the existing EdgeDB server instance should be
+    linked with the project.
+
+    This option is useful for initializing a copy of a project freshly
+    downloaded from a repository with a pre-existing project database.
+
+:cli:synopsis:`--no-migrations`
+    Skip running migrations.
+
+    There are two main use cases for this option:
+
+    1. With :cli:synopsis:`--link` option to connect to a datastore
+       with existing data.
+    2. To initialize a new instance but then restore dump to it.
+
+:cli:synopsis:`--non-interactive`
+    Run in non-interactive mode (accepting all defaults).
 
 :cli:synopsis:`--project-dir=<project-dir>`
     The project directory can be specified explicitly. Defaults to the

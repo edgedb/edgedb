@@ -9,7 +9,7 @@ Backup an EdgeDB database to a file.
 
 .. cli:synopsis::
 
-    edgedb [<connection-option>...] dump [--all] <path>
+    edgedb dump [<options>] <path>
 
 
 Description
@@ -22,9 +22,9 @@ into a file.
 Options
 =======
 
-:cli:synopsis:`<connection-option>`
-    See the :ref:`ref_cli_edgedb_connopts`.  The ``dump`` command backups
-    the database it is connected to.
+The ``dump`` command backups the database it is connected to. For
+specifying the connection target see :ref:`connection options
+<ref_cli_edgedb_connopts>`.
 
 :cli:synopsis:`<path>`
     The name of the file to backup the database into.
