@@ -623,14 +623,14 @@ class ConnectedTestCaseMixin:
 
         cmd = [
             'python', '-m', 'edb.cli',
-            '--host', conargs['host'],
-            '--port', str(conargs['port']),
             '--database', self.con.dbname,
             '--user', conargs['user'],
             '--tls-ca-file', conargs['tls_ca_file'],
         ]
 
         env = os.environ.copy()
+        env['EDGEDB_HOST'] = conargs['host']
+        env['EDGEDB_PORT'] = str(conargs['port'])
         if password := conargs.get('password'):
             env['EDGEDB_PASSWORD'] = password
 
