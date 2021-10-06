@@ -181,6 +181,7 @@ def include_rvar(
         path_id: irast.PathId, *,
         overwrite_path_rvar: bool=False,
         pull_namespace: bool=True,
+        update_mask: bool=True,
         flavor: str='normal',
         aspects: Optional[Tuple[str, ...] | AbstractSet[str]]=None,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
@@ -214,6 +215,7 @@ def include_rvar(
         stmt, rvar=rvar, path_id=path_id,
         overwrite_path_rvar=overwrite_path_rvar,
         pull_namespace=pull_namespace,
+        update_mask=update_mask,
         flavor=flavor,
         aspects=aspects,
         ctx=ctx)
@@ -225,6 +227,7 @@ def include_specific_rvar(
         path_id: irast.PathId, *,
         overwrite_path_rvar: bool=False,
         pull_namespace: bool=True,
+        update_mask: bool=True,
         flavor: str='normal',
         aspects: Iterable[str]=('value',),
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
@@ -268,9 +271,7 @@ def include_specific_rvar(
             pathctx.put_path_rvar_if_not_exists(
                 stmt, path_id, rvar, flavor=flavor, aspect=aspect, env=ctx.env)
 
-    # Packed rvars don't necessarily have anything to do with the
-    # current scope, so we don't set up path_id_mask based on them.
-    if flavor != 'packed':
+    if update_mask:
         scopes = [ctx.scope_tree]
         parent_scope = ctx.scope_tree.parent
         if parent_scope is not None:

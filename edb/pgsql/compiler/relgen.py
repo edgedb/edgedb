@@ -1680,10 +1680,26 @@ def process_set_as_tuple(
         for element in expr.elements:
             assert element.path_id
             path_id = element.path_id
-            if path_id != element.val.path_id:
-                pathctx.put_path_id_map(stmt, path_id, element.val.path_id)
 
-            tvar = dispatch.compile(element.val, ctx=subctx)
+            # We compile in a subrel *solely* so that we can map
+            # each element individually. It would be nice to have
+            # a way to do this that doesn't actually affect the output!
+            with ctx.subrel() as newctx:
+                if path_id != element.val.path_id:
+                    pathctx.put_path_id_map(
+                        newctx.rel, path_id, element.val.path_id)
+                dispatch.visit(element.val, ctx=newctx)
+
+            el_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
+            aspects = pathctx.list_path_aspects(
+                newctx.rel, element.val.path_id, env=ctx.env)
+            # update_mask=False because we are doing this solely to remap
+            # elements individually and don't want to affect the mask.
+            relctx.include_rvar(
+                stmt, el_rvar, path_id,
+                update_mask=False, aspects=aspects, ctx=ctx)
+            tvar = pathctx.get_path_value_var(stmt, path_id, env=subctx.env)
+
             elements.append(pgast.TupleElementBase(path_id=path_id))
 
             # We need to filter out NULLs at tuple creation time, to

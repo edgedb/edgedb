@@ -407,12 +407,8 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
         if node.path_id in self.to_skip:
             return set()
 
-        results = []
+        results = [{node}]
         results.append(self.visit(node.rptr))
-        # If the root of a path is potentially visible,
-        # say that the whole path is
-        if self.combine_field_results(results):
-            results.append({node})
         results.append(self.visit(node.shape))
         if not node.rptr:
             results.append(self.visit(node.expr))
