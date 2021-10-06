@@ -5015,7 +5015,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             await self.con.execute('''
                 CREATE PREFIX OPERATOR
                 `!` (l: std::int64) -> std::int64 {
-                    USING SQL OPERATOR '!!';
+                    USING SQL FUNCTION 'factorial';
                 };
             ''')
 
