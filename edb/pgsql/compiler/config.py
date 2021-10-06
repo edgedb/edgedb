@@ -415,10 +415,20 @@ def _rewrite_config_insert(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> irast.Set:
 
+    overwrite_query = pgast.SelectStmt()
+    id_expr = pgast.FuncCall(
+        name=('edgedbext', 'uuid_generate_v1mc',),
+        args=[],
+    )
+    pathctx.put_path_identity_var(
+        overwrite_query, ir_set.path_id, id_expr, force=True, env=ctx.env)
+    pathctx.put_path_value_var(
+        overwrite_query, ir_set.path_id, id_expr, force=True, env=ctx.env)
+
     relctx.add_type_rel_overlay(
         ir_set.typeref,
         'replace',
-        pgast.NullRelation(path_id=ir_set.path_id),
+        overwrite_query,
         path_id=ir_set.path_id,
         ctx=ctx,
     )
