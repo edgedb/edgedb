@@ -173,7 +173,7 @@ std::`++` (l: array<anytype>, r: array<anytype>) -> array<anytype> {
     CREATE ANNOTATION std::identifier := 'concat';
     CREATE ANNOTATION std::description := 'Array concatenation.';
     SET volatility := 'Immutable';
-    USING SQL OPERATOR '||';
+    USING SQL FUNCTION 'array_cat';
 };
 
 CREATE INFIX OPERATOR
