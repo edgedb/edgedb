@@ -1213,6 +1213,7 @@ def _inline_type_computable(
     ptr_set = None
     if ptr is None:
         ql = qlast.ShapeElement(
+            required=True,
             expr=qlast.Path(
                 steps=[qlast.Ptr(
                     ptr=qlast.ObjectRef(name=compname),

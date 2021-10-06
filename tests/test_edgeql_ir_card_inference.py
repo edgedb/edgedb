@@ -805,3 +805,11 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         name: ONE
         """
+
+    def test_edgeql_ir_card_inference_93(self):
+        """
+        SELECT (User { friends: { required bs := .name } },
+                User.friends.name ?? 'a')
+% OK %
+        MANY
+        """
