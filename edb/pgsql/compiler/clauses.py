@@ -223,8 +223,7 @@ def compile_iterator_expr(
         # when we reprocess an iterator that was hoisted.
         if not already_existed:
             relctx.ensure_bond_for_expr(
-                iterator_expr.expr.result, iterator_query, type='uuid',
-                ctx=subctx)
+                iterator_expr.expr.result, iterator_query, ctx=subctx)
 
     return iterator_rvar
 
