@@ -679,10 +679,6 @@ class Call(ImmutableExpr):
     # Bound callable's name.
     func_shortname: sn.QualName
 
-    # If the bound callable is a "USING SQL" callable, this
-    # attribute will be set to the name of the SQL function.
-    func_sql_function: typing.Optional[str]
-
     # Whether the bound callable is a "USING SQL EXPRESSION" callable.
     func_sql_expr: bool = False
 
@@ -712,6 +708,10 @@ class Call(ImmutableExpr):
 
 
 class FunctionCall(Call):
+
+    # If the bound callable is a "USING SQL" callable, this
+    # attribute will be set to the name of the SQL function.
+    func_sql_function: typing.Optional[str]
 
     # initial value needed for aggregate function calls to correctly
     # handle empty set
@@ -743,6 +743,10 @@ class OperatorCall(Call):
 
     # The kind of the bound operator (INFIX, PREFIX, etc.).
     operator_kind: qltypes.OperatorKind
+
+    # If the bound callable is a "USING SQL FUNCTION" callable, this
+    # attribute will be set to the name of the SQL function.
+    sql_function: typing.Optional[typing.Tuple[str, ...]] = None
 
     # If this operator maps directly onto an SQL operator, this
     # will contain the operator name, and, optionally, backend

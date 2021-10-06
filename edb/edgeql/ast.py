@@ -1152,7 +1152,7 @@ class DropFunction(DropObject, FunctionCommand):
 class OperatorCode(Clause):
     language: Language
     from_operator: typing.Optional[typing.Tuple[str, ...]]
-    from_function: typing.Optional[str]
+    from_function: typing.Optional[typing.Tuple[str, ...]]
     from_expr: bool
     code: typing.Optional[str]
 

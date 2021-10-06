@@ -1257,6 +1257,7 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
         if oper.get_abstract(schema):
             return schema
 
+        params = oper.get_params(schema)
         oper_language = oper.get_language(schema)
         oper_fromop = oper.get_from_operator(schema)
         oper_fromfunc = oper.get_from_function(schema)
@@ -1287,7 +1288,9 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
                 oper_func_name = common.qname(*oper_func.name)
 
             elif oper_fromfunc:
-                oper_func_name = oper_fromfunc
+                oper_func_name = oper_fromfunc[0]
+                if len(oper_fromfunc) > 1:
+                    from_args = oper_fromfunc[1:]
 
             elif from_args != args:
                 # Need a proxy function with casts
@@ -1322,11 +1325,14 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
             else:
                 oper_func_name = None
 
-            params = oper.get_params(schema)
-
-            if (not params.has_polymorphic(schema) or
-                    all(p.get_type(schema).is_array()
-                        for p in params.objects(schema))):
+            if (
+                pg_oper_name is not None
+                and not params.has_polymorphic(schema)
+                or all(
+                    p.get_type(schema).is_array()
+                    for p in params.objects(schema)
+                )
+            ):
                 self.pgops.add(dbops.CreateOperatorAlias(
                     name=common.get_backend_name(schema, oper, catenate=False),
                     args=args,
@@ -1337,15 +1343,23 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
                     negator=negator,
                 ))
 
-                if oper_func_name is not None:
-                    cexpr = self.get_dummy_func_call(
-                        oper, oper_func_name, schema)
-                else:
-                    cexpr = self.get_dummy_operator_call(
-                        oper, pg_oper_name, from_args, schema)
+                if not params.has_polymorphic(schema):
+                    if oper_func_name is not None:
+                        cexpr = self.get_dummy_func_call(
+                            oper, oper_func_name, schema)
+                    else:
+                        cexpr = self.get_dummy_operator_call(
+                            oper, pg_oper_name, from_args, schema)
 
-                check = self.sql_rval_consistency_check(oper, cexpr, schema)
-                self.pgops.add(check)
+                    check = self.sql_rval_consistency_check(
+                        oper, cexpr, schema)
+                    self.pgops.add(check)
+            elif oper_func_name is not None:
+                self.pgops.add(dbops.CreateOperator(
+                    name=common.get_backend_name(schema, oper, catenate=False),
+                    args=from_args,
+                    procedure=oper_func_name,
+                ))
 
         elif oper_language is ql_ast.Language.SQL and oper_code:
             args = self.get_pg_operands(schema, oper)
@@ -1359,10 +1373,27 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
                 procedure=oper_func_name,
             ))
 
-            cexpr = self.get_dummy_func_call(
-                oper, q(*oper_func.name), schema)
-            check = self.sql_rval_consistency_check(oper, cexpr, schema)
-            self.pgops.add(check)
+            if not params.has_polymorphic(schema):
+                cexpr = self.get_dummy_func_call(
+                    oper, q(*oper_func.name), schema)
+                check = self.sql_rval_consistency_check(oper, cexpr, schema)
+                self.pgops.add(check)
+
+        elif oper_language is ql_ast.Language.SQL and oper_fromfunc:
+            args = self.get_pg_operands(schema, oper)
+            oper_func_name = oper_fromfunc[0]
+            if len(oper_fromfunc) > 1:
+                args = oper_fromfunc[1:]
+
+            cargs = []
+            for t in args:
+                if t is not None:
+                    cargs.append(f'NULL::{qt(t)}')
+
+            if not params.has_polymorphic(schema):
+                cexpr = f"{qi(oper_func_name)}({', '.join(cargs)})"
+                check = self.sql_rval_consistency_check(oper, cexpr, schema)
+                self.pgops.add(check)
 
         elif oper.get_from_expr(schema):
             # This operator is handled by the compiler and does not
