@@ -910,7 +910,7 @@ def compile_insert_else_body(
                         name=ctx.env.aliases.get('dummy'))))
             dummy_q = pgast.SelectStmt()
             relctx.ensure_transient_identity_for_path(
-                dummy_pathid, dummy_q, type='uuid', ctx=ictx)
+                dummy_pathid, dummy_q, ctx=ictx)
             dummy_rvar = relctx.rvar_for_rel(
                 dummy_q, lateral=True, ctx=ictx)
             relctx.include_rvar(ictx.rel, dummy_rvar,
