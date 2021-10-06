@@ -1,3 +1,5 @@
+.. _ref_changelog_alpha3:
+
 ===========
 1.0 Alpha 3
 ===========

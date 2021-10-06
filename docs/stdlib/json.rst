@@ -42,6 +42,7 @@ JSON
     * - :eql:func:`json_typeof`
       - :eql:func-desc:`json_typeof`
 
+.. _ref_std_json_construction:
 
 Constructing JSON Values
 ------------------------

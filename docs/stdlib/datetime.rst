@@ -82,6 +82,7 @@ Date and Time
     * - :eql:func:`datetime_of_statement`
       - :eql:func-desc:`datetime_of_statement`
 
+.. _ref_std_datetime_intro:
 
 EdgeDB has two classes of date/time types:
 
