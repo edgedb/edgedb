@@ -227,6 +227,7 @@ from sphinx import transforms as s_transforms
 from sphinx.directives import code as s_code
 from sphinx.util import docfields as s_docfields
 from sphinx.util import nodes as s_nodes_utils
+from sphinx.ext.intersphinx import InventoryAdapter
 
 from . import shared
 
@@ -1033,6 +1034,40 @@ class EdgeQLDomain(s_domains.Domain):
 
         if docname is None:
             if not node.get('eql-auto-link'):
+                inventories = InventoryAdapter(env)
+
+                for target in targets:
+                    if ':' not in target:
+                        continue
+                    obj_type, name = target.split('::', 1)
+                    docset_name, name = name.split(':', 1)
+
+                    docset = inventories.named_inventory.get(docset_name)
+                    if docset is None:
+                        continue
+                    refs = docset.get('eql:' + obj_type)
+                    if refs is None:
+                        continue
+                    ref = refs.get(obj_type + '::' + name)
+                    if ref is None:
+                        continue
+
+                    newnode = d_nodes.reference(
+                        '', '',
+                        internal=False, refuri=ref[2],
+                    )
+                    if node.get('refexplicit'):
+                        newnode.append(d_nodes.Text(contnode.astext()))
+                    else:
+                        title = contnode.astext()
+                        newnode.append(
+                            contnode.__class__(
+                                title[len(docset_name) + 1:],
+                                title[len(docset_name) + 1:]
+                            )
+                        )
+                    return newnode
+
                 raise shared.DomainError(
                     f'cannot resolve :eql:{type}: targeting {target!r}')
             else:

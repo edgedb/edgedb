@@ -19,6 +19,8 @@
 
 from __future__ import annotations
 
+import os
+
 from docutils import nodes as d_nodes
 from sphinx import transforms as s_transforms
 
@@ -35,10 +37,11 @@ class ProhibitedNodeTransform(s_transforms.SphinxTransform):
     default_priority = 1  # before ReferencesResolver
 
     def apply(self):
-        bqs = list(self.document.traverse(d_nodes.block_quote))
-        if bqs:
-            raise shared.EdgeSphinxExtensionError(
-                f'blockquote found: {bqs[0].asdom().toxml()!r}')
+        if os.getenv('EDGEDB_DOCS_PROHIBIT_BLOCKQUOTES'):
+            bqs = list(self.document.traverse(d_nodes.block_quote))
+            if bqs:
+                raise shared.EdgeSphinxExtensionError(
+                    f'blockquote found: {bqs[0].asdom().toxml()!r}')
 
         trs = list(self.document.traverse(d_nodes.title_reference))
         if trs:
