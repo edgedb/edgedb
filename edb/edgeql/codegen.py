@@ -1723,22 +1723,31 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 if types:
                     op_str += f'({",".join(types)})'
                 self.write(f'{op_str!r}', ';')
-            elif node.code.from_expr:
+            if node.code.from_function:
+                from_clause = f'USING {node.code.language} OPERATOR '
+                if self.sdlmode:
+                    from_clause = from_clause.lower()
+                self.write(from_clause)
+                op, *types = node.code.from_function
+                op_str = op
+                if types:
+                    op_str += f'({",".join(types)})'
+                self.write(f'{op_str!r}', ';')
+            if node.code.from_expr:
                 from_clause = f'USING {node.code.language} EXPRESSION'
                 if self.sdlmode:
                     from_clause = from_clause.lower()
                 self.write(from_clause, ';')
-            else:
+            elif node.code.code:
                 from_clause = f'USING {node.code.language} '
                 if self.sdlmode:
                     from_clause = from_clause.lower()
                 self.write(from_clause)
-                if node.code.code:
-                    self.write(
-                        edgeql_quote.dollar_quote_literal(
-                            node.code.code),
-                        ';'
-                    )
+                self.write(
+                    edgeql_quote.dollar_quote_literal(
+                        node.code.code),
+                    ';'
+                )
 
             self._block_ws(-1)
             if node.commands:

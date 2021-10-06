@@ -556,13 +556,19 @@ def compile_operator(
         origin_name = None
         origin_module_id = None
 
+    from_func = oper.get_from_function(env.schema)
+    if from_func is None:
+        sql_func = None
+    else:
+        sql_func = tuple(from_func)
+
     node = irast.OperatorCall(
         args=final_args,
         func_shortname=oper_name,
         func_polymorphic=is_polymorphic,
         origin_name=origin_name,
         origin_module_id=origin_module_id,
-        func_sql_function=oper.get_from_function(env.schema),
+        sql_function=sql_func,
         func_sql_expr=oper.get_from_expr(env.schema),
         sql_operator=sql_operator,
         force_return_cast=oper.get_force_return_cast(env.schema),

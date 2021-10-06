@@ -56,7 +56,8 @@ class Operator(
         default=None, compcoef=0.4)
 
     from_function = so.SchemaField(
-        str, default=None, compcoef=0.4)
+        checked.CheckedList[str], coerce=True,
+        default=None, compcoef=0.4)
 
     from_expr = so.SchemaField(
         bool, default=False, compcoef=0.4)

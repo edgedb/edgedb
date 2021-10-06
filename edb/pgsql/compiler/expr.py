@@ -386,42 +386,22 @@ def compile_operator(
         sql_oper = expr.sql_operator[0]
         if len(expr.sql_operator) > 1:
             # Explicit operand types given in FROM SQL OPERATOR
-            if lexpr is not None:
-                lexpr = pgast.TypeCast(
-                    arg=lexpr,
-                    type_name=pgast.TypeName(
-                        name=(expr.sql_operator[1],)
-                    )
-                )
+            lexpr, rexpr = _cast_operands(lexpr, rexpr, expr.sql_operator[1:])
 
-            if rexpr is not None:
-                rexpr_qry = None
+    elif expr.sql_function:
+        sql_func = expr.sql_function[0]
+        func_name = tuple(sql_func.split('.', 1))
+        if len(expr.sql_function) > 1:
+            # Explicit operand types given in FROM SQL FUNCTION
+            lexpr, rexpr = _cast_operands(lexpr, rexpr, expr.sql_function[1:])
 
-                if (isinstance(rexpr, pgast.SubLink)
-                        and isinstance(rexpr.expr, pgast.SelectStmt)):
-                    rexpr_qry = rexpr.expr
-                elif isinstance(rexpr, pgast.SelectStmt):
-                    rexpr_qry = rexpr
+        args = []
+        if lexpr is not None:
+            args.append(lexpr)
+        if rexpr is not None:
+            args.append(rexpr)
 
-                if rexpr_qry is not None:
-                    # Handle cases like foo <op> ANY (SELECT) and
-                    # foo <OP> (SELECT).
-                    rexpr_qry.target_list[0] = pgast.ResTarget(
-                        name=rexpr_qry.target_list[0].name,
-                        val=pgast.TypeCast(
-                            arg=rexpr_qry.target_list[0].val,
-                            type_name=pgast.TypeName(
-                                name=(expr.sql_operator[2],)
-                            )
-                        )
-                    )
-                else:
-                    rexpr = pgast.TypeCast(
-                        arg=rexpr,
-                        type_name=pgast.TypeName(
-                            name=(expr.sql_operator[2],)
-                        )
-                    )
+        result = pgast.FuncCall(name=func_name, args=args)
 
     elif expr.origin_name is not None:
         sql_oper = common.get_operator_backend_name(
@@ -452,6 +432,52 @@ def compile_operator(
         )
 
     return result
+
+
+def _cast_operands(
+    lexpr: Optional[pgast.BaseExpr],
+    rexpr: Optional[pgast.BaseExpr],
+    sql_types: Tuple[str, ...],
+) -> Tuple[Optional[pgast.BaseExpr], Optional[pgast.BaseExpr]]:
+
+    if lexpr is not None:
+        lexpr = pgast.TypeCast(
+            arg=lexpr,
+            type_name=pgast.TypeName(
+                name=(sql_types[0],)
+            )
+        )
+
+    if rexpr is not None:
+        rexpr_qry = None
+
+        if (isinstance(rexpr, pgast.SubLink)
+                and isinstance(rexpr.expr, pgast.SelectStmt)):
+            rexpr_qry = rexpr.expr
+        elif isinstance(rexpr, pgast.SelectStmt):
+            rexpr_qry = rexpr
+
+        if rexpr_qry is not None:
+            # Handle cases like foo <op> ANY (SELECT) and
+            # foo <OP> (SELECT).
+            rexpr_qry.target_list[0] = pgast.ResTarget(
+                name=rexpr_qry.target_list[0].name,
+                val=pgast.TypeCast(
+                    arg=rexpr_qry.target_list[0].val,
+                    type_name=pgast.TypeName(
+                        name=(sql_types[1],)
+                    )
+                )
+            )
+        else:
+            rexpr = pgast.TypeCast(
+                arg=rexpr,
+                type_name=pgast.TypeName(
+                    name=(sql_types[1],)
+                )
+            )
+
+    return lexpr, rexpr
 
 
 @dispatch.compile.register(irast.TypeCheckOp)
