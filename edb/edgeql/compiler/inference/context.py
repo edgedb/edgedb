@@ -51,14 +51,14 @@ class MultiplicityInfo:
 class InfCtx(NamedTuple):
     env: context.Environment
     inferred_cardinality: Dict[
-        Tuple[irast.Base, irast.ScopeTreeNode],
+        Tuple[irast.Base, irast.ScopeTreeNode, FrozenSet[irast.PathId]],
         qltypes.Cardinality,
     ]
     inferred_multiplicity: Dict[
         Tuple[irast.Base, irast.ScopeTreeNode],
         MultiplicityInfo,
     ]
-    singletons: Collection[irast.PathId]
+    singletons: FrozenSet[irast.PathId]
     distinct_iterators: Set[irast.PathId]
 
 

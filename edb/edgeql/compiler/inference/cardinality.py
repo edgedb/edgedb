@@ -467,6 +467,11 @@ def _infer_shape(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> None:
+    # Mark the source of the shape as being a singleton. We can't just
+    # rely on the scope tree, where it might appear as optional
+    # (giving us AT_MOST_ONE instead of ONE).
+    ctx = ctx._replace(singletons=ctx.singletons | {ir.path_id})
+
     for shape_set, shape_op in ir.shape:
         new_scope = inf_utils.get_set_scope(shape_set, scope_tree, ctx=ctx)
         if shape_set.expr and shape_set.rptr:
@@ -510,7 +515,7 @@ def _infer_set(
 
     # We need to cache the main result before doing the shape,
     # since sometimes the shape will refer to the enclosing set.
-    ctx.inferred_cardinality[ir, scope_tree] = result
+    ctx.inferred_cardinality[ir, scope_tree, ctx.singletons] = result
 
     _infer_shape(ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
 
@@ -555,8 +560,13 @@ def _infer_set_inner(
 
     if ir.path_id in ctx.singletons:
         return ONE
+    force_single = False
     if (node := inf_utils.find_visible(ir, scope_tree)) is not None:
-        return AT_MOST_ONE if node.optional else ONE
+        if not node.optional:
+            return ONE
+        # If the set is visible, but optional, it must have upper bound ONE
+        # but we still want to compute the lower bound.
+        force_single = True
 
     if rptr is not None:
         if isinstance(rptrref, irast.TypeIntersectionPointerRef):
@@ -569,7 +579,7 @@ def _infer_set_inner(
                     ind_prefix, scope_tree=new_scope, ctx=ctx,
                 )
 
-                return cartesian_cardinality([prefix_card, AT_MOST_ONE])
+                card = cartesian_cardinality([prefix_card, AT_MOST_ONE])
             else:
                 # Expression before type intersection is a path,
                 # i.e Foo.<bar[IS Type].  In this case we must
@@ -604,7 +614,7 @@ def _infer_set_inner(
                     # product of the base to which the type
                     # intersection is applied and the cardinality due
                     # to type intersection itself.
-                    return cartesian_cardinality([source_card, rptr_spec_card])
+                    card = cartesian_cardinality([source_card, rptr_spec_card])
 
         else:
             if rptrref.union_components:
@@ -620,17 +630,23 @@ def _infer_set_inner(
                 rptrref_card = rptrref.dir_cardinality(rptr.direction)
 
             if rptrref_card.is_single():
-                return cartesian_cardinality((source_card, rptrref_card))
+                card = cartesian_cardinality((source_card, rptrref_card))
             else:
-                return MANY
+                card = MANY
+
     elif isinstance(ir, irast.EmptySet):
-        return AT_MOST_ONE
+        card = AT_MOST_ONE
     elif ir.expr is not None:
-        return expr_card
+        card = expr_card
     elif _is_singleton_type(ir.typeref):
-        return ONE
+        card = ONE
     else:
-        return MANY
+        card = MANY
+
+    if force_single:
+        card = _bounds_to_card(_card_to_bounds(card)[0], CB_ONE)
+
+    return card
 
 
 @_infer_cardinality.register
@@ -1263,7 +1279,7 @@ def infer_cardinality(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    result = ctx.inferred_cardinality.get((ir, scope_tree))
+    result = ctx.inferred_cardinality.get((ir, scope_tree, ctx.singletons))
     if result is not None:
         return result
 
@@ -1280,7 +1296,7 @@ def infer_cardinality(
             'set produced by expression',
             context=ir.context)
 
-    ctx.inferred_cardinality[ir, scope_tree] = result
+    ctx.inferred_cardinality[ir, scope_tree, ctx.singletons] = result
 
     return result
 
