@@ -5475,6 +5475,23 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             sort=lambda x: x['number'],
         )
 
+    async def test_edgeql_select_for_04(self):
+        await self.assert_query_result(
+            r'''
+                SELECT Issue {
+                    asdf := (
+                        FOR z IN {.due_date} UNION (1)
+                    )
+                }
+                FILTER .name = 'Release EdgeDB';
+            ''',
+            [
+                {
+                    'asdf': None
+                }
+            ],
+        )
+
     async def test_edgeql_select_json_01(self):
         await self.assert_query_result(
             r'''
