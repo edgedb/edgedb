@@ -4,9 +4,22 @@
 Common Connection Options
 =========================
 
-Various EdgeDB terminal tools such as :ref:`ref_cli_edgedb` repl,
-:ref:`ref_cli_edgedb_configure`, :ref:`ref_cli_edgedb_dump`,
-and :ref:`ref_cli_edgedb_restore` use the following connection options:
+The ``edgedb`` CLI supports a standard set of connection flags used to specify
+the *target* of a given command. The CLI always respects any connection
+parameters passed explicitly using flags.
+
+- If no flags are provided, then environment variables will be
+  used to determine the instance.
+- If no environment variables are present, the CLI will check if the working
+  directory is within an instance-linked project directory.
+- If none of the above are present, the command fails.
+
+For a detailed breakdown of how connection information is resolved, read the
+:ref:`Connection Parameter Resolution <ref_client_connection>` docs.
+
+################
+Connection flags
+################
 
 :cli:synopsis:`-I <name>, --instance=<name>`
     Specifies the named instance to connect to. The actual connection

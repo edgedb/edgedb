@@ -1,7 +1,7 @@
 .. _ref_client_connection:
 
-Connection Resolution
-=====================
+Connection Parameter Resolution
+===============================
 
 When connecting to your database with the client libraries or CLI, there are
 several ways to uniquely identify your instance. These are:
@@ -78,7 +78,6 @@ Let's dig into each of these a bit more.
 
   .. code-block:: json
 
-    // credentials.json
     {
       "port": 10702,
       "user": "test3n",
