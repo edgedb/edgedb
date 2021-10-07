@@ -26,6 +26,7 @@ from edb.ir import ast as irast
 from edb.pgsql import ast as pgast
 from edb.pgsql import types as pg_types
 
+from . import astutils
 from . import context
 from . import dispatch
 from . import output
@@ -214,6 +215,17 @@ def compile_iterator_expr(
         iterator_rvar = relctx.get_path_rvar(
             query, iterator_expr.path_id, aspect='value', ctx=ctx)
         iterator_query = iterator_rvar.query
+
+        # If the iterator value is nullable, add a null test. This
+        # makes sure that we don't spuriously produce output when
+        # iterating over options pointers.
+        assert isinstance(iterator_query, pgast.SelectStmt)
+        iterator_var = pathctx.get_path_value_var(
+            iterator_query, path_id=iterator_expr.path_id, env=ctx.env)
+        if iterator_var.nullable:
+            iterator_query.where_clause = astutils.extend_binop(
+                iterator_query.where_clause,
+                pgast.NullTest(arg=iterator_var, negated=True))
 
         # Regardless of result type, we use transient identity,
         # for path identity of the iterator expression.  This is
