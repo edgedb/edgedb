@@ -44,6 +44,7 @@ std::assert_exists(input: SET OF anytype) -> SET OF anytype
         "Check that the input set contains at least one element, raise
          CardinalityViolationError otherwise.";
     SET volatility := 'Stable';
+    SET preserves_upper_cardinality := true;
     USING SQL EXPRESSION;
 };
 
@@ -59,6 +60,7 @@ std::assert_distinct(input: SET OF anytype) -> SET OF anytype
          are unique";
     SET volatility := 'Stable';
     SET preserves_optionality := true;
+    SET preserves_upper_cardinality := true;
     USING SQL EXPRESSION;
 };
 
@@ -407,6 +409,7 @@ std::enumerate(
         'Return a set of tuples of the form `(index, element)`.';
     SET volatility := 'Immutable';
     SET preserves_optionality := true;
+    SET preserves_upper_cardinality := true;
     USING SQL EXPRESSION;
 };
 

@@ -664,33 +664,12 @@ def __infer_func_call(
 
     ret_lower_bound, ret_upper_bound = _card_to_bounds(return_card)
 
-    if ir.func_shortname == sn.QualName('std', 'assert_exists'):
-        arg_cards = []
-
-        for arg in ir.args:
-            arg.cardinality = infer_cardinality(
-                arg.expr, scope_tree=scope_tree, ctx=ctx)
-            arg_cards.append(arg.cardinality)
-
-        arg_card = zip(*(_card_to_bounds(card) for card in arg_cards))
-        _, arg_upper = arg_card
-        return _bounds_to_card(CardinalityBound.ONE, max(arg_upper))
-
-    elif ir.func_shortname == sn.QualName('std', 'assert_distinct'):
-        arg_cards = []
-
-        for arg in ir.args:
-            arg.cardinality = infer_cardinality(
-                arg.expr, scope_tree=scope_tree, ctx=ctx)
-            arg_cards.append(arg.cardinality)
-
-        return max_cardinality(arg_cards)
-
-    elif ir.preserves_optionality:
+    if ir.preserves_optionality or ir.preserves_upper_cardinality:
         # This is a generic aggregate function which preserves the
-        # optionality of its generic argument.  For simplicity we
-        # are deliberately not checking the parameters here as that
-        # would have been done at the time of declaration.
+        # optionality and/or upper cardinality of its generic
+        # argument.  For simplicity we are deliberately not checking
+        # the parameters here as that would have been done at the time
+        # of declaration.
         arg_cards = []
 
         for arg in ir.args:
@@ -699,8 +678,16 @@ def __infer_func_call(
             arg_cards.append(arg.cardinality)
 
         arg_card = zip(*(_card_to_bounds(card) for card in arg_cards))
-        arg_lower, _ = arg_card
-        return _bounds_to_card(min(arg_lower), ret_upper_bound)
+        arg_lower, arg_upper = arg_card
+        lower = (
+            min(arg_lower) if ir.preserves_optionality else
+            CardinalityBound.ONE if (
+                ir.func_shortname == sn.QualName('std', 'assert_exists'))
+            else ret_lower_bound
+        )
+        upper = (max(arg_upper) if ir.preserves_upper_cardinality
+                 else ret_upper_bound)
+        return _bounds_to_card(lower, upper)
 
     else:
         # For regular non-OPTIONAL functions, the general rule of
