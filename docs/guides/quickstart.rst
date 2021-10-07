@@ -590,7 +590,7 @@ properties of ``Person``. Let's update ``dbschema/default.esdl``:
             property last_name -> str;
 
             # add computable property "name"
-            property name :=
+            property full_name :=
                 .first_name ++ ' ' ++ .last_name
                 IF EXISTS .last_name
                 ELSE .first_name;
@@ -608,7 +608,7 @@ Then create and run another migration:
 .. code-block:: bash
 
     $ edgedb migration create
-    did you create property 'name' of object type
+    did you create property 'full_name' of object type
     'default::Person'? [y,n,l,c,b,s,q,?]
     > y
     Created ./dbschema/migrations/00003.edgeql, id:
