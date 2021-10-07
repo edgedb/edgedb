@@ -813,3 +813,10 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         MANY
         """
+
+    def test_edgeql_ir_card_inference_94(self):
+        """
+        SELECT User { foo := enumerate(.name) }
+% OK %
+        foo: ONE
+        """

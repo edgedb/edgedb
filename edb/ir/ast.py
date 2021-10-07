@@ -734,6 +734,10 @@ class FunctionCall(Call):
     # argument(s).
     preserves_optionality: bool = False
 
+    # Whether the generic function preserves upper cardinality of the generic
+    # argument(s).
+    preserves_upper_cardinality: bool = False
+
     # Set to the type of the variadic parameter of the bound function
     # (or None, if the function has no variadic parameters.)
     variadic_param_type: typing.Optional[TypeRef] = None

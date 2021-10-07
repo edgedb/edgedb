@@ -256,6 +256,8 @@ def compile_FunctionCall(
         sql_func_has_out_params=func.get_sql_func_has_out_params(env.schema),
         error_on_null_result=func.get_error_on_null_result(env.schema),
         preserves_optionality=func.get_preserves_optionality(env.schema),
+        preserves_upper_cardinality=func.get_preserves_upper_cardinality(
+            env.schema),
         params_typemods=params_typemods,
         context=expr.context,
         typeref=typegen.type_to_typeref(

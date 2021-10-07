@@ -1188,6 +1188,12 @@ class Function(
     preserves_optionality = so.SchemaField(
         bool, default=False, compcoef=0.99)
 
+    #: For a generic function, if True, indicates that the
+    #: upper cardinality of the result set should be the same as
+    #: of the generic argument.  (See std::assert_exists).
+    preserves_upper_cardinality = so.SchemaField(
+        bool, default=False, compcoef=0.99)
+
     initial_value = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.4, coerce=True)
 
@@ -1640,12 +1646,30 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         named_only = params.find_named_only(schema)
         fallback = self.scls.get_fallback(schema)
         preserves_opt = self.scls.get_preserves_optionality(schema)
+        preserves_upper_card = self.scls.get_preserves_upper_cardinality(
+            schema)
 
         if preserves_opt and not has_set_of:
             raise errors.InvalidFunctionDefinitionError(
                 f'cannot create `{signature}` function: '
                 f'"preserves_optionality" makes no sense '
                 f'in a non-aggregate function',
+                context=self.source_context)
+
+        if preserves_upper_card and not has_set_of:
+            raise errors.InvalidFunctionDefinitionError(
+                f'cannot create `{signature}` function: '
+                f'"preserves_upper_cardinality" makes no sense '
+                f'in a non-aggregate function',
+                context=self.source_context)
+
+        if preserves_upper_card and (
+            return_typemod is not ft.TypeModifier.SetOfType
+        ):
+            raise errors.InvalidFunctionDefinitionError(
+                f'cannot create `{signature}` function: '
+                f'"preserves_upper_cardinality" makes no sense '
+                f'in a function not returning SET OF',
                 context=self.source_context)
 
         # Certain syntax is only allowed in "EdgeDB developer" mode,
@@ -1685,6 +1709,8 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
             func_named_only = func_params.find_named_only(schema)
             func_from_function = func.get_from_function(schema)
             func_preserves_opt = func.get_preserves_optionality(schema)
+            func_preserves_upper_card = func.get_preserves_upper_cardinality(
+                schema)
 
             if func_named_only.keys() != named_only.keys():
                 raise errors.InvalidFunctionDefinitionError(
@@ -1724,6 +1750,14 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'cannot create `{signature}` function: '
                     f'overloading another function with different '
                     f'"preserves_optionality" attribute: '
+                    f'`{func.get_signature_as_str(schema)}`',
+                    context=self.source_context)
+
+            if func_preserves_upper_card != preserves_upper_card:
+                raise errors.InvalidFunctionDefinitionError(
+                    f'cannot create `{signature}` function: '
+                    f'overloading another function with different '
+                    f'"preserves_upper_cardinality" attribute: '
                     f'`{func.get_signature_as_str(schema)}`',
                     context=self.source_context)
 
