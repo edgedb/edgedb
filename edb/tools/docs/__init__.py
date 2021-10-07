@@ -37,7 +37,7 @@ class ProhibitedNodeTransform(s_transforms.SphinxTransform):
     default_priority = 1  # before ReferencesResolver
 
     def apply(self):
-        if os.getenv('EDGEDB_DOCS_PROHIBIT_BLOCKQUOTES'):
+        if os.getenv('EDGEDB_DOCS_ALLOW_BLOCKQUOTES') is None:
             bqs = list(self.document.traverse(d_nodes.block_quote))
             if bqs:
                 raise shared.EdgeSphinxExtensionError(

@@ -1037,9 +1037,9 @@ class EdgeQLDomain(s_domains.Domain):
                 inventories = InventoryAdapter(env)
 
                 for target in targets:
-                    if ':' not in target:
-                        continue
                     obj_type, name = target.split('::', 1)
+                    if ':' not in name:
+                        continue
                     docset_name, name = name.split(':', 1)
 
                     docset = inventories.named_inventory.get(docset_name)
