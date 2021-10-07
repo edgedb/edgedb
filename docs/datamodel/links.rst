@@ -270,6 +270,7 @@ The *backlink* lookup of who likes a particular ``Movie``:
         name
     };
 
+.. _ref_datamodel_link_deletion:
 
 Deletion
 --------

@@ -1088,6 +1088,12 @@ class EdgeQLDomain(s_domains.Domain):
 
         return node
 
+    def resolve_any_xref(self, env, fromdocname, builder,
+                         target, node, contnode):
+        # 'myst-parser' resolves all markdown links as :any: xrefs, so return
+        # empty list to prevent sphinx trying to resolve these as :eql: refs
+        return []
+
     def clear_doc(self, docname):
         for fullname, (fn, _l, _d) in list(self.data['objects'].items()):
             if fn == docname:
