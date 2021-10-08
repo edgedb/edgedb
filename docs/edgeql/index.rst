@@ -99,4 +99,5 @@ set roles, passwords, and so on using EdgeDB.
     introspection/index
     admin/index
     lexical
+    output
     eval
