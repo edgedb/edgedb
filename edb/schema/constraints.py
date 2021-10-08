@@ -767,11 +767,7 @@ class ConstraintCommand(
             )
 
         if subjectexpr is not None:
-            if (isinstance(subject_obj, s_types.Type)
-                    and subject_obj.is_object_type()):
-                singletons = frozenset({subject_obj})
-            else:
-                singletons = frozenset()
+            singletons = frozenset({subject_obj})
 
             final_subjectexpr = s_expr.Expression.compiled(
                 subjectexpr,
