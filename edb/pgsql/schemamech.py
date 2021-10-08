@@ -173,10 +173,7 @@ class ConstraintMech:
             qlast.Subject().name if isinstance(subject, s_types.Type)
             else None
         )
-        if (isinstance(subject, s_types.Type) and subject.is_object_type()):
-            singletons = frozenset({subject})
-        else:
-            singletons = frozenset()
+        singletons = frozenset({subject})
 
         ir = qlcompiler.compile_ast_to_ir(
             constraint.get_finalexpr(schema).qlast,
@@ -218,11 +215,7 @@ class ConstraintMech:
                 qlast.Subject().name
                 if isinstance(origin_subject, s_types.Type) else None
             )
-            if (isinstance(origin_subject, s_types.Type)
-                    and origin_subject.is_object_type()):
-                singletons = frozenset({origin_subject})
-            else:
-                singletons = frozenset()
+            singletons = frozenset({origin_subject})
 
             origin_ir = qlcompiler.compile_ast_to_ir(
                 constraint_origin.get_finalexpr(schema).qlast,
