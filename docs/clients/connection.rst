@@ -42,10 +42,10 @@ Let's dig into each of these a bit more.
   look up these credentials to connect. (Run the ``edgedb info`` command to see
   where credentials are stored on your machine.)
 
-  You can also assign names to remote instances using :ref:`edgedb instance link
-  <ref_cli_edgedb_instance_link>`. The CLI will save the credentials locally,
-  so you can connect to a remote instance using just its name, just like a
-  local instance.
+  You can also assign names to remote instances using :ref:`edgedb instance
+  link <ref_cli_edgedb_instance_link>`. The CLI will save the credentials
+  locally, so you can connect to a remote instance using just its name, just
+  like a local instance.
 
 **DSN**
   A DSN (data source name) is a connection string that can contain a full set
@@ -265,7 +265,8 @@ Overriding across priority levels
 
 This override behavior only happens *same or lower priority level*. Explicit
 
-- ``EDGEDB_PASSWORD`` **will** override the password specified in ``EDGEDB_DSN``
+- ``EDGEDB_PASSWORD`` **will** override the password specified in
+  ``EDGEDB_DSN``
 - ``EDGEDB_PASSWORD`` **will not** override the password specified in a DSN
   that was passed explicitly using the ``--dsn`` flag, because explicit
   configuration takes precedence over environment variables. In fact, if you
