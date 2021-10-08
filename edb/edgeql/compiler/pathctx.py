@@ -47,17 +47,6 @@ def get_path_id(stype: s_types.Type, *,
         namespace=ctx.path_id_namespace)
 
 
-def get_pointer_path_id(ptr: s_pointers.Pointer, *,
-                        ctx: context.ContextLevel) -> irast.PathId:
-    src = ptr.get_source(ctx.env.schema)
-    assert isinstance(src, (s_pointers.Pointer, s_types.Type))
-    if isinstance(src, s_pointers.Pointer):
-        root = get_pointer_path_id(src, ctx=ctx).ptr_path()
-    else:
-        root = get_path_id(src, ctx=ctx)
-    return extend_path_id(root, ptrcls=ptr, ctx=ctx)
-
-
 def get_tuple_indirection_path_id(
         tuple_path_id: irast.PathId, element_name: str,
         element_type: s_types.Type, *,

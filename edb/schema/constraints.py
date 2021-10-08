@@ -649,6 +649,7 @@ class ConstraintCommand(
     ) -> None:
         from edb.ir import ast as ir_ast
         from edb.ir import utils as ir_utils
+        from . import pointers as s_pointers
 
         bases = self.get_resolved_attribute_value(
             'bases', schema=schema, context=context,
@@ -767,6 +768,7 @@ class ConstraintCommand(
             )
 
         if subjectexpr is not None:
+            assert isinstance(subject_obj, (s_types.Type, s_pointers.Pointer))
             singletons = frozenset({subject_obj})
 
             final_subjectexpr = s_expr.Expression.compiled(

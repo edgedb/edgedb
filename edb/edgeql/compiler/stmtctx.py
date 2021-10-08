@@ -76,9 +76,7 @@ def init_context(
         # expression cardinality inference, so we set up the scope
         # tree in the necessary fashion.
         for singleton in options.singletons:
-            path_id = (pathctx.get_path_id(singleton, ctx=ctx)
-                       if isinstance(singleton, s_types.Type)
-                       else pathctx.get_pointer_path_id(singleton, ctx=ctx))
+            path_id = compile_anchor('__', singleton, ctx=ctx).path_id
             ctx.env.path_scope.attach_path(path_id, context=None)
             ctx.env.singletons.append(path_id)
 

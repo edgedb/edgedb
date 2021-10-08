@@ -1621,3 +1621,29 @@ class TestConstraintsDDL(tb.DDLTestCase):
             await self.con.execute("""
                 INSERT Obj { asdf := assert_single((SELECT Tgt)) };
             """)
+
+    async def test_constraints_exclusive_link_prop_03(self):
+        await self.con.execute("""
+            CREATE TYPE Tgt;
+            CREATE ABSTRACT LINK asdf {
+                CREATE PROPERTY what -> str {
+                    CREATE CONSTRAINT exclusive ON (__subject__ ?? '??')
+                }
+            };
+            CREATE TYPE Obj {
+                CREATE LINK asdf extending asdf -> Tgt;
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT Tgt;
+            INSERT Obj { asdf := assert_single((SELECT Tgt)) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "what violates exclusivity constraint",
+        ):
+            await self.con.execute("""
+                INSERT Obj { asdf := assert_single((SELECT Tgt)) };
+            """)
