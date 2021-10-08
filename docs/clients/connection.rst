@@ -198,83 +198,43 @@ Let dig deeper into each of these connection parameters.
 
 **User and password**
   These are the credentials of the database user account to connect to the
-  EdgeDB instance. When specified, these values will **override** the username
-  or password specified in a DSN, credentials file, etc.
-
-  For instance, consider the following environment variables:
-
-  .. code-block::
-
-      EDGEDB_DSN=edgedb://olduser:oldpass@hostname.com:5656
-      EDGEDB_USER=newuser
-      EDGEDB_PASSWORD=newpass
-
-    In this scenario, ``newuser`` will override ``olduser`` and ``newpass``
-    will override ``oldpass``. The client library will try to connect to the
-    instance with the following connection information:
-
-    .. code-block::
-
-      host: "hostname.com"
-      port: 5656
-      user: "newuser"
-      password: "newpass"
+  EdgeDB instance.
 
 **Database**
   Each EdgeDB *instance* can contain multiple *databases*. When in instance is
   created, a default database named ``edgedb`` is created. Unless otherwise
   specified, all incoming connections connect to the ``edgedb`` database.
 
-  If specified, this database name will **override** the database name
-  specified in DSN, credentials file, etc.
-
-  .. code-block::
-
-      EDGEDB_DSN=edgedb://hostname.com:5656/old_db
-      EDGEDB_DATABASE=new_db
-
-  The ``old_db`` specified in the DSN will be discarded and replaced with
-  ``new_db``. Keep in mind that most users never create multiple databases
-  within their EdgeDB instance and simply use the default database (named
-  ``edgedb``) which is created when the instance is first initialized.
-
 
 Override behavior
 -----------------
 
-There is still potential for ambiguity here. For instance, a DSN specified with
-``EDGEDB_DSN`` may contain a username, password, and database name. What
-happens if you also specify ``EDGEDB_USER``, ``EDGEDB_PASSWORD``, or
-``EDGEDB_DATABASE``?
-
-In this scenario, the more granular connection parameters will override the
-less granular one. For instance, consider the following set of environment
-variables:
+When specified, the connection parameters (user, password, and database) will
+*override* the corresponding element of a DSN, credentials file, etc. For
+instance, consider the following environment variables:
 
 .. code-block::
 
-  EDGEDB_DSN=edgedb://olduser:password@hostname.com:5656
+  EDGEDB_DSN=edgedb://olduser:oldpass@hostname.com:5656
   EDGEDB_USER=newuser
+  EDGEDB_PASSWORD=newpass
 
-  # client will connect to
-  # edgedb://newuser:password@hostname.com:5656
-
+In this scenario, ``newuser`` will override ``olduser`` and ``newpass``
+will override ``oldpass``. The client library will try to connect using this
+modified DSN: ``edgedb://newuser:newpass@hostname.com:5656``.
 
 Overriding across priority levels
 ---------------------------------
 
-This override behavior only happens *same or lower priority level*. Explicit
+This override behavior only happens *same or lower priority level*. For
+instance:
 
 - ``EDGEDB_PASSWORD`` **will** override the password specified in
   ``EDGEDB_DSN``
-- ``EDGEDB_PASSWORD`` **will not** override the password specified in a DSN
-  that was passed explicitly using the ``--dsn`` flag, because explicit
-  configuration takes precedence over environment variables. In fact, if you
-  pass the ``--dsn`` flag to the CLI, **all** environment variables will be
-  ignored.
-
-  To override the password of an explicit DSN, you need to pass it explicitly
-  as well:
+- ``EDGEDB_PASSWORD`` **will be ignored** if a DSN is passed explicitly using
+  the ``--dsn`` flag. Explicit parameters take precedence over environment
+  variables. To override the password of an explicit DSN, you need to pass it
+  explicitly as well:
 
   .. code-block:: bash
 
