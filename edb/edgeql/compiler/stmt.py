@@ -931,19 +931,6 @@ def fini_stmt(
         result = setgen.new_set_from_set(
             result, context=irstmt.context, ctx=ctx)
 
-    if isinstance(irstmt, irast.Stmt) and irstmt.bindings:
-        # If a binding is in a branched-but-not-fenced subnode, we
-        # want to hoist it up to the current scope. This is important
-        # for materialization-related cases where WITH+tuple is being
-        # used like FOR.
-        # See test_edgeql_volatility_hack_0{3,4}b
-        # XXX: To be honest I do not 100% remember why this makes sense.
-        for binding in irstmt.bindings:
-            if node := ctx.path_scope.find_child(
-                    binding.path_id, in_branches=True):
-                node.remove()
-                ctx.path_scope.attach_subtree(node)
-
     if view is not None:
         parent_ctx.view_sets[view] = result
 
