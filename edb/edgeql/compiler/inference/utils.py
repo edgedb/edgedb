@@ -51,13 +51,16 @@ def find_visible(
     ir: irast.Set,
     scope_tree: irast.ScopeTreeNode,
 ) -> Optional[irast.ScopeTreeNode]:
-    parent_branch = scope_tree.parent_branch
-    if parent_branch is not None:
+    # We want to look one fence up from whatever our current fence is.
+    # (Most of the time, scope_tree will be a fence, so this is equivalent
+    # to parent_fence, but sometimes it will be a branch.)
+    outer_fence = scope_tree.fence.parent_fence
+    if outer_fence is not None:
         if scope_tree.namespaces:
             path_id = ir.path_id.strip_namespace(scope_tree.namespaces)
         else:
             path_id = ir.path_id
 
-        return parent_branch.find_visible(path_id)
+        return outer_fence.find_visible(path_id)
     else:
         return None

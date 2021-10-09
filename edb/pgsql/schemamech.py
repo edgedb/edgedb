@@ -173,6 +173,7 @@ class ConstraintMech:
             qlast.Subject().name if isinstance(subject, s_types.Type)
             else None
         )
+        singletons = frozenset({subject})
 
         ir = qlcompiler.compile_ast_to_ir(
             constraint.get_finalexpr(schema).qlast,
@@ -181,6 +182,7 @@ class ConstraintMech:
                 anchors={qlast.Subject().name: subject},
                 path_prefix_anchor=path_prefix_anchor,
                 apply_query_rewrites=not context.stdmode,
+                singletons=singletons,
             ),
         )
 
@@ -213,6 +215,8 @@ class ConstraintMech:
                 qlast.Subject().name
                 if isinstance(origin_subject, s_types.Type) else None
             )
+            singletons = frozenset({origin_subject})
+
             origin_ir = qlcompiler.compile_ast_to_ir(
                 constraint_origin.get_finalexpr(schema).qlast,
                 schema,
@@ -220,6 +224,7 @@ class ConstraintMech:
                     anchors={qlast.Subject().name: origin_subject},
                     path_prefix_anchor=origin_path_prefix_anchor,
                     apply_query_rewrites=not context.stdmode,
+                    singletons=singletons,
                 ),
             )
 
