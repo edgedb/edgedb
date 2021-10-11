@@ -98,7 +98,7 @@ respectively:
 .. code-block:: bash
 
    $ edgedb instance status
-   $ edgedb server list-versions --installed
+   $ edgedb server list-versions --installed-only
 
 
 .. _ref_cli_edgedb_config:
