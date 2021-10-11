@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import *
 
+import random
+
 from edb.edgeql import qltypes
 from edb.ir import ast as irast
 from edb.pgsql import ast as pgast
@@ -47,6 +49,8 @@ def fini_stmt(
         parent_ctx: context.CompilerContextLevel) -> None:
 
     if stmt is ctx.toplevel_stmt:
+        scan_check_ctes(ctx.env.check_ctes, ctx=ctx)
+
         # Type rewrites go first.
         if stmt.ctes is None:
             stmt.ctes = []
@@ -328,3 +332,60 @@ def compile_limit_offset_clause(
         limit_offset_clause = relgen.set_as_subquery(ir_set, ctx=ctx1)
 
     return limit_offset_clause
+
+
+def scan_check_ctes(
+    check_ctes: List[pgast.CommonTableExpr],
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    if not check_ctes:
+        return
+
+    # Scan all of the check CTEs to enforce constraints that are
+    # checked as explicit queries and not Postgres constraints or
+    # triggers.
+
+    # To make sure that Postgres can't optimize the checks away, we
+    # reference them in the where clause of an UPDATE to a dummy
+    # table.
+
+    # Add a big random number, so that different queries should try to
+    # access different "rows" of the table, in case that matters.
+    base_int = random.randint(0, (1 << 60) - 1)
+    val: pgast.BaseExpr = pgast.NumericConstant(val=str(base_int))
+
+    for check_cte in check_ctes:
+        # We want the CTE to be MATERIALIZED, because otherwise
+        # Postgres might not fully evaluate all its columns when
+        # scanning it.
+        check_cte.materialized = True
+        check = pgast.SelectStmt(
+            target_list=[
+                pgast.ResTarget(
+                    val=pgast.FuncCall(name=('count',), args=[pgast.Star()]),
+                )
+            ],
+            from_clause=[
+                relctx.rvar_for_rel(check_cte, ctx=ctx),
+            ],
+        )
+        val = pgast.Expr(
+            kind=pgast.ExprKind.OP, name='+', lexpr=val, rexpr=check)
+
+    update_query = pgast.UpdateStmt(
+        targets=[pgast.UpdateTarget(
+            name='flag', val=pgast.BooleanConstant(val='true')
+        )],
+        relation=pgast.RelRangeVar(relation=pgast.Relation(
+            schemaname='edgedb', name='_dml_dummy')),
+        where_clause=pgast.Expr(
+            kind=pgast.ExprKind.OP, name='=',
+            lexpr=pgast.ColumnRef(name=['id']),
+            rexpr=val,
+        )
+    )
+    ctx.toplevel_stmt.append_cte(pgast.CommonTableExpr(
+        query=update_query,
+        name=ctx.env.aliases.get(hint='check_scan')
+    ))

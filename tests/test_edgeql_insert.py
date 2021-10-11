@@ -3978,12 +3978,63 @@ class TestInsert(tb.QueryTestCase):
             [2]
         )
 
-    async def test_edgeql_insert_cross_type_conflict_01(self):
+    async def test_edgeql_insert_cross_type_conflict_01a(self):
         query = r'''
             WITH name := 'Madeline Hatch',
                  B := (INSERT Person {name := name}),
                  F := (INSERT DerivedPerson {name := name}),
             SELECT (B, F);
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_cross_type_conflict_01b(self):
+        query = r'''
+            WITH name := 'Madeline Hatch',
+                 B := (INSERT Person {name := name}),
+                 F := (INSERT DerivedPerson {name := name}),
+                 Z := (B, F),
+            SELECT Z;
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_cross_type_conflict_01c(self):
+        query = r'''
+            WITH name := 'Madeline Hatch',
+                 B := (INSERT Person {name := name}),
+                 F := (INSERT DerivedPerson {name := name}),
+            SELECT (SELECT (B, F));
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_cross_type_conflict_01d(self):
+        # argh!
+        query = r'''
+            WITH name := 'Madeline Hatch',
+                 B := (INSERT Person {name := name}),
+                 F := (INSERT DerivedPerson {name := name}),
+            SELECT (B, F) FILTER false;
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_cross_type_conflict_01e(self):
+        # argh!
+        query = r'''
+            WITH name := 'Madeline Hatch',
+                 B := (INSERT Person {name := name}),
+                 F := (INSERT DerivedPerson {name := name}),
+            SELECT (B, F, <str>{});
         '''
 
         with self.assertRaisesRegex(edgedb.ConstraintViolationError,
@@ -4285,7 +4336,21 @@ class TestInsert(tb.QueryTestCase):
                 "name violates exclusivity constraint"):
             await self.con.execute(query)
 
-    async def test_edgeql_insert_update_cross_type_conflict_01(self):
+    async def test_edgeql_insert_cross_type_conflict_17(self):
+        query = r'''
+            WITH name := 'Madeline Hatch',
+                 B := (INSERT Person {name := name}),
+                 F := (INSERT DerivedPerson {name := name}),
+                 L := (FOR x IN {F} UNION (INSERT Note {name := "bs"})),
+            SELECT (B, L);
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_01a(self):
         await self.con.execute('''
             INSERT DerivedPerson { name := 'Bar' };
         ''')
@@ -4295,6 +4360,22 @@ class TestInsert(tb.QueryTestCase):
                  F := (INSERT Person {name := name}),
                  B := (UPDATE Person FILTER .name = 'Bar' SET {name := name}),
             SELECT (B, F);
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_01b(self):
+        await self.con.execute('''
+            INSERT DerivedPerson { name := 'Bar' };
+        ''')
+
+        query = r'''
+            WITH name := 'Madeline Hatch',
+                 F := (INSERT Person {name := name}),
+                 B := (UPDATE Person FILTER .name = 'Bar' SET {name := name}),
+            SELECT (SELECT (B, F));
         '''
 
         with self.assertRaisesRegex(edgedb.ConstraintViolationError,

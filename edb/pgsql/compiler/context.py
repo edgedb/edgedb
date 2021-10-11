@@ -377,6 +377,10 @@ class Environment:
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     materialized_views: Dict[uuid.UUID, irast.Set]
 
+    #: A list of CTEs that implement constraint validation at the
+    #: query level.
+    check_ctes: List[pgast.CommonTableExpr]
+
     def __init__(
         self,
         *,
@@ -406,6 +410,7 @@ class Environment:
         self.scope_tree_nodes = scope_tree_nodes
         self.external_rvars = external_rvars or {}
         self.materialized_views = {}
+        self.check_ctes = []
 
 
 # XXX: this context hack is necessary until pathctx is converted

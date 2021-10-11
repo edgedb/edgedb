@@ -89,6 +89,28 @@ class DBConfigTable(dbops.Table):
         )
 
 
+class DMLDummyTable(dbops.Table):
+    """A empty dummy table used when we need to emit no-op DML.
+
+    This is used by scan_check_ctes in the pgsql compiler to
+    force the evaluation of error checking.
+    """
+    def __init__(self) -> None:
+        super().__init__(name=('edgedb', '_dml_dummy'))
+
+        self.add_columns([
+            dbops.Column(name='id', type='int8'),
+            dbops.Column(name='flag', type='bool'),
+        ])
+
+        self.add_constraint(
+            dbops.UniqueConstraint(
+                table_name=('edgedb', '_dml_dummy'),
+                columns=['id'],
+            ),
+        )
+
+
 class ExpressionType(dbops.CompositeType):
     def __init__(self) -> None:
         super().__init__(name=('edgedb', 'expression_t'))
@@ -3252,6 +3274,7 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateSchema(name='edgedbstd'),
         dbops.CreateCompositeType(ExpressionType()),
         dbops.CreateTable(DBConfigTable()),
+        dbops.CreateTable(DMLDummyTable()),
         dbops.CreateFunction(QuoteIdentFunction()),
         dbops.CreateFunction(QuoteNameFunction()),
         dbops.CreateFunction(AlterCurrentDatabaseSetString()),
