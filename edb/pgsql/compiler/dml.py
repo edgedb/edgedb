@@ -70,10 +70,6 @@ class DMLParts(NamedTuple):
 
     range_cte: Optional[pgast.CommonTableExpr]
 
-    #: A list of CTEs that implement constraint validation at the
-    #: query level.
-    check_ctes: List[pgast.CommonTableExpr]
-
 
 def init_dml_stmt(
     ir_stmt: irast.MutatingStmt,
@@ -160,7 +156,6 @@ def init_dml_stmt(
         dml_ctes=dml_map,
         range_cte=range_cte,
         else_cte=else_cte,
-        check_ctes=[],
     )
 
 
@@ -428,27 +423,6 @@ def fini_dml_stmt(
         relctx.add_type_rel_overlay(
             ir_stmt.subject.typeref, 'except', union_cte,
             dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
-
-    # Scan the check CTEs to enforce constraints that are checked
-    # as explicit queries and not Postgres constraints or triggers.
-    for check_cte in parts.check_ctes:
-        # We want the CTE to be MATERIALIZED, because otherwise
-        # Postgres might choose not to scan it, since check_ctes
-        # are simply joined and are not referenced in any target
-        # list.
-        check_cte.materialized = True
-        check = pgast.SelectStmt(
-            target_list=[
-                pgast.ResTarget(
-                    val=pgast.FuncCall(name=('count',), args=[pgast.Star()]),
-                )
-            ],
-            from_clause=[
-                relctx.rvar_for_rel(check_cte, ctx=ctx),
-            ],
-        )
-        check_rvar = relctx.rvar_for_rel(check, ctx=ctx)
-        ctx.rel.from_clause.append(check_rvar)
 
     clauses.compile_output(ir_stmt.result, ctx=ctx)
     clauses.fini_stmt(wrapper, ctx, parent_ctx)
@@ -732,7 +706,7 @@ def process_insert_body(
             ctx=ctx,
         )
         if check_cte is not None:
-            dml_parts.check_ctes.append(check_cte)
+            ctx.env.check_ctes.append(check_cte)
 
     for extra_conflict in (ir_stmt.conflict_checks or ()):
         compile_insert_else_body(
@@ -862,7 +836,7 @@ def compile_insert_else_body(
             name=ctx.env.aliases.get('else')
         )
         if else_fail:
-            dml_parts.check_ctes.append(else_select_cte)
+            ctx.env.check_ctes.append(else_select_cte)
 
         ictx.toplevel_stmt.append_cte(else_select_cte)
 
@@ -1198,7 +1172,7 @@ def process_update_body(
         )
 
         if check_cte is not None:
-            dml_parts.check_ctes.append(check_cte)
+            ctx.env.check_ctes.append(check_cte)
 
 
 def process_update_conflicts(

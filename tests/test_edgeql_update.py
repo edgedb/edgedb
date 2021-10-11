@@ -2783,6 +2783,20 @@ class TestUpdate(tb.QueryTestCase):
                 };
             """)
 
+        async with self.assertRaisesRegexTx(
+            edgedb.MissingRequiredError,
+            r"missing value for required link 'tags'",
+        ):
+            await self.con.execute("""
+                SELECT (
+                    UPDATE MultiRequiredTest
+                    FILTER .name = 'update-test-subtract-required'
+                    SET {
+                        tags -= (SELECT Tag FILTER .name = 'wow')
+                    }
+                ) FILTER false;
+            """)
+
     async def test_edgeql_subtract_badness_01(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
