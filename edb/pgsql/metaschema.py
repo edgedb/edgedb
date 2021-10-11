@@ -90,6 +90,11 @@ class DBConfigTable(dbops.Table):
 
 
 class DMLDummyTable(dbops.Table):
+    """A empty dummy table used when we need to emit no-op DML.
+
+    This is used by scan_check_ctes in the pgsql compiler to
+    force the evaluation of error checking.
+    """
     def __init__(self) -> None:
         super().__init__(name=('edgedb', '_dml_dummy'))
 
