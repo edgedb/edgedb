@@ -4722,3 +4722,18 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute('''
             INSERT Person { name := "asdf", multi_prop := "a" };
         ''')
+
+    @test.xfail("Returns an empty set??")
+    async def test_edgeql_insert_enumerate_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                     F := (INSERT Subordinate {name := "!"}),
+                     B := (INSERT Subordinate {name := "??"}),
+                     Z := enumerate((F, B)),
+                SELECT (Z.0, Z.1.0, Z.1.1);
+            """,
+            [
+                [0, {}, {}],
+            ]
+        )
