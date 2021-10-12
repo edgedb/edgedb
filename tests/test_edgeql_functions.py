@@ -582,6 +582,18 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [],
         )
 
+    async def test_edgeql_functions_enumerate_07(self):
+        # Check that enumerate of a function works when the tuple type
+        # appears in the schema (like tuple<int64, int64> does)
+        await self.assert_query_result(
+            r'''
+            WITH Z := enumerate(array_unpack([10, 20])),
+                 Y := enumerate(Z),
+            SELECT (Y.1.0, Y.1.1) ORDER BY Y.0;
+            ''',
+            [[0, 10], [1, 20]]
+        )
+
     async def test_edgeql_functions_array_get_01(self):
         await self.assert_query_result(
             r'''SELECT array_get([1, 2, 3], 2);''',
