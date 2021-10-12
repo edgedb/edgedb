@@ -1,7 +1,7 @@
 .. _ref_client_connection:
 
-Connection Parameter Resolution
-===============================
+Connection Parameters
+=====================
 
 The CLI and client libraries (collectively referred to as "clients" below) must
 connect to an EdgeDB instance to run queries or commands. There are several
@@ -12,15 +12,14 @@ information to the client. These are outlined below.
 Specifying an instance
 ######################
 
-When connecting to an EdgeDB database with the client libraries or CLI, there
-are several ways to uniquely identify your instance.
+There are several ways to uniquely identify an EdgeDB instance.
 
 +-----------------------+---------------------------+-------------------------+
 | Parameter             | CLI flag                  | Environment variable    |
 +=======================+===========================+=========================+
 | Instance name         | ``--instance/-I <name>``  | ``EDGEDB_INSTANCE``     |
 +-----------------------+---------------------------+-------------------------+
-| DSN                   | ``--dsn <dsn>``           | ``EDGEDB_INSTANCE``     |
+| DSN                   | ``--dsn <dsn>``           | ``EDGEDB_DSN``          |
 +-----------------------+---------------------------+-------------------------+
 | Host and port         | ``--host/-H <host>``      | ``EDGEDB_HOST``         |
 |                       |                           |                         |
@@ -31,6 +30,7 @@ are several ways to uniquely identify your instance.
 +-----------------------+---------------------------+-------------------------+
 | *Project linking*     | *N/A*                     | *N/A*                   |
 +-----------------------+---------------------------+-------------------------+
+
 
 Let's dig into each of these a bit more.
 
@@ -48,17 +48,30 @@ Let's dig into each of these a bit more.
   like a local instance.
 
 **DSN**
-  A DSN (data source name) is a connection string that can contain a full set
-  of connection parameters (username, password, host, port) in a single string:
-  ``edgedb://user:password@hostname.com:1234/db_name``. However, all components
-  of the DSN are optional; technically ``edgedb://`` is a valid DSN. The
-  unspecified values will fall back to their defaults:
+  DSNs (data source names, also referred to as "connection strings") are a
+  convenient and flexible way to specify connection information with a simple
+  string. It takes the following form:
 
-  Host: ``"localhost"``
-  Port: ``5656``
-  User: ``"edgedb"``
-  Password: ``null``
-  Database name: ``edgedb``
+  .. code-block::
+
+    edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/DATABASE
+
+    # example
+    edgedb://alice:pa$$w0rd@example.com:1234/my_db
+
+  All components of the DSN are optional; technically ``edgedb://`` is a valid
+  DSN. The unspecified values will fall back to their defaults:
+
+  .. code-block::
+
+    Host: "localhost"
+    Port: 5656
+    User: "edgedb"
+    Password: null
+    Database name: "edgedb"
+
+  DSNs also accept query parameters to support advanced use cases. Read the
+  :ref:`DSN Specification <ref_dsn>` section below for details.
 
 **Host and port**
   In general, we recommend using a fully-qualified DSN when connecting to the
@@ -79,10 +92,11 @@ Let's dig into each of these a bit more.
   .. code-block:: json
 
     {
+      "host": "localhost",
       "port": 10702,
-      "user": "test3n",
-      "password": "lZTBy1RVCfOpBAOwSCwIyBIR",
-      "database": "test3n",
+      "user": "testuser",
+      "password": "testpassword",
+      "database": "edgedb",
       "tls_cert_data": "-----BEGIN CERTIFICATE-----\nabcdef..."
     }
 
@@ -99,18 +113,17 @@ Let's dig into each of these a bit more.
   For more information on how this works, check out the `release post
   </blog/introducing-edgedb-projects>`_ for ``edgedb project``.
 
-###############
-Priority levels
-###############
 
-The section above described the various ways of specifying an instance to
-connect to. There are also several *mechanisms* for providing this
-configuration to a client: you can pass them explicitly as parameters/flags,
-use environment variables, or rely on ``edgedb project``. The CLI and all
-client libraries follow a simple algorithm for resolving any potential
-ambiguities.
+Override behavior
+-----------------
 
-1. Check for **explicit connection parameters**. For security reasons,
+The section above describes the various ways of specifying an EdgeDB instance.
+There are also several ways to provide this configuration information to the
+client. From highest to lowest priority, you can pass them explicitly as
+parameters/flags (useful for debugging), use environment variables (recommended
+for production), or rely on ``edgedb project`` (recommended for development).
+
+1. **Explicit connection parameters**. For security reasons,
    hard-coding connection information or credentials in your codebase is not
    recommended, though it may be useful for debugging or testing purposes. As
    such, explicitly provided parameters are given the highest priority.
@@ -138,7 +151,7 @@ ambiguities.
       edgedb>
 
 
-2. If no explicit parameters are provided, check for **environment variables**.
+2. **Environment variables**.
 
    This is the recommended mechanism for providing connection information to
    your EdgeDB client, especially in production or when running EdgeDB inside a
@@ -149,14 +162,37 @@ ambiguities.
    - ``EDGEDB_CREDENTIALS_FILE``
    - ``EDGEDB_HOST`` / ``EDGEDB_PORT``
 
+   When one of these environment variables is defined, there's no need to pass
+   any additional information to the client. The CLI and client libraries will
+   be able to connect without any additional information. You can execute CLI
+   commands without any additional flags, like so:
+
+   .. code-block:: bash
+
+      $ edgedb # no flags needed
+      EdgeDB 1.x
+      Type \help for help, \quit to quit.
+      edgedb>
+
+   Using the JavaScript client library:
+
+   .. code-block:: javascript
+
+      import * as edgedb from "edgedb";
+
+      const pool = edgedb.connect();
+      pool.query(`SELECT 2 + 2;`).then(result => {
+        // do stuff
+      })
+
    .. warning::
 
       Ambiguity is not permitted. For instance, specifying both
       ``EDGEDB_INSTANCE`` and ``EDGEDB_DSN`` will result in an error. You *can*
       use ``EDGEDB_HOST`` and ``EDGEDB_PORT`` simultaneously.
 
-3. Check whether the command/file is being executed inside a **project
-   directory**
+
+3. **Project-linked credentials**
 
    If you are using ``edgedb project`` (which we recommend!) and haven't
    otherwise specified any connection parameters, the CLI and client libraries
@@ -164,24 +200,28 @@ ambiguities.
 
    This makes it easy to get up and running with EdgeDB. Once you've run
    ``edgedb project init``, the CLI and client libraries will be able to
-   connect to your database without any further configuration, as long as
-   you're inside the project directory.
+   connect to your database without any explicit flags or parameters, as long
+   as you're inside the project directory.
 
-4. **Fail to connect.**
-   If no connection information can be detected using the above mechanisms, the
-   connection fails.
+
+If no connection information can be detected using the above mechanisms, the
+connection fails.
 
 .. warning::
 
    Within a given priority level, you cannot specify multiple instances
    "instance selection parameters" simultaneously. For instance, specifying
-   both ``EDGEDB_INSTANCE`` and ``EDGEDB_DSN`` will result in an error.
+   both ``EDGEDB_INSTANCE`` and ``EDGEDB_DSN`` environment variables will
+   result in an error.
 
-#####################
-Connection parameters
-#####################
 
-In many scenarios, additional connection information is required.
+###################
+Granular parameters
+###################
+
+The "instance selection" mechanisms described above makes it easy to provide a
+full set of connection information in a single neat package. Sometimes it's
+useful to override a particular *element* of a configuration object.
 
 +-----------------------+---------------------------+-------------------------+
 | Parameter             | CLI flag                  | Environment variable    |
@@ -279,10 +319,11 @@ EdgeDB uses TLS by default for all connections. This
   to connect.
 
 **TLS verify hostname**
-  Defaults to ``true``. However if you provide a custom TLS root certificate,
-  hostname verification is disabled by default.
+  Defaults to ``true`` unless you provide a custom TLS root certificate,
+  in which case verification is disabled by default.
 
-  When true, the Server Name Indication (SNI) TLS extension is enabled.
+  When true, the client will check that the hostname of the TLS certificate
+  matches the hostname of the instance.
 
   This is a boolean value. For details on how to specify boolean values in
   environment variables, see the :ref:`Boolean parameters <ref_boolean_env>`
@@ -294,6 +335,97 @@ EdgeDB uses TLS by default for all connections. This
   When true, the client will connect even when TLS validation fails. This is
   useful in development if you're running an EdgeDB instance in a Docker
   container. Don't use this in production.
+
+.. _ref_dsn:
+
+#################
+DSN Specification
+#################
+
+DSNs (data source names) are a convenient and flexible way to specify
+connection information with a simple string. It takes the following form:
+
+.. code-block::
+
+  edgedb://USERNAME:PASSWORD@HOSTNAME:PORT/DATABASE
+
+For instance, here is a typical DSN:
+``edgedb://alice:pa$$w0rd@example.com:1234/my_db``.
+
+All components of the DSN are optional; in fact, ``edgedb://`` is a valid DSN.
+Any unspecified values will fall back to their defaults:
+
+.. code-block::
+
+  Host: "localhost"
+  Port: 5656
+  User: "edgedb"
+  Password: null
+  Database name: "edgedb"
+
+DSNs also support query parameters (``?host=myhost.com``) to support advanced
+use cases. These query parameters fall into three categories: "plain"
+parameters (where the parameter contains the value itself), file parameters
+(where the param points to a local file containing the actual value), and
+environment parameters
+
++-----------------------+-------------------------+-------------------------+
+| Plain param           | File param              | Environment param       |
++=======================+=========================+=========================+
+| ``port``              | ``port_file``           | ``port_env``            |
++-----------------------+-------------------------+-------------------------+
+| ``host``              | ``host_file``           | ``host_env``            |
++-----------------------+-------------------------+-------------------------+
+| ``port``              | ``port_file``           | ``port_env``            |
++-----------------------+-------------------------+-------------------------+
+| ``database``          | ``database_file``       | ``database_env``        |
++-----------------------+-------------------------+-------------------------+
+| ``user``              | ``user_file``           | ``user_env``            |
++-----------------------+-------------------------+-------------------------+
+| ``password``          | ``password_file``       | ``password_env``        |
++-----------------------+-------------------------+-------------------------+
+| ``tls_cert_file``     | ``tls_cert_file_file``  | ``tls_cert_file_env``   |
++-----------------------+-------------------------+-------------------------+
+| ``tls_verify_         | ``tls_verify_           | ``tls_verify_           |
+| hostname``            | hostname_file``         | hostname_env``          |
++-----------------------+-------------------------+-------------------------+
+
+**Plain params**
+  These "plain" parameters can be used to provide values for options that can't
+  otherwise be reflected in the DSN, like TLS settings (described in more
+  detail below).
+
+  You can't specify the same setting both in the body of the DSN and in a query
+  parameter. For instance, the DSN below is invalid, as the port is ambiguous.
+
+  .. code-block::
+
+    edgedb://hostname.com:1234?port=5678
+
+**File params**
+  If you prefer to store sensitive credentials in local files, you can use file
+  params to specify a path to a local UTF-8 encoded file. This file should
+  contain a single line containing the relevant value.
+
+  .. code-block::
+
+    edgedb://hostname.com:1234?user_file=./username.txt
+
+    # ./username.txt
+    my_username
+
+  Relative params are resolved relative to the currect working directory at the
+  time of connection.
+
+**Environment params**
+  Environment params lets you specify a *pointer* to another environment
+  variable. At runtime, the specified environment variable will be read. If it
+  isn't set, an error will be thrown.
+
+  .. code-block::
+
+    MY_PASSWORD=p@$$w0rd
+    EDGEDB_DSN=edgedb://hostname.com:1234?password_env=MY_PASSWORD
 
 .. _ref_boolean_env:
 
@@ -314,4 +446,3 @@ values are considered valid. All other values will throw an error.
   "yes"      "no"
   "on"       "off"
   "1"        "0"
-
