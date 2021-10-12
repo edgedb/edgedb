@@ -2258,6 +2258,8 @@ def process_set_as_enumerate(
     aspects = pathctx.list_path_aspects(
         newctx.rel, ir_arg.path_id, env=ctx.env)
 
+    pathctx.put_path_id_map(newctx.rel, expr.tuple_path_ids[1], ir_arg.path_id)
+
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
                         aspects=aspects, ctx=ctx)
