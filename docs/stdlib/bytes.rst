@@ -24,6 +24,15 @@ Bytes
     * - :eql:op:`bytes = bytes <EQ>`, :eql:op:`bytes \< bytes <LT>`, ...
       - Comparison operators.
 
+    * - :eql:func:`len`
+      - Returns the number of bytes.
+
+    * - :eql:func:`contains`
+      - Check if the byte sequence contains a subsequence.
+
+    * - :eql:func:`find`
+      - Find the index of the first occurrence of a subsequence.
+
     * - :eql:func:`bytes_get_bit`
       - :eql:func-desc:`bytes_get_bit`
 
