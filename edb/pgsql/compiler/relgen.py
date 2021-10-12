@@ -2430,7 +2430,8 @@ def _process_set_func_with_ordinality(
                 val=inner_expr,
             ),
         ],
-        named=named_tuple
+        named=named_tuple,
+        typeref=outer_func_set.typeref,
     )
 
     for element in set_expr.elements:
