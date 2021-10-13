@@ -712,6 +712,13 @@ class ContextLevel(compiler.ContextLevel):
     def detached(self) -> compiler.CompilerContextManager[ContextLevel]:
         return self.new(ContextSwitchMode.DETACHED)
 
+    def create_anchor(self, ir: irast.Set, name: str='v') -> qlast.Path:
+        alias = self.aliases.get(name)
+        self.anchors[alias] = ir
+        return qlast.Path(
+            steps=[qlast.ObjectRef(name=alias)],
+        )
+
 
 class CompilerContext(compiler.CompilerContext[ContextLevel]):
     ContextLevelClass = ContextLevel

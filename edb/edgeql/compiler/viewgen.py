@@ -788,17 +788,15 @@ def _normalize_view_ptr_expr(
                         expr=compexpr,
                     ))
                     ptr_target = base_target
-
                     # We also need to compile the cast to IR.
-                    source_alias = ctx.aliases.get('a')
-                    cast_qlexpr = astutils.ensure_qlstmt(qlast.TypeCast(
-                        type=typegen.type_to_ql_typeref(base_target, ctx=ctx),
-                        expr=qlast.Path(
-                            steps=[qlast.ObjectRef(name=source_alias)]),
-                    ))
                     with ctx.new() as subctx:
                         subctx.anchors = subctx.anchors.copy()
-                        subctx.anchors[source_alias] = irexpr
+                        source_path = subctx.create_anchor(irexpr, 'a')
+                        cast_qlexpr = astutils.ensure_qlstmt(qlast.TypeCast(
+                            type=typegen.type_to_ql_typeref(
+                                base_target, ctx=ctx),
+                            expr=source_path,
+                        ))
 
                         old_rptr = irexpr.rptr
                         irexpr.rptr = None

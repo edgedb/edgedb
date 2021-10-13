@@ -93,10 +93,7 @@ def _compile_conflict_select(
             ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
             val = setgen.extend_path(fake_dml_set, ptr, ctx=ctx)
 
-            source_alias = ctx.aliases.get(p)
-            ctx.anchors[source_alias] = val
-            ptr_anchors[p] = (
-                qlast.Path(steps=[qlast.ObjectRef(name=source_alias)]))
+            ptr_anchors[p] = ctx.create_anchor(val, p)
 
     # Find the IR corresponding to the fields we care about and
     # produce anchors for them
@@ -125,10 +122,8 @@ def _compile_conflict_select(
 
             # FIXME: The wrong thing will definitely happen if there are
             # volatile entries here
-            source_alias = ctx.aliases.get(name)
-            ctx.anchors[source_alias] = setgen.ensure_set(elem.expr, ctx=ctx)
-            ptr_anchors[name] = (
-                qlast.Path(steps=[qlast.ObjectRef(name=source_alias)]))
+            ptr_anchors[name] = ctx.create_anchor(
+                setgen.ensure_set(elem.expr, ctx=ctx), name)
 
     if for_inheritance and not ptrs_in_shape:
         return None
