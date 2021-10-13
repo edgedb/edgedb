@@ -39,6 +39,7 @@ from edb.schema import types as s_types
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
+from . import astutils
 from . import context
 from . import dispatch
 from . import pathctx
@@ -399,8 +400,7 @@ def _cast_json_to_tuple(
 
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
-        source_alias = subctx.aliases.get('a')
-        subctx.anchors[source_alias] = ir_set
+        source_path = subctx.create_anchor(ir_set, 'a')
 
         # TODO: try using jsonb_to_record instead of a bunch of
         # json_get calls and see if that is faster.
@@ -409,7 +409,7 @@ def _cast_json_to_tuple(
             val_e = qlast.FunctionCall(
                 func=('__std__', 'json_get'),
                 args=[
-                    qlast.Path(steps=[qlast.ObjectRef(name=source_alias)]),
+                    source_path,
                     qlast.StringConstant(value=new_el_name),
                 ],
             )
@@ -550,16 +550,11 @@ def _cast_array(
 
         with ctx.new() as subctx:
             subctx.anchors = subctx.anchors.copy()
-            source_alias = subctx.aliases.get('a')
-            subctx.anchors[source_alias] = ir_set
+            source_path = subctx.create_anchor(ir_set, 'a')
 
             unpacked = qlast.FunctionCall(
                 func=('__std__', 'array_unpack'),
-                args=[
-                    qlast.Path(
-                        steps=[qlast.ObjectRef(name=source_alias)],
-                    ),
-                ],
+                args=[source_path],
             )
 
             enumerated = dispatch.compile(
@@ -570,27 +565,14 @@ def _cast_array(
                 ctx=subctx,
             )
 
-            enumerated_alias = subctx.aliases.get('e')
-            subctx.anchors[enumerated_alias] = enumerated
-            enumerated_ref = qlast.Path(
-                steps=[qlast.ObjectRef(name=enumerated_alias)],
-            )
+            enumerated_ref = subctx.create_anchor(enumerated, 'e')
 
             elements = qlast.FunctionCall(
                 func=('__std__', 'array_agg'),
                 args=[
                     qlast.SelectQuery(
                         result=qlast.TypeCast(
-                            expr=qlast.Path(
-                                steps=[
-                                    enumerated_ref,
-                                    qlast.Ptr(
-                                        ptr=qlast.ObjectRef(
-                                            name='1',
-                                        ),
-                                    ),
-                                ],
-                            ),
+                            expr=astutils.extend_path(enumerated_ref, '1'),
                             type=typegen.type_to_ql_typeref(
                                 el_type,
                                 ctx=subctx,
@@ -599,16 +581,7 @@ def _cast_array(
                         ),
                         orderby=[
                             qlast.SortExpr(
-                                path=qlast.Path(
-                                    steps=[
-                                        enumerated_ref,
-                                        qlast.Ptr(
-                                            ptr=qlast.ObjectRef(
-                                                name='0',
-                                            ),
-                                        ),
-                                    ],
-                                ),
+                                path=astutils.extend_path(enumerated_ref, '0'),
                                 direction=qlast.SortOrder.Asc,
                             ),
                         ],
