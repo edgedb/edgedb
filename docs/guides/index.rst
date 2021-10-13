@@ -19,8 +19,8 @@ guide!
     :hidden:
 
     quickstart
-    cheatsheet/index
-    migrations/index
     installation
     setup
     configuration
+    migrations/index
+    cheatsheet/index

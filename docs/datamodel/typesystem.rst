@@ -14,9 +14,9 @@ Here is an example of a simple EdgeDB type using the Edge Schema notation:
 .. code-block:: sdl
 
     type User {
-        property name -> str;
-        property address -> str;
-        multi link friends -> User;
+      property name -> str;
+      property address -> str;
+      multi link friends -> User;
     }
 
 ``str`` in the above example is a

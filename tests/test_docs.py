@@ -320,6 +320,8 @@ class TestDocSnippets(unittest.TestCase):
                     'bash', 'powershell', 'c', 'javascript', 'python'
                 }:
                     pass
+                elif lang[-5:] == '-diff':
+                    pass
                 else:
                     raise LookupError(f'unknown code-lang {lang}')
         except Exception as ex:
