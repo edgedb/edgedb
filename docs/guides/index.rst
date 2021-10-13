@@ -20,6 +20,7 @@ guide!
 
     quickstart
     cheatsheet/index
+    migrations/index
     installation
     setup
     configuration
