@@ -47,6 +47,10 @@ simply "SDL"). It's similar to defining models with an ORM library.
     required property name -> str;
   }
 
+
+Properties of SDL
+-----------------
+
 SDL has two important properties. First, it's **declarative**; you can just
 write your schema down exactly as you want it to be. It's easy to see the
 current state of your schema at a glance.
@@ -67,8 +71,8 @@ queries so concise and powerful:
 
 .. _ref_datamodel_terminology:
 
-Terminology overview
---------------------
+Terminology
+-----------
 
 .. important::
 
@@ -123,9 +127,7 @@ See also
 
 **DDL**
   Under the hood, all schema modifications are the result of *data definition
-  language* (DDL) commands. DDL is the low-level, imperative language that
-  provides the foundation on which SDL is built. When you apply a migration,
-  EdgeDB is executing a series of DDL commands.
+  language* (DDL) commands. DDL is a set of lower-level, imperative commands analogous to SQL's ``CREATE TABLE``, etc. It is the foundation on which EdgeDB's migration system is built.
 
   We recommend that most users use SDL and migrations when building
   applications. However, if you prefer SQL-style imperative schema modeling,
