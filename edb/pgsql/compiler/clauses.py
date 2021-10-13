@@ -199,7 +199,8 @@ def compile_materialized_exprs(
             for mat_id in mat_ids:
                 relctx.include_rvar(
                     query, mat_rvar, path_id=mat_id,
-                    flavor='packed', pull_namespace=False, ctx=matctx,
+                    flavor='packed', update_mask=False, pull_namespace=False,
+                    ctx=matctx,
                 )
 
 
