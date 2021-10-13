@@ -19,6 +19,7 @@ guide!
     :hidden:
 
     quickstart
+    terminology
     installation
     setup
     configuration
