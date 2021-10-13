@@ -14,7 +14,6 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     :hidden:
 
 
-    typesystem
     objects/index
     scalars
     colltypes
@@ -26,6 +25,7 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     constraints
     aliases
     functions
+    inheritance
     annotations
     modules
     extensions
@@ -57,8 +57,8 @@ current state of your schema at a glance.
 
 Secondly, it's **object-oriented**. There are no foreign keys; instead,
 relationships between types are represented with :ref:`Links
-<ref_datamodel_links>`. This object-oriented schema is what makes EdgeQL
-queries so concise and powerful:
+<ref_datamodel_links>`; this is part of what makes EdgeQL queries so concise
+and powerful:
 
 .. code-block:: edgeql
 
