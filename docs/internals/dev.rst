@@ -48,7 +48,7 @@ Python "venv" with all dependencies and commands installed into it.
 
    .. code-block:: bash
 
-      $ https://github.com/edgedb/edgedb.git
+      $ git clone --recursive https://github.com/edgedb/edgedb.git
 
 #. Create a Python 3.9 virtual environment and activate it:
 
