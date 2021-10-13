@@ -29,6 +29,7 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     annotations
     modules
     extensions
+    comparison
 
 
 With EdgeDB, you can define your schema in a readable, object-oriented way with
