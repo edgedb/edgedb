@@ -38,9 +38,9 @@ following schema:
     }
   }
 
-Note how the ``author`` link inside ``BlogPost`` refers to
-``auth_module::User``. If ``User`` and ``BlogPost`` were in the same module
-this wouldn't be necessary:
+Note how ``BlogPost.author`` points to ``auth_module::User``. If ``User`` and
+``BlogPost`` were in the same module the ``auth_module::`` prefix wouldn't be
+necessary.
 
 .. code-block:: sdl
 

@@ -3,6 +3,23 @@
 Data Definition (DDL)
 =====================
 
+.. toctree::
+    :maxdepth: 3
+    :hidden:
+
+    modules
+    objects
+    scalars
+    links
+    props
+    aliases
+    indexes
+    constraints
+    functions
+    annotations
+    migrations
+    extensions
+
 :edb-alt-title: Data Definition Language
 
 EdgeQL includes a set of *data definition language* (DDL) commands that
@@ -44,19 +61,3 @@ it can be dangerous too; some ``DDL`` commands can destroy user data
 permanantly. In practice, we recommend most users stick with SDL until they get
 comfortable, then start experimenting with DDL.
 
-.. toctree::
-    :maxdepth: 3
-    :hidden:
-
-    modules
-    objects
-    scalars
-    links
-    props
-    aliases
-    indexes
-    constraints
-    functions
-    annotations
-    migrations
-    extensions
