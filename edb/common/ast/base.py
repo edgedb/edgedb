@@ -243,13 +243,19 @@ class AST:
     def __copy__(self):
         copied = self.__class__()
         for field, value in iter_fields(self, include_meta=False):
-            setattr(copied, field, value)
+            object.__setattr__(copied, field, value)
         return copied
 
     def __deepcopy__(self, memo):
         copied = self.__class__()
         for field, value in iter_fields(self, include_meta=False):
-            setattr(copied, field, copy.deepcopy(value, memo))
+            object.__setattr__(copied, field, copy.deepcopy(value, memo))
+        return copied
+
+    def replace(self, **changes):
+        copied = copy.copy(self)
+        for field, value in changes.items():
+            object.__setattr__(copied, field, value)
         return copied
 
     def _checked_setattr(self, name, value):

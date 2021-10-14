@@ -259,6 +259,7 @@ def find_column_in_subselect_rvar(
 def get_column(
         rvar: pgast.BaseRangeVar,
         colspec: Union[str, pgast.ColumnRef], *,
+        is_packed_multi: bool=True,
         nullable: Optional[bool]=None) -> pgast.ColumnRef:
 
     if isinstance(colspec, pgast.ColumnRef):
@@ -309,7 +310,9 @@ def get_column(
 
     name = [rvar.alias.aliasname, colname]
 
-    return pgast.ColumnRef(name=name, nullable=nullable, ser_safe=ser_safe)
+    return pgast.ColumnRef(
+        name=name, nullable=nullable, ser_safe=ser_safe,
+        is_packed_multi=is_packed_multi)
 
 
 def get_rvar_var(
@@ -332,10 +335,11 @@ def get_rvar_var(
             elements,
             named=var.named,
             typeref=var.typeref,
+            is_packed_multi=var.is_packed_multi,
         )
 
     elif isinstance(var, pgast.ColumnRef):
-        fieldref = get_column(rvar, var)
+        fieldref = get_column(rvar, var, is_packed_multi=var.is_packed_multi)
 
     else:
         raise AssertionError(f'unexpected OutputVar subclass: {var!r}')
