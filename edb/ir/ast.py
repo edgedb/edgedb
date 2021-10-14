@@ -455,6 +455,7 @@ class ImmutableExpr(Expr, ImmutableBase):
 class BindingKind(s_enum.StrEnum):
     With = 'With'
     For = 'For'
+    Select = 'Select'
 
 
 class Set(Base):

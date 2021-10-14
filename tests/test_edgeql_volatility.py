@@ -808,11 +808,23 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             self._check_crossproduct(
                 [(row[0]['m'], row[1]['m']) for row in res])
 
-    async def test_edgeql_volatility_select_hard_objects_05(self):
+    async def test_edgeql_volatility_select_hard_objects_05a(self):
         for query in self.test_loop():
             res = await query("""
                 WITH O := (SELECT {m := next()} LIMIT 1),
                 SELECT (O {m}, O {m});
+            """)
+
+            self.assertEqual(len(res), 1)
+            for row in res:
+                self.assertEqual(row[0]['m'], row[1]['m'])
+
+    @test.xfail("broken by eta-expansion")
+    async def test_edgeql_volatility_select_hard_objects_05b(self):
+        for query in self.test_loop():
+            res = await query("""
+                WITH O := (SELECT {m := next()} LIMIT 1),
+                SELECT assert_exists((O {m}, O {m}));
             """)
 
             self.assertEqual(len(res), 1)

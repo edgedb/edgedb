@@ -157,7 +157,7 @@ def compile_ForQuery(
             s_name.UnqualName(qlstmt.iterator_alias),
             factoring_fence=contains_dml,
             path_id_namespace=sctx.path_id_namespace,
-            is_for_view=True,
+            binding_kind=irast.BindingKind.For,
             ctx=sctx,
         )
 
@@ -166,11 +166,10 @@ def compile_ForQuery(
         stmt.iterator_stmt = iterator_stmt
 
         iterator_type = setgen.get_set_type(iterator_stmt, ctx=ctx)
-        anytype = iterator_type.find_any(ctx.env.schema)
-        if anytype is not None:
+        if iterator_type.is_any(ctx.env.schema):
             raise errors.QueryError(
                 'FOR statement has iterator of indeterminate type',
-                context=ctx.env.type_origins.get(anytype),
+                context=ctx.env.type_origins.get(iterator_type),
             )
 
         view_scope_info = sctx.path_scope_map[iterator_view]
@@ -956,6 +955,7 @@ def process_with_block(
                 binding = stmtctx.declare_view(
                     with_entry.expr,
                     s_name.UnqualName(with_entry.alias),
+                    binding_kind=irast.BindingKind.With,
                     must_be_used=True,
                     ctx=scopectx,
                 )
@@ -1025,6 +1025,7 @@ def compile_result_clause(
             stmtctx.declare_view(
                 rexpr,
                 alias=s_name.UnqualName(result_alias),
+                binding_kind=irast.BindingKind.Select,
                 ctx=sctx,
             )
 

@@ -217,6 +217,9 @@ class Type(
     def contains_any(self, schema: s_schema.Schema) -> bool:
         return self.is_any(schema)
 
+    def contains_object(self, schema: s_schema.Schema) -> bool:
+        return self.is_object_type()
+
     def contains_json(self, schema: s_schema.Schema) -> bool:
         return False
 
@@ -852,8 +855,7 @@ class Collection(Type, s_abc.Collection):
 
     def contains_object(self, schema: s_schema.Schema) -> bool:
         return any(
-            st.contains_object(schema) if isinstance(st, Collection)
-            else st.is_object_type()
+            st.contains_object(schema)
             for st in self.get_subtypes(schema)
         )
 

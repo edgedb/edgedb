@@ -289,16 +289,12 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 view_set = ctx.view_sets.get(stype)
                 if view_set is not None:
                     view_scope_info = ctx.path_scope_map[view_set]
-                    is_binding = (
-                        irast.BindingKind.For if view_scope_info.is_for_view
-                        else irast.BindingKind.With
-                    )
                     path_tip = new_set_from_set(
                         view_set,
                         preserve_scope_ns=(
                             view_scope_info.pinned_path_id_ns is not None
                         ),
-                        is_binding=is_binding,
+                        is_binding=view_scope_info.binding_kind,
                         ctx=ctx,
                     )
 
