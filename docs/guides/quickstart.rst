@@ -19,6 +19,7 @@ data, and writing your first query. Let's jump in!
 ..    :ref:`Computables <ref_quickstart_computables>`
 ..    :ref:`Onwards and upwards <ref_quickstart_onwards>`
 
+
 .. _ref_quickstart_install:
 
 1. Installation

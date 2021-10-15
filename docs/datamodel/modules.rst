@@ -16,8 +16,8 @@ share the same name.
 You can split up your schemas however you see fit. Most users put their entire
 schema inside a single module called ``default``.
 
-Name resolution
----------------
+Fully-qualified names
+---------------------
 
 When referencing schema objects in a different module, you must use a
 *fully-qualified* name of the form ``module_name::object_name``. Consider the
@@ -25,21 +25,21 @@ following schema:
 
 .. code-block:: sdl
 
+  module default {
+    type BlogPost {
+      required property title -> str;
+      required link author -> auth::User;
+    }
+  }
+
   module auth {
     type User {
       required property email -> str;
     }
   }
 
-  module data {
-    type BlogPost {
-      required property title -> str;
-      required link author -> auth_module::User;
-    }
-  }
-
-Note how ``BlogPost.author`` points to ``auth_module::User``. If ``User`` and
-``BlogPost`` were in the same module the ``auth_module::`` prefix wouldn't be
+Note how ``BlogPost.author`` points to ``auth::User``. If ``User`` and
+``BlogPost`` were in the same module the ``auth::`` prefix wouldn't be
 necessary.
 
 .. code-block:: sdl
@@ -56,12 +56,6 @@ necessary.
     }
 
   }
-
-.. important::
-
-  The ``default`` module is special. Fully-qualified names aren't necessary to
-  reference schema objects inside ``default``.
-
 
 Standard modules
 ----------------

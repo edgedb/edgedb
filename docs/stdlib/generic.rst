@@ -6,7 +6,6 @@ Generic
 
 :edb-alt-title: Generic Functions and Operators
 
-
 .. list-table::
     :class: funcoptable
 

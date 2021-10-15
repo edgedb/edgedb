@@ -26,6 +26,22 @@ Similar to :ref:`links <ref_datamodel_links>`, properties have a
 *source* (the object type or link on which they are defined) and one
 or more *targets* (the values that property can have).
 
+Defining a property
+  .. code-block:: sdl
+
+    type Person {
+      property email -> str;
+    }
+
+Required properties
+  By default all properties are optional; use ``required`` to declare required
+  properties.
+
+  .. code-block:: sdl
+
+    type Person {
+      required property email -> str;
+    }
 
 Object properties
 -----------------

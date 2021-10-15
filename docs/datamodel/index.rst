@@ -13,8 +13,9 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     :maxdepth: 3
     :hidden:
 
-
-    objects/index
+    terminology
+    modules
+    objects
     scalars
     colltypes
     links
@@ -27,14 +28,13 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     functions
     inheritance
     annotations
-    modules
     extensions
     comparison
 
 
-With EdgeDB, you can define your schema in a readable, object-oriented way with
-EdgeDB's schema definition language (usually referred to as "EdgeDB SDL" or
-simply "SDL"). It's similar to defining models with an ORM library.
+With EdgeDB, you can define your schema with EdgeDB's schema definition
+language, called **EdgeDB SDL** or simply **SDL**. SDL's declarative,
+object-oriented syntax will look familiar to users or ORM libraries.
 
 .. code-block:: sdl
 
@@ -48,17 +48,17 @@ simply "SDL"). It's similar to defining models with an ORM library.
   }
 
 
-Properties of SDL
------------------
+SDL
+---
 
 SDL has two important properties. First, it's **declarative**; you can just
 write your schema down exactly as you want it to be. It's easy to see the
 current state of your schema at a glance.
 
 Secondly, it's **object-oriented**. There are no foreign keys; instead,
-relationships between types are represented with :ref:`Links
+relationships between types are directly represented with :ref:`Links
 <ref_datamodel_links>`; this is part of what makes EdgeQL queries so concise
-and powerful:
+and powerful.
 
 .. code-block:: edgeql
 
@@ -69,67 +69,33 @@ and powerful:
     }
   }
 
-.. _ref_datamodel_terminology:
 
-Terminology
------------
+``.esdl`` files
+---------------
+
+Your schema should be defined in one or more ``.esdl`` files. These files
+should be placed in a directory called ``dbschema`` in the root of your
+project.
 
 .. important::
 
-  Below is an overview of EdgeDB's terminology. Use it as a roadmap, but don't
-  worry if it doesn't all make sense immediately. The following pages go into
-  detail on each concept below.
-
-A running EdgeDB process is known as an **instance**. Each instance can contain
-several **databases**, each with a unique name. By default, an instance
-contains a single database called ``edgedb``.
-
-Databases can contain several **modules**. Modules have a unique name and can
-be used to organize large schemas into logical units. Most users put their
-entire schema inside a single module called ``default``.
-
-The EdgeDB equivalent of SQL tables are **object types** (e.g. ``User``).
-Object types contain **properties** and **links**. Both properties and links
-are associated with a unique name (e.g. ``first_name``) and a cardinality,
-which can be either **single** (the default) or **multi**.
-
-Properties correspond to either a **scalar type** (e.g. ``str``, ``int64``) or
-a **collection type** like an array or a tuple. Links represent relationships
-between object types.
-
-Links and properties can also be **computed**. Computed links and properties
-are not physically stored in the database, but they can used in queries just
-like non-computed ones. The value will be computed as needed.
-
-Object types can also be **abstract** (e.g. ``HasEmailAddress``). Abstract
-types can be *extended* by concrete object types of other abstract types, in
-which case the extending type inherits all of its properties and links.
-
-Object types can be augmented with **indexes** to speed up certain queries.
-Object types, properties, and links can all be augmented with **annotations**
-(readable notes for others) and **constraints**
-
-You can define **expression aliases**, which lets you define additional
-computed properties and links on non-abstract object types, without modifying
-the original type. You can also define custom **functions**.
+  Syntax highlighter packages/
+  extensions for ``.esdl`` files are available for
+  `Visual Studio Code <https://marketplace.visualstudio.com/
+  itemdetails?itemName=magicstack.edgedb>`_,
+  `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
+  `Atom <https://atom.io/packages/edgedb>`_, and `Vim <https://github.com/
+  edgedb/edgedb-vim>`_.
 
 
 See also
 --------
 
-**Migrations**
-  When you make changes to your schema file, you need to create and execute a
-  *migration* to update your database. EdgeDB has a built-in migration system
-  that intelligently determines *what has changed* since the last migration and
-  how to update the schema to the new version. Read the :ref:`Migration docs
-  <ref_docs_migrations>` to learn more.
-
-
 **DDL**
   Under the hood, all schema modifications are the result of *data definition
-  language* (DDL) commands. DDL is a set of lower-level, imperative commands analogous to SQL's ``CREATE TABLE``, etc. It is the foundation on which EdgeDB's migration system is built.
-
-  We recommend that most users use SDL and migrations when building
-  applications. However, if you prefer SQL-style imperative schema modeling,
-  you are free to use DDL directly; reference the :ref:`DDL docs <ref_eql_ddl>`
-  to learn more.
+  language* (DDL) commands. DDL is a set of lower-level, imperative commands
+  analogous to SQL's ``CREATE TABLE``, ``ALTER COLUMN``, etc. It is the
+  foundation on which EdgeDB's migration system is built. We recommend that
+  most users use SDL and migrations when building applications. However, if you
+  prefer SQL-style imperative schema modeling, you are free to use DDL
+  directly; reference the :ref:`DDL docs <ref_eql_ddl>` to learn more.

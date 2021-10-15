@@ -7,15 +7,15 @@ Links
 :index: link one-to-one one-to-many many-to-one many-to-many
 
 Link items define a specific relationship between two :ref:`object
-types <ref_datamodel_object_types>`.  Link instances relate one
+types <ref_datamodel_object_types>`. Link instances relate one
 *object* to one or more different objects.
 
 There are two kinds of link item declarations: *abstract links*, and
-*concrete links*.  Abstract links are defined on the module level and are
+*concrete links*. Abstract links are defined on the module level and are
 not tied to any particular object type. Typically this is done to set
 some :ref:`annotations <ref_datamodel_annotations>`, define
 :ref:`link properties <ref_datamodel_props>`, or setup
-:ref:`constraints <ref_datamodel_constraints>`.  Concrete links
+:ref:`constraints <ref_datamodel_constraints>`. Concrete links
 are defined on specific object types.
 
 Links are directional and have a *source*. Whether a *source* has one
@@ -32,6 +32,34 @@ things: *many-to-one*, *one-to-one*, and *many-to-many*.
 It is possible to think of any link as going backwards from *target*
 to *source*. This is referred to as a *backlink* and we use the ``.<``
 :ref:`syntax <ref_eql_expr_paths>` to denote it.
+
+Declare a link
+  .. code-block:: sdl
+
+    type Person {
+      link best_friend -> Person;
+    }
+
+Declare a required link
+  By default all links are optional; use ``required`` to declare required
+  links. In this scenario, every ``Person`` must have a ``best_friend``.
+
+  .. code-block:: sdl
+
+    type Person {
+      required link best_friend -> Person;
+    }
+
+Declare a multi link
+  All links have a cardinality: either ``single`` or ``multi``. The default is
+  ``single`` ("to-one"). Use ``multi`` to declare a "to-many" link.
+
+  .. code-block:: sdl
+
+    type Person {
+      multi link friends -> Person;
+    }
+
 
 
 Many-to-One
@@ -271,6 +299,38 @@ The *backlink* lookup of who likes a particular ``Movie``:
     };
 
 .. _ref_datamodel_link_deletion:
+
+Links to abstract types
+-----------------------
+
+Consider the following schema.
+
+.. code-block:: sdl
+
+  abstract type Person {
+    property name -> str;
+  }
+
+  type Hero extending Person {
+    property secret_identity -> str;
+  }
+
+  type Villain extending Person {
+    link nemesis -> Hero;
+  }
+
+You can also create links that reference abstract types.
+
+.. code-block:: sdl
+
+  type Movie {
+    property title -> str;
+    multi link characters -> Person;
+  }
+
+The ``Movie`` type contains a ``multi link`` to ``Person`` — an abstract
+type. In practice, this means you can attach any ``Hero`` or ``Villain`` (or
+any other non-abstract subtype of ``Person``) as a character.
 
 Deletion
 --------

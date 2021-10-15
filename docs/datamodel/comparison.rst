@@ -83,6 +83,5 @@ downsides too.
   and long-term maintenance is not always guaranteed.
 
 From the beginning, EdgeDB was designed to incorporate the best aspects of ORMs
-— the declarative modeling, object-oriented paradigm, intuitive querying —
+— declarative modeling, object-oriented APIs, and intuitive querying —
 without the drawbacks.
-
