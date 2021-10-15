@@ -21,6 +21,7 @@ guide!
     quickstart
     installation
     setup
+    using_projects
     configuration
 <<<<<<< HEAD
     migrations/index
