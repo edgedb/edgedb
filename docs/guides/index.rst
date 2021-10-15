@@ -23,8 +23,4 @@ guide!
     setup
     using_projects
     configuration
-<<<<<<< HEAD
-    migrations/index
-=======
->>>>>>> 73db8a878 (Consolidate Object Types, User-defined types, and Free objects into one page)
     cheatsheet/index

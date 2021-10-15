@@ -12,8 +12,6 @@ Expressions
     :hidden:
 
     operators
-    arrays
-    tuples
     functions
     paths
     shapes
@@ -297,7 +295,7 @@ EdgeQL also supports *named tuples*:
 Tuples can be nested in arrays, returned from functions, or
 be a valid object property type.
 
-See the :ref:`tuple expression reference <ref_eql_expr_tuple_ctor>`
+See the :ref:`tuple expression reference <ref_std_tuple>`
 for more information on tuple constructors and accessing tuple elements.
 
 
@@ -317,9 +315,8 @@ An array is a collection of values of the same type.  For example:
     db> SELECT [(1, 2), (100, 200)];
     {[(1, 2), (100, 200)]}
 
-See :ref:`array expression reference <ref_eql_expr_array_ctor>` for more
-information on array constructors.
-
+See the Standard Library :ref:`Array page <ref_std_array>` for a complete
+reference on array data types.
 
 .. _ref_eql_expr_index_stmt:
 

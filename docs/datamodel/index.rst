@@ -16,8 +16,6 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     terminology
     modules
     objects
-    scalars
-    colltypes
     links
     props
     linkprops

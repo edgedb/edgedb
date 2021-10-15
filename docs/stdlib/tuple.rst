@@ -1,12 +1,14 @@
-.. _ref_eql_expr_tuple_ctor:
+.. _ref_std_tuple:
 
-
+======
 Tuples
 ======
 
+A tuple type is a heterogeneous sequence of other types. Tuples can be either
+*named* or *unnamed* (the default).
 
-Tuple Constructor
------------------
+Constructing tuples
+-------------------
 
 A tuple constructor is an expression that consists of a sequence of
 comma-separated expressions enclosed in parentheses.  It produces a
@@ -16,13 +18,13 @@ tuple value:
 
     "(" <expr> [, ... ] ")"
 
-Named tuples are created using the following syntax:
+Declare a *named tuple*:
 
 .. eql:synopsis::
 
     "(" <identifier> := <expr> [, ... ] ")"
 
-Note that *all* elements in a named tuple must have a name.
+*All* elements in a named tuple must have a name.
 
 A tuple constructor automatically creates a corresponding
 :ref:`tuple type <ref_eql_types_tuple>`.
@@ -30,8 +32,8 @@ A tuple constructor automatically creates a corresponding
 
 .. _ref_eql_expr_tuple_elref:
 
-Tuple Element Reference
------------------------
+Accessing elements
+------------------
 
 An element of a tuple can be referenced in the form:
 
@@ -56,6 +58,9 @@ Examples:
     db> SELECT (number := 1, name := 'EdgeDB').1;
     {"EdgeDB"}
 
+Nesting tuples
+--------------
+
 Tuples can be nested:
 
 .. code-block:: edgeql-repl
@@ -74,3 +79,38 @@ Referencing a non-existent tuple element will result in an error:
 
         line 1
             > SELECT (1, 2).3;
+
+
+.. eql:type:: std::tuple
+
+    :index: tuple
+
+    A tuple type is a heterogeneous sequence of other types.
+
+    Tuple elements can optionally have names,
+    in which case the tuple is called a *named tuple*.
+
+    Any type can be used as a tuple element type.
+
+    A tuple type is created implicitly when a :ref:`tuple constructor
+    <ref_std_tuple>` is used:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT ('foo', 42);
+        {('foo', 42)}
+
+    Two tuples are equal if all of their elements are equal and in the same
+    order.  Note that element names in named tuples are not significant for
+    comparison:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT (1, 2, 3) = (a := 1, b := 2, c := 3);
+        {true}
+
+    The syntax of a tuple type declaration can be found in :ref:`this
+    section <ref_eql_types_tuple>`.
+
+
+
