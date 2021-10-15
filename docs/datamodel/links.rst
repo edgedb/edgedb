@@ -6,7 +6,7 @@ Links
 
 :index: link one-to-one one-to-many many-to-one many-to-many
 
-Link items define a specific relationship between two :ref:`object
+Links define a specific relationship between two :ref:`object
 types <ref_datamodel_object_types>`. Link instances relate one
 *object* to one or more different objects.
 

@@ -16,8 +16,8 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     terminology
     modules
     objects
-    links
     props
+    links
     linkprops
     computables
     indexes
@@ -78,8 +78,7 @@ project.
 
 .. important::
 
-  Syntax highlighter packages/
-  extensions for ``.esdl`` files are available for
+  Syntax highlighter packages/extensions for ``.esdl`` files are available for
   `Visual Studio Code <https://marketplace.visualstudio.com/
   itemdetails?itemName=magicstack.edgedb>`_,
   `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
@@ -91,10 +90,12 @@ See also
 --------
 
 **DDL**
-  Under the hood, all schema modifications are the result of *data definition
-  language* (DDL) commands. DDL is a set of lower-level, imperative commands
-  analogous to SQL's ``CREATE TABLE``, ``ALTER COLUMN``, etc. It is the
-  foundation on which EdgeDB's migration system is built. We recommend that
-  most users use SDL and migrations when building applications. However, if you
-  prefer SQL-style imperative schema modeling, you are free to use DDL
-  directly; reference the :ref:`DDL docs <ref_eql_ddl>` to learn more.
+  EdgeDB provides a migration tool to synchronize a database's with the latest
+  SDL files. Migrations consist of a sequence of *imperative* commands like
+  ``CREATE TYPE``, ``ALTER PROPERTY``, etc. Collectively these commands are
+  known as EdgeDB Data Definition Language (**DDL** for short).
+
+  We recommend that most users use SDL and migrations when building
+  applications. However, if you prefer SQL-style imperative schema modeling,
+  you are free to use DDL directly; reference the :ref:`DDL Reference
+  <ref_eql_ddl>` to learn more.
