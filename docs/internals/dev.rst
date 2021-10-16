@@ -44,7 +44,8 @@ Python "venv" with all dependencies and commands installed into it.
       $ mkdir ~/dev
       $ cd ~/dev
 
-#. Clone the edgedb repository using `--recursive` so it clones all submodules as well:
+#. Clone the edgedb repository using `--recursive`
+   so it clones all submodules as well:
 
    .. code-block:: bash
 
