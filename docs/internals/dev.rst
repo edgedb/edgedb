@@ -44,11 +44,11 @@ Python "venv" with all dependencies and commands installed into it.
       $ mkdir ~/dev
       $ cd ~/dev
 
-#. Clone the edgedb repository:
+#. Clone the edgedb repository using `--recursive` so it clones all submodules as well:
 
    .. code-block:: bash
 
-      $ https://github.com/edgedb/edgedb.git
+      $ git clone --recursive https://github.com/edgedb/edgedb.git
 
 #. Create a Python 3.9 virtual environment and activate it:
 
@@ -61,7 +61,7 @@ Python "venv" with all dependencies and commands installed into it.
 
    .. code-block:: bash
 
-      $ cd ../edgedb
+      $ cd edgedb
       $ pip install -v -e ".[test]"
 
    In addition to compiling EdgeDB and all dependencies, this will also
