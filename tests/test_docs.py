@@ -246,11 +246,32 @@ class TestDocSnippets(unittest.TestCase):
     def run_block_test(self, block):
         try:
             lang = block.lang
-            code = [block.code]
 
             if lang.endswith('-repl'):
                 lang = lang.rpartition('-')[0]
                 code = self.extract_snippets_from_repl(block.code)
+            elif lang.endswith('-diff'):
+                # In the diff block we need to truncate "-"/"+" at the
+                # beginning of each line. We will make two copies of
+                # the code as the before and after version. Both will
+                # be validated.
+                before = []
+                after = []
+                for line in block.code.split('\n'):
+                    first = line[0]
+                    if first == '-':
+                        before.append(line[1:])
+                    if first == '+':
+                        after.append(line[1:])
+                    else:
+                        before.append(line[1:])
+                        after.append(line[1:])
+
+                code = ['\n'.join(before), '\n'.join(after)]
+                # truncate the "-diff" from the language
+                lang = lang[:-5]
+            else:
+                code = [block.code]
 
             for snippet in code:
                 if lang == 'edgeql':
