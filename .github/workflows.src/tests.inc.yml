@@ -17,10 +17,11 @@
 
 <% macro _init_venv() -%>
     - name: Handle virtualenv
-      uses: syphar/restore-virtualenv@v1.1
+      uses: syphar/restore-virtualenv@v1.2
       id: venv-cache
       with:
         requirement_files: setup.py
+        custom_cache_key_element: v2
 <%- endmacro -%>
 
 <% macro build() %>
@@ -33,6 +34,7 @@
     - name: Install Python dependencies
       if: steps.venv-cache.outputs.cache-hit != 'true'
       run: |
+        pip install wheel
         pip download --use-feature=in-tree-build --dest=$VIRTUAL_ENV/deps .[test,docs,build]
         pip install -U --no-index --find-links=$VIRTUAL_ENV/deps $VIRTUAL_ENV/deps/*
 
