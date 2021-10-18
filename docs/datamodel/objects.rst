@@ -58,6 +58,8 @@ other object types.
 
 Abstract types are commonly used in tandem with inheritance.
 
+.. _ref_datamodel_objects_inheritance:
+
 Inheritance
 -----------
 
@@ -75,6 +77,7 @@ Object types can *extend* other object types. The extending type (AKA the
     property breed -> str;
   }
 
+.. _ref_datamodel_objects_multiple_inheritance:
 
 Multiple Inheritance
 ^^^^^^^^^^^^^^^^^^^^

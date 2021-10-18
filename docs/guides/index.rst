@@ -22,5 +22,6 @@ guide!
     installation
     setup
     using_projects
+    modeling_relations
     configuration
     cheatsheet/index

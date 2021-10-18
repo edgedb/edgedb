@@ -7,303 +7,149 @@ Links
 :index: link one-to-one one-to-many many-to-one many-to-many
 
 Links define a specific relationship between two :ref:`object
-types <ref_datamodel_object_types>`. Link instances relate one
-*object* to one or more different objects.
+types <ref_datamodel_object_types>`.
 
-There are two kinds of link item declarations: *abstract links*, and
-*concrete links*. Abstract links are defined on the module level and are
-not tied to any particular object type. Typically this is done to set
-some :ref:`annotations <ref_datamodel_annotations>`, define
-:ref:`link properties <ref_datamodel_props>`, or setup
-:ref:`constraints <ref_datamodel_constraints>`. Concrete links
-are defined on specific object types.
+See the :ref:`Modeling Relations <ref_guide_modeling_relations>` guide for a
+breakdown of how to model one-to-one, one-to-many, and many-to-many
+relationships in EdgeDB.
 
-Links are directional and have a *source*. Whether a *source* has one
-or more links of the same kind is specified by the keywords
-:ref:`single <ref_eql_ddl_links_syntax>` and :ref:`multi
-<ref_eql_ddl_links_syntax>`, respectively. The :ref:`required
-<ref_eql_ddl_links_syntax>` keyword indicates that at least one
-target object must be linked for a particular link kind. It is
-also possible to restrict how many source objects can link to the
-same target via the :eql:constraint:`exclusive` constraint. Using
-these tools it's possible to specify common relationships between
-things: *many-to-one*, *one-to-one*, and *many-to-many*.
-
-It is possible to think of any link as going backwards from *target*
-to *source*. This is referred to as a *backlink* and we use the ``.<``
-:ref:`syntax <ref_eql_expr_paths>` to denote it.
-
-Declare a link
-  .. code-block:: sdl
-
-    type Person {
-      link best_friend -> Person;
-    }
-
-Declare a required link
-  By default all links are optional; use ``required`` to declare required
-  links. In this scenario, every ``Person`` must have a ``best_friend``.
-
-  .. code-block:: sdl
-
-    type Person {
-      required link best_friend -> Person;
-    }
-
-Declare a multi link
-  All links have a cardinality: either ``single`` or ``multi``. The default is
-  ``single`` ("to-one"). Use ``multi`` to declare a "to-many" link.
-
-  .. code-block:: sdl
-
-    type Person {
-      multi link friends -> Person;
-    }
-
-
-
-Many-to-One
------------
-
-A *many-to-one* relationship is a fairly common pattern representing
-situations like ownership or hierarchies. For example, ``Person`` and
-``Shirt``:
+Defining links
+--------------
 
 .. code-block:: sdl
 
-    type Person {
-        required property name -> str {
-            constraint exclusive;
-        }
-    }
-    type Shirt {
-        required property description -> str {
-            # Just making sure that each description
-            # is unique like a name.
-            constraint exclusive;
-        }
-        link owner -> Person;
-    }
+  type Person {
+    link best_friend -> Person;
+  }
 
-A ``Shirt`` can have at most one ``owner``, while a ``Person`` can
-have potentially have more than one ``Shirt``. This is a *many-to-one*
-relationship and it's expressed by the ``link owner``.
+Links are *directional*; they have a source (the object type on which they are
+declared) and a *target* (the type they point to).
 
-Selecting the shirts belonging to a specific owner can be done with
-the following query:
+Link cardinality
+----------------
 
-.. code-block:: edgeql
-
-    SELECT Shirt {
-        description,
-        owner: {
-            name
-        }
-    }
-    FILTER .owner.name = 'Billie';
-
-When a *many-to-one* link is treated as a *backlink* it becomes a
-*one-to-many* relationship instead. For example, the previous query
-can be re-written like this:
-
-.. code-block:: edgeql
-
-    SELECT Person {
-        name,
-        # let's use a computed "shirts" expression here
-        shirts := .<owner[IS Shirt] {
-            description
-        }
-    }
-    FILTER .name = 'Billie';
-
-Alternatively, the above relationship can also be represented by the
-following schema:
+All links have a cardinality: either ``single`` or ``multi``. The default is
+``single`` (a "to-one" link). Use the ``multi`` keyword to declare a "to-many"
+link.
 
 .. code-block:: sdl
 
-    type Person {
-        required property name -> str {
-            constraint exclusive;
-        }
-        multi link shirts -> Shirt {
-            # The exclusive constraint ensures that
-            # this is a one-to-many relationship.
-            constraint exclusive;
-        }
-    }
-    type Shirt {
-        required property description -> str {
-            constraint exclusive;
-        }
-    }
+  type Person {
+    multi link friends -> Person;
+  }
 
-It's possible to include both links ``owner`` and ``shirts`` to a
-schema, making one of them a :ref:`computed link
-<ref_datamodel_computables>` expressed in terms of the other.
+Required links
+--------------
+
+All links are either ``optional`` or ``required``; the default is ``optional``.
+Use the ``required`` keyword to declare a required link. A required link must
+point to *at least one* target instance. In this scenario, every ``Person``
+must have a ``best_friend``.
 
 .. code-block:: sdl
 
-    type Person {
-        required property name -> str {
-            constraint exclusive;
-        }
-        # A computed link used for convenience.
-        multi link shirts := .<owner[IS Shirt];
-    }
-    type Shirt {
-        required property description -> str {
-            # Just making sure that each description
-            # is unique like a name.
-            constraint exclusive;
-        }
-        link owner -> Person;
-    }
+  type Person {
+    required link best_friend -> Person;
+  }
 
-So fundamentally there's no difference in terms of the data for the
-two schemas specifying many-to-one or one-to-many relationship between
-``Person`` and ``Shirt``. Nor is there any difference in terms of
-querying that data, because computed links can be added to the
-schema. Instead the difference is in how the data is modified or
-reasoned about. For example, expressing "Billie bought some yellow
-shirts" using the first and second version of the schema would look
-like this:
-
-.. code-block:: edgeql
-
-    UPDATE Shirt
-    # Just get all the yellow ones
-    FILTER .description ILIKE '%yellow%'
-    SET {
-        owner := (
-            SELECT Person
-            FILTER .name = 'Billie'
-        )
-    };
-
-    UPDATE Person
-    FILTER .name = 'Billie'
-    SET {
-        shirts += (
-            SELECT Shirt
-            # Just get all the yellow ones
-            FILTER .description ILIKE '%yellow%'
-        )
-    };
-
-
-One-to-One
-----------
-
-A *one-to-one* relationship represents a situation where one object
-from a source set is linked to only one object in the target set, and
-vice versa. For example, ``Employee`` and ``ReservedParking``:
+You can define ``required multi links`` on an object type. In this scenario,
+every ``GroupChat`` must contain *at least one* user. Attempting to create a
+``GroupChat`` with no users would fail.
 
 .. code-block:: sdl
 
-    type Employee {
-        required property name -> str;
-        single link parking -> ReservedParking {
-            constraint exclusive;
-        }
-    }
-    type ReservedParking {
-        required property number -> int64;
-    }
+  type User {
+    property name -> str;
+  }
 
-An ``Employee`` can have up to one ``ReservedParking`` assigned
-exclusively to them. The :eql:constraint:`exclusive` constraint
-ensures that no more than *one* ``Employee`` can get the same
-``ReservedParking``, while the ``single`` qualifier on the link (which
-is the default, so it can be omitted) ensures that no ``Employee`` can
-have more than *one* ``ReservedParking``. Together the constraint and
-the qualifier specify a *one-to-one* relationship.
+  type GroupChat {
+    required multi link members -> User;
+  }
 
-Although the link is specified only on one of the objects, the
-relationship involves both of them and so it can be accessed from
-either end. To get the assigned ``ReservedParking`` given an
-``Employee`` the following query can be used:
+Exclusive constraints
+---------------------
 
-.. code-block:: edgeql
-
-    WITH Alice := (
-        SELECT Employee FILTER .name = 'Alice'
-    )
-    SELECT Alice.parking {
-        number
-    };
-
-The reverse lookup of who owns a particular ``ReservedParking`` spot
-can be done by using a *backlink* traversal like so:
-
-.. code-block:: edgeql
-
-    WITH Spot := (
-        SELECT ReservedParking FILTER .number = 42
-    )
-    SELECT Spot.<parking[IS Employee] {
-        name
-    };
-
-In practice, *backlink* traversal requires to specify the original
-link's source type, but other than that it works the same way as
-forward traversal.
-
-
-Many-to-Many
-------------
-
-A *many-to-many* relationship represents the most generic kind of
-relationship without any exclusivity. For example, ``Person`` and
-``Movie`` in the following schema:
+You can add an ``exclusive`` constraint to a link to guarantee that no other
+instances can link to the same target(s).
 
 .. code-block:: sdl
 
-    type Person {
-        required property name -> str {
-            constraint exclusive;
-        }
-        multi link likes -> Movie;
+  type Person {
+    property name -> str;
+  }
+
+  type Club {
+    required multi link members -> User {
+      constraint exclusive;
     }
-    type Movie {
-        required property title -> str {
-            constraint exclusive;
-        }
+  }
+
+In the ``GroupChat`` example, the ``GroupChat.members`` link is now
+``exclusive``. No two ``GroupChats`` can link to the same ``User``; put
+differently, no ``User`` can be a ``member`` of multiple ``GroupChats``.
+
+
+Link properties
+---------------
+
+In EdgeDB, links can store *properties*. There are countless scenarios where
+it's useful to store additional information about the *link itself*. For
+instance we can model a family tree with a single ``Person`` type.
+
+.. code-block:: sdl
+
+  type Person {
+    property name -> str;
+    multi link family_members -> Person {
+      property relationship -> str;
     }
+  }
 
-A ``Person`` can like multiple movies and each ``Movie`` can be liked
-by multiple people, thus making ``likes`` a *many-to-many*
-relationship. This type of relationship has the same symmetry as a
-*one-to-one* w.r.t. regular link and *backlink* traversal, except that
-potentially multiple objects can be reached in either direction.
-Here's the query for getting every ``Movie`` a given ``Person`` likes:
+``Person.family_members`` is a many-to-many relation. Each ``family_members``
+link can contain a string ``relationship`` containing the relationship of the ]
+two individuals.
 
-.. code-block:: edgeql
+Refer to :ref:`Link Properties <ref_datamodel_linkprops>` for a more thorough
+reference.
 
-    WITH Cameron := (
-        SELECT Person FILTER .name = 'Cameron'
-    )
-    SELECT Cameron.likes {
-        title
-    };
 
-The *backlink* lookup of who likes a particular ``Movie``:
+Deletion policies
+-----------------
 
-.. code-block:: edgeql
+Links can declare their own **deletion policy**. When they target of a link is
+deleted, there are 4 possible *actions* that can be taken:
 
-    WITH M := (
-        SELECT Movie FILTER .title = "Matrix"
-    )
-    SELECT M.<likes[IS Person] {
-        name
-    };
+- ``restrict`` (default) - any attempt to delete the target object immediately
+  raises an exception;
+- ``delete source`` - when the target of a link is deleted, the source
+  is also deleted;
+- ``allow`` - the target object is deleted and is removed from the
+  set of the link targets;
+- ``deferred restrict`` - any attempt to delete the target object
+  raises an exception at the end of the transaction, unless by
+  that time this object is no longer in the set of link targets.
+
+To set a policy:
+
+.. code-block:: sdl
+
+  type MessageThread {
+    property name -> str;
+  }
+
+  type Message {
+    link chat -> MessageThread {
+      on target delete delete source;
+    }
+  }
 
 .. _ref_datamodel_link_deletion:
 
-Links to abstract types
------------------------
+Polymorphic links
+-----------------
 
-Consider the following schema.
+Links can have ``abstract`` targets, in which case the link is considered
+**polymorphic**. Consider the following schema:
 
 .. code-block:: sdl
 
@@ -312,14 +158,16 @@ Consider the following schema.
   }
 
   type Hero extending Person {
-    property secret_identity -> str;
+    # additional fields
   }
 
   type Villain extending Person {
-    link nemesis -> Hero;
+    # additional fields
   }
 
-You can also create links that reference abstract types.
+The ``abstract`` type ``Person`` has two concrete subtypes: ``Hero`` and
+``Villain``. Despite being abstract, ``Person`` can be used as a link target in
+concrete object types.
 
 .. code-block:: sdl
 
@@ -328,28 +176,30 @@ You can also create links that reference abstract types.
     multi link characters -> Person;
   }
 
-The ``Movie`` type contains a ``multi link`` to ``Person`` — an abstract
-type. In practice, this means you can attach any ``Hero`` or ``Villain`` (or
-any other non-abstract subtype of ``Person``) as a character.
+In practice, the ``Movie.characters`` link can point to a ``Hero``,
+``Villain``, or any other non-abstract subtype of ``Person``. For details on
+how to write queries on such a link, refer to the :ref:`Polymorphic Queries
+docs <ref_eql_polymorphic_queries>`
 
-Deletion
---------
 
-Links also have a policy of handling link target *deletion*. There are
-4 possible *actions* that can be taken when this happens:
+Abstract links
+--------------
 
-- ``RESTRICT`` - any attempt to delete the target object immediately
-  raises an exception;
-- ``DELETE SOURCE`` - when the target of a link is deleted, the source
-  is also deleted;
-- ``ALLOW`` - the target object is deleted and is removed from the
-  set of the link targets;
-- ``DEFERRED RESTRICT`` - any attempt to delete the target object
-  raises an exception at the end of the transaction, unless by
-  that time this object is no longer in the set of link targets.
+It's possible to define ``abstract`` links that aren't tied to a particular
+*source* or *target*. If you're declaring several links containing the same set
+of properties, annotations, constraints, or indexes, this can be used way to
+eliminate repetitive link declarations.
 
-This :ref:`section <ref_eql_ddl_links_syntax>` covers the syntax of
-how to set these policies in more detail.
+.. code-block:: sdl
+
+  abstract link link_with_strength {
+    property strength -> float64;
+    index on (__subject__@strength);
+  }
+
+  type Person {
+    multi link friends extending link_with_strength -> Person;
+  }
 
 See Also
 --------
