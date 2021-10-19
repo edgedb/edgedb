@@ -65,6 +65,7 @@ from edb.server.compiler import enums
 from edb.server.compiler import sertypes
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
+from edb.server import metrics
 
 from edb.schema import objects as s_obj
 
@@ -819,40 +820,45 @@ cdef class EdgeConnection:
 
         compiler_pool = self.server.get_compiler_pool()
 
-        if _dbview.in_tx():
-            units, self.last_state = await compiler_pool.compile_in_tx(
-                _dbview.txid,
-                self.last_state,
-                query_req.source,
-                query_req.io_format,
-                query_req.expect_one,
-                query_req.implicit_limit,
-                query_req.inline_typeids,
-                query_req.inline_typenames,
-                'single',
-                self.protocol_version,
-                query_req.inline_objectids,
-            )
-        else:
-            units, self.last_state = await compiler_pool.compile(
-                _dbview.dbname,
-                _dbview.get_user_schema(),
-                _dbview.get_global_schema(),
-                _dbview.reflection_cache,
-                _dbview.get_database_config(),
-                _dbview.get_compilation_system_config(),
-                query_req.source,
-                _dbview.get_modaliases(),
-                _dbview.get_session_config(),
-                query_req.io_format,
-                query_req.expect_one,
-                query_req.implicit_limit,
-                query_req.inline_typeids,
-                query_req.inline_typenames,
-                'single',
-                self.protocol_version,
-                query_req.inline_objectids,
-            )
+        started_at = time.monotonic()
+        try:
+            if _dbview.in_tx():
+                units, self.last_state = await compiler_pool.compile_in_tx(
+                    _dbview.txid,
+                    self.last_state,
+                    query_req.source,
+                    query_req.io_format,
+                    query_req.expect_one,
+                    query_req.implicit_limit,
+                    query_req.inline_typeids,
+                    query_req.inline_typenames,
+                    'single',
+                    self.protocol_version,
+                    query_req.inline_objectids,
+                )
+            else:
+                units, self.last_state = await compiler_pool.compile(
+                    _dbview.dbname,
+                    _dbview.get_user_schema(),
+                    _dbview.get_global_schema(),
+                    _dbview.reflection_cache,
+                    _dbview.get_database_config(),
+                    _dbview.get_compilation_system_config(),
+                    query_req.source,
+                    _dbview.get_modaliases(),
+                    _dbview.get_session_config(),
+                    query_req.io_format,
+                    query_req.expect_one,
+                    query_req.implicit_limit,
+                    query_req.inline_typeids,
+                    query_req.inline_typenames,
+                    'single',
+                    self.protocol_version,
+                    query_req.inline_objectids,
+                )
+        finally:
+            metrics.edgeql_compile_duration.observe(
+                time.monotonic() - started_at)
         return units
 
     async def _compile_script(
@@ -869,38 +875,43 @@ cdef class EdgeConnection:
 
         compiler_pool = self.server.get_compiler_pool()
 
-        if _dbview.in_tx():
-            units, self.last_state = await compiler_pool.compile_in_tx(
-                _dbview.txid,
-                self.last_state,
-                source,
-                FMT_SCRIPT,
-                False,
-                0,
-                False,
-                False,
-                stmt_mode,
-                self.protocol_version,
-            )
-        else:
-            units, self.last_state = await compiler_pool.compile(
-                _dbview.dbname,
-                _dbview.get_user_schema(),
-                _dbview.get_global_schema(),
-                _dbview.reflection_cache,
-                _dbview.get_database_config(),
-                _dbview.get_compilation_system_config(),
-                source,
-                _dbview.get_modaliases(),
-                _dbview.get_session_config(),
-                FMT_SCRIPT,
-                False,
-                0,
-                False,
-                False,
-                stmt_mode,
-                self.protocol_version,
-            )
+        started_at = time.monotonic()
+        try:
+            if _dbview.in_tx():
+                units, self.last_state = await compiler_pool.compile_in_tx(
+                    _dbview.txid,
+                    self.last_state,
+                    source,
+                    FMT_SCRIPT,
+                    False,
+                    0,
+                    False,
+                    False,
+                    stmt_mode,
+                    self.protocol_version,
+                )
+            else:
+                units, self.last_state = await compiler_pool.compile(
+                    _dbview.dbname,
+                    _dbview.get_user_schema(),
+                    _dbview.get_global_schema(),
+                    _dbview.reflection_cache,
+                    _dbview.get_database_config(),
+                    _dbview.get_compilation_system_config(),
+                    source,
+                    _dbview.get_modaliases(),
+                    _dbview.get_session_config(),
+                    FMT_SCRIPT,
+                    False,
+                    0,
+                    False,
+                    False,
+                    stmt_mode,
+                    self.protocol_version,
+                )
+        finally:
+            metrics.edgeql_compile_duration.observe(
+                time.monotonic() - started_at)
         return units
 
     async def _compile_rollback(self, bytes eql):
@@ -1021,6 +1032,7 @@ cdef class EdgeConnection:
             dbview.DatabaseConnectionView _dbview
 
         units = await self._compile_script(eql, stmt_mode=stmt_mode)
+        metrics.edgeql_compile_queries.inc(1.0, 'compiler')
 
         if self._cancelled:
             raise ConnectionAbortedError
@@ -1195,6 +1207,11 @@ cdef class EdgeConnection:
 
         if not cached and query_unit.cacheable:
             _dbview.cache_compiled_query(query_req, query_unit)
+
+        metrics.edgeql_compile_queries.inc(
+            1.0,
+            'cache' if cached else 'compiler'
+        )
 
         return CompiledQuery(
             query_unit=query_unit,
@@ -1679,6 +1696,7 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('OPTIMISTIC EXECUTE', query)
 
+        metrics.edgeql_compile_queries.inc(1.0, 'cache')
         await self._execute(
             compiled, bind_args, bool(query_unit.sql_hash))
 

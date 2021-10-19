@@ -34,6 +34,7 @@ import time
 import immutables
 
 from edb.server import pgcluster
+from edb.server import metrics
 
 from edb.common import debug
 
@@ -256,10 +257,13 @@ class Pool(amsg.ServerProtocol):
         self._loop.create_task(
             self._attach_worker(pid, args, pickled_args)
         )
+        metrics.total_compiler_processes.inc()
+        metrics.current_compiler_processes.inc()
 
     def worker_disconnected(self, pid):
         logger.debug("Worker with PID %s disconnected.", pid)
         self._workers.pop(pid, None)
+        metrics.current_compiler_processes.dec()
 
     async def start(self):
         if self._running is not None:

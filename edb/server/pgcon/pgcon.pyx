@@ -27,6 +27,7 @@ import socket
 import ssl as ssl_mod
 import struct
 import textwrap
+import time
 
 cimport cython
 cimport cpython
@@ -64,6 +65,7 @@ from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
 from edb.server import pgconnparams
+from edb.server import metrics
 from edb.server.protocol cimport binary as edgecon
 
 from edb.common import debug
@@ -739,6 +741,7 @@ cdef class PGConnection:
         args,
     ):
         self.before_command()
+        started_at = time.monotonic()
         try:
             return await self._parse_execute_json(
                 sql,
@@ -748,6 +751,7 @@ cdef class PGConnection:
                 args,
             )
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     async def parse_execute_notebook(
@@ -760,6 +764,7 @@ cdef class PGConnection:
             Py_buffer pybuf
 
         self.before_command()
+        started_at = time.monotonic()
         try:
             out = WriteBuffer.new()
             await self._parse_execute_to_buf(sql, b'', dbver, False, (), out)
@@ -772,6 +777,7 @@ cdef class PGConnection:
                 cpython.PyBuffer_Release(&pybuf)
 
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     def _build_apply_state_req(self, bytes serstate, WriteBuffer out):
@@ -1016,6 +1022,7 @@ cdef class PGConnection:
         int dbver,
     ):
         self.before_command()
+        started_at = time.monotonic()
         try:
             return await self._parse_execute(
                 query,
@@ -1026,6 +1033,7 @@ cdef class PGConnection:
                 dbver
             )
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     async def _simple_query(self, bytes sql, bint ignore_data, bytes state):
@@ -1117,9 +1125,11 @@ cdef class PGConnection:
         bytes state=None
     ):
         self.before_command()
+        started_at = time.monotonic()
         try:
             return await self._simple_query(sql, ignore_data, state)
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     async def run_ddl(
@@ -1128,6 +1138,7 @@ cdef class PGConnection:
         bytes state=None
     ):
         self.before_command()
+        started_at = time.monotonic()
         try:
             sql = b';'.join(query_unit.sql)
             ignore_data = query_unit.ddl_stmt_id is None
@@ -1149,6 +1160,7 @@ cdef class PGConnection:
                     raise RuntimeError(
                         'missing the required data packet after a DDL command')
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     async def _dump(self, block, output_queue, fragment_suggested_size):
