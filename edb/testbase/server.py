@@ -28,6 +28,7 @@ import contextlib
 import decimal
 import functools
 import heapq
+import http.client
 import inspect
 import json
 import math
@@ -389,6 +390,7 @@ async def init_cluster(
     *,
     cleanup_atexit=True,
     init_settings=None,
+    allow_insecure_http_clients=False,
 ) -> edgedb_cluster.BaseCluster:
     if data_dir is not None and backend_dsn is not None:
         raise ValueError(
@@ -399,15 +401,18 @@ async def init_cluster(
     if backend_dsn:
         cluster = edgedb_cluster.TempClusterWithRemotePg(
             backend_dsn, testmode=True, log_level='s',
-            data_dir_prefix='edb-test-')
+            data_dir_prefix='edb-test-',
+            allow_insecure_http_clients=allow_insecure_http_clients)
         destroy = True
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
-            testmode=True, log_level='s', data_dir_prefix='edb-test-')
+            testmode=True, log_level='s', data_dir_prefix='edb-test-',
+            allow_insecure_http_clients=allow_insecure_http_clients)
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
-            data_dir=data_dir, log_level='s')
+            data_dir=data_dir, log_level='s',
+            allow_insecure_http_clients=allow_insecure_http_clients)
         destroy = False
 
     if await cluster.get_status() == 'not-initialized':
@@ -422,7 +427,12 @@ async def init_cluster(
     return cluster
 
 
-def _start_cluster(*, loop: asyncio.AbstractEventLoop, cleanup_atexit=True):
+def _start_cluster(
+    *,
+    loop: asyncio.AbstractEventLoop,
+    cleanup_atexit=True,
+    allow_insecure_http_clients=False,
+):
     global _default_cluster
 
     if _default_cluster is None:
@@ -440,6 +450,7 @@ def _start_cluster(*, loop: asyncio.AbstractEventLoop, cleanup_atexit=True):
                     data_dir=data_dir,
                     backend_dsn=backend_dsn,
                     cleanup_atexit=cleanup_atexit,
+                    allow_insecure_http_clients=allow_insecure_http_clients,
                 )
             )
 
@@ -453,6 +464,41 @@ def _shutdown_cluster(cluster, *, destroy=True):
         cluster.stop()
         if destroy:
             cluster.destroy()
+
+
+def _get_metrics(host: str, port: int) -> str:
+    con = http.client.HTTPConnection(host, port)
+    con.connect()
+    try:
+        con.request(
+            'GET',
+            f'http://{host}:{port}/metrics'
+        )
+        resp = con.getresponse()
+        if resp.status != 200:
+            raise AssertionError(
+                f'/metrics returned non 200 HTTP status: {resp.status}')
+        return resp.read().decode()
+    finally:
+        con.close()
+
+
+def _extract_background_errors(metrics: str) -> str | None:
+    non_zero = []
+
+    for line in metrics.splitlines():
+        if line.startswith('edgedb_server_background_errors_total'):
+            label, _, total = line.rpartition(' ')
+            total = float(total)
+            if total:
+                non_zero.append(
+                    f'non-zero {label!r} metric: {total}'
+                )
+
+    if non_zero:
+        return '\n'.join(non_zero)
+    else:
+        return None
 
 
 class ClusterTestCase(TestCase):
@@ -489,8 +535,19 @@ class ClusterTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.cluster = _start_cluster(loop=cls.loop, cleanup_atexit=True)
+        cls.cluster = _start_cluster(
+            loop=cls.loop,
+            cleanup_atexit=True,
+            allow_insecure_http_clients=True,
+        )
         cls.backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+
+    @classmethod
+    def get_metrics(cls) -> str:
+        assert cls.cluster is not None
+        conargs = cls.cluster.get_connect_args()
+        host, port = conargs['host'], conargs['port']
+        return _get_metrics(host, port)
 
     @classmethod
     def get_connect_args(cls, *,
@@ -523,6 +580,14 @@ class ClusterTestCase(TestCase):
             and cls.get_parallelism_granularity() == 'database'
         )
 
+    def ensure_no_background_server_errors(self):
+        metrics = self.get_metrics()
+        errors = _extract_background_errors(metrics)
+        if errors:
+            raise AssertionError(
+                f'{self._testMethodName!r}:\n\n{errors}'
+            )
+
     def setUp(self):
         if self.INTERNAL_TESTMODE:
             self.loop.run_until_complete(
@@ -541,6 +606,8 @@ class ClusterTestCase(TestCase):
 
     def tearDown(self):
         try:
+            self.ensure_no_background_server_errors()
+
             if self.TEARDOWN_METHOD:
                 self.loop.run_until_complete(
                     self.con.execute(self.TEARDOWN_METHOD))
@@ -1429,6 +1496,9 @@ class _EdgeDBServerData(NamedTuple):
         conn_args.update(kwargs)
         return conn_args
 
+    def get_metrics(self):
+        return _get_metrics(self.host, self.port)
+
     async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
         conn_args = self.get_connect_args(**kwargs)
         return await edgedb.async_connect(**conn_args)
@@ -1452,7 +1522,7 @@ class _EdgeDBServer:
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
         allow_insecure_binary_clients: bool = False,
-        allow_insecure_http_clients: bool = False,
+        allow_insecure_http_clients: bool = True,  # see __aexit__
         enable_backend_adaptive_ha: bool = False,
         env: Optional[Dict[str, str]] = None,
     ) -> None:
@@ -1635,7 +1705,24 @@ class _EdgeDBServer:
         )
 
     async def __aexit__(self, exc_type, exc, tb):
-        await self._shutdown(exc)
+        try:
+            if (self.allow_insecure_http_clients and
+                    self.data is not None and
+                    not self.auto_shutdown):
+                # It's a good idea to test most of the ad-hoc test clusters
+                # for any errors in background tasks, as such tests usually
+                # test the functionality that involves notifications and
+                # other async events.
+                metrics = _get_metrics('127.0.0.1', self.data['port'])
+                errors = _extract_background_errors(metrics)
+                if errors:
+                    raise AssertionError(
+                        'server terminated with unexpected ' +
+                        'background errors\n\n' +
+                        errors
+                    )
+        finally:
+            await self._shutdown(exc)
 
 
 def start_edgedb_server(

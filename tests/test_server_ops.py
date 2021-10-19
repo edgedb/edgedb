@@ -136,7 +136,6 @@ class TestServerOps(tb.TestCase):
         # * "--bootstrap-command"
 
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
             bootstrap_command='CREATE SUPERUSER ROLE test_bootstrap2 '
                               '{ SET password := "tbs2" };'
         ) as sd:
@@ -202,7 +201,6 @@ class TestServerOps(tb.TestCase):
     async def test_server_ops_set_pg_max_connections(self):
         actual = random.randint(50, 100)
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
             max_allowed_connections=actual,
         ) as sd:
             con = await sd.connect()
@@ -219,7 +217,6 @@ class TestServerOps(tb.TestCase):
 
         async def test(pgdata_path):
             async with tb.start_edgedb_server(
-                auto_shutdown=True,
                 max_allowed_connections=None,
                 backend_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
                 reset_auth=True,
@@ -256,7 +253,6 @@ class TestServerOps(tb.TestCase):
     async def test_server_ops_postgres_multitenant(self):
         async def test(pgdata_path, tenant):
             async with tb.start_edgedb_server(
-                auto_shutdown=True,
                 tenant_id=tenant,
                 reset_auth=True,
                 backend_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
@@ -361,7 +357,6 @@ class TestServerOps(tb.TestCase):
 
     async def test_server_ops_downgrade_to_cleartext(self):
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
             allow_insecure_binary_clients=True,
         ) as sd:
             con = await edb_protocol.new_connection(
@@ -378,7 +373,6 @@ class TestServerOps(tb.TestCase):
 
     async def test_server_ops_no_cleartext(self):
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
             allow_insecure_binary_clients=False,
             allow_insecure_http_clients=False,
         ) as sd:
@@ -434,7 +428,6 @@ class TestServerOps(tb.TestCase):
 
     async def test_server_ops_cleartext_http_allowed(self):
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
             allow_insecure_http_clients=True,
         ) as sd:
 
