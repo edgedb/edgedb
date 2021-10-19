@@ -55,6 +55,7 @@ class BaseCluster:
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        allow_insecure_http_clients: bool = False
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
@@ -68,6 +69,9 @@ class BaseCluster:
 
         if testmode:
             self._edgedb_cmd.append('--testmode')
+
+        if allow_insecure_http_clients:
+            self._edgedb_cmd.append('--allow-insecure-http-clients')
 
         self._log_level = log_level
         self._runstate_dir = runstate_dir
@@ -336,6 +340,7 @@ class Cluster(BaseCluster):
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        allow_insecure_http_clients: bool = False,
     ) -> None:
         self._data_dir = data_dir
         if runstate_dir is None:
@@ -346,6 +351,7 @@ class Cluster(BaseCluster):
             env=env,
             testmode=testmode,
             log_level=log_level,
+            allow_insecure_http_clients=allow_insecure_http_clients,
         )
         self._edgedb_cmd.extend(['-D', str(self._data_dir)])
         self._pg_connect_args['user'] = pg_superuser
@@ -386,6 +392,7 @@ class TempCluster(Cluster):
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        allow_insecure_http_clients: bool = False,
     ) -> None:
         tempdir = pathlib.Path(
             tempfile.mkdtemp(
@@ -400,6 +407,7 @@ class TempCluster(Cluster):
             env=env,
             testmode=testmode,
             log_level=log_level,
+            allow_insecure_http_clients=allow_insecure_http_clients,
         )
 
 
@@ -453,6 +461,7 @@ class TempClusterWithRemotePg(BaseCluster):
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        allow_insecure_http_clients: bool = False,
     ) -> None:
         runstate_dir = pathlib.Path(
             tempfile.mkdtemp(
@@ -463,7 +472,8 @@ class TempClusterWithRemotePg(BaseCluster):
         )
         self._backend_dsn = backend_dsn
         super().__init__(
-            runstate_dir, env=env, testmode=testmode, log_level=log_level)
+            runstate_dir, env=env, testmode=testmode, log_level=log_level,
+            allow_insecure_http_clients=allow_insecure_http_clients)
         self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
 
     async def _new_pg_cluster(self) -> pgcluster.BaseCluster:

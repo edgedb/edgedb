@@ -830,6 +830,7 @@ class ParallelTextTestRunner:
 
                     cluster = await tb.init_cluster(
                         backend_dsn=self.backend_dsn,
+                        allow_insecure_http_clients=True,
                         cleanup_atexit=False,
                     )
 

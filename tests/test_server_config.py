@@ -19,7 +19,6 @@
 
 import asyncio
 import dataclasses
-import http.client
 import json
 import platform
 import textwrap
@@ -1056,7 +1055,7 @@ class TestServerConfig(tb.QueryTestCase):
     async def test_server_proto_configure_listen_addresses(self):
         con1 = con2 = con3 = con4 = con5 = None
 
-        async with tb.start_edgedb_server(auto_shutdown=True) as sd:
+        async with tb.start_edgedb_server() as sd:
             try:
                 with self.assertRaises(
                     edgedb.ClientConnectionFailedTemporarilyError
@@ -1127,19 +1126,7 @@ class TestServerConfig(tb.QueryTestCase):
                 await con2.query('SELECT 1')
                 await asyncio.sleep(3)
 
-            con = http.client.HTTPConnection(sd.host, sd.port)
-            con.connect()
-            try:
-                con.request(
-                    'GET',
-                    f'http://{sd.host}:{sd.port}/metrics'
-                )
-                resp = con.getresponse()
-                self.assertEqual(resp.status, 200)
-            finally:
-                con.close()
-
-            metrics = resp.read().decode()
+            metrics = sd.get_metrics()
 
             await con1.aclose()
             await con2.aclose()
