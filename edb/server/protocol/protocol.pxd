@@ -28,6 +28,7 @@ cdef class HttpRequest:
         public bint should_keep_alive
         public bytes content_type
         public bytes method
+        public bytes accept
         public bytes body
         public bytes host
 

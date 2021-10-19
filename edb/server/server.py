@@ -30,6 +30,7 @@ import socket
 import ssl
 import stat
 import sys
+import time
 import uuid
 
 import immutables
@@ -54,6 +55,7 @@ from edb.server import protocol
 from edb.server.ha import base as ha_base
 from edb.server.ha import adaptive as adaptive_ha
 from edb.server.protocol import binary  # type: ignore
+from edb.server import metrics
 from edb.server import pgcon
 from edb.server.pgcon import errors as pgcon_errors
 
@@ -247,10 +249,13 @@ class Server(ha_base.ClusterProtocol):
     def on_binary_client_authed(self, conn):
         self._binary_conns.add(conn)
         self._report_connections(event='opened')
+        metrics.total_client_connections.inc()
+        metrics.current_client_connections.inc()
 
     def on_binary_client_disconnected(self, conn):
         self._binary_conns.discard(conn)
         self._report_connections(event="closed")
+        metrics.current_client_connections.dec()
 
         if not self._binary_conns and self._auto_shutdown_after >= 0:
 
@@ -271,20 +276,30 @@ class Server(ha_base.ClusterProtocol):
     async def _pg_connect(self, dbname):
         ha_serial = self._ha_master_serial
         pg_dbname = self.get_pg_dbname(dbname)
-        rv = await pgcon.connect(
-            self._get_pgaddr(), pg_dbname, self._tenant_id)
+        started_at = time.monotonic()
+        try:
+            rv = await pgcon.connect(
+                self._get_pgaddr(), pg_dbname, self._tenant_id)
+        except Exception:
+            metrics.backend_connect_errors.inc()
+            raise
+        finally:
+            metrics.backend_connect_time.observe(time.monotonic() - started_at)
         if ha_serial == self._ha_master_serial:
             rv.set_server(self)
             if self._backend_adaptive_ha is not None:
                 self._backend_adaptive_ha.on_pgcon_made(
                     dbname == defines.EDGEDB_SYSTEM_DB
                 )
+            metrics.total_backend_connections.inc()
+            metrics.current_backend_connections.inc()
             return rv
         else:
             rv.terminate()
             raise ConnectionError("connected to outdated Postgres master")
 
     async def _pg_disconnect(self, conn):
+        metrics.current_backend_connections.dec()
         conn.terminate()
 
     async def init(self):

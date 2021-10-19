@@ -40,6 +40,7 @@ from edb.server.protocol cimport binary
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 from . import edgeql_ext
+from . import metrics
 from . import notebook_ext
 from . import system_api
 
@@ -160,6 +161,11 @@ cdef class HttpProtocol:
             self.current_request.content_type = value
         elif name == b'host':
             self.current_request.host = value
+        elif name == b'accept':
+            if self.current_request.accept:
+                self.current_request.accept += b',' + value
+            else:
+                self.current_request.accept = value
 
     def on_body(self, body: bytes):
         self.current_request.body = body
@@ -385,15 +391,27 @@ cdef class HttpProtocol:
                     )
                     return
 
-        elif path_parts and path_parts[0] == 'server':
-            # System API request
-            await system_api.handle_request(
-                request,
-                response,
-                path_parts[1:],
-                self.server,
-            )
-            return
+        elif path_parts:
+            if path_parts[0] == 'server':
+                # System API request
+                await system_api.handle_request(
+                    request,
+                    response,
+                    path_parts[1:],
+                    self.server,
+                )
+                return
+            if path_parts == ['metrics'] and request.method == b'GET':
+                # Quoting the Open Metrics spec:
+                #    Implementers MUST expose metrics in the OpenMetrics
+                #    text format in response to a simple HTTP GET request
+                #    to a documented URL for a given process or device.
+                #    This endpoint SHOULD be called "/metrics".
+                await metrics.handle_request(
+                    request,
+                    response,
+                )
+                return
 
         response.body = b'Unknown path'
         response.status = http.HTTPStatus.NOT_FOUND
