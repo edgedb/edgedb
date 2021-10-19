@@ -157,13 +157,13 @@ Bindings
 We've updated the binary protocol to version 0.12 which brings some
 performance and other improvements.
 
-* Support protocol 0.12 features features for `edgedb-python
+* Support protocol 0.12 features for `edgedb-python
   <https://github.com/edgedb/edgedb-python>`_ and release v0.18.0
   driver.
-* Support protocol 0.12 features features for `edgedb-js
+* Support protocol 0.12 features for `edgedb-js
   <https://github.com/edgedb/edgedb-js>`_ and release v0.15.2
   driver.
-* Support protocol 0.12 features features for `edgedb-go
+* Support protocol 0.12 features for `edgedb-go
   <https://github.com/edgedb/edgedb-go>`_ and release v0.8.2
   driver.
 
