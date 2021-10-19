@@ -45,7 +45,7 @@ jobs:
 
     # Prepare environment variables and shared artifacts
 
-    - name: Compute cache keys and download the running times log
+    - name: Compute cache keys
       env:
         GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
       run: |
@@ -55,20 +55,13 @@ jobs:
         python setup.py -q ci_helper --type ext >.tmp/ext_cache_key.txt
         python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
         python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
-        echo 'v0.16.0' >.tmp/stolon_git_rev.txt
+        echo 'v0.17.0' >.tmp/stolon_git_rev.txt
         python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
         echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
         echo BUILD_TEMP=$(python setup.py -q ci_helper --type build_temp) >> $GITHUB_ENV
-
-        curl \
-          -H "Accept: application/vnd.github.v3+json" \
-          -u edgedb-ci:$GIST_TOKEN \
-          https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c \
-        | jq '.files."time_stats.csv".raw_url' \
-        | xargs curl > .tmp/time_stats.csv
 
     - name: Upload shared artifacts
       uses: actions/upload-artifact@v2

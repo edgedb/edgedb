@@ -14,18 +14,11 @@ jobs:
 
     steps:
     <%- call build() -%>
-    - name: Compute cache keys and download the running times log
+    - name: Compute cache keys
       env:
         GIST_TOKEN: ${{ secrets.CI_BOT_GIST_TOKEN }}
       run: |
         << calc_cache_key()|indent >>
-
-        curl \
-          -H "Accept: application/vnd.github.v3+json" \
-          -u edgedb-ci:$GIST_TOKEN \
-          https://api.github.com/gists/8b722a65397f7c4c0df72f5394efa04c \
-        | jq '.files."time_stats.csv".raw_url' \
-        | xargs curl > .tmp/time_stats.csv
     <%- endcall %>
 
   ha-test:

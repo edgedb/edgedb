@@ -55,7 +55,7 @@ jobs:
         python setup.py -q ci_helper --type ext >.tmp/ext_cache_key.txt
         python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
         python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
-        echo 'v0.16.0' >.tmp/stolon_git_rev.txt
+        echo 'v0.17.0' >.tmp/stolon_git_rev.txt
         python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
