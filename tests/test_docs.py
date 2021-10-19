@@ -258,10 +258,14 @@ class TestDocSnippets(unittest.TestCase):
                 before = []
                 after = []
                 for line in block.code.split('\n'):
-                    first = line[0]
+
+                    if line == "":
+                        continue
+
+                    first = line.strip()[0]
                     if first == '-':
                         before.append(line[1:])
-                    if first == '+':
+                    elif first == '+':
                         after.append(line[1:])
                     else:
                         before.append(line[1:])
