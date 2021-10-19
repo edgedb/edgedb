@@ -118,6 +118,9 @@ cdef class EdgeConnection:
         bint _stop_requested
         bint _pgcon_released
 
+        bint idling
+        object last_used
+
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
     cdef interpret_backend_error(self, exc)

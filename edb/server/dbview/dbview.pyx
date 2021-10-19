@@ -534,10 +534,9 @@ cdef class DatabaseIndex:
     def __init__(self, server, *, std_schema, global_schema, sys_config):
         self._dbs = {}
         self._server = server
-        self._sys_config = sys_config
-        self._comp_sys_config = config.get_compilation_config(sys_config)
         self._std_schema = std_schema
         self._global_schema = global_schema
+        self.update_sys_config(sys_config)
 
     def count_connections(self, dbname: str):
         try:
@@ -638,7 +637,10 @@ cdef class DatabaseIndex:
         # _save_system_overrides *must* happen before
         # the callbacks below, because certain config changes
         # may cause the backend connection to drop.
-        self._sys_config = op.apply(config.get_settings(), self._sys_config)
+        self.update_sys_config(
+            op.apply(config.get_settings(), self._sys_config)
+        )
+
         await self._save_system_overrides(conn)
 
         if op.opcode is config.OpCode.CONFIG_ADD:

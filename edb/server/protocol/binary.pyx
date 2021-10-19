@@ -239,6 +239,7 @@ cdef class EdgeConnection:
                                         debug.flags.edgeql_compile)
 
         self.authed = False
+        self.idling = True
 
         self.protocol_version = CURRENT_PROTOCOL
         self.max_protocol = CURRENT_PROTOCOL
@@ -247,7 +248,11 @@ cdef class EdgeConnection:
         self._pinned_pgcon_in_tx = False
         self._get_pgcon_cc = 0
 
+        self.last_used = time.monotonic()
+
     def __del__(self):
+        # Should not ever happen, there's a strong ref to
+        # every client connection until it hits connection_lost().
         if self._pinned_pgcon is not None:
             # XXX/TODO: add test diagnostics for this and
             # fail all tests if this ever happens.
@@ -257,6 +262,9 @@ cdef class EdgeConnection:
         if self._dbview is None:
             raise RuntimeError('Cannot access dbview while it is None')
         return self._dbview
+
+    def get_id(self):
+        return self._id
 
     async def get_pgcon(self) -> pgcon.PGConnection:
         cdef dbview.DatabaseConnectionView _dbview
@@ -344,6 +352,16 @@ cdef class EdgeConnection:
                 self.dbname, self._pinned_pgcon, discard=True)
             self._pinned_pgcon = None
 
+    def is_idle(self, expiry_time: float):
+        # A connection is idle if:
+        # * It awaits for the next message for client for too long.
+        #   (even if it is in an open transaction!)
+        # * It awaits data from the client to perform auth for too long.
+        return (
+            (self.idling or not self.authed) and
+            self.last_used < expiry_time
+        )
+
     cdef abort(self):
         self.abort_pinned_pgcon()
         self.stop_connection()
@@ -353,6 +371,7 @@ cdef class EdgeConnection:
             self._transport = None
 
     def close(self):
+        self.abort_pinned_pgcon()
         self.stop_connection()
 
         if self._transport is not None:
@@ -1752,8 +1771,10 @@ cdef class EdgeConnection:
                 if self._stop_requested:
                     break
 
+                self.idling = True
                 if not self.buffer.take_message():
                     await self.wait_for_message()
+                self.idling = False
                 mtype = self.buffer.get_message_type()
 
                 flush_sync_on_error = False
@@ -2256,6 +2277,9 @@ cdef class EdgeConnection:
         if self._msg_take_waiter is not None and self.buffer.take_message():
             self._msg_take_waiter.set_result(True)
             self._msg_take_waiter = None
+        if self._con_status == EDGECON_STARTED and self.authed:
+            self.server.on_binary_client_data_received(self)
+            self.last_used = time.monotonic()
 
     def eof_received(self):
         pass
