@@ -22,6 +22,7 @@ from typing import *
 
 import asyncio
 import binascii
+import collections
 import json
 import logging
 import os
@@ -95,8 +96,19 @@ class Server(ha_base.ClusterProtocol):
     _servers: Mapping[str, asyncio.AbstractServer]
 
     _task_group: Optional[taskgroup.TaskGroup]
-    _binary_conns: Set[binary.EdgeConnection]
     _backend_adaptive_ha: Optional[adaptive_ha.AdaptiveHASupport]
+
+    # We maintain an OrderedDict of all active client connections.
+    # We use an OrderedDict because it allows to move keys to either
+    # end of the dict. That's used to keep all active client connections
+    # grouped at the right end of the dict. The idea is that we can then
+    # have a periodically run coroutine to GC all inactive connections.
+    # This should be more economical than maintaining a TimerHandle for
+    # every open connection. Also, this way, we can react to the
+    # `client_idle_timeout` config setting changed mid-flight.
+    _binary_conns: collections.OrderedDict[binary.EdgeConnection, bool]
+    _idle_gc_handler: asyncio.TimerHandle | None = None
+    _client_idle_timeout: int | None = None
 
     def __init__(
         self,
@@ -185,7 +197,7 @@ class Server(ha_base.ClusterProtocol):
         self._devmode = devmode.is_in_dev_mode()
 
         self._binary_proto_id_counter = 0
-        self._binary_conns = set()
+        self._binary_conns = collections.OrderedDict()
         self._accepting_connections = False
 
         self._servers = {}
@@ -208,6 +220,9 @@ class Server(ha_base.ClusterProtocol):
             self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(self)
         else:
             self._backend_adaptive_ha = None
+
+        self._idle_gc_handler = None
+        self._client_idle_timeout = None
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -247,13 +262,16 @@ class Server(ha_base.ClusterProtocol):
         return str(self._binary_proto_id_counter)
 
     def on_binary_client_authed(self, conn):
-        self._binary_conns.add(conn)
+        self._binary_conns[conn] = True
         self._report_connections(event='opened')
         metrics.total_client_connections.inc()
         metrics.current_client_connections.inc()
 
+    def on_binary_client_data_received(self, conn):
+        self._binary_conns.move_to_end(conn, last=True)
+
     def on_binary_client_disconnected(self, conn):
-        self._binary_conns.discard(conn)
+        self._binary_conns.pop(conn)
         self._report_connections(event="closed")
         metrics.current_client_connections.dec()
 
@@ -349,8 +367,52 @@ class Server(ha_base.ClusterProtocol):
                 self._request_stats_logger()
             )
 
+            self._reinit_idle_gc_collector()
+
         finally:
             self._initing = False
+
+    def _reinit_idle_gc_collector(self) -> int:
+        if self._auto_shutdown_after >= 0:
+            return -1
+
+        if self._idle_gc_handler is not None:
+            self._idle_gc_handler.cancel()
+            self._idle_gc_handler = None
+
+        assert self._dbindex is not None
+        client_idle_timeout = config.lookup(
+            'client_idle_timeout', self._dbindex.get_sys_config())
+
+        if client_idle_timeout > 0:
+            self._idle_gc_handler = self._loop.call_later(
+                client_idle_timeout, self._idle_gc_collector)
+
+        return client_idle_timeout
+
+    def _idle_gc_collector(self):
+        try:
+            self._idle_gc_handler = None
+            idle_timeout = self._reinit_idle_gc_collector()
+
+            if idle_timeout <= 0:
+                return
+
+            now = time.monotonic()
+            expiry_time = now - idle_timeout
+            for conn in self._binary_conns:
+                if conn.is_idle(expiry_time):
+                    conn.close()
+                    metrics.idle_client_connections.inc()
+                else:
+                    # We are sorting connections in
+                    # 'on_binary_client_data_received' to specifically enable
+                    # this optimization. As soon as we find first non-idle
+                    # connection we're guaranteed to have covered them all.
+                    break
+        except Exception:
+            metrics.background_errors.inc(1.0, 'idle_clients_collector')
+            raise
 
     async def _create_compiler_pool(self):
         self._compiler_pool = await compiler_pool.create_compiler_pool(
@@ -446,6 +508,11 @@ class Server(ha_base.ClusterProtocol):
             self._release_sys_pgcon()
 
         return config.from_json(config.get_settings(), sys_config_json)
+
+    async def reload_sys_config(self):
+        cfg = await self.load_sys_config()
+        self._dbindex.update_sys_config(cfg)
+        self._reinit_idle_gc_collector()
 
     async def introspect_global_schema(self, conn=None):
         if conn is not None:
@@ -781,8 +848,12 @@ class Server(ha_base.ClusterProtocol):
             await self._pg_pool.prune_inactive_connections(dbname)
 
     def _on_after_drop_db(self, dbname: str):
-        assert self._dbindex is not None
-        self._dbindex.unregister_db(dbname)
+        try:
+            assert self._dbindex is not None
+            self._dbindex.unregister_db(dbname)
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_after_drop_db')
+            raise
 
     async def _on_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
@@ -794,31 +865,53 @@ class Server(ha_base.ClusterProtocol):
 
     async def _on_system_config_set(self, setting_name, value):
         # CONFIGURE INSTANCE SET setting_name := value;
-        if setting_name == 'listen_addresses':
-            await self._restart_servers_new_addr(value, self._listen_port)
+        try:
+            if setting_name == 'listen_addresses':
+                await self._restart_servers_new_addr(value, self._listen_port)
 
-        elif setting_name == 'listen_port':
-            await self._restart_servers_new_addr(self._listen_hosts, value)
+            elif setting_name == 'listen_port':
+                await self._restart_servers_new_addr(self._listen_hosts, value)
+
+            elif setting_name == 'client_idle_timeout':
+                self._reinit_idle_gc_collector()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_system_config_set')
+            raise
 
     async def _on_system_config_reset(self, setting_name):
         # CONFIGURE INSTANCE RESET setting_name;
-        if setting_name == 'listen_addresses':
-            await self._restart_servers_new_addr(
-                ('localhost',), self._listen_port)
+        try:
+            if setting_name == 'listen_addresses':
+                await self._restart_servers_new_addr(
+                    ('localhost',), self._listen_port)
 
-        elif setting_name == 'listen_port':
-            await self._restart_servers_new_addr(
-                self._listen_hosts, defines.EDGEDB_PORT)
+            elif setting_name == 'listen_port':
+                await self._restart_servers_new_addr(
+                    self._listen_hosts, defines.EDGEDB_PORT)
+
+            elif setting_name == 'client_idle_timeout':
+                self._reinit_idle_gc_collector()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_system_config_reset')
+            raise
 
     async def _after_system_config_add(self, setting_name, value):
         # CONFIGURE INSTANCE INSERT ConfigObject;
-        if setting_name == 'auth':
-            self._populate_sys_auth()
+        try:
+            if setting_name == 'auth':
+                self._populate_sys_auth()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'after_system_config_add')
+            raise
 
     async def _after_system_config_rem(self, setting_name, value):
         # CONFIGURE INSTANCE RESET ConfigObject;
-        if setting_name == 'auth':
-            self._populate_sys_auth()
+        try:
+            if setting_name == 'auth':
+                self._populate_sys_auth()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'after_system_config_rem')
+            raise
 
     async def _after_system_config_set(self, setting_name, value):
         # CONFIGURE INSTANCE SET setting_name := value;
@@ -891,25 +984,34 @@ class Server(ha_base.ClusterProtocol):
             self.release_pgcon(dbname, pgcon, discard=True)
 
     async def _signal_sysevent(self, event, **kwargs):
-        if not self._initing and not self._serving:
-            # This is very likely if we are doing
-            # "run_startup_script_and_exit()", but is also possible if the
-            # server was shut down with this coroutine as a background task
-            # in flight.
-            return
-
-        pgcon = await self._acquire_sys_pgcon()
         try:
-            await pgcon.signal_sysevent(event, **kwargs)
-        finally:
-            self._release_sys_pgcon()
+            if not self._initing and not self._serving:
+                # This is very likely if we are doing
+                # "run_startup_script_and_exit()", but is also possible if the
+                # server was shut down with this coroutine as a background task
+                # in flight.
+                return
+
+            pgcon = await self._acquire_sys_pgcon()
+            try:
+                await pgcon.signal_sysevent(event, **kwargs)
+            finally:
+                self._release_sys_pgcon()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'signal_sysevent')
+            raise
 
     def _on_remote_ddl(self, dbname):
         # Triggered by a postgres notification event 'schema-changes'
         # on the __edgedb_sysevent__ channel
-        self._loop.create_task(
-            self.introspect_db(dbname, refresh=True)
-        )
+        async def task():
+            try:
+                await self.introspect_db(dbname, refresh=True)
+            except Exception:
+                metrics.background_errors.inc(1.0, 'on_remote_ddl')
+                raise
+
+        self._loop.create_task(task())
 
     def _on_remote_database_config_change(self, dbname):
         # Triggered by a postgres notification event 'database-config-changes'
@@ -919,56 +1021,94 @@ class Server(ha_base.ClusterProtocol):
     def _on_remote_system_config_change(self):
         # Triggered by a postgres notification event 'ystem-config-changes'
         # on the __edgedb_sysevent__ channel
-        pass
+
+        async def task():
+            try:
+                await self.reload_sys_config()
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, 'on_remote_system_config_change')
+                raise
+
+        self._loop.create_task(task())
 
     def _on_global_schema_change(self):
-        self._loop.create_task(self._reintrospect_global_schema())
+        async def task():
+            try:
+                await self._reintrospect_global_schema()
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, 'on_global_schema_change')
+                raise
+
+        self._loop.create_task(task())
 
     def _on_sys_pgcon_connection_lost(self, exc):
-        if not self._serving:
-            # The server is shutting down, release all events so that
-            # the waiters if any could continue and exit
-            self._sys_pgcon_ready_evt.set()
-            self._sys_pgcon_reconnect_evt.set()
-            return
+        try:
+            if not self._serving:
+                # The server is shutting down, release all events so that
+                # the waiters if any could continue and exit
+                self._sys_pgcon_ready_evt.set()
+                self._sys_pgcon_reconnect_evt.set()
+                return
 
-        logger.error(
-            "Connection to the system database is " +
-            ("closed." if exc is None else f"broken! Reason: {exc}")
-        )
-        self.set_pg_unavailable_msg(
-            "Connection is lost, please check server log for the reason."
-        )
-        self.__sys_pgcon = None
-        self._sys_pgcon_ready_evt.clear()
-        self._loop.create_task(self._reconnect_sys_pgcon())
-        self._on_pgcon_broken(True)
+            logger.error(
+                "Connection to the system database is " +
+                ("closed." if exc is None else f"broken! Reason: {exc}")
+            )
+            self.set_pg_unavailable_msg(
+                "Connection is lost, please check server log for the reason."
+            )
+            self.__sys_pgcon = None
+            self._sys_pgcon_ready_evt.clear()
+            self._loop.create_task(self._reconnect_sys_pgcon())
+            self._on_pgcon_broken(True)
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_sys_pgcon_connection_lost')
+            raise
 
     def _on_sys_pgcon_parameter_status_updated(self, name, value):
-        if name == 'in_hot_standby' and value == 'on':
-            # It is a strong evidence of failover if the sys_pgcon receives
-            # a notification that in_hot_standby is turned on.
-            self._on_sys_pgcon_failover_signal()
+        try:
+            if name == 'in_hot_standby' and value == 'on':
+                # It is a strong evidence of failover if the sys_pgcon receives
+                # a notification that in_hot_standby is turned on.
+                self._on_sys_pgcon_failover_signal()
+        except Exception:
+            metrics.background_errors.inc(
+                1.0, 'on_sys_pgcon_parameter_status_updated')
+            raise
 
     def _on_sys_pgcon_failover_signal(self):
-        if self._backend_adaptive_ha is not None:
-            # Switch to FAILOVER if adaptive HA is enabled
-            self._backend_adaptive_ha.set_state_failover()
-        elif getattr(self._cluster, '_ha_backend', None) is None:
-            # If the server is not using an HA backend, nor has enabled the
-            # adaptive HA monitoring, we still tries to "switch over" by
-            # disconnecting all pgcons if failover signal is received, allowing
-            # reconnection to happen sooner.
-            self.on_switch_over()
-        # Else, the HA backend should take care of calling on_switch_over()
+        try:
+            if self._backend_adaptive_ha is not None:
+                # Switch to FAILOVER if adaptive HA is enabled
+                self._backend_adaptive_ha.set_state_failover()
+            elif getattr(self._cluster, '_ha_backend', None) is None:
+                # If the server is not using an HA backend, nor has enabled the
+                # adaptive HA monitoring, we still tries to "switch over" by
+                # disconnecting all pgcons if failover signal is received,
+                # allowing reconnection to happen sooner.
+                self.on_switch_over()
+            # Else, the HA backend should take care of calling on_switch_over()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_sys_pgcon_failover_signal')
+            raise
 
     def _on_pgcon_broken(self, is_sys_pgcon=False):
-        if self._backend_adaptive_ha:
-            self._backend_adaptive_ha.on_pgcon_broken(is_sys_pgcon)
+        try:
+            if self._backend_adaptive_ha:
+                self._backend_adaptive_ha.on_pgcon_broken(is_sys_pgcon)
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_pgcon_broken')
+            raise
 
     def _on_pgcon_lost(self):
-        if self._backend_adaptive_ha:
-            self._backend_adaptive_ha.on_pgcon_lost()
+        try:
+            if self._backend_adaptive_ha:
+                self._backend_adaptive_ha.on_pgcon_lost()
+        except Exception:
+            metrics.background_errors.inc(1.0, 'on_pgcon_lost')
+            raise
 
     async def _reconnect_sys_pgcon(self):
         try:
@@ -1222,6 +1362,10 @@ class Server(ha_base.ClusterProtocol):
             self._serving = False
             self._accept_new_tasks = False
 
+            if self._idle_gc_handler is not None:
+                self._idle_gc_handler.cancel()
+                self._idle_gc_handler = None
+
             self._cluster.stop_watching()
             if self._http_request_logger is not None:
                 self._http_request_logger.cancel()
@@ -1231,7 +1375,7 @@ class Server(ha_base.ClusterProtocol):
 
             for conn in self._binary_conns:
                 conn.stop()
-            self._binary_conns = set()
+            self._binary_conns.clear()
 
             if self._task_group is not None:
                 tg = self._task_group

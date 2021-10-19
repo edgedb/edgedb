@@ -70,6 +70,11 @@ current_client_connections = registry.new_gauge(
     'Current number of active clients.'
 )
 
+idle_client_connections = registry.new_counter(
+    'client_connections_idle',
+    'Total number of forcefully closed idle client connections.'
+)
+
 edgeql_compile_queries = registry.new_labeled_counter(
     'edgeql_compile_queries',
     'Number of compiled/cached queries or scripts.',
@@ -80,4 +85,10 @@ edgeql_compile_duration = registry.new_histogram(
     'edgeql_compile_duration',
     'Time it takes to compile an EdgeQL query or script.',
     unit=prom.Unit.SECONDS,
+)
+
+background_errors = registry.new_labeled_counter(
+    'background_errors',
+    'Number of unhandled errors in background server routines.',
+    labels=('source',)
 )

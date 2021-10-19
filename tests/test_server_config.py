@@ -19,6 +19,7 @@
 
 import asyncio
 import dataclasses
+import http.client
 import json
 import platform
 import textwrap
@@ -1110,3 +1111,40 @@ class TestServerConfig(tb.QueryTestCase):
                     if con is not None:
                         closings.append(con.aclose())
                 await asyncio.gather(*closings)
+
+    async def test_server_config_idle_connection(self):
+        async with tb.start_edgedb_server(
+            allow_insecure_http_clients=True,
+        ) as sd:
+            con1 = await sd.connect()
+            con2 = await sd.connect()
+
+            await con1.execute(
+                'configure system set client_idle_timeout := 5;'
+            )
+
+            for _ in range(10):
+                await con2.query('SELECT 1')
+                await asyncio.sleep(3)
+
+            con = http.client.HTTPConnection(sd.host, sd.port)
+            con.connect()
+            try:
+                con.request(
+                    'GET',
+                    f'http://{sd.host}:{sd.port}/metrics'
+                )
+                resp = con.getresponse()
+                self.assertEqual(resp.status, 200)
+            finally:
+                con.close()
+
+            metrics = resp.read().decode()
+
+            await con1.aclose()
+            await con2.aclose()
+
+        self.assertIn(
+            '\nedgedb_server_client_connections_idle_total 1.0\n',
+            metrics
+        )

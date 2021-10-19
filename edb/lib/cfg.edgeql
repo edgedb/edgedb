@@ -54,6 +54,11 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
 
 
 CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
+    CREATE REQUIRED PROPERTY client_idle_timeout -> std::int16 {
+        CREATE ANNOTATION cfg::system := 'true';
+        SET default := 30;  # 30 seconds
+    };
+
     CREATE REQUIRED PROPERTY listen_port -> std::int16 {
         CREATE ANNOTATION cfg::system := 'true';
         SET default := 5656;

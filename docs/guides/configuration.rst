@@ -107,3 +107,17 @@ Query Planning
     Sets the planner's assumption about the effective size of the disk
     cache that is available to a single query. Corresponds to the
     PostgreSQL configuration parameter of the same name.
+
+
+Client Connections
+------------------
+
+:eql:synopsis:`client_idle_timeout (int16)`
+    Sets the timeout for how long client connections can stay
+    inactive before being forcefully closed by the server. The default
+    is 30 seconds. Set it to ``0`` to disable the mechanism.
+
+    Note that the actual time an idle connection can live can be up to
+    two times longer than the specified timeout.
+
+    This is a system-level config setting.
