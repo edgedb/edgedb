@@ -1026,7 +1026,15 @@ class Server(ha_base.ClusterProtocol):
     def _on_remote_database_config_change(self, dbname):
         # Triggered by a postgres notification event 'database-config-changes'
         # on the __edgedb_sysevent__ channel
-        pass
+        async def task():
+            try:
+                await self.introspect_db(dbname, refresh=True)
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, 'on_remote_database_config_change')
+                raise
+
+        self._loop.create_task(task())
 
     def _on_remote_system_config_change(self):
         # Triggered by a postgres notification event 'ystem-config-changes'
