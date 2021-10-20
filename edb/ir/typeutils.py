@@ -240,17 +240,6 @@ def type_to_typeref(
         else:
             name = tname
 
-        common_parent_ref: Optional[irast.TypeRef]
-        if union_of:
-            common_parent = s_utils.get_class_nearest_common_ancestor(
-                schema, union_of.objects(schema))
-            assert isinstance(common_parent, s_types.Type)
-            common_parent_ref = type_to_typeref(
-                schema, common_parent, cache=cache
-            )
-        else:
-            common_parent_ref = None
-
         descendants: Optional[FrozenSet[irast.TypeRef]]
 
         if material_typeref is None and include_descendants:
@@ -293,7 +282,6 @@ def type_to_typeref(
             union=union,
             union_is_concrete=union_is_concrete,
             intersection=intersection,
-            common_parent=common_parent_ref,
             element_name=_name,
             is_scalar=t.is_scalar(),
             is_abstract=t.get_abstract(schema),

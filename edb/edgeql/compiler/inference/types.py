@@ -111,10 +111,12 @@ def _infer_common_type(
             if common_type is None:
                 break
     else:
-        common_type = s_utils.get_class_nearest_common_ancestor(
+        common_types = s_utils.get_class_nearest_common_ancestors(
             env.schema,
             cast(Sequence[s_types.InheritingType], types),
         )
+        # We arbitrarily select the first nearest common ancestor
+        common_type = common_types[0] if common_types else None
 
     if common_type is None:
         return None

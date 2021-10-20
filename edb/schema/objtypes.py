@@ -197,9 +197,13 @@ class ObjectType(
         if not isinstance(other, ObjectType):
             return schema, None
 
-        nearest_common_ancestor = utils.get_class_nearest_common_ancestor(
+        nearest_common_ancestors = utils.get_class_nearest_common_ancestors(
             schema, [self, other]
         )
+        # We arbitrarily select the first nearest common ancestor
+        nearest_common_ancestor = (
+            nearest_common_ancestors[0] if nearest_common_ancestors else None)
+
         if nearest_common_ancestor is not None:
             assert isinstance(nearest_common_ancestor, ObjectType)
         return (

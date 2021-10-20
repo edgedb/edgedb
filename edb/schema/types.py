@@ -475,16 +475,17 @@ class InheritingType(so.DerivableInheritingObject, QualifiedType):
         if self == other:
             return 0
 
-        ancestor = utils.get_class_nearest_common_ancestor(
+        ancestors = utils.get_class_nearest_common_ancestors(
             schema, [self, other])
 
-        if ancestor is None:
+        if not ancestors:
             return -1
-        elif ancestor == self:
+        elif self in ancestors:
             return 0
         else:
-            ancestors = list(self.get_ancestors(schema).objects(schema))
-            return ancestors.index(ancestor) + 1
+            all_ancestors = list(self.get_ancestors(schema).objects(schema))
+            return min(
+                all_ancestors.index(ancestor) + 1 for ancestor in ancestors)
 
 
 class TypeShell(so.ObjectShell[TypeT_co]):
