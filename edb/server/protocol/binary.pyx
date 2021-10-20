@@ -887,7 +887,7 @@ cdef class EdgeConnection:
                     query_req.inline_objectids,
                 )
         finally:
-            metrics.edgeql_compile_duration.observe(
+            metrics.edgeql_query_compilation_duration.observe(
                 time.monotonic() - started_at)
         return units
 
@@ -940,7 +940,7 @@ cdef class EdgeConnection:
                     self.protocol_version,
                 )
         finally:
-            metrics.edgeql_compile_duration.observe(
+            metrics.edgeql_query_compilation_duration.observe(
                 time.monotonic() - started_at)
         return units
 
@@ -1062,7 +1062,7 @@ cdef class EdgeConnection:
             dbview.DatabaseConnectionView _dbview
 
         units = await self._compile_script(eql, stmt_mode=stmt_mode)
-        metrics.edgeql_compile_queries.inc(1.0, 'compiler')
+        metrics.edgeql_query_compilations.inc(1.0, 'compiler')
 
         if self._cancelled:
             raise ConnectionAbortedError
@@ -1238,7 +1238,7 @@ cdef class EdgeConnection:
         if not cached and query_unit.cacheable:
             _dbview.cache_compiled_query(query_req, query_unit)
 
-        metrics.edgeql_compile_queries.inc(
+        metrics.edgeql_query_compilations.inc(
             1.0,
             'cache' if cached else 'compiler'
         )
@@ -1726,7 +1726,7 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('OPTIMISTIC EXECUTE', query)
 
-        metrics.edgeql_compile_queries.inc(1.0, 'cache')
+        metrics.edgeql_query_compilations.inc(1.0, 'cache')
         await self._execute(
             compiled, bind_args, bool(query_unit.sql_hash))
 

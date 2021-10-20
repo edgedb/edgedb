@@ -22,8 +22,8 @@ from edb.common import prometheus as prom
 
 registry = prom.Registry(prefix='edgedb_server')
 
-total_compiler_processes = registry.new_counter(
-    'compiler_processes_total',
+compiler_process_spawns = registry.new_counter(
+    'compiler_process_spawns_total',
     'Total number of compiler processes spawned.'
 )
 
@@ -42,14 +42,14 @@ current_backend_connections = registry.new_gauge(
     'Current number of active backend connections.'
 )
 
-backend_connect_errors = registry.new_counter(
-    'backend_connect_errors_total',
+backend_connection_establishment_errors = registry.new_counter(
+    'backend_connection_establishment_errors_total',
     'Number of times the server could not establish a backend connection.',
     unit=prom.Unit.SECONDS,
 )
 
-backend_connect_time = registry.new_histogram(
-    'backend_connect_time',
+backend_connection_establishment_latency = registry.new_histogram(
+    'backend_connection_establishment_latency',
     'Time it takes to establish a backend connection.',
     unit=prom.Unit.SECONDS,
 )
@@ -75,14 +75,14 @@ idle_client_connections = registry.new_counter(
     'Total number of forcefully closed idle client connections.'
 )
 
-edgeql_compile_queries = registry.new_labeled_counter(
-    'edgeql_compile_queries_total',
+edgeql_query_compilations = registry.new_labeled_counter(
+    'edgeql_query_compilations_total',
     'Number of compiled/cached queries or scripts.',
     labels=('path',)
 )
 
-edgeql_compile_duration = registry.new_histogram(
-    'edgeql_compile_duration',
+edgeql_query_compilation_duration = registry.new_histogram(
+    'edgeql_query_compilation_duration',
     'Time it takes to compile an EdgeQL query or script.',
     unit=prom.Unit.SECONDS,
 )

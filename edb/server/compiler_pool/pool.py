@@ -257,7 +257,7 @@ class Pool(amsg.ServerProtocol):
         self._loop.create_task(
             self._attach_worker(pid, args, pickled_args)
         )
-        metrics.total_compiler_processes.inc()
+        metrics.compiler_process_spawns.inc()
         metrics.current_compiler_processes.inc()
 
     def worker_disconnected(self, pid):
