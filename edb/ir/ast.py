@@ -141,9 +141,6 @@ class TypeRef(ImmutableBase):
     # If this is an intersection type, this would be a set of
     # intersection elements.
     intersection: typing.Optional[typing.FrozenSet[TypeRef]] = None
-    # If this is a union type, this would be the nearest common
-    # ancestor of the union members.
-    common_parent: typing.Optional[TypeRef] = None
     # If this node is an element of a collection, and the
     # collection elements are named, this would be then
     # name of the element.

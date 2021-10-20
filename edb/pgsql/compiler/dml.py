@@ -126,6 +126,8 @@ def init_dml_stmt(
     dml_map = {}
 
     for typeref in typerefs:
+        if typeref.union:
+            continue
         dml_cte, dml_rvar = gen_dml_cte(
             ir_stmt,
             range_rvar=range_rvar,
@@ -241,7 +243,6 @@ def gen_dml_cte(
         typeref,
         target_path_id,
         for_mutation=True,
-        common_parent=True,
         ctx=ctx,
     )
     pathctx.put_path_value_rvar(

@@ -1302,21 +1302,10 @@ def range_for_typeref(
     for_mutation: bool=False,
     include_descendants: bool=True,
     dml_source: Optional[irast.MutatingStmt]=None,
-    common_parent: bool=False,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
-    if typeref.common_parent is not None and common_parent:
-        rvar = range_for_material_objtype(
-            typeref.common_parent,
-            path_id,
-            include_descendants=include_descendants,
-            for_mutation=for_mutation,
-            dml_source=dml_source,
-            ctx=ctx,
-        )
-
-    elif typeref.union:
+    if typeref.union:
         # Union object types are represented as a UNION of selects
         # from their children, which is, for most purposes, equivalent
         # to SELECTing from a parent table.
