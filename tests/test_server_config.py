@@ -21,6 +21,7 @@ import asyncio
 import dataclasses
 import json
 import platform
+import random
 import textwrap
 import typing
 import unittest
@@ -1115,23 +1116,33 @@ class TestServerConfig(tb.QueryTestCase):
         async with tb.start_edgedb_server(
             allow_insecure_http_clients=True,
         ) as sd:
-            con1 = await sd.connect()
-            con2 = await sd.connect()
+            active_cons = []
+            idle_cons = []
+            for i in range(20):
+                if i % 2:
+                    active_cons.append(await sd.connect())
+                else:
+                    idle_cons.append(await sd.connect())
 
-            await con1.execute(
+            await idle_cons[0].execute(
                 'configure system set client_idle_timeout := 5;'
             )
 
-            for _ in range(10):
-                await con2.query('SELECT 1')
+            for _ in range(5):
+                random.shuffle(active_cons)
+                await asyncio.gather(
+                    *(con.query('SELECT 1') for con in active_cons)
+                )
                 await asyncio.sleep(3)
 
             metrics = sd.get_metrics()
 
-            await con1.aclose()
-            await con2.aclose()
+            await asyncio.gather(
+                *(con.aclose() for con in active_cons)
+            )
 
         self.assertIn(
-            '\nedgedb_server_client_connections_idle_total 1.0\n',
+            f'\nedgedb_server_client_connections_idle_total ' +
+            f'{float(len(idle_cons))}\n',
             metrics
         )

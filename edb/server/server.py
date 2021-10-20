@@ -252,7 +252,7 @@ class Server(ha_base.ClusterProtocol):
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
 
-    def on_binary_client_connected(self) -> str:
+    def on_binary_client_created(self) -> str:
         self._binary_proto_id_counter += 1
 
         if self._auto_shutdown_handler:
@@ -261,17 +261,25 @@ class Server(ha_base.ClusterProtocol):
 
         return str(self._binary_proto_id_counter)
 
-    def on_binary_client_authed(self, conn):
+    def on_binary_client_connected(self, conn):
         self._binary_conns[conn] = True
+
+    def on_binary_client_authed(self, conn):
         self._report_connections(event='opened')
         metrics.total_client_connections.inc()
         metrics.current_client_connections.inc()
 
-    def on_binary_client_data_received(self, conn):
-        self._binary_conns.move_to_end(conn, last=True)
+    def on_binary_client_after_idling(self, conn):
+        try:
+            self._binary_conns.move_to_end(conn, last=True)
+        except KeyError:
+            # Shouldn't happen, but just in case some weird async twist
+            # gets us here we don't want to crash the connection with
+            # this error.
+            metrics.background_errors.inc(1.0, 'client_after_idling')
 
     def on_binary_client_disconnected(self, conn):
-        self._binary_conns.pop(conn)
+        self._binary_conns.pop(conn, None)
         self._report_connections(event="closed")
         metrics.current_client_connections.dec()
 
@@ -404,11 +412,12 @@ class Server(ha_base.ClusterProtocol):
                 if conn.is_idle(expiry_time):
                     conn.close()
                     metrics.idle_client_connections.inc()
-                else:
+                elif conn.is_alive():
                     # We are sorting connections in
-                    # 'on_binary_client_data_received' to specifically enable
+                    # 'on_binary_client_after_idling' to specifically enable
                     # this optimization. As soon as we find first non-idle
-                    # connection we're guaranteed to have covered them all.
+                    # active connection we're guaranteed to have traversed
+                    # all of the potentially idling connections.
                     break
         except Exception:
             metrics.background_errors.inc(1.0, 'idle_clients_collector')
