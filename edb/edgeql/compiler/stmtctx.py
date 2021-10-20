@@ -42,6 +42,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser
 
 from edb.common.ast import visitor as ast_visitor
+from edb.common import ordered
 
 from . import astutils
 from . import context
@@ -259,7 +260,7 @@ def _fixup_materialized_sets(
     for nobe in ctx.source_map.values():
         if nobe.irexpr:
             children += ast_visitor.find_children(nobe.irexpr, flt)
-    for stmt in set(children):
+    for stmt in ordered.OrderedSet(children):
         if not stmt.materialized_sets:
             continue
         for key in list(stmt.materialized_sets):
