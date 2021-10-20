@@ -24,8 +24,8 @@ Key differences from the official "prometheus_client" package:
 1. Not thread-safe. We're an async application and don't use threads
    so there's no need for thread-safety.
 
-2. The code is as simple as possible; no complicated inheritance
-   patterns or unnecessary layers of abstraction.
+2. The code is as simple as possible; no complicated polymorphism
+   that can slow down metrics collection in runtime.
 
 3. It's more than 4x faster, likely because of (1) and (2).
 
@@ -107,17 +107,13 @@ class Registry:
         self._metrics_names = set()
         self._prefix = prefix
 
-    def _validate_metric_name(self, name: str) -> str:
-        if self._prefix is not None:
-            name = f'{self._prefix}_{name}'
+    def _add_metric(self, metric: BaseMetric) -> None:
+        name = metric.get_name()
         if name in self._metrics_names:
             raise ValueError(
-                f'metric with a name {name!r} has already been registered')
-        return name
-
-    def _add_metric(self, metric: BaseMetric) -> None:
+                f'a metric with a name {name!r} has already been registered')
         self._metrics.append(metric)
-        self._metrics_names.add(metric._name)
+        self._metrics_names.add(name)
 
     def now(self) -> float:
         return time.time()
@@ -129,7 +125,6 @@ class Registry:
         /,
         **kwargs: str
     ) -> None:
-        name = self._validate_metric_name(name)
         self._add_metric(Info(self, name, desc, **kwargs))
 
     def new_counter(
@@ -140,7 +135,6 @@ class Registry:
         *,
         unit: Unit | None = None,
     ) -> Counter:
-        name = self._validate_metric_name(name)
         counter = Counter(self, name, desc, unit)
         self._add_metric(counter)
         return counter
@@ -154,7 +148,6 @@ class Registry:
         labels: tuple[str],
         unit: Unit | None = None,
     ) -> LabeledCounter:
-        name = self._validate_metric_name(name)
         counter = LabeledCounter(self, name, desc, unit, labels=labels)
         self._add_metric(counter)
         return counter
@@ -167,7 +160,6 @@ class Registry:
         *,
         unit: Unit | None = None,
     ) -> Gauge:
-        name = self._validate_metric_name(name)
         gauge = Gauge(self, name, desc, unit)
         self._add_metric(gauge)
         return gauge
@@ -181,7 +173,6 @@ class Registry:
         unit: Unit | None = None,
         labels: tuple[str],
     ) -> LabeledGauge:
-        name = self._validate_metric_name(name)
         gauge = LabeledGauge(self, name, desc, unit, labels=labels)
         self._add_metric(gauge)
         return gauge
@@ -195,7 +186,6 @@ class Registry:
         unit: Unit | None = None,
         buckets: list[float] | None = None,
     ) -> Histogram:
-        name = self._validate_metric_name(name)
         hist = Histogram(self, name, desc, unit, buckets=buckets)
         self._add_metric(hist)
         return hist
@@ -240,14 +230,23 @@ class BaseMetric:
         unit: Unit | None = None,
         /,
     ) -> None:
+        self._registry = registry
+        name = self._augment_metric_name(name)
         self._validate_name(name)
         if unit is not None:
             name += '_' + unit.value
         self._name = name
         self._desc = desc
         self._unit = unit
-        self._registry = registry
         self._created = registry.now()
+
+    def _augment_metric_name(self, name: str) -> str:
+        if self._registry._prefix is not None:
+            name = f'{self._registry._prefix}_{name}'
+        return name
+
+    def get_name(self) -> str:
+        return self._name
 
     def _validate_name(self, name: str) -> None:
         if (name.startswith(self.PROHIBITED_PREFIXES) or
@@ -306,7 +305,7 @@ class Info(BaseMetric):
         buffer.append(f'{self._name}_info{{{fmt_label}}} 1.0')
 
 
-class Counter(BaseMetric):
+class BaseCounter(BaseMetric):
 
     _type = 'counter'
 
@@ -338,7 +337,7 @@ class Counter(BaseMetric):
             buffer.append(f'{self._name}_created {float(self._created)}')
 
 
-class LabeledCounter(BaseMetric):
+class BaseLabeledCounter(BaseMetric):
 
     _type = 'counter'
 
@@ -396,7 +395,25 @@ class LabeledCounter(BaseMetric):
                 )
 
 
-class Gauge(Counter):
+class _TotalMixin(BaseMetric):
+
+    def _augment_metric_name(self, name: str) -> str:
+        name = super()._augment_metric_name(name)
+        if not name.endswith('_total'):
+            raise TypeError('counter metric name require the "_total" suffix')
+        name = name[:-len('_total')]
+        return name
+
+
+class Counter(_TotalMixin, BaseCounter):
+    pass
+
+
+class LabeledCounter(_TotalMixin, BaseLabeledCounter):
+    pass
+
+
+class Gauge(BaseCounter):
 
     _type = 'gauge'
 
@@ -413,7 +430,7 @@ class Gauge(Counter):
         self._value = value
 
 
-class LabeledGauge(LabeledCounter):
+class LabeledGauge(BaseLabeledCounter):
 
     _type = 'gauge'
 

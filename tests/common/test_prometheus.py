@@ -119,11 +119,11 @@ class TestPrometheusClient(unittest.TestCase):
             r = EP.Registry()
 
             test_counter = r.new_counter(
-                'test_counter', 'A test counter"'
+                'test_counter_total', 'A test counter"'
             )
 
             test_labeled_counter = r.new_labeled_counter(
-                'test_labeled_counter', 'A test labeled counter',
+                'test_labeled_counter_total', 'A test labeled counter',
                 labels=('t1', 't2')
             )
 
@@ -292,7 +292,7 @@ class TestPrometheusClient(unittest.TestCase):
         r = EP.Registry(prefix='edgedb')
 
         test = r.new_counter(
-            'test', 'A  test info'
+            'test_total', 'A  test info'
         )
         test.inc()
         r1 = r.generate()
@@ -303,7 +303,7 @@ class TestPrometheusClient(unittest.TestCase):
         with self.assertRaisesRegex(
                 ValueError, "metric with a name 'edgedb_test'"):
             r.new_counter(
-                'test', 'A  test info'
+                'test_total', 'A  test info'
             )
 
     def test_prometheus_07(self):
@@ -334,7 +334,7 @@ class TestPrometheusClient(unittest.TestCase):
             r = EP.Registry()
 
             test_labeled_counter = r.new_labeled_counter(
-                'test_labeled_counter', 'A test labeled counter',
+                'test_labeled_counter_total', 'A test labeled counter',
                 labels=('t1', 't2')
             )
 
