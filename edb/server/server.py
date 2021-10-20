@@ -307,10 +307,11 @@ class Server(ha_base.ClusterProtocol):
             rv = await pgcon.connect(
                 self._get_pgaddr(), pg_dbname, self._tenant_id)
         except Exception:
-            metrics.backend_connect_errors.inc()
+            metrics.backend_connection_establishment_errors.inc()
             raise
         finally:
-            metrics.backend_connect_time.observe(time.monotonic() - started_at)
+            metrics.backend_connection_establishment_latency.observe(
+                time.monotonic() - started_at)
         if ha_serial == self._ha_master_serial:
             rv.set_server(self)
             if self._backend_adaptive_ha is not None:
