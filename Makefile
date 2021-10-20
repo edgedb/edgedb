@@ -29,7 +29,7 @@ casts:
 
 
 build:
-	pip install -Ue .[docs,test]
+	pip install --no-use-pep517 -Ue .[docs,test]
 
 
 clean:
