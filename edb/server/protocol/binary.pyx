@@ -211,7 +211,7 @@ cdef class EdgeConnection:
 
     def __init__(self, server, external_auth: bool = False):
         self._con_status = EDGECON_NEW
-        self._id = server.on_binary_client_connected()
+        self._id = server.on_binary_client_created()
         self.server = server
         self._external_auth = external_auth
 
@@ -239,7 +239,8 @@ cdef class EdgeConnection:
                                         debug.flags.edgeql_compile)
 
         self.authed = False
-        self.idling = True
+        self.idling = False
+        self.started_idling_at = 0.0
 
         self.protocol_version = CURRENT_PROTOCOL
         self.max_protocol = CURRENT_PROTOCOL
@@ -247,8 +248,6 @@ cdef class EdgeConnection:
         self._pinned_pgcon = None
         self._pinned_pgcon_in_tx = False
         self._get_pgcon_cc = 0
-
-        self.last_used = time.monotonic()
 
     def __del__(self):
         # Should not ever happen, there's a strong ref to
@@ -353,13 +352,15 @@ cdef class EdgeConnection:
             self._pinned_pgcon = None
 
     def is_idle(self, expiry_time: float):
-        # A connection is idle if:
-        # * It awaits for the next message for client for too long.
-        #   (even if it is in an open transaction!)
-        # * It awaits data from the client to perform auth for too long.
+        # A connection is idle if it awaits for the next message for
+        # client for too long (even if it is in an open transaction!)
+        return self.idling and self.started_idling_at < expiry_time
+
+    def is_alive(self):
         return (
-            (self.idling or not self.authed) and
-            self.last_used < expiry_time
+            self._con_status == EDGECON_STARTED and
+            self._transport is not None and
+            not self._cancelled
         )
 
     cdef abort(self):
@@ -398,15 +399,25 @@ cdef class EdgeConnection:
             self._write_buf = None
             self._transport.write(memoryview(buf))
 
-    async def wait_for_message(self):
+    async def wait_for_message(self, *, bint report_idling):
         if self.buffer.take_message():
             return
         if self._transport is None:
             # could be if the connection is lost and a coroutine
             # method is finalizing.
             raise ConnectionAbortedError
+
         self._msg_take_waiter = self.loop.create_future()
-        await self._msg_take_waiter
+        if report_idling:
+            self.idling = True
+            self.started_idling_at = time.monotonic()
+
+        try:
+            await self._msg_take_waiter
+        finally:
+            self.idling = False
+
+        self.server.on_binary_client_after_idling(self)
 
     async def auth(self):
         cdef:
@@ -414,7 +425,7 @@ cdef class EdgeConnection:
             WriteBuffer msg_buf
             WriteBuffer buf
 
-        await self.wait_for_message()
+        await self.wait_for_message(report_idling=True)
         mtype = self.buffer.get_message_type()
         if mtype != b'V':
             raise errors.BinaryProtocolError(
@@ -629,7 +640,7 @@ cdef class EdgeConnection:
 
         while not done:
             if not self.buffer.take_message():
-                await self.wait_for_message()
+                await self.wait_for_message(report_idling=True)
             mtype = self.buffer.get_message_type()
 
             if selected_mech is None:
@@ -1771,10 +1782,9 @@ cdef class EdgeConnection:
                 if self._stop_requested:
                     break
 
-                self.idling = True
                 if not self.buffer.take_message():
-                    await self.wait_for_message()
-                self.idling = False
+                    await self.wait_for_message(report_idling=True)
+
                 mtype = self.buffer.get_message_type()
 
                 flush_sync_on_error = False
@@ -1905,7 +1915,7 @@ cdef class EdgeConnection:
         while True:
 
             if not self.buffer.take_message():
-                await self.wait_for_message()
+                await self.wait_for_message(report_idling=True)
             mtype = self.buffer.get_message_type()
 
             if mtype == b'S':
@@ -2183,10 +2193,10 @@ cdef class EdgeConnection:
                 'invalid connection status while establishing the connection')
         self._transport = transport
         self._main_task = self.server.create_task(self.main())
+        self.server.on_binary_client_connected(self)
 
     def connection_lost(self, exc):
-        if self.authed:
-            self.server.on_binary_client_disconnected(self)
+        self.server.on_binary_client_disconnected(self)
 
         # Let's talk about cancellation.
         #
@@ -2277,9 +2287,6 @@ cdef class EdgeConnection:
         if self._msg_take_waiter is not None and self.buffer.take_message():
             self._msg_take_waiter.set_result(True)
             self._msg_take_waiter = None
-        if self._con_status == EDGECON_STARTED and self.authed:
-            self.server.on_binary_client_data_received(self)
-            self.last_used = time.monotonic()
 
     def eof_received(self):
         pass
@@ -2623,7 +2630,10 @@ cdef class EdgeConnection:
 
             while True:
                 if not self.buffer.take_message():
-                    await self.wait_for_message()
+                    # Don't report idling when restoring a dump.
+                    # This is an edge case and the client might be
+                    # legitimately slow.
+                    await self.wait_for_message(report_idling=False)
                 mtype = self.buffer.get_message_type()
 
                 if mtype == b'=':

@@ -119,7 +119,7 @@ cdef class EdgeConnection:
         bint _pgcon_released
 
         bint idling
-        object last_used
+        object started_idling_at
 
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
