@@ -804,12 +804,17 @@ def unpack_rvar(
         stmt: pgast.SelectStmt, path_id: irast.PathId, *,
         packed_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-
-    qry = pgast.SelectStmt()
-
-    ref: pgast.BaseExpr
     ref = pathctx.get_rvar_path_var(
         packed_rvar, path_id, aspect='value', flavor='packed', env=ctx.env)
+    return unpack_var(stmt, path_id, ref=ref, ctx=ctx)
+
+
+def unpack_var(
+        stmt: pgast.SelectStmt, path_id: irast.PathId, *,
+        ref: pgast.OutputVar,
+        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+
+    qry = pgast.SelectStmt()
 
     view_tvars: List[Tuple[irast.PathId, pgast.TupleVarBase, bool]] = []
     els = []
@@ -1038,9 +1043,6 @@ def unpack_rvar(
     # serialized shape.
     # We also need to rewrite tuples that contain such shapes!
     # What a pain!
-    # Note, though, that the cases here are:
-    # 1) Any shapes are "implicit" ones, just containing id, __tname, etc
-    # 2) We are still materializing
     #
     # We *also* need to rewrite tuple values, so that we don't consider
     # serialized materialized objects as part of the value of the tuple
@@ -1049,10 +1051,25 @@ def unpack_rvar(
             continue
 
         rewrite_aspects = []
-        if ctx.expr_exposed:
+        if ctx.expr_exposed and not is_tuple:
             rewrite_aspects.append('serialized')
         if is_tuple:
             rewrite_aspects.append('value')
+
+        # Reserialize links if we are producing final output
+        if (
+            ctx.expr_exposed and not ctx.materializing and not is_tuple
+        ):
+            for tel in view_tvar.elements:
+                el = [x for x in els if x.path_id == tel.path_id][0]
+                if not el.packed:
+                    continue
+                reqry = reserialize_object(el, tel, ctx=ctx)
+                pathctx.put_path_var(
+                    qry, tel.path_id, reqry, aspect='serialized',
+                    env=ctx.env, force=True
+                )
+
         for aspect in rewrite_aspects:
             tv = pathctx.fix_tuple(qry, view_tvar, aspect=aspect, env=ctx.env)
             sval = (
@@ -1068,6 +1085,26 @@ def unpack_rvar(
             )
 
     return rvar
+
+
+def reserialize_object(
+        el: UnpackElement, tel: pgast.TupleElementBase,
+        *,
+        ctx: context.CompilerContextLevel) -> pgast.Query:
+    tref = pgast.ColumnRef(name=[el.colname], is_packed_multi=el.multi)
+
+    with ctx.subrel() as subctx:
+        sub_rvar = unpack_var(subctx.rel, tel.path_id, ref=tref, ctx=ctx)
+    reqry = sub_rvar.query
+    assert isinstance(reqry, pgast.Query)
+    rptr = tel.path_id.rptr()
+    pathctx.get_path_serialized_output(reqry, tel.path_id, env=ctx.env)
+    assert rptr
+    if rptr.out_cardinality.is_multi():
+        with ctx.subrel() as subctx:
+            reqry = set_to_array(
+                path_id=tel.path_id, query=reqry, ctx=subctx)
+    return reqry
 
 
 def get_scope_stmt(
