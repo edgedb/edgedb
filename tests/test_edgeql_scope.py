@@ -2953,8 +2953,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
         )
 
     async def test_edgeql_scope_3x_nested_materialized_01(self):
-        # Having that doubly nested thing needing materialization
-        # blows us up.
+        # Having a doubly nested thing needing materialization
+        # caused trouble previously.
         await self.assert_query_result(
             """
                 SELECT User {
@@ -2978,8 +2978,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
         )
 
     async def test_edgeql_scope_3x_nested_materialized_02(self):
-        # Having that doubly nested thing needing materialization
-        # blows us up.
+        # Having a doubly nested thing needing materialization
+        # caused trouble previously.
         await self.assert_query_result(
             """
                 SELECT User {
