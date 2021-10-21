@@ -98,6 +98,8 @@ class Server(ha_base.ClusterProtocol):
     _task_group: Optional[taskgroup.TaskGroup]
     _backend_adaptive_ha: Optional[adaptive_ha.AdaptiveHASupport]
 
+    _testmode: bool
+
     # We maintain an OrderedDict of all active client connections.
     # We use an OrderedDict because it allows to move keys to either
     # end of the dict. That's used to keep all active client connections
@@ -120,6 +122,7 @@ class Server(ha_base.ClusterProtocol):
         compiler_pool_size,
         nethosts,
         netport,
+        testmode: bool = False,
         allow_insecure_binary_clients: bool = False,
         allow_insecure_http_clients: bool = False,
         auto_shutdown_after: float = -1,
@@ -195,6 +198,7 @@ class Server(ha_base.ClusterProtocol):
         self._sys_queries = immutables.Map()
 
         self._devmode = devmode.is_in_dev_mode()
+        self._testmode = testmode
 
         self._binary_proto_id_counter = 0
         self._binary_conns = collections.OrderedDict()
@@ -248,6 +252,9 @@ class Server(ha_base.ClusterProtocol):
 
     def in_dev_mode(self):
         return self._devmode
+
+    def in_test_mode(self):
+        return self._testmode
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
@@ -1469,6 +1476,59 @@ class Server(ha_base.ClusterProtocol):
         return (
             self._pg_pool.current_capacity - self._pg_pool.get_pending_conns()
         )
+
+    def get_debug_info(self):
+        """Used to render the /server-info endpoint in dev/test modes.
+
+        Some tests depend on the exact layout of the returned structure.
+        """
+
+        def serialize_config(cfg):
+            return {name: value.value for name, value in cfg.items()}
+
+        obj = dict(
+            params=dict(
+                max_backend_connections=self._max_backend_connections,
+                suggested_client_pool_size=self._suggested_client_pool_size,
+                tenant_id=self._tenant_id,
+                devmode=self._devmode,
+                testmode=self._testmode,
+                default_auth_method=self._default_auth_method,
+                listen_hosts=self._listen_hosts,
+                listen_port=self._listen_port,
+            ),
+            instance_config=serialize_config(self._dbindex.get_sys_config()),
+            user_roles=self._roles,
+            pg_addr=self._pg_addr,
+            pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
+            compiler_pool=dict(
+                worker_pids=list(self._compiler_pool._workers.keys()),
+                template_pid=self._compiler_pool._template_proc.pid,
+            ),
+        )
+
+        dbs = {}
+        for db in self._dbindex.iter_dbs():
+            dbs[db.name] = dict(
+                name=db.name,
+                dbver=db.dbver,
+                config=serialize_config(db.db_config),
+                extensions=list(db.extensions.keys()),
+                query_cache_size=db.get_query_cache_size(),
+                connections=[
+                    dict(
+                        in_tx=view.in_tx(),
+                        in_tx_error=view.in_tx_error(),
+                        config=serialize_config(view.get_session_config()),
+                        modaliases=view.get_modaliases(),
+                    )
+                    for view in db.iter_views()
+                ],
+            )
+
+        obj['databases'] = dbs
+
+        return obj
 
 
 async def _resolve_localhost() -> List[str]:

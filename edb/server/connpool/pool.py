@@ -419,12 +419,7 @@ class BasePool(typing.Generic[C]):
             self._loop = asyncio.get_running_loop()
         return self._loop
 
-    def _capture_snapshot(self, *, now: float) -> None:
-        if self._stats_cb is None:
-            return None
-
-        assert self._current_snapshot is None
-
+    def _build_snapshot(self, *, now: float) -> Snapshot:
         bstats: typing.List[BlockSnapshot] = []
         for block in self._blocks.values():
             bstats.append(
@@ -440,7 +435,7 @@ class BasePool(typing.Generic[C]):
 
         bstats.sort(key=lambda b: b.dbname)
 
-        self._current_snapshot = Snapshot(
+        return Snapshot(
             timestamp=now,
             blocks=bstats,
             capacity=self._cur_capacity,
@@ -451,6 +446,13 @@ class BasePool(typing.Generic[C]):
             successful_connects=self._successful_connects,
             successful_disconnects=self._successful_disconnects,
         )
+
+    def _capture_snapshot(self, *, now: float) -> None:
+        if self._stats_cb is None:
+            return None
+
+        assert self._current_snapshot is None
+        self._current_snapshot = self._build_snapshot(now=now)
 
     def _report_snapshot(self) -> None:
         if self._stats_cb is None:

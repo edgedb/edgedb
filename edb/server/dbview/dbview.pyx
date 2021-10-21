@@ -137,6 +137,12 @@ cdef class Database:
     cdef _remove_view(self, view):
         self._views.remove(view)
 
+    def iter_views(self):
+        yield from self._views
+
+    def get_query_cache_size(self):
+        return len(self._eql_to_compiled)
+
 
 cdef class DatabaseConnectionView:
 
@@ -202,7 +208,7 @@ cdef class DatabaseConnectionView:
             raise errors.InternalServerError('abort_tx(): not in transaction')
         self._reset_tx_state()
 
-    cdef get_session_config(self):
+    cpdef get_session_config(self):
         if self._in_tx:
             return self._in_tx_config
         else:
@@ -238,7 +244,7 @@ cdef class DatabaseConnectionView:
         else:
             self._modaliases = new_aliases
 
-    cdef get_modaliases(self):
+    cpdef get_modaliases(self):
         if self._in_tx:
             return self._in_tx_modaliases
         else:
@@ -347,10 +353,10 @@ cdef class DatabaseConnectionView:
                 return self._in_tx_dbver
             return self._db.dbver
 
-    cdef in_tx(self):
+    cpdef in_tx(self):
         return self._in_tx
 
-    cdef in_tx_error(self):
+    cpdef in_tx_error(self):
         return self._tx_error
 
     cdef cache_compiled_query(self, object key, object query_unit):

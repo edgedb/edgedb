@@ -198,6 +198,7 @@ async def _run_server(
             allow_insecure_http_clients=args.allow_insecure_http_clients,
             backend_adaptive_ha=args.backend_adaptive_ha,
             default_auth_method=args.default_auth_method,
+            testmode=args.testmode,
         )
         await sc.wait_for(ss.init())
 
