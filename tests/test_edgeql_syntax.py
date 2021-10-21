@@ -5105,6 +5105,26 @@ aa';
         CONFIGURE CURRENT DATABASE RESET Foo FILTER (.bar = 2);
         """
 
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError,
+        r"'CONFIGURE DATABASE' is invalid syntax. "
+        r"Did you mean 'CONFIGURE CURRENT DATABASE'?",
+        line=2, col=19)
+    def test_edgeql_syntax_configure_02(self):
+        """
+        CONFIGURE DATABASE SET foo := (SELECT User);
+        """
+
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError,
+        r"'configure database' is invalid syntax. "
+        r"Did you mean 'configure current database'?",
+        line=2, col=19)
+    def test_edgeql_syntax_configure_03(self):
+        """
+        configure database set foo := (SELECT User);
+        """
+
     def test_edgeql_syntax_ddl_alias_01(self):
         """
         CREATE ALIAS Foo := (SELECT User);
