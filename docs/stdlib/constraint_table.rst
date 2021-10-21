@@ -1,32 +1,32 @@
 .. list-table::
-    :class: funcoptable
 
-    * - std::expression on (expr)
+
+    * - :eql:constraint:`expression`
       - Custom constraint expression
 
-    * - std::one_of(VARIADIC members: anytype)
+    * - :eql:constraint:`one_of`
       - A list of allowable values
 
-    * - std::max_value(max: anytype)
+    * - :eql:constraint:`max_value`
       - Maximum value numerically/lexicographically
 
-    * - std::max_ex_value(max: anytype)
+    * - :eql:constraint:`max_ex_value`
       - Maximum value numerically/lexicographically (exclusive range)
 
-    * - std::max_len_value(max: int64)
+    * - :eql:constraint:`max_len_value`
       - Maximum length (strings only)
 
-    * - std::min_value(min: anytype)
+    * - :eql:constraint:`min_value`
       - Maximum value numerically/lexicographically
 
-    * - std::min_ex_value(min: anytype)
+    * - :eql:constraint:`min_ex_value`
       - Maximum value numerically/lexicographically (exclusive range)
 
-    * - std::min_len_value(min: int64)
+    * - :eql:constraint:`min_len_value`
       - Minimum length (strings only)
 
-    * - std::regexp(pattern: str)
+    * - :eql:constraint:`regexp`
       - Regex constraint (strings only)
 
-    * - std::exclusive
+    * - :eql:constraint:`exclusive`
       - Enforce uniqueness among all instances of the containing type

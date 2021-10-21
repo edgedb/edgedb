@@ -19,8 +19,8 @@ Properties are used to associate primitive data with an :ref:`object type
   }
 
 Similar to :ref:`links <ref_datamodel_links>`, properties have a
-*source* (the object type or link on which they are defined) and one
-or more *targets* (the type of the property).
+*source* (the object type or link on which they are defined) and a *target*
+(the designated type).
 
 
 Property types
@@ -90,7 +90,7 @@ tuple is associated with a *key*.
 
   When you query an *unnamed* tuple using one of EdgeQL's :ref:`client
   libraries <ref_clients_index>`, its value is converted to a list/array. When
-  you fetch a named tuple, it is converted into an object/disctionary/hashmap
+  you fetch a named tuple, it is converted into an object/dictionary/hashmap
   (depending on the language).
 
 Enums
@@ -124,77 +124,129 @@ reference <ref_std_sequence>` for details.
 Syntax
 ------
 
-**Required properties**
-  Properties can be either ``optional`` (the default) or ``required``.
+Required properties
+^^^^^^^^^^^^^^^^^^^
 
-  .. code-block:: sdl
+Properties can be either ``optional`` (the default) or ``required``.
 
-    type User {
-      required property email -> str;
+.. code-block:: sdl
+
+  type User {
+    required property email -> str;
+  }
+
+Property cardinality
+^^^^^^^^^^^^^^^^^^^^
+Properties have a **cardinality**, either ``single`` (the default) or
+``multi``.
+
+.. code-block:: sdl
+
+  type User {
+
+    # single isn't necessary here
+    # properties are single by default
+    single property name -> str;
+
+    # an unordered set of strings
+    multi property nicknames -> str;
+
+    # an unordered set of string arrays
+    multi property set_of_arrays -> array<str>;
+  }
+
+The values associated with a ``multi`` property are stored in no particular
+order. If order is important, use an :ref:`array
+<ref_datamodel_props_array>`.
+
+Default values
+^^^^^^^^^^^^^^
+Properties can have a default value. This default can be a static value or  an arbitrary EdgeQL expression, which will be evaluated upon insertion.
+
+.. code-block:: sdl
+
+  type Player {
+    required property points -> int64 {
+      default := 0;
     }
 
-**Property cardinality**
-  Properties have a **cardinality**, either ``single`` (the default) or
-  ``multi``.
+    required property latitude -> float64 {
+      default := (360 * random() - 180);
+    }
+  }
 
-  .. code-block:: sdl
+Readonly properties
+^^^^^^^^^^^^^^^^^^^
+Properties can be marked as ``readonly``. Below, the ``User.external_id`` property can be set at the time of creation, but it can never be modified.
 
-    type User {
+.. code-block:: sdl
 
-      # single isn't necessary here
-      # properties are single by default
-      single property name -> str;
+  type User {
+    required property external_id -> uuid {
+      readonly := true;
+    }
+  }
 
-      # an unordered set of strings
-      multi property nicknames -> str;
+Constraints
+^^^^^^^^^^^
+Properties can contain additional constraints. The example below showcases a subset of EdgeDB's built-in constraints.
 
-      # an unordered set of string arrays
-      multi property set_of_arrays -> array<str>;
+.. code-block:: sdl
+
+  type BlogPost {
+    property title -> str {
+      constraint exclusive;
+      constraint min_len_value(8);
+      constraint max_len_value(30);
     }
 
-  The values associated with a ``multi`` property are stored in no particular
-  order. If order is important, use an :ref:`array
-  <ref_datamodel_props_array>`.
-
-**Constraints**
-  .. code-block:: sdl
-
-    type BlogPost {
-      property title -> str {
-        constraint exclusive;
-        constraint min_len_value(8);
-        constraint max_len_value(30);
-      }
-
-      property status -> str {
-        constraint one_of('Draft', 'InReview', 'Published');
-      }
-
-      property upvotes -> int64 {
-        constraint min_value(0);
-        constraint max_value(9999);
-      }
+    property status -> str {
+      constraint one_of('Draft', 'InReview', 'Published');
     }
 
-  For a full reference of built-in constraints, see the :ref:`Constraints
-  reference <ref_std_constraints>`.
-
-
-**Annotations**
-  .. code-block:: sdl
-
-    type User {
-      property email -> str {
-        annotation my_annotation := 'An email address';
-      }
+    property upvotes -> int64 {
+      constraint min_value(0);
+      constraint max_value(9999);
     }
+  }
+
+You can constrain properties with arbitrary EdgeQL expressions.
+
+.. code-block:: sdl
+
+  type Movie {
+    property star_rating -> int64 {
+      constraint expression on (
+        __subject__ = __subject__ % 5
+      );
+      constraint min_len_value(8);
+      constraint max_len_value(30);
+    }
+
+For a full reference of built-in constraints, see the :ref:`Constraints
+reference <ref_std_constraints>`.
+
+
+Annotations
+^^^^^^^^^^^
+
+All properties can contain annotations. Currently support annotations are ``title``, ``description``
+
+.. code-block:: sdl
+
+  type User {
+    property email -> str {
+      annotation title := 'Email address';
+      annotation description := 'The user\'s email address.';
+    }
+  }
 
 Properties can contain additional metadata, including  can add an ``exclusive``
 constraint to a link to guarantee that no other instances can link to the same
 target(s).
 
 Abstract properties
--------------------
+^^^^^^^^^^^^^^^^^^^
 
 Properties can *concrete* (the default) or *abstract*. Abstract properties are
 declared independent of a source or target. Abstract constraints can declare

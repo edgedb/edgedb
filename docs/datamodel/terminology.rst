@@ -48,10 +48,19 @@ blocks are used to define types inside a particular module.
   single module called ``default``.
 
 Schemas are predominantly composed of **object types**, the EdgeDB equivalent
-of SQL tables. Object types contain **properties** and **links**. Properties
-correspond to either a **scalar type** (e.g. ``str``, ``int64``) or a
-**collection type** like an array or a tuple. Links represent relationships
-between object types and can optionally contain **link properties**.
+of SQL tables. Object types contain **properties** and **links**. Both
+properties and links are associated with a unique name (e.g.
+``first_name``, ``friends``, etc) and a cardinality, which can be either
+**single** (the default) or **multi**.
+
+Properties correspond to either a **scalar type** (e.g. ``str``, ``int64``) or
+a **collection type** (an array or a tuple). They can be augmented with
+**constraints**, **annotations**, and **default values**. They can also be
+marked as **readonly**.
+
+Links represent relationships between object types. Like properties, they can
+be constrained, annotated, associated default values, and marked as readonly.
+They can optionally contain **link properties**.
 
 .. +-----------------+-------------------------+----------------------+
 .. | EdgeDB          | SQL                     | ORMs                 |
@@ -65,19 +74,14 @@ between object types and can optionally contain **link properties**.
 .. | Link            | *N/A*                   | Relation             |
 .. +-----------------+-------------------------+----------------------+
 
-Both properties and links are associated with a unique name (e.g.
-``first_name``, ``friends``, etc) and a cardinality, which can be either
-**single** (the default) or **multi**.
-
 Links and properties can also be **computed**. Computed links and properties
 are not physically stored in the database, but they can used in queries just
 like non-computed ones. The value will be computed as needed.
 
-Object types can be augmented with **indexes** to speed up certain queries.
-Object types, properties, and links can all be augmented with **annotations**,
-(human-readable notes) and **constraints**.
+Object types can be augmented with constraints, annotations, and **indexes**
+(which speed up certain queries).
 
-Types can also be **abstract** scalar and object types. Abstract types can be
+Both scalar and object types can also be **abstract**. Abstract types can be
 *extended* by other types, in which case the extending type inherits all of its
 properties, links, constraints, indexes, and annotations.
 

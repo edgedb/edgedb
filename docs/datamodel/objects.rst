@@ -105,6 +105,11 @@ types out of combinations of more basic types.
 Name conflicts are not allowed; supertypes cannot share any link or property
 names.
 
+.. TODO: indexes
+
+.. TODO: constraints
+
+.. TODO: annotations
 
 See Also
 --------

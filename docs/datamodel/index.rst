@@ -3,9 +3,9 @@
 
 .. _ref_datamodel_index:
 
-===============
-Schema Modeling
-===============
+======
+Schema
+======
 
 One of EdgeDB's foundational features is **declarative schema modeling**.
 

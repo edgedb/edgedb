@@ -9,7 +9,6 @@ are designed to hold arbitrary schema-level metadata represented as a
 :eql:type:`str`.
 
 
-
 Standard Annotations
 --------------------
 
