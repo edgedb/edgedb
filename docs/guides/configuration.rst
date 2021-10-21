@@ -112,10 +112,13 @@ Query Planning
 Client Connections
 ------------------
 
-:eql:synopsis:`client_idle_timeout (int16)`
-    Sets the timeout for how long client connections can stay
-    inactive before being forcefully closed by the server. The default
-    is 30 seconds. Set it to ``0`` to disable the mechanism.
+:eql:synopsis:`client_idle_timeout (int32)`
+    Sets the timeout (in milliseconds) for how long client connections
+    can stay inactive before being forcefully closed by the server.
+
+    The default is ``60_000`` milliseconds (60 seconds). Setting it to
+    ``0`` disables the mechanism. Setting the timeout to less than
+    ``2_000`` milliseconds is not recommended.
 
     Note that the actual time an idle connection can live can be up to
     two times longer than the specified timeout.

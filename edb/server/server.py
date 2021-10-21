@@ -396,6 +396,8 @@ class Server(ha_base.ClusterProtocol):
         client_idle_timeout = config.lookup(
             'client_idle_timeout', self._dbindex.get_sys_config())
 
+        client_idle_timeout /= 1000.0
+
         if client_idle_timeout > 0:
             self._idle_gc_handler = self.__loop.call_later(
                 client_idle_timeout, self._idle_gc_collector)
