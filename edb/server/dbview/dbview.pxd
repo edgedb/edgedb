@@ -105,8 +105,8 @@ cdef class DatabaseConnectionView:
     cdef recover_aliases_and_config(self, modaliases, config)
     cdef abort_tx(self)
 
-    cdef in_tx(self)
-    cdef in_tx_error(self)
+    cpdef in_tx(self)
+    cpdef in_tx_error(self)
 
     cdef cache_compiled_query(self, object key, object query_unit)
     cdef lookup_compiled_query(self, object key)
@@ -117,7 +117,7 @@ cdef class DatabaseConnectionView:
     cdef on_error(self, query_unit)
     cdef on_success(self, query_unit, new_types)
 
-    cdef get_session_config(self)
+    cpdef get_session_config(self)
     cdef set_session_config(self, new_conf)
 
     cdef get_database_config(self)
@@ -127,6 +127,6 @@ cdef class DatabaseConnectionView:
     cdef get_compilation_system_config(self)
 
     cdef set_modaliases(self, new_aliases)
-    cdef get_modaliases(self)
+    cpdef get_modaliases(self)
 
     cdef bytes serialize_state(self)

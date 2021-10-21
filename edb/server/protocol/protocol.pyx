@@ -41,6 +41,7 @@ from edb.server.pgproto.debug cimport PG_DEBUG
 
 from . import edgeql_ext
 from . import metrics
+from . import server_info
 from . import notebook_ext
 from . import system_api
 
@@ -410,6 +411,16 @@ cdef class HttpProtocol:
                 await metrics.handle_request(
                     request,
                     response,
+                )
+                return
+            if (path_parts == ['server-info'] and
+                request.method == b'GET' and
+                (self.server.in_dev_mode() or self.server.in_test_mode())
+            ):
+                await server_info.handle_request(
+                    request,
+                    response,
+                    self.server,
                 )
                 return
 
