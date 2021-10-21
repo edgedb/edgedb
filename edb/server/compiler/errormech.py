@@ -24,6 +24,7 @@ import json
 import re
 
 from edb import errors
+from edb.common import value_dispatch
 from edb.common import uuidgen
 
 from edb.schema import name as sn
@@ -72,6 +73,17 @@ constraint_errors = frozenset({
     pgerrors.ERROR_CHECK_VIOLATION,
     pgerrors.ERROR_EXCLUSION_VIOLATION,
 })
+
+directly_mappable = {
+    pgerrors.ERROR_DIVISION_BY_ZERO: errors.DivisionByZeroError,
+    pgerrors.ERROR_INTERVAL_FIELD_OVERFLOW: errors.NumericOutOfRangeError,
+    pgerrors.ERROR_READ_ONLY_SQL_TRANSACTION: errors.TransactionError,
+    pgerrors.ERROR_SERIALIZATION_FAILURE: errors.TransactionSerializationError,
+    pgerrors.ERROR_DEADLOCK_DETECTED: errors.TransactionDeadlockError,
+    pgerrors.ERROR_INVALID_CATALOG_NAME: errors.UnknownDatabaseError,
+    pgerrors.ERROR_OBJECT_IN_USE: errors.ExecutionError,
+    pgerrors.ERROR_DUPLICATE_DATABASE: errors.DuplicateDatabaseDefinitionError,
+}
 
 
 constraint_res = {
@@ -169,6 +181,11 @@ def get_generic_exception_from_err_details(err_details):
     return err
 
 
+#########################################################################
+# Static errors interpretation
+#########################################################################
+
+
 def static_interpret_backend_error(fields):
     err_details = get_error_details(fields)
     # handle some generic errors if possible
@@ -176,170 +193,181 @@ def static_interpret_backend_error(fields):
     if err is not None:
         return err
 
-    if err_details.code == pgerrors.ERROR_NOT_NULL_VIOLATION:
+    return static_interpret_by_code(
+        err_details.code, err_details)
+
+
+@value_dispatch.value_dispatch
+def static_interpret_by_code(code, err_details):
+    return errors.InternalServerError(err_details.message)
+
+
+@static_interpret_by_code.register_for_all(
+    directly_mappable.keys())
+def _static_interpret_directly_mappable(code, err_details):
+    errcls = directly_mappable[code]
+    return errcls(err_details.message)
+
+
+@static_interpret_by_code.register_for_all(constraint_errors)
+def _static_interpret_constraint_errors(code, err_details):
+    if code == pgerrors.ERROR_NOT_NULL_VIOLATION:
         if err_details.table_name or err_details.column_name:
             return SchemaRequired
-
         else:
             return errors.InternalServerError(err_details.message)
 
-    elif err_details.code in constraint_errors:
-        source = pointer = None
+    source = pointer = None
 
-        for errtype, ere in constraint_res.items():
-            m = ere.match(err_details.message)
-            if m:
-                error_type = errtype
-                break
+    for errtype, ere in constraint_res.items():
+        m = ere.match(err_details.message)
+        if m:
+            error_type = errtype
+            break
+    else:
+        return errors.InternalServerError(err_details.message)
+
+    if error_type == 'cardinality':
+        return errors.CardinalityViolationError(
+            'cardinality violation',
+            source=source, pointer=pointer)
+
+    elif error_type == 'link_target':
+        if err_details.detail_json:
+            srcname = err_details.detail_json.get('source')
+            ptrname = err_details.detail_json.get('pointer')
+            target = err_details.detail_json.get('target')
+            expected = err_details.detail_json.get('expected')
+
+            if srcname and ptrname:
+                srcname = sn.QualName.from_string(srcname)
+                ptrname = sn.QualName.from_string(ptrname)
+                lname = '{}.{}'.format(srcname, ptrname.name)
+            else:
+                lname = ''
+
+            msg = (
+                f'invalid target for link {lname!r}: {target!r} '
+                f'(expecting {expected!r})'
+            )
+
         else:
+            msg = 'invalid target for link'
+
+        return errors.UnknownLinkError(msg)
+
+    elif error_type == 'link_target_del':
+        return errors.ConstraintViolationError(
+            err_details.message, details=err_details.detail)
+
+    elif error_type == 'constraint':
+        if err_details.constraint_name is None:
             return errors.InternalServerError(err_details.message)
 
-        if error_type == 'cardinality':
-            return errors.CardinalityViolationError(
-                'cardinality violation',
-                source=source, pointer=pointer)
+        constraint_id, _, _ = err_details.constraint_name.rpartition(';')
 
-        elif error_type == 'link_target':
-            if err_details.detail_json:
-                srcname = err_details.detail_json.get('source')
-                ptrname = err_details.detail_json.get('pointer')
-                target = err_details.detail_json.get('target')
-                expected = err_details.detail_json.get('expected')
-
-                if srcname and ptrname:
-                    srcname = sn.QualName.from_string(srcname)
-                    ptrname = sn.QualName.from_string(ptrname)
-                    lname = '{}.{}'.format(srcname, ptrname.name)
-                else:
-                    lname = ''
-
-                msg = (
-                    f'invalid target for link {lname!r}: {target!r} '
-                    f'(expecting {expected!r})'
-                )
-
-            else:
-                msg = 'invalid target for link'
-
-            return errors.UnknownLinkError(msg)
-
-        elif error_type == 'link_target_del':
-            return errors.ConstraintViolationError(
-                err_details.message, details=err_details.detail)
-
-        elif error_type == 'constraint':
-            if err_details.constraint_name is None:
-                return errors.InternalServerError(err_details.message)
-
-            constraint_id, _, _ = err_details.constraint_name.rpartition(';')
-
-            try:
-                constraint_id = uuidgen.UUID(constraint_id)
-            except ValueError:
-                return errors.InternalServerError(err_details.message)
-
-            return SchemaRequired
-
-        elif error_type == 'newconstraint':
-            # We can reconstruct what went wrong from the schema_name,
-            # table_name, and column_name. But we don't expect
-            # constraint_name to be present (because the constraint is
-            # not yet present in the schema?).
-            if (err_details.schema_name and err_details.table_name and
-                    err_details.column_name):
-                return SchemaRequired
-
-            else:
-                return errors.InternalServerError(err_details.message)
-
-        elif error_type == 'scalar':
-            return SchemaRequired
-
-        elif error_type == 'id':
-            return errors.ConstraintViolationError(
-                'unique link constraint violation')
-
-    elif err_details.code in SCHEMA_CODES:
-        if err_details.code == pgerrors.ERROR_INVALID_DATETIME_FORMAT:
-            hint = None
-            if err_details.detail_json:
-                hint = err_details.detail_json.get('hint')
-
-            if err_details.message.startswith('missing required time zone'):
-                return errors.InvalidValueError(err_details.message, hint=hint)
-            elif err_details.message.startswith('unexpected time zone'):
-                return errors.InvalidValueError(err_details.message, hint=hint)
+        try:
+            constraint_id = uuidgen.UUID(constraint_id)
+        except ValueError:
+            return errors.InternalServerError(err_details.message)
 
         return SchemaRequired
 
-    elif err_details.code == pgerrors.ERROR_INVALID_PARAMETER_VALUE:
-        return errors.InvalidValueError(
-            err_details.message,
-            details=err_details.detail if err_details.detail else None
-        )
-
-    elif err_details.code == pgerrors.ERROR_WRONG_OBJECT_TYPE:
-        if err_details.column_name:
+    elif error_type == 'newconstraint':
+        # We can reconstruct what went wrong from the schema_name,
+        # table_name, and column_name. But we don't expect
+        # constraint_name to be present (because the constraint is
+        # not yet present in the schema?).
+        if (err_details.schema_name and err_details.table_name and
+                err_details.column_name):
             return SchemaRequired
 
-        return errors.InvalidValueError(
-            err_details.message,
-            details=err_details.detail if err_details.detail else None
-        )
+        else:
+            return errors.InternalServerError(err_details.message)
 
-    elif err_details.code == pgerrors.ERROR_DIVISION_BY_ZERO:
-        return errors.DivisionByZeroError(err_details.message)
+    elif error_type == 'scalar':
+        return SchemaRequired
 
-    elif err_details.code == pgerrors.ERROR_INTERVAL_FIELD_OVERFLOW:
-        return errors.NumericOutOfRangeError(err_details.message)
+    elif error_type == 'id':
+        return errors.ConstraintViolationError(
+            'unique link constraint violation')
 
-    elif err_details.code == pgerrors.ERROR_READ_ONLY_SQL_TRANSACTION:
-        return errors.TransactionError(
-            'cannot execute query in a read-only transaction')
 
-    elif err_details.code == pgerrors.ERROR_SERIALIZATION_FAILURE:
-        return errors.TransactionSerializationError(err_details.message)
+@static_interpret_by_code.register_for_all(SCHEMA_CODES)
+def _static_interpret_schema_errors(code, err_details):
+    if code == pgerrors.ERROR_INVALID_DATETIME_FORMAT:
+        hint = None
+        if err_details.detail_json:
+            hint = err_details.detail_json.get('hint')
 
-    elif err_details.code == pgerrors.ERROR_DEADLOCK_DETECTED:
-        return errors.TransactionDeadlockError(err_details.message)
+        if err_details.message.startswith('missing required time zone'):
+            return errors.InvalidValueError(err_details.message, hint=hint)
+        elif err_details.message.startswith('unexpected time zone'):
+            return errors.InvalidValueError(err_details.message, hint=hint)
 
-    elif err_details.code == pgerrors.ERROR_INVALID_CATALOG_NAME:
-        return errors.UnknownDatabaseError(err_details.message)
+    return SchemaRequired
 
-    elif err_details.code == pgerrors.ERROR_OBJECT_IN_USE:
-        return errors.ExecutionError(err_details.message)
 
-    elif err_details.code == pgerrors.ERROR_DUPLICATE_DATABASE:
-        return errors.DuplicateDatabaseDefinitionError(err_details.message)
+@static_interpret_by_code.register(
+    pgerrors.ERROR_INVALID_PARAMETER_VALUE)
+def _static_interpret_invalid_param_value(_code, err_details):
+    return errors.InvalidValueError(
+        err_details.message,
+        details=err_details.detail if err_details.detail else None
+    )
 
-    elif (
-        err_details.code == pgerrors.ERROR_CARDINALITY_VIOLATION
-        and (
-            err_details.constraint_name == 'std::assert_single'
-            or err_details.constraint_name == 'std::assert_exists'
-        )
-    ):
+
+@static_interpret_by_code.register(
+    pgerrors.ERROR_WRONG_OBJECT_TYPE)
+def _static_interpret_wrong_object_type(_code, err_details):
+    if err_details.column_name:
+        return SchemaRequired
+
+    return errors.InvalidValueError(
+        err_details.message,
+        details=err_details.detail if err_details.detail else None
+    )
+
+
+@static_interpret_by_code.register(
+    pgerrors.ERROR_CARDINALITY_VIOLATION)
+def _static_interpret_cardinality_violation(_code, err_details):
+
+    if (err_details.constraint_name == 'std::assert_single'
+            or err_details.constraint_name == 'std::assert_exists'):
         return errors.CardinalityViolationError(err_details.message)
 
-    elif (
-        err_details.code == pgerrors.ERROR_CARDINALITY_VIOLATION
-        and err_details.constraint_name == 'std::assert_distinct'
-    ):
+    elif err_details.constraint_name == 'std::assert_distinct':
         return errors.ConstraintViolationError(err_details.message)
 
     return errors.InternalServerError(err_details.message)
 
 
+#########################################################################
+# Errors interpretation that requires a schema
+#########################################################################
+
+
 def interpret_backend_error(schema, fields):
+    # all generic errors are static and have been handled by this point
+
     err_details = get_error_details(fields)
     hint = None
-    details = None
     if err_details.detail_json:
         hint = err_details.detail_json.get('hint')
 
-    # all generic errors are static and have been handled by this point
+    return interpret_by_code(err_details.code, schema, err_details, hint)
 
-    if err_details.code == pgerrors.ERROR_NOT_NULL_VIOLATION:
+
+@value_dispatch.value_dispatch
+def interpret_by_code(code, schema, err_details, hint):
+    return errors.InternalServerError(err_details.message)
+
+
+@interpret_by_code.register_for_all(constraint_errors)
+def _interpret_constraint_errors(code, schema, err_details, hint):
+    details = None
+    if code == pgerrors.ERROR_NOT_NULL_VIOLATION:
         colname = err_details.column_name
         if colname:
             if colname.startswith('??'):
@@ -366,72 +394,79 @@ def interpret_backend_error(schema, fields):
         else:
             return errors.InternalServerError(err_details.message)
 
-    elif err_details.code in constraint_errors:
-        error_type = None
-        match = None
+    error_type = None
+    match = None
 
-        for errtype, ere in constraint_res.items():
-            m = ere.match(err_details.message)
-            if m:
-                error_type = errtype
-                match = m
-                break
-        # no need for else clause since it would have been handled by
-        # the static version
+    for errtype, ere in constraint_res.items():
+        m = ere.match(err_details.message)
+        if m:
+            error_type = errtype
+            match = m
+            break
+    # no need for else clause since it would have been handled by
+    # the static version
 
-        if error_type == 'constraint':
-            # similarly, if we're here it's because we have a constraint_id
-            constraint_id, _, _ = err_details.constraint_name.rpartition(';')
-            constraint_id = uuidgen.UUID(constraint_id)
+    if error_type == 'constraint':
+        # similarly, if we're here it's because we have a constraint_id
+        constraint_id, _, _ = err_details.constraint_name.rpartition(';')
+        constraint_id = uuidgen.UUID(constraint_id)
 
-            constraint = schema.get_by_id(constraint_id)
+        constraint = schema.get_by_id(constraint_id)
 
-            return errors.ConstraintViolationError(
-                constraint.format_error_message(schema))
-        elif error_type == 'newconstraint':
-            # If we're here, it means that we already validated that
-            # schema_name, table_name and column_name all exist.
-            tabname = (err_details.schema_name, err_details.table_name)
-            source = common.get_object_from_backend_name(
-                schema, s_objtypes.ObjectType, tabname)
-            source_name = source.get_displayname(schema)
-            pointer = common.get_object_from_backend_name(
-                schema, s_pointers.Pointer, err_details.column_name)
-            pointer_name = pointer.get_shortname(schema).name
+        return errors.ConstraintViolationError(
+            constraint.format_error_message(schema))
+    elif error_type == 'newconstraint':
+        # If we're here, it means that we already validated that
+        # schema_name, table_name and column_name all exist.
+        tabname = (err_details.schema_name, err_details.table_name)
+        source = common.get_object_from_backend_name(
+            schema, s_objtypes.ObjectType, tabname)
+        source_name = source.get_displayname(schema)
+        pointer = common.get_object_from_backend_name(
+            schema, s_pointers.Pointer, err_details.column_name)
+        pointer_name = pointer.get_shortname(schema).name
 
-            return errors.ConstraintViolationError(
-                f'Existing {source_name}.{pointer_name} '
-                f'values violate the new constraint')
-        elif error_type == 'scalar':
-            domain_name = match.group(1)
-            stype_name = types.base_type_name_map_r.get(domain_name)
-            if stype_name:
-                if match.group(2) in range_constraints:
-                    msg = f'{str(stype_name)!r} value out of range'
-                else:
-                    msg = f'invalid value for scalar type {str(stype_name)!r}'
+        return errors.ConstraintViolationError(
+            f'Existing {source_name}.{pointer_name} '
+            f'values violate the new constraint')
+    elif error_type == 'scalar':
+        domain_name = match.group(1)
+        stype_name = types.base_type_name_map_r.get(domain_name)
+        if stype_name:
+            if match.group(2) in range_constraints:
+                msg = f'{str(stype_name)!r} value out of range'
             else:
-                msg = translate_pgtype(schema, err_details.message)
-            return errors.InvalidValueError(msg)
+                msg = f'invalid value for scalar type {str(stype_name)!r}'
+        else:
+            msg = translate_pgtype(schema, err_details.message)
+        return errors.InvalidValueError(msg)
 
-    elif err_details.code == pgerrors.ERROR_INVALID_TEXT_REPRESENTATION:
-        return errors.InvalidValueError(
-            translate_pgtype(schema, err_details.message))
+    return errors.InternalServerError(err_details.message)
 
-    elif err_details.code == pgerrors.ERROR_NUMERIC_VALUE_OUT_OF_RANGE:
-        return errors.NumericOutOfRangeError(
-            translate_pgtype(schema, err_details.message))
 
-    elif err_details.code in {pgerrors.ERROR_INVALID_DATETIME_FORMAT,
-                              pgerrors.ERROR_DATETIME_FIELD_OVERFLOW}:
-        return errors.InvalidValueError(
-            translate_pgtype(schema, err_details.message),
-            hint=hint)
+@interpret_by_code.register(pgerrors.ERROR_INVALID_TEXT_REPRESENTATION)
+def _interpret_invalid_text_repr(code, schema, err_details, hint):
+    return errors.InvalidValueError(
+        translate_pgtype(schema, err_details.message))
 
-    elif (
-        err_details.code == pgerrors.ERROR_WRONG_OBJECT_TYPE
-        and err_details.message == 'covariance error'
-    ):
+
+@interpret_by_code.register(pgerrors.ERROR_NUMERIC_VALUE_OUT_OF_RANGE)
+def _interpret_numeric_out_of_range(code, schema, err_details, hint):
+    return errors.NumericOutOfRangeError(
+        translate_pgtype(schema, err_details.message))
+
+
+@interpret_by_code.register(pgerrors.ERROR_INVALID_DATETIME_FORMAT)
+@interpret_by_code.register(pgerrors.ERROR_DATETIME_FIELD_OVERFLOW)
+def _interpret_invalid_datetime(code, schema, err_details, hint):
+    return errors.InvalidValueError(
+        translate_pgtype(schema, err_details.message),
+        hint=hint)
+
+
+@interpret_by_code.register(pgerrors.ERROR_WRONG_OBJECT_TYPE)
+def _interpret_wrong_object_type(code, schema, err_details, hint):
+    if err_details.message == 'covariance error':
         ptr = schema.get_by_id(uuidgen.UUID(err_details.column_name))
         wrong_obj = schema.get_by_id(uuidgen.UUID(err_details.table_name))
 
