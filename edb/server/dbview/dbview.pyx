@@ -86,6 +86,9 @@ cdef class Database:
             for ext in user_schema.get_objects(type=s_ext.Extension)
         }
 
+    cdef schedule_config_update(self):
+        self._index._server._on_local_database_config_change(self.name)
+
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema,
@@ -157,8 +160,10 @@ cdef class DatabaseConnectionView:
 
         self._modaliases = DEFAULT_MODALIASES
         self._config = DEFAULT_CONFIG
-        self._db_config = db.db_config
         self._session_state_cache = None
+
+        self._db_config_temp = None
+        self._db_config_dbver = None
 
         # Whenever we are in a transaction that had executed a
         # DDL command, we use this cache for compiled queries.
@@ -224,13 +229,41 @@ cdef class DatabaseConnectionView:
         if self._in_tx:
             return self._in_tx_db_config
         else:
-            return self._db_config
+            if self._db_config_temp is not None:
+                # See `set_database_config()` for an explanation on
+                # *why* we do this.
+                if self._db_config_dbver is self._db.dbver:
+                    assert self._db_config_dbver is not None
+                    return self._db_config_temp
+                else:
+                    self._db_config_temp = None
+                    self._db_config_dbver = None
+
+            return self._db.db_config
+
+    cdef update_database_config(self):
+        # Unfortunately it's unsafe to just synchronously
+        # update `self._db.db_config` to a new config. What if two
+        # connections are updating different DB config settings
+        # concurrently?
+        # The only way to avoid a race here is to always schedule
+        # a full DB state sync every time there's a DB config change.
+        self._db.schedule_config_update()
 
     cdef set_database_config(self, new_conf):
         if self._in_tx:
             self._in_tx_db_config = new_conf
         else:
-            self._db_config = new_conf
+            # The idea here is to save the new DB conf in a temporary
+            # storage until the DB state is refreshed by a call to
+            # `update_database_config()` from `on_success()`. This is to
+            # make it possible to immediately use the updated DB config in
+            # this session. This is still racy, but the probability of
+            # a race is very low so we go for it (and races like this aren't
+            # critical and resolve in time.)
+            # Check out `get_database_config()` to see how this is used.
+            self._db_config_temp = new_conf
+            self._db_config_dbver = self._db.dbver
 
     cdef get_system_config(self):
         return self._db._index.get_sys_config()
@@ -399,7 +432,7 @@ cdef class DatabaseConnectionView:
             self._in_tx = True
             self._txid = query_unit.tx_id
             self._in_tx_config = self._config
-            self._in_tx_db_config = self._db_config
+            self._in_tx_db_config = self._db.db_config
             self._in_tx_modaliases = self._modaliases
             self._in_tx_user_schema = self._db.user_schema
             self._in_tx_global_schema = self._db._index._global_schema
@@ -451,6 +484,7 @@ cdef class DatabaseConnectionView:
             if query_unit.system_config:
                 side_effects |= SideEffects.InstanceConfigChanges
             if query_unit.database_config:
+                self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
                 side_effects |= SideEffects.GlobalSchemaChanges
@@ -473,7 +507,6 @@ cdef class DatabaseConnectionView:
                 raise errors.InternalServerError(
                     '"commit" outside of a transaction')
             self._config = self._in_tx_config
-            self._db_config = self._in_tx_db_config
             self._modaliases = self._in_tx_modaliases
 
             if self._in_tx_new_types:
@@ -489,6 +522,7 @@ cdef class DatabaseConnectionView:
             if self._in_tx_with_sysconfig:
                 side_effects |= SideEffects.InstanceConfigChanges
             if self._in_tx_with_dbconfig:
+                self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
                 side_effects |= SideEffects.GlobalSchemaChanges
@@ -562,12 +596,13 @@ cdef class DatabaseIndex:
         self._sys_config = sys_config
         self._comp_sys_config = config.get_compilation_config(sys_config)
 
+    def has_db(self, dbname):
+        return dbname in self._dbs
+
     def get_db(self, dbname):
         try:
             return self._dbs[dbname]
         except KeyError:
-            import traceback
-            traceback.print_stack()
             raise errors.UnknownDatabaseError(
                 f'database {dbname!r} does not exist')
 
@@ -597,7 +632,7 @@ cdef class DatabaseIndex:
                 raise RuntimeError(
                     f'cannot register DB {dbname!r}: it is already registered')
             db._set_and_signal_new_user_schema(
-                user_schema, reflection_cache, backend_ids)
+                user_schema, reflection_cache, backend_ids, db_config)
         else:
             db = Database(
                 self,

@@ -2689,7 +2689,7 @@ cdef class EdgeConnection:
         finally:
             server.release_pgcon(dbname, pgcon)
 
-        await server.introspect_db(dbname, refresh=True)
+        await server.introspect_db(dbname)
 
         msg = WriteBuffer.new_message(b'C')
         msg.write_int16(0)  # no headers

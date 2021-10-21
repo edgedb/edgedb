@@ -1146,3 +1146,58 @@ class TestServerConfig(tb.QueryTestCase):
             f'{float(len(idle_cons))}\n',
             metrics
         )
+
+    async def test_server_config_db_config(self):
+        async with tb.start_edgedb_server(
+            allow_insecure_http_clients=True,
+        ) as sd:
+            con1 = await sd.connect()
+            con2 = await sd.connect()
+
+            await con1.execute('''
+                configure current database set __internal_sess_testvalue := 0;
+            ''')
+
+            await con2.execute('''
+                configure current database set __internal_sess_testvalue := 5;
+            ''')
+
+            # Check that the DB (Backend) was updated.
+            conf = await con2.query_single('''
+                SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+            ''')
+            self.assertEqual(conf, 5)
+            # The changes should be immediately visible at EdgeQL level
+            # in concurrent transactions.
+            conf = await con1.query_single('''
+                SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+            ''')
+            self.assertEqual(conf, 5)
+
+            # Use `try_until_succeeds` because it might take the server a few
+            # seconds on slow CI to reload the DB config in the server process.
+            async for tr in self.try_until_succeeds(
+                    ignore=AssertionError):
+                async with tr:
+                    info = sd.fetch_server_info()
+                    dbconf = info['databases']['edgedb']['config']
+                    self.assertEqual(
+                        dbconf.get('__internal_sess_testvalue'), 5)
+
+            # Now check that the server state is updated when a configure
+            # command is in a transaction.
+
+            async for tx in con1.retrying_transaction():
+                async with tx:
+                    await tx.execute('''
+                        configure current database set
+                            __internal_sess_testvalue := 10;
+                    ''')
+
+            async for tr in self.try_until_succeeds(
+                    ignore=AssertionError):
+                async with tr:
+                    info = sd.fetch_server_info()
+                    dbconf = info['databases']['edgedb']['config']
+                    self.assertEqual(
+                        dbconf.get('__internal_sess_testvalue'), 10)

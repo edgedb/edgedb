@@ -584,20 +584,33 @@ class Server(ha_base.ClusterProtocol):
             schema_class_layout=self._schema_class_layout,
         )
 
-    async def introspect_db(
-        self, dbname, *, refresh=False, skip_dropped=False
-    ):
+    async def introspect_db(self, dbname):
+        """Use this method to (re-)introspect a DB.
+
+        If the DB is already registered in self._dbindex, its
+        schema, config, etc. would simply be updated. If it's missing
+        an entry for it would be created.
+
+        All remote notifications of remote events should use this method
+        to refresh the state. Even if the remote event was a simple config
+        change, a lot of other events could happen before it was sent to us
+        by a remote server and us receiving it. E.g. a DB could have been
+        dropped and recreated again. It's safer to refresh the entire state
+        than refreshing individual components of it. Besides, DDL and
+        database-level config modifications are supposed to be rare events.
+        """
+
         try:
             conn = await self.acquire_pgcon(dbname)
         except pgcon_errors.BackendError as e:
-            if skip_dropped and e.code_is(
-                pgcon_errors.ERROR_INVALID_CATALOG_NAME
-            ):
-                # database does not exist
+            if e.code_is(pgcon_errors.ERROR_INVALID_CATALOG_NAME):
+                # database does not exist (anymore)
                 logger.warning(
                     "Detected concurrently-dropped database %s; skipping.",
                     dbname,
                 )
+                if self._dbindex is not None and self._dbindex.has_db(dbname):
+                    self._dbindex.unregister_db(dbname)
                 return
             else:
                 raise
@@ -649,13 +662,14 @@ class Server(ha_base.ClusterProtocol):
 
             db_config = await self.introspect_db_config(conn)
 
+            assert self._dbindex is not None
             self._dbindex.register_db(
                 dbname,
                 user_schema=user_schema,
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
-                refresh=refresh,
+                refresh=True,
             )
         finally:
             self.release_pgcon(dbname, conn)
@@ -685,7 +699,10 @@ class Server(ha_base.ClusterProtocol):
 
         async with taskgroup.TaskGroup(name='introspect DBs') as g:
             for dbname in dbnames:
-                g.create_task(self.introspect_db(dbname, skip_dropped=True))
+                # There's a risk of the DB being dropped by another server
+                # between us building the list of databases and loading
+                # information about them.
+                g.create_task(self.introspect_db(dbname))
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()
@@ -1023,7 +1040,7 @@ class Server(ha_base.ClusterProtocol):
         # on the __edgedb_sysevent__ channel
         async def task():
             try:
-                await self.introspect_db(dbname, refresh=True)
+                await self.introspect_db(dbname)
             except Exception:
                 metrics.background_errors.inc(1.0, 'on_remote_ddl')
                 raise
@@ -1035,7 +1052,7 @@ class Server(ha_base.ClusterProtocol):
         # on the __edgedb_sysevent__ channel
         async def task():
             try:
-                await self.introspect_db(dbname, refresh=True)
+                await self.introspect_db(dbname)
             except Exception:
                 metrics.background_errors.inc(
                     1.0, 'on_remote_database_config_change')
@@ -1043,8 +1060,23 @@ class Server(ha_base.ClusterProtocol):
 
         self._loop.create_task(task())
 
+    def _on_local_database_config_change(self, dbname):
+        # Triggered by DB Index.
+        # It's easier and safer to just schedule full re-introspection
+        # of the DB and update all components of it.
+        async def task():
+            try:
+                await self.introspect_db(dbname)
+            except Exception:
+                metrics.background_errors.inc(
+                    1.0, 'on_local_database_config_change')
+                raise
+
+        # TODO(fantix): change to `self.create_task()`
+        self._loop.create_task(task())
+
     def _on_remote_system_config_change(self):
-        # Triggered by a postgres notification event 'ystem-config-changes'
+        # Triggered by a postgres notification event 'system-config-changes'
         # on the __edgedb_sysevent__ channel
 
         async def task():
@@ -1491,8 +1523,8 @@ class Server(ha_base.ClusterProtocol):
                 max_backend_connections=self._max_backend_connections,
                 suggested_client_pool_size=self._suggested_client_pool_size,
                 tenant_id=self._tenant_id,
-                devmode=self._devmode,
-                testmode=self._testmode,
+                dev_mode=self._devmode,
+                test_mode=self._testmode,
                 default_auth_method=self._default_auth_method,
                 listen_hosts=self._listen_hosts,
                 listen_port=self._listen_port,
@@ -1503,6 +1535,8 @@ class Server(ha_base.ClusterProtocol):
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
+                # TODO(fantix): his may change to be more reliable like
+                # supporting None when the template process is managed.
                 template_pid=self._compiler_pool._template_proc.pid,
             ),
         )
@@ -1520,7 +1554,7 @@ class Server(ha_base.ClusterProtocol):
                         in_tx=view.in_tx(),
                         in_tx_error=view.in_tx_error(),
                         config=serialize_config(view.get_session_config()),
-                        modaliases=view.get_modaliases(),
+                        module_aliases=view.get_modaliases(),
                     )
                     for view in db.iter_views()
                 ],
