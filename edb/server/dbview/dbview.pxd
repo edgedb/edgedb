@@ -51,6 +51,8 @@ cdef class Database:
         readonly object backend_ids
         readonly object extensions
 
+    cdef schedule_config_update(self)
+
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)
     cdef _new_view(self, user, query_cache)
@@ -72,7 +74,10 @@ cdef class DatabaseConnectionView:
         object _user
 
         object _config
-        object _db_config
+
+        object _db_config_temp
+        object _db_config_dbver
+
         object _modaliases
         object _in_tx_modaliases
         tuple _session_state_cache
@@ -120,6 +125,7 @@ cdef class DatabaseConnectionView:
     cpdef get_session_config(self)
     cdef set_session_config(self, new_conf)
 
+    cdef update_database_config(self)
     cdef get_database_config(self)
     cdef set_database_config(self, new_conf)
 
