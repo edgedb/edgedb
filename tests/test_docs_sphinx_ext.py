@@ -344,11 +344,11 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
 
         self.assertEqual(
             x.xpath('//desc_returns / text()'),
-            ['SET OF str'])
+            ['set of str'])
 
         self.assertEqual(
             x.xpath('//desc_signature/@eql-signature'),
-            ['std::test(a: OPTIONAL str, b: SET OF str, c: str) -> SET OF str']
+            ['std::test(a: optional str, b: set of str, c: str) -> set of str']
         )
 
     def test_sphinx_eql_func_08(self):
@@ -363,11 +363,11 @@ class TestEqlFunction(unittest.TestCase, BaseDomainTest):
 
         self.assertEqual(
             x.xpath('//desc_returns / text()'),
-            ['OPTIONAL int64'])
+            ['optional int64'])
 
         self.assertEqual(
             x.xpath('//desc_signature/@eql-signature'),
-            ['std::test(NAMED ONLY v: in64 = 42) -> OPTIONAL int64'])
+            ['std::test(named only v: in64 = 42) -> optional int64'])
 
     def test_sphinx_eql_func_09(self):
         src = '''
@@ -444,7 +444,7 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
 
         self.assertEqual(
             sig.xpath('@eql-signature'),
-            ['std::len_value ON (len(<std::str>__subject__))'])
+            ['std::len_value on (len(<std::str>__subject__))'])
 
         self.assertEqual(
             sig.xpath('@eql-subjexpr'),

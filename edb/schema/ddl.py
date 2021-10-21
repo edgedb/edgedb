@@ -700,6 +700,8 @@ def statements_from_delta(
     *,
     sdlmode: bool = False,
     descriptive_mode: bool = False,
+    # Used for backwards compatibility with older migration text.
+    uppercase: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
 ) -> Tuple[Tuple[str, qlast.DDLOperation, sd.Command], ...]:
 
@@ -760,6 +762,7 @@ def statements_from_delta(
             sdlmode=sdlmode,
             descmode=descriptive_mode,
             limit_ref_classes=ql_classes,
+            uppercase=uppercase,
         )
         text.append((stmt_text + ';', stmt_ast, cmd))
 

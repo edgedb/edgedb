@@ -28,7 +28,7 @@ from edb.edgeql.parser import parser as eql_parser
 
 
 class SchemaSyntaxTest(tb.BaseSyntaxTest):
-    re_filter = re.compile(r'[\s\'"()]+|(#.*?(\n|$))|SELECT')
+    re_filter = re.compile(r'[\s\'"()]+|(#.*?(\n|$))|select|SELECT')
     parser_debug_flag = 'DEBUG_ESCHEMA'
     markup_dump_lexer = 'edgeschema'
     ast_to_source = functools.partial(generate_source, unsorted=True)
