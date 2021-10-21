@@ -227,7 +227,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         Example:
 
             async for tr in self.try_until_succeeds(
-                    ignore_errors=edgedb.AuthenticationError):
+                    ignore=edgedb.AuthenticationError):
                 async with tr:
                     await edgedb.connect(...)
 
@@ -250,7 +250,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         Example:
 
             async for tr in self.try_until_fails(
-                    ignore_errors=edgedb.AuthenticationError):
+                    wait_for=edgedb.AuthenticationError):
                 async with tr:
                     await edgedb.connect(...)
 
@@ -466,7 +466,7 @@ def _shutdown_cluster(cluster, *, destroy=True):
             cluster.destroy()
 
 
-def _get_metrics(host: str, port: int) -> str:
+def _fetch_metrics(host: str, port: int) -> str:
     con = http.client.HTTPConnection(host, port)
     con.connect()
     try:
@@ -479,6 +479,23 @@ def _get_metrics(host: str, port: int) -> str:
             raise AssertionError(
                 f'/metrics returned non 200 HTTP status: {resp.status}')
         return resp.read().decode()
+    finally:
+        con.close()
+
+
+def _fetch_server_info(host: str, port: int) -> dict[str, Any]:
+    con = http.client.HTTPConnection(host, port)
+    con.connect()
+    try:
+        con.request(
+            'GET',
+            f'http://{host}:{port}/server-info'
+        )
+        resp = con.getresponse()
+        if resp.status != 200:
+            raise AssertionError(
+                f'/server-info returned non 200 HTTP status: {resp.status}')
+        return json.loads(resp.read().decode())
     finally:
         con.close()
 
@@ -543,11 +560,11 @@ class ClusterTestCase(TestCase):
         cls.backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
 
     @classmethod
-    def get_metrics(cls) -> str:
+    def fetch_metrics(cls) -> str:
         assert cls.cluster is not None
         conargs = cls.cluster.get_connect_args()
         host, port = conargs['host'], conargs['port']
-        return _get_metrics(host, port)
+        return _fetch_metrics(host, port)
 
     @classmethod
     def get_connect_args(cls, *,
@@ -581,7 +598,7 @@ class ClusterTestCase(TestCase):
         )
 
     def ensure_no_background_server_errors(self):
-        metrics = self.get_metrics()
+        metrics = self.fetch_metrics()
         errors = _extract_background_errors(metrics)
         if errors:
             raise AssertionError(
@@ -1484,7 +1501,7 @@ class _EdgeDBServerData(NamedTuple):
     server_data: Any
     tls_cert_file: str
 
-    def get_connect_args(self, **kwargs):
+    def get_connect_args(self, **kwargs) -> dict[str, str | int]:
         conn_args = dict(
             user='edgedb',
             password=self.password,
@@ -1496,8 +1513,11 @@ class _EdgeDBServerData(NamedTuple):
         conn_args.update(kwargs)
         return conn_args
 
-    def get_metrics(self):
-        return _get_metrics(self.host, self.port)
+    def fetch_metrics(self) -> str:
+        return _fetch_metrics(self.host, self.port)
+
+    def fetch_server_info(self) -> dict[str, Any]:
+        return _fetch_server_info(self.host, self.port)
 
     async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
         conn_args = self.get_connect_args(**kwargs)
@@ -1713,7 +1733,7 @@ class _EdgeDBServer:
                 # for any errors in background tasks, as such tests usually
                 # test the functionality that involves notifications and
                 # other async events.
-                metrics = _get_metrics('127.0.0.1', self.data['port'])
+                metrics = _fetch_metrics('127.0.0.1', self.data['port'])
                 errors = _extract_background_errors(metrics)
                 if errors:
                     raise AssertionError(

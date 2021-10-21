@@ -1135,7 +1135,7 @@ class TestServerConfig(tb.QueryTestCase):
                 )
                 await asyncio.sleep(3)
 
-            metrics = sd.get_metrics()
+            metrics = sd.fetch_metrics()
 
             await asyncio.gather(
                 *(con.aclose() for con in active_cons)
