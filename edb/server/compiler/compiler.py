@@ -1023,7 +1023,10 @@ class Compiler:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 text = []
                 for stmt in mstate.accepted_cmds:
-                    text.append(qlcodegen.generate_source(stmt, pretty=True))
+                    # Generate uppercase DDL commands for backwards
+                    # compatibility with older migration text.
+                    text.append(qlcodegen.generate_source(
+                        stmt, pretty=True, uppercase=True))
 
                 if text:
                     description = ';\n'.join(text) + ';'
@@ -1047,7 +1050,12 @@ class Compiler:
                         # Add a terminating semicolon to match
                         # "proposed", which is created by
                         # s_ddl.statements_from_delta.
-                        qlcodegen.generate_source(stmt, pretty=True) + ';',
+                        #
+                        # Also generate uppercase DDL commands for
+                        # backwards compatibility with older migration
+                        # text.
+                        qlcodegen.generate_source(
+                            stmt, pretty=True, uppercase=True) + ';',
                     )
 
                 if not mstate.last_proposed:
@@ -1062,6 +1070,7 @@ class Compiler:
                         schema,
                         mstate.target_schema,
                         guided_diff,
+                        uppercase=True
                     )
                     proposed_steps = []
 

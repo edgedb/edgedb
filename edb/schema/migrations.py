@@ -139,7 +139,7 @@ class CreateMigration(MigrationCommand, sd.CreateObject[Migration]):
         elif astnode.body.commands:
             # An implicit CREATE MIGRATION produced by START MIGRATION
             ddl_text = ';\n'.join(
-                qlcodegen.generate_source(stmt)
+                qlcodegen.generate_source(stmt, uppercase=True)
                 for stmt in astnode.body.commands
             ) + ';'
         else:

@@ -715,7 +715,7 @@ class EQLFunctionDirective(BaseEQLDirective):
         parser = edgeql_parser.EdgeQLBlockParser()
         try:
             astnode = parser.parse(
-                f'CREATE FUNCTION {sig} USING SQL FUNCTION "xxx";')[0]
+                f'create function {sig} using SQL function "xxx";')[0]
         except Exception as ex:
             raise self.error(
                 f'could not parse function signature {sig!r}') from ex
@@ -730,12 +730,12 @@ class EQLFunctionDirective(BaseEQLDirective):
             raise self.error(
                 f'EdgeQL function declaration is missing namespace')
 
-        func_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode)
+        func_repr = ql_gen.generate_source(astnode)
         m = re.match(r'''(?xs)
             ^
-            CREATE\sFUNCTION\s
+            create\sfunction\s
             (?P<f>.*?)
-            \sUSING\sSQL\sFUNCTION
+            \susing\ssql\sfunction
             .*$
         ''', func_repr)
         if not m or not m.group('f'):
@@ -751,11 +751,11 @@ class EQLFunctionDirective(BaseEQLDirective):
         signode += d_nodes.Text(' ')
         signode += s_nodes.desc_name(fullname, fullname)
 
-        ret_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode.returning)
+        ret_repr = ql_gen.generate_source(astnode.returning)
         if astnode.returning_typemod is qltypes.TypeModifier.SetOfType:
-            ret_repr = f'SET OF {ret_repr}'
+            ret_repr = f'set of {ret_repr}'
         elif astnode.returning_typemod is qltypes.TypeModifier.OptionalType:
-            ret_repr = f'OPTIONAL {ret_repr}'
+            ret_repr = f'optional {ret_repr}'
         signode += s_nodes.desc_returns(ret_repr, ret_repr)
 
         return fullname
@@ -788,7 +788,7 @@ class EQLConstraintDirective(BaseEQLDirective):
         parser = edgeql_parser.EdgeQLBlockParser()
         try:
             astnode = parser.parse(
-                f'CREATE ABSTRACT CONSTRAINT {sig};')[0]
+                f'create abstract constraint {sig};')[0]
         except Exception as ex:
             raise self.error(
                 f'could not parse constraint signature {sig!r}') from ex
@@ -803,12 +803,12 @@ class EQLConstraintDirective(BaseEQLDirective):
             raise self.error(
                 f'Missing module in EdgeQL constraint declaration')
 
-        constr_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode)
+        constr_repr = ql_gen.generate_source(astnode)
 
         m = re.match(r'''(?xs)
             ^
-            CREATE\sABSTRACT\sCONSTRAINT\s
-            (?P<f>.*?)(?:\s*ON(?P<subj>.*))?
+            create\sabstract\sconstraint\s
+            (?P<f>.*?)(?:\s*on(?P<subj>.*))?
             $
         ''', constr_repr)
         if not m or not m.group('f'):
@@ -824,7 +824,7 @@ class EQLConstraintDirective(BaseEQLDirective):
         if subject:
             subject = subject.strip()[1:-1]
             signode['eql-subjexpr'] = subject
-            signode['eql-signature'] += f' ON ({subject})'
+            signode['eql-signature'] += f' on ({subject})'
 
         signode += s_nodes.desc_annotation('constraint', 'constraint')
         signode += d_nodes.Text(' ')
