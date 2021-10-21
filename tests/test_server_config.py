@@ -1124,8 +1124,9 @@ class TestServerConfig(tb.QueryTestCase):
                 else:
                     idle_cons.append(await sd.connect())
 
+            # Set the timeout to 5 seconds.
             await idle_cons[0].execute(
-                'configure system set client_idle_timeout := 5;'
+                'configure system set client_idle_timeout := 5_000;'
             )
 
             for _ in range(5):
