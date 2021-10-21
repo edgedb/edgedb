@@ -4,17 +4,8 @@
 Constraints
 ===========
 
-.. eql:constraint:: std::one_of(VARIADIC members: anytype)
+.. include:: constraint_table.rst
 
-    Specifies the list of allowed values directly.
-
-    Example:
-
-    .. code-block:: sdl
-
-        scalar type Status extending str {
-            constraint one_of ('Open', 'Closed', 'Merged');
-        }
 
 .. eql:constraint:: std::expression on (expr)
 
@@ -40,6 +31,18 @@ Constraints
             constraint expression on (
                 __subject__.x^2 + __subject__.y^2 < 25
             );
+        }
+
+.. eql:constraint:: std::one_of(VARIADIC members: anytype)
+
+    Specifies the list of allowed values directly.
+
+    Example:
+
+    .. code-block:: sdl
+
+        scalar type Status extending str {
+            constraint one_of ('Open', 'Closed', 'Merged');
         }
 
 .. eql:constraint:: std::max_value(max: anytype)

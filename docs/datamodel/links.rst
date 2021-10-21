@@ -88,6 +88,12 @@ In the ``GroupChat`` example, the ``GroupChat.members`` link is now
 ``exclusive``. No two ``GroupChats`` can link to the same ``User``; put
 differently, no ``User`` can be a ``member`` of multiple ``GroupChats``.
 
+.. important::
+
+  The combination of link cardinality and exclusive constraints are sufficient
+  to model all kinds of relations: one-to-one, one-to-many, and many-to-many.
+  For details, read the :ref:`Modeling Relations
+  <ref_guide_modeling_relations>` guide.
 
 Link properties
 ---------------

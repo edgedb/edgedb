@@ -1,5 +1,8 @@
 .. eql:section-intro-page:: clients
 
+
+.. _ref_clients_index:
+
 ================
 Client Libraries
 ================

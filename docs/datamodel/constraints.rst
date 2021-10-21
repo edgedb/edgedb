@@ -19,6 +19,8 @@ reference.  The *subject* of a constraint can be referred to in
 the constraint expression as ``__subject__``.
 
 
+.. include:: ../stdlib/constraint_table.rst
+
 See Also
 --------
 

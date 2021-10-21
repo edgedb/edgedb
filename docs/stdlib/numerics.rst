@@ -13,10 +13,10 @@ Numerics
       - 16-bit integer
 
     * - :eql:type:`int32`
-      - 16-bit integer
+      - 32-bit integer
 
     * - :eql:type:`int64`
-      - 16-bit integer
+      - 64-bit integer
 
     * - :eql:type:`float32`
       - 32-bit floating point number

@@ -4,7 +4,6 @@
 Modeling relations
 ==================
 
-
 By combinining *link cardinality* and *exclusivity constraints*, we can model
 every kind of relationship: one-to-one, one-to-many, many-to-one, and
 many-to-many.

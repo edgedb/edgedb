@@ -6,79 +6,222 @@ Properties
 
 :index: property
 
-:ref:`Object types <ref_datamodel_object_types>` and
-:ref:`links <ref_datamodel_links>` can contain *properties*: a name-value
-collection of primitive data associated with the given object or link
-instance.
+Properties are used to associate primitive data with an :ref:`object type
+<ref_datamodel_object_types>` or :ref:`link <ref_datamodel_linkprops>`.
 
-Every property is declared to have a specific
-:ref:`scalar type <ref_datamodel_scalar_types>` or a
-:ref:`collection type <ref_datamodel_collection_types>` based on a scalar.
-
-There are two kinds of property item declarations: *abstract properties*,
-and *concrete properties*.  Abstract properties are defined on the module
-level and are not tied to any particular object type or link.  Typically
-this is done to set some :ref:`annotations <ref_datamodel_annotations>`,
-or define :ref:`constraints <ref_datamodel_constraints>`.  Concrete
-properties are defined on specific object types.
-
-Similar to :ref:`links <ref_datamodel_links>`, properties have a
-*source* (the object type or link on which they are defined) and one
-or more *targets* (the values that property can have).
-
-Defining a property
-  .. code-block:: sdl
-
-    type Person {
-      property email -> str;
-    }
-
-Required properties
-  By default all properties are optional; use ``required`` to declare required
-  properties.
-
-  .. code-block:: sdl
-
-    type Person {
-      required property email -> str;
-    }
-
-Object properties
------------------
-
-Properties defined on object types have the number of targets
-specified by the keywords :ref:`required <ref_eql_ddl_props_syntax>`,
-:ref:`single <ref_eql_ddl_props_syntax>`, and :ref:`multi
-<ref_eql_ddl_props_syntax>`.  It is also possible to restrict how many
-source objects can have the same property value via the
-:eql:constraint:`exclusive` constraint.  For the purpose of figuring
-out the number of property targets, a :ref:`collection type
-<ref_datamodel_collection_types>` target by itself is considered a
-*single* target.
-
-For example, here's an object type with a *single required exclusive*
-property ``name`` and an *optional multi* property ``favorite_tags``:
 
 .. code-block:: sdl
 
-    type Person {
-        required property name -> str {
-            constraint exclusive;
-        }
-        multi property favorite_tags -> str;
+  type Player {
+    property email -> str;
+    property points -> int64;
+    property is_online -> bool;
+  }
+
+Similar to :ref:`links <ref_datamodel_links>`, properties have a
+*source* (the object type or link on which they are defined) and one
+or more *targets* (the type of the property).
+
+
+Property types
+--------------
+
+Every property has a type. This can be a
+:ref:`scalar type <ref_datamodel_scalar_types>`, an :ref:`array
+<ref_std_array>`, a :ref:`tuple <ref_std_tuple>`, or an enum.
+
+Scalar types
+^^^^^^^^^^^^
+.. include:: ../stdlib/scalar_table.rst
+
+
+.. _ref_datamodel_props_array:
+
+Arrays
+^^^^^^
+
+Arrays store zero or more *scalar* values in an ordered list. You cannot define
+arrays of non-scalar types. Arrays cannot be nested.
+
+.. code-block:: sdl
+
+  type Person {
+    property str_array -> array<str>;
+    property json_array -> array<json>;
+
+    # INVALID: arrays of object types not allowed
+    # property friends -> array<Person>
+
+    # INVALID: arrays cannot be nested
+    # property nested_array -> array<array<str>>
+  }
+
+For a full reference on array types, see the :ref:`Array docs <ref_std_array>`.
+
+Tuples
+^^^^^^
+
+Like arrays, tuples are ordered sequences of primitive data. Unlike arrays,
+each element of a tuple can have a distinct type. Tuples can be nested
+arbitrarily.
+
+
+
+.. code-block:: sdl
+
+  type Person {
+
+    property unnamed_tuple -> tuple<str, bool, int64>;
+    property nested_tuple -> tuple<tuple<str,str>, tuple<bool, int64>>;
+
+  }
+
+Tuple can either be *unnamed* (as above) or *named*. Each element of a named
+tuple is associated with a *key*.
+
+
+.. code-block:: sdl
+
+  type BlogPost {
+    property metadata -> tuple<title: str, published: bool, upvotes: int64>;
+  }
+
+.. important::
+
+  When you query an *unnamed* tuple using one of EdgeQL's :ref:`client
+  libraries <ref_clients_index>`, its value is converted to a list/array. When
+  you fetch a named tuple, it is converted into an object/disctionary/hashmap
+  (depending on the language).
+
+Enums
+^^^^^
+
+To represent an enum, declare a custom scalar that extends the abstract
+:ref:`enum <ref_std_enum>` type.
+
+.. code-block:: sdl
+
+  scalar type Color extending enum<Red, Green, Blue>;
+
+  type Shirt {
+    property color -> Color;
+  }
+
+.. important::
+
+  To reference enum values inside EdgeQL queries, use dot notation, e.g.
+  ``Color.Green``.
+
+For a full reference on enum types, see the :ref:`Enum docs <ref_std_enum>`.
+
+Sequences
+^^^^^^^^^
+
+To represent an auto-incrementing integer property, declare a custom scalar
+that extends the abstract ``sequence`` type. Reference the :ref:`Sequence
+reference <ref_std_sequence>` for details.
+
+Syntax
+------
+
+**Required properties**
+  Properties can be either ``optional`` (the default) or ``required``.
+
+  .. code-block:: sdl
+
+    type User {
+      required property email -> str;
     }
 
-.. note::
+**Property cardinality**
+  Properties have a **cardinality**, either ``single`` (the default) or
+  ``multi``.
 
-    Since the empty string ``''`` is a *value*, required properties can
-    take on ``''`` as their value.
+  .. code-block:: sdl
 
+    type User {
+
+      # single isn't necessary here
+      # properties are single by default
+      single property name -> str;
+
+      # an unordered set of strings
+      multi property nicknames -> str;
+
+      # an unordered set of string arrays
+      multi property set_of_arrays -> array<str>;
+    }
+
+  The values associated with a ``multi`` property are stored in no particular
+  order. If order is important, use an :ref:`array
+  <ref_datamodel_props_array>`.
+
+**Constraints**
+  .. code-block:: sdl
+
+    type BlogPost {
+      property title -> str {
+        constraint exclusive;
+        constraint min_len_value(8);
+        constraint max_len_value(30);
+      }
+
+      property status -> str {
+        constraint one_of('Draft', 'InReview', 'Published');
+      }
+
+      property upvotes -> int64 {
+        constraint min_value(0);
+        constraint max_value(9999);
+      }
+    }
+
+  For a full reference of built-in constraints, see the :ref:`Constraints
+  reference <ref_std_constraints>`.
+
+
+**Annotations**
+  .. code-block:: sdl
+
+    type User {
+      property email -> str {
+        annotation my_annotation := 'An email address';
+      }
+    }
+
+Properties can contain additional metadata, including  can add an ``exclusive``
+constraint to a link to guarantee that no other instances can link to the same
+target(s).
+
+Abstract properties
+-------------------
+
+Properties can *concrete* (the default) or *abstract*. Abstract properties are
+declared independent of a source or target. Abstract constraints can declare
+:ref:`annotations <ref_datamodel_annotations>` or ``readonly`` status.
+
+.. code-block:: sdl
+
+  abstract property email_prop {
+    annotation title := 'An email address';
+    readonly := true;
+  }
+
+  type Student {
+    property email extending email_prop -> str;
+  }
+
+
+Link properties
+---------------
+
+Properties can also be defined on **links**. For a full guide, refer to the
+:ref:`Link Properties <ref_datamodel_linkprops>` docs.
 
 See Also
 --------
 
-Propery
+Property
 :ref:`SDL <ref_eql_sdl_props>`,
 :ref:`DDL <ref_eql_ddl_props>`,
-and :ref:`introspection <ref_eql_introspection_object_types>`
-(as part of overall object introspection).
+and :ref:`introspection <ref_eql_introspection_object_types>`.
