@@ -1659,3 +1659,19 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ''',
             {f'{{{", ".join(result)}}}'},
         )
+
+    async def test_edgeql_json_concatenate_01(self):
+        await self.assert_query_result(
+            r'''SELECT to_str(to_json('[1,2]') ++ to_json('[3]'));''',
+            {'[1, 2, 3]'}
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_str(to_json('{"a": 1}') ++ to_json('{"b":2}'));''',
+            {'{"a": 1, "b": 2}'}
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_str(to_json('"123"') ++ to_json('"456"'));''',
+            {'["123", "456"]'}
+        )

@@ -18,6 +18,9 @@ JSON
     * - :eql:op:`json[from:to] <JSONSLICE>`
       - :eql:op-desc:`JSONSLICE`
 
+    * - :eql:op:`json ++ json <JSONPLUS>`
+      - :eql:op-desc:`JSONPLUS`
+
     * - :eql:op:`json[name] <JSONOBJDEST>`
       - :eql:op-desc:`JSONOBJDEST`
 
@@ -205,6 +208,37 @@ possible to cast a JSON value directly into a :eql:type:`tuple`.
         {'[1]'}
         db> SELECT to_json('[1, 2, 3]')[:-2];
         {'[1]'}
+
+
+----------
+
+
+.. eql:operator:: JSONPLUS: json ++ json -> json
+
+    JSON concatenation.
+
+    JSON values can be concatenated into a new JSON value.
+
+    Rules:
+
+    * The concatenation of two arrays results in an array consisting of all
+      elements of the input arrays.
+    * The concatenation of two objects results in an object whose keys are
+      a union of keys of the input objects. If key is present in both
+      objects, the value from second object is taken.
+    * In all other cases, both input arguments are converted to a one-element
+      array and then the operation is performed as for two arrays.
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT to_json('[1, 2]') ++ to_json('[3]');
+        {'[1, 2, 3]'}
+        db> SELECT to_json('{"a": 1}') ++ to_json('{"b": 2}');
+        {'{"a": 1, "b": 2}'}
+        db> SELECT to_json('{"a": 1, "b": 2}') ++ to_json('{"b": 3}');
+        {'{"a": 1, "b": 3}'}
+        db> SELECT to_json('"123"') ++ to_json('"456"');
+        {'["123", "456"]'}
 
 
 ----------

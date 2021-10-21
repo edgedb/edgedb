@@ -184,6 +184,13 @@ std::`[]` (l: std::json, r: std::str) -> std::json {
     USING SQL EXPRESSION;
 };
 
+CREATE INFIX OPERATOR
+std::`++` (l: std::json, r: std::json) -> std::json {
+    CREATE ANNOTATION std::identifier := 'concatenate';
+    CREATE ANNOTATION std::description := 'Concatenate two JSON values into a new JSON value.';
+    SET volatility := 'Immutable';
+    USING SQL OPERATOR '||';
+};
 
 ## CASTS
 
