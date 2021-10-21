@@ -62,18 +62,6 @@ Links represent relationships between object types. Like properties, they can
 be constrained, annotated, associated default values, and marked as readonly.
 They can optionally contain **link properties**.
 
-.. +-----------------+-------------------------+----------------------+
-.. | EdgeDB          | SQL                     | ORMs                 |
-.. +=================+=========================+======================+
-.. | Object type     | Table                   | Model                |
-.. +-----------------+-------------------------+----------------------+
-.. | Object          | Row                     | Instance             |
-.. +-----------------+-------------------------+----------------------+
-.. | Property        | Column                  | Property/attribute   |
-.. +-----------------+-------------------------+----------------------+
-.. | Link            | *N/A*                   | Relation             |
-.. +-----------------+-------------------------+----------------------+
-
 Links and properties can also be **computed**. Computed links and properties
 are not physically stored in the database, but they can used in queries just
 like non-computed ones. The value will be computed as needed.
