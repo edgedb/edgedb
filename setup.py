@@ -146,7 +146,7 @@ def _compile_parsers(build_lib, inplace=False):
             shutil.copy2(cache, ROOT_PATH / pickle_path)
 
 
-def _compile_build_meta(build_lib, version, pg_config, runstatedir,
+def _compile_build_meta(build_lib, version, pg_config, runstate_dir,
                         shared_dir, version_suffix):
     from edb.common import verutils
 
@@ -156,6 +156,24 @@ def _compile_build_meta(build_lib, version, pg_config, runstatedir,
     if version_suffix:
         vertuple[4] = tuple(version_suffix.split('.'))
     vertuple = tuple(vertuple)
+
+    pg_config_path = pathlib.Path(pg_config)
+    if not pg_config_path.is_absolute():
+        pg_config_path = f"_ROOT / {str(pg_config_path)!r}"
+    else:
+        pg_config_path = repr(str(pg_config_path))
+
+    runstate_dir_path = pathlib.Path(runstate_dir)
+    if not runstate_dir_path.is_absolute():
+        runstate_dir_path = f"_ROOT / {str(runstate_dir_path)!r}"
+    else:
+        runstate_dir_path = repr(str(runstate_dir_path))
+
+    shared_dir_path = pathlib.Path(shared_dir)
+    if not shared_dir_path.is_absolute():
+        shared_dir_path = f"_ROOT / {str(shared_dir_path)!r}"
+    else:
+        shared_dir_path = repr(str(shared_dir_path))
 
     content = textwrap.dedent('''\
         #
@@ -168,15 +186,19 @@ def _compile_build_meta(build_lib, version, pg_config, runstatedir,
         # THIS FILE HAS BEEN AUTOMATICALLY GENERATED.
         #
 
-        PG_CONFIG_PATH = {pg_config!r}
-        RUNSTATE_DIR = {runstatedir!r}
-        SHARED_DATA_DIR = {shared_dir!r}
+        import pathlib
+
+        _ROOT = pathlib.Path(__file__).parent
+
+        PG_CONFIG_PATH = {pg_config_path}
+        RUNSTATE_DIR = {runstate_dir_path}
+        SHARED_DATA_DIR = {shared_dir_path}
         VERSION = {version!r}
     ''').format(
         version=vertuple,
-        pg_config=pg_config,
-        runstatedir=runstatedir,
-        shared_dir=shared_dir,
+        pg_config_path=pg_config_path,
+        runstate_dir_path=runstate_dir_path,
+        shared_dir_path=shared_dir_path,
     )
 
     directory = build_lib / 'edb'
