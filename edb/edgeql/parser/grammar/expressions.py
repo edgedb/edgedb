@@ -27,7 +27,7 @@ from edb.common import parsing, context
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
-from edb.errors import EdgeQLSyntaxError
+from edb import errors
 
 from . import keywords
 from . import precedence
@@ -193,7 +193,7 @@ class SimpleInsert(Nonterm):
         unless_conflict = kids[2].val
 
         if not isinstance(objtype, qlast.Path):
-            raise EdgeQLSyntaxError(
+            raise errors.EdgeQLSyntaxError(
                 "insert expression must be an object type reference",
                 context=subj.context)
 
@@ -318,12 +318,12 @@ class OptAnySubShape(Nonterm):
         self.val = kids[1].val
 
     def reduce_LBRACE(self, *kids):
-        raise EdgeQLSyntaxError(
+        raise errors.EdgeQLSyntaxError(
             f"Missing ':' before '{{' in a sub-shape",
             context=kids[0].context)
 
     def reduce_Shape(self, *kids):
-        raise EdgeQLSyntaxError(
+        raise errors.EdgeQLSyntaxError(
             f"Missing ':' before '{{' in a sub-shape",
             context=kids[0].context)
 
@@ -1237,7 +1237,7 @@ class Path(Nonterm):
         # make sure that the float is of the type 0.1
         parts = token.val.split('.')
         if not (len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()):
-            raise EdgeQLSyntaxError(
+            raise errors.EdgeQLSyntaxError(
                 f"Unexpected {token.val!r}",
                 context=token.context)
 
@@ -1336,7 +1336,7 @@ class FuncApplication(Nonterm):
         for argname, argname_ctx, arg in kids[2].val:
             if argname is not None:
                 if argname in kwargs:
-                    raise EdgeQLSyntaxError(
+                    raise errors.EdgeQLSyntaxError(
                         f"duplicate named argument `{argname}`",
                         context=argname_ctx)
 
@@ -1345,7 +1345,7 @@ class FuncApplication(Nonterm):
 
             else:
                 if last_named_seen is not None:
-                    raise EdgeQLSyntaxError(
+                    raise errors.EdgeQLSyntaxError(
                         f"positional argument after named "
                         f"argument `{last_named_seen}`",
                         context=arg.context)
@@ -1376,11 +1376,11 @@ class FuncCallArgExpr(Nonterm):
 
     def reduce_ARGUMENT_ASSIGN_Expr(self, *kids):
         if kids[0].val[1].isdigit():
-            raise EdgeQLSyntaxError(
+            raise errors.EdgeQLSyntaxError(
                 f"numeric named arguments are not supported",
                 context=kids[0].context)
         else:
-            raise EdgeQLSyntaxError(
+            raise errors.EdgeQLSyntaxError(
                 f"named arguments do not need a '$' prefix, "
                 f"rewrite as '{kids[0].val[1:]} := ...'",
                 context=kids[0].context)
@@ -1460,7 +1460,7 @@ class AnyIdentifier(Nonterm):
             # anywhere else. So just as the tokenizer prohibits using
             # __names__ in general, we enforce the rule here for the
             # few remaining reserved __keywords__.
-            raise EdgeQLSyntaxError(
+            raise errors.EdgeQLSyntaxError(
                 "identifiers surrounded by double underscores are forbidden",
                 context=kids[0].context)
 
@@ -1516,20 +1516,20 @@ class CollectionTypeName(Nonterm):
         if (has_nonstrval or has_items) and has_strval:
             # Prohibit cases like `tuple<a: int64, 'aaaa'>` and
             # `enum<bbbb, 'aaaa'>`
-            raise EdgeQLSyntaxError(
+            raise errors.EdgeQLSyntaxError(
                 "mixing string type literals and type names is not supported",
                 context=lst.context)
 
         if has_items and has_nonstrval:
             # Prohibit cases like `tuple<a: int64, int32>`
-            raise EdgeQLSyntaxError(
+            raise errors.EdgeQLSyntaxError(
                 "mixing named and unnamed subtype declarations "
                 "is not supported",
                 context=lst.context)
 
     def reduce_NodeName_LANGBRACKET_RANGBRACKET(self, *kids):
         # Constructs like `enum<>` or `array<>` aren't legal.
-        raise EdgeQLSyntaxError(
+        raise errors.EdgeQLSyntaxError(
             'parametrized type must have at least one argument',
             context=kids[1].context,
         )
