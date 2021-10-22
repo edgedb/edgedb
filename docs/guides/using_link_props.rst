@@ -24,6 +24,39 @@ Declaration
     }
   }
 
+Constraints
+-----------
+
+.. code-block:: sdl
+
+  type Person {
+    required property name -> str { constraint exclusive; }
+
+    multi link friends -> Person {
+      property strength -> float64
+      constraint expression on (
+        __subject__@strength >= 0
+      );
+    }
+  }
+
+Indexes
+-------
+
+To index on a link property, you must declare an abstract link and extend it.
+
+.. code-block:: sdl
+
+  abstract link friendship {
+    property strength -> float64
+    index on (__subject__@strength);
+  }
+
+  type Person {
+    required property name -> str { constraint exclusive; }
+    multi link friends extends friendship -> Person;
+  }
+
 
 Insertion
 ---------

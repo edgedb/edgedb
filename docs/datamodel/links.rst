@@ -95,6 +95,20 @@ differently, no ``User`` can be a ``member`` of multiple ``GroupChats``.
   For details, read the :ref:`Modeling Relations
   <ref_guide_modeling_relations>` guide.
 
+Default values
+--------------
+
+Like properties, links can declare a default value in the form of an EdgeQL expression, which will be executed upon insertion.
+
+.. code-block:: sdl
+
+  type User {
+    required property name -> str;
+    multi link friends -> User {
+      default := (select User filter .name = .name);
+    }
+  }
+
 Link properties
 ---------------
 
@@ -192,9 +206,8 @@ Abstract links
 --------------
 
 It's possible to define ``abstract`` links that aren't tied to a particular
-*source* or *target*. If you're declaring several links containing the same set
-of properties, annotations, constraints, or indexes, this can be used way to
-eliminate repetitive link declarations.
+*source* or *target*. If you're declaring several links with the same set
+of properties, annotations, constraints, or indexes, abstract links can be used to eliminate repetitive SDL.
 
 .. code-block:: sdl
 
