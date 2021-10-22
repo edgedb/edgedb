@@ -2957,6 +2957,23 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+    async def test_edgeql_ddl_link_property_07(self):
+        await self.con.execute("""
+            CREATE ABSTRACT LINK link_with_value {
+                CREATE SINGLE PROPERTY value -> int64;
+                CREATE INDEX on (__subject__@value);
+                CREATE INDEX on ((__subject__@source, __subject__@value));
+                CREATE INDEX on ((__subject__@target, __subject__@value));
+                # FIXME: this is broken
+                # CREATE INDEX on ((__subject__, __subject__@value));
+            };
+
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE LINK l1 EXTENDING link_with_value -> Tgt;
+            };
+        """)
+
     async def test_edgeql_ddl_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidReferenceError,

@@ -290,11 +290,8 @@ class IndexCommand(
             subject = parent_ctx.op.get_object(schema, context)
 
             if isinstance(subject, s_abc.Pointer):
-                singletons = []
                 path_prefix_anchor = None
             else:
-                assert isinstance(subject, s_objtypes.ObjectType)
-                singletons = [subject]
                 path_prefix_anchor = qlast.Subject().name
 
             expr = type(value).compiled(
@@ -305,7 +302,7 @@ class IndexCommand(
                     schema_object_context=self.get_schema_metaclass(),
                     anchors={qlast.Subject().name: subject},
                     path_prefix_anchor=path_prefix_anchor,
-                    singletons=frozenset(singletons),
+                    singletons=frozenset([subject]),
                     apply_query_rewrites=not context.stdmode,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
