@@ -1,3 +1,5 @@
+.. _ref_backend_ha:
+
 Backend High-Availability
 =========================
 

@@ -1,3 +1,5 @@
+.. _ref_changelog_beta1:
+
 ==========
 1.0 Beta 1
 ==========

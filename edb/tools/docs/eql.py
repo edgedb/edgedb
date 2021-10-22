@@ -227,6 +227,7 @@ from sphinx import transforms as s_transforms
 from sphinx.directives import code as s_code
 from sphinx.util import docfields as s_docfields
 from sphinx.util import nodes as s_nodes_utils
+from sphinx.ext.intersphinx import InventoryAdapter
 
 from . import shared
 
@@ -1033,6 +1034,43 @@ class EdgeQLDomain(s_domains.Domain):
 
         if docname is None:
             if not node.get('eql-auto-link'):
+                # if ref was not found, the :eql: xref may be being used
+                # outside of the docs, so try resolving ref from intersphinx
+                # inventories
+                inventories = InventoryAdapter(env)
+
+                for target in targets:
+                    obj_type, name = target.split('::', 1)
+                    if ':' not in name:
+                        continue
+                    docset_name, name = name.split(':', 1)
+
+                    docset = inventories.named_inventory.get(docset_name)
+                    if docset is None:
+                        continue
+                    refs = docset.get('eql:' + obj_type)
+                    if refs is None:
+                        continue
+                    ref = refs.get(obj_type + '::' + name)
+                    if ref is None:
+                        continue
+
+                    newnode = d_nodes.reference(
+                        '', '',
+                        internal=False, refuri=ref[2],
+                    )
+                    if node.get('refexplicit'):
+                        newnode.append(d_nodes.Text(contnode.astext()))
+                    else:
+                        title = contnode.astext()
+                        newnode.append(
+                            contnode.__class__(
+                                title[len(docset_name) + 1:],
+                                title[len(docset_name) + 1:]
+                            )
+                        )
+                    return newnode
+
                 raise shared.DomainError(
                     f'cannot resolve :eql:{type}: targeting {target!r}')
             else:
@@ -1052,6 +1090,12 @@ class EdgeQLDomain(s_domains.Domain):
             node['eql-type'] = obj_type
 
         return node
+
+    def resolve_any_xref(self, env, fromdocname, builder,
+                         target, node, contnode):
+        # 'myst-parser' resolves all markdown links as :any: xrefs, so return
+        # empty list to prevent sphinx trying to resolve these as :eql: refs
+        return []
 
     def clear_doc(self, docname):
         for fullname, (fn, _l, _d) in list(self.data['objects'].items()):

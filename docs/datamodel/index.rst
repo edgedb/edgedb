@@ -1,4 +1,5 @@
 .. eql:section-intro-page:: datamodel
+.. _ref_datamodel_intro:
 
 ==========
 Data Model
