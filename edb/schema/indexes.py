@@ -276,8 +276,6 @@ class IndexCommand(
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
-        from . import objtypes as s_objtypes
-
         singletons: List[s_types.Type]
         if field.name == 'expr':
             # type ignore below, for the class is used as mixin
