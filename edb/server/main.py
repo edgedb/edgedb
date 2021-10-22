@@ -420,6 +420,20 @@ async def run_server(
     )
 
     with runstate_dir_mgr as runstate_dir:
+        runstate_dir_str = str(runstate_dir)
+        runstate_dir_str_len = len(
+            runstate_dir_str.encode(
+                sys.getfilesystemencoding(),
+                errors=sys.getfilesystemencodeerrors(),
+            ),
+        )
+        if runstate_dir_str_len > defines.MAX_RUNSTATE_DIR_PATH:
+            abort(
+                f'the length of the specified path for server run state '
+                f'exceeds the maximum of {defines.MAX_RUNSTATE_DIR_PATH} '
+                f'bytes: {runstate_dir_str!r} ({runstate_dir_str_len} bytes)'
+            )
+
         if args.data_dir:
             cluster, args = await _get_local_pgcluster(
                 args, runstate_dir, tenant_id)

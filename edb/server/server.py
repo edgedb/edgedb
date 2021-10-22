@@ -1254,6 +1254,11 @@ class Server(ha_base.ClusterProtocol):
     async def _start_admin_server(self, port: int) -> asyncio.AbstractServer:
         admin_unix_sock_path = os.path.join(
             self._runstate_dir, f'.s.EDGEDB.admin.{port}')
+        assert len(admin_unix_sock_path) <= (
+            defines.MAX_RUNSTATE_DIR_PATH
+            + defines.MAX_UNIX_SOCKET_PATH_LENGTH
+            + 1
+        ), "admin Unix socket length exceeds maximum allowed"
         admin_unix_srv = await self._loop.create_unix_server(
             lambda: binary.EdgeConnection(self, external_auth=True),
             admin_unix_sock_path
