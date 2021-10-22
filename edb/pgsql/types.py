@@ -462,11 +462,6 @@ def _get_ptrref_storage_info(
 
     target = ptrref.out_target
 
-    if is_lprop and str(ptrref.std_parent_name) == 'std::target':
-        # Normalize link@target to link
-        ptrref = source
-        is_lprop = False
-
     if isinstance(ptrref, irast.TupleIndirectionPointerRef):
         table = None
         table_type = 'ObjectType'
@@ -476,8 +471,8 @@ def _get_ptrref_storage_info(
         table = common.get_pointer_backend_name(
             source.id, source.name.module, catenate=False)
         table_type = 'link'
-        if ptrref.shortname.name == 'source':
-            col_name = 'source'
+        if ptrref.shortname.name in ('source', 'target'):
+            col_name = ptrref.shortname.name
         else:
             col_name = str(ptrref.id)
     else:
