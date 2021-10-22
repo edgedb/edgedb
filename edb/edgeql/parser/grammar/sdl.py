@@ -763,6 +763,8 @@ sdl_commands_block(
     ConcreteConstraintShort,
     ConcretePropertyBlock,
     ConcretePropertyShort,
+    IndexDeclarationBlock,
+    IndexDeclarationShort,
     commondl.OnTargetDeleteStmt,
 )
 
