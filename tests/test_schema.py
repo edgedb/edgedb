@@ -4958,6 +4958,39 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
         """])
 
+    def test_schema_migrations_equivalence_linkprops_14(self):
+        self._assert_migration_equivalence([r"""
+            abstract link link_with_value {
+                single property value -> int64;
+                index on (__subject__@value);
+            }
+            type Tgt;
+            type Foo {
+                link l1 extending link_with_value -> Tgt;
+                link l2 -> Tgt {
+                    property value -> int64;
+                    index on (__subject__@value);
+                    index on ((__subject__@target, __subject__@value));
+                };
+            };
+        """, r"""
+            abstract link link_with_value {
+                single property value -> int64;
+                index on (__subject__@value);
+                index on ((__subject__@target, __subject__@value));
+            }
+            type Tgt;
+            type Foo {
+                link l1 extending link_with_value -> Tgt;
+                link l2 -> Tgt {
+                    property value -> int64;
+                    index on (__subject__@value) {
+                        annotation title := "value!";
+                    }
+                };
+            };
+        """])
+
     def test_schema_migrations_equivalence_annotation_01(self):
         self._assert_migration_equivalence([r"""
             type Base;

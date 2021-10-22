@@ -1608,6 +1608,7 @@ commands_block(
     AlterAnnotationValueStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
+    CreateIndexStmt,
     commondl.OnTargetDeleteStmt,
 )
 
@@ -1688,6 +1689,9 @@ commands_block(
     CreateConcretePropertyStmt,
     AlterConcretePropertyStmt,
     DropConcretePropertyStmt,
+    CreateIndexStmt,
+    AlterIndexStmt,
+    DropIndexStmt,
     commondl.OnTargetDeleteStmt,
     opt=False
 )
@@ -1708,6 +1712,7 @@ commands_block(
     'DropConcreteLink',
     DropConcreteConstraintStmt,
     DropConcretePropertyStmt,
+    DropIndexStmt,
 )
 
 
