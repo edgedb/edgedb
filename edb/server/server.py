@@ -133,7 +133,7 @@ class Server(ha_base.ClusterProtocol):
         default_auth_method: str,
     ):
 
-        self._loop = asyncio.get_running_loop()
+        self.__loop = asyncio.get_running_loop()
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
@@ -248,7 +248,7 @@ class Server(ha_base.ClusterProtocol):
         return self._listen_port
 
     def get_loop(self):
-        return self._loop
+        return self.__loop
 
     def in_dev_mode(self):
         return self._devmode
@@ -296,7 +296,7 @@ class Server(ha_base.ClusterProtocol):
                 self._accepting_connections = False
                 self._stop_evt.set()
 
-            self._auto_shutdown_handler = self._loop.call_later(
+            self._auto_shutdown_handler = self.__loop.call_later(
                 self._auto_shutdown_after, shutdown)
 
     def _report_connections(self, *, event: str) -> None:
@@ -379,10 +379,6 @@ class Server(ha_base.ClusterProtocol):
                     or defines.EDGEDB_PORT
                 )
 
-            self._http_request_logger = asyncio.create_task(
-                self._request_stats_logger()
-            )
-
             self._reinit_idle_gc_collector()
 
         finally:
@@ -401,7 +397,7 @@ class Server(ha_base.ClusterProtocol):
             'client_idle_timeout', self._dbindex.get_sys_config())
 
         if client_idle_timeout > 0:
-            self._idle_gc_handler = self._loop.call_later(
+            self._idle_gc_handler = self.__loop.call_later(
                 client_idle_timeout, self._idle_gc_collector)
 
         return client_idle_timeout
@@ -1045,7 +1041,7 @@ class Server(ha_base.ClusterProtocol):
                 metrics.background_errors.inc(1.0, 'on_remote_ddl')
                 raise
 
-        self._loop.create_task(task())
+        self.create_task(task(), interruptable=True)
 
     def _on_remote_database_config_change(self, dbname):
         # Triggered by a postgres notification event 'database-config-changes'
@@ -1058,7 +1054,7 @@ class Server(ha_base.ClusterProtocol):
                     1.0, 'on_remote_database_config_change')
                 raise
 
-        self._loop.create_task(task())
+        self.create_task(task(), interruptable=True)
 
     def _on_local_database_config_change(self, dbname):
         # Triggered by DB Index.
@@ -1072,8 +1068,7 @@ class Server(ha_base.ClusterProtocol):
                     1.0, 'on_local_database_config_change')
                 raise
 
-        # TODO(fantix): change to `self.create_task()`
-        self._loop.create_task(task())
+        self.create_task(task(), interruptable=True)
 
     def _on_remote_system_config_change(self):
         # Triggered by a postgres notification event 'system-config-changes'
@@ -1087,7 +1082,7 @@ class Server(ha_base.ClusterProtocol):
                     1.0, 'on_remote_system_config_change')
                 raise
 
-        self._loop.create_task(task())
+        self.create_task(task(), interruptable=True)
 
     def _on_global_schema_change(self):
         async def task():
@@ -1098,7 +1093,7 @@ class Server(ha_base.ClusterProtocol):
                     1.0, 'on_global_schema_change')
                 raise
 
-        self._loop.create_task(task())
+        self.create_task(task(), interruptable=True)
 
     def _on_sys_pgcon_connection_lost(self, exc):
         try:
@@ -1118,7 +1113,7 @@ class Server(ha_base.ClusterProtocol):
             )
             self.__sys_pgcon = None
             self._sys_pgcon_ready_evt.clear()
-            self._loop.create_task(self._reconnect_sys_pgcon())
+            self.create_task(self._reconnect_sys_pgcon(), interruptable=True)
             self._on_pgcon_broken(True)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_sys_pgcon_connection_lost')
@@ -1248,7 +1243,7 @@ class Server(ha_base.ClusterProtocol):
             allow_insecure_http_clients=self._allow_insecure_http_clients,
         )
 
-        return await self._loop.create_server(
+        return await self.__loop.create_server(
             proto_factory, host=nethost or host, port=port)
 
     async def _start_admin_server(self, port: int) -> asyncio.AbstractServer:
@@ -1259,7 +1254,7 @@ class Server(ha_base.ClusterProtocol):
             + defines.MAX_UNIX_SOCKET_PATH_LENGTH
             + 1
         ), "admin Unix socket length exceeds maximum allowed"
-        admin_unix_srv = await self._loop.create_unix_server(
+        admin_unix_srv = await self.__loop.create_unix_server(
             lambda: binary.EdgeConnection(self, external_auth=True),
             admin_unix_sock_path
         )
@@ -1380,6 +1375,10 @@ class Server(ha_base.ClusterProtocol):
         await self._task_group.__aenter__()
         self._accept_new_tasks = True
 
+        self._http_request_logger = self.create_task(
+            self._request_stats_logger(), interruptable=True
+        )
+
         await self._cluster.start_watching(self)
         await self._create_compiler_pool()
 
@@ -1452,9 +1451,22 @@ class Server(ha_base.ClusterProtocol):
                 self.__sys_pgcon = None
             self._sys_pgcon_waiter = None
 
-    def create_task(self, coro):
+    def create_task(self, coro, *, interruptable):
+        # Interruptable tasks are regular asyncio tasks that may be interrupted
+        # randomly in the middle when the event loop stops; while tasks with
+        # interruptable=False are always awaited before the server stops, so
+        # that e.g. all finally blocks get a chance to execute in those tasks.
         if self._accept_new_tasks:
-            return self._task_group.create_task(coro)
+            if interruptable:
+                return self.__loop.create_task(coro)
+            else:
+                return self._task_group.create_task(coro)
+        else:
+            # Silence the "coroutine not awaited" warning
+            logger.debug(
+                "Task is not started and ignored: %r", coro.cr_code.co_name
+            )
+            coro.__await__()
 
     async def serve_forever(self):
         await self._stop_evt.wait()
@@ -1493,7 +1505,9 @@ class Server(ha_base.ClusterProtocol):
         # to the old master.
         self._ha_master_serial += 1
 
-        self._loop.create_task(self._pg_pool.prune_all_connections())
+        self.create_task(
+            self._pg_pool.prune_all_connections(), interruptable=True
+        )
 
         if self.__sys_pgcon is None:
             # Assume a reconnect task is already running, now that we know the

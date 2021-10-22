@@ -1157,12 +1157,14 @@ cdef class EdgeConnection:
                     'schema-changes',
                     dbname=self.get_dbview().dbname,
                 ),
+                interruptable=False,
             )
         if side_effects & dbview.SideEffects.GlobalSchemaChanges:
             self.server.create_task(
                 self.server._signal_sysevent(
                     'global-schema-changes',
                 ),
+                interruptable=False,
             )
         if side_effects & dbview.SideEffects.DatabaseConfigChanges:
             self.server.create_task(
@@ -1170,12 +1172,14 @@ cdef class EdgeConnection:
                     'database-config-changes',
                     dbname=self.get_dbview().dbname,
                 ),
+                interruptable=False,
             )
         if side_effects & dbview.SideEffects.InstanceConfigChanges:
             self.server.create_task(
                 self.server._signal_sysevent(
                     'system-config-changes',
                 ),
+                interruptable=False,
             )
 
     def _tokenize(self, eql: bytes) -> edgeql.Source:
@@ -2192,7 +2196,9 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 'invalid connection status while establishing the connection')
         self._transport = transport
-        self._main_task = self.server.create_task(self.main())
+        self._main_task = self.server.create_task(
+            self.main(), interruptable=False
+        )
         self.server.on_binary_client_connected(self)
 
     def connection_lost(self, exc):
@@ -2262,7 +2268,8 @@ cdef class EdgeConnection:
                         self.server._cancel_and_discard_pgcon(
                             self._pinned_pgcon,
                             self.get_dbview().dbname,
-                        )
+                        ),
+                        interruptable=False,
                     )
                     # Prevent the main task from releasing the same connection
                     # twice. This flag is for now only used in this case.
