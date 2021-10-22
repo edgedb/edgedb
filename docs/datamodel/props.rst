@@ -262,10 +262,9 @@ supported annotations are ``title``, ``description``, and ``deprecated``. Any
 Abstract properties
 -------------------
 
-Properties can *concrete* (the default) or *abstract*. Abstract properties are
-declared independent of a source or target, can contain
-:ref:`annotations <ref_datamodel_annotations>`, and can be marked as
-``readonly``.
+Properties can be *concrete* (the default) or *abstract*. Abstract properties
+are declared independent of a source or target, can contain :ref:`annotations
+<ref_datamodel_annotations>`, and can be marked as ``readonly``.
 
 .. code-block:: sdl
 
