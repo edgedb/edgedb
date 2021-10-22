@@ -1,80 +1,122 @@
 .. _ref_datamodel_computables:
 
-=============================
-Computed Links and Properties
-=============================
+=========
+Computeds
+=========
 
-:ref:`Links <ref_datamodel_links>` and :ref:`properties <ref_datamodel_props>`
-may be declared as *computed* by an expression.
+.. important::
 
-The values of computed properties and links are not persisted in the
-database and are computed using the specified expression every time
-they are referenced in a query.  The type of the property or link is
-determined from the expression.  Other than that, computed properties
-and links behave exactly like their static counterparts.
+  This section assumes a basic understanding of EdgeQL. If you aren't familiar
+  with it, feel free to skip this page for now.
 
-Links and properties have a *source* and one or more *targets*.  The
-*source* is always the object on which the link is defined. *Targets*
-are either the objects to which the link points or the property
-values.  The expressions of computed links or properties define one or
-more *targets* and can refer to the *source* as ``__source__``.
-
-Computables are useful in the situations where there is a frequent need for
-some value that is derived from the values of existing properties and links.
-
-For example, here we define the ``User`` type to contain the
-``fullname`` computed property that is derived from user's first and
-last name:
+Object types can contain *computed* links and properties. Computed properties
+and links are not persisted in the database. Instead, they are evaluated *on
+the fly* whenever that field is queried.
 
 .. code-block:: sdl
 
-    type User {
-        required property firstname -> str;
-        required property lastname -> str;
-        property fullname :=
-            (__source__.firstname ++ ' ' ++
-             __source__.lastname);
-    }
+  type Person {
+    property name -> str;
+    property all_caps_name := str_upper(__subject__.name);
+  }
 
-If the computed expression is simple (i.e. not a subquery), shortcut
-paths may also be used instead of explicit references to ``__source__``:
+Computed fields are are associated with an EdgeQL expression. This expression
+can be an *arbitrary* EdgeQL query. This expression is evaluated whenever the
+field is referenced in a query.
 
-.. code-block:: sdl
+.. _ref_dot_notation:
 
-    type User {
-        required property firstname -> str;
-        required property lastname -> str;
-        property fullname := (
-            .firstname ++ ' ' ++ .lastname);
-    }
+Dot notation
+------------
 
-Computables are also often used in :ref:`aliases <ref_datamodel_aliases>`.
-For example, using the ``User`` from the above example, a ``UserAlias``
-can be defined with a computed ``lastname_first`` which lists the
-full name in the format which is often used in formal alphabetized
-lists:
+The example above used the special keyword ``__subject__`` to refer to
+the current object; it's analogous to ``this`` in many object-oriented
+languages.
+
+However, explicitly using ``__subject__`` is optional here; inside the scope of
+an object type declaration, you can omit it entirely and use the ``.<name>``
+shorthand.
 
 .. code-block:: sdl
 
-    alias UserAlias := User {
-        lastname_first := (
-            .lastname ++ ', ' ++ .firstname)
-    }
+  type Person {
+    property first_name -> str;
+    property last_name -> str;
+    property full_name := .first_name ++ ' ' ++ .last_name;
+  }
 
-Computables can be used in :ref:`shapes <ref_eql_expr_shapes>`, too:
+Type inference
+--------------
 
-.. code-block:: edgeql
+The type of a computed field is *inferred* from the expression. There's no need
+for the modifier keywords you use for non-computed fields (like ``multi`` and
+``required``). However, you can optionally specify them; if the provided EdgeQL
+expression disagrees with the modifiers, an error will be thrown the next time
+you try to :ref:`create a migration <ref_datamodel_migrations>`.
 
-    SELECT User {
-        lastname_first := (
-            .lastname ++ ', ' ++ .firstname)
-    };
+.. code-block:: sdl
+
+  type Person {
+    property first_name -> str;
+    required property name_upper := str_upper(.name); # invalid
+  }
+
+Common use cases
+----------------
+
+Filtering
+^^^^^^^^^
+
+If you find yourself writing the same ``filter`` expression repeatedly,
+consider defining a computed field that encapsulates the filter.
+
+.. code-block:: sdl
+
+  type Club {
+    multi link members -> Person;
+    link active_members := (
+      select .members filter .is_active = true
+    )
+  }
+
+  type Person {
+    property name -> str;
+    property is_active -> bool;
+  }
+
+Backlinks
+^^^^^^^^^
+
+Backlinks are one of the most common use cases for computed links. In EdgeBD
+links are *directional*; they have a source and a target. Often it's convenient
+to traverse a link in the *reverse* direction.
+
+.. code-block:: sdl
+
+  type BlogPost {
+    property title -> str;
+    link author -> User;
+  }
+
+  type User {
+    property name -> str;
+    blog_posts := .<author[IS BlogPost]
+  }
+
+The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
+conjunction with a *type filter* ``[IS BlogPost]`` to fetch all the
+``BlogPosts`` associated with a given ``User``. For details on this syntax, see
+the EdgeQL docs for :ref:`Backlinks <ref_eql_expr_paths>`.
 
 
 See Also
 --------
 
-Computable
+Computed fields don't need to be pre-defined in your schema; you can drop them
+into individual queries as well. They behave in exactly the same way. For more
+information, see the :ref:`shapes docs <ref_eql_expr_shapes>`.
+
+Computed
 :ref:`link SDL <ref_eql_sdl_links>`,
 :ref:`link DDL <ref_eql_ddl_links>`,
 :ref:`property SDL <ref_eql_sdl_links>`,
