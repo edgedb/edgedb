@@ -6,41 +6,55 @@ Link Properties
 
 :index: property
 
-Properties defined on links are a little more restricted than the ones
-defined on object types. They can never be :ref:`required
-<ref_eql_ddl_props_syntax>`, so that a link can exist just fine
-without them. They also have to be :ref:`single
-<ref_eql_ddl_props_syntax>`.
+.. important::
 
-Typically link properties are used to indicate some flavor or strength
-of a particular relationship, such as ordering or total count:
+  For a full guide on modeling, inserting, updating, and querying link
+  properties, see the :ref:`Using Link Properties <ref_guide_linkprops>` guide.
+
+Like object types, links can contain **properties**. Link properties can be
+used to store metadata about links, such as *when* it was created or the
+*nature/strength* of the relationship.
 
 .. code-block:: sdl
 
-    type Person {
-        required property name -> str {
-            constraint exclusive;
-        }
-        multi link shirts -> Shirt {
-            constraint exclusive;
-            # This is a good way of keeping track of
-            # identical Shirts, since creating identical
-            # Shirts would violate the exclusivity
-            # constraint of the description.
-            property count -> int64;
-        }
-    }
-    type Shirt {
-        required property description -> str {
-            constraint exclusive;
-        }
+  type Person {
+    multi link friends -> Person {
+      property strength -> float64;
+    };
+  }
+
+Due to how they're persisted under the hood, link properties have a couple
+additional constraints: they're always ``single`` and ``optional``.
+
+Example
+-------
+
+The schema below represents a family tree using a single object type,
+``Person``. Instead of a separate ``Marriage`` type, we can directly store
+relevant metadata about a marriage inside the ``Person.married_to`` link.
+
+.. code-block:: sdl
+
+  type Person {
+    required property name -> str;
+
+    multi link married_to -> Person {
+      property marriage_date -> cal::local_date;
+      property divorce_date -> cal::local_date;
     }
 
+    multi link children -> Person {
+      property adopted -> bool;
+    }
+  }
 
 See Also
 --------
 
-Propery
+For a full guide on modeling, inserting, updating, and querying link
+properties, see the :ref:`Using link properties <ref_guide_linkprops>` guide.
+
+Property
 :ref:`SDL <ref_eql_sdl_props>`,
 :ref:`DDL <ref_eql_ddl_props>`,
 and :ref:`introspection <ref_eql_introspection_object_types>`

@@ -23,5 +23,6 @@ guide!
     setup
     using_projects
     modeling_relations
+    using_link_props
     configuration
     cheatsheet/index

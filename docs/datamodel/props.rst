@@ -72,7 +72,7 @@ arbitrarily.
   type Person {
 
     property unnamed_tuple -> tuple<str, bool, int64>;
-    property nested_tuple -> tuple<tuple<str,str>, tuple<bool, int64>>;
+    property nested_tuple -> tuple<tuple<str, tuple<bool, int64>>>;
 
   }
 
@@ -121,11 +121,11 @@ To represent an auto-incrementing integer property, declare a custom scalar
 that extends the abstract ``sequence`` type. Reference the :ref:`Sequence
 reference <ref_std_sequence>` for details.
 
-Syntax
-------
+
 
 Required properties
-^^^^^^^^^^^^^^^^^^^
+-------------------
+
 
 Properties can be either ``optional`` (the default) or ``required``.
 
@@ -136,7 +136,8 @@ Properties can be either ``optional`` (the default) or ``required``.
   }
 
 Property cardinality
-^^^^^^^^^^^^^^^^^^^^
+--------------------
+
 Properties have a **cardinality**, either ``single`` (the default) or
 ``multi``.
 
@@ -160,8 +161,10 @@ order. If order is important, use an :ref:`array
 <ref_datamodel_props_array>`.
 
 Default values
-^^^^^^^^^^^^^^
-Properties can have a default value. This default can be a static value or  an arbitrary EdgeQL expression, which will be evaluated upon insertion.
+--------------
+
+Properties can have a default value. This default can be a static value or an
+arbitrary EdgeQL expression, which will be evaluated upon insertion.
 
 .. code-block:: sdl
 
@@ -176,8 +179,11 @@ Properties can have a default value. This default can be a static value or  an a
   }
 
 Readonly properties
-^^^^^^^^^^^^^^^^^^^
-Properties can be marked as ``readonly``. Below, the ``User.external_id`` property can be set at the time of creation, but it can never be modified.
+-------------------
+
+Properties can be marked as ``readonly``. In the example below, the
+``User.external_id`` property can be set at the time of creation but not
+modified thereafter.
 
 .. code-block:: sdl
 
@@ -187,17 +193,21 @@ Properties can be marked as ``readonly``. Below, the ``User.external_id`` proper
     }
   }
 
+
 Constraints
-^^^^^^^^^^^
-Properties can contain additional constraints. The example below showcases a subset of EdgeDB's built-in constraints.
+-----------
+
+Properties can contain additional constraints. The example below showcases a
+subset of EdgeDB's built-in constraints.
 
 .. code-block:: sdl
 
   type BlogPost {
     property title -> str {
-      constraint exclusive;
+      constraint exclusive; # all post titles must be unique
       constraint min_len_value(8);
       constraint max_len_value(30);
+      constraint regexp(r'^[A-Za-z0-9 ]+$');
     }
 
     property status -> str {
@@ -210,27 +220,33 @@ Properties can contain additional constraints. The example below showcases a sub
     }
   }
 
-You can constrain properties with arbitrary EdgeQL expressions.
+You can constrain properties with arbitrary :ref:`EdgeQL <ref_edgeql>`
+expressions returning ``bool``. To reference to value of the property, use the
+special scoped keyword ``__subject__``.
 
 .. code-block:: sdl
 
-  type Movie {
-    property star_rating -> int64 {
+  type BlogPost {
+    property title -> str {
       constraint expression on (
-        __subject__ = __subject__ % 5
+        __subject__ = str_trim(__subject__)
       );
-      constraint min_len_value(8);
-      constraint max_len_value(30);
     }
+  }
+
+The constraint above guarantees that ``BlogPost.title`` doesn't contain any
+leading or trailing whitespace by checking that the raw string is equal to the
+trimmed version. It uses the built-in :eql:func:`str_trim` function.
 
 For a full reference of built-in constraints, see the :ref:`Constraints
 reference <ref_std_constraints>`.
 
 
 Annotations
-^^^^^^^^^^^
+-----------
 
-All properties can contain annotations. Currently support annotations are ``title``, ``description``
+Properties can contain annotations, small human-readable notes. Currently
+supported annotations are ``title``, ``description``, and ``deprecated``. Any
 
 .. code-block:: sdl
 
@@ -238,19 +254,18 @@ All properties can contain annotations. Currently support annotations are ``titl
     property email -> str {
       annotation title := 'Email address';
       annotation description := 'The user\'s email address.';
+      annotation deprecated := 'Use NewUser instead.';
     }
   }
 
-Properties can contain additional metadata, including  can add an ``exclusive``
-constraint to a link to guarantee that no other instances can link to the same
-target(s).
 
 Abstract properties
-^^^^^^^^^^^^^^^^^^^
+-------------------
 
 Properties can *concrete* (the default) or *abstract*. Abstract properties are
-declared independent of a source or target. Abstract constraints can declare
-:ref:`annotations <ref_datamodel_annotations>` or ``readonly`` status.
+declared independent of a source or target, can contain
+:ref:`annotations <ref_datamodel_annotations>`, and can be marked as
+``readonly``.
 
 .. code-block:: sdl
 
@@ -260,6 +275,7 @@ declared independent of a source or target. Abstract constraints can declare
   }
 
   type Student {
+    # inherits annotations and "readonly := true"
     property email extending email_prop -> str;
   }
 

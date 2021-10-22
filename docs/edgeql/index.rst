@@ -1,6 +1,8 @@
 .. eql:section-intro-page:: edgeql
 .. _ref_eql_intro:
 
+.. _ref_edgeql:
+
 ======
 EdgeQL
 ======
