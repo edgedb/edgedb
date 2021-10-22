@@ -1057,6 +1057,10 @@ class Compiler:
                         generate_prompts=True,
                         guidance=mstate.guidance,
                     )
+                    if debug.flags.delta_plan:
+                        debug.header(
+                            'DESCRIBE CURRENT MIGRATION AS JSON delta')
+                        debug.dump(guided_diff)
 
                     proposed_ddl = s_ddl.statements_from_delta(
                         schema,
@@ -1145,53 +1149,36 @@ class Compiler:
 
         elif isinstance(ql, qlast.AlterCurrentMigrationRejectProposed):
             mstate = self._assert_in_migration_block(ctx, ql)
-
-            diff = s_ddl.delta_schemas(
-                schema,
-                mstate.target_schema,
-                generate_prompts=True,
-                guidance=mstate.guidance,
-            )
-
-            try:
-                top_command = next(iter(diff.get_subcommands()))
-            except StopIteration:
+            if not mstate.last_proposed:
+                # XXX: Or should we compute what the proposal would be?
                 new_guidance = mstate.guidance
             else:
-                if (orig_cmdclass :=
-                        top_command.get_annotation('orig_cmdclass')):
-                    top_cmdclass = orig_cmdclass
-                else:
-                    top_cmdclass = type(top_command)
 
-                if issubclass(top_cmdclass, s_delta.AlterObject):
+                last_id = mstate.last_proposed[0].prompt_id
+                cmdclass_name, qlcls, name, *rest = last_id.split(' ')
+                mcls = s_obj.Object.get_schema_metaclass_for_ql_class(qlcls)
+                classname = s_name.name_from_string(name)
+
+                if cmdclass_name.startswith('Create'):
                     new_guidance = mstate.guidance._replace(
-                        banned_alters=mstate.guidance.banned_alters | {(
-                            top_command.get_schema_metaclass(),
-                            (
-                                top_command.classname,
-                                top_command.get_annotation('new_name'),
-                            ),
-                        )}
+                        banned_creations=mstate.guidance.banned_creations | {
+                            (mcls, classname),
+                        }
                     )
-                elif issubclass(top_cmdclass, s_delta.CreateObject):
+                elif cmdclass_name.startswith('Delete'):
                     new_guidance = mstate.guidance._replace(
-                        banned_creations=mstate.guidance.banned_creations | {(
-                            top_command.get_schema_metaclass(),
-                            top_command.classname,
-                        )}
-                    )
-                elif issubclass(top_cmdclass, s_delta.DeleteObject):
-                    new_guidance = mstate.guidance._replace(
-                        banned_deletions=mstate.guidance.banned_deletions | {(
-                            top_command.get_schema_metaclass(),
-                            top_command.classname,
-                        )}
+                        banned_deletions=mstate.guidance.banned_deletions | {
+                            (mcls, classname),
+                        }
                     )
                 else:
-                    raise AssertionError(
-                        f'unexpected top-level command in '
-                        f'delta diff: {top_cmdclass!r}',
+                    new_name = (
+                        s_name.name_from_string(rest[1])
+                        if rest else classname)
+                    new_guidance = mstate.guidance._replace(
+                        banned_alters=mstate.guidance.banned_alters | {
+                            (mcls, (classname, new_name)),
+                        }
                     )
 
             mstate = mstate._replace(

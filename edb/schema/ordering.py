@@ -221,7 +221,7 @@ def reconstruct_tree(
             isinstance(op, sd.DeleteObject)
             or (
                 isinstance(op, sd.AlterObject)
-                and op.get_nonattr_subcommand_count() == 0
+                and op.get_nonattr_special_subcommand_count() == 0
             )
         ):
             return False
@@ -679,6 +679,8 @@ def _trace_op(
                             anc_item = get_deps(('rebase', str(ancestor_name)))
                             anc_item.deps.add(('setowned', str(op.classname)))
 
+        if tag == 'dropowned':
+            deps.add(('alter', str(op.classname)))
         graph_key = str(op.classname)
 
     elif isinstance(op, sd.AlterObjectProperty):

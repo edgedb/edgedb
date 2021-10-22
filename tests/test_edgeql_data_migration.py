@@ -69,13 +69,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         self.cleanup_migration_exp_json(exp_result_json)
 
         try:
-            tx = self.con.transaction()
-            await tx.start()
-            try:
-                res = await self.con.query_single(
-                    'DESCRIBE CURRENT MIGRATION AS JSON;')
-            finally:
-                await tx.rollback()
+            res = await self.con.query_single(
+                'DESCRIBE CURRENT MIGRATION AS JSON;')
 
             res = json.loads(res)
             self.cleanup_migration_exp_json(res)
@@ -3170,6 +3165,79 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_migration_reject_prop_01(self):
+        await self.migrate('''
+            type User {
+                property foo -> str;
+            };
+        ''')
+
+        await self.start_migration('''
+            type User {
+                property bar -> str;
+            };
+        ''')
+
+        await self.interact([
+            ("did you rename property 'foo' of object type "
+             "'test::User' to 'bar'?", "n"),
+            # XXX: or should this be split up?
+            "did you alter object type 'test::User'?"
+        ])
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_reject_prop_02(self):
+        await self.migrate('''
+            type User {
+                required property foo -> str;
+            };
+        ''')
+
+        await self.start_migration('''
+            type User {
+                property bar -> str;
+            };
+        ''')
+
+        # Initial confidence should *not* be 1.0 here
+        res = json.loads(await self.con.query_single(
+            'DESCRIBE CURRENT MIGRATION AS JSON;'))
+        self.assertLess(res['proposed']['confidence'], 1.0)
+
+        await self.interact([
+            ("did you rename property 'foo' of object type 'test::User' to "
+             "'bar'?", "n"),
+            # XXX: or should this be split up?
+            "did you alter object type 'test::User'?"
+        ])
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_reject_prop_03(self):
+        await self.migrate('''
+            type User {
+                required property foo -> str;
+            };
+        ''')
+
+        await self.start_migration('''
+            type User {
+                required property bar -> int64;
+            };
+        ''')
+
+        await self.interact([
+            # Or should this be split into rename and reset optionality?
+            ("did you create property 'bar' of object type 'test::User'?",
+             "n"),
+            ("did you rename property 'foo' of object type 'test::User' to "
+             "'bar'?"),
+            ("did you alter the type of property 'bar' of object type "
+             "'test::User'?",
+             "y",
+             "<int64>.bar"),
+        ])
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
             type Base;
@@ -5676,6 +5744,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             "did you create object type 'test::HasContent'?",
             "did you alter object type 'test::Post'?",
             "did you create object type 'test::Reply'?",
+            "did you alter property 'content' of object type 'test::Post'?",
         ])
 
     async def test_edgeql_migration_rebase_03(self):
@@ -8819,6 +8888,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ALTER CURRENT MIGRATION REJECT PROPOSED;
         ''')
 
+        # We get the parts suggested to us granularly. We only bother
+        # to check the first one.
         await self.assert_describe_migration({
             'confirmed': [],
             'complete': False,
@@ -8827,10 +8898,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'text':
                         'ALTER TYPE test::Obj2 {\n'
                         '    DROP LINK o1;\n'
-                        '    DROP PROPERTY o;\n'
-                        '    RENAME TO test::NewObj2;\n'
-                        "    CREATE ANNOTATION std::title := 'Obj2';\n"
-                        '    CREATE PROPERTY name -> std::str;'
                         '\n'
                         '};'
                 }],
@@ -9065,6 +9132,44 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'text':
                         'ALTER TYPE test::Obj1 {\n    '
                         'CREATE PROPERTY x -> std::str;\n};'
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+    async def test_edgeql_migration_confidence_04(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1 {
+                        link link -> Object;
+                    }
+                };
+            };
+        ''')
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1 {
+                        link link -> Object {
+                            property x -> str;
+                         }
+                    }
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'ALTER TYPE test::Obj1 {\n    '
+                        'ALTER LINK link {\n        '
+                        'CREATE PROPERTY x -> std::str;\n    };\n};'
                 }],
                 'confidence': 1.0,
             },
