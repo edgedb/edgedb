@@ -125,8 +125,10 @@ cdef class HttpProtocol:
             if is_tls:
                 # Most clients should arrive here to continue with TLS
                 self.transport.pause_reading()
-                self.loop.create_task(self._forward_first_data(data))
-                self.loop.create_task(self._start_tls())
+                self.server.create_task(
+                    self._forward_first_data(data), interruptable=True
+                )
+                self.server.create_task(self._start_tls(), interruptable=True)
                 return
 
             # In case when we're talking to a non-TLS client, keep using the
@@ -188,7 +190,9 @@ cdef class HttpProtocol:
             self.unprocessed.append(req)
         else:
             self.in_response = True
-            self.server.create_task(self._handle_request(req))
+            self.server.create_task(
+                self._handle_request(req), interruptable=False
+            )
 
         self.server._http_last_minute_requests += 1
 
@@ -217,7 +221,9 @@ cdef class HttpProtocol:
 
         if self.unprocessed:
             req = self.unprocessed.popleft()
-            self.server.create_task(self._handle_request(req))
+            self.server.create_task(
+                self._handle_request(req), interruptable=False
+            )
         else:
             self.transport.resume_reading()
 
