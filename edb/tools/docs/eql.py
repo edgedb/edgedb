@@ -1034,6 +1034,9 @@ class EdgeQLDomain(s_domains.Domain):
 
         if docname is None:
             if not node.get('eql-auto-link'):
+                # if ref was not found, the :eql: xref may be being used
+                # outside of the docs, so try resolving ref from intersphinx
+                # inventories
                 inventories = InventoryAdapter(env)
 
                 for target in targets:
