@@ -470,10 +470,10 @@ class develop(setuptools_develop.develop):
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = []
         for s in scripts:
-            if 'rustcli' not in s:
-                s = f'{s}_dev'
+            s = f'{s}_dev'
             patched_scripts.append(s)
         patched_scripts.append('edb = edb.tools.edb:edbcommands')
+        patched_scripts.append('edgedb = edb.cli:rustcli')
         self.distribution.entry_points['console_scripts'] = patched_scripts
 
         super().run(*args, **kwargs)
@@ -814,7 +814,6 @@ setuptools.setup(
     entry_points={
         'console_scripts': [
             'edgedb-server = edb.server.main:main',
-            'edgedb = edb.cli:rustcli',
         ],
     },
     ext_modules=[
