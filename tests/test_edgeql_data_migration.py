@@ -556,55 +556,43 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'proposed': None,
         })
 
-    async def test_edgeql_migration_describe_rollback_01(self):
-        await self.con.execute('''
-            START MIGRATION TO {
-                module test {
-                    type Type1 {
-                        property field1 -> str;
-                    };
-                };
-            };
+    async def test_edgeql_migration_describe_reject_05(self):
+        await self.migrate('''
+            type User {
+                required property username -> str {
+                    constraint exclusive;
+                    constraint regexp(r'asdf');
+                }
+            }
         ''')
-        await self.con.query('DECLARE SAVEPOINT migration_01')
 
-        await self.assert_describe_migration(orig_expected := {
-            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
-            'confirmed': [],
-            'complete': False,
-            'proposed': {
-                'statements': [{
-                    'text': (
-                        'CREATE TYPE test::Type1 {\n'
-                        '    CREATE PROPERTY field1'
-                        ' -> std::str;\n'
-                        '};'
-                    )
-                }],
-                'prompt': "did you create object type 'test::Type1'?",
-            },
-        })
-
-        await self.con.execute('''
-            CREATE TYPE test::Type1 {
-                CREATE PROPERTY field1 -> std::str;
-            };
+        await self.start_migration('''
+            type User {
+                required property username -> str {
+                    constraint exclusive;
+                    constraint regexp(r'foo');
+                }
+            }
         ''')
 
         await self.assert_describe_migration({
-            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
-            'confirmed': [
-                'CREATE TYPE test::Type1 {\n'
-                '    CREATE PROPERTY field1 -> std::str;\n'
-                '};'
-            ],
-            'complete': True,
-            'proposed': None,
+            'proposed': {
+                'prompt': (
+                    "did you drop constraint 'std::regexp' "
+                    "of property 'username'?"
+                )
+            }
         })
 
-        await self.con.query('ROLLBACK TO SAVEPOINT migration_01;')
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
 
-        await self.assert_describe_migration(orig_expected)
+        # ... nothing to do, we can't get it
+        await self.assert_describe_migration({
+            'complete': False,
+            'proposed': None,
+        })
 
     async def test_edgeql_migration_describe_module_01(self):
         # Migration that creates a new module.
