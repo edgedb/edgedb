@@ -32,6 +32,7 @@ from edb import errors
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
+from edb.schema import delta as s_delta
 from edb.schema import migrations as s_migrations
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
@@ -284,6 +285,9 @@ class ProposedMigrationStep(NamedTuple):
     prompt_id: str
     data_safe: bool
     required_user_input: Tuple[Tuple[str, str]]
+    # This isn't part of the output data, but is used to figure out
+    # what to prohibit when something is rejected.
+    operation_key: s_delta.CommandKey
 
     def to_json(self) -> Dict[str, Any]:
         user_input_list = []
