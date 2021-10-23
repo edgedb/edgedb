@@ -33,6 +33,7 @@ import time
 
 import immutables
 
+from edb.server import defines
 from edb.server import pgcluster
 from edb.server import metrics
 
@@ -182,6 +183,11 @@ class Pool(amsg.ServerProtocol):
         self._runstate_dir = runstate_dir
 
         self._poolsock_name = os.path.join(self._runstate_dir, 'ipc')
+        assert len(self._poolsock_name) <= (
+            defines.MAX_RUNSTATE_DIR_PATH
+            + defines.MAX_UNIX_SOCKET_PATH_LENGTH
+            + 1
+        ), "pool IPC socket length exceeds maximum allowed"
 
         assert pool_size >= 1
         self._pool_size = pool_size

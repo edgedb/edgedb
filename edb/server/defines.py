@@ -51,6 +51,14 @@ _QUERIES_ROLLING_AVG_LEN = 300
 
 DEFAULT_MODULE_ALIAS = 'default'
 
+# The maximum length of a Unix socket relative to runstate dir.
+# 21 is the length of the longest socket we might use, which
+# is the admin socket (.s.EDGEDB.admin.xxxxx).
+MAX_UNIX_SOCKET_PATH_LENGTH = 21
+
+# 104 is the maximum Unix socket path length on BSD/Darwin, whereas
+# Linux is constrained to 108.
+MAX_RUNSTATE_DIR_PATH = 104 - MAX_UNIX_SOCKET_PATH_LENGTH - 1
 
 HTTP_PORT_QUERY_CACHE_SIZE = 1000
 HTTP_PORT_MAX_CONCURRENCY = 250  # XXX
