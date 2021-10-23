@@ -155,7 +155,7 @@ class Worker:
             pass
 
 
-class Pool(amsg.ServerProtocol):
+class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
 
     _workers_queue: queue.WorkerQueue[Worker]
     _workers: Dict[int, Worker]
@@ -194,7 +194,9 @@ class Pool(amsg.ServerProtocol):
         self._workers = {}
 
         self._server = amsg.Server(self._poolsock_name, loop, self)
-        self._template_proc = None
+        self._template_transport = None
+        self._template_proc_scheduled = False
+        self._template_proc_version = 0
         self._ready_evt = asyncio.Event()
 
         self._running = None
@@ -206,6 +208,8 @@ class Pool(amsg.ServerProtocol):
         return bool(self._running)
 
     async def _attach_worker(self, pid: int, init_args, init_args_pickled):
+        if not self._running:
+            return
         worker = Worker(  # type: ignore
             self,
             *init_args,
@@ -217,6 +221,8 @@ class Pool(amsg.ServerProtocol):
 
         self._workers[pid] = worker
         self._workers_queue.release(worker)
+        if len(self._workers) > self._pool_size:
+            self._server.kill_outdated_worker(self._template_proc_version)
 
         logger.debug("started compiler worker process (PID %s)", pid)
         if (
@@ -257,7 +263,15 @@ class Pool(amsg.ServerProtocol):
         pickled_args = pickle.dumps(init_args, -1)
         return init_args, pickled_args
 
-    def worker_connected(self, pid):
+    def worker_connected(self, pid, version):
+        if version < self._template_proc_version:
+            logger.debug(
+                "Outdated worker with PID %s connected; discard now.", pid
+            )
+            self._server.get_by_pid(pid).abort()
+            metrics.compiler_process_spawns.inc()
+            return
+
         logger.debug("Worker with PID %s connected, sending init args.", pid)
         args, pickled_args = self._get_init_args()
         self._loop.create_task(
@@ -271,6 +285,19 @@ class Pool(amsg.ServerProtocol):
         self._workers.pop(pid, None)
         metrics.current_compiler_processes.dec()
 
+    def process_exited(self):
+        # Template process exited
+        self._template_transport = None
+        if self._running:
+            logger.error("Template compiler process exited; recreating now.")
+            self._schedule_template_proc(0)
+
+    def get_template_pid(self):
+        if self._template_transport is None:
+            return None
+        else:
+            return self._template_transport.get_pid()
+
     async def start(self):
         if self._running is not None:
             raise RuntimeError(
@@ -281,27 +308,59 @@ class Pool(amsg.ServerProtocol):
         await self._server.start()
         self._running = True
 
-        env = _ENV
-        if debug.flags.server:
-            env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
-        self._template_proc = await asyncio.create_subprocess_exec(
-            *[
-                sys.executable, '-m', WORKER_MOD,
-                '--sockname', self._poolsock_name,
-                '--numproc', str(self._pool_size),
-            ],
-            env=env,
-            stdin=subprocess.DEVNULL,
-        )
+        await self._create_template_proc(retry=False)
 
         await asyncio.wait_for(
             self._ready_evt.wait(),
             PROCESS_INITIAL_RESPONSE_TIMEOUT
         )
 
+    async def _create_template_proc(self, retry=True):
+        self._template_proc_scheduled = False
+        if not self._running:
+            return
+        self._template_proc_version += 1
+        version = str(self._template_proc_version)
+        try:
+            env = _ENV
+            if debug.flags.server:
+                env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
+            self._template_transport, _ = await self._loop.subprocess_exec(
+                lambda: self,
+                *[
+                    sys.executable, '-m', WORKER_MOD,
+                    '--sockname', self._poolsock_name,
+                    '--numproc', str(self._pool_size),
+                    '--version-serial', version,
+                ],
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=None,
+                stderr=None,
+            )
+        except Exception:
+            if retry:
+                if self._running:
+                    logger.exception(
+                        "Unexpected error occurred creating template compiler "
+                        "process; retry in 1 second."
+                    )
+                    self._schedule_template_proc(1)
+            else:
+                raise
+
+    def _schedule_template_proc(self, sleep):
+        if self._template_proc_scheduled:
+            return
+        self._template_proc_scheduled = True
+        self._loop.call_later(
+            sleep, self._loop.create_task, self._create_template_proc()
+        )
+
     async def stop(self):
         if not self._running:
             return
+        self._running = False
 
         await self._server.stop()
         self._server = None
@@ -309,12 +368,10 @@ class Pool(amsg.ServerProtocol):
         self._workers_queue = queue.WorkerQueue(self._loop)
         self._workers.clear()
 
-        proc, self._template_proc = self._template_proc, None
-        if proc is not None:
-            proc.terminate()
-            await proc.wait()
-
-        self._running = False
+        trans, self._template_transport = self._template_transport, None
+        if trans is not None:
+            trans.terminate()
+            await trans._wait()
 
     def _report_worker(self, worker: Worker, *, action: str = "spawn"):
         action = action.capitalize()

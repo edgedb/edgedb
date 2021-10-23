@@ -97,9 +97,10 @@ class HubProtocol(asyncio.Protocol):
     def data_received(self, data):
         if self._pid is None:
             pid_data = data[:8]
-            data = data[8:]
+            version = _uint64_unpacker(data[8:16])[0]
+            data = data[16:]
             self._pid = _uint64_unpacker(pid_data)[0]
-            self._on_pid(self, self._transport, self._pid)
+            self._on_pid(self, self._transport, self._pid, version)
         for msg in self._stream.feed_data(data):
             self.process_message(msg)
 
@@ -120,11 +121,13 @@ class HubProtocol(asyncio.Protocol):
 class HubConnection:
     """An abstraction of the hub connections to the workers."""
 
-    def __init__(self, transport, protocol, loop):
+    def __init__(self, transport, protocol, loop, version):
         self._transport = transport
         self._protocol = protocol
         self._loop = loop
         self._req_id_cnt = 0
+        self._version = version
+        self._aborted = False
 
     def is_closed(self):
         return self._protocol._closed
@@ -138,16 +141,19 @@ class HubConnection:
         return await waiter
 
     def abort(self):
+        self._aborted = True
         self._transport.abort()
 
 
 class WorkerConnection:
     """Connection object used by the worker's process."""
 
-    def __init__(self, sockname):
+    def __init__(self, sockname, version):
         self._sock = socket.socket(socket.AF_UNIX)
         self._sock.connect(sockname)
-        self._sock.sendall(_uint64_packer(os.getpid()))
+        self._sock.sendall(
+            _uint64_packer(os.getpid()) + _uint64_packer(version)
+        )
         self._stream = MessageStream()
 
     def _on_message(self, msg: bytes):
@@ -182,7 +188,7 @@ class WorkerConnection:
 
 
 class ServerProtocol:
-    def worker_connected(self, pid):
+    def worker_connected(self, pid, version):
         pass
 
     def worker_disconnected(self, pid):
@@ -201,10 +207,10 @@ class Server:
         self._pids = {}
         self._proto = server_protocol
 
-    def _on_pid_connected(self, proto, tr, pid):
+    def _on_pid_connected(self, proto, tr, pid, version):
         assert pid not in self._pids
-        self._pids[pid] = HubConnection(tr, proto, self._loop)
-        self._proto.worker_connected(pid)
+        self._pids[pid] = HubConnection(tr, proto, self._loop, version)
+        self._proto.worker_connected(pid, version)
 
     def _on_pid_disconnected(self, pid: typing.Optional[int]):
         if not pid:
@@ -233,3 +239,9 @@ class Server:
         await self._srv.wait_closed()
         for con in self._pids.values():
             con.abort()
+
+    def kill_outdated_worker(self, current_version):
+        for conn in self._pids.values():
+            if conn._version < current_version and not conn._aborted:
+                conn.abort()
+                break

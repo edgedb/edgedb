@@ -270,8 +270,8 @@ def compile_graphql(
     )
 
 
-def worker(sockname):
-    con = amsg.WorkerConnection(sockname)
+def worker(sockname, version_serial):
+    con = amsg.WorkerConnection(sockname, version_serial)
     try:
         for req_id, req in con.iter_request():
             try:
@@ -329,9 +329,9 @@ def worker(sockname):
         con.abort()
 
 
-def run_worker(sockname):
+def run_worker(sockname, version_serial):
     with devmode.CoverageConfig.enable_coverage_if_requested():
-        worker(sockname)
+        worker(sockname, version_serial)
 
 
 def prepare_exception(ex):
@@ -364,6 +364,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sockname')
     parser.add_argument('--numproc')
+    parser.add_argument('--version-serial', type=int)
     args = parser.parse_args()
 
     numproc = int(args.numproc)
@@ -441,7 +442,7 @@ def main():
 
     # child process - clear the SIGTERM handler for potential Rust impl
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
-    run_worker(args.sockname)
+    run_worker(args.sockname, args.version_serial)
 
 
 if __name__ == '__main__':

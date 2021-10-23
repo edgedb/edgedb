@@ -500,6 +500,24 @@ def _fetch_server_info(host: str, port: int) -> dict[str, Any]:
         con.close()
 
 
+def _call_system_api(host: str, port: int, path: str):
+    con = http.client.HTTPConnection(host, port)
+    con.connect()
+    try:
+        con.request(
+            'GET',
+            f'http://{host}:{port}/server/{path}'
+        )
+        resp = con.getresponse()
+        if resp.status != 200:
+            print(resp.read().decode())
+            raise AssertionError(
+                f'/server/{path} returned non 200 HTTP status: {resp.status}')
+        return json.loads(resp.read().decode())
+    finally:
+        con.close()
+
+
 def _extract_background_errors(metrics: str) -> str | None:
     non_zero = []
 
@@ -1518,6 +1536,9 @@ class _EdgeDBServerData(NamedTuple):
 
     def fetch_server_info(self) -> dict[str, Any]:
         return _fetch_server_info(self.host, self.port)
+
+    def call_system_api(self, path: str):
+        return _call_system_api(self.host, self.port, path)
 
     async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
         conn_args = self.get_connect_args(**kwargs)
