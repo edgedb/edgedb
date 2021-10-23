@@ -131,10 +131,17 @@ class PortType(click.ParamType):
 
 
 def _get_runstate_dir_default() -> str:
+    runstate_dir: Optional[str]
+
     try:
-        return buildmeta.get_build_metadata_value("RUNSTATE_DIR")
+        runstate_dir = buildmeta.get_build_metadata_value("RUNSTATE_DIR")
     except buildmeta.MetadataError:
-        return '<data-dir>'
+        runstate_dir = None
+
+    if runstate_dir is None:
+        runstate_dir = '<data-dir>'
+
+    return runstate_dir
 
 
 def _validate_max_backend_connections(ctx, param, value):

@@ -163,11 +163,14 @@ def _compile_build_meta(build_lib, version, pg_config, runstate_dir,
     else:
         pg_config_path = repr(str(pg_config_path))
 
-    runstate_dir_path = pathlib.Path(runstate_dir)
-    if not runstate_dir_path.is_absolute():
-        runstate_dir_path = f"_ROOT / {str(runstate_dir_path)!r}"
+    if runstate_dir:
+        runstate_dir_path = pathlib.Path(runstate_dir)
+        if not runstate_dir_path.is_absolute():
+            runstate_dir_path = f"_ROOT / {str(runstate_dir_path)!r}"
+        else:
+            runstate_dir_path = repr(str(runstate_dir_path))
     else:
-        runstate_dir_path = repr(str(runstate_dir_path))
+        runstate_dir_path = "None  # default to <data-dir>"
 
     shared_dir_path = pathlib.Path(shared_dir)
     if not shared_dir_path.is_absolute():

@@ -90,7 +90,11 @@ def get_runstate_path(data_dir: pathlib.Path) -> pathlib.Path:
     if devmode.is_in_dev_mode():
         return data_dir
     else:
-        return pathlib.Path(get_build_metadata_value('RUNSTATE_DIR'))
+        runstate_dir = get_build_metadata_value('RUNSTATE_DIR')
+        if runstate_dir is not None:
+            return pathlib.Path(runstate_dir)
+        else:
+            return data_dir
 
 
 def get_shared_data_dir_path() -> pathlib.Path:
