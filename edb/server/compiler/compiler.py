@@ -1086,12 +1086,15 @@ class Compiler:
                                 schema=schema,
                                 modaliases=current_tx.get_modaliases(),
                             )
-                            _, prompt_text = top_op2.get_user_prompt()
+                            prompt_key2, prompt_text = (
+                                top_op2.get_user_prompt())
 
                             # The prompt_id still needs to come from
                             # the original op, though, since
                             # orig_cmd_class is lost in ddl.
-                            prompt_id, _ = top_op.get_user_prompt()
+                            prompt_key, _ = top_op.get_user_prompt()
+                            prompt_id = s_delta.get_object_command_id(
+                                prompt_key)
                             confidence = top_op.get_annotation('confidence')
                             assert confidence is not None
 
@@ -1104,6 +1107,7 @@ class Compiler:
                                 required_user_input=tuple(
                                     top_op.get_required_user_input().items(),
                                 ),
+                                operation_key=prompt_key2,
                             )
                             proposed_steps.append(step)
 
@@ -1154,10 +1158,8 @@ class Compiler:
                 new_guidance = mstate.guidance
             else:
 
-                last_id = mstate.last_proposed[0].prompt_id
-                cmdclass_name, qlcls, name, *rest = last_id.split(' ')
-                mcls = s_obj.Object.get_schema_metaclass_for_ql_class(qlcls)
-                classname = s_name.name_from_string(name)
+                last = mstate.last_proposed[0]
+                cmdclass_name, mcls, classname, new_name = last.operation_key
 
                 if cmdclass_name.startswith('Create'):
                     new_guidance = mstate.guidance._replace(
@@ -1172,9 +1174,6 @@ class Compiler:
                         }
                     )
                 else:
-                    new_name = (
-                        s_name.name_from_string(rest[1])
-                        if rest else classname)
                     new_guidance = mstate.guidance._replace(
                         banned_alters=mstate.guidance.banned_alters | {
                             (mcls, (classname, new_name)),

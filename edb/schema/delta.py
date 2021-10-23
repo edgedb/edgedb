@@ -1764,7 +1764,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         self,
         *,
         parent_op: Optional[Command] = None,
-    ) -> Tuple[str, str]:
+    ) -> Tuple[CommandKey, str]:
         """Return a human-friendly prompt describing this operation."""
 
         # The prompt is determined by the *innermost* subcommand as
@@ -1799,7 +1799,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         desc = self.get_friendly_description(parent_op=parent_op)
         prompt_text = f'did you {desc}?'
-        prompt_id = get_object_command_id(self)
+        prompt_id = get_object_command_key(self)
         assert prompt_id is not None
         return prompt_id, prompt_text
 
@@ -4213,22 +4213,28 @@ def get_object_delta_command(
     )
 
 
-def get_object_command_id(delta: ObjectCommand[Any]) -> str:
+CommandKey = Tuple[str, Type[so.Object], sn.Name, Optional[sn.Name]]
+
+
+def get_object_command_key(delta: ObjectCommand[Any]) -> CommandKey:
     if delta.orig_cmd_type is not None:
         cmdtype = delta.orig_cmd_type
     else:
         cmdtype = type(delta)
 
-    if new_name := (
+    new_name = (
         getattr(delta, 'new_name', None)
         or delta.get_annotation('new_name')
-    ):
-        extra = ' TO ' + str(new_name)
-    else:
-        extra = ''
+    )
+    mcls = delta.get_schema_metaclass()
+    return cmdtype.__name__, mcls, delta.classname, new_name
 
-    qlcls = delta.get_schema_metaclass().get_ql_class_or_die()
-    return f'{cmdtype.__name__} {qlcls} {str(delta.classname)}{extra}'
+
+def get_object_command_id(key: CommandKey) -> str:
+    cmdclass_name, mcls, name, new_name = key
+    qlcls = mcls.get_ql_class_or_die()
+    extra = ' TO ' + str(new_name) if new_name else ''
+    return f'{cmdclass_name} {qlcls} {name}{extra}'
 
 
 def apply(
