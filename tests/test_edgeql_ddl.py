@@ -11633,6 +11633,25 @@ type default::Foo {
             ]
         )
 
+    async def test_edgeql_ddl_new_required_pointer_09(self):
+        await self.con.execute(r"""
+            CREATE TYPE Foo;
+            INSERT Foo;
+        """)
+
+        await self.con.execute("""
+            ALTER TYPE Foo {
+                CREATE MULTI PROPERTY name -> str {
+                    SET REQUIRED USING ({"hello", "world"})
+                }
+            }
+        """)
+
+        await self.assert_query_result(
+            r'''SELECT Foo {name}''',
+            [{'name': {'hello', 'world'}}]
+        )
+
     async def test_edgeql_ddl_new_required_multi_pointer_01(self):
         await self.con.execute(r"""
             CREATE TYPE Foo;

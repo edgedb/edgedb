@@ -2468,6 +2468,7 @@ class AlterPointerLowerCardinality(
 
         orig_required = scls.get_required(orig_schema)
         new_required = scls.get_required(schema)
+        new_card = scls.get_cardinality(schema)
         is_computed = 'required' in scls.get_computed_fields(schema)
 
         if orig_required == new_required or is_computed:
@@ -2483,7 +2484,7 @@ class AlterPointerLowerCardinality(
                     context=context,
                     expr=self.fill_expr,
                     target_as_singleton=True,
-                    singleton_result_expected=True,
+                    singleton_result_expected=new_card.is_single(),
                     expr_description=(
                         f'the USING clause for the alteration of {vn}'
                     ),
