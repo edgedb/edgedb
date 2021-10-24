@@ -678,8 +678,10 @@ class Cluster(BaseCluster):
                 sockdir = os.path.normpath(
                     os.path.join(self._data_dir, sockdir))
             host_str = sockdir
-        else:
+        elif hostaddr:
             host_str = hostaddr
+        else:
+            raise PostgresPidFileNotReadyError
 
         if host_str == '*':
             host_str = 'localhost'
