@@ -54,7 +54,7 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
 
 
 CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
-    CREATE REQUIRED PROPERTY client_idle_timeout -> std::int64 {
+    CREATE REQUIRED PROPERTY session_idle_timeout -> std::int32 {
         CREATE ANNOTATION cfg::system := 'true';
         SET default := 60_000;  # 60 seconds
     };

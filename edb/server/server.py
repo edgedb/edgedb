@@ -107,10 +107,10 @@ class Server(ha_base.ClusterProtocol):
     # have a periodically run coroutine to GC all inactive connections.
     # This should be more economical than maintaining a TimerHandle for
     # every open connection. Also, this way, we can react to the
-    # `client_idle_timeout` config setting changed mid-flight.
+    # `session_idle_timeout` config setting changed mid-flight.
     _binary_conns: collections.OrderedDict[binary.EdgeConnection, bool]
     _idle_gc_handler: asyncio.TimerHandle | None = None
-    _client_idle_timeout: int | None = None
+    _session_idle_timeout: int | None = None
 
     def __init__(
         self,
@@ -226,7 +226,7 @@ class Server(ha_base.ClusterProtocol):
             self._backend_adaptive_ha = None
 
         self._idle_gc_handler = None
-        self._client_idle_timeout = None
+        self._session_idle_timeout = None
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -393,16 +393,16 @@ class Server(ha_base.ClusterProtocol):
             self._idle_gc_handler = None
 
         assert self._dbindex is not None
-        client_idle_timeout = config.lookup(
-            'client_idle_timeout', self._dbindex.get_sys_config())
+        session_idle_timeout = config.lookup(
+            'session_idle_timeout', self._dbindex.get_sys_config())
 
-        client_idle_timeout /= 1000.0
+        session_idle_timeout /= 1000.0
 
-        if client_idle_timeout > 0:
+        if session_idle_timeout > 0:
             self._idle_gc_handler = self.__loop.call_later(
-                client_idle_timeout, self._idle_gc_collector)
+                session_idle_timeout, self._idle_gc_collector)
 
-        return client_idle_timeout
+        return session_idle_timeout
 
     def _idle_gc_collector(self):
         try:
@@ -904,7 +904,7 @@ class Server(ha_base.ClusterProtocol):
             elif setting_name == 'listen_port':
                 await self._restart_servers_new_addr(self._listen_hosts, value)
 
-            elif setting_name == 'client_idle_timeout':
+            elif setting_name == 'session_idle_timeout':
                 self._reinit_idle_gc_collector()
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_set')
@@ -921,7 +921,7 @@ class Server(ha_base.ClusterProtocol):
                 await self._restart_servers_new_addr(
                     self._listen_hosts, defines.EDGEDB_PORT)
 
-            elif setting_name == 'client_idle_timeout':
+            elif setting_name == 'session_idle_timeout':
                 self._reinit_idle_gc_collector()
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_reset')

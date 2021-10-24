@@ -112,7 +112,7 @@ Query Planning
 Client Connections
 ------------------
 
-:eql:synopsis:`client_idle_timeout (int32)`
+:eql:synopsis:`session_idle_timeout (int32)`
     Sets the timeout (in milliseconds) for how long client connections
     can stay inactive before being forcefully closed by the server.
 

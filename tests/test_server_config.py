@@ -1126,7 +1126,7 @@ class TestServerConfig(tb.QueryTestCase):
 
             # Set the timeout to 5 seconds.
             await idle_cons[0].execute(
-                'configure system set client_idle_timeout := 5_000;'
+                'configure system set session_idle_timeout := 5_000;'
             )
 
             for _ in range(5):
