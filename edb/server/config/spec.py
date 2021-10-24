@@ -72,7 +72,8 @@ class Setting:
                     f'should not have defaults')
 
         else:
-            if not isinstance(self.default, self.type):
+            if (not self.backend_setting and
+                    not isinstance(self.default, self.type)):
                 raise ValueError(
                     f'invalid config setting {self.name!r}: '
                     f'the default {self.default!r} '
@@ -148,10 +149,12 @@ def load_spec_from_schema(schema):
             if set_of and not isinstance(deflt, frozenset):
                 deflt = frozenset((deflt,))
 
+        backend_setting = attributes.get(
+            sn.QualName('cfg', 'backend_setting'), None)
         if deflt is None:
             if set_of:
                 deflt = frozenset()
-            else:
+            elif backend_setting is None:
                 raise RuntimeError(f'cfg::Config.{pn} has no default')
 
         setting = Setting(
@@ -162,8 +165,7 @@ def load_spec_from_schema(schema):
             system=attributes.get(sn.QualName('cfg', 'system'), False),
             requires_restart=attributes.get(
                 sn.QualName('cfg', 'requires_restart'), False),
-            backend_setting=attributes.get(
-                sn.QualName('cfg', 'backend_setting'), None),
+            backend_setting=backend_setting,
             affects_compilation=attributes.get(
                 sn.QualName('cfg', 'affects_compilation'), False),
             default=deflt,
