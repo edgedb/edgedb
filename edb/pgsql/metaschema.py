@@ -2578,6 +2578,206 @@ class SysConfigValueType(dbops.CompositeType):
         ])
 
 
+class ConvertPostgresConfigUnitsFunction(dbops.Function):
+
+    """Convert duration/memory values to milliseconds/kilobytes.
+
+    See https://www.postgresql.org/docs/12/config-setting.html
+    for information about the units Postgres config system has.
+    """
+
+    text = r"""
+    SELECT (
+        CASE
+            WHEN "unit" = 'us'
+            THEN ("value" * "multiplier") / 1000.0
+
+            WHEN "unit" = 'ms'
+            THEN "value" * "multiplier"
+
+            WHEN "unit" = 's'
+            THEN "value" * "multiplier" * 1000.0
+
+            WHEN "unit" = 'min'
+            THEN "value" * "multiplier" * 60000.0
+
+            WHEN "unit" = 'h'
+            THEN "value" * "multiplier" * 60000.0 * 60.0
+
+            WHEN "unit" = 'h'
+            THEN "value" * "multiplier" * 60000.0 * 60.0 * 24.0
+
+            WHEN "unit" = 'B'
+            THEN ("value" * "multiplier") / 1024.0
+
+            WHEN "unit" = 'kB'
+            THEN "value" * "multiplier"
+
+            WHEN "unit" = 'MB'
+            THEN "value" * "multiplier" * 1024.0
+
+            WHEN "unit" = 'GB'
+            THEN "value" * "multiplier" * 1024.0 * 1024.0
+
+            WHEN "unit" = 'TB'
+            THEN "value" * "multiplier" * 1024.0 * 1024.0 * 1024.0
+
+            WHEN "unit" = ''
+            THEN "value" * "multiplier"::numeric
+
+            ELSE edgedb.raise(
+                NULL::numeric,
+                msg => (
+                    'unknown configutation unit "' ||
+                    COALESCE("unit", '<NULL>') ||
+                    '"'
+                )
+            )
+        END
+    )
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_convert_postgres_config_units'),
+            args=[
+                ('value', ('numeric',)),
+                ('multiplier', ('numeric',)),
+                ('unit', ('text',))
+            ],
+            returns=('numeric',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class InterpretConfigValueToJsonFunction(dbops.Function):
+
+    """Convert a Postgres config value to jsonb.
+
+    This function:
+
+    * converts booleans to JSON true/false;
+    * converts enums and strings to JSON strings;
+    * converts real/integers to JSON numbers:
+      - for durations: we always convert to milliseconds;
+      - for memory size: we always convert to kilobytes;
+      - already unitless numbers are left as is.
+
+    See https://www.postgresql.org/docs/12/config-setting.html
+    for information about the units Postgres config system has.
+    """
+
+    text = r"""
+    SELECT (
+        CASE
+            WHEN "type" = 'bool'
+            THEN (
+                CASE
+                WHEN lower("value") =
+                    any('{"on", "true", "yes", "1"}'::text[])
+                THEN 'true'
+                ELSE 'false'
+                END
+            )::jsonb
+
+            WHEN "type" = 'enum' OR "type" = 'string'
+            THEN to_jsonb("value")
+
+            WHEN "type" = 'integer'
+            THEN trunc(
+                    edgedb._convert_postgres_config_units(
+                        "value"::numeric, "multiplier"::numeric, "unit"
+                    )
+                )::text::jsonb
+
+            WHEN "type" = 'real'
+            THEN CAST(
+                    edgedb._convert_postgres_config_units(
+                        "value"::numeric, "multiplier"::numeric, "unit"
+                    ) AS DOUBLE PRECISION
+                )::text::jsonb
+
+            ELSE
+                edgedb.raise(
+                    NULL::jsonb,
+                    msg => (
+                        'unknown configutation type "' ||
+                        COALESCE("type", '<NULL>') ||
+                        '"'
+                    )
+                )
+        END
+    )
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_interpret_config_value_to_json'),
+            args=[
+                ('value', ('text',)),
+                ('type', ('text',)),
+                ('multiplier', ('int',)),
+                ('unit', ('text',))
+            ],
+            returns=('jsonb',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class PostgresConfigValueToJsonFunction(dbops.Function):
+
+    """Convert a Postgres setting to JSON.
+
+    A seeting is first looked up by name in `pg_settings` to
+    determine its unit/type.  It's then converted to an appropriate
+    JSON type using `_interpret_config_value_to_json`.
+    """
+
+    text = r"""
+        SELECT
+            edgedb._interpret_config_value_to_json(
+                parsed_value.val,
+                settings.type,
+                1,
+                parsed_value.unit
+            )
+        FROM
+            (
+                SELECT
+                    pg_settings.vartype AS type
+                FROM
+                    pg_settings
+                WHERE
+                    pg_settings.name = "setting_name"
+            ) AS settings,
+
+            LATERAL (
+                SELECT regexp_match(
+                    "setting_value", '(\d+)\s*([a-zA-Z]*)') AS v
+            ) AS _unit,
+
+            LATERAL (
+                SELECT
+                    COALESCE(_unit.v[1], "setting_value") AS val,
+                    COALESCE(_unit.v[2], '') AS unit
+            ) AS parsed_value
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_postgres_config_value_to_json'),
+            args=[
+                ('setting_name', ('text',)),
+                ('setting_value', ('text',)),
+            ],
+            returns=('jsonb',),
+            volatility='volatile',
+            text=self.text,
+        )
+
+
 class SysConfigFullFunction(dbops.Function):
 
     # This is a function because "_edgecon_state" is a temporary table
@@ -2650,8 +2850,10 @@ class SysConfigFullFunction(dbops.Function):
 
     pg_db_setting AS (
         SELECT
-            nameval.name,
-            to_jsonb(nameval.value) AS value,
+            spec.name,
+            edgedb._postgres_config_value_to_json(
+                spec.backend_setting, nameval.value
+            ) AS value,
             'database' AS source
         FROM
             (SELECT
@@ -2674,7 +2876,8 @@ class SysConfigFullFunction(dbops.Function):
             ) AS nameval,
             LATERAL (
                 SELECT
-                    config_spec.name
+                    config_spec.name,
+                    config_spec.backend_setting
                 FROM
                     config_spec
                 WHERE
@@ -2685,13 +2888,16 @@ class SysConfigFullFunction(dbops.Function):
     pg_conf_settings AS (
         SELECT
             spec.name,
-            to_jsonb(setting) AS value,
+            edgedb._postgres_config_value_to_json(
+                spec.backend_setting, setting
+            ) AS value,
             'postgres configuration file' AS source
         FROM
             pg_file_settings,
             LATERAL (
                 SELECT
-                    config_spec.name
+                    config_spec.name,
+                    config_spec.backend_setting
                 FROM
                     config_spec
                 WHERE
@@ -2708,13 +2914,16 @@ class SysConfigFullFunction(dbops.Function):
     pg_auto_conf_settings AS (
         SELECT
             spec.name,
-            to_jsonb(setting) AS value,
+            edgedb._postgres_config_value_to_json(
+                spec.backend_setting, setting
+            ) AS value,
             'system override' AS source
         FROM
             pg_file_settings,
             LATERAL (
                 SELECT
-                    config_spec.name
+                    config_spec.name,
+                    config_spec.backend_setting
                 FROM
                     config_spec
                 WHERE
@@ -2731,11 +2940,11 @@ class SysConfigFullFunction(dbops.Function):
     pg_config AS (
         SELECT
             spec.name,
-            to_jsonb(
-                CASE WHEN u.v[1] IS NOT NULL
-                THEN (settings.setting::int * (u.v[1])::int)::text || u.v[2]
-                ELSE settings.setting || COALESCE(settings.unit, '')
-                END
+            edgedb._interpret_config_value_to_json(
+                settings.setting,
+                settings.type,
+                unit.multiplier,
+                unit.unit
             ) AS value,
             source AS source
         FROM
@@ -2743,6 +2952,7 @@ class SysConfigFullFunction(dbops.Function):
                 SELECT
                     pg_settings.name AS name,
                     pg_settings.unit AS unit,
+                    pg_settings.vartype AS type,
                     pg_settings.setting AS setting,
                     (CASE
                         WHEN pg_settings.source IN ('session', 'database') THEN
@@ -2755,8 +2965,21 @@ class SysConfigFullFunction(dbops.Function):
             ) AS settings,
 
             LATERAL (
-                SELECT regexp_match(settings.unit, '(\\d+)(\\w+)') AS v
-            ) AS u,
+                SELECT regexp_match(
+                    settings.unit, '(\\d*)\\s*(\\[a-zA-Z]+)') AS v
+            ) AS _unit,
+
+            LATERAL (
+                SELECT
+                    COALESCE(
+                        CASE
+                            WHEN _unit.v[1] = '' THEN 1
+                            ELSE _unit.v[1]::int
+                        END,
+                        1
+                    ) AS multiplier,
+                    COALESCE(_unit.v[2], '') AS unit
+            ) AS unit,
 
             LATERAL (
                 SELECT
@@ -3347,6 +3570,9 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateEnum(SysConfigSourceType()),
         dbops.CreateEnum(SysConfigScopeType()),
         dbops.CreateCompositeType(SysConfigValueType()),
+        dbops.CreateFunction(ConvertPostgresConfigUnitsFunction()),
+        dbops.CreateFunction(InterpretConfigValueToJsonFunction()),
+        dbops.CreateFunction(PostgresConfigValueToJsonFunction()),
         dbops.CreateFunction(SysConfigFullFunction()),
         dbops.CreateFunction(SysConfigNoFileAccessFunction()),
         dbops.CreateFunction(SysConfigFunction()),

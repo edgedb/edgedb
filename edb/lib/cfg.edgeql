@@ -54,7 +54,7 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
 
 
 CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
-    CREATE REQUIRED PROPERTY client_idle_timeout -> std::int32 {
+    CREATE REQUIRED PROPERTY client_idle_timeout -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         SET default := 60_000;  # 60 seconds
     };
@@ -82,35 +82,30 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
     # from pg_settings in the config_backend CTE.
-    CREATE PROPERTY shared_buffers -> std::str {
+    CREATE PROPERTY shared_buffers -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"shared_buffers"';
         CREATE ANNOTATION cfg::requires_restart := 'true';
-        SET default := '-1';
     };
 
-    CREATE PROPERTY query_work_mem -> std::str {
+    CREATE PROPERTY query_work_mem -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"work_mem"';
-        SET default := '-1';
     };
 
-    CREATE PROPERTY effective_cache_size -> std::str {
+    CREATE PROPERTY effective_cache_size -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
-        SET default := '-1';
     };
 
-    CREATE PROPERTY effective_io_concurrency -> std::str {
+    CREATE PROPERTY effective_io_concurrency -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_io_concurrency"';
-        SET default := '50';
     };
 
-    CREATE PROPERTY default_statistics_target -> std::str {
+    CREATE PROPERTY default_statistics_target -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"default_statistics_target"';
-        SET default := '100';
     };
 };
 
