@@ -11840,6 +11840,43 @@ type default::Foo {
             };
         ''')
 
+    async def test_edgeql_ddl_recursive_func(self):
+        await self.con.execute(r'''
+            CREATE TYPE SomeThing {
+                CREATE LINK child -> SomeThing;
+            }
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "function 'get_all_children_ordered' does not exist"
+        ):
+            await self.con.execute(r'''
+                CREATE FUNCTION get_all_children_ordered(parent: SomeThing)
+                -> SET OF SomeThing Using (
+                    SELECT SomeThing UNION get_all_children_ordered(parent))
+            ''')
+
+        await self.con.execute(r'''
+            CREATE FUNCTION get_all_children_ordered(parent: SomeThing)
+            -> SET OF SomeThing Using (
+                SELECT SomeThing
+            )
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r"function 'default::get_all_children_ordered"
+            r"\(parent: default::SomeThing\)' is defined recursively"
+        ):
+            await self.con.execute(r'''
+                ALTER FUNCTION get_all_children_ordered(parent: SomeThing)
+                USING (
+                    SELECT parent.child
+                        UNION get_all_children_ordered(parent)
+                );
+            ''')
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
