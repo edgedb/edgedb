@@ -95,11 +95,16 @@ CB_ONE = CardinalityBound.ONE
 CB_MANY = CardinalityBound.MANY
 
 
+class CardinalityBounds(NamedTuple):
+    lower: CardinalityBound
+    upper: CardinalityBound
+
+
 def _card_to_bounds(
     card: qltypes.Cardinality
-) -> Tuple[CardinalityBound, CardinalityBound]:
+) -> CardinalityBounds:
     lower, upper = card.to_schema_value()
-    return (
+    return CardinalityBounds(
         CardinalityBound.from_required(lower),
         CardinalityBound.from_schema_value(upper),
     )
@@ -155,20 +160,6 @@ def _union_cardinality(
             max(lower),
             CB_MANY if len(upper) > 1 else upper[0],
         )
-    else:
-        # no args is indicative of a empty set
-        return AT_MOST_ONE
-
-
-def _coalesce_cardinality(
-    args: Iterable[qltypes.Cardinality],
-) -> qltypes.Cardinality:
-    '''Cardinality of ?? of multiple args.'''
-
-    card = list(zip(*(_card_to_bounds(a) for a in args)))
-    if card:
-        lower, upper = card
-        return _bounds_to_card(max(lower), max(upper))
     else:
         # no args is indicative of a empty set
         return AT_MOST_ONE
@@ -644,7 +635,7 @@ def _infer_set_inner(
         card = MANY
 
     if force_single:
-        card = _bounds_to_card(_card_to_bounds(card)[0], CB_ONE)
+        card = _bounds_to_card(_card_to_bounds(card).lower, CB_ONE)
 
     return card
 
@@ -681,8 +672,7 @@ def __infer_func_call(
         arg_lower, arg_upper = arg_card
         lower = (
             min(arg_lower) if ir.preserves_optionality else
-            CardinalityBound.ONE if (
-                ir.func_shortname == sn.QualName('std', 'assert_exists'))
+            CB_ONE if ir.func_shortname == sn.QualName('std', 'assert_exists')
             else ret_lower_bound
         )
         upper = (max(arg_upper) if ir.preserves_upper_cardinality
@@ -730,7 +720,7 @@ def __infer_func_call(
             result = cartesian_cardinality(singleton_arg_cards + [return_card])
             if not all_singletons:
                 result = _bounds_to_card(
-                    ret_lower_bound, _card_to_bounds(result)[1])
+                    ret_lower_bound, _card_to_bounds(result).upper)
             return result
 
 
@@ -752,7 +742,7 @@ def __infer_oper_call(
         return _union_cardinality(cards)
     elif str(ir.func_shortname) == 'std::??':
         # Coalescing takes the maximum of both lower and upper bounds.
-        return _coalesce_cardinality(cards)
+        return max_cardinality(cards)
     else:
         args: List[irast.Base] = []
         all_optional = False
@@ -778,8 +768,7 @@ def __infer_oper_call(
                 # doesn't return a SET OF returns at least ONE result
                 # (we currently don't have operators that return
                 # OPTIONAL). So we upgrade the lower bound.
-                _, upper = _card_to_bounds(card)
-                card = _bounds_to_card(CB_ONE, upper)
+                card = _bounds_to_card(CB_ONE, _card_to_bounds(card).upper)
 
             return card
         else:
@@ -1116,7 +1105,7 @@ def __infer_select_stmt(
             isinstance(ir.limit.expr, irast.IntegerConstant) and
             ir.limit.expr.value == '1'):
         # Explicit LIMIT 1 clause.
-        stmt_card = _bounds_to_card(_card_to_bounds(stmt_card)[0], CB_ONE)
+        stmt_card = _bounds_to_card(_card_to_bounds(stmt_card).lower, CB_ONE)
 
     if ir.iterator_stmt:
         stmt_card = cartesian_cardinality((stmt_card, iter_card))
