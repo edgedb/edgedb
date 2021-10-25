@@ -39,6 +39,12 @@ jobs:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         EXTRA_OPTIMIZATIONS: "true"
+<% if tgt.family == "generic" %>
+        BUILD_GENERIC: true
+<% endif %>
+<% if tgt.libc %>
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
+<% endif %>
 
     - uses: actions/upload-artifact@v2
       with:
