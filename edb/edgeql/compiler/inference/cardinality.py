@@ -1116,7 +1116,7 @@ def __infer_select_stmt(
             isinstance(ir.limit.expr, irast.IntegerConstant) and
             ir.limit.expr.value == '1'):
         # Explicit LIMIT 1 clause.
-        stmt_card = AT_MOST_ONE
+        stmt_card = _bounds_to_card(_card_to_bounds(stmt_card)[0], CB_ONE)
 
     if ir.iterator_stmt:
         stmt_card = cartesian_cardinality((stmt_card, iter_card))
