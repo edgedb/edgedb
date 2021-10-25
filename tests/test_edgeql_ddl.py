@@ -8092,7 +8092,8 @@ type default::Foo {
     async def test_edgeql_ddl_constraint_12(self):
         with self.assertRaisesRegex(
                 edgedb.errors.SchemaError,
-                r'Constraint .+ is already present in the schema'):
+                r"constraint 'std::max_len_value' of property 'firstname' "
+                r"of object type 'default::Base' is already present"):
             await self.con.execute(r"""
                 CREATE TYPE Base {
                     CREATE PROPERTY firstname -> str {
@@ -8378,7 +8379,8 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.errors.SchemaError,
-                r'Constraint .+ is already present in the schema'):
+                r"constraint 'std::max_len_value' of property 'firstname' "
+                r"of object type 'default::Base' is already present"):
             await self.con.execute(r"""
                 ALTER TYPE Base {
                     ALTER PROPERTY firstname {
@@ -11876,6 +11878,66 @@ type default::Foo {
                         UNION get_all_children_ordered(parent)
                 );
             ''')
+
+    async def test_edgeql_ddl_duplicates_01(self):
+        await self.con.execute(r"""
+            CREATE TYPE Foo;
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.errors.SchemaError,
+                r"object type 'default::Foo' is already present"):
+            await self.con.execute(r"""
+                CREATE TYPE Foo;
+            """)
+
+    async def test_edgeql_ddl_duplicates_02(self):
+        await self.con.execute(r"""
+            CREATE TYPE Foo {
+                CREATE PROPERTY foo -> str;
+            }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.errors.SchemaError,
+                r"property 'foo' of "
+                r"object type 'default::Foo' is already present"):
+            await self.con.execute(r"""
+                ALTER TYPE Foo {
+                    CREATE PROPERTY foo -> str;
+                }
+            """)
+
+    async def test_edgeql_ddl_duplicates_03(self):
+        await self.con.execute(r"""
+            CREATE TYPE Foo;
+            CREATE TYPE Bar;
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.errors.SchemaError,
+                r"object type 'default::Foo' is already present"):
+            await self.con.execute(r"""
+                ALTER TYPE Bar RENAME TO Foo;
+            """)
+
+    async def test_edgeql_ddl_duplicates_04(self):
+        await self.con.execute(r"""
+            CREATE TYPE Foo {
+                CREATE PROPERTY foo -> str;
+                CREATE PROPERTY bar -> str;
+            }
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.errors.SchemaError,
+                r"property 'foo' of "
+                r"object type 'default::Foo' is already present"):
+            await self.con.execute(r"""
+                ALTER TYPE Foo {
+                    ALTER PROPERTY bar RENAME TO foo;
+                }
+            """)
 
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
