@@ -341,11 +341,12 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
         except Exception:
             if retry:
                 if self._running:
+                    t = defines.BACKEND_COMPILER_TEMPLATE_PROC_RESTART_INTERVAL
                     logger.exception(
-                        "Unexpected error occurred creating template compiler "
-                        "process; retry in 1 second."
+                        f"Unexpected error occurred creating template compiler"
+                        f" process; retry in {t} second{'s' if t > 1 else ''}."
                     )
-                    self._schedule_template_proc(1)
+                    self._schedule_template_proc(t)
             else:
                 raise
 

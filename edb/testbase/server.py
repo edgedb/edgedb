@@ -467,53 +467,31 @@ def _shutdown_cluster(cluster, *, destroy=True):
 
 
 def _fetch_metrics(host: str, port: int) -> str:
-    con = http.client.HTTPConnection(host, port)
-    con.connect()
-    try:
-        con.request(
-            'GET',
-            f'http://{host}:{port}/metrics'
-        )
-        resp = con.getresponse()
-        if resp.status != 200:
-            raise AssertionError(
-                f'/metrics returned non 200 HTTP status: {resp.status}')
-        return resp.read().decode()
-    finally:
-        con.close()
+    return _call_system_api(host, port, '/metrics', return_json=False)
 
 
 def _fetch_server_info(host: str, port: int) -> dict[str, Any]:
+    return _call_system_api(host, port, '/server-info')
+
+
+def _call_system_api(host: str, port: int, path: str, return_json=True):
     con = http.client.HTTPConnection(host, port)
     con.connect()
     try:
         con.request(
             'GET',
-            f'http://{host}:{port}/server-info'
+            f'http://{host}:{port}{path}'
         )
         resp = con.getresponse()
         if resp.status != 200:
+            err = resp.read().decode()
             raise AssertionError(
-                f'/server-info returned non 200 HTTP status: {resp.status}')
-        return json.loads(resp.read().decode())
-    finally:
-        con.close()
-
-
-def _call_system_api(host: str, port: int, path: str):
-    con = http.client.HTTPConnection(host, port)
-    con.connect()
-    try:
-        con.request(
-            'GET',
-            f'http://{host}:{port}/server/{path}'
-        )
-        resp = con.getresponse()
-        if resp.status != 200:
-            print(resp.read().decode())
-            raise AssertionError(
-                f'/server/{path} returned non 200 HTTP status: {resp.status}')
-        return json.loads(resp.read().decode())
+                f'{path} returned non 200 HTTP status: {resp.status}\n\t{err}'
+            )
+        rv = resp.read().decode()
+        if return_json:
+            rv = json.loads(rv)
+        return rv
     finally:
         con.close()
 

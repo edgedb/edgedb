@@ -297,12 +297,12 @@ class TestServerCompilerPool(tbs.TestCase):
             compiler_pool_size=2,
             allow_insecure_http_clients=True,
         ) as sd:
-            self.assertEqual(sd.call_system_api('status/ready'), 'OK')
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
             pid1, pid2 = self._get_worker_pids(sd)
 
             # Terminate one worker, the server is still OK
             self._kill_and_wait(pid1)
-            self.assertEqual(sd.call_system_api('status/ready'), 'OK')
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
 
             # Confirm that another worker is started
             pids = set(self._get_worker_pids(sd))
@@ -317,7 +317,9 @@ class TestServerCompilerPool(tbs.TestCase):
             start = time.monotonic()
             while time.monotonic() - start < 5:
                 try:
-                    self.assertEqual(sd.call_system_api('status/ready'), 'OK')
+                    self.assertEqual(
+                        sd.call_system_api('/server/status/ready'), 'OK'
+                    )
                 except AssertionError:
                     time.sleep(0.1)
                 else:
@@ -330,7 +332,7 @@ class TestServerCompilerPool(tbs.TestCase):
             # Kill one worker with SIGINT, it's not restarted
             self._kill_and_wait(pids.pop(), sig=signal.SIGINT)
             time.sleep(1)
-            self.assertEqual(sd.call_system_api('status/ready'), 'OK')
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
             self.assertSetEqual(
                 set(self._get_worker_pids(sd, least_num=1)), pids
             )
@@ -340,7 +342,7 @@ class TestServerCompilerPool(tbs.TestCase):
             # impacted immediately
             tmpl_pid1 = self._get_template_pid(sd)
             os.kill(tmpl_pid1, signal.SIGKILL)
-            self.assertEqual(sd.call_system_api('status/ready'), 'OK')
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
 
             # When the new template process is started, it will spawn 2 new
             # workers, and the old pid4 will then be killed.
@@ -348,7 +350,7 @@ class TestServerCompilerPool(tbs.TestCase):
             tmpl_pid2 = self._get_template_pid(sd)
             self.assertIsNotNone(tmpl_pid2)
             self.assertNotEqual(tmpl_pid1, tmpl_pid2)
-            self.assertEqual(sd.call_system_api('status/ready'), 'OK')
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
 
             # Make sure everything works again
             start = time.monotonic()
@@ -358,7 +360,7 @@ class TestServerCompilerPool(tbs.TestCase):
                     break
             self.assertNotIn(pid4, pids)
             self.assertEqual(len(pids), 2)
-            self.assertEqual(sd.call_system_api('status/ready'), 'OK')
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
 
 
 class TestCompilerPool(tbs.TestCase):
