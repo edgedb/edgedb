@@ -1814,15 +1814,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                         cal::to_local_datetime('00:00:00 0715');
                 ''')
 
-    async def test_edgeql_functions_to_local_time_05(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError,
-            'value out of range',
-        ):
-            await self.con.query(r'''
-                SELECT cal::to_local_datetime(10000, 1, 1, 1, 1, 1);
-            ''')
-
     async def test_edgeql_functions_to_duration_01(self):
         await self.assert_query_result(
             r'''SELECT <str>to_duration(hours:=20);''',

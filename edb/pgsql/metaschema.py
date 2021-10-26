@@ -145,7 +145,7 @@ class TimestampTzDomain(dbops.Domain):
     """Timestamptz clamped to years 0001-9999.
 
     The default timestamp range of (4713 BC - 294276 AD) has problems:
-    Postgres isn't ISO compliant with years out of the 0-9999 range and
+    Postgres isn't ISO compliant with years out of the 1-9999 range and
     language compatibility is questionable.
     """
     def __init__(self) -> None:
@@ -165,7 +165,7 @@ class TimestampDomain(dbops.Domain):
     """Timestamp clamped to years 0001-9999.
 
     The default timestamp range of (4713 BC - 294276 AD) has problems:
-    Postgres isn't ISO compliant with years out of the 0-9999 range and
+    Postgres isn't ISO compliant with years out of the 1-9999 range and
     language compatibility is questionable.
     """
     def __init__(self) -> None:
@@ -185,7 +185,7 @@ class DateDomain(dbops.Domain):
     """Date clamped to years 0001-9999.
 
     The default timestamp range of (4713 BC - 294276 AD) has problems:
-    Postgres isn't ISO compliant with years out of the 0-9999 range and
+    Postgres isn't ISO compliant with years out of the 1-9999 range and
     language compatibility is questionable.
     """
     def __init__(self) -> None:
