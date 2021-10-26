@@ -11063,6 +11063,7 @@ type default::Foo {
                 edgedb.MissingRequiredError,
                 r"missing value for required property"):
             # Should fail because there is missing data
+            # TODO: ask for fill_expr?
             await self.con.execute(r'''
                 ALTER TYPE Foo { ALTER PROPERTY bar RESET EXPRESSION };
             ''')

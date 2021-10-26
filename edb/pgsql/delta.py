@@ -4364,16 +4364,6 @@ class CreateProperty(PropertyMetaCommand, adapts=s_props.CreateProperty):
 
         src = context.get(s_sources.SourceCommandContext)
 
-        # if has_table(prop, schema):
-        #     self.create_table(prop, schema, context)
-
-        # if (
-        #     src
-        #     and has_table(src.scls, schema)
-        #     and not prop.is_pure_computable(schema)
-        # ):
-        #     self._create_property(prop, src, schema, orig_schema, context)
-
         self._create_property(prop, src, schema, orig_schema, context)
 
         return schema
