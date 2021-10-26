@@ -1626,8 +1626,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         if other := schema.get(
                 sn.QualName(fullname.module, shortname.name), None):
             raise errors.SchemaError(
-                f'{other.get_verbosename(schema)} is already present '
-                f'in the schema {schema!r}')
+                f'{other.get_verbosename(schema)} already exists')
 
         schema = super()._create_begin(schema, context)
 

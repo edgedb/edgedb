@@ -2642,7 +2642,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         with self.assertRaisesRegex(
                 errors.SchemaError,
-                r'Constraint .+ is already present in the schema'):
+                r'constraint .+ already exists'):
             self._assert_migration_consistency(schema)
 
     def test_schema_get_migration_42(self):

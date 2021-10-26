@@ -3984,7 +3984,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_28(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r"'default::foo' is already present in the schema"):
+                r"'default::foo' already exists"):
 
             await self.con.execute('''\
                 CREATE TYPE foo;
@@ -3994,7 +3994,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_function_29(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r"'default::foo\(\)' is already present in the schema"):
+                r"'default::foo\(\)' already exists"):
 
             await self.con.execute('''\
                 CREATE FUNCTION foo() -> str USING ('a');
@@ -4708,7 +4708,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
     async def test_edgeql_ddl_module_01(self):
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r"'spam' is already present in the schema"):
+                r"'spam' already exists"):
 
             await self.con.execute('''\
                 CREATE MODULE spam;
@@ -6812,7 +6812,7 @@ type default::Foo {
 
         async with self.assertRaisesRegexTx(
             edgedb.SchemaError,
-            "extension 'MyExtension' is already present in the schema",
+            "extension 'MyExtension' already exists",
         ):
             await self.con.execute(r"""
                 CREATE EXTENSION MyExtension VERSION '2.0';
@@ -8093,7 +8093,7 @@ type default::Foo {
         with self.assertRaisesRegex(
                 edgedb.errors.SchemaError,
                 r"constraint 'std::max_len_value' of property 'firstname' "
-                r"of object type 'default::Base' is already present"):
+                r"of object type 'default::Base' already exists"):
             await self.con.execute(r"""
                 CREATE TYPE Base {
                     CREATE PROPERTY firstname -> str {
@@ -8380,7 +8380,7 @@ type default::Foo {
         with self.assertRaisesRegex(
                 edgedb.errors.SchemaError,
                 r"constraint 'std::max_len_value' of property 'firstname' "
-                r"of object type 'default::Base' is already present"):
+                r"of object type 'default::Base' already exists"):
             await self.con.execute(r"""
                 ALTER TYPE Base {
                     ALTER PROPERTY firstname {
@@ -11886,7 +11886,7 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.errors.SchemaError,
-                r"object type 'default::Foo' is already present"):
+                r"object type 'default::Foo' already exists"):
             await self.con.execute(r"""
                 CREATE TYPE Foo;
             """)
@@ -11901,7 +11901,7 @@ type default::Foo {
         with self.assertRaisesRegex(
                 edgedb.errors.SchemaError,
                 r"property 'foo' of "
-                r"object type 'default::Foo' is already present"):
+                r"object type 'default::Foo' already exists"):
             await self.con.execute(r"""
                 ALTER TYPE Foo {
                     CREATE PROPERTY foo -> str;
@@ -11916,7 +11916,7 @@ type default::Foo {
 
         with self.assertRaisesRegex(
                 edgedb.errors.SchemaError,
-                r"object type 'default::Foo' is already present"):
+                r"object type 'default::Foo' already exists"):
             await self.con.execute(r"""
                 ALTER TYPE Bar RENAME TO Foo;
             """)
@@ -11932,7 +11932,7 @@ type default::Foo {
         with self.assertRaisesRegex(
                 edgedb.errors.SchemaError,
                 r"property 'foo' of "
-                r"object type 'default::Foo' is already present"):
+                r"object type 'default::Foo' already exists"):
             await self.con.execute(r"""
                 ALTER TYPE Foo {
                     ALTER PROPERTY bar RENAME TO foo;
