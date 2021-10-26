@@ -4032,7 +4032,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{
                 'name': 'something',
             }, {
-                'name': None,
+                'name': 'something',
             }],
         )
 
