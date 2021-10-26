@@ -404,12 +404,20 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        sp_to_erase = []
         for sp in reversed(self._savepoints.values()):
             if sp.name == name:
                 self._current = sp
-                return sp
+                break
 
-        raise errors.TransactionError(f'there is no {name!r} savepoint')
+            sp_to_erase.append(sp)
+        else:
+            raise errors.TransactionError(f'there is no {name!r} savepoint')
+
+        for sp in sp_to_erase:
+            self._savepoints.pop(sp.id)
+
+        return sp
 
     def release_savepoint(self, name: str):
         if self.is_implicit():
