@@ -1131,6 +1131,8 @@ class Server(ha_base.ClusterProtocol):
             raise
 
     def _on_sys_pgcon_failover_signal(self):
+        if not self._serving:
+            return
         try:
             if self._backend_adaptive_ha is not None:
                 # Switch to FAILOVER if adaptive HA is enabled
