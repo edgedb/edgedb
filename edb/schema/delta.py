@@ -2813,8 +2813,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             funcs = schema.get_functions(fn, tuple())
             if funcs:
                 raise errors.SchemaError(
-                    f'{funcs[0].get_verbosename(schema)} is already present '
-                    f'in the schema {schema!r}')
+                    f'{funcs[0].get_verbosename(schema)} already exists')
 
     def _create_begin(
         self,
