@@ -16,7 +16,7 @@ Clients currently available:
 
 Other ways to query EdgeDB:
 
-* :ref:`EdgeQL over HTTP <ref_edgeql_index>`
+* :ref:`EdgeQL over HTTP <ref_edgeql_http>`
 * :ref:`GraphQL over HTTP <ref_graphql_protocol>`
 
 .. toctree::

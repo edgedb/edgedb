@@ -25,4 +25,5 @@ guide!
     modeling_relations
     using_link_props
     configuration
+    migrations/index
     cheatsheet/index

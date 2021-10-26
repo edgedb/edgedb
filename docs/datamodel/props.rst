@@ -18,114 +18,15 @@ Properties are used to associate primitive data with an :ref:`object type
     property is_online -> bool;
   }
 
-Similar to :ref:`links <ref_datamodel_links>`, properties have a
-*source* (the object type or link on which they are defined) and a *target*
-(the designated type).
-
-
-Property types
---------------
-
-Every property has a type. This can be a
-:ref:`scalar type <ref_datamodel_scalar_types>`, an :ref:`array
-<ref_std_array>`, a :ref:`tuple <ref_std_tuple>`, or an enum.
-
-Scalar types
-^^^^^^^^^^^^
-.. include:: ../stdlib/scalar_table.rst
-
-
-.. _ref_datamodel_props_array:
-
-Arrays
-^^^^^^
-
-Arrays store zero or more *scalar* values in an ordered list. You cannot define
-arrays of non-scalar types. Arrays cannot be nested.
-
-.. code-block:: sdl
-
-  type Person {
-    property str_array -> array<str>;
-    property json_array -> array<json>;
-
-    # INVALID: arrays of object types not allowed
-    # property friends -> array<Person>
-
-    # INVALID: arrays cannot be nested
-    # property nested_array -> array<array<str>>
-  }
-
-For a full reference on array types, see the :ref:`Array docs <ref_std_array>`.
-
-Tuples
-^^^^^^
-
-Like arrays, tuples are ordered sequences of primitive data. Unlike arrays,
-each element of a tuple can have a distinct type. Tuples can be nested
-arbitrarily.
-
-
-
-.. code-block:: sdl
-
-  type Person {
-
-    property unnamed_tuple -> tuple<str, bool, int64>;
-    property nested_tuple -> tuple<tuple<str, tuple<bool, int64>>>;
-
-  }
-
-Tuple can either be *unnamed* (as above) or *named*. Each element of a named
-tuple is associated with a *key*.
-
-
-.. code-block:: sdl
-
-  type BlogPost {
-    property metadata -> tuple<title: str, published: bool, upvotes: int64>;
-  }
-
-.. important::
-
-  When you query an *unnamed* tuple using one of EdgeQL's :ref:`client
-  libraries <ref_clients_index>`, its value is converted to a list/array. When
-  you fetch a named tuple, it is converted into an object/dictionary/hashmap
-  (depending on the language).
-
-Enums
-^^^^^
-
-To represent an enum, declare a custom scalar that extends the abstract
-:ref:`enum <ref_std_enum>` type.
-
-.. code-block:: sdl
-
-  scalar type Color extending enum<Red, Green, Blue>;
-
-  type Shirt {
-    property color -> Color;
-  }
-
-.. important::
-
-  To reference enum values inside EdgeQL queries, use dot notation, e.g.
-  ``Color.Green``.
-
-For a full reference on enum types, see the :ref:`Enum docs <ref_std_enum>`.
-
-Sequences
-^^^^^^^^^
-
-To represent an auto-incrementing integer property, declare a custom scalar
-that extends the abstract ``sequence`` type. Reference the :ref:`Sequence
-reference <ref_std_sequence>` for details.
-
+Properties are associated with a *key* (e.g. ``first_name``) and a primitive
+type (e.g. ``str```). The term *primitive type* is an umbrella term that
+encompasses :ref:`scalar types <ref_datamodel_scalars>` like ``str`` and
+``bool``, :ref:`enums <ref_datamodel_enums>`, :ref:`arrays
+<ref_datamodel_arrays>`, and :ref:`tuples <ref_datamodel_tuples>`.
 
 
 Required properties
 -------------------
-
 
 Properties can be either ``optional`` (the default) or ``required``.
 
@@ -139,7 +40,8 @@ Property cardinality
 --------------------
 
 Properties have a **cardinality**, either ``single`` (the default) or
-``multi``.
+``multi``. A ``multi`` property of type ``str`` points to an *unordered set* of
+strings.
 
 .. code-block:: sdl
 
@@ -156,9 +58,13 @@ Properties have a **cardinality**, either ``single`` (the default) or
     multi property set_of_arrays -> array<str>;
   }
 
-The values associated with a ``multi`` property are stored in no particular
-order. If order is important, use an :ref:`array
-<ref_datamodel_props_array>`.
+**Comparison to arrays**
+
+The values associated with a ``multi`` property are stored in no
+particular order. If order is important, use an :ref:`array
+<ref_datamodel_arrays>`. Otherwise, ``multi`` properties are recommended.
+
+.. TODO: Link to Sets and paths page
 
 Default values
 --------------
@@ -220,7 +126,7 @@ subset of EdgeDB's built-in constraints.
     }
   }
 
-You can constrain properties with arbitrary :ref:`EdgeQL <ref_edgeql>`
+You can constrain properties with arbitrary :ref:`EdgeQL <ref_edgeql_index>`
 expressions returning ``bool``. To reference to value of the property, use the
 special scoped keyword ``__subject__``.
 

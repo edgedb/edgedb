@@ -188,7 +188,7 @@ accounts with some concrete number of ``steps``, then the expression
 only*. The :eql:op:`??<COALESCE>` won't change that result because the
 result is already non-empty and so no coalescing will take place.
 
-Computables in shapes get evaluated *for each object*, whereas path
+Computeds in shapes get evaluated *for each object*, whereas path
 expressions only produce as many values as are *reachable* by the
 path. So when all objects must be considered, computed links and
 properties in shapes are a good way to handle complex expressions or

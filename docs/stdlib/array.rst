@@ -48,7 +48,8 @@ having elements in it:
     db> SELECT <array<int64>>[];
     {[]}
 
-
+Functions and operators
+^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
     :class: funcoptable
@@ -87,8 +88,9 @@ having elements in it:
       - :eql:func-desc:`array_unpack`
 
 
-----------
 
+Reference
+^^^^^^^^^
 
 .. eql:type:: std::array
 

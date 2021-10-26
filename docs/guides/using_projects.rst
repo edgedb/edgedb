@@ -1,8 +1,8 @@
 .. _ref_guide_using_projects:
 
-=====================
-Using EdgeDB Projects
-=====================
+==============
+Using projects
+==============
 
 Projects are the most convenient way to develop applications with EdgeDB. This
 is the recommended approach.

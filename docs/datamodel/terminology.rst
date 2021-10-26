@@ -19,31 +19,31 @@ stop, and destroy instances on your local computer with the :ref:`EdgeDB CLI
 .. _ref_datamodel_databases:
 
 Each instance can contain several **databases**, each with a unique name. At
-the time of creation, all instances contains a single database called
+the time of creation, all instances contain a single database called
 ``edgedb``.
 
 .. This is the default database; all incoming queries are executed against it
 .. unless otherwise specified.
 
 
-Each database can contain several **modules**. Modules have a unique name and
+Each database can contain several **modules**, each with a unique name. Modules
 can be used to organize large schemas into logical units. In SDL, ``module``
 blocks are used to define types inside a particular module.
 
 .. code-block:: sdl
 
   module default {
-    type User {
-      property email -> str;
-    }
+    # declare types here
+  }
 
+  module another_module {
     # more types here
   }
 
 .. important::
 
-  Some module names (``std``, ``math``, ``sys``, ``config``, and ``cfg``) are
-  reserved by EdgeDB and contain pre-defined types, utility functions, and
+  Some module names (``std``, ``math``, ``cal``, ``schema``, ``sys``, ``cfg``)
+  are reserved by EdgeDB and contain pre-defined types, utility functions, and
   operators. It's common to define an application's entire schema inside a
   single module called ``default``.
 
@@ -68,9 +68,5 @@ like non-computed ones. The value will be computed as needed.
 
 Object types can be augmented with constraints, annotations, and **indexes**
 (which speed up certain queries).
-
-Both scalar and object types can also be **abstract**. Abstract types can be
-*extended* by other types, in which case the extending type inherits all of its
-properties, links, constraints, indexes, and annotations.
 
 You can also define custom **functions**.

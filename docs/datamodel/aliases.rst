@@ -40,13 +40,13 @@ properties or links.
 
 .. code-block:: sdl
 
-  type BlogPost {
+  type Post {
     required property title -> str;
   }
 
-  alias UserAlias := User {
-    property trimmed_title := str_trim(.title);
-  };
+  alias PostAlias := Post {
+    trimmed_title := str_trim(.title)
+  }
 
 In effect, this creates a *virtual subtype* of the base type, which can be
 referenced in queries just like any other type.

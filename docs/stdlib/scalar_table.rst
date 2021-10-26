@@ -28,8 +28,20 @@
     * - :eql:type:`decimal`
       - Arbitrary precision number
 
+    * - :eql:type:`json`
+      - Arbitrary JSON data
+
+    * - :eql:type:`uuid`
+      - UUID type
+
+    * - :eql:type:`bytes`
+      - Arbitrary precision number.
+
     * - :eql:type:`datetime`
       - Timezone-aware point in time
+
+    * - :eql:type:`duration`
+      - Absolute time span
 
     * - :eql:type:`cal::local_datetime`
       - Date and time without timezone
@@ -40,22 +52,10 @@
     * - :eql:type:`cal::local_time`
       - Time type
 
-    * - :eql:type:`duration`
-      - Absolute time span
-
     * - :eql:type:`cal::relative_duration`
       - Relative time span
 
-    * - :eql:type:`json`
-      - Arbitrary JSON data
-
-    * - :eql:type:`uuid`
-      - UUID type
-
     * - :eql:type:`sequence`
       - Auto-incrementing sequence of ``int64``
-
-    * - :eql:type:`bytes`
-      - Arbitrary precision number.
 
 

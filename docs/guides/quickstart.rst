@@ -16,7 +16,7 @@ data, and writing your first query. Let's jump in!
 ..    :ref:`Insert data <ref_quickstart_insert_data>`
 ..    :ref:`Run some queries <ref_quickstart_queries>`
 ..    :ref:`Migrate your schema <ref_quickstart_migrations>`
-..    :ref:`Computables <ref_quickstart_computables>`
+..    :ref:`Computed fields <ref_quickstart_computeds>`
 ..    :ref:`Onwards and upwards <ref_quickstart_onwards>`
 
 
@@ -556,14 +556,14 @@ Now back in our REPL we can add Zendaya:
     ....... };
     {default::Person {id: 65fce84c-54dd-11e9-8c54-5f000ca496c9}}
 
-.. _ref_quickstart_computables:
+.. _ref_quickstart_computeds:
 
-7. Computables
+7. Computeds
 ==============
 
 Now that last names are optional, we may want an easy way to retrieve the full
-name for a given Person. We'll do this with a :ref:`computable property
-<ref_datamodel_computables>`:
+name for a given Person. We'll do this with a :ref:`computed property
+<ref_datamodel_computed>`:
 
 .. code-block:: edgeql-repl
 
@@ -590,7 +590,7 @@ properties of ``Person``. Let's update ``dbschema/default.esdl``:
             required property first_name -> str;
             property last_name -> str;
 
-            # add computable property "name"
+            # add computed property "name"
             property full_name :=
                 .first_name ++ ' ' ++ .last_name
                 IF EXISTS .last_name

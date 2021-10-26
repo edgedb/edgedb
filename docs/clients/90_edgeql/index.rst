@@ -1,4 +1,4 @@
-.. _ref_edgeql_index:
+.. _ref_edgeql_http:
 
 ================
 EdgeQL over HTTP

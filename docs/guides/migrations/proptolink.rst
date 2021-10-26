@@ -1,8 +1,8 @@
 .. _ref_migration_proptolink:
 
-===========================
-Change Property Into a Link
-===========================
+=============================
+Changing a property to a link
+=============================
 
 This example shows how to change a property into a link. We'll use a
 character in an adventure game as the type of data we will evolve.

@@ -98,7 +98,8 @@ differently, no ``User`` can be a ``member`` of multiple ``GroupChats``.
 Default values
 --------------
 
-Like properties, links can declare a default value in the form of an EdgeQL expression, which will be executed upon insertion.
+Like properties, links can declare a default value in the form of an EdgeQL
+expression, which will be executed upon insertion.
 
 .. code-block:: sdl
 
@@ -133,6 +134,8 @@ Refer to :ref:`Link Properties <ref_datamodel_linkprops>` for a more thorough
 reference.
 
 
+.. _ref_datamodel_link_deletion:
+
 Deletion policies
 -----------------
 
@@ -163,7 +166,7 @@ To set a policy:
     }
   }
 
-.. _ref_datamodel_link_deletion:
+
 
 Polymorphic links
 -----------------
@@ -207,7 +210,8 @@ Abstract links
 
 It's possible to define ``abstract`` links that aren't tied to a particular
 *source* or *target*. If you're declaring several links with the same set
-of properties, annotations, constraints, or indexes, abstract links can be used to eliminate repetitive SDL.
+of properties, annotations, constraints, or indexes, abstract links can be used
+to eliminate repetitive SDL.
 
 .. code-block:: sdl
 

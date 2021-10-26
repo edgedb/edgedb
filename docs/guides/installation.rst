@@ -1,12 +1,10 @@
 .. _ref_admin_install:
 
-============
-Installation
-============
+=================
+Installing EdgeDB
+=================
 
-This section describes the recommended way of installing EdgeDB.
-
-The first step is to install the EdgeDB command line tools.
+To install EdgeDB, first install EdgeDB's command line tool.
 
 If you are using Linux or macOS, open a terminal and enter the following
 command:

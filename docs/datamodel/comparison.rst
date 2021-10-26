@@ -1,8 +1,8 @@
 .. _ref_datamodel_comparison:
 
-==========
-Comparison
-==========
+===============
+vs SQL and ORMs
+===============
 
 EdgeDB's approach to schema modeling builds upon the foundation of SQL while
 taking cues from modern tools like ORM libraries. Let's see how it stacks up.

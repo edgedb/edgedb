@@ -5,13 +5,13 @@
 Modules
 =======
 
-Your schema consists of several **modules**. Modules have a unique name and can
-be used to organize large schemas.
+Every EdgeDB database can contain several **modules**, each with a unique name.
+Modules can be used to organize large schemas.
 
-Schemas consist of several kinds of "schema objects", including object types
-(equivalent to tables in SQL), functions, scalar types, and expression aliases.
-Each of these things has a name. Two schema elements in the same module can't
-share the same name.
+Modules can contain a wide range of *schema elements*: object types (equivalent
+to tables in SQL), custom scalar types, expression aliases, abstract links and
+properties, functions, and more. Each of these schema elements has a name; no
+two elements in the same module can share the same name.
 
 You can split up your schemas however you see fit. Most users put their entire
 schema inside a single module called ``default``.
@@ -61,14 +61,17 @@ Standard modules
 ----------------
 
 EdgeDB contains the following built-in modules which come pre-populated with
-useful types, functions, and operators. These are read-only modules.
+useful types, functions, and operators. These are read-only modules. The
+contents of these modules are fully documented in :ref:`Standard Library
+<ref_std>`.
 
 * ``std``: standard types, functions and other elements of the
   :ref:`standard library <ref_std>`
+* ``math``: algebraic and statistical :ref:`functions <ref_std_math>`
+* ``cal``: local (non-timezone-aware) and relative date/time :ref:`types and
+  functions <ref_std_datetime>`
 * ``schema``: types describing the :ref:`introspection <ref_eql_introspection>`
   schema
 * ``sys``: system-wide entities, such as user roles and
   :ref:`databases <ref_datamodel_databases>`
 * ``cfg``: configuration and settings
-* ``math``: algebraic and statistical :ref:`functions <ref_std_math>`
-* ``default``: the default module for user-defined types, functions, etc.

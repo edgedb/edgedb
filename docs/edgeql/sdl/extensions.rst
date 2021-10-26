@@ -36,7 +36,7 @@ schema:
 
     using extension graphql;
 
-Enable :ref:`EdgeQL over HTTP <ref_edgeql_index>` extension for the
+Enable :ref:`EdgeQL over HTTP <ref_edgeql_http>` extension for the
 current database:
 
 .. code-block:: sdl

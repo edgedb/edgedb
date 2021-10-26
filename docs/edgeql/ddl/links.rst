@@ -28,7 +28,7 @@ CREATE LINK
       [ ... ]
     "}"
 
-    # Computable link form:
+    # Computed link form:
 
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} TYPE <TypeName> "{"
@@ -64,7 +64,7 @@ a new concrete link for a given object type.
 There are three forms of ``CREATE LINK``, as shown in the syntax synopsis
 above.  The first form is the canonical definition form, the second
 form is a syntax shorthand for defining a
-:ref:`computed link <ref_datamodel_computables>`, and the third is a
+:ref:`computed link <ref_datamodel_computed>`, and the third is a
 form to define an abstract link item.  The abstract form allows creating
 the link in the specified :eql:synopsis:`<module>`.  Concrete link forms
 are always created in the same module as the containing object type.
@@ -126,7 +126,7 @@ Define a new link ``friends`` on the ``User`` object type:
         CREATE MULTI LINK friends -> User
     };
 
-Define a new :ref:`computed link <ref_datamodel_computables>`
+Define a new :ref:`computed link <ref_datamodel_computed>`
 ``special_group`` on the ``User`` object type, which contains all the
 friends from the same town:
 
@@ -266,7 +266,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     valid for concrete links.
 
 :eql:synopsis:`SET MULTI`
-    Remove the upper limit on the link set's cardinality. Only valid for 
+    Remove the upper limit on the link set's cardinality. Only valid for
     concrete links.
 
 :eql:synopsis:`RESET CARDINALITY`
@@ -282,14 +282,14 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     if there is no implicit or assignment cast from old to new type.
 
 :eql:synopsis:`RESET TYPE`
-    Reset the type of the link to be strictly the inherited type. This only 
+    Reset the type of the link to be strictly the inherited type. This only
     has an effect on links that have been :ref:`overloaded
-    <ref_eql_sdl_links_overloading>` in order to change their inherited 
+    <ref_eql_sdl_links_overloading>` in order to change their inherited
     type. It is an error to ``RESET TYPE`` on a link that is not inherited.
 
 :eql:synopsis:`USING (<computed-expr>)`
     Change the expression of a :ref:`computed link
-    <ref_datamodel_computables>`.  Only valid for concrete links.
+    <ref_datamodel_computed>`.  Only valid for concrete links.
 
 :eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
     Alter link annotation :eql:synopsis:`<annotation-name>`.
@@ -349,7 +349,7 @@ Rename the abstract link ``orderable`` to ``sorted``:
 
     ALTER ABSTRACT LINK orderable RENAME TO sorted;
 
-Redefine the :ref:`computed link <ref_datamodel_computables>`
+Redefine the :ref:`computed link <ref_datamodel_computed>`
 ``special_group`` to be those who have some shared interests:
 
 .. code-block:: edgeql

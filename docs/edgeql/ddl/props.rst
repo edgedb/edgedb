@@ -28,7 +28,7 @@ CREATE PROPERTY
       [ ... ]
     "}"
 
-    # Computable property form:
+    # Computed property form:
 
     [ WITH <with-item> [, ...] ]
     {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
@@ -61,7 +61,7 @@ concrete property for a given object type or link.
 There are three forms of ``CREATE PROPERTY``, as shown in the syntax synopsis
 above.  The first form is the canonical definition form, the second
 form is a syntax shorthand for defining a
-:ref:`computed property <ref_datamodel_computables>`, and the third
+:ref:`computed property <ref_datamodel_computed>`, and the third
 is a form to define an abstract property item.  The abstract form
 allows creating the property in the specified
 :eql:synopsis:`<module>`.  Concrete property forms are always
@@ -108,7 +108,7 @@ Define a new link ``address`` on the ``User`` object type:
         CREATE PROPERTY address -> str
     };
 
-Define a new :ref:`computed property <ref_datamodel_computables>`
+Define a new :ref:`computed property <ref_datamodel_computed>`
 ``number_of_connections`` on the ``User`` object type counting the
 number of interests:
 
@@ -270,7 +270,7 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
 
 :eql:synopsis:`USING (<computed-expr>)`
     Change the expression of a :ref:`computed property
-    <ref_datamodel_computables>`.  Only valid for concrete properties.
+    <ref_datamodel_computed>`.  Only valid for concrete properties.
 
 :eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
     Alter property annotation :eql:synopsis:`<annotation-name>`.
@@ -333,7 +333,7 @@ Rename the property ``weight`` of link ``orderable`` to ``sort_by``:
         ALTER PROPERTY weight RENAME TO sort_by;
     };
 
-Redefine the :ref:`computed property <ref_datamodel_computables>`
+Redefine the :ref:`computed property <ref_datamodel_computed>`
 ``number_of_connections`` to be the number of friends:
 
 .. code-block:: edgeql

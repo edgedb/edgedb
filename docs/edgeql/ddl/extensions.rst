@@ -38,7 +38,7 @@ schema:
 
     CREATE EXTENSION graphql;
 
-Enable :ref:`EdgeQL over HTTP <ref_edgeql_index>` extension for the
+Enable :ref:`EdgeQL over HTTP <ref_edgeql_http>` extension for the
 current database:
 
 .. code-block:: edgeql
@@ -76,7 +76,7 @@ schema:
 
     DROP EXTENSION graphql;
 
-Disable :ref:`EdgeQL over HTTP <ref_edgeql_index>` extension for the
+Disable :ref:`EdgeQL over HTTP <ref_edgeql_http>` extension for the
 current database:
 
 .. code-block:: edgeql

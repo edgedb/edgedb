@@ -1,5 +1,4 @@
 .. eql:section-intro-page:: datamodel
-.. _ref_datamodel_intro:
 
 .. _ref_datamodel_index:
 
@@ -15,11 +14,12 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
 
     terminology
     modules
+    primitives
     objects
     props
     links
     linkprops
-    computables
+    computeds
     indexes
     constraints
     aliases
@@ -27,13 +27,13 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     inheritance
     annotations
     extensions
-    migrations
     comparison
+
 
 
 With EdgeDB, you can define your schema with EdgeDB's schema definition
 language, called **EdgeDB SDL** or simply **SDL**. SDL's declarative,
-object-oriented syntax will look familiar to users or ORM libraries.
+object-oriented syntax will look familiar to users of ORM libraries.
 
 .. code-block:: sdl
 
@@ -52,12 +52,12 @@ SDL
 
 SDL has two important properties. First, it's **declarative**; you can just
 write your schema down exactly as you want it to be. It's easy to see the
-current state of your schema at a glance.
+entire state of your schema at a glance.
 
 Secondly, it's **object-oriented**. There are no foreign keys; instead,
 relationships between types are directly represented with :ref:`Links
-<ref_datamodel_links>`; this is part of what makes EdgeQL queries so concise
-and powerful.
+<ref_datamodel_links>`; this is part of what makes deep EdgeQL queries so
+concise. For example:
 
 .. code-block:: edgeql
 
@@ -86,16 +86,20 @@ project.
   edgedb/edgedb-vim>`_.
 
 
-See also
---------
+Migrations
+----------
 
-**DDL**
-  EdgeDB provides a migration tool to synchronize a database's with the latest
-  SDL files. Migrations consist of a sequence of *imperative* commands like
-  ``CREATE TYPE``, ``ALTER PROPERTY``, etc. Collectively these commands are
-  known as EdgeDB Data Definition Language (**DDL** for short).
+EdgeDB’s baked-in migration system lets you painlessly evolve your schema
+throughout the development process. After modifying your ``.esdl`` files, you
+can *create* and *apply* a migration with the EdgeDB command-line tool. For a
+full guide on how migrations work, reference the :ref:`Creating and applying
+migrations <ref_guides_migrations>` guide.
 
-  We recommend that most users use SDL and migrations when building
-  applications. However, if you prefer SQL-style imperative schema modeling,
-  you are free to use DDL directly; reference the :ref:`DDL Reference
-  <ref_eql_ddl>` to learn more.
+.. important::
+
+  A migration consists of a sequence of *imperative* schema-modifying commands
+  like ``CREATE TYPE``, ``ALTER PROPERTY``, etc. Collectively these commands
+  are known as DDL (*data definition language*). We recommend that most users
+  use SDL and migrations when building applications. However, if you prefer
+  SQL-style imperative schema modeling, you are free to use DDL directly;
+  reference the :ref:`DDL Reference <ref_eql_ddl>` to learn more.
