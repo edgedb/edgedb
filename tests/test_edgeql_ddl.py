@@ -2600,6 +2600,36 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE Foo ALTER LINK l SET TYPE Spam USING (SELECT Spam)
             """)
 
+    async def test_edgeql_ddl_ptr_set_cardinality_01(self):
+        await self.con.execute(r'''
+            CREATE TYPE Foo {
+                CREATE MULTI PROPERTY bar -> str;
+            };
+            INSERT Foo { bar := "foo" };
+            ALTER TYPE Foo { ALTER PROPERTY bar {
+                SET SINGLE USING (assert_single(.bar))
+            } };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo { bar }
+            """,
+            [
+                {'bar': "foo"}
+            ]
+        )
+
+        # Make sure the delete triggers get cleaned up
+        await self.assert_query_result(
+            r"""
+                DELETE Foo
+            """,
+            [
+                {}
+            ]
+        )
+
     async def test_edgeql_ddl_ptr_set_cardinality_validation(self):
         await self.con.execute(r"""
             CREATE TYPE Bar;
@@ -10480,6 +10510,11 @@ type default::Foo {
             ALTER TYPE Test DROP PROPERTY y;
         """)
 
+        await self.con.execute(r"""
+            INSERT Test;
+            DELETE Test;
+        """)
+
     async def test_edgeql_ddl_collection_cleanup_01(self):
         count_query = "SELECT count(schema::Array);"
         orig_count = await self.con.query_single(count_query)
@@ -11006,6 +11041,204 @@ type default::Foo {
                 } FILTER .name = "foo"
             """,
             [{"required": True, "has_required": False}]
+        )
+
+    async def test_edgeql_ddl_adjust_computed_04(self):
+        await self.con.execute(r'''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY bar -> str;
+            };
+        ''')
+
+        await self.con.execute(r'''
+            ALTER TYPE Foo { ALTER PROPERTY bar { USING ("1") } };
+        ''')
+
+        # Should work
+        await self.con.execute(r'''
+            INSERT Foo;
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.MissingRequiredError,
+                r"missing value for required property"):
+            # Should fail because there is missing data
+            # TODO: ask for fill_expr?
+            await self.con.execute(r'''
+                ALTER TYPE Foo { ALTER PROPERTY bar RESET EXPRESSION };
+            ''')
+
+        # Delete the data, then try
+        await self.con.execute(r'''
+            DELETE Foo;
+            ALTER TYPE Foo { ALTER PROPERTY bar RESET EXPRESSION };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.MissingRequiredError,
+                r"missing value for required property"):
+            await self.con.execute(r'''
+                INSERT Foo;
+            ''')
+
+    async def test_edgeql_ddl_adjust_computed_05(self):
+        await self.con.execute(r'''
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE REQUIRED LINK bar -> Tgt;
+            };
+        ''')
+
+        await self.con.execute(r'''
+            ALTER TYPE Foo { ALTER LINK bar {
+                USING (assert_exists((SELECT Tgt LIMIT 1)))
+            } };
+        ''')
+
+        # Should work
+        await self.con.execute(r'''
+            INSERT Foo;
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.MissingRequiredError,
+                r"missing value for required link"):
+            # Should fail because there is missing data
+            await self.con.execute(r'''
+                ALTER TYPE Foo { ALTER LINK bar RESET EXPRESSION };
+            ''')
+
+        # Delete the data, then try
+        await self.con.execute(r'''
+            DELETE Foo;
+            ALTER TYPE Foo { ALTER LINK bar RESET EXPRESSION };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.MissingRequiredError,
+                r"missing value for required link"):
+            await self.con.execute(r'''
+                INSERT Foo;
+            ''')
+
+    async def test_edgeql_ddl_adjust_computed_06(self):
+        await self.con.execute(r'''
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE REQUIRED MULTI LINK bar -> Tgt;
+            };
+        ''')
+
+        await self.con.execute(r'''
+            ALTER TYPE Foo { ALTER LINK bar {
+                USING (assert_exists((SELECT Tgt)))
+            } };
+        ''')
+
+        # Should work
+        await self.con.execute(r'''
+            INSERT Foo;
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.MissingRequiredError,
+                r"missing value for required link"):
+            # Should fail because there is missing data
+            await self.con.execute(r'''
+                ALTER TYPE Foo { ALTER LINK bar RESET EXPRESSION };
+            ''')
+
+        # Delete the data, then try
+        await self.con.execute(r'''
+            DELETE Foo;
+            ALTER TYPE Foo { ALTER LINK bar RESET EXPRESSION };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.MissingRequiredError,
+                r"missing value for required link"):
+            await self.con.execute(r'''
+                INSERT Foo;
+            ''')
+
+    async def test_edgeql_ddl_adjust_computed_07(self):
+        # Switching a property to computed and back should lose its data
+        await self.con.execute(r'''
+            CREATE TYPE Foo {
+                CREATE PROPERTY bar -> str;
+            };
+            INSERT Foo { bar := "hello" };
+            ALTER TYPE Foo { ALTER PROPERTY bar { USING ("world") } };
+            ALTER TYPE Foo { ALTER PROPERTY bar RESET expression };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo { bar }
+            """,
+            [
+                {'bar': None}
+            ]
+        )
+
+    async def test_edgeql_ddl_adjust_computed_08(self):
+        # Switching a property to computed and back should lose its data
+        await self.con.execute(r'''
+            CREATE TYPE Foo {
+                CREATE MULTI PROPERTY bar -> str;
+            };
+            INSERT Foo { bar := {"foo", "bar"} };
+            ALTER TYPE Foo { ALTER PROPERTY bar { USING ({"a", "b"}) } };
+            ALTER TYPE Foo { ALTER PROPERTY bar RESET expression };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo { bar }
+            """,
+            [
+                {'bar': []}
+            ]
+        )
+
+    async def test_edgeql_ddl_adjust_computed_09(self):
+        # Switching a link to computed and back should lose its data
+        await self.con.execute(r'''
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE MULTI LINK bar -> Tgt;
+            };
+            INSERT Foo { bar := (INSERT Tgt) };
+            ALTER TYPE Foo { ALTER LINK bar { USING (Tgt) } };
+            ALTER TYPE Foo { ALTER LINK bar RESET expression };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo { bar }
+            """,
+            [
+                {'bar': []}
+            ]
+        )
+
+    async def test_edgeql_ddl_adjust_computed_10(self):
+        # Make sure everything gets cleaned up in this transition
+        await self.con.execute(r'''
+            CREATE TYPE Foo {
+                CREATE MULTI PROPERTY bar -> str;
+            };
+            INSERT Foo { bar := {"foo", "bar"} };
+            ALTER TYPE Foo { ALTER PROPERTY bar { USING ({"a", "b"}) } };
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                DELETE Foo
+            """,
+            [
+                {}
+            ]
         )
 
     async def test_edgeql_ddl_captured_as_migration_01(self):
