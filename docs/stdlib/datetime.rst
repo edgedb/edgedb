@@ -105,6 +105,16 @@ date/time values.
 
 EdgeDB stores and outputs timezone-aware values in UTC.
 
+.. note::
+
+    All the date/time types are restricted to years between 1 and
+    9999, including the end points.
+
+    Although many systems support ISO 8601 date formatting in theory,
+    in practice the formatting before year 1 and after 9999 tends to
+    be inconsistent. As such dates outside that range are not reliably
+    portable.
+
 
 ----------
 
