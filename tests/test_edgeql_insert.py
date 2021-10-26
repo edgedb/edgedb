@@ -54,6 +54,20 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
+    async def test_edgeql_insert_fail_3(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"modification of computed property"
+            r" 'name' of object type 'default::Person2b' is prohibited",
+        ):
+            await self.con.execute('''
+                INSERT Person2b {
+                    first := "foo",
+                    last := "bar",
+                    name := "something else",
+                };
+            ''')
+
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
             INSERT InsertTest {
