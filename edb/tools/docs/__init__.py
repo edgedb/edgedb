@@ -19,8 +19,6 @@
 
 from __future__ import annotations
 
-import os
-
 from docutils import nodes as d_nodes
 from sphinx import transforms as s_transforms
 

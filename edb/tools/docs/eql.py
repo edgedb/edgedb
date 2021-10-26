@@ -1212,5 +1212,6 @@ def setup_domain(app):
 
     app.add_transform(StatementTransform)
 
+
 def setup(app):
     setup_domain(app)
