@@ -819,7 +819,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             for row in res:
                 self.assertEqual(row[0]['m'], row[1]['m'])
 
-    @test.xfail("broken by eta-expansion")
     async def test_edgeql_volatility_select_hard_objects_05b(self):
         for query in self.test_loop():
             res = await query("""
