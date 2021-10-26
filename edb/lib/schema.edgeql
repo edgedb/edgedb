@@ -218,7 +218,7 @@ CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
 
 
 ALTER TYPE schema::Constraint {
-    CREATE LINK subject := .<constraints[IS schema::ConsistencySubject];
+    CREATE LINK subject -> schema::ConsistencySubject;
 };
 
 
