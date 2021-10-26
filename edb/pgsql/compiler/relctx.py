@@ -1795,13 +1795,16 @@ def _add_ptr_rel_overlay(
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
 
+    entry = (op, rel, path_id)
     if dml_stmts:
         for dml_stmt in dml_stmts:
             overlays = ctx.ptr_rel_overlays[dml_stmt][typeid, ptrref_name]
-            overlays.append((op, rel, path_id))
+            if entry not in overlays:
+                overlays.append(entry)
     else:
         overlays = ctx.ptr_rel_overlays[None][typeid, ptrref_name]
-        overlays.append((op, rel, path_id))
+        if entry not in overlays:
+            overlays.append(entry)
 
 
 def add_ptr_rel_overlay(

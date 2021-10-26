@@ -4817,3 +4817,37 @@ class TestInsert(tb.QueryTestCase):
                 [0, {}, {}],
             ]
         )
+
+    async def test_edgeql_insert_nested_and_with_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    New := (
+                        INSERT Person {
+                            name := "test",
+                            notes := (INSERT Note { name := "test" })
+                         }
+                    ),
+                SELECT (
+                    INSERT Person2a {
+                        first := New.name, last := "!", bff := New,
+                    }
+                ) {
+                    first,
+                    bff: {
+                        name,
+                        notes: { name }
+                    }
+                };
+            """,
+            [
+                {
+                    "first": "test",
+                    "bff": {
+                        "name": "test",
+                        "notes": [{"name": "test"}]
+                    },
+                }
+            ]
+
+        )
