@@ -48,8 +48,7 @@ Arrays
 ^^^^^^
 
 Arrays store zero or more primitive values of the same type in an ordered list.
-You cannot define arrays of object types. Arrays cannot be *directly* nested,
-though they can be used inside hierarchies of tuple and array types.
+Arrays cannot contain object types or other arrays.
 
 .. code-block:: sdl
 
@@ -73,8 +72,8 @@ Tuples
 ^^^^^^
 
 Like arrays, tuples are ordered sequences of primitive data. Unlike arrays,
-each element of a tuple can have a distinct type. Tuples can contain any
-primitive type, including arrays and other tuples.
+each element of a tuple can have a distinct type. Tuples elements can be *any
+type*, including primitives, objects, arrays, and other tuples.
 
 .. code-block:: sdl
 
@@ -108,8 +107,8 @@ Sequences
 
 To represent an auto-incrementing integer property, declare a custom scalar
 that extends the abstract ``sequence`` type. Creating a sequence type
-initializes a *global int64 counter* that auto-increments whenever a new object
-is created. If multiple object types point to the same sequence type, they will
+initializes a global ``int64`` counter that auto-increments whenever a new
+object is created. All properties that point to the same sequence type will
 share the counter.
 
 .. code-block:: sdl
