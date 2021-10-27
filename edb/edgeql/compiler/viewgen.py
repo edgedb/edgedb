@@ -680,6 +680,12 @@ def _normalize_view_ptr_expr(
             # If this is a mutation, the pointer must exist.
             ptrcls = setgen.resolve_ptr(
                 ptrsource, ptrname, track_ref=lexpr, ctx=ctx)
+            if ptrcls.is_pure_computable(ctx.env.schema):
+                ptr_vn = ptrcls.get_verbosename(ctx.env.schema,
+                                                with_parent=True)
+                raise errors.QueryError(
+                    f'modification of computed {ptr_vn} is prohibited',
+                    context=shape_el.context)
 
             base_ptrcls = ptrcls.get_bases(
                 ctx.env.schema).first(ctx.env.schema)
