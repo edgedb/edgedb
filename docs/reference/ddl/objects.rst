@@ -52,7 +52,7 @@ with some additional features listed below:
     Alias declarations.
 
     The ``WITH`` clause allows specifying module aliases
-    that can be referenced by the command.  See :ref:`ref_eql_with`
+    that can be referenced by the command.  See :ref:`ref_eql_statements_with`
     for more information.
 
 The following subcommands are allowed in the ``CREATE TYPE`` block:
@@ -149,7 +149,7 @@ The following subcommands are allowed in the ``ALTER TYPE`` block:
     Alias declarations.
 
     The ``WITH`` clause allows specifying module aliases
-    that can be referenced by the command.  See :ref:`ref_eql_with`
+    that can be referenced by the command.  See :ref:`ref_eql_statements_with`
     for more information.
 
 :eql:synopsis:`<name>`

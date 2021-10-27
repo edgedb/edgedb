@@ -48,7 +48,7 @@ the schema to be given in SDL format. For example:
 
 It is possible to also omit the module blocks, but then individual
 declarations must use :ref:`fully-qualified names
-<ref_eql_fundamentals_name_resolution>` so that they can be assigned
+<ref_name_resolution>` so that they can be assigned
 to their respective modules. For example, the following is equivalent
 to the previous migration:
 

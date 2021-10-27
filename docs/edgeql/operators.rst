@@ -4,6 +4,31 @@
 Operators
 =========
 
+
+.. _ref_eql_expr_index_operator:
+
+Operators
+---------
+
+Most operators in EdgeQL are *binary infix* or *unary prefix* operators.
+Some operators have dedicated syntax, like the :eql:op:`IF..ELSE` operator.
+
+Binary infix operator syntax:
+
+.. eql:synopsis::
+
+    <expression> <operator> <expression>
+
+Unary prefix operator syntax:
+
+.. eql:synopsis::
+
+    <operator> <expression>
+
+A complete reference of standard EdgeQL operators can be found in
+:ref:`ref_std`.
+
+
 EdgeDB provides a number of operators which can be used to build
 expressions. They can be broken down into several categories:
 

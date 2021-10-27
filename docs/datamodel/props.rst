@@ -126,7 +126,7 @@ subset of EdgeDB's built-in constraints.
     }
   }
 
-You can constrain properties with arbitrary :ref:`EdgeQL <ref_edgeql_index>`
+You can constrain properties with arbitrary :ref:`EdgeQL <ref_edgeql>`
 expressions returning ``bool``. To reference to value of the property, use the
 special scoped keyword ``__subject__``.
 

@@ -1,8 +1,15 @@
 .. _ref_eql_types:
 
 
-Types Syntax
-============
+==============
+Type Operators
+==============
+
+- Names of types
+- Array and tuples syntax
+- Casting
+- Type filter operator
+- IS boolean
 
 Most types are just referred to by their name, however, EdgeQL has a
 special syntax for referring to :eql:type:`array`,
@@ -51,48 +58,6 @@ Here's a few examples of using array types in EdgeQL queries:
     {true}
 
 
-.. _ref_eql_types_tuple:
-
-Tuple
------
-
-A tuple type can be explicitly declared in an expression or schema
-declaration using the following syntax:
-
-.. eql:synopsis::
-
-    tuple "<" <element-type>, [<element-type>, ...] ">"
-
-A named tuple:
-
-.. eql:synopsis::
-
-    tuple "<" <element-name> : <element-type> [, ... ] ">"
-
-Any type can be used as a tuple element type.
-
-Here's an example of using this syntax in a schema definition:
-
-.. code-block:: sdl
-
-    type GameElement {
-        required property name -> str;
-        required property position -> tuple<x: int64, y: int64>;
-    }
-
-Here's a few examples of using tuple types in EdgeQL queries:
-
-.. code-block:: edgeql-repl
-
-    db> SELECT <tuple<int64, str>>('1', 3);
-    {(1, '3')}
-    db> SELECT <tuple<x: int64, y: int64>>(1, 2);
-    {(x := 1, y := 2)}
-    db> SELECT (1, '3') IS (tuple<int64, str>);
-    {true}
-    db> SELECT ([1, 2], 'a') IS (tuple<array<int64>, str>);
-    {true}
-
 
 .. _ref_eql_types_enum:
 
@@ -114,3 +79,29 @@ enumerated scalar type:
 .. code-block:: sdl
 
     scalar type Color extending enum<Red, Green, Blue>;
+
+
+.. _ref_eql_expr_index_typecast:
+
+Type Casts
+----------
+
+A type cast expression converts the specified value to another value of
+the specified type:
+
+.. eql:synopsis::
+
+    "<" <type> ">" <expression>
+
+The :eql:synopsis:`<type>` must be a valid :ref:`type expression
+<ref_eql_types>` denoting a non-abstract scalar or a container type.
+
+For example, the following expression casts an integer value into a string:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT <str>10;
+    {"10"}
+
+See the :eql:op:`type cast operator <CAST>` section for more
+information on type casting rules.

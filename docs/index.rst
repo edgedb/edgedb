@@ -21,5 +21,5 @@ Welcome to the EdgeDB |version| documentation.
     stdlib/index
     clients/index
     cli/index
-    internals/index
+    reference/index
     changelog/index

@@ -39,7 +39,7 @@ See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
 
     The ``WITH`` clause allows specifying module aliases as well
     as expression aliases that can be referenced by the ``UPDATE``
-    statement.  See :ref:`ref_eql_with` for more information.
+    statement.  See :ref:`ref_eql_statements_with` for more information.
 
 :eql:synopsis:`<expression>`
     An arbitrary expression returning a set of objects to be updated.

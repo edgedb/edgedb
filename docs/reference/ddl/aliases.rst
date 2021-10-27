@@ -37,9 +37,9 @@ Description
 
 ``CREATE ALIAS`` defines a new expression alias in the schema.
 The schema-level expression aliases are functionally equivalent
-to expression aliases defined in a statement :ref:`WITH block <ref_eql_with>`,
-but are available to all queries using the schema and can be
-introspected.
+to expression aliases defined in a statement :ref:`WITH block
+<ref_eql_statements_with>`, but are available to all queries using the schema
+and can be introspected.
 
 If *name* is qualified with a module name, then the alias is created
 in that module, otherwise it is created in the current module.

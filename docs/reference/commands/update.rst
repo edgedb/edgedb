@@ -27,7 +27,7 @@ selected by *update-selector-expr* and, optionally, filtered by
 
     The ``WITH`` clause allows specifying module aliases as well
     as expression aliases that can be referenced by the ``UPDATE``
-    statement.  See :ref:`ref_eql_with` for more information.
+    statement.  See :ref:`ref_eql_statements_with` for more information.
 
 :eql:synopsis:`UPDATE <selector-expr>`
     An arbitrary expression returning a set of objects to be updated.
@@ -43,7 +43,7 @@ selected by *update-selector-expr* and, optionally, filtered by
     information.
 
 :eql:synopsis:`SET <shape>`
-    A :ref:`shape <ref_eql_expr_shapes_update>` expression with the
+    A shape expression with the
     new values for the links of the updated object. There are three
     possible assignment operations permitted within the ``SET`` shape:
 

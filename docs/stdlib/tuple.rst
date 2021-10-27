@@ -30,6 +30,8 @@ A tuple constructor automatically creates a corresponding
 :ref:`tuple type <ref_eql_types_tuple>`.
 
 
+
+
 .. _ref_eql_expr_tuple_elref:
 
 Accessing elements
@@ -65,7 +67,7 @@ Tuples can be nested:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT (nested_tuple := (1, 2),).nested_tuple.0;
+    db> SELECT (nested_tuple := (1, 2)).nested_tuple.0;
     {1}
 
 Referencing a non-existent tuple element will result in an error:
@@ -79,6 +81,49 @@ Referencing a non-existent tuple element will result in an error:
 
         line 1
             > SELECT (1, 2).3;
+
+
+.. _ref_eql_types_tuple:
+
+Type syntax
+-----------
+
+A tuple type can be explicitly declared in an expression or schema
+declaration using the following syntax:
+
+.. eql:synopsis::
+
+    tuple "<" <element-type>, [<element-type>, ...] ">"
+
+A named tuple:
+
+.. eql:synopsis::
+
+    tuple "<" <element-name> : <element-type> [, ... ] ">"
+
+Any type can be used as a tuple element type.
+
+Here's an example of using this syntax in a schema definition:
+
+.. code-block:: sdl
+
+    type GameElement {
+        required property name -> str;
+        required property position -> tuple<x: int64, y: int64>;
+    }
+
+Here's a few examples of using tuple types in EdgeQL queries:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT <tuple<int64, str>>('1', 3);
+    {(1, '3')}
+    db> SELECT <tuple<x: int64, y: int64>>(1, 2);
+    {(x := 1, y := 2)}
+    db> SELECT (1, '3') IS (tuple<int64, str>);
+    {true}
+    db> SELECT ([1, 2], 'a') IS (tuple<array<int64>, str>);
+    {true}
 
 
 .. eql:type:: std::tuple

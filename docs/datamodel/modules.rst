@@ -16,6 +16,8 @@ two elements in the same module can share the same name.
 You can split up your schemas however you see fit. Most users put their entire
 schema inside a single module called ``default``.
 
+.. _ref_name_resolution:
+
 Fully-qualified names
 ---------------------
 

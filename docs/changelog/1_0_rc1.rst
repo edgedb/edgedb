@@ -20,7 +20,7 @@ We continue fixing bugs that affect schema definitions and migrations:
 * Make properties non-distinct by default (:eql:gh:`#2853`).
 
   All values in EdgeQL are considered to be :ref:`multisets
-  <ref_eql_fundamentals_set>`, which are a generalization of the set
+  <ref_eql_everything_is_a_set>`, which are a generalization of the set
   concept that allows duplicate elements. For brevity we refer to
   multisets as just "sets", and use "proper set" or "distinct set"
   when referring to proper mathematical sets.

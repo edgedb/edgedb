@@ -29,7 +29,7 @@ FOR
         FOR <variable> IN <iterator-expr>
 
     where :eql:synopsis:`<iterator-expr>` is a
-    :ref:`set constructor <ref_eql_expr_index_set_ctor>` of arbitrary
+    :ref:`set constructor <ref_eql_set_constructor>` of arbitrary
     type.
 
 :eql:synopsis:`UNION <output-expr>`
@@ -86,8 +86,8 @@ singleton in all of the expressions used by the ``UNION OF`` and later
 clauses of ``FOR``.
 
 Another variation this usage of ``FOR`` is a bulk ``UPDATE``. There
-are cases when a bulk update involves a lot of external data that 
-cannot be derived from the objects being updated. That is a good 
+are cases when a bulk update involves a lot of external data that
+cannot be derived from the objects being updated. That is a good
 use-case when a ``FOR`` statement is appropriate.
 
 .. code-block:: edgeql

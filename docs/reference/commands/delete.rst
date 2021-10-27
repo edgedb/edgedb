@@ -27,7 +27,7 @@ DELETE
 
     The ``WITH`` clause allows specifying module aliases as well
     as expression aliases that can be referenced by the ``DELETE``
-    statement.  See :ref:`ref_eql_with` for more information.
+    statement.  See :ref:`ref_eql_statements_with` for more information.
 
 :eql:synopsis:`DELETE ...`
     The entire :eql:synopsis:`DELETE ...` statement is syntactic

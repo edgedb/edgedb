@@ -87,7 +87,7 @@ specific module they belong to.
 
 It's also possible to declare modules implicitly. In this style SDL
 declaration uses :ref:`fully-qualified
-name<ref_eql_fundamentals_name_resolution>` for the item that is being
+name<ref_name_resolution>` for the item that is being
 declared.  The *module* part of the *fully-qualified* name implies
 that a module by that name will be automatically created in the
 schema.  The following declaration is equivalent to the previous

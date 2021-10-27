@@ -58,32 +58,52 @@ Numerics
         :eql:op:`anyreal \< anyreal <LT>`, ...
       - Comparison operators.
 
+    * - :eql:func:`sum`
+      - :eql:func-desc:`sum`
+
+    * - :eql:func:`min`
+      - :eql:func-desc:`min`
+
+    * - :eql:func:`max`
+      - :eql:func-desc:`max`
+
     * - :eql:func:`round`
       - :eql:func-desc:`round`
 
     * - :eql:func:`random`
       - :eql:func-desc:`random`
 
-    * - :eql:func:`to_bigint`
-      - :eql:func-desc:`to_bigint`
+Mathematical functions
+----------------------
 
-    * - :eql:func:`to_decimal`
-      - :eql:func-desc:`to_decimal`
+.. include:: math_funcops_table.rst
 
-    * - :eql:func:`to_int16`
-      - :eql:func-desc:`to_int16`
+String parsing
+--------------
 
-    * - :eql:func:`to_int32`
-      - :eql:func-desc:`to_int32`
+.. list-table::
+  :class: funcoptable
 
-    * - :eql:func:`to_int64`
-      - :eql:func-desc:`to_int64`
+  * - :eql:func:`to_bigint`
+    - :eql:func-desc:`to_bigint`
 
-    * - :eql:func:`to_float32`
-      - :eql:func-desc:`to_float32`
+  * - :eql:func:`to_decimal`
+    - :eql:func-desc:`to_decimal`
 
-    * - :eql:func:`to_float64`
-      - :eql:func-desc:`to_float64`
+  * - :eql:func:`to_int16`
+    - :eql:func-desc:`to_int16`
+
+  * - :eql:func:`to_int32`
+    - :eql:func-desc:`to_int32`
+
+  * - :eql:func:`to_int64`
+    - :eql:func-desc:`to_int64`
+
+  * - :eql:func:`to_float32`
+    - :eql:func-desc:`to_float32`
+
+  * - :eql:func:`to_float64`
+    - :eql:func-desc:`to_float64`
 
 It's possible to explicitly :eql:op:`cast <CAST>`
 between all numeric types. All numeric types can also be cast to and
