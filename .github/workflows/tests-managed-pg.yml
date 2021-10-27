@@ -1134,7 +1134,7 @@ jobs:
         EDGEDB_TEST_BACKEND_DSN: postgres://edbtest:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-aws-aurora.outputs.pghost }}/postgres
       run: |
         edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
-        edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        edb test -j1 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
 
   teardown-aws-aurora:
     runs-on: ubuntu-latest
