@@ -72,6 +72,8 @@ from edb.common import debug
 
 from . import errors as pgerror
 
+include "scram.pyx"
+
 DEF DATA_BUFFER_SIZE = 100_000
 DEF PREP_STMTS_CACHE = 100
 DEF TCP_KEEPIDLE = 24
@@ -1626,6 +1628,9 @@ cdef class PGConnection:
                         self.write(
                             self.make_auth_password_md5_message(md5_salt))
 
+                    elif status == PGAUTH_REQUIRED_SASL:
+                        await self._auth_sasl()
+
                     else:
                         raise RuntimeError(f'unsupported auth method: {status}')
 
@@ -1879,6 +1884,98 @@ cdef class PGConnection:
 
         msg.write_bytestring(b'md5' + hash)
         return msg.end_message()
+
+    async def _auth_sasl(self):
+        methods = []
+        auth_method = self.buffer.read_null_str()
+        while auth_method:
+            methods.append(auth_method)
+            auth_method = self.buffer.read_null_str()
+        self.buffer.finish_message()
+
+        if not methods:
+            raise RuntimeError(
+                'the backend requested SASL authentication but did not '
+                'offer any methods')
+
+        for method in methods:
+            if method in SCRAMAuthentication.AUTHENTICATION_METHODS:
+                break
+        else:
+            raise RuntimeError(
+                f'the backend offered the following SASL authentication '
+                f'methods: {b", ".join(methods).decode()}, neither are '
+                f'supported.'
+            )
+
+        user = self.pgaddr.get('user') or ''
+        password = self.pgaddr.get('password') or ''
+        scram = SCRAMAuthentication(method)
+
+        msg = WriteBuffer.new_message(b'p')
+        msg.write_bytes(scram.create_client_first_message(user))
+        msg.end_message()
+        self.write(msg)
+
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            if mtype == b'E':
+                # ErrorResponse
+                exc = self.parse_error_message()
+                self.buffer.finish_message()
+                raise exc
+
+            elif mtype == b'R':
+                # Authentication...
+                break
+
+            else:
+                self.fallthrough()
+
+        status = self.buffer.read_int32()
+        if status != PGAUTH_SASL_CONTINUE:
+            raise RuntimeError(
+                f'expected SASLContinue from the server, received {status}')
+
+        server_response = self.buffer.consume_message()
+        scram.parse_server_first_message(server_response)
+        msg = WriteBuffer.new_message(b'p')
+        client_final_message = scram.create_client_final_message(password)
+        msg.write_bytes(client_final_message)
+        msg.end_message()
+
+        self.write(msg)
+
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            if mtype == b'E':
+                # ErrorResponse
+                exc = self.parse_error_message()
+                self.buffer.finish_message()
+                raise exc
+
+            elif mtype == b'R':
+                # Authentication...
+                break
+
+            else:
+                self.fallthrough()
+
+        status = self.buffer.read_int32()
+        if status != PGAUTH_SASL_FINAL:
+            raise RuntimeError(
+                f'expected SASLFinal from the server, received {status}')
+
+        server_response = self.buffer.consume_message()
+        if not scram.verify_server_final_message(server_response):
+            raise RuntimeError(
+                f'server SCRAM proof does not match')
 
     async def wait_for_message(self):
         if self.buffer.take_message():
