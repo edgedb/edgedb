@@ -424,14 +424,17 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        sp_ids_to_erase = []
         for sp in reversed(self._savepoints.values()):
+            sp_ids_to_erase.append(sp.id)
+
             if sp.name == name:
-                sp_id = sp.id
                 break
         else:
             raise errors.TransactionError(f'there is no {name!r} savepoint')
 
-        self._savepoints.pop(sp_id)
+        for sp_id in sp_ids_to_erase:
+            self._savepoints.pop(sp_id)
 
     def get_schema(self, std_schema: s_schema.FlatSchema) -> s_schema.Schema:
         assert isinstance(std_schema, s_schema.FlatSchema)
