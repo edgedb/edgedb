@@ -930,6 +930,7 @@ pub fn is_keyword(s: &str) -> bool {
         | "over"
         | "when"
         | "window"
+        | "never"
           // Keep in sync with keywords::FUTURE_RESERVED_KEYWORDS
         => true,
         _ => false,
