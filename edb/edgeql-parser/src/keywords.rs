@@ -125,6 +125,7 @@ pub const FUTURE_RESERVED_KEYWORDS: &[&str] = &[
     "single",
     "when",
     "window",
+    "never",
     // Keep in sync with `tokenizer::is_keyword`
 ];
 
