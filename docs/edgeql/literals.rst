@@ -39,7 +39,9 @@ EdgeQL contains a set of built-in functions and operators for searching, compari
       :eql:func:`str_pad_start` :eql:func:`str_pad_end` :eql:func:`str_trim`
       :eql:func:`str_trim_start` :eql:func:`str_trim_end` :eql:func:`str_repeat`
   * - Comparison operators
-    - :eql:op:`str = str <EQ>`, :eql:op:`str \< str <LT>`, etc.
+    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
   * - Search
     - :eql:func:`contains` :eql:func:`find`
   * - Pattern matching and regexes
@@ -62,6 +64,15 @@ The ``bool`` type represents a true/false value.
   {true}
   db> select false;
   {false}
+
+.. list-table::
+
+  * - Comparison operators
+    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+  * - Logical operators
+    - :eql:op:`OR <OR>` :eql:op:`AND <AND>` :eql:op:`NOT <NOT>`
 
 
 Numbers
@@ -92,6 +103,33 @@ explicit type cast. For details on type casting, see :ref:`Casting
  :eql:code:`SELECT <int32>123456;`      :eql:type:`int32`
  :eql:code:`SELECT <float32>123.456;`   :eql:type:`float32`
 ====================================== =============================
+
+EdgeQL provides a comprehensive set of built-in functions and operators for
+manipulating numerical data.
+
+.. list-table::
+
+  * - Comparison operators
+    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+  * - Arithmetic
+    - :eql:op:`+ <PLUS>` :eql:op:`- <MINUS>` :eql:op:`- <UMINUS>`
+      :eql:op:`* <MULT>` :eql:op:`/ <DIV>` :eql:op:`/  <FLOORDIV>`
+      :eql:op:`% <MOD>` :eql:op:`^ <POW>`
+  * - Statistics
+    - :eql:func:`sum` :eql:func:`min` :eql:func:`max` :eql:func:`math::mean`
+      :eql:func:`math::stddev` :eql:func:`math::stddev_pop`
+      :eql:func:`math::var` :eql:func:`math::var_pop`
+  * - Math
+    - :eql:func:`round` :eql:func:`math::abs` :eql:func:`math::ceil`
+      :eql:func:`math::floor` :eql:func:`math::ln` :eql:func:`math::lg`
+      :eql:func:`math::log`
+  * - Random number
+    - :eql:func:`random`
+
+
+
 
 UUID
 ----
