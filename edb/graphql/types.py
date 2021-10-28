@@ -782,14 +782,18 @@ class GQLCoreSchema:
         names = sorted(pointers.keys(self.edb_schema))
         for unqual_name in names:
             name = str(unqual_name)
-            if name == '__type__':
+            if name in {'__type__', 'id'}:
                 continue
 
             ptr = edb_type.getptr(self.edb_schema, unqual_name)
             edb_target = ptr.get_target(self.edb_schema)
-
             intype: GraphQLInputType
-            if isinstance(edb_target, s_objtypes.ObjectType):
+
+            if ptr.is_pure_computable(self.edb_schema):
+                # skip computed pointer
+                continue
+
+            elif isinstance(edb_target, s_objtypes.ObjectType):
                 typename = edb_target.get_name(self.edb_schema)
 
                 inobjtype = self._gql_inobjtypes.get(f'NestedInsert{typename}')
@@ -862,7 +866,11 @@ class GQLCoreSchema:
             ptr = edb_type.getptr(self.edb_schema, unqual_name)
             edb_target = ptr.get_target(self.edb_schema)
 
-            if isinstance(edb_target, s_objtypes.ObjectType):
+            if ptr.is_pure_computable(self.edb_schema):
+                # skip computed pointer
+                continue
+
+            elif isinstance(edb_target, s_objtypes.ObjectType):
                 intype = self._gql_inobjtypes.get(
                     f'UpdateOp{typename}__{name}')
                 if intype is None:
