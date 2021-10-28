@@ -49,7 +49,7 @@ RUNTIME_DEPS = [
     'uvloop~=0.16.0',
 
     'click~=7.1',
-    'cryptography~=3.4',
+    'cryptography~=35.0',
     'graphql-core~=3.1.5',
     'parsing~=2.0',
     'psutil~=5.8',
