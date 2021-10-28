@@ -1153,7 +1153,7 @@ cdef class EdgeConnection:
     def signal_side_effects(self, side_effects):
         if side_effects & dbview.SideEffects.SchemaChanges:
             self.server.create_task(
-                self.server._signal_sysevent(
+                lambda: self.server._signal_sysevent(
                     'schema-changes',
                     dbname=self.get_dbview().dbname,
                 ),
@@ -1161,14 +1161,14 @@ cdef class EdgeConnection:
             )
         if side_effects & dbview.SideEffects.GlobalSchemaChanges:
             self.server.create_task(
-                self.server._signal_sysevent(
+                lambda: self.server._signal_sysevent(
                     'global-schema-changes',
                 ),
                 interruptable=False,
             )
         if side_effects & dbview.SideEffects.DatabaseConfigChanges:
             self.server.create_task(
-                self.server._signal_sysevent(
+                lambda: self.server._signal_sysevent(
                     'database-config-changes',
                     dbname=self.get_dbview().dbname,
                 ),
@@ -1176,7 +1176,7 @@ cdef class EdgeConnection:
             )
         if side_effects & dbview.SideEffects.InstanceConfigChanges:
             self.server.create_task(
-                self.server._signal_sysevent(
+                lambda: self.server._signal_sysevent(
                     'system-config-changes',
                 ),
                 interruptable=False,
@@ -2197,7 +2197,7 @@ cdef class EdgeConnection:
                 'invalid connection status while establishing the connection')
         self._transport = transport
         self._main_task = self.server.create_task(
-            self.main(), interruptable=False
+            self.main, interruptable=False
         )
         self.server.on_binary_client_connected(self)
 
@@ -2265,7 +2265,7 @@ cdef class EdgeConnection:
                     # _next_ query that is unlucky enough to pick up this
                     # Postgres backend from the connection pool.
                     self.server.create_task(
-                        self.server._cancel_and_discard_pgcon(
+                        lambda: self.server._cancel_and_discard_pgcon(
                             self._pinned_pgcon,
                             self.get_dbview().dbname,
                         ),

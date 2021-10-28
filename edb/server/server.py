@@ -33,6 +33,7 @@ import stat
 import sys
 import time
 import uuid
+import warnings
 
 import immutables
 
@@ -1041,7 +1042,7 @@ class Server(ha_base.ClusterProtocol):
                 metrics.background_errors.inc(1.0, 'on_remote_ddl')
                 raise
 
-        self.create_task(task(), interruptable=True)
+        self.create_task(task, interruptable=True)
 
     def _on_remote_database_config_change(self, dbname):
         # Triggered by a postgres notification event 'database-config-changes'
@@ -1054,7 +1055,7 @@ class Server(ha_base.ClusterProtocol):
                     1.0, 'on_remote_database_config_change')
                 raise
 
-        self.create_task(task(), interruptable=True)
+        self.create_task(task, interruptable=True)
 
     def _on_local_database_config_change(self, dbname):
         # Triggered by DB Index.
@@ -1068,7 +1069,7 @@ class Server(ha_base.ClusterProtocol):
                     1.0, 'on_local_database_config_change')
                 raise
 
-        self.create_task(task(), interruptable=True)
+        self.create_task(task, interruptable=True)
 
     def _on_remote_system_config_change(self):
         # Triggered by a postgres notification event 'system-config-changes'
@@ -1082,7 +1083,7 @@ class Server(ha_base.ClusterProtocol):
                     1.0, 'on_remote_system_config_change')
                 raise
 
-        self.create_task(task(), interruptable=True)
+        self.create_task(task, interruptable=True)
 
     def _on_global_schema_change(self):
         async def task():
@@ -1093,7 +1094,7 @@ class Server(ha_base.ClusterProtocol):
                     1.0, 'on_global_schema_change')
                 raise
 
-        self.create_task(task(), interruptable=True)
+        self.create_task(task, interruptable=True)
 
     def _on_sys_pgcon_connection_lost(self, exc):
         try:
@@ -1113,7 +1114,7 @@ class Server(ha_base.ClusterProtocol):
             )
             self.__sys_pgcon = None
             self._sys_pgcon_ready_evt.clear()
-            self.create_task(self._reconnect_sys_pgcon(), interruptable=True)
+            self.create_task(self._reconnect_sys_pgcon, interruptable=True)
             self._on_pgcon_broken(True)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_sys_pgcon_connection_lost')
@@ -1378,7 +1379,7 @@ class Server(ha_base.ClusterProtocol):
         self._accept_new_tasks = True
 
         self._http_request_logger = self.create_task(
-            self._request_stats_logger(), interruptable=True
+            self._request_stats_logger, interruptable=True
         )
 
         await self._cluster.start_watching(self)
@@ -1453,22 +1454,20 @@ class Server(ha_base.ClusterProtocol):
                 self.__sys_pgcon = None
             self._sys_pgcon_waiter = None
 
-    def create_task(self, coro, *, interruptable):
+    def create_task(self, coro_factory, *, interruptable):
         # Interruptable tasks are regular asyncio tasks that may be interrupted
         # randomly in the middle when the event loop stops; while tasks with
         # interruptable=False are always awaited before the server stops, so
         # that e.g. all finally blocks get a chance to execute in those tasks.
         if self._accept_new_tasks:
             if interruptable:
-                return self.__loop.create_task(coro)
+                return self.__loop.create_task(coro_factory())
             else:
-                return self._task_group.create_task(coro)
+                return self._task_group.create_task(coro_factory())
         else:
-            # Silence the "coroutine not awaited" warning
             logger.debug(
-                "Task is not started and ignored: %r", coro.cr_code.co_name
+                "Task is not started and ignored: %r", coro_factory
             )
-            coro.__await__()
 
     async def serve_forever(self):
         await self._stop_evt.wait()
@@ -1508,7 +1507,7 @@ class Server(ha_base.ClusterProtocol):
         self._ha_master_serial += 1
 
         self.create_task(
-            self._pg_pool.prune_all_connections(), interruptable=True
+            self._pg_pool.prune_all_connections, interruptable=True
         )
 
         if self.__sys_pgcon is None:
