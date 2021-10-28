@@ -1924,9 +1924,8 @@ cdef class PGConnection:
 
             if mtype == b'E':
                 # ErrorResponse
-                exc = self.parse_error_message()
-                self.buffer.finish_message()
-                raise exc
+                er_cls, er_fields = self.parse_error_message()
+                raise er_cls(fields=er_fields)
 
             elif mtype == b'R':
                 # Authentication...
@@ -1956,9 +1955,8 @@ cdef class PGConnection:
 
             if mtype == b'E':
                 # ErrorResponse
-                exc = self.parse_error_message()
-                self.buffer.finish_message()
-                raise exc
+                er_cls, er_fields = self.parse_error_message()
+                raise er_cls(fields=er_fields)
 
             elif mtype == b'R':
                 # Authentication...
@@ -1974,8 +1972,10 @@ cdef class PGConnection:
 
         server_response = self.buffer.consume_message()
         if not scram.verify_server_final_message(server_response):
-            raise RuntimeError(
-                f'server SCRAM proof does not match')
+            raise pgerror.BackendError(fields=dict(
+                M="server SCRAM proof does not match",
+                C=pgerror.ERROR_INVALID_PASSWORD,
+            ))
 
     async def wait_for_message(self):
         if self.buffer.take_message():

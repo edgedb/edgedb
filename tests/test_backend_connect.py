@@ -46,7 +46,6 @@ from edb.server.pgconnparams import SSLMode
 from edb.server import pgcon
 from edb.server.pgcon import errors
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 CERTS = os.path.join(os.path.dirname(__file__), 'certs')
@@ -350,7 +349,6 @@ class TestAuthentication(ClusterTestCase):
             await self.connect(
                 user='md5_user', password='wrongpassword')
 
-    @test.not_implemented("SCRAM SHA-256 auth method")
     async def test_auth_password_scram_sha_256(self):
         conn = await self.connect(
             user='scram_sha_256_user', password='correctpassword')
@@ -365,7 +363,10 @@ class TestAuthentication(ClusterTestCase):
 
         # various SASL prep tests
         # first ensure that password are being hashed for SCRAM-SHA-256
-        await self.con.execute("SET password_encryption = 'scram-sha-256';")
+        await self.con.simple_query(
+            b"SET password_encryption = 'scram-sha-256';",
+            ignore_data=True,
+        )
         alter_password = "ALTER ROLE scram_sha_256_user PASSWORD E{!r};"
         passwords = [
             'nonascii\u1680space',  # C.1.2
@@ -383,16 +384,20 @@ class TestAuthentication(ClusterTestCase):
         # ensure the passwords that go through SASLprep work
         for password in passwords:
             # update the password
-            await self.con.execute(alter_password.format(password))
+            await self.con.simple_query(
+                alter_password.format(password).encode(), ignore_data=True
+            )
             # test to see that passwords are properly SASL prepped
             conn = await self.connect(
                 user='scram_sha_256_user', password=password)
             conn.terminate()
 
         alter_password = \
-            "ALTER ROLE scram_sha_256_user PASSWORD 'correctpassword';"
-        await self.con.execute(alter_password)
-        await self.con.execute("SET password_encryption = 'md5';")
+            b"ALTER ROLE scram_sha_256_user PASSWORD 'correctpassword';"
+        await self.con.simple_query(alter_password, ignore_data=True)
+        await self.con.simple_query(
+            b"SET password_encryption = 'md5';", ignore_data=True
+        )
 
     async def test_auth_unsupported(self):
         pass

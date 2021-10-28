@@ -1,8 +1,21 @@
-# Copyright (C) 2016-present the asyncpg authors and contributors
-# <see AUTHORS file>
+# This file is copied from:
+# https://github.com/MagicStack/asyncpg/blob/383c711e/asyncpg/protocol/scram.pyx
 #
-# This module is part of asyncpg and is released under
-# the Apache 2.0 License: http://www.apache.org/licenses/LICENSE-2.0
+# Copyright (C) 2021-present MagicStack Inc. and the EdgeDB authors.
+# Copyright (C) 2016-present the asyncpg authors and contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
 
 import base64
@@ -39,7 +52,7 @@ cdef class SCRAMAuthentication:
 
     The protocol works as such:
 
-    - A client connets to the server. The server requests the client to begin
+    - A client connects to the server. The server requests the client to begin
     SASL authentication using SCRAM and presents a client with the methods it
     supports. At present, those are SCRAM-SHA-256, and, on servers that are
     built with OpenSSL and
@@ -47,19 +60,19 @@ cdef class SCRAMAuthentication:
     below)
 
     - The client sends a "first message" to the server, where it chooses which
-    method to authenticate with, and sends, along with the method, an indication
-    of channel binding (we disable for now), a nonce, and the username.
-    (Technically, PostgreSQL ignores the username as it already has it from the
-    initical connection, but we add it for completeness)
+    method to authenticate with, and sends, along with the method, an
+    indication of channel binding (we disable for now), a nonce, and the
+    username. (Technically, PostgreSQL ignores the username as it already has
+    it from the initial connection, but we add it for completeness)
 
     - The server responds with a "first message" in which it extends the nonce,
-    as well as a password salt and the number of iterations to hash the password
-    with. The client validates that the new nonce contains the first part of the
-    client's original nonce
+    as well as a password salt and the number of iterations to hash the
+    password with. The client validates that the new nonce contains the first
+    part of the client's original nonce
 
     - The client generates a salted password, but does not sent this up to the
     server. Instead, the client follows the SCRAM algorithm (RFC5802) to
-    generate a proof. This proof is sent aspart of a client "final message" to
+    generate a proof. This proof is sent as part of a client "final message" to
     the server for it to validate.
 
     - The server validates the proof. If it is valid, the server sends a
@@ -73,9 +86,9 @@ cdef class SCRAMAuthentication:
 
     PostgreSQL 11 added support for the channel binding (i.e.
     SCRAM-SHA-256-PLUS) but to do some ongoing discussion, there is a conscious
-    decision by several driver authors to not support it as of yet. As such, the
-    channel binding parameter is hard-coded to "n" for now, but can be updated
-    to support other channel binding methos in the future
+    decision by several driver authors to not support it as of yet. As such,
+    the channel binding parameter is hard-coded to "n" for now, but can be
+    updated to support other channel binding methods in the future.
     """
     AUTHENTICATION_METHODS = [b"SCRAM-SHA-256"]
     DEFAULT_CLIENT_NONCE_BYTES = 24
@@ -138,7 +151,7 @@ cdef class SCRAMAuthentication:
 
         if any([getattr(self, val) is None for val in
                 self.REQUIREMENTS_CLIENT_FINAL_MESSAGE]):
-            raise Exception(
+            raise RuntimeError(
                 "you need values from server to generate a client proof")
 
         # normalize the password using the SASLprep algorithm in RFC 4013
@@ -159,19 +172,22 @@ cdef class SCRAMAuthentication:
             self.server_nonce = re.search(b'r=([^,]+),',
                 self.server_first_message).group(1)
         except IndexError:
-            raise Exception("could not get nonce")
+            raise RuntimeError("could not get nonce")
         if not self.server_nonce.startswith(self.client_nonce):
-            raise Exception("invalid nonce")
+            raise pgerror.BackendError(fields=dict(
+                M="server SCRAM nonce does not match",
+                C=pgerror.ERROR_INVALID_PASSWORD,
+            ))
         try:
             self.password_salt = re.search(b's=([^,]+),',
                 self.server_first_message).group(1)
         except IndexError:
-            raise Exception("could not get salt")
+            raise RuntimeError("could not get salt")
         try:
             self.password_iterations = int(re.search(b'i=(\d+),?',
                 self.server_first_message).group(1))
         except (IndexError, TypeError, ValueError):
-            raise Exception("could not get iterations")
+            raise RuntimeError("could not get iterations")
 
     cdef verify_server_final_message(self, bytes server_final_message):
         """Verify the final message from the server"""
@@ -182,7 +198,7 @@ cdef class SCRAMAuthentication:
             server_signature = re.search(b'v=([^,]+)',
                 server_final_message).group(1)
         except IndexError:
-            raise Exception("could not get server signature")
+            raise RuntimeError("could not get server signature")
 
         verify_server_signature = hmac.new(self.server_key.digest(),
             self.authorization_message, self.DIGEST)
@@ -209,14 +225,15 @@ cdef class SCRAMAuthentication:
 
         if any([getattr(self, val) is None for val in
                 self.REQUIREMENTS_CLIENT_PROOF]):
-            raise Exception(
+            raise RuntimeError(
                 "you need values from server to generate a client proof")
         # generate a salt password
         salted_password = self._generate_salted_password(password,
             self.password_salt, self.password_iterations)
         # client key is derived from the salted password
         client_key = hmac.new(salted_password, b"Client Key", self.DIGEST)
-        # this allows us to compute the stored key that is residing on the server
+        # this allows us to compute the stored key that is residing on the
+        # server
         stored_key = self.DIGEST(client_key.digest())
         # as well as compute the server key
         self.server_key = hmac.new(salted_password, b"Server Key", self.DIGEST)
@@ -234,7 +251,9 @@ cdef class SCRAMAuthentication:
         # and the proof
         return self._bytes_xor(client_key.digest(), client_signature.digest())
 
-    cdef _generate_salted_password(self, str password, bytes salt, int iterations):
+    cdef _generate_salted_password(
+        self, str password, bytes salt, int iterations
+    ):
         """This follows the "Hi" algorithm specified in RFC5802"""
         cdef:
             bytes p
@@ -246,8 +265,8 @@ cdef class SCRAMAuthentication:
         p = password.encode("utf8")
         # the salt needs to be base64 decoded -- full binary must be used
         s = base64.b64decode(salt)
-        # the initial signature is the salt with a terminator of a 32-bit string
-        # ending in 1
+        # the initial signature is the salt with a terminator of a 32-bit
+        # string ending in 1
         ui = hmac.new(p, s + b'\x00\x00\x00\x01', self.DIGEST)
         # grab the initial digest
         u = ui.digest()
@@ -292,7 +311,8 @@ cdef class SCRAMAuthentication:
         # Table B.1 -- "Commonly mapped to nothing"
         normalized_password = u"".join(
             ' ' if stringprep.in_table_c12(c) else c
-            for c in tuple(normalized_password) if not stringprep.in_table_b1(c)
+            for c in tuple(normalized_password)
+            if not stringprep.in_table_b1(c)
         )
 
         # If at this point the password is empty, PostgreSQL uses the original
@@ -302,7 +322,9 @@ cdef class SCRAMAuthentication:
 
         # Step 2 of SASLPrep: Normalize. Normalize the password using the
         # Unicode normalization algorithm to NFKC form
-        normalized_password = unicodedata.normalize('NFKC', normalized_password)
+        normalized_password = unicodedata.normalize(
+            'NFKC', normalized_password
+        )
 
         # If the password is not empty, PostgreSQL uses the original password
         if not normalized_password:
@@ -310,7 +332,7 @@ cdef class SCRAMAuthentication:
 
         normalized_password_tuple = tuple(normalized_password)
 
-        # Step 3 of SASLPrep: Prohobited characters. If PostgreSQL detects any
+        # Step 3 of SASLPrep: Prohibited characters. If PostgreSQL detects any
         # of the prohibited characters in SASLPrep, it will use the original
         # password
         # We also include "unassigned code points" in the prohibited character
@@ -326,7 +348,7 @@ cdef class SCRAMAuthentication:
         # rules for bi-directional characters laid on in RFC3454 Sec. 6 which
         # are:
         # 1. Characters in RFC 3454 Sec 5.8 are prohibited (C.8)
-        # 2. If a string contains a RandALCat character, it cannot containy any
+        # 2. If a string contains a RandALCat character, it cannot contain any
         #    LCat character
         # 3. If the string contains any RandALCat character, an RandALCat
         #    character must be the first and last character of the string
