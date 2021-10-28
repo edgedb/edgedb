@@ -2414,3 +2414,43 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 "specifiedByUrl": None,
             }
         })
+
+    def test_graphql_reflection_01(self):
+        # Make sure that FreeObject is not reflected.
+        result = self.graphql_query(r"""
+            query {
+                __type(name: "FeeObject") {
+                    name
+                }
+                __schema {
+                    queryType {
+                        fields {
+                            name
+                        }
+                    }
+                    mutationType {
+                        fields {
+                            name
+                        }
+                    }
+                }
+            }
+        """)
+
+        self.assertIsNone(result['__type'])
+        self.assertNotIn(
+            'FreeObject',
+            [t['name'] for t in result['__schema']['queryType']['fields']]
+        )
+        self.assertNotIn(
+            'delete_FreeObject',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertNotIn(
+            'update_FreeObject',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertNotIn(
+            'insert_FreeObject',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )

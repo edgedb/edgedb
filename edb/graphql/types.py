@@ -285,9 +285,14 @@ GQL_TO_OPS_MAP = {
 
 
 HIDDEN_MODULES = set(s_schema.STD_MODULES) - {s_name.UnqualName('std')}
+# The following are placeholders.
 TOP_LEVEL_TYPES = {
     s_name.QualName(module='__graphql__', name='Query'),
     s_name.QualName(module='__graphql__', name='Mutation'),
+}
+# The following types should not be exposed as all.
+HIDDEN_TYPES = {
+    s_name.QualName(module='std', name='FreeObject'),
 }
 
 
@@ -1221,6 +1226,9 @@ class GQLCoreSchema:
             t_name = t.get_name(self.edb_schema)
             gql_name = self.get_gql_name(t_name)
 
+            if t_name in HIDDEN_TYPES:
+                continue
+
             if t.is_view(self.edb_schema):
                 # The aliased types actually only reflect as an object
                 # type, but the rest of the processing is identical to
@@ -1277,6 +1285,9 @@ class GQLCoreSchema:
             interfaces = []
             t_name = t.get_name(self.edb_schema)
             gql_name = self.get_gql_name(t_name)
+
+            if t_name in HIDDEN_TYPES:
+                continue
 
             if t.is_view(self.edb_schema):
                 # Just copy previously computed type.
