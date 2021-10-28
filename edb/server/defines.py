@@ -44,6 +44,10 @@ EDGEDB_MIN_RLIMIT_NOFILE = 2048
 BACKEND_CONNECTIONS_MIN = 4
 BACKEND_COMPILER_POOL_SIZE_MIN = 1
 
+# The time in seconds to wait before restarting the template compiler process
+# after it exits unexpectedly.
+BACKEND_COMPILER_TEMPLATE_PROC_RESTART_INTERVAL = 1
+
 _MAX_QUERIES_CACHE = 1000
 
 _QUERY_ROLLING_AVG_LEN = 10

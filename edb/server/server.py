@@ -1556,9 +1556,7 @@ class Server(ha_base.ClusterProtocol):
             pg_pool=self._pg_pool._build_snapshot(now=time.monotonic()),
             compiler_pool=dict(
                 worker_pids=list(self._compiler_pool._workers.keys()),
-                # TODO(fantix): his may change to be more reliable like
-                # supporting None when the template process is managed.
-                template_pid=self._compiler_pool._template_proc.pid,
+                template_pid=self._compiler_pool.get_template_pid(),
             ),
         )
 
