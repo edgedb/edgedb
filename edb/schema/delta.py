@@ -130,14 +130,16 @@ def delta_objects(
         x_name = x.get_name(new_schema)
         y_name = y.get_name(old_schema)
 
-        if can_alter(y, y_name, x_name):
-            similarity = y.compare(
-                x,
-                our_schema=old_schema,
-                their_schema=new_schema,
-                context=context,
-            )
-        else:
+        similarity = y.compare(
+            x,
+            our_schema=old_schema,
+            their_schema=new_schema,
+            context=context,
+        )
+        # If similarity for an alter is 1.0, that means there is no
+        # actual change. We keep that, since otherwise we will generate
+        # extra drop/create pairs when we are already done.
+        if similarity < 1.0 and not can_alter(y, y_name, x_name):
             similarity = 0.0
 
         full_matrix.append((x, y, similarity))
