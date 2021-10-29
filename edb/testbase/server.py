@@ -406,7 +406,7 @@ async def init_cluster(
         destroy = True
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
-            testmode=True, log_level='s', data_dir_prefix='edb-test-',
+            testmode=True, log_level='d', data_dir_prefix='edb-test-',
             allow_insecure_http_clients=allow_insecure_http_clients)
         destroy = True
     else:
