@@ -30,6 +30,7 @@ import uuid
 
 from edb import errors
 from edb.edgeql import qltypes
+from edb.common.typeutils import not_none
 
 from edb.common import checked
 from edb.common import markup
@@ -3043,6 +3044,10 @@ class InheritingObject(SubclassableObject):
                 'ancestors',
                 other.get_ancestors(other_schema).as_shell(other_schema),
             )
+            # Trim these from the base alter since they are redundant
+            # and clog up debug output.
+            delta.discard(not_none(delta._get_attribute_set_cmd('bases')))
+            delta.discard(not_none(delta._get_attribute_set_cmd('ancestors')))
 
             delta.add(rebase_cmd)
 

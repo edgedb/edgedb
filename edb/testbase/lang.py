@@ -38,6 +38,7 @@ from edb import errors
 from edb import edgeql
 from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser
+from edb.edgeql import qltypes
 
 from edb.server import defines
 from edb.server import compiler as edbcompiler
@@ -413,6 +414,21 @@ class BaseSchemaTest(BaseDocTest):
                         text.append(edgeql.generate_source(cmd, pretty=True))
                     debug.header('Populate Migration DDL Text')
                     debug.dump_code(';\n'.join(text) + ';')
+
+            elif isinstance(stmt, qlast.DescribeCurrentMigration):
+                # This is silly, and we don't bother doing all the work,
+                # but try to catch when doing the JSON thing wouldn't work.
+                if stmt.language is qltypes.DescribeLanguage.JSON:
+                    guided_diff = s_ddl.delta_schemas(
+                        migration_schema,
+                        migration_target,
+                        generate_prompts=True,
+                    )
+                    s_ddl.statements_from_delta(
+                        schema,
+                        migration_target,
+                        guided_diff,
+                    )
 
             elif isinstance(stmt, qlast.CommitMigration):
                 if migration_target is None:

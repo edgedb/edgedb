@@ -185,6 +185,7 @@ def delta_objects(
             y_alter_variants[y] += 1
 
     alters = []
+    alter_pairs = []
 
     if comparison_map:
         if issubclass(sclass, so.InheritingObject):
@@ -215,6 +216,8 @@ def delta_objects(
                 )
                 or x_name in renames_x
             ):
+                alter_pairs.append((x, y))
+
                 alter = y.as_alter_delta(
                     other=x,
                     context=context,
@@ -240,8 +243,10 @@ def delta_objects(
 
                 alter.set_annotation('confidence', confidence)
                 alters.append(alter)
+            elif confidence == 1.0:
+                alter_pairs.append((x, y))
 
-    created = new - {x for x, (s, _) in comparison_map.items() if s > 0.6}
+    created = new - {x for x, _ in alter_pairs}
 
     for x in created:
         x_name = x.get_name(new_schema)
@@ -257,7 +262,7 @@ def delta_objects(
     delta.update(alters)
 
     deleted_order: Iterable[so.Object_T]
-    deleted = old - {y for _, (s, y) in comparison_map.items() if s > 0.6}
+    deleted = old - {y for _, y in alter_pairs}
 
     if issubclass(sclass, so.InheritingObject):
         deleted_order = _sort_by_inheritance(  # type: ignore
