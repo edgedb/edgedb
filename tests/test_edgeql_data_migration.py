@@ -3226,6 +3226,24 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         ])
         await self.fast_forward_describe_migration()
 
+    async def test_edgeql_migration_reject_prop_04(self):
+        await self.migrate('''
+            type Foo;
+            type Bar;
+        ''')
+
+        await self.start_migration('''
+            type Foo;
+            type Bar extending Foo;
+        ''')
+
+        await self.interact([
+            ("did you alter object type 'test::Bar'?", "n"),
+            "did you drop object type 'test::Bar'?",
+            "did you create object type 'test::Bar'?",
+        ])
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
             type Base;

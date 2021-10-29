@@ -1169,6 +1169,8 @@ class Compiler:
 
                 last = mstate.last_proposed[0]
                 cmdclass_name, mcls, classname, new_name = last.operation_key
+                if new_name is None:
+                    new_name = classname
 
                 if cmdclass_name.startswith('Create'):
                     new_guidance = mstate.guidance._replace(
