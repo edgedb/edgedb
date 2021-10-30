@@ -6548,3 +6548,46 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             [[{"id": {}}], [{"id": {}}]]
         )
+
+    async def test_edgeql_assert_fail_object_computed_01(self):
+        # check that accessing a trivial computable on an object
+        # that will fail to evaluate still fails
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_exists violation",
+        ):
+            await self.con.query("""
+                SELECT assert_exists((SELECT User {m := 10} FILTER false)).m;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "array index 1000 is out of bounds",
+        ):
+            await self.con.query("""
+                SELECT array_agg((SELECT User {m := Issue}))[{1000}].m;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "array index 1000 is out of bounds",
+        ):
+            await self.con.query("""
+                SELECT array_agg((SELECT User {m := 10}))[{1000}].m;
+            """)
+
+    @test.xfail('''
+        Publication is empty, and so even if we join in User to the result
+        of the array dereference, that all gets optimized out on the pg
+        side. I'm not really sure what we can reasonably do about this.
+    ''')
+    async def test_edgeql_assert_fail_object_computed_02(self):
+        # Publication is empty, and so
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "array index 1000 is out of bounds",
+        ):
+            await self.con.query("""
+                SELECT array_agg((SELECT User {m := Publication}))[{1000}].m;
+            """)

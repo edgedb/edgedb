@@ -1118,7 +1118,12 @@ def process_set_as_subquery(
             source_is_visible = outer_fence.is_visible(ir_source.path_id)
 
         if source_is_visible:
-            get_set_rvar(ir_set.rptr.source, ctx=ctx)
+            get_set_rvar(ir_source, ctx=ctx)
+            # Force a source rvar so that trivial computed pointers
+            # on erroneous objects (like a bad array deref) fail.
+            # (Most sensible computables will end up requiring the
+            # source rvar anyway.)
+            ensure_source_rvar(ir_source, ctx.rel, ctx=ctx)
     else:
         ir_source = None
         source_is_visible = False
@@ -1158,6 +1163,8 @@ def process_set_as_subquery(
                 with newctx.subrel() as _, _.newscope() as subctx:
                     get_set_rvar(ir_source, ctx=subctx)
                     subrvar = relctx.rvar_for_rel(subctx.rel, ctx=subctx)
+                    # Force a source rvar. See above.
+                    ensure_source_rvar(ir_source, subctx.rel, ctx=subctx)
 
                 relctx.include_rvar(
                     stmt, subrvar, ir_source.path_id, ctx=ctx)
