@@ -1969,8 +1969,8 @@ class SetPointerType(
             #    in the new schema; there is no way for us to infer
             #    castability and we assume a cast expression is needed.
             if isinstance(old_type_shell, s_types.CollectionTypeShell):
-                create = old_type_shell.as_create_delta(schema)
                 try:
+                    create = old_type_shell.as_create_delta(schema)
                     schema = sd.apply(create, schema=schema)
                 except errors.InvalidReferenceError:
                     # A removed type is part of the collection,

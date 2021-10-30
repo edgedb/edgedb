@@ -1900,6 +1900,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                         {state}
                     }}
                 }};
+                DESCRIBE CURRENT MIGRATION AS JSON;
                 POPULATE MIGRATION;
                 COMMIT MIGRATION;
             '''
@@ -4220,6 +4221,55 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             abstract type Owned;
             type Comment extending Text, Owned;
         """, r"""
+        """])
+
+    def test_schema_migrations_equivalence_52(self):
+        self._assert_migration_equivalence([r"""
+            scalar type Slug extending str;
+            type User {
+                required property name -> str;
+            };
+        """, r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User extending Named;
+        """])
+
+    def test_schema_migrations_equivalence_53(self):
+        self._assert_migration_equivalence([r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User {
+                required property name -> str;
+            };
+        """, r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User extending Named {
+                property foo -> str;
+            }
+        """])
+
+    @test.xfail('Fails to delete the index first')
+    def test_schema_migrations_equivalence_54(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                  required property name -> str;
+                  index on (__subject__.name);
+            };
+        """, r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+                index on (__subject__.name);
+            };
+            type User extending Named;
         """])
 
     def test_schema_migrations_equivalence_compound_01(self):

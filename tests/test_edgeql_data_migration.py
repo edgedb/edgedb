@@ -3244,6 +3244,31 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         ])
         await self.fast_forward_describe_migration()
 
+    @test.xfail('Fails to rebase because the type is mismatched')
+    async def test_edgeql_migration_reject_prop_05(self):
+        await self.migrate('''
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User {
+                required property name -> str;
+            };
+        ''')
+
+        await self.start_migration('''
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User extending Named;
+        ''')
+
+        await self.interact([
+            ("did you drop property 'name' of object type 'test::User'?", "n"),
+        ], check_complete=False)
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
             type Base;

@@ -624,7 +624,8 @@ def _trace_op(
                 # Otherwise, things must be deleted _after_ their referrers
                 # have been deleted or altered.
                 deps.add(('delete', ref_name_str))
-                deps.add(('rebase', ref_name_str))
+                if type(ref) == type(obj):
+                    deps.add(('rebase', ref_name_str))
 
                 # The deletion of any implicit ancestors needs to come after
                 # the deletion of any referrers also.
@@ -652,10 +653,10 @@ def _trace_op(
                 # For SET OWNED, we need any rebase of the enclosing
                 # object to come *after*, because otherwise obj could
                 # get dropped before the SET OWNED takes effect.
-                # For DROP OWNED and DROP we want it after the rebase.
-                if tag == 'setowned':
+                # DROP, also.
+                if tag in ('setowned', 'delete'):
                     ref_item = get_deps(('rebase', str(referrer_name)))
-                    ref_item.deps.add(('setowned', str(op.classname)))
+                    ref_item.deps.add((tag, str(op.classname)))
                 else:
                     deps.add(('rebase', str(referrer_name)))
 
@@ -779,6 +780,8 @@ def _trace_op(
             # In a delete/create cycle, deletion must obviously
             # happen first.
             deps.add(('delete', str(op.classname)))
+            # Renaming also
+            deps.add(('rename', str(op.classname)))
 
             if isinstance(obj, s_func.Function) and old_schema is not None:
                 old_funcs = old_schema.get_functions(
@@ -803,7 +806,7 @@ def _trace_op(
                     referrer_name = renames_r[referrer_name]
                 ref_name_str = str(referrer_name)
                 deps.add(('create', ref_name_str))
-                if op.ast_ignore_ownership():
+                if op.ast_ignore_ownership() or tag == 'rename':
                     ref_item = get_deps(('rebase', ref_name_str))
                     ref_item.deps.add((tag, this_name_str))
                 else:
