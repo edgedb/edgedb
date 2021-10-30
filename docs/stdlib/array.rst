@@ -34,8 +34,7 @@ Empty arrays
 ^^^^^^^^^^^^
 
 An empty array can also be created, but it must be used together with
-a type cast, since EdgeDB cannot determine the type of an array without
-having elements in it:
+a type cast, since EdgeDB cannot infer the type of an array that contains no elements.
 
 .. code-block:: edgeql-repl
 

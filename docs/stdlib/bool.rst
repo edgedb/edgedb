@@ -26,6 +26,12 @@ Logical
     * - :eql:op:`bool = bool <EQ>`, :eql:op:`bool \< bool <LT>`, ...
       - Comparison operators.
 
+    * - :eql:func:`all`
+      - :eql:func-desc:`all`
+
+    * - :eql:func:`any`
+      - :eql:func-desc:`any`
+
 
 ----------
 

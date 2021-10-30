@@ -11,15 +11,11 @@ EdgeQL
     :maxdepth: 3
     :hidden:
 
-    strings
     literals
     sets
     paths
     type_operators
     functions
-    operators
-    json
-    math
     parameters
     select
     insert
@@ -80,63 +76,6 @@ Cartesian explosion.
   </blog/we-can-do-better-than-sql#lack-of-orthogonality>`_ on the EdgeDB
   blog.
 
-
-
-
-.. _ref_eql_fundamentals_type_system:
-
-Type System
------------
-
-EdgeQL is *inextricably tied* to EdgeDB's rigorous type system. For a full
-breakdown of EdgeDB's typesystem, refer to :ref:`Data Model
-docs <ref_datamodel_typesystem>`. For convenience, a brief overview of the type
-system is presented below.
-
-.. list-table::
-
-    * - String type
-      - :eql:type:`str`
-
-    * - Boolean type
-      - :eql:type:`bool`
-
-    * - Numerical types
-      - :eql:type:`int16` :eql:type:`int32` :eql:type:`int64`
-        :eql:type:`float32` :eql:type:`float64` :eql:type:`bigint`
-        :eql:type:`decimal`
-
-    * - JSON type
-      - :eql:type:`json`
-
-    * - UUID type
-      - :eql:type:`uuid`
-
-    * - Binary data
-      - :eql:type:`bytes`
-
-    * - Temporal types
-      - :eql:type:`datetime` :eql:type:`duration`
-        :eql:type:`cal::local_datetime` :eql:type:`cal::local_date`
-        :eql:type:`cal::local_time` :eql:type:`cal::relative_duration`
-
-    * - Auto-incrementing ``int64``
-      - :eql:type:`sequence`
-
-    * - Array types
-      - :eql:type:`array\<x\> <array>`
-
-    * - Tuple types
-      - :eql:type:`tuple\<x, y, ...\> <tuple>` or
-        :eql:type:`tuple\<foo: x, bar: y, ...\> <tuple>`
-
-    * - Object types
-      - :ref:`Defined by the user <ref_datamodel_object_types>`, e.g. ``User``,
-        ``BlogPost``
-
-
-For a full breakdown of EdgeDB's typesystem, refer to :ref:`Data Model
-<ref_datamodel_typesystem>`.
 
 
 Follow along

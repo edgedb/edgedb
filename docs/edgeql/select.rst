@@ -13,6 +13,8 @@ Select
 - Backlinks
 - Subqueries
 
+.. _ref_eql_select_backlinks:
+
 .. _ref_eql_polymorphic_queries:
 
 Polymorphic Queries

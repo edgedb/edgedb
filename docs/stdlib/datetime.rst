@@ -11,19 +11,19 @@ Date and Time
     :class: funcoptable
 
     * - :eql:type:`datetime`
-      - TZ-aware point in time
+      - Timezone-aware point in time
+
+    * - :eql:type:`duration`
+      - Absolute time span
 
     * - :eql:type:`cal::local_datetime`
-      - Date and time w/o TZ
+      - Date and time w/o timezone
 
     * - :eql:type:`cal::local_date`
       - Date type
 
     * - :eql:type:`cal::local_time`
       - Time type
-
-    * - :eql:type:`duration`
-      - Absolute time span
 
     * - :eql:type:`cal::relative_duration`
       - Relative time span

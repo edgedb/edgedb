@@ -45,27 +45,19 @@ Scalar Types
 
 .. _ref_datamodel_scalar_types:
 
-*Scalar types* are primitive individual types. Scalar type instances
-hold a single value, called a *scalar value*. Unlike :ref:`objects
-<ref_datamodel_object_types>` scalars don't have an ``id`` or any
-other property.
+*Scalar types* store primitive data.
 
-- :ref:`String <ref_std_string>`
+- :ref:`Strings <ref_std_string>`
 - :ref:`Numbers <ref_std_numeric>`
-- :ref:`Boolean <ref_std_logical>`
+- :ref:`Booleans <ref_std_logical>`
 - :ref:`Dates and times <ref_std_datetime>`
 - :ref:`Enums <ref_std_enum>`
 - :ref:`JSON <ref_std_json>`
 - :ref:`UUID <ref_std_uuid>`
 - :ref:`Bytes <ref_std_bytes>`
-- :ref:`Sequence <ref_std_sequence>`
+- :ref:`Sequences <ref_std_sequence>`
 - :ref:`Abstract types <ref_std_abstract_types>`: these are the types that
   undergird the scalar hierarchy.
-
-See also :ref:`standard library <ref_std>` scalar types
-as well as scalar type :ref:`SDL <ref_eql_sdl_scalars>`,
-:ref:`DDL <ref_eql_ddl_scalars>`,
-and :ref:`introspection <ref_eql_introspection_scalar_types>`.
 
 .. _ref_datamodel_collection_types:
 

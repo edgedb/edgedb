@@ -86,14 +86,16 @@ type*, including primitives, objects, arrays, and other tuples.
   }
 
 Optionally, you can assign a *key* to each element of the tuple. Tuples
-containing explicit keys are known as *named tuples*. You cannot assign keys to
-some elements but not others.
+containing explicit keys are known as *named tuples*. You must assign keys to
+all elements (or none of them).
 
 .. code-block:: sdl
 
   type BlogPost {
     property metadata -> tuple<title: str, published: bool, upvotes: int64>;
   }
+
+Named and unnamed tuples are the same data structure under the hood. You can
 
 .. important::
 
