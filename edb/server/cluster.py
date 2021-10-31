@@ -314,6 +314,13 @@ class BaseCluster:
             stderr=subprocess.STDOUT,
         )
 
+    async def set_test_config(self) -> None:
+        self._admin_query(f'''
+            # Set session_idle_transaction_timeout to 5 minutes.
+            CONFIGURE INSTANCE SET session_idle_transaction_timeout :=
+                <duration>'5 minutes';
+        ''')
+
     async def set_superuser_password(self, password: str) -> None:
         self._admin_query(f'''
             ALTER ROLE {edgedb_defines.EDGEDB_SUPERUSER}

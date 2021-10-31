@@ -419,6 +419,7 @@ async def init_cluster(
         await cluster.init(server_settings=init_settings)
 
     await cluster.start(port=0)
+    await cluster.set_test_config()
     await cluster.set_superuser_password('test')
 
     if cleanup_atexit:
@@ -1537,9 +1538,11 @@ class _EdgeDBServer:
         compiler_pool_size: int,
         debug: bool,
         backend_dsn: Optional[str] = None,
+        data_dir: Optional[str] = None,
         runstate_dir: Optional[str] = None,
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
+        insecure_dev_mode: bool = False,
         allow_insecure_binary_clients: bool = False,
         allow_insecure_http_clients: bool = True,  # see __aexit__
         enable_backend_adaptive_ha: bool = False,
@@ -1552,11 +1555,13 @@ class _EdgeDBServer:
         self.compiler_pool_size = compiler_pool_size
         self.debug = debug
         self.backend_dsn = backend_dsn
+        self.data_dir = data_dir
         self.runstate_dir = runstate_dir
         self.reset_auth = reset_auth
         self.tenant_id = tenant_id
         self.proc = None
         self.data = None
+        self.insecure_dev_mode = insecure_dev_mode
         self.allow_insecure_binary_clients = allow_insecure_binary_clients
         self.allow_insecure_http_clients = allow_insecure_http_clients
         self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
@@ -1640,6 +1645,8 @@ class _EdgeDBServer:
             cmd += [
                 '--backend-dsn', pgdsn
             ]
+        elif self.data_dir:
+            cmd += ['--data-dir', self.data_dir]
         else:
             cmd += ['--temp-dir']
 
@@ -1671,6 +1678,9 @@ class _EdgeDBServer:
 
         if self.tenant_id:
             cmd += ['--tenant-id', self.tenant_id]
+
+        if self.insecure_dev_mode:
+            cmd += ['--insecure-dev-mode']
 
         if self.allow_insecure_binary_clients:
             cmd += ['--allow-insecure-binary-clients']
@@ -1754,8 +1764,10 @@ def start_edgedb_server(
     debug: bool=False,
     backend_dsn: Optional[str] = None,
     runstate_dir: Optional[str] = None,
+    data_dir: Optional[str] = None,
     reset_auth: Optional[bool] = None,
     tenant_id: Optional[str] = None,
+    insecure_dev_mode: bool = False,
     allow_insecure_binary_clients: bool = False,
     allow_insecure_http_clients: bool = False,
     enable_backend_adaptive_ha: bool = False,
@@ -1768,6 +1780,16 @@ def start_edgedb_server(
                   'runstate_dir; the test is likely to fail or hang. '
                   'Consider specifying the runstate_dir parameter.')
 
+    if adjacent_to and data_dir:
+        raise RuntimeError(
+            'adjacent_to and data_dir options are mutually exclusive')
+    if backend_dsn and data_dir:
+        raise RuntimeError(
+            'backend_dsn and data_dir options are mutually exclusive')
+    if backend_dsn and adjacent_to:
+        raise RuntimeError(
+            'backend_dsn and adjacent_to options are mutually exclusive')
+
     return _EdgeDBServer(
         auto_shutdown=auto_shutdown,
         bootstrap_command=bootstrap_command,
@@ -1777,8 +1799,10 @@ def start_edgedb_server(
         debug=debug,
         backend_dsn=backend_dsn,
         tenant_id=tenant_id,
+        data_dir=data_dir,
         runstate_dir=runstate_dir,
         reset_auth=reset_auth,
+        insecure_dev_mode=insecure_dev_mode,
         allow_insecure_binary_clients=allow_insecure_binary_clients,
         allow_insecure_http_clients=allow_insecure_http_clients,
         enable_backend_adaptive_ha=enable_backend_adaptive_ha,

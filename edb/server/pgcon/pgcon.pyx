@@ -107,13 +107,27 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     else:
         pg_is_in_recovery = ''
 
+    # The '_edgecon_state table' is used to store information about
+    # the current session. The `type` column is one character, with one
+    # of the following values:
+    #
+    # * 'C': a session-level config setting
+    #
+    # * 'B': a session-level config setting that's implemented by setting
+    #   a corresponding Postgres config setting.
+    #
+    # * 'A': a module alias.
+    #
+    # * 'R': a "variable=value" record.
+
     return textwrap.dedent(f'''
         {pg_is_in_recovery}
 
         CREATE TEMPORARY TABLE _edgecon_state (
             name text NOT NULL,
             value jsonb NOT NULL,
-            type text NOT NULL CHECK(type = 'C' OR type = 'A' OR type = 'R'),
+            type text NOT NULL CHECK(
+                type = 'C' OR type = 'A' OR type = 'R' OR type = 'B'),
             UNIQUE(name, type)
         );
 
@@ -131,11 +145,18 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
             INSERT INTO
                 _edgecon_state(name, value, type)
             SELECT
-                e->>'name' AS name,
+                (CASE
+                    WHEN e->'type' = '"B"'::jsonb
+                    THEN edgedb._apply_session_config(e->>'name', e->'value')
+                    ELSE e->>'name'
+                END) AS name,
                 e->'value' AS value,
                 e->>'type' AS type
             FROM
                 jsonb_array_elements($1::jsonb) AS e;
+
+        PREPARE _reset_session_config AS
+            SELECT edgedb._reset_session_config();
 
         INSERT INTO _edgecon_state
             (name, value, type)
@@ -799,6 +820,19 @@ cdef class PGConnection:
         buf.write_int32(0)  # limit: 0 - return all rows
         out.write_buffer(buf.end_message())
 
+        buf = WriteBuffer.new_message(b'B')
+        buf.write_bytestring(b'')  # portal name
+        buf.write_bytestring(b'_reset_session_config')  # statement name
+        buf.write_int16(0)  # number of format codes
+        buf.write_int16(0)  # number of parameters
+        buf.write_int16(0)  # number of result columns
+        out.write_buffer(buf.end_message())
+
+        buf = WriteBuffer.new_message(b'E')
+        buf.write_bytestring(b'')  # portal name
+        buf.write_int32(0)  # limit: 0 - return all rows
+        out.write_buffer(buf.end_message())
+
         if serstate is not None:
             buf = WriteBuffer.new_message(b'B')
             buf.write_bytestring(b'')  # portal name
@@ -818,14 +852,20 @@ cdef class PGConnection:
             out.write_buffer(buf.end_message())
 
     async def _parse_apply_state_resp(self, bytes serstate):
-        cdef int num_completed = 0
+        cdef:
+            int num_completed = 0
+            int expected_completed = 2
+
+        if serstate is not None:
+            expected_completed += 1
+
         while True:
             if not self.buffer.take_message():
                 await self.wait_for_message()
             mtype = self.buffer.get_message_type()
 
-            if mtype == b'2':
-                # BindComplete
+            if mtype == b'2' or mtype == b'D':
+                # BindComplete or Data
                 self.buffer.discard_message()
 
             elif mtype == b'E':
@@ -835,10 +875,7 @@ cdef class PGConnection:
             elif mtype == b'C':
                 self.buffer.discard_message()
                 num_completed += 1
-                if (
-                    (serstate is not None and num_completed == 2) or
-                    (serstate is None and num_completed == 1)
-                ):
+                if num_completed == expected_completed:
                     return
             else:
                 self.fallthrough()

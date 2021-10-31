@@ -37,6 +37,7 @@ from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
+from edb.ir import statypes as statypes
 from edb.ir import utils as irutils
 
 from edb.schema import objects as s_obj
@@ -57,11 +58,14 @@ class UnsupportedExpressionError(errors.QueryError):
     pass
 
 
+EvaluationResult = Union[irast.TypeCast, irast.ConstExpr]
+
+
 def evaluate_to_python_val(
     ir: irast.Base,
     schema: s_schema.Schema,
 ) -> Any:
-    const: Union[irast.TypeCast, irast.ConstExpr]
+    const: EvaluationResult
     if isinstance(ir, irast.Set) and isinstance(ir.expr, irast.TypeCast):
         # Special case for type casts.
         # We cannot fold them, but can eval to Python
@@ -74,7 +78,7 @@ def evaluate_to_python_val(
 @functools.singledispatch
 def evaluate(
         ir: irast.Base,
-        schema: s_schema.Schema) -> irast.ConstExpr:
+        schema: s_schema.Schema) -> EvaluationResult:
     raise UnsupportedExpressionError(
         f'no static IR evaluation handler for {ir.__class__}')
 
@@ -82,7 +86,7 @@ def evaluate(
 @evaluate.register(irast.SelectStmt)
 def evaluate_SelectStmt(
         ir_stmt: irast.SelectStmt,
-        schema: s_schema.Schema) -> irast.ConstExpr:
+        schema: s_schema.Schema) -> EvaluationResult:
 
     if irutils.is_trivial_select(ir_stmt) and not ir_stmt.result.is_binding:
         return evaluate(ir_stmt.result, schema)
@@ -91,17 +95,37 @@ def evaluate_SelectStmt(
             'expression is not constant', context=ir_stmt.context)
 
 
+@evaluate.register(irast.TypeCast)
+def evaluate_TypeCast(
+        ir_cast: irast.TypeCast,
+        schema: s_schema.Schema) -> EvaluationResult:
+
+    schema, from_type = irtyputils.ir_typeref_to_type(
+        schema, ir_cast.from_type)
+    schema, to_type = irtyputils.ir_typeref_to_type(
+        schema, ir_cast.to_type)
+
+    str_t = cast(s_scalars.ScalarType, schema.get('std::str'))
+    dur_t = cast(s_scalars.ScalarType, schema.get('std::duration'))
+
+    if (from_type.issubclass(schema, str_t) and
+            to_type.issubclass(schema, dur_t)):
+        return ir_cast
+    raise UnsupportedExpressionError(
+        f'no static IR evaluation handler for {ir_cast.__class__}')
+
+
 @evaluate.register(irast.EmptySet)
 def evaluate_EmptySet(
         ir_set: irast.EmptySet,
-        schema: s_schema.Schema) -> irast.ConstExpr:
+        schema: s_schema.Schema) -> EvaluationResult:
     return ir_set
 
 
 @evaluate.register(irast.Set)
 def evaluate_Set(
         ir_set: irast.Set,
-        schema: s_schema.Schema) -> irast.ConstExpr:
+        schema: s_schema.Schema) -> EvaluationResult:
     if ir_set.expr is not None:
         return evaluate(ir_set.expr, schema=schema)
     else:
@@ -112,7 +136,7 @@ def evaluate_Set(
 @evaluate.register(irast.ConstExpr)
 def evaluate_BaseConstant(
         ir_const: irast.ConstExpr,
-        schema: s_schema.Schema) -> irast.ConstExpr:
+        schema: s_schema.Schema) -> EvaluationResult:
     return ir_const
 
 
@@ -302,6 +326,7 @@ def scalar_type_to_python_type(
         'std::bool': bool,
         'std::json': str,
         'std::uuid': uuidgen.UUID,
+        'std::duration': statypes.Duration,
     }
 
     for basetype_name, python_type in typemap.items():

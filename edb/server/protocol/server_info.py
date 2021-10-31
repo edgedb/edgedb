@@ -25,6 +25,8 @@ import immutables
 
 from edb import errors
 
+from edb.ir import statypes
+
 from edb.common import debug
 from edb.common import markup
 
@@ -38,6 +40,8 @@ class ImmutableEncoder(json.JSONEncoder):
             return dict(obj.items())
         if dataclasses.is_dataclass(obj):
             return dataclasses.asdict(obj)
+        if isinstance(obj, statypes.Duration):
+            return obj.to_iso8601()
         return super().default(obj)
 
 

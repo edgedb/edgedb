@@ -26,6 +26,7 @@ from typing import *
 
 from edb.edgeql import compiler as qlcompiler
 from edb.ir import staeval
+from edb.ir import statypes
 from edb.schema import name as sn
 
 from . import types
@@ -42,10 +43,11 @@ class Setting:
     internal: bool = False
     requires_restart: bool = False
     backend_setting: Optional[str] = None
+    backend_setting_unit: Optional[str] = None
     affects_compilation: bool = False
 
     def __post_init__(self):
-        if (self.type not in {str, int, bool} and
+        if (self.type not in {str, int, bool, statypes.Duration} and
                 not issubclass(self.type, types.ConfigType)):
             raise ValueError(
                 f'invalid config setting {self.name!r}: '
@@ -78,6 +80,11 @@ class Setting:
                     f'invalid config setting {self.name!r}: '
                     f'the default {self.default!r} '
                     f'is not instance of {self.type}')
+
+        if self.backend_setting_unit and not self.backend_setting:
+            raise ValueError(
+                'backend_setting_unit can only be specified along with '
+                'backend_setting')
 
 
 class Spec(collections.abc.Mapping):
@@ -166,6 +173,8 @@ def load_spec_from_schema(schema):
             requires_restart=attributes.get(
                 sn.QualName('cfg', 'requires_restart'), False),
             backend_setting=backend_setting,
+            backend_setting_unit=attributes.get(
+                sn.QualName('cfg', 'backend_setting_unit'), None),
             affects_compilation=attributes.get(
                 sn.QualName('cfg', 'affects_compilation'), False),
             default=deflt,

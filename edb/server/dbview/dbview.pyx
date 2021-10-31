@@ -353,12 +353,9 @@ cdef class DatabaseConnectionView:
             settings = config.get_settings()
             for sval in self._config.values():
                 setting = settings[sval.name]
-                if setting.backend_setting:
-                    # We don't store PostgreSQL config settings in
-                    # the _edgecon_state temp table.
-                    continue
+                kind = 'B' if setting.backend_setting else 'C'
                 jval = config.value_to_json_value(setting, sval.value)
-                state.append({"name": sval.name, "value": jval, "type": "C"})
+                state.append({"name": sval.name, "value": jval, "type": kind})
 
         spec = json.dumps(state).encode('utf-8')
         self._session_state_cache = (self._config, self._modaliases, spec)
@@ -548,8 +545,6 @@ cdef class DatabaseConnectionView:
 
         for op in ops:
             setting = settings[op.setting_name]
-            if setting.backend_setting:
-                continue
 
             if op.scope is config.ConfigScope.INSTANCE:
                 await self._db._index.apply_system_config_op(conn, op)

@@ -1224,7 +1224,6 @@ class ConfigOp(Expr):
     __abstract_node__ = True
     name: ObjectRef
     scope: qltypes.ConfigScope
-    backend_setting: str
 
 
 class ConfigSet(ConfigOp):

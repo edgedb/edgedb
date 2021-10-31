@@ -32,6 +32,7 @@ from edb import errors
 
 from edb import edgeql
 from edb import _edgeql_rust
+from edb.ir import statypes
 from edb.edgeql import ast as qlast
 
 from edb.common import context as parser_context
@@ -625,7 +626,7 @@ async def _init_stdlib(
     ctx: BootstrapContext,
     testmode: bool,
     global_ids: Mapping[str, uuid.UUID],
-) -> Tuple[StdlibBits, edbcompiler.Compiler]:
+) -> Tuple[StdlibBits, config.Spec, edbcompiler.Compiler]:
     in_dev_mode = devmode.is_in_dev_mode()
     conn = ctx.conn
     cluster = ctx.cluster
@@ -655,9 +656,12 @@ async def _init_stdlib(
     logger.info('Creating the necessary PostgreSQL extensions...')
     await metaschema.create_pg_extensions(conn)
 
+    config_spec = config.load_spec_from_schema(stdlib.stdschema)
+    config.set_settings(config_spec)
+
     if tpldbdump is None:
         logger.info('Populating internal SQL structures...')
-        await metaschema.bootstrap(conn)
+        await metaschema.bootstrap(conn, config_spec)
         logger.info('Executing the standard library...')
         await _execute_ddl(conn, stdlib.sqltext)
 
@@ -866,7 +870,13 @@ async def _init_stdlib(
         )
         await conn.execute(sql)
 
-    return stdlib, compiler
+    await _store_static_json_cache(
+        ctx,
+        'configspec',
+        config.spec_to_json(config_spec),
+    )
+
+    return stdlib, config_spec, compiler
 
 
 async def _execute_ddl(conn, sql_text):
@@ -937,10 +947,10 @@ async def _populate_data(schema, compiler, conn):
 
 async def _configure(
     ctx: BootstrapContext,
+    config_spec: config.Spec,
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
 ) -> None:
-    config_spec = config.get_settings()
     settings: Mapping[str, config.SettingValue] = {}
 
     config_json = config.to_json(config_spec, settings, include_source=False)
@@ -951,6 +961,19 @@ async def _configure(
     ).generate(block)
 
     await _execute_block(ctx.conn, block)
+
+    for setname in config_spec:
+        setting = config_spec[setname]
+        if setting.backend_setting and setting.default is not None:
+            if isinstance(setting.default, statypes.Duration):
+                val = f'<std::duration>"{setting.default.to_iso8601()}"'
+            else:
+                val = repr(setting.default)
+            script = f'''
+                CONFIGURE INSTANCE SET {setting.name} := {val};
+            '''
+            schema, sql = compile_bootstrap_script(compiler, schema, script)
+            await _execute_ddl(ctx.conn, sql)
 
 
 async def _compile_sys_queries(
@@ -1131,20 +1154,6 @@ async def _create_edgedb_database(
     return objid
 
 
-async def _bootstrap_config_spec(
-    ctx: BootstrapContext,
-    schema: s_schema.Schema,
-) -> None:
-    config_spec = config.load_spec_from_schema(schema)
-    config.set_settings(config_spec)
-
-    await _store_static_json_cache(
-        ctx,
-        'configspec',
-        config.spec_to_json(config_spec),
-    )
-
-
 def _pg_log_listener(conn, msg):
     if msg.severity_en == 'WARNING':
         level = logging.WARNING
@@ -1309,7 +1318,7 @@ async def _bootstrap(
 
         await _populate_misc_instance_data(tpl_ctx)
 
-        stdlib, compiler = await _init_stdlib(
+        stdlib, config_spec, compiler = await _init_stdlib(
             tpl_ctx,
             testmode=args.testmode,
             global_ids={
@@ -1317,7 +1326,6 @@ async def _bootstrap(
                 edbdef.EDGEDB_TEMPLATE_DB: new_template_db_id,
             }
         )
-        await _bootstrap_config_spec(tpl_ctx, stdlib.stdschema)
         await _compile_sys_queries(tpl_ctx, stdlib.reflschema, compiler)
 
         schema = s_schema.FlatSchema()
@@ -1346,6 +1354,7 @@ async def _bootstrap(
         conn.add_log_listener(_pg_log_listener)
         await _configure(
             ctx._replace(conn=conn),
+            config_spec=config_spec,
             schema=schema,
             compiler=compiler,
         )
