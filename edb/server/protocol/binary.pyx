@@ -810,7 +810,7 @@ cdef class EdgeConnection:
                 sname = sname.decode()
                 svalue = svalue.decode()
 
-                if stype == b'C':
+                if stype == b'C' or stype == b'B':
                     setting = config.get_settings()[sname]
                     pyval = config.value_from_json(setting, svalue)
                     conf = config.set_value(

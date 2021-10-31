@@ -19,9 +19,11 @@
 
 import asyncio
 import dataclasses
+import datetime
 import json
 import platform
 import random
+import tempfile
 import textwrap
 import typing
 import unittest
@@ -355,6 +357,7 @@ class TestServerConfigUtils(unittest.TestCase):
             json.loads(j)['bool'],
             {
                 'backend_setting': None,
+                'backend_setting_unit': None,
                 'default': True,
                 'internal': False,
                 'system': False,
@@ -1049,6 +1052,9 @@ class TestServerConfig(tb.QueryTestCase):
                 DROP TYPE Foo;
             ''')
 
+
+class TestSeparateCluster(tb.TestCase):
+
     @unittest.skipIf(
         platform.system() == "Darwin",
         "loopback aliases aren't set up on macOS by default"
@@ -1125,9 +1131,9 @@ class TestServerConfig(tb.QueryTestCase):
                     idle_cons.append(await sd.connect())
 
             # Set the timeout to 5 seconds.
-            await idle_cons[0].execute(
-                'configure system set session_idle_timeout := 5_000;'
-            )
+            await idle_cons[0].execute('''
+                configure system set session_idle_timeout := <duration>'5s'
+            ''')
 
             for _ in range(5):
                 random.shuffle(active_cons)
@@ -1202,3 +1208,183 @@ class TestServerConfig(tb.QueryTestCase):
                     dbconf = info['databases']['edgedb']['config']
                     self.assertEqual(
                         dbconf.get('__internal_sess_testvalue'), 10)
+
+    async def test_server_config_backend_levels(self):
+
+        async def assert_conf(con, name, expected_val):
+            val = await con.query_single(f'''
+                select assert_single(cfg::Config.{name})
+            ''')
+
+            if isinstance(val, datetime.timedelta):
+                val //= datetime.timedelta(milliseconds=1)
+
+            self.assertEqual(
+                val,
+                expected_val
+            )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            async with tb.start_edgedb_server(
+                data_dir=tmpdir,
+                runstate_dir=tmpdir,
+                insecure_dev_mode=True
+            ) as sd:
+                c1 = await sd.connect()
+                c2 = await sd.connect()
+
+                await c2.query('create database test')
+                t1 = await sd.connect(database='test')
+                t2 = await sd.connect(database='test')
+
+                # check that the default was set correctly
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 10000)
+
+                ####
+
+                await c1.query('''
+                    configure instance set
+                        session_idle_transaction_timeout :=
+                            <duration>'20s'
+                ''')
+
+                for c in {c1, c2, t1}:
+                    await assert_conf(
+                        c, 'session_idle_transaction_timeout', 20000)
+
+                ####
+
+                await t1.query('''
+                    configure current database set
+                        session_idle_transaction_timeout :=
+                            <duration>'30000ms'
+                ''')
+
+                for c in {c1, c2}:
+                    await assert_conf(
+                        c, 'session_idle_transaction_timeout', 20000)
+
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 30000)
+
+                ####
+
+                await c2.query('''
+                    configure session set
+                        session_idle_transaction_timeout :=
+                            <duration>'40000000us'
+                ''')
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 20000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 30000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 40000)
+
+                ####
+
+                await t1.query('''
+                    configure session set
+                        session_idle_transaction_timeout :=
+                            <duration>'50 seconds'
+                ''')
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 20000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 50000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 40000)
+
+                ####
+
+                await c1.query('''
+                    configure instance set
+                        session_idle_transaction_timeout :=
+                            <duration>'15000 milliseconds'
+                ''')
+
+                await c2.query('''
+                    configure session reset
+                        session_idle_transaction_timeout;
+                ''')
+
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 50000)
+                await assert_conf(
+                    t2, 'session_idle_transaction_timeout', 30000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 15000)
+
+                ####
+
+                await t1.query('''
+                    configure session reset
+                        session_idle_transaction_timeout;
+                ''')
+
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 30000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 15000)
+
+                ####
+
+                await t2.query('''
+                    configure current database reset
+                        session_idle_transaction_timeout;
+                ''')
+
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    t2, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 15000)
+
+                ####
+
+                cur_shared = await c1.query('''
+                    select cfg::Config.shared_buffers
+                ''')
+
+                # not a test, just need to make sure our random value
+                # does not happen to be the Postgres' default.
+                assert cur_shared != [20002]
+
+                await c1.query('''
+                    configure instance set
+                        shared_buffers := 20002
+                ''')
+
+                # shared_buffers requires a restart, so the value shouldn't
+                # change just yet
+                await assert_conf(
+                    c1, 'shared_buffers', cur_shared[0])
+
+                await c1.aclose()
+                await c2.aclose()
+                await t1.aclose()
+
+            async with tb.start_edgedb_server(
+                data_dir=tmpdir,
+                runstate_dir=tmpdir,
+                insecure_dev_mode=True,
+            ) as sd:
+
+                c1 = await sd.connect()
+
+                # check that the default was set correctly
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 15000)
+
+                await assert_conf(
+                    c1, 'shared_buffers', 20002)
+
+                await c1.aclose()

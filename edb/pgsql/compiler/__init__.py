@@ -100,6 +100,11 @@ def compile_ir_to_sql_tree(
         ctx.expr_exposed = True
         qtree = dispatch.compile(ir_expr, ctx=ctx)
 
+    except errors.EdgeDBError:
+        # Don't wrap propertly typed EdgeDB errors into
+        # InternalServerError; raise them as is.
+        raise
+
     except Exception as e:  # pragma: no cover
         try:
             args = [e.args[0]]

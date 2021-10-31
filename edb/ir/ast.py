@@ -903,13 +903,14 @@ class ConfigCommand(Command, Expr):
     scope: qltypes.ConfigScope
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
-    backend_setting: str
+    backend_setting: typing.Optional[str]
     scope_tree: typing.Optional[ScopeTreeNode] = None
 
 
 class ConfigSet(ConfigCommand):
 
     expr: Set
+    backend_setting_unit: typing.Optional[str] = None
 
 
 class ConfigReset(ConfigCommand):

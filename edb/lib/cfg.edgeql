@@ -20,6 +20,7 @@
 CREATE MODULE cfg;
 
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting;
+CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting_unit;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::internal;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::system;
@@ -54,9 +55,15 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
 
 
 CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
-    CREATE REQUIRED PROPERTY session_idle_timeout -> std::int32 {
+    CREATE REQUIRED PROPERTY session_idle_timeout -> std::duration {
         CREATE ANNOTATION cfg::system := 'true';
-        SET default := 60_000;  # 60 seconds
+        SET default := <std::duration>'60 seconds';
+    };
+
+    CREATE REQUIRED PROPERTY session_idle_transaction_timeout -> std::duration {
+        CREATE ANNOTATION cfg::backend_setting :=
+            '"idle_in_transaction_session_timeout"';
+        SET default := <std::duration>'10 seconds';
     };
 
     CREATE REQUIRED PROPERTY listen_port -> std::int16 {
@@ -85,17 +92,20 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     CREATE PROPERTY shared_buffers -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"shared_buffers"';
+        CREATE ANNOTATION cfg::backend_setting_unit := '"kB"';
         CREATE ANNOTATION cfg::requires_restart := 'true';
     };
 
     CREATE PROPERTY query_work_mem -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"work_mem"';
+        CREATE ANNOTATION cfg::backend_setting_unit := '"kB"';
     };
 
     CREATE PROPERTY effective_cache_size -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
+        CREATE ANNOTATION cfg::backend_setting_unit := '"kB"';
     };
 
     CREATE PROPERTY effective_io_concurrency -> std::int64 {

@@ -21,6 +21,8 @@ from datetime import timedelta
 import edgedb
 import decimal
 
+from edb import errors
+from edb.ir import statypes
 from edb.testbase import server as tb
 from edb.tools import test
 
@@ -786,3 +788,106 @@ class TestEdgeQLDT(tb.QueryTestCase):
                     CREATE PROPERTY x -> tuple<a: int64, a: str>;
                 };
             """)
+
+    async def test_edgeql_staeval_duration_01(self):
+        valid = [
+            ' 100   ',
+            '123',
+            '-123',
+            '  20 mins 1hr ',
+            '  20 mins -1hr ',
+            '  20us  1h    20   ',
+            '  -20us  1h    20   ',
+            '  -20US  1H    20   ',
+            '1 hour 20 minutes 30 seconds 40 milliseconds 50 microseconds',
+            '1 hour 20 minutes +30seconds 40 milliseconds -50microseconds',
+            '1 houR  20 minutes 30SECOND 40 milliseconds 50 us',
+            '  20 us 1H 20 minutes ',
+            '-1h',
+            '100h',
+            '   12:12:12.2131   ',
+            '-12:12:12.21313',
+            '-12:12:12.213134',
+            '-12:12:12.2131341',
+            '-12:12:12.2131341111111',
+            '-12:12:12.2131315111111',
+            '-12:12:12.2131316111111',
+            '-12:12:12.2131314511111',
+            '-0:12:12.2131',
+            '12:12',
+            '-12:12',
+            '-12:1:1',
+            '+12:1:1',
+            '-12:1:1.1234',
+            '1211:59:59.9999',
+            '-12:',
+            '0',
+            '00:00:00',
+        ]
+
+        invalid = [
+            'blah',
+            '!',
+            '-',
+            '  20 us 1H 20 30 minutes ',
+            '   12:12:121.2131   ',
+            '   12:60:21.2131   ',
+            '  20us 20   1h       ',
+            '  20us $ 20   1h       ',
+            '1 houR  20 minutes 30SECOND 40 milliseconds 50 uss',
+        ]
+
+        v = await self.con.query_single(
+            '''
+            SELECT <array<duration>><array<str>>$0
+            ''',
+            valid
+        )
+        vs = await self.con.query_single(
+            '''
+            SELECT <array<str>><array<duration>><array<str>>$0
+            ''',
+            valid
+        )
+
+        for text, value, svalue in zip(valid, v, vs):
+            ref_value = int(value / timedelta(microseconds=1))
+
+            try:
+                parsed = statypes.Duration(text)
+            except Exception:
+                raise AssertionError(
+                    f'could not parse a valid std::duration: {text!r}')
+
+            self.assertEqual(
+                ref_value,
+                parsed.to_microseconds(),
+                text)
+
+            self.assertEqual(
+                svalue,
+                parsed.to_iso8601(),
+                text)
+
+            self.assertEqual(
+                statypes.Duration.from_iso8601(svalue).to_microseconds(),
+                parsed.to_microseconds(),
+                text)
+
+            self.assertEqual(
+                statypes.Duration(svalue).to_microseconds(),
+                parsed.to_microseconds(),
+                text)
+
+        for text in invalid:
+            async with self.assertRaisesRegexTx(
+                    edgedb.InvalidValueError,
+                    r'(invalid input syntax)|(interval field value out)'):
+                await self.con.query_single(
+                    '''SELECT <duration><str>$0''',
+                    text
+                )
+
+            with self.assertRaises(
+                    (errors.InvalidValueError, errors.NumericOutOfRangeError)):
+                statypes.Duration(text)

@@ -52,7 +52,8 @@ class SettingInfo(NamedTuple):
     param_type: s_types.Type
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
-    backend_setting: str
+    backend_setting: str | None
+    backend_setting_unit: str | None
     affects_compilation: bool
 
 
@@ -80,6 +81,7 @@ def compile_ConfigSet(
         scope=expr.scope,
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
+        backend_setting_unit=info.backend_setting_unit,
         context=expr.context,
         expr=param_val,
     )
@@ -333,6 +335,14 @@ def _validate_op(
     else:
         backend_setting = None
 
+    backend_unit_attr = ptr.get_annotations(ctx.env.schema).get(
+        ctx.env.schema, sn.QualName('cfg', 'backend_setting_unit'), None)
+    if backend_unit_attr is not None:
+        backend_setting_unit = json.loads(
+            backend_unit_attr.get_value(ctx.env.schema))
+    else:
+        backend_setting_unit = None
+
     compilation_attr = ptr.get_annotations(ctx.env.schema).get(
         ctx.env.schema, sn.QualName('cfg', 'affects_compilation'), None)
 
@@ -352,4 +362,5 @@ def _validate_op(
                        cardinality=cardinality,
                        requires_restart=requires_restart,
                        backend_setting=backend_setting,
+                       backend_setting_unit=backend_setting_unit,
                        affects_compilation=affects_compilation)

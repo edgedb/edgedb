@@ -35,6 +35,8 @@ from edb.common import uuidgen
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
 
+from edb.ir import statypes
+
 from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
 from edb.schema import links as s_links
@@ -50,6 +52,7 @@ from edb.schema import types as s_types
 
 from edb.server import defines
 from edb.server import compiler as edbcompiler
+from edb.server import config as edbconfig
 from edb.server import bootstrap as edbbootstrap
 from edb.server import pgcluster
 
@@ -2578,8 +2581,62 @@ class SysConfigValueType(dbops.CompositeType):
         ])
 
 
-class ConvertPostgresConfigUnitsFunction(dbops.Function):
+class IntervalToMillisecondsFunction(dbops.Function):
+    """Cast an interval into milliseconds."""
 
+    text = r'''
+        SELECT
+            trunc(extract(hours from "val"))::numeric * 3600000 +
+            trunc(extract(minutes from "val"))::numeric * 60000 +
+            trunc(extract(milliseconds from "val"))::numeric
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_interval_to_ms'),
+            args=[('val', ('interval',))],
+            returns=('numeric',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class SafeIntervalCastFunction(dbops.Function):
+    """A safer text to interval casting implementaion.
+
+    Casting large-unit durations (like '4032000000us') results in an error.
+    Huge durations like this can be returned when introspecting current
+    database config. Fix that by parsing the argument and using multiplication.
+    """
+
+    text = r'''
+        SELECT
+            CASE
+
+                WHEN m.v[1] IS NOT NULL AND m.v[2] IS NOT NULL
+                THEN
+                    m.v[1]::numeric * ('1' || m.v[2])::interval
+
+                ELSE
+                    "val"::interval
+            END
+        FROM LATERAL (
+            SELECT regexp_match(
+                "val", '^(\d+)\s*(us|ms|s|min|h)$') AS v
+        ) AS m
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_interval_safe_cast'),
+            args=[('val', ('text',))],
+            returns=('interval',),
+            volatility='immutable',
+            text=self.text,
+        )
+
+
+class ConvertPostgresConfigUnitsFunction(dbops.Function):
     """Convert duration/memory values to milliseconds/kilobytes.
 
     See https://www.postgresql.org/docs/12/config-setting.html
@@ -2589,44 +2646,35 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
     text = r"""
     SELECT (
         CASE
-            WHEN "unit" = 'us'
-            THEN ("value" * "multiplier") / 1000.0
-
-            WHEN "unit" = 'ms'
-            THEN "value" * "multiplier"
-
-            WHEN "unit" = 's'
-            THEN "value" * "multiplier" * 1000.0
-
-            WHEN "unit" = 'min'
-            THEN "value" * "multiplier" * 60000.0
-
-            WHEN "unit" = 'h'
-            THEN "value" * "multiplier" * 60000.0 * 60.0
-
-            WHEN "unit" = 'h'
-            THEN "value" * "multiplier" * 60000.0 * 60.0 * 24.0
+            WHEN "unit" = any(ARRAY['us', 'ms', 's', 'min', 'h'])
+            THEN to_jsonb(
+                edgedb._interval_safe_cast(
+                    ("value" * "multiplier")::text || "unit"
+                )
+            )
 
             WHEN "unit" = 'B'
-            THEN ("value" * "multiplier") / 1024.0
+            THEN trunc(("value" * "multiplier") / 1024)::text::jsonb
 
             WHEN "unit" = 'kB'
-            THEN "value" * "multiplier"
+            THEN trunc("value" * "multiplier")::text::jsonb
 
             WHEN "unit" = 'MB'
-            THEN "value" * "multiplier" * 1024.0
+            THEN trunc("value" * "multiplier" * 1024)::text::jsonb
 
             WHEN "unit" = 'GB'
-            THEN "value" * "multiplier" * 1024.0 * 1024.0
+            THEN trunc("value" * "multiplier" * 1024 * 1024)::text::jsonb
 
             WHEN "unit" = 'TB'
-            THEN "value" * "multiplier" * 1024.0 * 1024.0 * 1024.0
+            THEN trunc(
+                "value" * "multiplier" * 1024 * 1024 * 1024
+            )::text::jsonb
 
             WHEN "unit" = ''
-            THEN "value" * "multiplier"::numeric
+            THEN trunc("value" * "multiplier")::text::jsonb
 
             ELSE edgedb.raise(
-                NULL::numeric,
+                NULL::jsonb,
                 msg => (
                     'unknown configutation unit "' ||
                     COALESCE("unit", '<NULL>') ||
@@ -2645,14 +2693,52 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
                 ('multiplier', ('numeric',)),
                 ('unit', ('text',))
             ],
-            returns=('numeric',),
+            returns=('jsonb',),
             volatility='immutable',
             text=self.text,
         )
 
 
-class InterpretConfigValueToJsonFunction(dbops.Function):
+class NormalizedPgSettingsView(dbops.View):
+    """Just like `pg_settings` but with the parsed 'unit' column."""
 
+    query = r'''
+        SELECT
+            s.name AS name,
+            s.setting AS setting,
+            s.vartype AS vartype,
+            s.source AS source,
+            unit.multiplier AS multiplier,
+            unit.unit AS unit
+
+        FROM pg_settings AS s,
+
+        LATERAL (
+            SELECT regexp_match(
+                s.unit, '^(\d*)\s*([a-zA-Z]{1,3})$') AS v
+        ) AS _unit,
+
+        LATERAL (
+            SELECT
+                COALESCE(
+                    CASE
+                        WHEN _unit.v[1] = '' THEN 1
+                        ELSE _unit.v[1]::int
+                    END,
+                    1
+                ) AS multiplier,
+                COALESCE(_unit.v[2], '') AS unit
+        ) AS unit
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_normalized_pg_settings'),
+            query=self.query,
+        )
+
+
+class InterpretConfigValueToJsonFunction(dbops.Function):
     """Convert a Postgres config value to jsonb.
 
     This function:
@@ -2674,8 +2760,7 @@ class InterpretConfigValueToJsonFunction(dbops.Function):
             WHEN "type" = 'bool'
             THEN (
                 CASE
-                WHEN lower("value") =
-                    any('{"on", "true", "yes", "1"}'::text[])
+                WHEN lower("value") = any(ARRAY['on', 'true', 'yes', '1'])
                 THEN 'true'
                 ELSE 'false'
                 END
@@ -2684,19 +2769,10 @@ class InterpretConfigValueToJsonFunction(dbops.Function):
             WHEN "type" = 'enum' OR "type" = 'string'
             THEN to_jsonb("value")
 
-            WHEN "type" = 'integer'
-            THEN trunc(
-                    edgedb._convert_postgres_config_units(
-                        "value"::numeric, "multiplier"::numeric, "unit"
-                    )
-                )::text::jsonb
-
-            WHEN "type" = 'real'
-            THEN CAST(
-                    edgedb._convert_postgres_config_units(
-                        "value"::numeric, "multiplier"::numeric, "unit"
-                    ) AS DOUBLE PRECISION
-                )::text::jsonb
+            WHEN "type" = 'integer' OR "type" = 'real'
+            THEN edgedb._convert_postgres_config_units(
+                    "value"::numeric, "multiplier"::numeric, "unit"
+                 )
 
             ELSE
                 edgedb.raise(
@@ -2727,35 +2803,67 @@ class InterpretConfigValueToJsonFunction(dbops.Function):
 
 
 class PostgresConfigValueToJsonFunction(dbops.Function):
+    """Convert a Postgres setting to JSON value.
 
-    """Convert a Postgres setting to JSON.
+    Steps:
 
-    A seeting is first looked up by name in `pg_settings` to
-    determine its unit/type.  It's then converted to an appropriate
-    JSON type using `_interpret_config_value_to_json`.
+    * Lookup the `setting_name` in pg_settings to determine its
+      type and unit.
+
+    * Parse `setting_value` to see if it starts with numbers and ends
+      with what looks like a unit.
+
+    * Fetch the unit/multiplier pg_settings (well, from our view over it).
+
+    * If `setting_value` has a unit, pass it to
+      `_interpret_config_value_to_json`
+
+    * If `setting_value` doesn't have a unit, pass it to
+      `_interpret_config_value_to_json` along with the base unit/multiplier
+      from pg_settings.
+
+    * Then, the `_interpret_config_value_to_json` is capable of casting the
+      value correctly based on the pg_settings type and the supplied
+      unit/multiplier.
     """
 
     text = r"""
         SELECT
-            edgedb._interpret_config_value_to_json(
-                parsed_value.val,
-                settings.type,
-                1,
-                parsed_value.unit
-            )
+            (CASE
+
+                WHEN parsed_value.unit != ''
+                THEN
+                    edgedb._interpret_config_value_to_json(
+                        parsed_value.val,
+                        settings.vartype,
+                        1,
+                        parsed_value.unit
+                    )
+
+                ELSE
+                    edgedb._interpret_config_value_to_json(
+                        "setting_value",
+                        settings.vartype,
+                        settings.multiplier,
+                        settings.unit
+                    )
+
+            END)
         FROM
             (
                 SELECT
-                    pg_settings.vartype AS type
+                    epg_settings.vartype AS vartype,
+                    epg_settings.multiplier AS multiplier,
+                    epg_settings.unit AS unit
                 FROM
-                    pg_settings
+                    edgedb._normalized_pg_settings AS epg_settings
                 WHERE
-                    pg_settings.name = "setting_name"
+                    epg_settings.name = "setting_name"
             ) AS settings,
 
             LATERAL (
                 SELECT regexp_match(
-                    "setting_value", '(\d+)\s*([a-zA-Z]*)') AS v
+                    "setting_value", '^(\d+)\s*([a-zA-Z]{0,3})$') AS v
             ) AS _unit,
 
             LATERAL (
@@ -2784,256 +2892,305 @@ class SysConfigFullFunction(dbops.Function):
     # and therefore cannot be used in a view.
 
     text = f'''
+    DECLARE
+        query text;
     BEGIN
-    RETURN QUERY EXECUTE $$
 
-    WITH
+    query := $$
+        WITH
 
-    config_spec AS (
-        SELECT
-            s.key AS name,
-            s.value->'default' AS default,
-            (s.value->>'internal')::bool AS internal,
-            (s.value->>'system')::bool AS system,
-            (s.value->>'typeid')::uuid AS typeid,
-            (s.value->>'typemod') AS typemod,
-            (s.value->>'backend_setting') AS backend_setting
-        FROM
-            jsonb_each(
-                (SELECT json
-                 FROM edgedbinstdata.instdata
-                 WHERE key = 'configspec')
-            ) AS s
-    ),
-
-    config_defaults AS (
-        SELECT
-            s.name AS name,
-            s.default AS value,
-            'default' AS source
-        FROM
-            config_spec s
-    ),
-
-    config_sys AS (
-        SELECT
-            s.key AS name,
-            s.value AS value,
-            'system override' AS source
-        FROM
-            jsonb_each(
-                edgedb.get_database_metadata(
-                    {ql(defines.EDGEDB_SYSTEM_DB)}
-                ) -> 'sysconfig'
-            ) AS s
-    ),
-
-    config_db AS (
-        SELECT
-            s.name AS name,
-            s.value AS value,
-            'database' AS source
-        FROM
-            edgedb._db_config s
-    ),
-
-    config_sess AS (
-        SELECT
-            s.name AS name,
-            s.value AS value,
-            'session' AS source
-        FROM
-            _edgecon_state s
-        WHERE
-            s.type = 'C'
-    ),
-
-    pg_db_setting AS (
-        SELECT
-            spec.name,
-            edgedb._postgres_config_value_to_json(
-                spec.backend_setting, nameval.value
-            ) AS value,
-            'database' AS source
-        FROM
-            (SELECT
-                setconfig
+        config_spec AS (
+            SELECT
+                s.key AS name,
+                s.value->'default' AS default,
+                (s.value->>'internal')::bool AS internal,
+                (s.value->>'system')::bool AS system,
+                (s.value->>'typeid')::uuid AS typeid,
+                (s.value->>'typemod') AS typemod,
+                (s.value->>'backend_setting') AS backend_setting
             FROM
-                pg_db_role_setting
+                jsonb_each(
+                    (SELECT json
+                    FROM edgedbinstdata.instdata
+                    WHERE key = 'configspec')
+                ) AS s
+        ),
+
+        config_defaults AS (
+            SELECT
+                s.name AS name,
+                s.default AS value,
+                'default' AS source,
+                s.backend_setting IS NOT NULL AS is_backend
+            FROM
+                config_spec s
+        ),
+
+        config_sys AS (
+            SELECT
+                s.key AS name,
+                s.value AS value,
+                'system override' AS source,
+                config_spec.backend_setting IS NOT NULL AS is_backend
+            FROM
+                jsonb_each(
+                    edgedb.get_database_metadata(
+                        {ql(defines.EDGEDB_SYSTEM_DB)}
+                    ) -> 'sysconfig'
+                ) AS s
+                INNER JOIN config_spec ON (config_spec.name = s.key)
+        ),
+
+        config_db AS (
+            SELECT
+                s.name AS name,
+                s.value AS value,
+                'database' AS source,
+                config_spec.backend_setting IS NOT NULL AS is_backend
+            FROM
+                edgedb._db_config s
+                INNER JOIN config_spec ON (config_spec.name = s.name)
+        ),
+
+        config_sess AS (
+            SELECT
+                s.name AS name,
+                s.value AS value,
+                'session' AS source,
+                FALSE AS from_backend  -- 'C' is for non-backend settings
+            FROM
+                _edgecon_state s
             WHERE
-                setdatabase = (
-                    SELECT oid
-                    FROM pg_database
-                    WHERE datname = current_database()
-                )
-                AND setrole = 0
-            ) AS cfg_array,
-            LATERAL unnest(cfg_array.setconfig) AS cfg_set(s),
-            LATERAL (
-                SELECT
-                    split_part(cfg_set.s, '=', 1) AS name,
-                    split_part(cfg_set.s, '=', 2) AS value
-            ) AS nameval,
-            LATERAL (
-                SELECT
-                    config_spec.name,
-                    config_spec.backend_setting
+                s.type = 'C'
+        ),
+
+        pg_db_setting AS (
+            SELECT
+                spec.name,
+                edgedb._postgres_config_value_to_json(
+                    spec.backend_setting, nameval.value
+                ) AS value,
+                'database' AS source,
+                TRUE AS is_backend
+            FROM
+                (SELECT
+                    setconfig
                 FROM
-                    config_spec
+                    pg_db_role_setting
                 WHERE
-                    nameval.name = config_spec.backend_setting
-            ) AS spec
-    ),
+                    setdatabase = (
+                        SELECT oid
+                        FROM pg_database
+                        WHERE datname = current_database()
+                    )
+                    AND setrole = 0
+                ) AS cfg_array,
+                LATERAL unnest(cfg_array.setconfig) AS cfg_set(s),
+                LATERAL (
+                    SELECT
+                        split_part(cfg_set.s, '=', 1) AS name,
+                        split_part(cfg_set.s, '=', 2) AS value
+                ) AS nameval,
+                LATERAL (
+                    SELECT
+                        config_spec.name,
+                        config_spec.backend_setting
+                    FROM
+                        config_spec
+                    WHERE
+                        nameval.name = config_spec.backend_setting
+                ) AS spec
+        ),
+    $$;
 
-    pg_conf_settings AS (
-        SELECT
-            spec.name,
-            edgedb._postgres_config_value_to_json(
-                spec.backend_setting, setting
-            ) AS value,
-            'postgres configuration file' AS source
-        FROM
-            pg_file_settings,
-            LATERAL (
+    IF fs_access THEN
+        query := query || $$
+            pg_conf_settings AS (
                 SELECT
-                    config_spec.name,
-                    config_spec.backend_setting
+                    spec.name,
+                    edgedb._postgres_config_value_to_json(
+                        spec.backend_setting, setting
+                    ) AS value,
+                    'postgres configuration file' AS source,
+                    TRUE AS is_backend
                 FROM
-                    config_spec
+                    pg_file_settings,
+                    LATERAL (
+                        SELECT
+                            config_spec.name,
+                            config_spec.backend_setting
+                        FROM
+                            config_spec
+                        WHERE
+                            pg_file_settings.name = config_spec.backend_setting
+                    ) AS spec
                 WHERE
-                    pg_file_settings.name = config_spec.backend_setting
-            ) AS spec
-        WHERE
-            sourcefile != ((
-                SELECT setting
-                FROM pg_settings WHERE name = 'data_directory'
-            ) || '/postgresql.auto.conf')
-            AND applied
-    ),
+                    sourcefile != ((
+                        SELECT setting
+                        FROM pg_settings WHERE name = 'data_directory'
+                    ) || '/postgresql.auto.conf')
+                    AND applied
+            ),
 
-    pg_auto_conf_settings AS (
-        SELECT
-            spec.name,
-            edgedb._postgres_config_value_to_json(
-                spec.backend_setting, setting
-            ) AS value,
-            'system override' AS source
-        FROM
-            pg_file_settings,
-            LATERAL (
+            pg_auto_conf_settings AS (
                 SELECT
-                    config_spec.name,
-                    config_spec.backend_setting
+                    spec.name,
+                    edgedb._postgres_config_value_to_json(
+                        spec.backend_setting, setting
+                    ) AS value,
+                    'system override' AS source,
+                    TRUE AS is_backend
                 FROM
-                    config_spec
+                    pg_file_settings,
+                    LATERAL (
+                        SELECT
+                            config_spec.name,
+                            config_spec.backend_setting
+                        FROM
+                            config_spec
+                        WHERE
+                            pg_file_settings.name = config_spec.backend_setting
+                    ) AS spec
                 WHERE
-                    pg_file_settings.name = config_spec.backend_setting
-            ) AS spec
-        WHERE
-            sourcefile = ((
-                SELECT setting
-                FROM pg_settings WHERE name = 'data_directory'
-            ) || '/postgresql.auto.conf')
-            AND applied
-    ),
+                    sourcefile = ((
+                        SELECT setting
+                        FROM pg_settings WHERE name = 'data_directory'
+                    ) || '/postgresql.auto.conf')
+                    AND applied
+            ),
+        $$;
+    END IF;
 
-    pg_config AS (
-        SELECT
-            spec.name,
-            edgedb._interpret_config_value_to_json(
-                settings.setting,
-                settings.type,
-                unit.multiplier,
-                unit.unit
-            ) AS value,
-            source AS source
-        FROM
-            (
-                SELECT
-                    pg_settings.name AS name,
-                    pg_settings.unit AS unit,
-                    pg_settings.vartype AS type,
-                    pg_settings.setting AS setting,
-                    (CASE
-                        WHEN pg_settings.source IN ('session', 'database') THEN
-                            pg_settings.source
-                        ELSE
-                            'postgres ' || pg_settings.source
-                    END) AS source
-                FROM
-                    pg_settings
-            ) AS settings,
+    query := query || $$
+        pg_config AS (
+            SELECT
+                spec.name,
+                edgedb._interpret_config_value_to_json(
+                    settings.setting,
+                    settings.vartype,
+                    settings.multiplier,
+                    settings.unit
+                ) AS value,
+                source AS source,
+                TRUE AS is_backend
+            FROM
+                (
+                    SELECT
+                        epg_settings.name AS name,
+                        epg_settings.unit AS unit,
+                        epg_settings.multiplier AS multiplier,
+                        epg_settings.vartype AS vartype,
+                        epg_settings.setting AS setting,
+                        (CASE
+                            WHEN epg_settings.source = 'session' THEN
+                                epg_settings.source
+                            ELSE
+                                'postgres ' || epg_settings.source
+                        END) AS source
+                    FROM
+                        edgedb._normalized_pg_settings AS epg_settings
+                    WHERE
+                        epg_settings.source != 'database'
+                ) AS settings,
 
-            LATERAL (
-                SELECT regexp_match(
-                    settings.unit, '(\\d*)\\s*(\\[a-zA-Z]+)') AS v
-            ) AS _unit,
+                LATERAL (
+                    SELECT
+                        config_spec.name
+                    FROM
+                        config_spec
+                    WHERE
+                        settings.name = config_spec.backend_setting
+                ) AS spec
+            ),
 
-            LATERAL (
-                SELECT
-                    COALESCE(
-                        CASE
-                            WHEN _unit.v[1] = '' THEN 1
-                            ELSE _unit.v[1]::int
-                        END,
-                        1
-                    ) AS multiplier,
-                    COALESCE(_unit.v[2], '') AS unit
-            ) AS unit,
-
-            LATERAL (
-                SELECT
-                    config_spec.name
-                FROM
-                    config_spec
-                WHERE
-                    settings.name = config_spec.backend_setting
-            ) AS spec
-        )
-
-    SELECT
-        q.name,
-        q.value,
-        q.source,
-        (CASE
-            WHEN q.source < 'database'::edgedb._sys_config_source_t THEN
-                'INSTANCE'
-            WHEN q.source = 'database'::edgedb._sys_config_source_t THEN
-                'DATABASE'
-            ELSE
-                'SESSION'
-        END)::edgedb._sys_config_scope_t AS scope
-    FROM
-        (SELECT
-            u.name,
-            u.value,
-            u.source::edgedb._sys_config_source_t,
-            row_number() OVER (
-                PARTITION BY u.name
-                ORDER BY u.source::edgedb._sys_config_source_t DESC
-            ) AS n
-        FROM
-            (SELECT
-                *
-             FROM
+        edge_all_settings AS (
+            SELECT
+                q.*
+            FROM
                 (
                     SELECT * FROM config_defaults UNION ALL
                     SELECT * FROM config_sys UNION ALL
                     SELECT * FROM config_db UNION ALL
-                    SELECT * FROM config_sess UNION ALL
-                    SELECT * FROM pg_db_setting UNION ALL
-                    SELECT * FROM pg_conf_settings UNION ALL
-                    SELECT * FROM pg_auto_conf_settings UNION ALL
-                    SELECT * FROM pg_config
+                    SELECT * FROM config_sess
                 ) AS q
-             WHERE
-                ($1 IS NULL OR q.source::edgedb._sys_config_source_t = any($1))
-                AND ($2 IS NULL OR q.source::edgedb._sys_config_source_t <= $2)
-            ) AS u
-        ) AS q
-    WHERE
-        q.n = 1;
-    $$ USING source_filter, max_source;
+            WHERE
+                NOT q.is_backend
+        ),
+
+    $$;
+
+    IF fs_access THEN
+        query := query || $$
+            pg_all_settings AS (
+                SELECT
+                    q.*
+                FROM
+                    (
+                        SELECT * FROM pg_db_setting UNION ALL
+                        SELECT * FROM pg_conf_settings UNION ALL
+                        SELECT * FROM pg_auto_conf_settings UNION ALL
+                        SELECT * FROM pg_config
+                    ) AS q
+            )
+        $$;
+    ELSE
+        query := query || $$
+            pg_all_settings AS (
+                SELECT
+                    q.*
+                FROM
+                    (
+                        SELECT * FROM pg_db_setting UNION ALL
+                        SELECT * FROM pg_config
+                    ) AS q
+            )
+        $$;
+    END IF;
+
+    query := query || $$
+        SELECT
+            q.name,
+            q.value,
+            q.source,
+            (CASE
+                WHEN q.source < 'database'::edgedb._sys_config_source_t THEN
+                    'INSTANCE'
+                WHEN q.source = 'database'::edgedb._sys_config_source_t THEN
+                    'DATABASE'
+                ELSE
+                    'SESSION'
+            END)::edgedb._sys_config_scope_t AS scope
+        FROM
+            (SELECT
+                u.name,
+                u.value,
+                u.source::edgedb._sys_config_source_t,
+                row_number() OVER (
+                    PARTITION BY u.name
+                    ORDER BY u.source::edgedb._sys_config_source_t DESC
+                ) AS n
+            FROM
+                (SELECT
+                    *
+                FROM
+                    (
+                        SELECT * FROM edge_all_settings UNION ALL
+                        SELECT * FROM pg_all_settings
+                    ) AS q
+                WHERE
+                    ($1 IS NULL OR
+                        q.source::edgedb._sys_config_source_t = any($1)
+                    )
+                    AND ($2 IS NULL OR
+                        q.source::edgedb._sys_config_source_t <= $2
+                    )
+                ) AS u
+            ) AS q
+        WHERE
+            q.n = 1;
+    $$;
+
+    RETURN QUERY EXECUTE query USING source_filter, max_source;
     END;
     '''
 
@@ -3051,214 +3208,11 @@ class SysConfigFullFunction(dbops.Function):
                     ('edgedb', '_sys_config_source_t'),
                     'NULL',
                 ),
-            ],
-            returns=('edgedb', '_sys_config_val_t'),
-            set_returning=True,
-            language='plpgsql',
-            volatility='volatile',
-            text=self.text,
-        )
-
-
-class SysConfigNoFileAccessFunction(dbops.Function):
-
-    text = f'''
-    BEGIN
-    RETURN QUERY EXECUTE $$
-
-    WITH
-
-    config_spec AS (
-        SELECT
-            s.key AS name,
-            s.value->'default' AS default,
-            (s.value->>'internal')::bool AS internal,
-            (s.value->>'system')::bool AS system,
-            (s.value->>'typeid')::uuid AS typeid,
-            (s.value->>'typemod') AS typemod,
-            (s.value->>'backend_setting') AS backend_setting
-        FROM
-            jsonb_each(
-                (SELECT json
-                 FROM edgedbinstdata.instdata
-                 WHERE key = 'configspec')
-            ) AS s
-    ),
-
-    config_defaults AS (
-        SELECT
-            s.name AS name,
-            s.default AS value,
-            'default' AS source
-        FROM
-            config_spec s
-    ),
-
-    config_sys AS (
-        SELECT
-            s.key AS name,
-            s.value AS value,
-            'system override' AS source
-        FROM
-            jsonb_each(
-                edgedb.get_database_metadata(
-                    {ql(defines.EDGEDB_SYSTEM_DB)}
-                ) -> 'sysconfig'
-            ) AS s
-    ),
-
-    config_db AS (
-        SELECT
-            s.name AS name,
-            s.value AS value,
-            'database' AS source
-        FROM
-            edgedb._db_config s
-    ),
-
-    config_sess AS (
-        SELECT
-            s.name AS name,
-            s.value AS value,
-            'session' AS source
-        FROM
-            _edgecon_state s
-        WHERE
-            s.type = 'C'
-    ),
-
-    pg_db_setting AS (
-        SELECT
-            nameval.name,
-            to_jsonb(nameval.value) AS value,
-            'database' AS source
-        FROM
-            (SELECT
-                setconfig
-            FROM
-                pg_db_role_setting
-            WHERE
-                setdatabase = (
-                    SELECT oid
-                    FROM pg_database
-                    WHERE datname = current_database()
+                (
+                    'fs_access',
+                    ('bool',),
+                    'TRUE',
                 )
-                AND setrole = 0
-            ) AS cfg_array,
-            LATERAL unnest(cfg_array.setconfig) AS cfg_set(s),
-            LATERAL (
-                SELECT
-                    split_part(cfg_set.s, '=', 1) AS name,
-                    split_part(cfg_set.s, '=', 2) AS value
-            ) AS nameval,
-            LATERAL (
-                SELECT
-                    config_spec.name
-                FROM
-                    config_spec
-                WHERE
-                    nameval.name = config_spec.backend_setting
-            ) AS spec
-    ),
-
-    pg_config AS (
-        SELECT
-            spec.name,
-            to_jsonb(
-                CASE WHEN u.v[1] IS NOT NULL
-                THEN (settings.setting::int * (u.v[1])::int)::text || u.v[2]
-                ELSE settings.setting || COALESCE(settings.unit, '')
-                END
-            ) AS value,
-            source AS source
-        FROM
-            (
-                SELECT
-                    pg_settings.name AS name,
-                    pg_settings.unit AS unit,
-                    pg_settings.setting AS setting,
-                    (CASE
-                        WHEN pg_settings.source IN ('session', 'database') THEN
-                            pg_settings.source
-                        ELSE
-                            'postgres ' || pg_settings.source
-                    END) AS source
-                FROM
-                    pg_settings
-            ) AS settings,
-
-            LATERAL (
-                SELECT regexp_match(settings.unit, '(\\d+)(\\w+)') AS v
-            ) AS u,
-
-            LATERAL (
-                SELECT
-                    config_spec.name
-                FROM
-                    config_spec
-                WHERE
-                    settings.name = config_spec.backend_setting
-            ) AS spec
-        )
-
-    SELECT
-        q.name,
-        q.value,
-        q.source,
-        (CASE
-            WHEN q.source < 'database'::edgedb._sys_config_source_t THEN
-                'INSTANCE'
-            WHEN q.source = 'database'::edgedb._sys_config_source_t THEN
-                'DATABASE'
-            ELSE
-                'SESSION'
-        END)::edgedb._sys_config_scope_t AS scope
-    FROM
-        (SELECT
-            u.name,
-            u.value,
-            u.source::edgedb._sys_config_source_t,
-            row_number() OVER (
-                PARTITION BY u.name
-                ORDER BY u.source::edgedb._sys_config_source_t DESC
-            ) AS n
-        FROM
-            (SELECT
-                *
-             FROM
-                (
-                    SELECT * FROM config_defaults UNION ALL
-                    SELECT * FROM config_sys UNION ALL
-                    SELECT * FROM config_db UNION ALL
-                    SELECT * FROM config_sess UNION ALL
-                    SELECT * FROM pg_db_setting UNION ALL
-                    SELECT * FROM pg_config
-                ) AS q
-             WHERE
-                ($1 IS NULL OR q.source::edgedb._sys_config_source_t = any($1))
-                AND ($2 IS NULL OR q.source::edgedb._sys_config_source_t <= $2)
-            ) AS u
-        ) AS q
-    WHERE
-        q.n = 1;
-    $$ USING source_filter, max_source;
-    END;
-    '''
-
-    def __init__(self) -> None:
-        super().__init__(
-            name=('edgedb', '_read_sys_config_no_file_access'),
-            args=[
-                (
-                    'source_filter',
-                    ('edgedb', '_sys_config_source_t[]',),
-                    'NULL',
-                ),
-                (
-                    'max_source',
-                    ('edgedb', '_sys_config_source_t'),
-                    'NULL',
-                ),
             ],
             returns=('edgedb', '_sys_config_val_t'),
             set_returning=True,
@@ -3281,11 +3235,11 @@ class SysConfigFunction(dbops.Function):
     THEN
         RETURN QUERY
         SELECT *
-        FROM edgedb._read_sys_config_full(source_filter, max_source);
+        FROM edgedb._read_sys_config_full(source_filter, max_source, TRUE);
     ELSE
         RETURN QUERY
         SELECT *
-        FROM edgedb._read_sys_config_no_file_access(source_filter, max_source);
+        FROM edgedb._read_sys_config_full(source_filter, max_source, FALSE);
     END IF;
 
     END;
@@ -3311,6 +3265,101 @@ class SysConfigFunction(dbops.Function):
             language='plpgsql',
             volatility='volatile',
             text=self.text,
+        )
+
+
+class ResetSessionConfigFunction(dbops.Function):
+
+    text = f'''
+        RESET ALL
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', '_reset_session_config'),
+            args=[],
+            returns=('void',),
+            language='sql',
+            volatility='volatile',
+            text=self.text,
+        )
+
+
+class ApplySessionConfigFunction(dbops.Function):
+    """Apply an EdgeDB config setting to the backend, if possible.
+
+    The function accepts any EdgeDB config name/value pair. If this
+    specific config setting happens to be implemented via a backend
+    setting, it would be applied to the current PostgreSQL session.
+    If the config setting doesn't reflect into a backend setting the
+    function is a no-op.
+
+    The function always returns the passed config name, unmodified
+    (this simplifies using the function in queries.)
+    """
+
+    def __init__(self, config_spec: edbconfig.Spec) -> None:
+
+        backend_settings = {}
+        for setting_name in config_spec:
+            setting = config_spec[setting_name]
+
+            if setting.backend_setting and not setting.system:
+                backend_settings[setting_name] = setting.backend_setting
+
+        variants_list = []
+        for setting_name in backend_settings:
+            setting = config_spec[setting_name]
+
+            valql = '"value"->>0'
+            if issubclass(setting.type, statypes.Duration):
+                valql = f"""
+                    edgedb._interval_to_ms(({valql})::interval)::text || 'ms'
+                """
+
+            variants_list.append(f'''
+                WHEN "name" = {ql(setting_name)}
+                THEN
+                    pg_catalog.set_config(
+                        {ql(setting.backend_setting)}::text,
+                        {valql},
+                        false
+                    )
+            ''')
+
+        variants = "\n".join(variants_list)
+        text = f'''
+        SELECT (
+            CASE
+                WHEN "name" = any(
+                    ARRAY[{",".join(ql(str(bs)) for bs in backend_settings)}]
+                )
+                THEN (
+                    CASE
+                        WHEN
+                            (CASE
+                                {variants}
+                            END) IS NULL
+                        THEN "name"
+                        ELSE "name"
+                    END
+                )
+
+                ELSE "name"
+            END
+        )
+        '''
+
+        super().__init__(
+            name=('edgedb', '_apply_session_config'),
+            args=[
+                ('name', ('text',)),
+                ('value', ('jsonb',)),
+            ],
+            returns=('text',),
+            language='sql',
+            volatility='volatile',
+            text=text,
         )
 
 
@@ -3488,7 +3537,10 @@ class GetPgTypeForEdgeDBTypeFunction(dbops.Function):
         )
 
 
-async def bootstrap(conn: asyncpg.Connection) -> None:
+async def bootstrap(
+    conn: asyncpg.Connection,
+    config_spec: edbconfig.Spec
+) -> None:
     commands = dbops.CommandGroup()
     commands.add_commands([
         dbops.CreateSchema(name='edgedb'),
@@ -3496,8 +3548,11 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateSchema(name='edgedbpub'),
         dbops.CreateSchema(name='edgedbstd'),
         dbops.CreateCompositeType(ExpressionType()),
+        dbops.CreateView(NormalizedPgSettingsView()),
         dbops.CreateTable(DBConfigTable()),
         dbops.CreateTable(DMLDummyTable()),
+        dbops.CreateFunction(IntervalToMillisecondsFunction()),
+        dbops.CreateFunction(SafeIntervalCastFunction()),
         dbops.CreateFunction(QuoteIdentFunction()),
         dbops.CreateFunction(QuoteNameFunction()),
         dbops.CreateFunction(AlterCurrentDatabaseSetString()),
@@ -3574,9 +3629,10 @@ async def bootstrap(conn: asyncpg.Connection) -> None:
         dbops.CreateFunction(InterpretConfigValueToJsonFunction()),
         dbops.CreateFunction(PostgresConfigValueToJsonFunction()),
         dbops.CreateFunction(SysConfigFullFunction()),
-        dbops.CreateFunction(SysConfigNoFileAccessFunction()),
         dbops.CreateFunction(SysConfigFunction()),
         dbops.CreateFunction(SysVersionFunction()),
+        dbops.CreateFunction(ResetSessionConfigFunction()),
+        dbops.CreateFunction(ApplySessionConfigFunction(config_spec)),
         dbops.CreateFunction(SysGetTransactionIsolation()),
         dbops.CreateFunction(GetCachedReflection()),
         dbops.CreateFunction(GetBaseScalarTypeMap()),
@@ -4457,6 +4513,11 @@ def _render_config_value(
         schema.get('std::bool', type=s_scalars.ScalarType),
     ):
         val = f'<str>{value_expr}'
+    elif valtype.issubclass(
+        schema,
+        schema.get('std::duration', type=s_scalars.ScalarType),
+    ):
+        val = f'cfg::_quote(<str>{value_expr})'
     elif valtype.issubclass(
         schema,
         schema.get('std::str', type=s_scalars.ScalarType),

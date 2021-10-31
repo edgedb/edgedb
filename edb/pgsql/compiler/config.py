@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from edb import errors
 from edb.ir import ast as irast
+from edb.ir import statypes
+from edb.schema import objects as s_obj
 
 from edb.edgeql import qltypes
 
@@ -42,61 +44,22 @@ def compile_ConfigSet(
     ctx: context.CompilerContextLevel,
 ) -> pgast.BaseExpr:
 
-    val: pgast.BaseExpr
-
-    with ctx.new() as subctx:
-        if op.backend_setting:
-            output_format = context.OutputFormat.NATIVE
-        else:
-            output_format = context.OutputFormat.JSONB
-
-        with context.output_format(ctx, output_format):
-            if isinstance(op.expr, irast.EmptySet):
-                # Special handling for empty sets, because we want a
-                # singleton representation of the value and not an empty rel
-                # in this context.
-                if op.cardinality is qltypes.SchemaCardinality.One:
-                    val = pgast.NullConstant()
-                elif subctx.env.output_format is context.OutputFormat.JSONB:
-                    val = pgast.TypeCast(
-                        arg=pgast.StringConstant(val='[]'),
-                        type_name=pgast.TypeName(
-                            name=('jsonb',),
-                        ),
-                    )
-                else:
-                    val = pgast.TypeCast(
-                        arg=pgast.ArrayExpr(elements=[]),
-                        type_name=pgast.TypeName(
-                            name=('text[]',),
-                        ),
-                    )
-            else:
-                val = dispatch.compile(op.expr, ctx=subctx)
-                assert isinstance(val, pgast.SelectStmt), "expected SelectStmt"
-
-                pathctx.get_path_serialized_output(
-                    val, op.expr.path_id, env=ctx.env)
-
-                if op.cardinality is qltypes.SchemaCardinality.Many:
-                    val = output.aggregate_json_output(
-                        val, op.expr, env=ctx.env)
-
+    val = _compile_config_value(op, ctx=ctx)
     result: pgast.BaseExpr
 
     if op.scope is qltypes.ConfigScope.INSTANCE and op.backend_setting:
-        assert isinstance(val, pgast.SelectStmt) and len(val.target_list) == 1
-        valval = val.target_list[0].val
-        if isinstance(valval, pgast.TypeCast):
-            valval = valval.arg
-        if not isinstance(valval, pgast.BaseConstant):
-            raise AssertionError('value is not a constant in ConfigSet')
         result = pgast.AlterSystem(
             name=op.backend_setting,
-            value=valval,
+            value=val,
         )
 
     elif op.scope is qltypes.ConfigScope.DATABASE and op.backend_setting:
+        if not isinstance(val, pgast.StringConstant):
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(name=('text',)),
+            )
+
         fcall = pgast.FuncCall(
             name=('edgedb', '_alter_current_database_set'),
             args=[pgast.StringConstant(val=op.backend_setting), val],
@@ -109,14 +72,17 @@ def compile_ConfigSet(
         )
 
     elif op.scope is qltypes.ConfigScope.SESSION and op.backend_setting:
+        if not isinstance(val, pgast.StringConstant):
+            val = pgast.TypeCast(
+                arg=val,
+                type_name=pgast.TypeName(name=('text',)),
+            )
+
         fcall = pgast.FuncCall(
             name=('pg_catalog', 'set_config'),
             args=[
                 pgast.StringConstant(val=op.backend_setting),
-                pgast.TypeCast(
-                    arg=val,
-                    type_name=pgast.TypeName(name=('text',)),
-                ),
+                val,
                 pgast.BooleanConstant(val='false'),
             ],
         )
@@ -460,6 +426,82 @@ def _rewrite_config_insert(
             )
 
     return ir_set
+
+
+def _compile_config_value(
+    op: irast.ConfigSet,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> pgast.BaseExpr:
+    op_expr = op.expr.expr
+
+    if (op.backend_setting and
+            isinstance(op_expr, irast.TypeCast) and
+            isinstance(op_expr.expr.expr, irast.StringConstant) and
+            op_expr.from_type.id == s_obj.get_known_type_id('std::str') and
+            op_expr.to_type.id == s_obj.get_known_type_id('std::duration')):
+        value = statypes.Duration(op_expr.expr.expr.value)
+        return pgast.StringConstant(
+            val=f'{value.to_microseconds()}us'
+        )
+
+    val: pgast.BaseExpr
+
+    with ctx.new() as subctx:
+        if op.backend_setting:
+            output_format = context.OutputFormat.NATIVE
+        else:
+            output_format = context.OutputFormat.JSONB
+
+        with context.output_format(ctx, output_format):
+            if isinstance(op.expr, irast.EmptySet):
+                # Special handling for empty sets, because we want a
+                # singleton representation of the value and not an empty rel
+                # in this context.
+                if op.cardinality is qltypes.SchemaCardinality.One:
+                    val = pgast.NullConstant()
+                elif subctx.env.output_format is context.OutputFormat.JSONB:
+                    val = pgast.TypeCast(
+                        arg=pgast.StringConstant(val='[]'),
+                        type_name=pgast.TypeName(
+                            name=('jsonb',),
+                        ),
+                    )
+                else:
+                    val = pgast.TypeCast(
+                        arg=pgast.ArrayExpr(elements=[]),
+                        type_name=pgast.TypeName(
+                            name=('text[]',),
+                        ),
+                    )
+            else:
+                val = dispatch.compile(op.expr, ctx=subctx)
+                assert isinstance(val, pgast.SelectStmt), "expected SelectStmt"
+
+                pathctx.get_path_serialized_output(
+                    val, op.expr.path_id, env=ctx.env)
+
+                if op.cardinality is qltypes.SchemaCardinality.Many:
+                    val = output.aggregate_json_output(
+                        val, op.expr, env=ctx.env)
+
+    if op.backend_setting:
+        assert isinstance(val, pgast.SelectStmt) and len(val.target_list) == 1
+        val = val.target_list[0].val
+        if isinstance(val, pgast.TypeCast):
+            val = val.arg
+        if not isinstance(val, pgast.BaseConstant):
+            raise AssertionError('value is not a constant in ConfigSet')
+
+        if op.backend_setting_unit:
+            if not isinstance(val, pgast.NumericConstant):
+                raise AssertionError(
+                    'value is not a numeric and is incompatible with units')
+            val = pgast.StringConstant(
+                val=f'{val.val}{op.backend_setting_unit}'
+            )
+
+    return val
 
 
 def top_output_as_config_op(
