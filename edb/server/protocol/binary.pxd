@@ -121,6 +121,8 @@ cdef class EdgeConnection:
         bint idling
         object started_idling_at
 
+        bint _in_dump_restore
+
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
     cdef interpret_backend_error(self, exc)

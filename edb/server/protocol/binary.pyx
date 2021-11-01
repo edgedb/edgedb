@@ -249,6 +249,8 @@ cdef class EdgeConnection:
         self._pinned_pgcon_in_tx = False
         self._get_pgcon_cc = 0
 
+        self._in_dump_restore = False
+
     def __del__(self):
         # Should not ever happen, there's a strong ref to
         # every client connection until it hits connection_lost().
@@ -354,7 +356,11 @@ cdef class EdgeConnection:
     def is_idle(self, expiry_time: float):
         # A connection is idle if it awaits for the next message for
         # client for too long (even if it is in an open transaction!)
-        return self.idling and self.started_idling_at < expiry_time
+        return (
+            self.idling and
+            self.started_idling_at < expiry_time and
+            not self._in_dump_restore
+        )
 
     def is_alive(self):
         return (
@@ -2327,6 +2333,7 @@ cdef class EdgeConnection:
 
         dbname = _dbview.dbname
         pgcon = await server.acquire_pgcon(dbname)
+        self._in_dump_restore = True
         try:
             # To avoid having races, we want to:
             #
@@ -2346,6 +2353,12 @@ cdef class EdgeConnection:
                         ISOLATION LEVEL SERIALIZABLE
                         READ ONLY
                         DEFERRABLE;
+
+                    -- Disable transaction or query execution timeout
+                    -- limits. Both clients and the server can be slow
+                    -- during the dump/restore process.
+                    SET idle_in_transaction_session_timeout = 0;
+                    SET statement_timeout = 0;
                 ''',
                 True
             )
@@ -2457,6 +2470,7 @@ cdef class EdgeConnection:
             )
 
         finally:
+            self._in_dump_restore = False
             server.release_pgcon(dbname, pgcon)
 
         msg_buf = WriteBuffer.new_message(b'C')
@@ -2562,10 +2576,22 @@ cdef class EdgeConnection:
         dbname = _dbview.dbname
         pgcon = await server.acquire_pgcon(dbname)
 
+        self._in_dump_restore = True
         try:
             await self._execute_utility_stmt(
                 'START TRANSACTION ISOLATION SERIALIZABLE',
                 pgcon,
+            )
+
+            await pgcon.simple_query(
+                b'''
+                    -- Disable transaction or query execution timeout
+                    -- limits. Both clients and the server can be slow
+                    -- during the dump/restore process.
+                    SET idle_in_transaction_session_timeout = 0;
+                    SET statement_timeout = 0;
+                ''',
+                True
             )
 
             schema_sql_units, restore_blocks, tables = \
@@ -2694,6 +2720,7 @@ cdef class EdgeConnection:
             await self._execute_utility_stmt('COMMIT', pgcon)
 
         finally:
+            self._in_dump_restore = False
             server.release_pgcon(dbname, pgcon)
 
         await server.introspect_db(dbname)
