@@ -28,16 +28,10 @@ VERSION_PATTERN = re.compile(r"""
     ^
     (?P<release>[0-9]+(?:\.[0-9]+)*)
     (?P<pre>
-        [-]?
-        (?P<pre_l>(a|b|c|rc|alpha|beta|pre|preview))
+        [-\.]?
+        (?P<pre_l>(a|b|c|rc|alpha|beta|dev))
         [\.]?
         (?P<pre_n>[0-9]+)?
-    )?
-    (?P<dev>
-        [\.]?
-        (?P<dev_l>dev)
-        [\.]?
-        (?P<dev_n>[0-9]+)?
     )?
     (?:\+(?P<local>[a-z0-9]+(?:[\.][a-z0-9]+)*))?
     $
@@ -45,7 +39,6 @@ VERSION_PATTERN = re.compile(r"""
 
 
 class VersionStage(enum.IntEnum):
-
     DEV = 0
     ALPHA = 10
     BETA = 20
@@ -54,7 +47,6 @@ class VersionStage(enum.IntEnum):
 
 
 class Version(NamedTuple):
-
     major: int
     minor: int
     stage: VersionStage
@@ -84,15 +76,12 @@ def parse_version(ver: str) -> Version:
             stage = VersionStage.BETA
         elif pre_l in {'c', 'rc'}:
             stage = VersionStage.RC
+        elif pre_l in {'dev'}:
+            stage = VersionStage.DEV
         else:
             raise ValueError(f'cannot determine release stage from {ver}')
 
         stage_no = int(v.group('pre_n'))
-        if v.group('dev'):
-            local.extend([f'dev{v.group("dev_n")}'])
-    elif v.group('dev'):
-        stage = VersionStage.DEV
-        stage_no = int(v.group('dev_n'))
     else:
         stage = VersionStage.FINAL
         stage_no = 0

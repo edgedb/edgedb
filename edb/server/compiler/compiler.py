@@ -2344,6 +2344,21 @@ class Compiler:
         else:
             dump_server_ver = None
 
+        if (
+            (dump_server_ver.major, dump_server_ver.minor) == (1, 0)
+            and dump_server_ver.stage is verutils.VersionStage.DEV
+        ):
+            # Pre-1.0 releases post RC3 have DEV in their stage,
+            # but for compatibility comparisons below we need to revert
+            # to the pre-1.0-rc3 layout
+            dump_server_ver = dump_server_ver._replace(
+                stage=verutils.VersionStage.RC,
+                stage_no=3,
+                local=(
+                    ('dev', dump_server_ver.stage_no) + dump_server_ver.local
+                ),
+            )
+
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
             global_schema=global_schema,
@@ -2368,15 +2383,21 @@ class Compiler:
         ctx.state.start_tx()
 
         dump_with_extraneous_computables = (
-            dump_server_ver is None
-            or dump_server_ver < (1, 0, verutils.VersionStage.ALPHA, 8)
+            (
+                dump_server_ver is None
+                or dump_server_ver < (1, 0, verutils.VersionStage.ALPHA, 8)
+            )
+            and dump_server_ver.stage is not verutils.VersionStage.DEV
         )
 
         dump_with_ptr_item_id = dump_with_extraneous_computables
 
         allow_dml_in_functions = (
-            dump_server_ver is None
-            or dump_server_ver < (1, 0, verutils.VersionStage.BETA, 1)
+            (
+                dump_server_ver is None
+                or dump_server_ver < (1, 0, verutils.VersionStage.BETA, 1)
+            )
+            and dump_server_ver.stage is not verutils.VersionStage.DEV
         )
 
         schema_ddl_text = schema_ddl.decode('utf-8')
