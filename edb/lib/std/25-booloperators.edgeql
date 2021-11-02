@@ -44,14 +44,16 @@ std::`OR` (a: std::bool, b: std::bool) -> std::bool {
 };
 
 
-# `USING SQL EXPRESSION` means that the operator is translated
-# by the compiler into some SQL expression.
+# For the same reasons as OR above, we need to make sure
+# False AND {} is {}.
 CREATE INFIX OPERATOR
 std::`AND` (a: std::bool, b: std::bool) -> std::bool {
     CREATE ANNOTATION std::identifier := 'and';
     CREATE ANNOTATION std::description := 'Logical conjunction.';
     SET volatility := 'Immutable';
-    USING SQL EXPRESSION;
+    USING SQL $$
+    SELECT ("a" AND "b") OR ("a"::int & "b"::int)::bool
+    $$;
 };
 
 

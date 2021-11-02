@@ -719,6 +719,9 @@ async def _init_stdlib(
     else:
         logger.info('Initializing the standard library...')
         await metaschema._execute_sql_script(conn, tpldbdump.decode('utf-8'))
+        # Restore the search_path as the dump might have altered it.
+        await conn.execute(
+            "SELECT pg_catalog.set_config('search_path', 'edgedb', false)")
 
     if not in_dev_mode and testmode:
         # Running tests on a production build.

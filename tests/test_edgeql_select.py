@@ -3408,6 +3408,111 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
+    async def test_edgeql_select_and_09(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := .val < 5 and .name like '%on'
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': False},
+                {'name': 'hexagon', 'val': 4, 'x': True},
+                {'name': 'pentagon', 'val': {}, 'x': {}},
+                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'triangle', 'val': 10, 'x': False},
+            ],
+        )
+
+    async def test_edgeql_select_and_10(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := not (.val < 5 and .name like '%on')
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': True},
+                {'name': 'hexagon', 'val': 4, 'x': False},
+                {'name': 'pentagon', 'val': {}, 'x': {}},
+                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'triangle', 'val': 10, 'x': True},
+            ],
+        )
+
+    async def test_edgeql_select_and_11(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (
+                    select _ := .tags = 'red' and .name like '%a%' order by _
+                )
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, False],
+            }, {
+                'name': 'hexagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [True],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, True],
+            }],
+        )
+
+    async def test_edgeql_select_and_12(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (
+                    select _ := not (.tags = 'red' and .name like '%a%')
+                    order by _
+                )
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [True, True],
+            }, {
+                'name': 'hexagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [False],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, True],
+            }],
+        )
+
     async def test_edgeql_select_or_01(self):
         issues_h = await self.con.query(r'''
             SELECT Issue{number}
@@ -3649,6 +3754,111 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
+    async def test_edgeql_select_or_16(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := .val < 5 or .name like '%on'
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': True},
+                {'name': 'hexagon', 'val': 4, 'x': True},
+                {'name': 'pentagon', 'val': {}, 'x': {}},
+                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'triangle', 'val': 10, 'x': False},
+            ],
+        )
+
+    async def test_edgeql_select_or_17(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := not (.val < 5 or .name like '%on')
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': False},
+                {'name': 'hexagon', 'val': 4, 'x': False},
+                {'name': 'pentagon', 'val': {}, 'x': {}},
+                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'triangle', 'val': 10, 'x': True},
+            ],
+        )
+
+    async def test_edgeql_select_or_18(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (
+                    select _ := .tags = 'red' or .name like '%t%a%' order by _
+                )
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, True],
+            }, {
+                'name': 'hexagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [True],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [True, True],
+            }],
+        )
+
+    async def test_edgeql_select_or_19(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (
+                    select _ := not (.tags = 'red' or .name like '%t%a%')
+                    order by _
+                )
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, True],
+            }, {
+                'name': 'hexagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [False],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, False],
+            }],
+        )
+
     async def test_edgeql_select_not_01(self):
         await self.assert_query_result(
             r'''
@@ -3704,6 +3914,106 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # this is the result from or04
             #
             [{'number': '2'}, {'number': '3'}],
+        )
+
+    async def test_edgeql_select_not_04(self):
+        # testing double negation
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := not (.val < 5)
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': False},
+                {'name': 'hexagon', 'val': 4, 'x': False},
+                {'name': 'pentagon', 'val': {}, 'x': {}},
+                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'triangle', 'val': 10, 'x': True},
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := not not (.val < 5)
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': True},
+                {'name': 'hexagon', 'val': 4, 'x': True},
+                {'name': 'pentagon', 'val': {}, 'x': {}},
+                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'triangle', 'val': 10, 'x': False},
+            ],
+        )
+
+    async def test_edgeql_select_not_05(self):
+        # testing double negation
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (select _ := not (.tags = 'red') order by _)
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, True],
+            }, {
+                'name': 'hexagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [False],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, True],
+            }],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (select _ := not not (.tags = 'red') order by _)
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, True],
+            }, {
+                'name': 'hexagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': {},
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [True],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, True],
+            }],
         )
 
     async def test_edgeql_select_empty_01(self):
