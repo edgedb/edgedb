@@ -144,6 +144,28 @@ class BigintDomain(dbops.Domain):
         )
 
 
+class ConfigMemoryDomain(dbops.Domain):
+    """Represents the cfg::memory type. Stores number of bytes.
+
+    Defined just as edgedb.bigint_t:
+
+    * numeric is used to ensure we can comfortably represent huge amounts
+      of data beyond petabytes;
+    * enforces zero digits after the dot.
+    """
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'memory_t'),
+            base='int8',
+            constraints=(
+                dbops.DomainCheckConstraint(
+                    domain_name=('edgedb', 'memory_t'),
+                    expr=("VALUE >= 0"),
+                ),
+            ),
+        )
+
+
 class TimestampTzDomain(dbops.Domain):
     """Timestamptz clamped to years 0001-9999.
 
@@ -233,6 +255,122 @@ class RelativeDurationDomain(dbops.Domain):
                     expr="true",
                 ),
             ),
+        )
+
+
+class StrToConfigMemoryFunction(dbops.Function):
+    """An implementation of std::str to cfg::memory cast."""
+    text = r'''
+        SELECT
+            CASE
+                WHEN m.v[1] IS NOT NULL AND m.v[2] IS NOT NULL
+                THEN (
+                    CASE
+                        WHEN m.v[2] = 'B'
+                        THEN m.v[1]::int8
+
+                        WHEN m.v[2] = 'KiB'
+                        THEN m.v[1]::int8 * 1024
+
+                        WHEN m.v[2] = 'MiB'
+                        THEN m.v[1]::int8 * 1024 * 1024
+
+                        WHEN m.v[2] = 'GiB'
+                        THEN m.v[1]::int8 * 1024 * 1024 * 1024
+
+                        WHEN m.v[2] = 'TiB'
+                        THEN m.v[1]::int8 * 1024 * 1024 * 1024 * 1024
+
+                        WHEN m.v[2] = 'PiB'
+                        THEN m.v[1]::int8 * 1024 * 1024 * 1024 * 1024 * 1024
+
+                        ELSE
+                            -- Won't happen but we still have a guard for
+                            -- completeness.
+                            edgedb.raise(
+                                NULL::edgedb.memory_t,
+                                msg => (
+                                    'unsupported memory size unit' ||
+                                    m.v[2] || '"'
+                                )
+                            )
+                    END
+                )
+                ELSE
+                    edgedb.raise(
+                        NULL::edgedb.memory_t,
+                        msg => (
+                            'unable to parse memory size "' || "val" || '"'
+                        )
+                    )
+            END
+        FROM LATERAL (
+            SELECT regexp_match(
+                "val", '^(\d+)(KiB|MiB|GiB|TiB|PiB|B)$') AS v
+        ) AS m
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'str_to_cfg_memory'),
+            args=[
+                ('val', ('text',)),
+            ],
+            returns=('edgedb', 'memory_t'),
+            volatility='immutable',
+            language='sql',
+            text=self.text,
+        )
+
+
+class ConfigMemoryToStrFunction(dbops.Function):
+    """An implementation of cfg::memory to std::str cast."""
+    text = r'''
+        SELECT
+            CASE
+                WHEN
+                    "val" >= (1024::int8 * 1024 * 1024 * 1024 * 1024) AND
+                    "val" % (1024::int8 * 1024 * 1024 * 1024 * 1024) = 0
+                THEN
+                    trunc(
+                        "val" / (1024::int8 * 1024 * 1024 * 1024 * 1024)
+                    )::text || 'PiB'
+
+                WHEN
+                    "val" >= (1024::int8 * 1024 * 1024 * 1024) AND
+                    "val" % (1024::int8 * 1024 * 1024 * 1024) = 0
+                THEN trunc(
+                        "val" / (1024::int8 * 1024 * 1024 * 1024)
+                    )::text || 'TiB'
+
+                WHEN
+                    "val" >= (1024::int8 * 1024 * 1024) AND
+                    "val" % (1024::int8 * 1024 * 1024) = 0
+                THEN trunc(
+                    "val" / (1024::int8 * 1024 * 1024)
+                )::text || 'GiB'
+
+                WHEN "val" >= 1024::int8 * 1024 AND
+                     "val" % (1024::int8 * 1024) = 0
+                THEN trunc("val" / (1024::int8 * 1024))::text || 'MiB'
+
+                WHEN "val" >= 1024 AND "val" % 1024 = 0
+                THEN trunc("val" / 1024::int8)::text || 'KiB'
+
+                ELSE "val"::text || 'B'
+            END
+    '''
+
+    def __init__(self) -> None:
+        super().__init__(
+            name=('edgedb', 'cfg_memory_to_str'),
+            args=[
+                ('val', ('edgedb', 'memory_t')),
+            ],
+            returns=('text',),
+            volatility='immutable',
+            language='sql',
+            text=self.text,
         )
 
 
@@ -3585,11 +3723,14 @@ async def bootstrap(
         dbops.CreateFunction(IntrospectTriggersFunction()),
         dbops.CreateCompositeType(TableInheritanceDescType()),
         dbops.CreateDomain(BigintDomain()),
+        dbops.CreateDomain(ConfigMemoryDomain()),
         dbops.CreateDomain(TimestampTzDomain()),
         dbops.CreateDomain(TimestampDomain()),
         dbops.CreateDomain(DateDomain()),
         dbops.CreateDomain(DurationDomain()),
         dbops.CreateDomain(RelativeDurationDomain()),
+        dbops.CreateFunction(StrToConfigMemoryFunction()),
+        dbops.CreateFunction(ConfigMemoryToStrFunction()),
         dbops.CreateFunction(StrToBigint()),
         dbops.CreateFunction(StrToDecimal()),
         dbops.CreateFunction(StrToInt64NoInline()),
