@@ -1779,10 +1779,16 @@ class AlterPointer(
     ) -> s_schema.Schema:
         schema = super()._alter_begin(schema, context)
 
-        if self.get_attribute_value('expr') is not None:
+        if (
+            self.get_attribute_value('expr') is not None
+            or bool(self.get_subcommands(type=constraints.ConstraintCommand))
+        ):
             # If the expression gets changed, we need to propagate
             # this change to other expressions referring to this one,
             # in case there are any cycles caused by this change.
+            #
+            # Also, if constraints are modified, that can affect
+            # cardinality of other expressions using backlinks.
             schema = self._propagate_if_expr_refs(
                 schema,
                 context,
@@ -2378,6 +2384,10 @@ class AlterPointerUpperCardinality(
             and not self.is_attribute_inherited('cardinality')
             and not ptr_op.maybe_get_object_aux_data('from_alias')
             and self.conv_expr is None
+            and not (
+                ptr_op.get_attribute_value('expr')
+                or ptr_op.get_orig_attribute_value('expr')
+            )
             and not (
                 ptr_op.get_attribute_value('declared_overloaded')
                 or isinstance(src_op, sd.CreateObject)

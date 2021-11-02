@@ -5438,22 +5438,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Bar extending Foo;
         """])
 
-    @test.xfail('''
-        AssertionError: unexpected difference in schema produced by
-        incremental migration on step 2:
-
-        <DeltaRoot canonical=True at 0x7fd924ff24f0> (
-            <AlterObjectType classname=default::Cell....> (
-                <AlterLink canonical=True,
-                           classname=default::__|left@default|Cell ...> (
-                    <AlterLinkUpperCardinality ...> (
-                        cardinality = <SchemaCardinality.Many: 'Many'> |
-                                      <SchemaCardinality.One: 'One'> # computed
-                    )
-                )
-            )
-        )
-    ''')
     def test_schema_migrations_equivalence_constraint_06(self):
         self._assert_migration_equivalence([r"""
             type Cell {
@@ -5495,10 +5479,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        SchemaError: cannot automatically convert link 'left' of
-        object type 'default::Cell' to 'single' cardinality
-    ''')
     def test_schema_migrations_equivalence_constraint_08(self):
         self._assert_migration_equivalence([r"""
             type Cell {
