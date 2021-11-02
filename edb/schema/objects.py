@@ -1423,6 +1423,13 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 their_name = theirs.get_name(their_schema)
                 if our_name != their_name:
                     similarity /= 1.2
+                else:
+                    # If the new and old versions share a reference to
+                    # an object that is being deleted, then we must
+                    # delete this object as well.
+                    if (type(ours), our_name) in context.deletions:
+                        return 0.0
+
         elif ours is not None or theirs is not None:
             # one is None but not both
             similarity /= 1.2
@@ -2342,6 +2349,13 @@ class ObjectCollection(
             schema.get_by_id(iid) for iid in self._ids  # type: ignore
         )
 
+    def _object_keys(self, schema: s_schema.Schema) -> Set[
+            Tuple[Type[Object], sn.Name]]:
+        return {
+            (type(x), x.get_name(schema))
+            for x in (self.objects(schema))
+        }
+
     @classmethod
     def compare_values(
         cls,
@@ -2353,6 +2367,13 @@ class ObjectCollection(
         context: ComparisonContext,
         compcoef: float,
     ) -> float:
+        # If the new and old versions share a reference to an object
+        # that is being deleted, then we must delete this object as well.
+        our_keys = set(ours._object_keys(our_schema) if ours else {})
+        their_keys = set(theirs._object_keys(their_schema) if theirs else {})
+        if (our_keys & their_keys) & context.deletions.keys():
+            return 0.0
+
         if ours is not None:
             our_names = cls._container(
                 context.get_obj_name(our_schema, obj)

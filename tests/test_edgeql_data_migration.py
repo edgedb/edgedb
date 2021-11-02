@@ -3269,6 +3269,44 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         ], check_complete=False)
         await self.fast_forward_describe_migration()
 
+    async def test_edgeql_migration_force_delete_01(self):
+        await self.migrate('''
+            type Base;
+            type Foo;
+            type Bar { link foo -> Foo; };
+        ''')
+
+        await self.start_migration('''
+            type Base;
+            type Foo extending Base;
+            type Bar { link foo -> Foo; };
+        ''')
+
+        await self.interact([
+            ("did you alter object type 'test::Foo'?", "n"),
+            "did you drop link 'foo' of object type 'test::Bar'?"
+        ], check_complete=False)
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_force_delete_02(self):
+        await self.migrate('''
+            type Base;
+            type Foo;
+            type Bar extending Foo;
+        ''')
+
+        await self.start_migration('''
+            type Base;
+            type Foo extending Base;
+            type Bar extending Foo;
+        ''')
+
+        await self.interact([
+            ("did you alter object type 'test::Foo'?", "n"),
+            "did you drop object type 'test::Bar'?"
+        ], check_complete=False)
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
             type Base;
@@ -6065,15 +6103,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         compatible one) of a default value without explicitly dropping
         the default first.
 
-        edgedb.errors.InternalServerError: cannot drop function
-        "edgedb_06261450-db74-11e9-9e9a-9520733a1c54".hello06(bigint)
-        because other objects depend on it
-
-        This is similar to the problem with renaming property used in
-        an expression.
-
-        See also `test_edgeql_migration_eq_function_10` and
-        `test_edgeql_migration_eq_index_01`.
+        Currently this kind of works... by proposing we delete the property
+        and recreate it.
     ''')
     async def test_edgeql_migration_eq_function_06(self):
         await self.migrate(r"""
@@ -6123,11 +6154,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {4, 2},
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop function
-        'test::hello07(a: std::int64)' because other objects in the
-        schema depend on it
-    ''')
     async def test_edgeql_migration_eq_function_07(self):
         await self.migrate(r"""
             function hello07(a: int64) -> str
@@ -6169,11 +6195,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {2},
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop function
-        'test::hello08(a: std::int64)' because other objects in the
-        schema depend on it
-    ''')
     async def test_edgeql_migration_eq_function_08(self):
         await self.migrate(r"""
             function hello08(a: int64) -> str
@@ -6209,11 +6230,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {2},
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop function
-        'test::hello09(a: std::int64)' because other objects in the
-        schema depend on it
-    ''')
     async def test_edgeql_migration_eq_function_09(self):
         await self.migrate(r"""
             function hello09(a: int64) -> str
@@ -6263,18 +6279,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {2},
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: cannot drop function
-        "edgedb_bea19e4a-ec4b-11e9-9900-557227410171".hello10(bigint)
-        because other objects depend on it
-
-        This is similar to the problem with renaming property used in
-        an expression.
-
-        See also `test_schema_migrations_equivalence_function_10`,
-        `test_edgeql_migration_eq_function_06`,
-        `test_edgeql_migration_eq_index_01`.
-    ''')
     async def test_edgeql_migration_eq_function_10(self):
         await self.migrate(r"""
             function hello10(a: int64) -> str
