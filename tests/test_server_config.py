@@ -375,7 +375,7 @@ class TestServerConfig(tb.QueryTestCase):
     async def test_server_proto_configure_01(self):
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
-                'invalid value type'):
+                'invalid setting value type'):
             await self.con.execute('''
                 CONFIGURE SESSION SET __internal_no_const_folding := 1;
             ''')
@@ -859,7 +859,7 @@ class TestServerConfig(tb.QueryTestCase):
     async def test_server_proto_configure_07(self):
         try:
             await self.con.execute('''
-                CONFIGURE SESSION SET multiprop := {};
+                CONFIGURE SESSION SET multiprop := <str>{};
             ''')
 
             await self.assert_query_result(
@@ -985,6 +985,25 @@ class TestServerConfig(tb.QueryTestCase):
              srv_ver.stage_no,)
         )
 
+    async def test_server_proto_configure_invalid_duration(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                "invalid input syntax for type std::duration: "
+                "unable to parse '12mse'"):
+            await self.con.execute('''
+                configure session set
+                    query_execution_timeout := <duration>'12mse'
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                r"invalid setting value type for session_idle_timeout: "
+                r"'std::str' \(expecting 'std::duration"):
+            await self.con.execute('''
+                configure instance set
+                    session_idle_timeout := '12 seconds'
+            ''')
+
     async def test_server_proto_configure_compilation(self):
         try:
             await self.con.execute('''
@@ -1098,7 +1117,7 @@ class TestSeparateCluster(tb.TestCase):
                     self.assertEqual(await con.query_single(f"SELECT {i}"), i)
 
                 await con1.execute("""
-                    CONFIGURE INSTANCE SET listen_addresses := {};
+                    CONFIGURE INSTANCE SET listen_addresses := <str>{};
                 """)
                 await con1.execute("""
                     CONFIGURE INSTANCE SET listen_addresses := {
