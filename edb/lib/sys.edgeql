@@ -161,6 +161,7 @@ sys::get_current_database() -> str
     USING SQL FUNCTION 'edgedb.get_current_database';
 };
 
+
 CREATE FUNCTION
 sys::_describe_roles_as_ddl() -> str
 {
@@ -168,4 +169,26 @@ sys::_describe_roles_as_ddl() -> str
     SET volatility := 'Stable';
     SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_roles_as_ddl';
+};
+
+
+CREATE FUNCTION
+sys::__pg_and(a: OPTIONAL std::bool, b: OPTIONAL std::bool) -> std::bool
+{
+    SET volatility := 'Immutable';
+    SET internal := true;
+    USING SQL $$
+        SELECT a AND b;
+    $$;
+};
+
+
+CREATE FUNCTION
+sys::__pg_or(a: OPTIONAL std::bool, b: OPTIONAL std::bool) -> std::bool
+{
+    SET volatility := 'Immutable';
+    SET internal := true;
+    USING SQL $$
+        SELECT a OR b;
+    $$;
 };
