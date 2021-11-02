@@ -549,7 +549,17 @@ Format:
 Known statuses:
 
 * ``suggested_pool_concurrency`` -- suggested default size for clients
-  connection pools.
+  connection pools. Serialized as UTF-8 encoded string.
+
+* ``system_config`` -- a set of instance-level configuration settings
+  exposed to clients on connection. Serialized as:
+
+  .. eql:struct:: edb.protocol.ParameterStatus_SystemConfig
+
+  Where ``DataElement`` is defined in the same way as for the
+  :ref:`Data <ref_protocol_msg_data>` message:
+
+  .. eql:struct:: edb.protocol.DataElement
 
 
 .. _ref_protocol_msg_prepare_complete:

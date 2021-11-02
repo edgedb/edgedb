@@ -551,7 +551,7 @@ class Server(ha_base.ClusterProtocol):
     async def load_reported_config(self):
         syscon = await self._acquire_sys_pgcon()
         try:
-            data = await syscon.parse_execute_binary(
+            data = await syscon.parse_execute_extract_single_data_frame(
                 self.get_sys_query('report_configs'),
                 b'__report_configs',
                 dbver=0, use_prep_stmt=True, args=(),
