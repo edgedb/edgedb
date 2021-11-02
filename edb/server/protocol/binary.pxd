@@ -116,7 +116,7 @@ cdef class EdgeConnection:
 
         bint _cancelled
         bint _stop_requested
-        bint _pgcon_released
+        bint _pgcon_released_in_connection_lost
 
         bint idling
         object started_idling_at
@@ -134,7 +134,6 @@ cdef class EdgeConnection:
 
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
-    cdef abort(self)
 
     cdef abort_pinned_pgcon(self)
 

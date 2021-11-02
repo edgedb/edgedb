@@ -269,7 +269,7 @@ def value_to_json_value(setting: spec.Setting, value: Any):
     else:
         if issubclass(setting.type, types.ConfigType):
             return value.to_json_value()
-        elif issubclass(setting.type, statypes.Duration):
+        elif issubclass(setting.type, statypes.Duration) and value is not None:
             return value.to_iso8601()
         else:
             return value

@@ -58,6 +58,7 @@ from edb.server import defines as edgedb_defines
 from edb.common import devmode
 from edb.common import taskgroup
 
+from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
 
 
@@ -1522,6 +1523,12 @@ class _EdgeDBServerData(NamedTuple):
     async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
         conn_args = self.get_connect_args(**kwargs)
         return await edgedb.async_connect(**conn_args)
+
+    async def connect_test_protocol(self, **kwargs):
+        conn_args = self.get_connect_args(**kwargs)
+        conn = await test_protocol.new_connection(**conn_args)
+        await conn.connect()
+        return conn
 
 
 class _EdgeDBServer:

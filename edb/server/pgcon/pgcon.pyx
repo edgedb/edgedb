@@ -22,6 +22,7 @@ import decimal
 import codecs
 import hashlib
 import json
+import logging
 import os.path
 import socket
 import ssl as ssl_mod
@@ -84,13 +85,14 @@ DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
 cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
-cdef object POSTGRES_SHUTDOWN_ERR_CODES = {
+cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
     '57P01': 'admin_shutdown',
     '57P02': 'crash_shutdown',
 }
 
-
 cdef bytes INIT_CON_SCRIPT = None
+
+cdef object logger = logging.getLogger('edb.server')
 
 
 def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
@@ -438,10 +440,16 @@ cdef class PGConnection:
         self.is_system_db = False
         self.close_requested = False
 
+        self.pinned_by = None
+
         self.idle = True
         self.cancel_fut = None
 
         self._is_ssl = False
+
+        # Set to the error the connection has been aborted with
+        # by the backend.
+        self.aborted_with_error = None
 
     @property
     def is_ssl(self):
@@ -1763,19 +1771,50 @@ cdef class PGConnection:
         cdef char mtype
 
         while self.buffer.take_message():
-            if not self.parse_notification():
-                mtype = self.buffer.get_message_type()
-                if mtype == b'E':  # ErrorResponse
-                    er_cls, fields = self.parse_error_message()
-                    msg = POSTGRES_SHUTDOWN_ERR_CODES.get(fields['C'])
-                    if msg:
-                        msg = fields.get('M', msg)
-                        if self.is_system_db:
-                            self.server.set_pg_unavailable_msg(msg)
-                            self.server._on_sys_pgcon_failover_signal()
-                        continue
+            if self.parse_notification():
+                continue
+
+            mtype = self.buffer.get_message_type()
+            if mtype != b'E':  # ErrorResponse
                 raise RuntimeError(
-                    f'unexpected message type {chr(mtype)!r} in IDLE state')
+                    f'unexpected message type {chr(mtype)!r} '
+                    f'in IDLE state')
+
+            # We have an error message sent to us by the backend.
+            # It is not safe to assume that the connection
+            # is alive. We assume that it's dead and should be
+            # marked as "closed".
+
+            try:
+                er_cls, fields = self.parse_error_message()
+                self.aborted_with_error = er_cls(fields=fields)
+
+                pgcode = fields['C']
+                metrics.backend_connection_aborted.inc(1.0, pgcode)
+
+                if pgcode in POSTGRES_SHUTDOWN_ERR_CODES:
+                    pgreason = POSTGRES_SHUTDOWN_ERR_CODES[pgcode]
+                    pgmsg = fields.get('M', pgreason)
+
+                    logger.debug(
+                        'backend connection aborted with a shutdown '
+                        'error code %r(%s): %s',
+                        pgcode, pgreason, pgmsg
+                    )
+
+                    if self.is_system_db:
+                        self.server.set_pg_unavailable_msg(pgmsg)
+                        self.server._on_sys_pgcon_failover_signal()
+
+                else:
+                    pgmsg = fields.get('M', '<empty message>')
+                    logger.debug(
+                        'backend connection aborted with an '
+                        'error code %r: %s',
+                        pgcode, pgmsg
+                    )
+            finally:
+                self.abort()
 
     cdef parse_notification(self):
         cdef:
@@ -2035,6 +2074,11 @@ cdef class PGConnection:
         self.connected = False
 
         self.transport = None
+
+        if self.pinned_by is not None:
+            pinned_by = self.pinned_by
+            self.pinned_by = None
+            pinned_by.on_aborted_pgcon(self)
 
         if self.is_system_db:
             self.server._on_sys_pgcon_connection_lost(exc)

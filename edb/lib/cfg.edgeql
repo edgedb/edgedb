@@ -66,6 +66,10 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         SET default := <std::duration>'10 seconds';
     };
 
+    CREATE REQUIRED PROPERTY query_execution_timeout -> std::duration {
+        CREATE ANNOTATION cfg::backend_setting := '"statement_timeout"';
+    };
+
     CREATE REQUIRED PROPERTY listen_port -> std::int16 {
         CREATE ANNOTATION cfg::system := 'true';
         SET default := 5656;
