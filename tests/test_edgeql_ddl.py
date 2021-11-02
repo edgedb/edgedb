@@ -7083,7 +7083,9 @@ type default::Foo {
                     SET volatility := 'Immutable';
                     CREATE ANNOTATION std::description :=
                         'Logical conjunction.';
-                    USING SQL EXPRESSION;
+                    USING SQL $$
+                        SELECT ("a" AND "b") OR ("a"::int & "b"::int)::bool
+                    $$;
                 };
                 ''',
                 '''

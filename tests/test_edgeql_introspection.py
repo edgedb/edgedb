@@ -59,6 +59,7 @@ class TestIntrospection(tb.QueryTestCase):
                     .name;
             """,
             [
+                {'name': 'default::BooleanTest'},
                 {'name': 'default::Comment'},
                 {'name': 'default::Dictionary'},
                 {'name': 'default::File'},
@@ -1328,6 +1329,7 @@ class TestIntrospection(tb.QueryTestCase):
                     .name;
             """,
             [
+                {'name': 'default::BooleanTest', 'count': 0},
                 {'name': 'default::Comment', 'count': 0},
                 {'name': 'default::Dictionary', 'count': 0},
                 {'name': 'default::File', 'count': 0},

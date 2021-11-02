@@ -106,6 +106,15 @@ type Issue extending Named, Owned, Text {
     property tags -> array<str>;
 }
 
+# This is used to test correct behavior of boolean operators: NOT,
+# AND, OR. It targets especially interactions of properties and {}.
+#
+# Issue can be used to test similar interaction for links.
+type BooleanTest extending Named {
+    property val -> int64;
+    multi property tags -> str;
+}
+
 type File extending Named;
 
 type URL extending Named {

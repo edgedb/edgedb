@@ -142,3 +142,29 @@ FILTER User.name = 'Yury'
 SET {
     todo := (SELECT Issue FILTER Issue.number IN {'3', '4'})
 };
+
+INSERT BooleanTest {
+    name := 'circle',
+    val := 2,
+    tags := {'red', 'black'},
+};
+
+INSERT BooleanTest {
+    name := 'triangle',
+    val := 10,
+    tags := {'red', 'green'},
+};
+
+INSERT BooleanTest {
+    name := 'square',
+    tags := {'red'},
+};
+
+INSERT BooleanTest {
+    name := 'pentagon',
+};
+
+INSERT BooleanTest {
+    name := 'hexagon',
+    val := 4,
+};
