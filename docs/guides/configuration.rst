@@ -112,15 +112,28 @@ Query Planning
 Client Connections
 ------------------
 
-:eql:synopsis:`session_idle_timeout (int32)`
-    Sets the timeout (in milliseconds) for how long client connections
-    can stay inactive before being forcefully closed by the server.
+:eql:synopsis:`session_idle_timeout (std::duration)`
+    Sets the timeout for how long client connections can stay inactive
+    before being forcefully closed by the server.
 
-    The default is ``60_000`` milliseconds (60 seconds). Setting it to
-    ``0`` disables the mechanism. Setting the timeout to less than
-    ``2_000`` milliseconds is not recommended.
+    The default is 60 seconds. Setting it to ``<duration>'0'`` disables
+    the mechanism. Setting the timeout to less than ``2`` seconds is not
+    recommended.
 
     Note that the actual time an idle connection can live can be up to
     two times longer than the specified timeout.
 
     This is a system-level config setting.
+
+:eql:synopsis:`session_idle_transaction_timeout (std::duration)`
+    Sets the timeout for how long client connections can stay inactive
+    while in a transaction.
+
+    The default is 10 seconds. Setting it to ``<duration>'0'`` disables
+    the mechanism.
+
+:eql:synopsis:`query_execution_timeout (std::duration)`
+    Sets a time limit on how long a query can be run.
+
+    Setting it to ``<duration>'0'`` disables the mechanism.
+    The timeout isn't enabled by default.
