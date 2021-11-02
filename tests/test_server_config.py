@@ -1118,7 +1118,7 @@ class TestSeparateCluster(tb.TestCase):
                         closings.append(con.aclose())
                 await asyncio.gather(*closings)
 
-    async def test_server_config_idle_connection(self):
+    async def test_server_config_idle_connection_01(self):
         async with tb.start_edgedb_server(
             allow_insecure_http_clients=True,
         ) as sd:
@@ -1153,6 +1153,25 @@ class TestSeparateCluster(tb.TestCase):
             f'{float(len(idle_cons))}\n',
             metrics
         )
+
+    async def test_server_config_idle_connection_02(self):
+        from edb import protocol
+
+        async with tb.start_edgedb_server(
+            allow_insecure_http_clients=True,
+        ) as sd:
+            conn = await sd.connect_test_protocol()
+
+            await conn.simple_query('''
+                configure system set session_idle_timeout := <duration>'10ms'
+            ''')
+
+            await asyncio.sleep(1)
+
+            await conn.recv_match(
+                protocol.ErrorResponse,
+                message='closing the connection due to idling'
+            )
 
     async def test_server_config_db_config(self):
         async with tb.start_edgedb_server(
@@ -1388,3 +1407,78 @@ class TestSeparateCluster(tb.TestCase):
                     c1, 'shared_buffers', 20002)
 
                 await c1.aclose()
+
+    async def test_server_config_idle_transaction(self):
+        from edb import protocol
+
+        async with tb.start_edgedb_server(
+            allow_insecure_http_clients=True
+        ) as sd:
+            conn = await sd.connect_test_protocol()
+
+            await conn.simple_query('''
+                configure session set
+                    session_idle_transaction_timeout :=
+                        <duration>'1 second'
+            ''')
+
+            await conn.simple_query('''
+                start transaction
+            ''')
+
+            await conn.simple_query('''
+                select sys::_sleep(4)
+            ''')
+
+            await conn.recv_match(
+                protocol.ErrorResponse,
+                message='terminating connection due to '
+                        'idle-in-transaction timeout'
+            )
+
+            with self.assertRaises(edgedb.ClientConnectionClosedError):
+                await conn.simple_query('''
+                    select 1
+                ''')
+
+            data = sd.fetch_metrics()
+
+            # Postgres: ERROR_IDLE_IN_TRANSACTION_TIMEOUT=25P03
+            self.assertIn(
+                '\nedgedb_server_backend_connections_aborted_total' +
+                '{pgcode="25P03"} 1.0\n',
+                data
+            )
+
+    async def test_server_config_query_timeout(self):
+        async with tb.start_edgedb_server(
+            allow_insecure_http_clients=True
+        ) as sd:
+            conn = await sd.connect()
+
+            await conn.execute('''
+                configure session set
+                    query_execution_timeout :=
+                        <duration>'1 second'
+            ''')
+
+            for _ in range(2):
+                with self.assertRaisesRegex(
+                        edgedb.QueryError,
+                        'canceling statement due to statement timeout'):
+                    await conn.execute('''
+                        select sys::_sleep(4)
+                    ''')
+
+                self.assertEqual(
+                    await conn.query_single('select 42'),
+                    42
+                )
+
+            await conn.aclose()
+
+            data = sd.fetch_metrics()
+            self.assertNotIn(
+                '\nedgedb_server_backend_connections_aborted_total',
+                data
+            )

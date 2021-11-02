@@ -94,8 +94,16 @@
 0x_04_05_02_09   DuplicateConstraintDefinitionError
 0x_04_05_02_0A   DuplicateCastDefinitionError
 
-0x_04_06_00_00   QueryTimeoutError
+####
 
+0x_04_06_00_00   SessionTimeoutError
+
+0x_04_06_01_00   IdleSessionTimeoutError
+
+0x_04_06_02_00   QueryTimeoutError
+
+0x_04_06_0A_00   TransactionTimeoutError
+0x_04_06_0A_01   IdleTransactionTimeoutError
 
 ####
 

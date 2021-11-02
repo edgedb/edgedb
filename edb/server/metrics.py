@@ -53,6 +53,12 @@ backend_connection_establishment_latency = registry.new_histogram(
     unit=prom.Unit.SECONDS,
 )
 
+backend_connection_aborted = registry.new_labeled_counter(
+    'backend_connections_aborted_total',
+    'Number of aborted backend connections.',
+    labels=('pgcode',)
+)
+
 backend_query_duration = registry.new_histogram(
     'backend_query_duration',
     'Time it takes to run a query on a backend connection.',

@@ -42,6 +42,9 @@ cdef class Connection:
     async def connect(self):
         await self._protocol.connect()
 
+    async def simple_query(self, query):
+        await self._protocol.simple_query(query, 0xFFFF_FFFF_FFFF_FFFF)
+
     async def sync(self):
         await self.send(messages.Sync())
         reply = await self.recv()
@@ -68,7 +71,7 @@ cdef class Connection:
         if not isinstance(message, msgcls):
             raise AssertionError(
                 f'expected for {msgcls.__name__} message, received '
-                f'{type(message).__name__}')
+                f'{type(message).__name__}: {message!r}')
         for fieldname, expected in fields.items():
             val = getattr(message, fieldname)
             if isinstance(expected, str):

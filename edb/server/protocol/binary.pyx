@@ -224,7 +224,7 @@ cdef class EdgeConnection:
 
         self._cancelled = False
         self._stop_requested = False
-        self._pgcon_released = False
+        self._pgcon_released_in_connection_lost = False
 
         self._main_task = None
         self._msg_take_waiter = None
@@ -269,12 +269,16 @@ cdef class EdgeConnection:
 
     async def get_pgcon(self) -> pgcon.PGConnection:
         cdef dbview.DatabaseConnectionView _dbview
+        if self._cancelled or self._pgcon_released_in_connection_lost:
+            raise RuntimeError(
+                'cannot acquire a pgconn; the connection is closed')
         self._get_pgcon_cc += 1
         try:
             if self._get_pgcon_cc > 1:
                 raise RuntimeError('nested get_pgcon() calls are prohibited')
             _dbview = self.get_dbview()
             if _dbview.in_tx():
+                #  In transaction. We must have a working pinned connection.
                 if not self._pinned_pgcon_in_tx or self._pinned_pgcon is None:
                     raise RuntimeError(
                         'get_pgcon(): in dbview transaction, '
@@ -282,9 +286,9 @@ cdef class EdgeConnection:
                 return self._pinned_pgcon
             if self._pinned_pgcon is not None:
                 raise RuntimeError('there is already a pinned pgcon')
-            conn = await self.server.acquire_pgcon(_dbview.dbname)
+            conn = await self.server.acquire_pgcon(self.dbname)
             self._pinned_pgcon = conn
-            self._pgcon_released = False
+            conn.pinned_by = self
             return conn
         except Exception:
             self._get_pgcon_cc -= 1
@@ -306,16 +310,30 @@ cdef class EdgeConnection:
                 # it's in a transaction. In which case we want to immediately
                 # return the connection to the pool (where it would be
                 # discarded and re-opened.)
+                conn.pinned_by = None
                 self._pinned_pgcon = None
-                if not self._pgcon_released:
-                    self.server.release_pgcon(_dbview.dbname, conn)
+                if not self._pgcon_released_in_connection_lost:
+                    self.server.release_pgcon(self.dbname, conn)
             else:
                 self._pinned_pgcon_in_tx = True
         else:
+            conn.pinned_by = None
             self._pinned_pgcon_in_tx = False
             self._pinned_pgcon = None
-            if not self._pgcon_released:
-                self.server.release_pgcon(_dbview.dbname, conn)
+            if not self._pgcon_released_in_connection_lost:
+                self.server.release_pgcon(self.dbname, conn)
+
+    def on_aborted_pgcon(self, pgcon.PGConnection conn):
+        try:
+            self._pinned_pgcon = None
+
+            if not self._pgcon_released_in_connection_lost:
+                self.server.release_pgcon(self.dbname, conn, discard=True)
+
+            if conn.aborted_with_error is not None:
+                self.write_error(conn.aborted_with_error)
+        finally:
+            self.close()  # will flush
 
     def debug_print(self, *args):
         if self._dbview is None:
@@ -357,6 +375,7 @@ cdef class EdgeConnection:
         # A connection is idle if it awaits for the next message for
         # client for too long (even if it is in an open transaction!)
         return (
+            self._con_status != EDGECON_BAD and
             self.idling and
             self.started_idling_at < expiry_time and
             not self._in_dump_restore
@@ -369,13 +388,22 @@ cdef class EdgeConnection:
             not self._cancelled
         )
 
-    cdef abort(self):
+    def abort(self):
         self.abort_pinned_pgcon()
         self.stop_connection()
 
         if self._transport is not None:
             self._transport.abort()
             self._transport = None
+
+    def close_for_idling(self):
+        try:
+            self.write_error(
+                errors.IdleSessionTimeoutError(
+                    'closing the connection due to idling')
+            )
+        finally:
+            self.close()  # will flush
 
     def close(self):
         self.abort_pinned_pgcon()
@@ -435,7 +463,7 @@ cdef class EdgeConnection:
         mtype = self.buffer.get_message_type()
         if mtype != b'V':
             raise errors.BinaryProtocolError(
-                f'unexpected initial message: {mtype}, expected "V"')
+                f'unexpected initial message: "{chr(mtype)}", expected "V"')
 
         params = await self.do_handshake()
 
@@ -2279,7 +2307,7 @@ cdef class EdgeConnection:
                     )
                     # Prevent the main task from releasing the same connection
                     # twice. This flag is for now only used in this case.
-                    self._pgcon_released = True
+                    self._pgcon_released_in_connection_lost = True
 
                 # In all other cases, we can just wait until the `main()`
                 # coroutine notices that `self._cancelled` was set.

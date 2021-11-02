@@ -416,16 +416,21 @@ class Server(ha_base.ClusterProtocol):
             now = time.monotonic()
             expiry_time = now - idle_timeout
             for conn in self._binary_conns:
-                if conn.is_idle(expiry_time):
-                    conn.close()
-                    metrics.idle_client_connections.inc()
-                elif conn.is_alive():
-                    # We are sorting connections in
-                    # 'on_binary_client_after_idling' to specifically enable
-                    # this optimization. As soon as we find first non-idle
-                    # active connection we're guaranteed to have traversed
-                    # all of the potentially idling connections.
-                    break
+                try:
+                    if conn.is_idle(expiry_time):
+                        metrics.idle_client_connections.inc()
+                        conn.close_for_idling()
+                    elif conn.is_alive():
+                        # We are sorting connections in
+                        # 'on_binary_client_after_idling' to specifically
+                        # enable this optimization. As soon as we find first
+                        # non-idle active connection we're guaranteed
+                        # to have traversed all of the potentially idling
+                        # connections.
+                        break
+                except Exception:
+                    metrics.background_errors.inc(1.0, 'close_for_idling')
+                    conn.abort()
         except Exception:
             metrics.background_errors.inc(1.0, 'idle_clients_collector')
             raise
