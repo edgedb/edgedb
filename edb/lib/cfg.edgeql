@@ -21,6 +21,7 @@ CREATE MODULE cfg;
 
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting_unit;
+CREATE ABSTRACT INHERITABLE ANNOTATION cfg::report;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::internal;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::system;
@@ -57,6 +58,7 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
 CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     CREATE REQUIRED PROPERTY session_idle_timeout -> std::duration {
         CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION cfg::report := 'true';
         SET default := <std::duration>'60 seconds';
     };
 

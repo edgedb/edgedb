@@ -255,6 +255,7 @@ def spec_to_json(spec: spec.Spec):
             'typemod': str(typemod),
             'backend_setting': setting.backend_setting,
             'backend_setting_unit': setting.backend_setting_unit,
+            'report': setting.report,
         }
 
     return json.dumps(dct)

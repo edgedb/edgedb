@@ -44,6 +44,7 @@ class Setting:
     requires_restart: bool = False
     backend_setting: Optional[str] = None
     backend_setting_unit: Optional[str] = None
+    report: bool = False
     affects_compilation: bool = False
 
     def __post_init__(self):
@@ -85,6 +86,9 @@ class Setting:
             raise ValueError(
                 'backend_setting_unit can only be specified along with '
                 'backend_setting')
+
+        if self.report and not self.system:
+            raise ValueError('only system settings can be reported')
 
 
 class Spec(collections.abc.Mapping):
@@ -175,6 +179,8 @@ def load_spec_from_schema(schema):
             backend_setting=backend_setting,
             backend_setting_unit=attributes.get(
                 sn.QualName('cfg', 'backend_setting_unit'), None),
+            report=attributes.get(
+                sn.QualName('cfg', 'report'), None),
             affects_compilation=attributes.get(
                 sn.QualName('cfg', 'affects_compilation'), False),
             default=deflt,
