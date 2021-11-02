@@ -20,7 +20,6 @@
 CREATE MODULE cfg;
 
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting;
-CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting_unit;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::report;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::internal;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
@@ -96,23 +95,20 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
     # from pg_settings in the config_backend CTE.
-    CREATE PROPERTY shared_buffers -> std::int64 {
+    CREATE PROPERTY shared_buffers -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"shared_buffers"';
-        CREATE ANNOTATION cfg::backend_setting_unit := '"kB"';
         CREATE ANNOTATION cfg::requires_restart := 'true';
     };
 
-    CREATE PROPERTY query_work_mem -> std::int64 {
+    CREATE PROPERTY query_work_mem -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"work_mem"';
-        CREATE ANNOTATION cfg::backend_setting_unit := '"kB"';
     };
 
-    CREATE PROPERTY effective_cache_size -> std::int64 {
+    CREATE PROPERTY effective_cache_size -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
-        CREATE ANNOTATION cfg::backend_setting_unit := '"kB"';
     };
 
     CREATE PROPERTY effective_io_concurrency -> std::int64 {
@@ -188,4 +184,22 @@ CREATE CAST FROM std::str TO cfg::memory {
 CREATE CAST FROM cfg::memory TO std::str {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.cfg_memory_to_str';
+};
+
+
+CREATE CAST FROM std::json TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT edgedb.str_to_cfg_memory(
+            edgedb.jsonb_extract_scalar(val, 'string')
+        )
+    $$;
+};
+
+
+CREATE CAST FROM cfg::memory TO std::json {
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT to_jsonb(edgedb.cfg_memory_to_str(val))
+    $$;
 };

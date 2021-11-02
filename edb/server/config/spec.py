@@ -32,6 +32,9 @@ from edb.schema import name as sn
 from . import types
 
 
+SETTING_TYPES = {str, int, bool, statypes.Duration, statypes.ConfigMemory}
+
+
 @dataclasses.dataclass(frozen=True, eq=True)
 class Setting:
 
@@ -43,12 +46,11 @@ class Setting:
     internal: bool = False
     requires_restart: bool = False
     backend_setting: Optional[str] = None
-    backend_setting_unit: Optional[str] = None
     report: bool = False
     affects_compilation: bool = False
 
     def __post_init__(self):
-        if (self.type not in {str, int, bool, statypes.Duration} and
+        if (self.type not in SETTING_TYPES and
                 not issubclass(self.type, types.ConfigType)):
             raise ValueError(
                 f'invalid config setting {self.name!r}: '
@@ -82,13 +84,8 @@ class Setting:
                     f'the default {self.default!r} '
                     f'is not instance of {self.type}')
 
-        if self.backend_setting_unit and not self.backend_setting:
-            raise ValueError(
-                'backend_setting_unit can only be specified along with '
-                'backend_setting')
-
         if self.report and not self.system:
-            raise ValueError('only system settings can be reported')
+            raise ValueError('only instance settings can be reported')
 
 
 class Spec(collections.abc.Mapping):
@@ -177,8 +174,6 @@ def load_spec_from_schema(schema):
             requires_restart=attributes.get(
                 sn.QualName('cfg', 'requires_restart'), False),
             backend_setting=backend_setting,
-            backend_setting_unit=attributes.get(
-                sn.QualName('cfg', 'backend_setting_unit'), None),
             report=attributes.get(
                 sn.QualName('cfg', 'report'), None),
             affects_compilation=attributes.get(

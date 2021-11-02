@@ -107,10 +107,16 @@ def evaluate_TypeCast(
 
     str_t = cast(s_scalars.ScalarType, schema.get('std::str'))
     dur_t = cast(s_scalars.ScalarType, schema.get('std::duration'))
+    mem_t = cast(s_scalars.ScalarType, schema.get('cfg::memory'))
 
     if (from_type.issubclass(schema, str_t) and
             to_type.issubclass(schema, dur_t)):
         return ir_cast
+
+    if (from_type.issubclass(schema, str_t) and
+            to_type.issubclass(schema, mem_t)):
+        return ir_cast
+
     raise UnsupportedExpressionError(
         f'no static IR evaluation handler for {ir_cast.__class__}')
 
@@ -327,6 +333,7 @@ def scalar_type_to_python_type(
         'std::json': str,
         'std::uuid': uuidgen.UUID,
         'std::duration': statypes.Duration,
+        'cfg::memory': statypes.ConfigMemory,
     }
 
     for basetype_name, python_type in typemap.items():

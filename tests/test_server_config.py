@@ -357,7 +357,6 @@ class TestServerConfigUtils(unittest.TestCase):
             json.loads(j)['bool'],
             {
                 'backend_setting': None,
-                'backend_setting_unit': None,
                 'default': True,
                 'internal': False,
                 'system': False,
@@ -1390,22 +1389,26 @@ class TestSeparateCluster(tb.TestCase):
                 ####
 
                 cur_shared = await c1.query('''
-                    select cfg::Config.shared_buffers
+                    select <str>cfg::Config.shared_buffers
                 ''')
 
                 # not a test, just need to make sure our random value
                 # does not happen to be the Postgres' default.
-                assert cur_shared != [20002]
+                assert cur_shared != ['20002KiB']
 
                 await c1.query('''
                     configure instance set
-                        shared_buffers := 20002
+                        shared_buffers := <cfg::memory>'20002KiB'
                 ''')
 
                 # shared_buffers requires a restart, so the value shouldn't
                 # change just yet
-                await assert_conf(
-                    c1, 'shared_buffers', cur_shared[0])
+                self.assertEqual(
+                    await c1.query_single(f'''
+                        select assert_single(<str>cfg::Config.shared_buffers)
+                    '''),
+                    cur_shared[0]
+                )
 
                 await c1.aclose()
                 await c2.aclose()
@@ -1423,8 +1426,12 @@ class TestSeparateCluster(tb.TestCase):
                 await assert_conf(
                     c1, 'session_idle_transaction_timeout', 15000)
 
-                await assert_conf(
-                    c1, 'shared_buffers', 20002)
+                self.assertEqual(
+                    await c1.query_single(f'''
+                        select assert_single(<str>cfg::Config.shared_buffers)
+                    '''),
+                    '20002KiB'
+                )
 
                 await c1.aclose()
 
