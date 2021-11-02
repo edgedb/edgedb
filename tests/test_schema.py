@@ -5438,22 +5438,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Bar extending Foo;
         """])
 
-    @test.xfail('''
-        AssertionError: unexpected difference in schema produced by
-        incremental migration on step 2:
-
-        <DeltaRoot canonical=True at 0x7fd924ff24f0> (
-            <AlterObjectType classname=default::Cell....> (
-                <AlterLink canonical=True,
-                           classname=default::__|left@default|Cell ...> (
-                    <AlterLinkUpperCardinality ...> (
-                        cardinality = <SchemaCardinality.Many: 'Many'> |
-                                      <SchemaCardinality.One: 'One'> # computed
-                    )
-                )
-            )
-        )
-    ''')
     def test_schema_migrations_equivalence_constraint_06(self):
         self._assert_migration_equivalence([r"""
             type Cell {
@@ -5472,11 +5456,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        SchemaDefinitionError: possibly more than one element returned
-        by an expression for the computed link 'left' of object type
-        'default::Cell' explicitly declared as 'single'
-    ''')
     def test_schema_migrations_equivalence_constraint_07(self):
         self._assert_migration_equivalence([r"""
             type Cell {
@@ -5495,10 +5474,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        SchemaError: cannot automatically convert link 'left' of
-        object type 'default::Cell' to 'single' cardinality
-    ''')
     def test_schema_migrations_equivalence_constraint_08(self):
         self._assert_migration_equivalence([r"""
             type Cell {
@@ -5520,6 +5495,40 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 }
                 # Now switch to a single link
                 single link left := .<right[IS Cell];
+            }
+        """])
+
+    def test_schema_migrations_equivalence_constraint_09(self):
+        self._assert_migration_equivalence([r"""
+            type Cell {
+                link right -> Cell {
+                    # Add the constraint to make it 1-1
+                    constraint exclusive;
+                }
+                # Explicitly single link
+                single link left := .<right[IS Cell];
+            }
+        """, r"""
+            type Cell {
+                link right -> Cell;
+                # Explicitly multi link
+                multi link left := .<right[IS Cell];
+            }
+        """])
+
+    def test_schema_migrations_equivalence_constraint_10(self):
+        self._assert_migration_equivalence([r"""
+            type Cell {
+                link right -> Cell {
+                    # Add the constraint to make it 1-1
+                    constraint exclusive;
+                }
+                link left := .<right[IS Cell];
+            }
+        """, r"""
+            type Cell {
+                link right -> Cell;
+                link left := .<right[IS Cell];
             }
         """])
 
@@ -7984,8 +7993,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             CREATE ABSTRACT LINK test::f {
                 CREATE PROPERTY p -> test::int_t {
-                    CREATE ANNOTATION test::anno := 'annotated link property';
                     CREATE CONSTRAINT std::max_value(10);
+                    CREATE ANNOTATION test::anno := 'annotated link property';
                 };
             };
             CREATE TYPE test::Foo;
