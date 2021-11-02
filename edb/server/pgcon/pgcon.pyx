@@ -785,7 +785,7 @@ cdef class PGConnection:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
-    async def parse_execute_binary(
+    async def _parse_execute_extract_single_data_frame(
         self,
         sql,
         sql_hash,
@@ -795,14 +795,56 @@ cdef class PGConnection:
     ):
         cdef:
             WriteBuffer out
+            Py_buffer pybuf
 
+        out = WriteBuffer.new()
+        await self._parse_execute_to_buf(
+            sql, sql_hash, dbver, use_prep_stmt, args, out)
+
+        cpython.PyObject_GetBuffer(out, &pybuf, cpython.PyBUF_SIMPLE)
+        try:
+            if pybuf.len == 0:
+                return None
+
+            if pybuf.len < 11 or (<char*>pybuf.buf)[0] != b'D':
+                data = cpython.PyBytes_FromStringAndSize(
+                    <char*>pybuf.buf, pybuf.len)
+                raise RuntimeError(
+                    f'invalid protocol-level result of a query '
+                    f'sql:{sql} buf-len:{pybuf.len} buf:{data}')
+
+            mlen = hton.unpack_int32(<char*>pybuf.buf + 1)
+
+            if pybuf.len > mlen + 1:
+                raise RuntimeError(
+                    f'received more than one DataRow '
+                    f'for a singleton-returning query {sql!r}')
+
+            ncol = hton.unpack_int16(<char*>pybuf.buf + 5)
+            if ncol != 1:
+                raise RuntimeError(
+                    f'received more than column in DataRow '
+                    f'for a singleton-returning query {sql!r}')
+
+            return cpython.PyBytes_FromStringAndSize(
+                <char*>pybuf.buf + 7, mlen - 2 - 4)
+
+        finally:
+            cpython.PyBuffer_Release(&pybuf)
+
+    async def parse_execute_extract_single_data_frame(
+        self,
+        sql,
+        sql_hash,
+        dbver,
+        use_prep_stmt,
+        args,
+    ):
         self.before_command()
         started_at = time.monotonic()
         try:
-            out = WriteBuffer.new()
-            await self._parse_execute_to_buf(
-                sql, sql_hash, dbver, use_prep_stmt, args, out)
-            return bytes(out)
+            return await self._parse_execute_extract_single_data_frame(
+                sql, sql_hash, dbver, use_prep_stmt, args)
         finally:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
