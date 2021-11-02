@@ -30,6 +30,7 @@ import pickle
 import socket
 import ssl
 import stat
+import struct
 import sys
 import time
 import uuid
@@ -87,6 +88,8 @@ class Server(ha_base.ClusterProtocol):
     _sys_queries: Mapping[str, str]
     _local_intro_query: bytes
     _global_intro_query: bytes
+    _report_config_typedesc: bytes
+    _report_config_data: bytes
 
     _std_schema: s_schema.Schema
     _refl_schema: s_schema.Schema
@@ -132,8 +135,8 @@ class Server(ha_base.ClusterProtocol):
         backend_adaptive_ha: bool = False,
         default_auth_method: str,
     ):
-
         self.__loop = asyncio.get_running_loop()
+        self._config_settings = config.get_settings()
 
         # Used to tag PG notifications to later disambiguate them.
         self._server_id = str(uuid.uuid4())
@@ -348,6 +351,7 @@ class Server(ha_base.ClusterProtocol):
 
             global_schema = await self.introspect_global_schema()
             sys_config = await self.load_sys_config()
+            await self.load_reported_config()
 
             self._dbindex = dbview.DatabaseIndex(
                 self,
@@ -534,6 +538,34 @@ class Server(ha_base.ClusterProtocol):
         cfg = await self.load_sys_config()
         self._dbindex.update_sys_config(cfg)
         self._reinit_idle_gc_collector()
+
+    def schedule_reported_config_if_needed(self, setting_name):
+        setting = self._config_settings[setting_name]
+        if setting.report:
+            self.create_task(
+                self.load_reported_config(), interruptable=True)
+
+    def get_report_config_data(self) -> bytes:
+        return self._report_config_data
+
+    async def load_reported_config(self):
+        syscon = await self._acquire_sys_pgcon()
+        try:
+            data = await syscon.parse_execute_binary(
+                self.get_sys_query('report_configs'),
+                b'__report_configs',
+                dbver=0, use_prep_stmt=True, args=(),
+            )
+            self._report_config_data = (
+                struct.pack('!L', len(self._report_config_typedesc)) +
+                self._report_config_typedesc +
+                data
+            )
+        except Exception:
+            metrics.background_errors.inc(1.0, 'load_reported_config')
+            raise
+        finally:
+            self._release_sys_pgcon()
 
     async def introspect_global_schema(self, conn=None):
         if conn is not None:
@@ -784,6 +816,18 @@ class Server(ha_base.ClusterProtocol):
             except Exception as e:
                 raise RuntimeError(
                     'could not load schema class layout pickle') from e
+
+            result = await syscon.simple_query(b'''\
+                SELECT bin FROM edgedbinstdata.instdata
+                WHERE key = 'report_configs_typedesc';
+            ''', ignore_data=False)
+            try:
+                data = binascii.a2b_hex(result[0][0][2:])
+                self._report_config_typedesc = data
+            except Exception as e:
+                raise RuntimeError(
+                    'could not load report config typedesc') from e
+
         finally:
             self._release_sys_pgcon()
 
@@ -912,6 +956,8 @@ class Server(ha_base.ClusterProtocol):
 
             elif setting_name == 'session_idle_timeout':
                 self._reinit_idle_gc_collector()
+
+            self.schedule_reported_config_if_needed(setting_name)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_set')
             raise
@@ -929,6 +975,8 @@ class Server(ha_base.ClusterProtocol):
 
             elif setting_name == 'session_idle_timeout':
                 self._reinit_idle_gc_collector()
+
+            self.schedule_reported_config_if_needed(setting_name)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_system_config_reset')
             raise

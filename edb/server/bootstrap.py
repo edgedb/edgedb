@@ -980,6 +980,7 @@ async def _compile_sys_queries(
     ctx: BootstrapContext,
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
+    config_spec: config.Spec,
 ) -> None:
     queries = {}
 
@@ -1055,10 +1056,43 @@ async def _compile_sys_queries(
 
     queries['backend_tids'] = sql
 
+    report_settings: list[str] = []
+    for setname in config_spec:
+        setting = config_spec[setname]
+        if setting.report:
+            report_settings.append(setname)
+
+    report_configs_query = f'''
+        SELECT assert_single(cfg::Config {{
+            {', '.join(report_settings)}
+        }});
+    '''
+
+    units = compiler._compile(
+        ctx=edbcompiler.new_compiler_context(
+            user_schema=schema,
+            single_statement=True,
+            expected_cardinality_one=True,
+            json_parameters=False,
+            output_format=edbcompiler.IoFormat.BINARY,
+            bootstrap_mode=True,
+        ),
+        source=edgeql.Source.from_string(report_configs_query))
+    assert len(units) == 1 and len(units[0].sql) == 1
+
+    report_configs_typedesc = units[0].out_type_id + units[0].out_type_data
+    queries['report_configs'] = units[0].sql[0].decode()
+
     await _store_static_json_cache(
         ctx,
         'sysqueries',
         json.dumps(queries),
+    )
+
+    await _store_static_bin_cache(
+        ctx,
+        'report_configs_typedesc',
+        report_configs_typedesc,
     )
 
 
@@ -1326,7 +1360,12 @@ async def _bootstrap(
                 edbdef.EDGEDB_TEMPLATE_DB: new_template_db_id,
             }
         )
-        await _compile_sys_queries(tpl_ctx, stdlib.reflschema, compiler)
+        await _compile_sys_queries(
+            tpl_ctx,
+            stdlib.reflschema,
+            compiler,
+            config_spec,
+        )
 
         schema = s_schema.FlatSchema()
         schema = await _init_defaults(schema, compiler, conn)

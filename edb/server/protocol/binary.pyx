@@ -94,7 +94,7 @@ cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (0, 12)
+cdef tuple DUMP_VER_MAX = (0, 13)
 
 cdef tuple MIN_PROTOCOL = edbdef.MIN_PROTOCOL
 cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
@@ -545,6 +545,14 @@ cdef class EdgeConnection:
             b'suggested_pool_concurrency',
             str(self.server.get_suggested_client_pool_size()).encode()
         )
+
+        if self.protocol_version >= (0, 13):
+            # Protocol 0.12 and earlier assumes that Setting messages
+            # store UTF-8 data.
+            self.write_status(
+                b'system_config',
+                self.server.get_report_config_data()
+            )
 
         self.write(self.sync_status())
 

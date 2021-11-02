@@ -785,6 +785,28 @@ cdef class PGConnection:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
+    async def parse_execute_binary(
+        self,
+        sql,
+        sql_hash,
+        dbver,
+        use_prep_stmt,
+        args,
+    ):
+        cdef:
+            WriteBuffer out
+
+        self.before_command()
+        started_at = time.monotonic()
+        try:
+            out = WriteBuffer.new()
+            await self._parse_execute_to_buf(
+                sql, sql_hash, dbver, use_prep_stmt, args, out)
+            return bytes(out)
+        finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            await self.after_command()
+
     async def parse_execute_notebook(
         self,
         sql,

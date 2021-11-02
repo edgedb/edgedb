@@ -361,6 +361,7 @@ class TestServerConfigUtils(unittest.TestCase):
                 'default': True,
                 'internal': False,
                 'system': False,
+                'report': False,
                 'typemod': 'SingletonType',
                 'typeid': str(s_obj.get_known_type_id('std::bool')),
             }
