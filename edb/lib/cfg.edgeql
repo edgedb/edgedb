@@ -33,6 +33,7 @@ CREATE ABSTRACT TYPE cfg::AuthMethod EXTENDING cfg::ConfigObject;
 CREATE TYPE cfg::Trust EXTENDING cfg::AuthMethod;
 CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod;
 
+CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 
 CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY priority -> std::int64 {
@@ -175,4 +176,16 @@ cfg::_describe_database_config_as_ddl() -> str
     SET volatility := 'Stable';
     SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_database_config_as_ddl';
+};
+
+
+CREATE CAST FROM std::str TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'edgedb.str_to_cfg_memory';
+};
+
+
+CREATE CAST FROM cfg::memory TO std::str {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'edgedb.cfg_memory_to_str';
 };

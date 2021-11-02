@@ -60,4 +60,6 @@ TYPE_IDS = {
         UUID('00000000-0000-0000-0000-00000000010d'),
     sn.name_from_string('cal::relative_duration'):
         UUID('00000000-0000-0000-0000-000000000111'),
+    sn.name_from_string('cfg::memory'):
+        UUID('00000000-0000-0000-0000-000000000130'),
 }
