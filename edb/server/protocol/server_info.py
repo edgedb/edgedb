@@ -42,6 +42,8 @@ class ImmutableEncoder(json.JSONEncoder):
             return dataclasses.asdict(obj)
         if isinstance(obj, statypes.Duration):
             return obj.to_iso8601()
+        if isinstance(obj, statypes.ConfigMemory):
+            return obj.to_str()
         return super().default(obj)
 
 

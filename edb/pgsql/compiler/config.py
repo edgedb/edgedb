@@ -438,12 +438,19 @@ def _compile_config_value(
     if (op.backend_setting and
             isinstance(op_expr, irast.TypeCast) and
             isinstance(op_expr.expr.expr, irast.StringConstant) and
-            op_expr.from_type.id == s_obj.get_known_type_id('std::str') and
-            op_expr.to_type.id == s_obj.get_known_type_id('std::duration')):
-        value = statypes.Duration(op_expr.expr.expr.value)
-        return pgast.StringConstant(
-            val=f'{value.to_microseconds()}us'
-        )
+            op_expr.from_type.id == s_obj.get_known_type_id('std::str')):
+
+        if op_expr.to_type.id == s_obj.get_known_type_id('std::duration'):
+            dur_value = statypes.Duration(op_expr.expr.expr.value)
+            return pgast.StringConstant(
+                val=f'{dur_value.to_microseconds()}us'
+            )
+
+        if op_expr.to_type.id == s_obj.get_known_type_id('cfg::memory'):
+            mem_value = statypes.ConfigMemory(op_expr.expr.expr.value)
+            return pgast.StringConstant(
+                val=mem_value.to_pg_memory()
+            )
 
     val: pgast.BaseExpr
 
@@ -492,14 +499,6 @@ def _compile_config_value(
             val = val.arg
         if not isinstance(val, pgast.BaseConstant):
             raise AssertionError('value is not a constant in ConfigSet')
-
-        if op.backend_setting_unit:
-            if not isinstance(val, pgast.NumericConstant):
-                raise AssertionError(
-                    'value is not a numeric and is incompatible with units')
-            val = pgast.StringConstant(
-                val=f'{val.val}{op.backend_setting_unit}'
-            )
 
     return val
 

@@ -299,6 +299,7 @@ class StrToConfigMemoryFunction(dbops.Function):
                 ELSE
                     edgedb.raise(
                         NULL::edgedb.memory_t,
+                        'invalid_parameter_value',
                         msg => (
                             'unable to parse memory size "' || "val" || '"'
                         )
@@ -2792,21 +2793,29 @@ class ConvertPostgresConfigUnitsFunction(dbops.Function):
             )
 
             WHEN "unit" = 'B'
-            THEN trunc(("value" * "multiplier") / 1024)::text::jsonb
+            THEN to_jsonb(
+                ("value" * "multiplier")::text || 'B'
+            )
 
             WHEN "unit" = 'kB'
-            THEN trunc("value" * "multiplier")::text::jsonb
+            THEN to_jsonb(
+                ("value" * "multiplier")::text || 'KiB'
+            )
 
             WHEN "unit" = 'MB'
-            THEN trunc("value" * "multiplier" * 1024)::text::jsonb
+            THEN to_jsonb(
+                ("value" * "multiplier")::text || 'MiB'
+            )
 
             WHEN "unit" = 'GB'
-            THEN trunc("value" * "multiplier" * 1024 * 1024)::text::jsonb
+            THEN to_jsonb(
+                ("value" * "multiplier")::text || 'GiB'
+            )
 
             WHEN "unit" = 'TB'
-            THEN trunc(
-                "value" * "multiplier" * 1024 * 1024 * 1024
-            )::text::jsonb
+            THEN to_jsonb(
+                ("value" * "multiplier")::text || 'TiB'
+            )
 
             WHEN "unit" = ''
             THEN trunc("value" * "multiplier")::text::jsonb
@@ -4657,6 +4666,11 @@ def _render_config_value(
     elif valtype.issubclass(
         schema,
         schema.get('std::duration', type=s_scalars.ScalarType),
+    ):
+        val = f'cfg::_quote(<str>{value_expr})'
+    elif valtype.issubclass(
+        schema,
+        schema.get('cfg::memory', type=s_scalars.ScalarType),
     ):
         val = f'cfg::_quote(<str>{value_expr})'
     elif valtype.issubclass(

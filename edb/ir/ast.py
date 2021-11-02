@@ -910,7 +910,6 @@ class ConfigCommand(Command, Expr):
 class ConfigSet(ConfigCommand):
 
     expr: Set
-    backend_setting_unit: typing.Optional[str] = None
 
 
 class ConfigReset(ConfigCommand):

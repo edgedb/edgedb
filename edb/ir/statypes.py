@@ -283,3 +283,85 @@ class Duration:
 
     def __repr__(self) -> str:
         return f'<statypes.Duration {self.to_iso8601()!r}>'
+
+
+class ConfigMemory:
+
+    PiB = 1024 * 1024 * 1024 * 1024 * 1024
+    TiB = 1024 * 1024 * 1024 * 1024
+    GiB = 1024 * 1024 * 1024
+    MiB = 1024 * 1024
+    KiB = 1024
+
+    _parser = re.compile(r'''
+        ^
+        (?P<num>\d+)
+        (?P<unit>B|KiB|MiB|GiB|TiB|PiB)
+        $
+    ''', re.X)
+
+    _value: int
+
+    def __init__(
+        self,
+        text: str,
+        /,
+    ) -> None:
+        m = self._parser.match(text)
+        if m is None:
+            raise errors.InvalidValueError(
+                f'unable to parse memory size: {text!r}')
+
+        num = int(m.group('num'))
+        unit = m.group('unit')
+
+        if unit == 'B':
+            self._value = num
+        elif unit == 'KiB':
+            self._value = num * self.KiB
+        elif unit == 'MiB':
+            self._value = num * self.MiB
+        elif unit == 'GiB':
+            self._value = num * self.GiB
+        elif unit == 'TiB':
+            self._value = num * self.TiB
+        elif unit == 'PiB':
+            self._value = num * self.PiB
+        else:
+            raise AssertionError('unexpected unit')
+
+    def to_str(self) -> str:
+        if self._value >= self.PiB and self._value % self.PiB == 0:
+            return f'{self._value // self.PiB}PiB'
+
+        if self._value >= self.TiB and self._value % self.TiB == 0:
+            return f'{self._value // self.TiB}TiB'
+
+        if self._value >= self.GiB and self._value % self.GiB == 0:
+            return f'{self._value // self.GiB}GiB'
+
+        if self._value >= self.MiB and self._value % self.MiB == 0:
+            return f'{self._value // self.MiB}MiB'
+
+        if self._value >= self.KiB and self._value % self.KiB == 0:
+            return f'{self._value // self.KiB}KiB'
+
+        return f'{self._value}B'
+
+    def to_pg_memory(self) -> str:
+        if self._value >= self.TiB and self._value % self.TiB == 0:
+            return f'{self._value // self.TiB}TB'
+
+        if self._value >= self.GiB and self._value % self.GiB == 0:
+            return f'{self._value // self.GiB}GB'
+
+        if self._value >= self.MiB and self._value % self.MiB == 0:
+            return f'{self._value // self.MiB}MB'
+
+        if self._value >= self.KiB and self._value % self.KiB == 0:
+            return f'{self._value // self.KiB}kB'
+
+        return f'{self._value}B'
+
+    def __repr__(self) -> str:
+        return f'<statypes.ConfigMemory {self.to_str()!r}>'
