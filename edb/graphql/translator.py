@@ -1344,20 +1344,20 @@ class GraphQLTranslator:
         return qlast.Array(elements=self.visit(node.values))
 
     def visit_ObjectValueNode(self, node):
-        # this represents some expression to be used in filter
-        result = []
-        for field in node.fields:
-            result.append(self.visit(field))
-
-        return self._join_expressions(result)
+        # This represents some expression to be used in filter. In
+        # case of multiple expressions they are implicitly combined
+        # using AND.
+        return self._visit_list_generalized_bool_op(node.fields, 'AND')
 
     def visit_ObjectFieldNode(self, node):
         fname = node.name.value
 
         # handle boolean ops
         if fname == 'and':
+            # Conform to Postgres AND, which treats False AND NULL = False.
             return self._visit_list_of_inputs(node.value, 'AND')
         elif fname == 'or':
+            # Conform to Postgres OR, which treats True OR NULL = True
             return self._visit_list_of_inputs(node.value, 'OR')
         elif fname == 'not':
             return qlast.UnaryOp(op='NOT', operand=self.visit(node.value))
@@ -1612,25 +1612,38 @@ class GraphQLTranslator:
             raise g_errors.GraphQLTranslationError(
                 f'a list was expected')
 
-        result = [self.visit(node) for node in inputlist.values]
-        return self._join_expressions(result, op)
+        return self._visit_list_generalized_bool_op(
+            [node for node in inputlist.values], op)
 
-    def _join_expressions(self, exprs, op='AND'):
-        if not exprs:
+    def _visit_list_generalized_bool_op(self, nodes, op):
+        # Generalization of a boolean operation AND or OR as it is
+        # applied to a list of expressions. This comes up in filters
+        # either explicitly by using 'and' or 'or' or by supplying a
+        # list of expressions where 'and' is implied.
+        #
+        # In this limited context it is appropriate to use Postres'
+        # truth table for AND and OR, short-circuiting "False AND
+        # anything" or "True OR anything" respectively to "False" and
+        # "True" instead of the stricter EdgeQL rules that would
+        # produce empty sets if any of the inputs are empty.
+
+        if not nodes:
             return None
-        elif len(exprs) == 1:
-            return exprs[0]
+        elif len(nodes) == 1:
+            return self.visit(nodes[0])
 
-        result = qlast.BinOp(
-            left=exprs[0],
-            op=op,
-            right=exprs[1]
+        # The short-circuiting value is True for OR and False for AND.
+        opname = ('sys', f'__pg_{op.lower()}')
+        exprs = [self.visit(node) for node in nodes]
+
+        result = qlast.FunctionCall(
+            func=opname,
+            args=exprs[0:2],
         )
         for expr in exprs[2:]:
-            result = qlast.BinOp(
-                left=result,
-                op=op,
-                right=expr
+            result = qlast.FunctionCall(
+                func=opname,
+                args=[result, expr],
             )
 
         return result
