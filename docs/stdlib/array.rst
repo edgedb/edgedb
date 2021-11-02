@@ -111,7 +111,7 @@ Reference
         {[1, 2]}
 
     The syntax of an array type declaration can be found in :ref:`this
-    section <ref_eql_types_array>`.
+    section <ref_datamodel_arrays>`.
 
     See also the list of standard
     :ref:`array functions <ref_std_array>` and

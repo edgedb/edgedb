@@ -10,13 +10,26 @@ There are different ways that casts appear in EdgeQL.
 Explicit Casts
 --------------
 
-An *explicit cast* is just using the angle brackets :eql:op:`<type>
-<CAST>`:
+A type cast expression converts the specified value to another value of
+the specified type:
 
-.. code-block:: edgeql
+.. eql:synopsis::
 
-    # Cast a string literal into an integer.
-    SELECT <int64>"42";
+    "<" <type> ">" <expression>
+
+The :eql:synopsis:`<type>` must be a valid :ref:`type expression
+<ref_eql_types>` denoting a non-abstract scalar or a container type.
+
+For example, the following expression casts an integer value into a string:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT <str>10;
+    {"10"}
+
+See the :eql:op:`type cast operator <CAST>` section for more
+information on type casting rules.
+
 
 
 Assignment Casts

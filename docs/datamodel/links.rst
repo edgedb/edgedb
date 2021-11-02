@@ -110,6 +110,8 @@ expression, which will be executed upon insertion.
     }
   }
 
+.. _ref_datamodel_link_properties:
+
 Link properties
 ---------------
 

@@ -5,53 +5,7 @@ Functions
 =========
 
 
-Functions are ways to transform one set of data into another.  They
-are defined in :ref:`modules <ref_datamodel_modules>` and are part of
-the database schema.
-
-For example, consider the :ref:`function <ref_std>`
-:eql:func:`len` used to transform a set of :eql:type:`str` into a set
-of :eql:type:`int64`:
-
-.. code-block:: edgeql-repl
-
-    db> SELECT len({'hello', 'world'});
-    {5, 5}
-
-This behavior is known as an *element-wise* operation. Many built-in
-and user-defined functions operate on elements. In case of multiple
-arguments, a cross-product of all the input sets is computed to
-determine all the input combinations that the function needs to be
-applied to. After that, the function is applied to each element of the
-cross-product. The results of this function application form the
-output set. This implies that if any of the input sets are empty, the
-result of applying an element-wise function is also empty.
-
-Compare that with the :ref:`aggregate <ref_eql_fundamentals_aggregates>`
-function :eql:func:`count` that transforms a set of :eql:type:`str`
-into a single :eql:type:`int64` value, representing the set
-cardinality.
-
-For example, :eql:func:`count` maps a set to an integer, specifically
-it returns the number of elements in a set:
-
-.. code-block:: edgeql-repl
-
-    db> SELECT count({'hello', 'world'});
-    {2}
-
-
-Here's an example of :eql:func:`array_agg` mapping a set to an array and
-ordering it in the process:
-
-.. code-block:: edgeql-repl
-
-    db> WITH names := {'Alice', 'Dana', 'Billie', 'Cameron'}
-    ... SELECT array_agg(names ORDER BY names);
-    {['Alice', 'Billie', 'Cameron', 'Dana']}
-
-
-
+Functions are ways to transform one set of data into another.
 
 User-defined Functions
 ----------------------
@@ -70,13 +24,61 @@ This function accepts a :eql:type:`str` as an argument and produces a
 
 .. code-block:: edgeql-repl
 
-    test> SELECT exclamation({'Hello', 'World'});
+    test> select exclamation({'Hello', 'World'});
     {'Hello!', 'World!'}
 
-In order to make sure that the function is called when the argument is
-an empty set ``{}`` we make the argument :ref:`optional
-<ref_eql_fundamentals_optional>`. We also provide a default value of
-``{}`` if the argument is omitted entirely. Here are some results this
+
+
+.. _ref_eql_fundamentals_aggregates:
+
+Aggregate vs element-wise operations
+------------------------------------
+
+Consider the :ref:`function <ref_std>`
+:eql:func:`len` used to transform a set of :eql:type:`str` into a set
+of :eql:type:`int64`:
+
+.. code-block:: edgeql-repl
+
+  db> select len({'hello', 'world'});
+  {5, 5}
+
+
+This behavior is known as an *element-wise* operation: the ``len`` function is applied to each element of the input set.
+
+In case of operations that accept multiple arguments, the operation is applied to a cartesian product cross-product of all the input sets.
+
+.. code-block:: edgeql-repl
+
+  db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'};
+  {'aaaccc', 'aaaddd', 'bbbccc', 'bbbddd'}
+  db> select {true, false} or {true, false};
+  {true, true, true, false}
+
+By extension, if any of the input sets are empty, the result of applying an element-wise function is also empty. In effect, when EdgeDB detects an empty set, it "short-circuits" and returns an empty set without applying the operation.
+
+.. code-block:: edgeql-repl
+
+  db> select {} ++ {'ccc', 'ddd'};
+  {}
+  db> select {} or {true, false};
+  {}
+
+
+
+.. _ref_eql_fundamentals_optional:
+
+Optional parameters
+-------------------
+
+Sometimes, it may be desirable to override this "short-circuit" behavior and allow the operation to be applied on the empty set. This requires marking the input with the :ref:`optional <ref_eql_sdl_functions_syntax>` keyword. A notable example of a function that gets called even when one input is empty is the :eql:op:`coalescing <COALESCE>` operator.
+
+.. code-block:: edgeql-repl
+
+  test> select <str>{} ?? 'default'
+  {'default'}
+
+You can also provide a default value for optional arguements. argument is omitted entirely. Here are some results this
 function produces:
 
 .. code-block:: edgeql-repl
@@ -89,6 +91,9 @@ function produces:
     {'!!!'}
 
 
+Aggregate operations
+--------------------
+
 See Also
 --------
 
@@ -96,3 +101,6 @@ Function
 :ref:`SDL <ref_eql_sdl_functions>`,
 :ref:`DDL <ref_eql_ddl_functions>`,
 and :ref:`introspection <ref_eql_introspection_functions>`.
+
+
+

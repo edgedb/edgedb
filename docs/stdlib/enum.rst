@@ -14,7 +14,7 @@ Enum
     An enumerated type is a data type consisting of an ordered list of values.
 
     An enumerated type can be declared in a schema declaration using
-    the following :ref:`syntax <ref_eql_types_enum>`:
+    the following :ref:`syntax <ref_datamodel_enums>`:
 
     .. code-block:: sdl
 

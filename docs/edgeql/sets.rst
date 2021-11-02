@@ -11,6 +11,9 @@ Everything is a Set
 
 All values in EdgeQL is actually **sets**: a collection of values of a given **type**. All elements of a set must have the same type. The number of items in a set is known as its **cardinality**. A set with a cardinality of zero is referred to as an **empty set**. A set with a cardinality of one is known as a **singleton**.
 
+.. note::
+
+  The term **cardinality** may refer to the *exact* number of elements in a given set or a *range* of possible values. Internally, EdgeDB tracks
 
 .. _ref_eql_set_constructor:
 
@@ -26,13 +29,18 @@ Sets are indicated with ``{curly braces}``.
   db> select {1, 2, 3};
   {1, 2, 3}
 
-Attempting to declare a set containing elements of differing types is not permitted.
+Attempting to declare a set containing elements of *incompatible* types is not permitted.
 
 .. code-block:: edgeql-repl
 
   db> select {"apple", 3.14};
   edgedb error: QueryError: operator 'UNION' cannot be applied to operands of type 'std::str' and 'std::float64'
     Hint: Consider using an explicit type cast or a conversion function.
+
+Types are considered *compatible* if they share a common ancestor in the type hierarchy.
+
+Literals are singletons
+-----------------------
 
 Literal syntax like ``6`` or ``"hello world"`` is just a shorthand for declaring a *singleton* of a given type. This is why the literals we created in the previous section were printed inside braces: to indicate that these values are *actually sets*.
 
@@ -91,6 +99,12 @@ Declaring empty sets isn't as simply as ``{}``. In EdgeQL, all expressions are *
   {}
   db> select count(<str>{});
   {0}
+
+.. code-block:: edgeql-repl
+
+  db> select {};
+  error: QueryError: expression returns value of indeterminate type
+    ┌─ query:1:8
 
 You can check whether or not a set is *empty* with the :eql:op:`exists <EXISTS>` operator.
 
@@ -188,6 +202,10 @@ Occasionally in queries, you need to handle the case where a set is empty. This 
   db> select <str>{} ?? 'default';
   {'default'}
 
+.. note::
+
+  Coalescing is an example of a function/operator with :ref:`optional inputs <ref_eql_fundamentals_optional>`. By default, passing an empty set into a function/operator will "short circuit" the operation and return an empty set. However it's possible to mark inputs as *optional*, in which case the operation will be defined over empty sets. Another example is :eql:func:`count`, which returns ``{0}`` when an empty set is passed as input.
+
 .. _ref_eql_set_type_filter:
 
 Inheritance
@@ -204,16 +222,16 @@ EdgeDB schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`; t
     default::Cat {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be},
   }
 
-We can use a *type filter* to restrict the elements of this set by subtype.
+We can use the *type intersection* operator to restrict the elements of a set by subtype.
 
 .. code-block:: edgeql-repl
 
-  db> select Animal[IS Dog];
+  db> select Animal[is Dog];
   {
     default::Dog {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
     default::Dog {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
   }
-  db> select Animal[IS Dog];
+  db> select Animal[is Dog];
   {
     default::Cat {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be}
   }
@@ -257,6 +275,13 @@ When an *element-wise* operation accepts two inputs, the operation is applied *p
 
   db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'}
   {'aaaccc', 'aaaddd', 'bbbccc', 'bbbddd'}
+
+Accordingly, operations involving an empty set typically return an empty set (though certain operations like :eql:func:`count` are able to operate on empty sets).
+
+.. code-block:: edgeql-repl
+
+  db> select <str>{} ++ 'ccc'
+  {}
 
 .. _ref_eql_set_array_conversion:
 

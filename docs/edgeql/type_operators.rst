@@ -11,87 +11,91 @@ Type Operators
 - Type filter operator
 - IS boolean
 
-Most types are just referred to by their name, however, EdgeQL has a
-special syntax for referring to :eql:type:`array`,
-:eql:type:`tuple`, and :eql:type:`enum` types. This syntax is used in
-:ref:`property <ref_eql_sdl_props>`, :ref:`scalar
-<ref_eql_sdl_scalars>`, or :ref:`function <ref_eql_sdl_functions>`
-declarations as well as in type expressions involving :eql:op:`IS`
-or a :eql:op:`cast <CAST>`.
+The foundation of EdgeQL is EdgeDB's rigorous typesystem. There is a set of EdgeQL operators and functions for changing, introspecting, and filtering by types.
+
+.. Introspection
+.. -------------
+
+.. The entire typesystem of EdgeDB is *stored inside EdgeDB*. All types are instances of the ``schema::Type`` type. This is a :ref:`fully-qualified name <ref_name_resolution>` that refers to an object type named ``Type`` in the ``schema`` module.
+
+.. The ``schema::Type`` type is abstract, and is extended by ``schema::ScalarType`` and ``schema::ObjectType``. To see a full list of
 
 
-.. _ref_eql_types_array:
+.. _ref_eql_types_names:
 
-Array
------
+Naming types
+------------
 
-An array type can be explicitly defined in an expression or schema
-declaration using the following syntax:
+Most types are just referred to by their name: ``str``, ``int64``, ``BlogPost``, etc. However, arrays and tuples have a dedicated type syntax.
 
-.. eql:synopsis::
+.. list-table::
 
-    array "<" <element_type> ">"
+  * - Type
+    - Syntax
+  * - Array
+    - ``array<x>``
+  * - Tuple (unnamed)
+    - ``tuple<x, y, z>``
+  * - Tuple (named)
+    - ``tuple<foo: x, bar: y>``
 
-With the exception of other array types, any :ref:`scalar
-<ref_datamodel_scalar_types>` or :ref:`collection
-<ref_datamodel_collection_types>` type can be used as an array element
-type.
+For additional details on type syntax, see :ref:`Schema > Primitive Types <ref_datamodel_arrays>`.
 
-Here's an example of using this syntax in a schema definition:
+.. _ref_eql_types_typecast:
 
-.. code-block:: sdl
+Type casting
+------------
 
-    type User {
-        required property name -> str;
-        property favorites -> array<str>;
-    }
-
-Here's a few examples of using array types in EdgeQL queries:
+Type casting is used to convert a primitive expressions to another type. Casts are indicated with angle brackets containing a type expression.
 
 .. code-block:: edgeql-repl
 
-    db> SELECT <array<int64>>['1', '2', '3'];
-    {[1, 2, 3]}
-    db> SELECT [1, 2, 3] IS (array<int64>);
-    {true}
-    db> SELECT [(1, 'a')] IS (array<tuple<int64, str>>);
-    {true}
+    db> select <str>10;
+    {"10"}
+    db> select <bigint>10;
+    {10n}
+    db> select <array<str>>[1, 2, 3];
+    {['1', '2', '3']}
+    db> select <array<str>>[1, 2, 3];
+    {['1', '2', '3']}
+    db> select <tuple<str, float64, bigint>>(1, 2, 3);
+    {('1', 2, 3n)}
 
 
+Type casts are useful for declaring literals for types like ``datetime``, ``uuid``, and  ``int16`` that don't have a dedicated syntax.
 
-.. _ref_eql_types_enum:
+.. code-block:: edgeql-repl
 
-Enum
-----
-
-An enumerated type can be declared in a schema declaration using
-the following syntax:
-
-.. eql:synopsis::
-
-    enum "<" <enum-values> ">"
-
-Where :eql:synopsis:`<enum-values>` is a comma-separated list of
-quoted string constants comprising the enum type.  Currently, the
-only valid application of the enum declaration is to define an
-enumerated scalar type:
-
-.. code-block:: sdl
-
-    scalar type Color extending enum<Red, Green, Blue>;
+    db> select <datetime>'1999-03-31T15:17:00Z';
+    {<datetime>'1999-03-31T15:17:00Z'}
+    db> select <int16>42;
+    {42}
+    db> select <uuid>'89381587-705d-458f-b837-860822e1b219';
+    {89381587-705d-458f-b837-860822e1b219}
 
 
-.. _ref_eql_expr_index_typecast:
+There are limits to what values can to be cast to a certain type. In some cases two types are entirely incompatible, like ``bool`` and ``int64``; in other cases, the source data must be in a particular format, like casting ``str`` to ``datetime``.
 
-Type Casts
-----------
+.. code-block:: edgeql-repl
 
-A type cast expression converts the specified value to another value of
-the specified type:
+  edgedb> select <BlogPost>10;
+  QueryError: cannot cast 'std::int64' to 'default::BlogPost'
+  edgedb> select <int64>'asdf';
+  InvalidValueError: invalid input syntax for type std::int64: "asdf"
+  edgedb> select <int16>100000000000000n;
+  NumericOutOfRangeError: std::int16 out of range
 
-.. eql:synopsis::
+For a comprehensive table of castability, refer to the :ref:`Standard Library > Casts <ref_std_casts_table>`.
 
-    "<" <type> ">" <expression>
+
+.. _ref_eql_types_intersection:
+
+Type intersections
+------------------
+
+Type casts can only be used on primitive expressions, not object type expressions. For objects, use type intersections.
+
+
 
 The :eql:synopsis:`<type>` must be a valid type expression denoting a non-abstract scalar or a collection type.
 
