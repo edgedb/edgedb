@@ -38,6 +38,7 @@ from . import annos as s_anno
 from . import constraints
 from . import delta as sd
 from . import expr as s_expr
+from . import expraliases as s_expraliases
 from . import inheriting
 from . import name as sn
 from . import objects as so
@@ -1137,6 +1138,19 @@ class PointerCommandOrFragment(
 
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()
+
+        # Disallow referring to aliases from computed pointers.
+        # We will support this eventually but it is pretty broken now
+        # and best to consistently give an understandable error.
+        for schema_ref in expression.irast.schema_refs:
+            if isinstance(schema_ref, s_expraliases.Alias):
+                srcctx = self.get_attribute_source_context('target')
+                an = schema_ref.get_verbosename(expression.irast.schema)
+                raise errors.UnsupportedFeatureError(
+                    f'referring to {an} from computed {ptr_name} '
+                    f'is unsupported',
+                    context=srcctx,
+                )
 
         spec_target: Optional[
             Union[
