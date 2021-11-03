@@ -1,4 +1,4 @@
 .. _ref_eql_for:
 
-FOR loops
+For loops
 =========

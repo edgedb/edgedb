@@ -582,76 +582,9 @@ All top-level EdgeQL statements (``select``, ``insert``, ``update``, and ``delet
 .. code-block:: edgeql-repl
 
   edgedb> with hero_name := "Iron Man"
-  ....... select Hero { name }
+  ....... select Hero { secret_identity }
   ....... filter .name = hero_name;
-  {default::Hero {name: 'Iron Man'}}
+  {default::Hero {secret_identity: 'Tony Stark'}}
 
 
-The ``with`` clause can contain more than one variable. Earlier variables can be referenced by later ones. All together, it becomes possible to write "script-like" queries that execute several statements in sequence.
-
-edgedb> with a := 5,
-.......   b := 2,
-.......   c := a ^ b
-....... select c;
-{25}
-
-
-
-Query parameters
-^^^^^^^^^^^^^^^^
-
-A common use case for ``with`` clauses is the initialization of :ref:`query parameters <ref_eql_params>`.
-
-.. code-block:: edgeql-repl
-
-  edgedb> with hero_id := <uuid>$hero_id
-  ....... select Hero { name }
-  ....... filter .id = hero_id;
-  {default::Hero {name: 'Iron Man'}}
-
-
-Subqueries
-^^^^^^^^^^
-
-The following query fetches a list of all movies featuring one or more of the original six Avengers.
-
-.. code-block:: edgeql-repl
-
-  edgedb> with avenger_names := {
-  .......   'Iron Man',
-  .......   'Black Widow',
-  .......   'Captain America',
-  .......   'Thor',
-  .......   'Hawkeye',
-  .......   'The Hulk'
-  ....... },
-  ....... avengers := (select Hero filter .name in avengers_names)
-  ....... select Movie {title}
-  ....... filter avengers in .characters;
-  {
-
-    default::Movie {title: 'Iron Man'},
-    default::Movie {title: 'Iron Man 2'},
-    default::Movie {title: 'Thor'},
-    default::Movie {title: 'Captain America: The First Avenger'},
-    ...
-  }
-
-Module selection
-^^^^^^^^^^^^^^^^
-
-With clauses also provide a mechanism for changing the *active module* for the duration of the query.
-
-.. note::
-  By default, the *active module* is called ``default``; the examples so far assume all schema types are declared inside this module. That's why we're able to refer to these types with simplified names (``Hero``) instead of fully-qualified ones (``default::Hero``).
-
-To change the active module for a query, use ``with module`` syntax.
-
-.. code-block:: edgeql-repl
-
-  edgedb> with module schema
-  ....... select ObjectType;
-
-This query fetches all instances of ``schema::Type``, a built-in type that stores the elements of :ref:`EdgeDB's typesystem <ref_eql_introspection_object_types>`.
-
-
+For full documentation on ``with``, see :ref:`EdgeQL > With <ref_eql_with>`.

@@ -1,18 +1,79 @@
 .. _ref_eql_with:
 
-WITH blocks
-===========
+With
+====
 
 
-Any short name is ultimately resolved to some fully-qualified name in the following manner:
+All top-level EdgeQL statements (``select``, ``insert``, ``update``, and ``delete``) can be prefixed with a ``with`` block. These blocks contain declarations of standalone expressions that can be used in your query.
 
-1) Look for a match to the short name in the current module (typically
-``default``, but it can be changed).
-2) Look for a match to the short name in the ``std`` module.
+.. code-block:: edgeql-repl
 
-Normally the current module is called ``default``, which is
-automatically created in any new database. It is possible to override
-the current module globally on the session level with a ``SET MODULE
-my_module`` :ref:`command <ref_eql_statements_session_set_alias>`. It
-is also possible to override the current module on per-query basis
-using ``WITH MODULE my_module`` :ref:`clause <ref_eql_with>`.
+  edgedb> with my_str := "hello world"
+  ....... select str_title(my_str);
+  {'Hello World'}
+
+
+The ``with`` clause can contain more than one variable. Earlier variables can be referenced by later ones. Taken together, it becomes possible to write "script-like" queries that execute several statements in sequence.
+
+.. code-block:: edgeql-repl
+
+  edgedb> with a := 5,
+  .......   b := 2,
+  .......   c := a ^ b
+  ....... select c;
+  {25}
+
+
+
+Query parameters
+^^^^^^^^^^^^^^^^
+
+A common use case for ``with`` clauses is the initialization of :ref:`query parameters <ref_eql_params>`.
+
+.. code-block:: edgeql
+
+  with user_id := <uuid>$user_id
+  select User { name }
+  filter .id = user_id;
+
+Subqueries
+^^^^^^^^^^
+
+There's no limit to the complexity of the expressions that can beThe following query fetches a list of all movies featuring one or more of the original six Avengers.
+
+.. code-block:: edgeql-repl
+
+  edgedb> with avenger_names := {
+  .......   'Iron Man',
+  .......   'Black Widow',
+  .......   'Captain America',
+  .......   'Thor',
+  .......   'Hawkeye',
+  .......   'The Hulk'
+  ....... },
+  ....... avengers := (select Hero filter .name in avengers_names)
+  ....... select Movie {title}
+  ....... filter avengers in .characters;
+  {
+
+    default::Movie {title: 'Iron Man'},
+    default::Movie {title: 'Iron Man 2'},
+    default::Movie {title: 'Thor'},
+    default::Movie {title: 'Captain America: The First Avenger'},
+    ...
+  }
+
+Module selection
+^^^^^^^^^^^^^^^^
+
+
+By default, the *active module* is ``default``, so all schema objects inside this module can be referenced by their *short name*, e.g. ``User``, ``BlogPost``, etc. To reference objects in other modules, we must use fully-qualified names (``default::Hero``).
+
+However, ``with`` clauses also provide a mechanism for changing the *active module* on a per-query basis.
+
+.. code-block:: edgeql-repl
+
+  edgedb> with module schema
+  ....... select ObjectType;
+
+This ``with module`` clause changes the default module to schema, so we can refer to ``schema::ObjectType`` (a built-in EdgeDB type) as simply ``ObjectType``.

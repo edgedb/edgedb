@@ -161,8 +161,8 @@ It may also be an *alias*, which can be defined in a :ref:`WITH block <ref_eql_w
 
 .. _ref_eql_set_distinct:
 
-Multi-sets
-----------
+Multisets
+---------
 
 Technically sets in EdgeDB are actually *multisets*, becauase they can contain duplicates of the same element. To eliminate duplicates, use the :eql:op:`DISTINCT set <DISTINCT>` operator.
 
