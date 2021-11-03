@@ -246,14 +246,12 @@ class IndexCommand(
     ) -> sd.ObjectCommand[Index]:
         cmd = super()._cmd_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.IndexCommand):
-            orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
             cmd.set_ddl_identity(
                 'expr',
                 s_expr.Expression.from_ast(
                     astnode.expr,
                     schema,
                     context.modaliases,
-                    orig_text=orig_text,
                 ),
             )
         return cmd
@@ -375,7 +373,6 @@ class CreateIndex(
                 expr_ql,
                 schema,
                 context.modaliases,
-                orig_text=orig_text,
             ),
         )
 

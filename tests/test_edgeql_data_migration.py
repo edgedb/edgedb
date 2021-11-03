@@ -7959,50 +7959,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        AssertionError: data shape differs: 'SELECT .name' != '.name'
-        PATH: [0]["indexes"][0]["expr"]
-
-        This may be using obsolete `orig_expr`, so perhaps the test is
-        no longer correct.
-    ''')
-    async def test_edgeql_migration_eq_index_05(self):
-        await self.migrate(r"""
-            type Base {
-                property name -> str;
-                # an index with a verbose definition (similar to
-                # DESCRIBE AS SDL)
-                index on (
-                    WITH MODULE test
-                    SELECT .name
-                ) {
-                    orig_expr := '.name';
-                }
-            }
-        """)
-        await self.con.execute("""
-            SET MODULE test;
-        """)
-
-        await self.assert_query_result(
-            r"""
-                WITH MODULE schema
-                SELECT ObjectType {
-                    name,
-                    indexes: {
-                        expr
-                    }
-                }
-                FILTER .name = 'test::Base';
-            """,
-            [{
-                'name': 'test::Base',
-                'indexes': [{
-                    'expr': '.name'
-                }]
-            }],
-        )
-
     async def test_edgeql_migration_eq_collections_01(self):
         await self.migrate(r"""
             type Base;
