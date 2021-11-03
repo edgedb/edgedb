@@ -9908,6 +9908,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
+    @test.xfail('''
+       Referring to alias unsupported from computable
+       This is the only test that broke when we disallowed that!
+    ''')
     async def test_edgeql_migration_alias_02(self):
         await self.migrate(r'''
             type Foo {

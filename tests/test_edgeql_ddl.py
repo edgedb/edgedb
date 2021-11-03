@@ -12174,6 +12174,30 @@ type default::Foo {
                 }
             """)
 
+    async def test_edgeql_ddl_alias_in_computable_01(self):
+        await self.con.execute(r"""
+            CREATE ALIAS Alias := {0, 1, 2, 3};
+        """)
+
+        # We don't want to prohibit this forever, but we need to for now.
+        async with self.assertRaisesRegexTx(
+                edgedb.errors.UnsupportedFeatureError,
+                r"referring to alias 'default::Alias' from computed property"):
+            await self.con.execute(r"""
+                CREATE TYPE Foo {
+                    CREATE PROPERTY bar := Alias;
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.errors.UnsupportedFeatureError,
+                r"referring to alias 'default::Alias' from computed property"):
+            await self.con.execute(r"""
+                CREATE TYPE Foo {
+                    CREATE PROPERTY bar := {Alias, Alias};
+                };
+            """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
