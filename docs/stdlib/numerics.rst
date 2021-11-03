@@ -54,9 +54,10 @@ Numerics
     * - :eql:op:`anyreal ^ anyreal <POW>`
       - :eql:op-desc:`POW`
 
-    * - :eql:op:`anyreal = anyreal <EQ>`,
-        :eql:op:`anyreal \< anyreal <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`sum`
       - :eql:func-desc:`sum`

@@ -12,24 +12,24 @@ Standard Library
 
     generic
     string
-    numerics
     bool
-    datetime
-    enum
+    numerics
     json
     uuid
     bytes
+    enum
+    datetime
     sequence
-    abstract
     array
     tuple
     objects
     set
     type
-    casts
     math
-    sys
+    abstract
     constraints
+    casts
+    sys
     deprecated
 
 EdgeDB comes with a rigorously defined type system consisting of **scalar

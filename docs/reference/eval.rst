@@ -17,7 +17,7 @@ An implicit ``SELECT`` subquery is assumed in the following situations:
   or operand;
 
 - the right side of the assignment operator (``:=``) in expression
-  aliases and :ref:`shape element declarations <ref_eql_expr_shapes>`;
+  aliases and :ref:`shape element declarations <ref_reference_shapes>`;
 
 - the majority of statement clauses.
 
@@ -76,7 +76,7 @@ A query is evaluated recursively using the following procedure:
      The set produced becomes the new input tuple set and we continue
      down the list.
    - As a caveat to the above, if an input set appears exclusively as
-     an :ref:`ref_eql_fundamentals_optional` argument, it produces
+     an :ref:`optional <ref_sdl_function_typequal>` argument, it produces
      pairs with a placeholder value ``Missing`` instead of an empty
      Cartesian product in the above
      set. (Mathematically, this corresponds to having ``f(x) =

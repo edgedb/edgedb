@@ -23,8 +23,10 @@ Logical
     * - :eql:op:`NOT bool <NOT>`
       - :eql:op-desc:`NOT`
 
-    * - :eql:op:`bool = bool <EQ>`, :eql:op:`bool \< bool <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`all`
       - :eql:func-desc:`all`

@@ -1,6 +1,6 @@
 :orphan:
 
-.. _ref_eql_expr_shapes:
+.. _ref_reference_shapes:
 
 ======
 Shapes
@@ -55,7 +55,7 @@ the :eql:synopsis:`<expr>` set that are instances of
   depending on the context.
 
 
-.. _ref_eql_expr_shapes_update:
+.. _ref_reference_shapes_update:
 
 Shapes in UPDATE
 ================

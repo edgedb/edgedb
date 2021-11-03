@@ -33,6 +33,8 @@ SELECT
     in this set is ``true``, the input element is included, otherwise
     it is eliminated from the output.
 
+.. _ref_reference_select_order:
+
 :eql:synopsis:`ORDER BY <order-expr> [direction] [THEN ...]`
     The optional ``ORDER BY`` clause has this general form:
 

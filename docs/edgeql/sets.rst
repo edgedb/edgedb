@@ -13,7 +13,9 @@ All values in EdgeQL is actually **sets**: a collection of values of a given **t
 
 .. note::
 
-  The term **cardinality** may refer to the *exact* number of elements in a given set or a *range* of possible values. Internally, EdgeDB tracks
+  The term **cardinality** may refer to the *exact* number of elements in a given set or a *range* of possible values. Internally, EdgeDB tracks 5 different cardinality ranges: ``Empty`` (zero elements), ``One`` (a singleton set), ``AtMostOne`` (zero or one elements), ``AtLeastOne`` (one or more elements), and ``Many`` (any number of elements).
+
+  EdgeDB uses this information to statically check queries for validity. For instance, when assigning to a ``required multi`` link, the value being assigned in question *must* have a cardinality of ``One`` or ``AtLeastOne`` (as empty sets are not permitted).
 
 .. _ref_eql_set_constructor:
 
@@ -29,6 +31,16 @@ Sets are indicated with ``{curly braces}``.
   db> select {1, 2, 3};
   {1, 2, 3}
 
+All values in a set must have the same type. For convenience, EdgeDB will *implicitly cast* values to other types, as long as there is no loss of information (e.g. converting a ``int16`` to an ``int64``). For a full reference, see the casting table in :ref:`Standard Library > Casts <ref_std_casts_table>`.
+
+.. code-block:: edgeql-repl
+
+  db> select {1, 1.5};
+  {1.0, 1.5}
+  db> select {1, 1234.5678n};
+  {1.0n, 1234.5678n}
+
+
 Attempting to declare a set containing elements of *incompatible* types is not permitted.
 
 .. code-block:: edgeql-repl
@@ -37,7 +49,9 @@ Attempting to declare a set containing elements of *incompatible* types is not p
   edgedb error: QueryError: operator 'UNION' cannot be applied to operands of type 'std::str' and 'std::float64'
     Hint: Consider using an explicit type cast or a conversion function.
 
-Types are considered *compatible* if they share a common ancestor in the type hierarchy.
+.. note::
+
+  Types are considered *compatible* if they can be implicitly cast into each other.
 
 Literals are singletons
 -----------------------
@@ -193,7 +207,7 @@ Use the :eql:op:`UNION` operator to merge two sets.
 Coalescing
 ----------
 
-Occasionally in queries, you need to handle the case where a set is empty. This can be achieved with a coalescing operator :eql:op:`?? <COALESCE>`. This is commonly used to provide default values for optional :ref:`query parameters <ref_eql_expr_params>`.
+Occasionally in queries, you need to handle the case where a set is empty. This can be achieved with a coalescing operator :eql:op:`?? <COALESCE>`. This is commonly used to provide default values for optional :ref:`query parameters <ref_eql_params>`.
 
 .. code-block:: edgeql-repl
 
@@ -204,7 +218,7 @@ Occasionally in queries, you need to handle the case where a set is empty. This 
 
 .. note::
 
-  Coalescing is an example of a function/operator with :ref:`optional inputs <ref_eql_fundamentals_optional>`. By default, passing an empty set into a function/operator will "short circuit" the operation and return an empty set. However it's possible to mark inputs as *optional*, in which case the operation will be defined over empty sets. Another example is :eql:func:`count`, which returns ``{0}`` when an empty set is passed as input.
+  Coalescing is an example of a function/operator with :ref:`optional inputs <ref_sdl_function_typequal>`. By default, passing an empty set into a function/operator will "short circuit" the operation and return an empty set. However it's possible to mark inputs as *optional*, in which case the operation will be defined over empty sets. Another example is :eql:func:`count`, which returns ``{0}`` when an empty set is passed as input.
 
 .. _ref_eql_set_type_filter:
 
@@ -231,7 +245,7 @@ We can use the *type intersection* operator to restrict the elements of a set by
     default::Dog {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
     default::Dog {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
   }
-  db> select Animal[is Dog];
+  db> select Animal[is Cat];
   {
     default::Cat {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be}
   }

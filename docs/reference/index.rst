@@ -14,8 +14,10 @@ Reference
     lexical
     eval
     shapes
+    output
     paths
     observability
+    functions
     dump_format
     backend_ha
     configuration

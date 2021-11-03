@@ -1,4 +1,4 @@
-.. _ref_eql_expr_output:
+.. _ref_reference_output:
 
 ==============
 Output Shaping
@@ -60,7 +60,7 @@ belong to which user and we no longer need the placeholder ``''`` for
 those users who don't have friends.
 
 The recommended way to get this information in EdgeDB, however, is to
-use :ref:`shapes <ref_eql_expr_shapes>`, because they mimic the
+use :ref:`shapes <ref_reference_shapes>`, because they mimic the
 structure of the data and the output:
 
 .. code-block:: edgeql-repl

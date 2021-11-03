@@ -30,9 +30,7 @@ A tuple constructor automatically creates a corresponding
 :ref:`tuple type <ref_eql_types_tuple>`.
 
 
-
-
-.. _ref_eql_expr_tuple_elref:
+.. _ref_std_tuple_accessor:
 
 Accessing elements
 ------------------

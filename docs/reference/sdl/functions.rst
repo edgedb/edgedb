@@ -66,6 +66,8 @@ commands <ref_eql_ddl_functions>`.
 Description
 -----------
 
+
+
 This declaration defines a new constraint with the following options:
 
 :eql:synopsis:`<name>`
@@ -89,6 +91,8 @@ This declaration defines a new constraint with the following options:
 :eql:synopsis:`<argname>`
     The name of an argument.  If ``named only`` modifier is used this
     argument *must* be passed using this name only.
+
+.. _ref_sdl_function_typequal:
 
 :eql:synopsis:`<typequal>`
     The type qualifier: ``set of`` or ``optional``.

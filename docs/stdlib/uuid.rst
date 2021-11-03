@@ -10,8 +10,10 @@ UUID
     * - :eql:type:`uuid`
       - UUID type
 
-    * - :eql:op:`uuid = uuid <EQ>`, :eql:op:`uuid \< uuid <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`uuid_generate_v1mc`
       - :eql:func-desc:`uuid_generate_v1mc`

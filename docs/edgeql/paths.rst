@@ -1,10 +1,9 @@
-.. _ref_eql_expr_paths:
+.. _ref_eql_paths:
 
 =====
 Paths
 =====
 
-.. _ref_eql_expr_index_path:
 
 A *path expression* (or simply a *path*) represents a set of values that are
 reachable by traversing a given sequence of links or properties from some
@@ -119,16 +118,19 @@ The following represents a set of all dates on which friendships were formed.
 
 .. code-block:: edgeql
 
-    select User.friends@since;
+  select User.friends@since;
 
 Path roots
 ----------
 
 For simplicity, all examples above use set references like ``User`` as the root of the path; however, the root can be *any expression* returning object types. Below, the root of the path is a *subquery*.
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
 
-  select (select BlogPost filter .title ilike "EdgeDB is awesome").author;
+  db> with edgedb_lovers := (
+  ...   select BlogPost filter .title ilike "EdgeDB is awesome"
+  ... )
+  ... select edgedb_lovers.author;
 
 This expression returns a set of all ``Users`` who have written a blog post titled "EdgeDB is awesome".
 

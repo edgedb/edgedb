@@ -21,8 +21,10 @@ Bytes
     * - :eql:op:`bytes ++ bytes <BYTEPLUS>`
       - :eql:op-desc:`BYTEPLUS`
 
-    * - :eql:op:`bytes = bytes <EQ>`, :eql:op:`bytes \< bytes <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`len`
       - Returns the number of bytes.

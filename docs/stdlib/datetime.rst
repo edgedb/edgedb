@@ -34,8 +34,10 @@ Date and Time
     * - :eql:op:`dt - dt <DTMINUS>`
       - :eql:op-desc:`DTMINUS`
 
-    * - :eql:op:`dt = dt <EQ>`, :eql:op:`dt \< dt <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`to_str`
       - Render a date/time value to a string.

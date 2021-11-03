@@ -157,7 +157,7 @@ including it, the query can be refactored like this:
 
 When using :eql:op:`?=<COALEQ>`, :eql:op:`?=<COALNEQ>`, or
 :eql:op:`??<COALESCE>` it is important to keep in mind how they
-interact with :ref:`path expressions <ref_eql_expr_paths>` that
+interact with :ref:`path expressions <ref_eql_paths>` that
 can sometimes be ``{}``. Basically, these operators don't actually
 affect the path expression, they only act on the *results* of the
 path expression. Consider the following two queries:

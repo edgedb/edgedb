@@ -413,7 +413,7 @@ Let's write some basic queries:
 
 The above query simply returned all the ``Movie`` objects in the database. By
 default, only the ``id`` property is returned for each result. To select more
-properties, we add a :ref:`shape <ref_eql_expr_shapes>`:
+properties, we add a :ref:`shape <ref_reference_shapes>`:
 
 .. code-block:: edgeql-repl
 

@@ -1,85 +1,71 @@
-.. _ref_eql_expr_func_call:
+.. _ref_eql_functions:
 
 
-Functions
-=========
+Functions and Operators
+-----------------------
 
+All functions and operators in EdgeDB are either *element-wise* or *aggregate*.
 
-EdgeDB provides a number of functions in the :ref:`standard library
-<ref_std>`. It is also possible for users to :ref:`define their own
-<ref_eql_sdl_functions>` functions.
+Aggregate operations
+^^^^^^^^^^^^^^^^^^^^
 
-.. _ref_eql_expr_index_function_call:
-
-The syntax for a function call is as follows:
-
-.. eql:synopsis::
-
-    <function_name> "(" [<argument> [, <argument>, ...]] ")"
-
-    # where <argument> is:
-
-    <expr> | <identifier> := <expr>
-
-
-
-Here :eql:synopsis:`<function_name>` is a possibly qualified name of a
-function, and :eql:synopsis:`<argument>` is an *expression* optionally
-prefixed with an argument name and the assignment operator (``:=``)
-for :ref:`named only <ref_eql_sdl_functions_syntax>` arguments.
-
-For example, the following computes the length of a string ``'foo'``:
+Consider the :eql:func:`count` function. It returns the number of elements in a given set. As such, it operates on the input set *as a whole*.
 
 .. code-block:: edgeql-repl
 
-    db> SELECT len('foo');
-    {3}
+  db> select count('hello');
+  {1}
+  db> select count({'this', 'is', 'a', 'set'});
+  {4}
+  db> select count(<str>{});
+  {0}
 
-And here's an example of using a *named only* argument to provide a
-default value:
+Another example is :eql:func:`array_agg`, which converts a *set* of elements into a singleton array.
 
 .. code-block:: edgeql-repl
 
-    db> SELECT array_get(['hello', 'world'], 10, default := 'n/a');
-    {'n/a'}
+  db> select array_agg({1,2,3});
+  {[1, 2, 3]}
 
 
+Element-wise operations
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Consider the :ref:`function <ref_std>` :eql:func:`len` used to transform a set of :eql:type:`str` into a set of :eql:type:`int64`.
+
+.. code-block:: edgeql-repl
+
+  db> select len('hello');
+  {5}
+  db> select len({'hello', 'world'});
+  {5, 5}
 
 
-.. _ref_eql_fundamentals_aggregates:
+This is known as an *element-wise* operation: the ``len`` function is applied to each element of the input set. In case of element-wise operations that accept multiple arguments, the operation is applied to a cartesian product cross-product of all the input sets.
 
-Aggregate vs element-wise
--------------------------
+.. code-block:: edgeql-repl
 
-A function parameter or an operand of an operator can be declared as an
-*aggregate parameter*.  An aggregate parameter means that the function or
-operator are called *once* on an entire set passed as a corresponding
-argument, rather than being called sequentially on each element of an
-argument set.  A function or an operator with an aggregate parameter is
-called an *aggregate*.  Non-aggregate functions and operators are
-*regular* functions and operators.
+  db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'};
+  {'aaaccc', 'aaaddd', 'bbbccc', 'bbbddd'}
+  db> select {true, false} or {true, false};
+  {true, true, true, false}
 
-For example, basic arithmetic :ref:`operators <ref_std_math>`
-are regular operators, while the :eql:func:`sum` function and the
-:eql:op:`DISTINCT` operator are aggregates.
+By extension, if any of the input sets are empty, the result of applying an element-wise function is also empty. In effect, when EdgeDB detects an empty set, it "short-circuits" and returns an empty set without applying the operation.
 
-An aggregate parameter is specified using the ``SET OF`` modifier
-in the function or operator declaration.  See :eql:stmt:`CREATE FUNCTION`
-for details.
+.. code-block:: edgeql-repl
+
+  db> select {} ++ {'ccc', 'ddd'};
+  {}
+  db> select {} or {true, false};
+  {}
 
 
+.. note::
 
-.. _ref_eql_fundamentals_optional:
+  Certain functions and operators avoid this "short-circuit" behavior by marking their inputs as :ref:`optional <ref_eql_sdl_functions_syntax>`. A notable example of an operator with optional inputs is the :eql:op:`?? <COALESCE>` operator.
 
-OPTIONAL
---------
+  .. code-block:: edgeql-repl
 
-Normally, if a non-aggregate argument of a function or an operator is empty,
-then the function will not be called and the result will be empty.
+    db> select <str>{} ?? 'default';
+    {'default'}
 
-A function parameter or an operand of an operator can be declared as
-``OPTIONAL``, in which case the function is called normally when the
-corresponding argument is empty.
-
-A notable example of a function that gets called on empty input
-is the :eql:op:`coalescing <COALESCE>` operator.

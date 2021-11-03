@@ -106,7 +106,7 @@ to traverse a link in the *reverse* direction.
 The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
 conjunction with a *type filter* ``[IS BlogPost]`` to fetch all the
 ``BlogPosts`` associated with a given ``User``. For details on this syntax, see
-the EdgeQL docs for :ref:`Backlinks <ref_eql_expr_paths>`.
+the EdgeQL docs for :ref:`Backlinks <ref_eql_paths>`.
 
 
 See Also
@@ -114,7 +114,7 @@ See Also
 
 Computed fields don't need to be pre-defined in your schema; you can drop them
 into individual queries as well. They behave in exactly the same way. For more
-information, see the :ref:`shapes docs <ref_eql_expr_shapes>`.
+information, see the :ref:`shapes docs <ref_reference_shapes>`.
 
 Computed
 :ref:`link SDL <ref_eql_sdl_links>`,

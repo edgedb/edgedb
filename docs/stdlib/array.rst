@@ -8,7 +8,8 @@ Array
 
 Arrays store expressions of the *same type* in an ordered list.
 
-.. _ref_eql_expr_array_ctor:
+.. _ref_std_array_constructor:
+
 
 Constructing arrays
 ^^^^^^^^^^^^^^^^^^^
@@ -62,8 +63,10 @@ Functions and operators
     * - :eql:op:`array ++ array <ARRAYPLUS>`
       - :eql:op-desc:`ARRAYPLUS`
 
-    * - :eql:op:`array = array <EQ>`, :eql:op:`array \< array <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`len`
       - Return number of elements in the array.
@@ -103,7 +106,7 @@ Reference
     array element type.
 
     An array type is created implicitly when an :ref:`array
-    constructor <ref_eql_expr_array_ctor>` is used:
+    constructor <ref_std_array_constructor>` is used:
 
     .. code-block:: edgeql-repl
 

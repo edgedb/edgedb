@@ -14,7 +14,7 @@ EdgeQL
     literals
     sets
     paths
-    type_operators
+    types
     functions
     parameters
     select
@@ -24,8 +24,6 @@ EdgeQL
     with
     for
     transactions
-    output
-    introspection/index
 
 EdgeQL is a next-generation query language designed to match SQL in power and
 surpass it in terms of clarity, brevity, and intuitiveness. It's used to query
