@@ -84,12 +84,12 @@ Resource Usage
     executed simultaneously. Corresponds to the PostgreSQL
     configuration parameter of the same name.
 
-:eql:synopsis:`query_work_mem (str)`
+:eql:synopsis:`query_work_mem (cfg::memory)`
     The amount of memory used by internal query operations such as
     sorting. Corresponds to the PostgreSQL ``work_mem`` configuration
     parameter.
 
-:eql:synopsis:`shared_buffers (str)`
+:eql:synopsis:`shared_buffers (cfg::memory)`
     The amount of memory the database uses for shared memory buffers.
     Corresponds to the PostgreSQL configuration parameter of the same
     name. Changing this value requires server restart.
@@ -103,7 +103,7 @@ Query Planning
     Corresponds to the PostgreSQL configuration parameter of the same
     name.
 
-:eql:synopsis:`effective_cache_size (str)`
+:eql:synopsis:`effective_cache_size (cfg::memory)`
     Sets the planner's assumption about the effective size of the disk
     cache that is available to a single query. Corresponds to the
     PostgreSQL configuration parameter of the same name.
