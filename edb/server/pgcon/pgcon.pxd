@@ -33,6 +33,8 @@ from edb.server.pgproto.debug cimport PG_DEBUG
 
 from edb.server.cache cimport stmt_cache
 
+include "scram.pxd"
+
 
 cdef enum PGTransactionStatus:
     PQTRANS_IDLE = 0                 # connection idle
