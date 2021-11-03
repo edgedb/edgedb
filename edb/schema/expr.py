@@ -131,12 +131,9 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
         localnames: AbstractSet[str] = frozenset(),
         *,
         as_fragment: bool = False,
-        orig_text: Optional[str] = None,
     ) -> Expression:
         if modaliases is None:
             modaliases = {}
-        if orig_text is None:
-            orig_text = qlcodegen.generate_source(qltree, pretty=False)
         if not as_fragment:
             qlcompiler.normalize(
                 qltree,
