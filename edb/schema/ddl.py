@@ -271,13 +271,12 @@ def delta_schemas(
     ]
 
     assert not context.renames
-    # We retry performing the diff until we stop finding new
-    # renames. This allows us to be agnostic to the order that we
-    # process schemaclasses.
-    old_count = -1
-    while old_count != len(context.renames):
-        old_count = len(context.renames)
-        context.deletions.clear()
+    # We retry performing the diff until we stop finding new renames
+    # and deletions. This allows us to be agnostic to the order that
+    # we process schemaclasses.
+    old_count = -1, -1
+    while old_count != (len(context.renames), len(context.deletions)):
+        old_count = len(context.renames), len(context.deletions)
 
         objects = sd.DeltaRoot(canonical=True)
 

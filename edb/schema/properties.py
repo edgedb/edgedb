@@ -116,7 +116,7 @@ class Property(
                 context=context,
                 compcoef=field.compcoef)
             if target_coef < 1:
-                similarity /= target_coef
+                similarity *= target_coef
         return similarity
 
     def should_propagate(self, schema: s_schema.Schema) -> bool:

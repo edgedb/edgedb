@@ -34,6 +34,7 @@ from edb.edgeql import qltypes
 
 from . import abc as s_abc
 from . import objects as so
+from . import name as sn
 
 
 if TYPE_CHECKING:
@@ -88,6 +89,13 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
     def is_compiled(self) -> bool:
         return self.refs is not None
 
+    def _refs_keys(self, schema: s_schema.Schema) -> Set[
+            Tuple[Type[so.Object], sn.Name]]:
+        return {
+            (type(x), x.get_name(schema))
+            for x in (self.refs.objects(schema) if self.refs else ())
+        }
+
     @classmethod
     def compare_values(cls: Type[Expression],
                        ours: Expression,
@@ -101,7 +109,15 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
             return 1.0
         elif not ours or not theirs:
             return compcoef
-        elif ours.text == theirs.text:
+
+        # If the new and old versions share a reference to an object
+        # that is being deleted, then we must delete this object as well.
+        our_refs = ours._refs_keys(our_schema)
+        their_refs = theirs._refs_keys(their_schema)
+        if (our_refs & their_refs) & context.deletions.keys():
+            return 0.0
+
+        if ours.text == theirs.text:
             return 1.0
         else:
             return compcoef

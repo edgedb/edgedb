@@ -4256,7 +4256,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('Fails to delete the index first')
     def test_schema_migrations_equivalence_54(self):
         self._assert_migration_equivalence([r"""
             type User {
@@ -4270,6 +4269,23 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 index on (__subject__.name);
             };
             type User extending Named;
+        """])
+
+    def test_schema_migrations_equivalence_55(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                  required property name -> str;
+                  property asdf := .name ++ "!";
+            };
+        """, r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+                index on (__subject__.name);
+            };
+            type User extending Named {
+                  property asdf := .name ++ "!";
+            }
         """])
 
     def test_schema_migrations_equivalence_compound_01(self):
@@ -4320,10 +4336,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             function foo() -> str USING ('bar');
         """])
 
-    @test.xfail('''
-        cannot drop function 'default::hello06(a: std::int64)'
-        because other objects in the schema depend on it
-    ''')
     def test_schema_migrations_equivalence_function_06(self):
         self._assert_migration_equivalence([r"""
             function hello06(a: int64) -> str
@@ -4351,10 +4363,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        cannot drop function 'default::hello10(a: std::int64)'
-        because other objects in the schema depend on it
-    ''')
     def test_schema_migrations_equivalence_function_10(self):
         self._assert_migration_equivalence([r"""
             function hello10(a: int64) -> str
