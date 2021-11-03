@@ -44,8 +44,7 @@ current_backend_connections = registry.new_gauge(
 
 backend_connection_establishment_errors = registry.new_counter(
     'backend_connection_establishment_errors_total',
-    'Number of times the server could not establish a backend connection.',
-    unit=prom.Unit.SECONDS,
+    'Number of times the server could not establish a backend connection.'
 )
 
 backend_connection_establishment_latency = registry.new_histogram(
