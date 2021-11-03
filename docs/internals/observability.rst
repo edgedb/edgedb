@@ -3,7 +3,8 @@
 Observability
 =============
 
-All EdgeDB instances expose a Prometheus-compatible ``/metrics`` endpoint on port ``9090``. The following metrics are made available.
+All EdgeDB instances expose a Prometheus-compatible ``/metrics`` endpoint on
+port ``9090``. The following metrics are made available.
 
 
 Processes
@@ -24,14 +25,15 @@ Backend connections and performance
   **Gauge.** Current number of active backend connections.
 
 ``backend_connection_establishment_errors_total``
-  **Counter.** Number of times the server could not establish a backend connection, in
-  seconds.
+  **Counter.** Number of times the server could not establish a backend
+  connection.
 
 ``backend_connection_establishment_latency``
   **Histogram.** Time it takes to establish a backend connection, in seconds.
 
 ``backend_query_duration``
-  **Histogram.** Time it takes to run a query on a backend connection, in seconds.
+  **Histogram.** Time it takes to run a query on a backend connection, in
+  seconds.
 
 Client connections
 ^^^^^^^^^^^^^^^^^^
@@ -52,7 +54,8 @@ Query compilation
   **Counter.** Number of compiled/cached queries or scripts.
 
 ``edgeql_query_compilation_duration``
-  **Histogram.** Time it takes to compile an EdgeQL query or script, in seconds.
+  **Histogram.** Time it takes to compile an EdgeQL query or script, in
+  seconds.
 
 Errors
 ^^^^^^
