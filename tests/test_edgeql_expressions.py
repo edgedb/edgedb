@@ -4805,11 +4805,74 @@ aa \
             [],
         )
 
-    async def test_edgeql_normalization_missmatch_01(self):
+    async def test_edgeql_normalization_mismatch_01(self):
         with self.assertRaisesRegex(
                 edgedb.EdgeQLSyntaxError, "Unexpected type expression"):
 
             await self.con.query('SELECT <tuple<"">>1;')
+
+    async def test_edgeql_typeop_01(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "type operator '&' is not implemented",
+        ):
+            await self.con.query('select <Named & Owned>{};')
+
+    async def test_edgeql_typeop_02(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query('select 1 is (int64 | float64);')
+
+    async def test_edgeql_typeop_03(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query('select 1 is (Object | float64);')
+
+    async def test_edgeql_typeop_04(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query(
+                'select [1] is (array<int64> | array<float64>);')
+
+    async def test_edgeql_typeop_05(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query(
+                'select (1,) is (tuple<int64> | tuple<float64>);')
+
+    async def test_edgeql_typeop_06(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query(
+                'select [1] is (typeof [2] | typeof [2.2]);')
+
+    async def test_edgeql_typeop_07(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query(
+                'select (1,) is (typeof (2,) | typeof (2.2,));')
+
+    async def test_edgeql_typeop_08(self):
+        await self.assert_query_result(
+            'select {x := 1} is (typeof Issue.references | Object);',
+            {False}
+        )
+        await self.assert_query_result(
+            'select {x := 1} is (typeof Issue.references | BaseObject);',
+            {True}
+        )
 
     async def test_edgeql_assert_single_01(self):
         await self.con.execute("""
