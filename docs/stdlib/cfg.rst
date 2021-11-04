@@ -25,6 +25,8 @@ EdgeDB.
       authentication).
   * - :eql:type:`cfg::SCRAM`
     - A subclass of ``AuthMethod`` indicating password-based authentication.
+  * - :eql:type:`cfg::memory`
+    - A scalar type for storing a quantity of memory storage.
 
 
 ----------
@@ -146,3 +148,26 @@ EdgeDB.
     .......   Auth {priority := 0, method := (INSERT Scram)};
     OK: CONFIGURE INSTANCE
 
+
+-------
+
+.. eql:type:: cfg::memory
+
+  A scalar type representing a quantity of memory storage.
+
+  As with ``uuid``, ``datetime``, and several other types, ``cfg::memory``
+  values are declared by casting from an appropriately formatted string.
+
+  .. code-block:: edgeql-repl
+
+    db> select <cfg::memory>'1B'; # 1 byte
+    {<cfg::memory>'1B'}
+    db> select <cfg::memory>'5KiB'; # 5 kibibytes
+    {<cfg::memory>'5KiB'}
+    db> select <cfg::memory>'128MiB'; # 128 mebibytes
+    {<cfg::memory>'128MiB'}
+
+  The numerical component of the value must be a non-negative integer; the
+  units must be one of ``B|KiB|MiB|GiB|TiB|PiB``. We're using the explicit
+  ``KiB`` unit notation (1024 bytes) instead of ``kB`` (which is ambiguous,
+  and may mean 1000 or 1024 bytes).
