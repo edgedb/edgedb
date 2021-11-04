@@ -307,6 +307,10 @@ class ConfigMemory:
         text: str,
         /,
     ) -> None:
+        if text == '0':
+            self._value = 0
+            return
+
         m = self._parser.match(text)
         if m is None:
             raise errors.InvalidValueError(
@@ -330,6 +334,9 @@ class ConfigMemory:
         else:
             raise AssertionError('unexpected unit')
 
+    def to_nbytes(self) -> int:
+        return self._value
+
     def to_str(self) -> str:
         if self._value >= self.PiB and self._value % self.PiB == 0:
             return f'{self._value // self.PiB}PiB'
@@ -345,6 +352,9 @@ class ConfigMemory:
 
         if self._value >= self.KiB and self._value % self.KiB == 0:
             return f'{self._value // self.KiB}KiB'
+
+        if not self._value:
+            return '0'
 
         return f'{self._value}B'
 
