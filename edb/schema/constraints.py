@@ -650,6 +650,7 @@ class ConstraintCommand(
         from edb.ir import ast as ir_ast
         from edb.ir import utils as ir_utils
         from . import pointers as s_pointers
+        from . import links as s_links
 
         bases = self.get_resolved_attribute_value(
             'bases', schema=schema, context=context,
@@ -794,11 +795,18 @@ class ConstraintCommand(
                                        ir_ast.TupleIndirectionPointerRef)
                             and rptr.ptrref.source_ptr is None
                             and rptr.source.rptr is not None):
-                        raise errors.InvalidConstraintDefinitionError(
-                            "constraints cannot contain paths with more "
-                            "than one hop",
-                            context=sourcectx
-                        )
+                        if isinstance(subject, s_links.Link):
+                            raise errors.InvalidConstraintDefinitionError(
+                                "link constraints may not access "
+                                "the link target",
+                                context=sourcectx
+                            )
+                        else:
+                            raise errors.InvalidConstraintDefinitionError(
+                                "constraints cannot contain paths with more "
+                                "than one hop",
+                                context=sourcectx
+                            )
 
                     ref = rptr.source
 
