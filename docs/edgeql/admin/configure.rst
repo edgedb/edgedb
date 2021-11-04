@@ -46,12 +46,12 @@ Parameters
 
 :eql:synopsis:`<parameter>`
     The name of a primitive configuration parameter.  Available
-    configuration parameters are described in the :ref:`ref_admin_config`
+    configuration parameters are described in the :ref:`ref_std_cfg`
     section.
 
 :eql:synopsis:`<parameter-class>`
     The name of a composite configuration value class.  Available
-    configuration classes are described in the :ref:`ref_admin_config`
+    configuration classes are described in the :ref:`ref_std_cfg`
     section.
 
 :eql:synopsis:`<filter-expr>`
@@ -62,23 +62,23 @@ Parameters
 Examples
 --------
 
-Set the listen_addresses parameter:
+Set the ``listen_addresses`` parameter:
 
 .. code-block:: edgeql
 
     CONFIGURE INSTANCE SET listen_addresses := {'127.0.0.1', '::1'};
 
-Set the query_work_mem parameter for the duration of the session:
+Set the ``query_work_mem`` parameter for the duration of the session:
 
 .. code-block:: edgeql
 
-    CONFIGURE SESSION SET query_work_mem := '4MB';
+    CONFIGURE SESSION SET query_work_mem := <cfg::memory>'4MiB';
 
 Set the same parameter, but for the current database:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET query_work_mem := '4MB';
+    CONFIGURE CURRENT DATABASE SET query_work_mem := <cfg::memory>'4MiB';
 
 Add a Trust authentication method for "my_user":
 
