@@ -289,25 +289,32 @@ class StrToConfigMemoryFunction(dbops.Function):
                             -- completeness.
                             edgedb.raise(
                                 NULL::edgedb.memory_t,
+                                'invalid_parameter_value',
                                 msg => (
-                                    'unsupported memory size unit' ||
+                                    'unsupported memory size unit "' ||
                                     m.v[2] || '"'
                                 )
                             )
                     END
                 )
                 ELSE
-                    edgedb.raise(
-                        NULL::edgedb.memory_t,
-                        'invalid_parameter_value',
-                        msg => (
-                            'unable to parse memory size "' || "val" || '"'
-                        )
-                    )
+                    CASE
+                        WHEN "val" = '0'
+                        THEN 0
+                        ELSE
+                            edgedb.raise(
+                                NULL::edgedb.memory_t,
+                                'invalid_parameter_value',
+                                msg => (
+                                    'unable to parse memory size "' ||
+                                    "val" || '"'
+                                )
+                            )
+                    END
             END
         FROM LATERAL (
             SELECT regexp_match(
-                "val", '^(\d+)(KiB|MiB|GiB|TiB|PiB|B)$') AS v
+                "val", '^(\d+)([[:alpha:]]+)$') AS v
         ) AS m
     '''
 
@@ -357,6 +364,9 @@ class ConfigMemoryToStrFunction(dbops.Function):
 
                 WHEN "val" >= 1024 AND "val" % 1024 = 0
                 THEN trunc("val" / 1024::int8)::text || 'KiB'
+
+                WHEN "val" = 0
+                THEN '0'
 
                 ELSE "val"::text || 'B'
             END

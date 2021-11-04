@@ -789,6 +789,24 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 };
             """)
 
+    async def test_edgeql_memory_01(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                "invalid value for scalar type 'cfg::memory'"):
+            await self.con.execute("SELECT <cfg::memory>-1")
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <int64><cfg::memory>'1KiB'"),
+            1024)
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <int64><cfg::memory>1025"),
+            1025)
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <str><cfg::memory>1025"),
+            '1025B')
+
     async def test_edgeql_staeval_duration_01(self):
         valid = [
             ' 100   ',
@@ -891,3 +909,71 @@ class TestEdgeQLDT(tb.QueryTestCase):
             with self.assertRaises(
                     (errors.InvalidValueError, errors.NumericOutOfRangeError)):
                 statypes.Duration(text)
+
+    async def test_edgeql_staeval_memory_01(self):
+        valid = [
+            '0',
+            '123KiB',
+            '11MiB',
+            '0PiB',
+            '1PiB',
+            '111111GiB',
+            '123B',
+        ]
+
+        invalid = [
+            '12kB',
+            '22KB',
+            '-1B',
+            '-1',
+            '+1',
+            '+12TiB',
+            '123TIB',
+        ]
+
+        v = await self.con.query_single(
+            '''
+            SELECT  <array<int64>><array<cfg::memory>><array<str>>$0
+            ''',
+            valid
+        )
+        vs = await self.con.query_single(
+            '''
+            SELECT <array<str>><array<cfg::memory>><array<str>>$0
+            ''',
+            valid
+        )
+
+        for text, ref_value, svalue in zip(valid, v, vs):
+            try:
+                parsed = statypes.ConfigMemory(text)
+            except Exception:
+                raise AssertionError(
+                    f'could not parse a valid cfg::memory: {text!r}')
+
+            self.assertEqual(
+                ref_value,
+                parsed.to_nbytes(),
+                text)
+
+            self.assertEqual(
+                svalue,
+                parsed.to_str(),
+                text)
+
+            self.assertEqual(
+                statypes.ConfigMemory(svalue).to_nbytes(),
+                parsed.to_nbytes(),
+                text)
+
+        for text in invalid:
+            async with self.assertRaisesRegexTx(
+                    edgedb.InvalidValueError,
+                    r'(unsupported memory size)|(unable to parse memory)'):
+                await self.con.query_single(
+                    '''SELECT <int64><cfg::memory><str>$0''',
+                    text
+                )
+
+            with self.assertRaises(errors.InvalidValueError):
+                statypes.ConfigMemory(text)

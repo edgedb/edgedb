@@ -175,6 +175,18 @@ cfg::_describe_database_config_as_ddl() -> str
 };
 
 
+CREATE CAST FROM std::int64 TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM cfg::memory TO std::int64 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
 CREATE CAST FROM std::str TO cfg::memory {
     SET volatility := 'Immutable';
     USING SQL FUNCTION 'edgedb.str_to_cfg_memory';
