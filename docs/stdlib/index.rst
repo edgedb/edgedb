@@ -30,11 +30,11 @@ The standard library reference is grouped by data type.
     enum
     math
     sequence
-    sys
     uuid
-    cfg
     constraints
     objects
     abstract
     casts
+    sys
+    cfg
     deprecated

@@ -40,82 +40,77 @@ Configuration Parameters
 Connection settings
 -------------------
 
-:eql:synopsis:`listen_addresses (SET OF str)`
-    Specifies the TCP/IP address(es) on which the server is to listen for
-    connections from client applications.  If the list is empty, the server
-    does not listen on any IP interface at all, in which case only Unix-domain
-    sockets can be used to connect to it.
+:eql:synopsis:`listen_addresses -> multi str`
+  Specifies the TCP/IP address(es) on which the server is to listen for
+  connections from client applications.  If the list is empty, the server
+  does not listen on any IP interface at all, in which case only Unix-domain
+  sockets can be used to connect to it.
 
-:eql:synopsis:`listen_port (int16)`
-    The TCP port the server listens on; ``5656`` by default.  Note that the
-    same port number is used for all IP addresses the server listens on.
-
-:eql:synopsis:`Auth`
-    A parameter class that specifies the rules of client authentication.
-    Below are the properties of the ``Auth`` class.
-
-    :eql:synopsis:`priority (int64)`
-        The priority of the authentication rule.  The lower this number,
-        the higher the priority.
-
-    :eql:synopsis:`user (SET OF str)`
-        The name(s) of the database role(s) this rule applies to.  If set to
-        ``'*'``, then it applies to all roles.
-
-    :eql:synopsis:`method`
-        The name of the authentication method type.  Valid values are:
-        ``Trust`` for no authentication and ``SCRAM`` for SCRAM-SHA-256
-        password authentication.
-
-    :eql:synopsis:`comment`
-        An optional comment for the authentication rule.
-
+:eql:synopsis:`listen_port -> int16`
+  The TCP port the server listens on; ``5656`` by default.  Note that the
+  same port number is used for all IP addresses the server listens on.
 
 Resource usage
 --------------
 
-:eql:synopsis:`effective_io_concurrency (int64)`
-    Sets the number of concurrent disk I/O operations that can be
-    executed simultaneously. Corresponds to the PostgreSQL
-    configuration parameter of the same name.
+:eql:synopsis:`effective_io_concurrency -> int64`
+  Sets the number of concurrent disk I/O operations that can be
+  executed simultaneously. Corresponds to the PostgreSQL
+  configuration parameter of the same name.
 
-:eql:synopsis:`query_work_mem (str)`
-    The amount of memory used by internal query operations such as
-    sorting. Corresponds to the PostgreSQL ``work_mem`` configuration
-    parameter.
+:eql:synopsis:`query_work_mem -> cfg::memory`
+  The amount of memory used by internal query operations such as
+  sorting. Corresponds to the PostgreSQL ``work_mem`` configuration
+  parameter.
 
-:eql:synopsis:`shared_buffers (str)`
-    The amount of memory the database uses for shared memory buffers.
-    Corresponds to the PostgreSQL configuration parameter of the same
-    name. Changing this value requires server restart.
+:eql:synopsis:`shared_buffers -> cfg::memory`
+  The amount of memory the database uses for shared memory buffers.
+  Corresponds to the PostgreSQL configuration parameter of the same
+  name. Changing this value requires server restart.
 
 
 Query planning
 --------------
 
-:eql:synopsis:`default_statistics_target (str)`
-    Sets the default data statistics target for the planner.
-    Corresponds to the PostgreSQL configuration parameter of the same
-    name.
+:eql:synopsis:`default_statistics_target -> int64`
+  Sets the default data statistics target for the planner.
+  Corresponds to the PostgreSQL configuration parameter of the same
+  name.
 
-:eql:synopsis:`effective_cache_size (str)`
-    Sets the planner's assumption about the effective size of the disk
-    cache that is available to a single query. Corresponds to the
-    PostgreSQL configuration parameter of the same name.
+:eql:synopsis:`effective_cache_size -> cfg::memory`
+  Sets the planner's assumption about the effective size of the disk
+  cache that is available to a single query. Corresponds to the
+  PostgreSQL configuration parameter of the same name.
 
 
 Client connections
 ------------------
 
-:eql:synopsis:`client_idle_timeout (int16)`
-    Sets the timeout for how long client connections can stay
-    inactive before being forcefully closed by the server. The default
-    is 30 seconds. Set it to ``0`` to disable the mechanism.
+:eql:synopsis:`session_idle_timeout -> std::duration`
+  Sets the timeout for how long client connections can stay inactive
+  before being forcefully closed by the server.
 
-    Note that the actual time an idle connection can live can be up to
-    two times longer than the specified timeout.
+  The default is 60 seconds. Setting it to ``<duration>'0'`` disables
+  the mechanism. Setting the timeout to less than ``2`` seconds is not
+  recommended.
 
-    This is a system-level config setting.
+  Note that the actual time an idle connection can live can be up to
+  two times longer than the specified timeout.
+
+  This is a system-level config setting.
+
+:eql:synopsis:`session_idle_transaction_timeout -> std::duration`
+  Sets the timeout for how long client connections can stay inactive
+  while in a transaction.
+
+  The default is 10 seconds. Setting it to ``<duration>'0'`` disables
+  the mechanism.
+
+:eql:synopsis:`query_execution_timeout -> std::duration`
+  Sets a time limit on how long a query can be run.
+
+  Setting it to ``<duration>'0'`` disables the mechanism.
+  The timeout isn't enabled by default.
 
 ----------
 
@@ -125,45 +120,7 @@ Client connections
   An abstract type representing the configuration of an instance or database.
 
   The properties of this object type represent the set of configuration
-  options supported by EdgeDB.
-
-
-  .. list-table::
-
-    * - **Setting**
-      - **Type**
-      - **Default**
-    * - ``client_idle_timeout``
-      - ``required std::int16``
-      - ``30 seconds``
-    * - ``listen_port``
-      - ``required std::int16``
-      - ``5656``
-    * - ``listen_addresses``
-      - ``multi std::str``
-      - N/A
-    * - ``auth``
-      - ``multi cfg::Auth``
-      - N/A
-    * - ``allow_dml_in_functions``
-      - ``std::bool``
-      - N/A
-    * - ``shared_buffers``
-      - ``std::str``
-      - ``'-1'``
-    * - ``query_work_mem``
-      - ``std::str``
-      - ``'-1'``
-    * - ``effective_cache_size``
-      - ``std::str``
-      - ``'-1'``
-    * - ``effective_io_concurrency``
-      - ``std::str``
-      - ``'50'``
-    * - ``default_statistics_target``
-      - ``std::str``
-      - ``'100'``
-
+  options supported by EdgeDB (listed above).
 
 
 ----------
@@ -173,24 +130,32 @@ Client connections
 
   An object type designed to specify a client authentication profile.
 
+  .. code-block:: edgeql-repl
+
+    edgedb> configure instance insert Auth {
+    .......   priority := 0,
+    .......   method := (INSERT Trust)
+    ....... }
+    CONFIGURE: OK
+
   Below are the properties of the ``Auth`` class.
 
-  :eql:synopsis:`priority (int64)`
-      The priority of the authentication rule.  The lower this number,
-      the higher the priority.
+  :eql:synopsis:`priority -> int64`
+    The priority of the authentication rule.  The lower this number,
+    the higher the priority.
 
-  :eql:synopsis:`user (SET OF str)`
-      The name(s) of the database role(s) this rule applies to.  If set to
-      ``'*'``, then it applies to all roles.
+  :eql:synopsis:`user -> multi str`
+    The name(s) of the database role(s) this rule applies to.  If set to
+    ``'*'``, then it applies to all roles.
 
-  :eql:synopsis:`method (cfg::AuthMethod)`
-      The name of the authentication method type. Expects an instance of
-      :eql:type:`cfg::AuthMethod`;  Valid values are:
-      ``Trust`` for no authentication and ``SCRAM`` for SCRAM-SHA-256
-      password authentication.
+  :eql:synopsis:`method -> cfg::AuthMethod`
+    The name of the authentication method type. Expects an instance of
+    :eql:type:`cfg::AuthMethod`;  Valid values are:
+    ``Trust`` for no authentication and ``SCRAM`` for SCRAM-SHA-256
+    password authentication.
 
-  :eql:synopsis:`comment`
-      An optional comment for the authentication rule.
+  :eql:synopsis:`comment -> optional str`
+    An optional comment for the authentication rule.
 
 
 ---------
