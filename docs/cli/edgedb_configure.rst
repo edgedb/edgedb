@@ -45,7 +45,7 @@ configuration actions.
 
 :cli:synopsis:`<parameter>`
     The name of a primitive configuration parameter.  Available
-    configuration parameters are described in the :ref:`ref_admin_config`
+    configuration parameters are described in the :ref:`ref_std_cfg`
     section.
 
 :cli:synopsis:`<value>`
@@ -54,7 +54,7 @@ configuration actions.
 
 :cli:synopsis:`<parameter-class>`
     The name of a composite configuration value class.  Available
-    configuration classes are described in the :ref:`ref_admin_config`
+    configuration classes are described in the :ref:`ref_std_cfg`
     section.
 
 :cli:synopsis:`--<property>=<value>`
