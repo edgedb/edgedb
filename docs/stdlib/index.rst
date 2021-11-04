@@ -32,6 +32,7 @@ The standard library reference is grouped by data type.
     sequence
     sys
     uuid
+    cfg
     constraints
     objects
     abstract
