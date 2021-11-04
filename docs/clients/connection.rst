@@ -14,22 +14,29 @@ Specifying an instance
 
 There are several ways to uniquely identify an EdgeDB instance.
 
-+-----------------------+---------------------------+-------------------------+
-| Parameter             | CLI flag                  | Environment variable    |
-+=======================+===========================+=========================+
-| Instance name         | ``--instance/-I <name>``  | ``EDGEDB_INSTANCE``     |
-+-----------------------+---------------------------+-------------------------+
-| DSN                   | ``--dsn <dsn>``           | ``EDGEDB_DSN``          |
-+-----------------------+---------------------------+-------------------------+
-| Host and port         | ``--host/-H <host>``      | ``EDGEDB_HOST``         |
-|                       |                           |                         |
-|                       | ``--port/-P <port>``      | ``EDGEDB_PORT``         |
-+-----------------------+---------------------------+-------------------------+
-| Credentials file      | ``--credentials-file      | ``EDGEDB_               |
-|                       | <path>``                  | CREDENTIALS_FILE``      |
-+-----------------------+---------------------------+-------------------------+
-| *Project linking*     | *N/A*                     | *N/A*                   |
-+-----------------------+---------------------------+-------------------------+
+.. list-table::
+
+  * - **Parameter**
+    - **CLI flag**
+    - **Environment variable**
+  * - Instance name
+    - ``--instance/-I <name>``
+    - ``EDGEDB_INSTANCE``
+  * - DSN
+    - ``--dsn <dsn>``
+    - ``EDGEDB_DSN``
+  * - Host and port
+    - .. code-block::
+
+        --host/-H <host>
+        --port/-P <port>
+    - ``EDGEDB_HOST`` and ``EDGEDB_PORT``
+  * - Credentials file
+    - ``--credentials-file <path>``
+    - ``EDGEDB_CREDENTIALS_FILE``
+  * - *Project linking*
+    - *N/A*
+    - *N/A*
 
 
 Let's dig into each of these a bit more.
@@ -223,15 +230,20 @@ The "instance selection" mechanisms described above makes it easy to provide a
 full set of connection information in a single neat package. Sometimes it's
 useful to override a particular *element* of a configuration object.
 
-+-----------------------+---------------------------+-------------------------+
-| Parameter             | CLI flag                  | Environment variable    |
-+=======================+===========================+=========================+
-| User                  | ``--user/-u <user>``      | ``EDGEDB_USER``         |
-+-----------------------+---------------------------+-------------------------+
-| Password              | ``--password <pass>``     | ``EDGEDB_PASSWORD``     |
-+-----------------------+---------------------------+-------------------------+
-| Database              | ``--database/-d <name>``  | ``EDGEDB_DATABASE``     |
-+-----------------------+---------------------------+-------------------------+
+.. list-table::
+
+  * - **Parameter**
+    - **CLI flag**
+    - **Environment variable**
+  * - User
+    - ``--user/-u <user>``
+    - ``EDGEDB_USER``
+  * - Password
+    - ``--password <pass>``
+    - ``EDGEDB_PASSWORD``
+  * - Database
+    - ``--database/-d <name>``
+    - ``EDGEDB_DATABASE``
 
 
 Let dig deeper into each of these connection parameters.
@@ -291,19 +303,19 @@ TLS parameters
 
 EdgeDB uses TLS by default for all connections. This
 
-+-------------------------+--------------------------+------------------------+
-| Parameter               | CLI flag                 | Environment variable   |
-+=========================+==========================+========================+
-| TLS Root Certificate(s) | ``--tls-ca-file <path>`` | ``EDGEDB_TLS_CA_FILE`` |
-+-------------------------+--------------------------+------------------------+
-| TLS Verify Hostname     | ``--tls-verify-hostname``| ``EDGEDB_TLS_VERIFY_   |
-|                         |                          | HOSTNAME``             |
-+-------------------------+--------------------------+------------------------+
-| Insecure Dev Mode       | *N/A*                    | ``EDGEDB_INSECURE_     |
-|                         |                          | DEV_MODE``             |
-+-------------------------+--------------------------+------------------------+
+.. list-table::
 
-**TLS root certificate(s)**
+    * - **Environment variable**
+      - **CLI flag**
+    * - ``EDGEDB_TLS_CA_FILE``
+      - ``--tls-ca-file <path>``
+    * - ``EDGEDB_CLIENT_TLS_SECURITY``
+      - ``--tls-security``
+    * - ``EDGEDB_CLIENT_SECURITY``
+      - ``--tls-verify-hostname``
+
+
+**EDGEDB_TLS_CA_FILE**
   TLS is required to connect to any EdgeDB instance. To do so, the client needs
   a reference to the root certificate of your instance's certificate chain.
   Typically this will be handled for you when you create a local instance or
@@ -318,23 +330,27 @@ EdgeDB uses TLS by default for all connections. This
   and provide a path to its location on the filesystem. Otherwise TLS will fail
   to connect.
 
-**TLS verify hostname**
-  Defaults to ``true`` unless you provide a custom TLS root certificate,
-  in which case verification is disabled by default.
+**EDGEDB_CLIENT_TLS_SECURITY**
+  Sets the TLS security mode. Determines whether certificate and hostname
+  verification is enabled. Possible values:
 
-  When true, the client will check that the hostname of the TLS certificate
-  matches the hostname of the instance.
 
-  This is a boolean value. For details on how to specify boolean values in
-  environment variables, see the :ref:`Boolean parameters <ref_boolean_env>`
-  section.
+  - ``"strict"`` (**default**) — certificates and hostnames will be verified
+  - ``"no_host_verification"`` — verify certificates but not hostnames
+  - ``"insecure"`` — client libraries will trust self-signed TLS certificates.
+    useful for self-signed or custom certificates.
 
-**Insecure dev mode**
-  Defaults to ``false``.
+  This setting defaults to ``"strict"`` unless a custom certificate is
+  supplied, in which case it is set to ``"no_host_verification"``.
 
-  When true, the client will connect even when TLS validation fails. This is
-  useful in development if you're running an EdgeDB instance in a Docker
-  container. Don't use this in production.
+
+**EDGEDB_CLIENT_SECURITY**
+  Provides some simple "security presets".
+
+  Currently there is only one valid value: ``insecure_dev_mode``. Setting
+  ``EDGEDB_CLIENT_SECURITY=insecure_dev_mode`` disables all TLS security
+  measures. This is useful when developing locally with Docker.
+
 
 .. _ref_dsn:
 
@@ -369,26 +385,36 @@ parameters (where the parameter contains the value itself), file parameters
 (where the param points to a local file containing the actual value), and
 environment parameters
 
-+-----------------------+-------------------------+-------------------------+
-| Plain param           | File param              | Environment param       |
-+=======================+=========================+=========================+
-| ``port``              | ``port_file``           | ``port_env``            |
-+-----------------------+-------------------------+-------------------------+
-| ``host``              | ``host_file``           | ``host_env``            |
-+-----------------------+-------------------------+-------------------------+
-| ``port``              | ``port_file``           | ``port_env``            |
-+-----------------------+-------------------------+-------------------------+
-| ``database``          | ``database_file``       | ``database_env``        |
-+-----------------------+-------------------------+-------------------------+
-| ``user``              | ``user_file``           | ``user_env``            |
-+-----------------------+-------------------------+-------------------------+
-| ``password``          | ``password_file``       | ``password_env``        |
-+-----------------------+-------------------------+-------------------------+
-| ``tls_cert_file``     | ``tls_cert_file_file``  | ``tls_cert_file_env``   |
-+-----------------------+-------------------------+-------------------------+
-| ``tls_verify_         | ``tls_verify_           | ``tls_verify_           |
-| hostname``            | hostname_file``         | hostname_env``          |
-+-----------------------+-------------------------+-------------------------+
+
+.. list-table::
+
+  * - **Plain param**
+    - **File param**
+    - **Environment param**
+  * - ``port``
+    - ``port_file``
+    - ``port_env``
+  * - ``host``
+    - ``host_file``
+    - ``host_env``
+  * - ``port``
+    - ``port_file``
+    - ``port_env``
+  * - ``database``
+    - ``database_file``
+    - ``database_env``
+  * - ``user``
+    - ``user_file``
+    - ``user_env``
+  * - ``password``
+    - ``password_file``
+    - ``password_env``
+  * - ``tls_cert_file``
+    - ``tls_cert_file_file``
+    - ``tls_cert_file_env``
+  * - ``tls_verify_hostname``
+    - ``tls_verify_hostname_file``
+    - ``tls_verify_hostname_env``
 
 **Plain params**
   These "plain" parameters can be used to provide values for options that can't
@@ -426,23 +452,3 @@ environment parameters
 
     MY_PASSWORD=p@$$w0rd
     EDGEDB_DSN=edgedb://hostname.com:1234?password_env=MY_PASSWORD
-
-.. _ref_boolean_env:
-
-##################
-Boolean parameters
-##################
-
-All environment variables are represented as strings. When representing a
-boolean value such as ``EDGEDB_TLS_VERIFY_HOSTNAME``, any of the following
-values are considered valid. All other values will throw an error.
-
-.. code-block::
-
-  True        False
-  ----------------------
-  "true"     "false"
-  "t"        "f"
-  "yes"      "no"
-  "on"       "off"
-  "1"        "0"
