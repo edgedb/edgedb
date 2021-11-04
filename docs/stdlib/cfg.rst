@@ -13,7 +13,7 @@ EdgeDB.
 
   * - **Type**
     - **Description**
-  * - :eql:type:`cfg::AbstractConfig`
+  * - :eql:type:`cfg::Config`
     - The base type for all configuration objects. The properties of this type
       define the set of configuruation settings supported by EdgeDB.
   * - :eql:type:`cfg::Auth`
@@ -32,14 +32,14 @@ EdgeDB.
 ----------
 
 
-.. eql:type:: cfg::AbstractConfig
+.. eql:type:: cfg::Config
 
   An abstract type representing the configuration of an instance or database.
 
   Is extended by three non-abstract subclasses:
   ``cfg::Config``, ``cfg::InstanceConfig``, and ``cfg::DatabaseConfig``. At
   the moment, these subclasses do not declare any additional properties or
-  links beyond what they inherit from ``cfg::AbstractConfig``.
+  links beyond what they inherit from ``cfg::Config``.
 
   The properties of this object type represent the set of configuration
   options supported by EdgeDB.
