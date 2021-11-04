@@ -1277,7 +1277,7 @@ class TestSeparateCluster(tb.TestCase):
 
                 # check that the default was set correctly
                 await assert_conf(
-                    c1, 'session_idle_transaction_timeout', 10000)
+                    c1, 'session_idle_transaction_timeout', 0)
 
                 ####
 
