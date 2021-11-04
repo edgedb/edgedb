@@ -1263,6 +1263,34 @@ class TestServerProto(tb.QueryTestCase):
         finally:
             await con.query('ROLLBACK')
 
+    async def test_server_proto_tx_savepoint_12(self):
+        con = self.con
+
+        await con.query('START TRANSACTION')
+        await con.query('DECLARE SAVEPOINT p1')
+        await con.query('DECLARE SAVEPOINT p2')
+        await con.query('ROLLBACK TO SAVEPOINT p1')
+
+        try:
+            with self.assertRaises(edgedb.TransactionError):
+                await con.query('ROLLBACK TO SAVEPOINT p2')
+        finally:
+            await con.query('ROLLBACK')
+
+    async def test_server_proto_tx_savepoint_13(self):
+        con = self.con
+
+        await con.query('START TRANSACTION')
+        await con.query('DECLARE SAVEPOINT p1')
+        await con.query('DECLARE SAVEPOINT p2')
+        await con.query('RELEASE SAVEPOINT p1')
+
+        try:
+            with self.assertRaises(edgedb.TransactionError):
+                await con.query('ROLLBACK TO SAVEPOINT p2')
+        finally:
+            await con.query('ROLLBACK')
+
     async def test_server_proto_tx_01(self):
         await self.con.query('START TRANSACTION')
 
