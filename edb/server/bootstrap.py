@@ -735,6 +735,10 @@ async def _init_stdlib(
             stdlib,
         )
         await conn.execute(testmode_sql)
+        # _testmode includes extra config settings, so make sure
+        # those are picked up.
+        config_spec = config.load_spec_from_schema(stdlib.stdschema)
+        config.set_settings(config_spec)
 
     # Make sure that schema backend_id properties are in sync with
     # the database.
