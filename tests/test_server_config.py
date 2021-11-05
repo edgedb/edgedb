@@ -936,10 +936,14 @@ class TestServerConfig(tb.QueryTestCase):
             conf3 = "CONFIGURE SESSION SET singleprop := '42';"
             await self.con.execute(conf3)
 
+            conf4 = "CONFIGURE INSTANCE SET memprop := <cfg::memory>'100MiB';"
+            await self.con.execute(conf4)
+
             res = await self.con.query_single('DESCRIBE INSTANCE CONFIG;')
             self.assertIn(conf1, res)
             self.assertIn(conf2, res)
             self.assertNotIn(conf3, res)
+            self.assertIn(conf4, res)
 
         finally:
             await self.con.execute('''
@@ -948,6 +952,9 @@ class TestServerConfig(tb.QueryTestCase):
             ''')
             await self.con.execute('''
                 CONFIGURE INSTANCE RESET singleprop;
+            ''')
+            await self.con.execute('''
+                CONFIGURE INSTANCE RESET memprop;
             ''')
 
     async def test_server_proto_configure_describe_database_config(self):

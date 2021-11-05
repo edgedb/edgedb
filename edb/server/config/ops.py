@@ -105,7 +105,7 @@ class Operation(NamedTuple):
             elif (isinstance(self.value, str) and
                     issubclass(setting.type, statypes.Duration)):
                 return statypes.Duration(self.value)
-            elif (isinstance(self.value, str) and
+            elif (isinstance(self.value, (str, int)) and
                     issubclass(setting.type, statypes.ConfigMemory)):
                 return statypes.ConfigMemory(self.value)
             elif self.value is None and allow_missing:

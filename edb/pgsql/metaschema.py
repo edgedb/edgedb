@@ -4677,12 +4677,12 @@ def _render_config_value(
         schema,
         schema.get('std::duration', type=s_scalars.ScalarType),
     ):
-        val = f'cfg::_quote(<str>{value_expr})'
+        val = f'"<std::duration>" ++ cfg::_quote(<str>{value_expr})'
     elif valtype.issubclass(
         schema,
         schema.get('cfg::memory', type=s_scalars.ScalarType),
     ):
-        val = f'cfg::_quote(<str>{value_expr})'
+        val = f'"<cfg::memory>" ++ cfg::_quote(<str>{value_expr})'
     elif valtype.issubclass(
         schema,
         schema.get('std::str', type=s_scalars.ScalarType),
