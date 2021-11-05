@@ -37,6 +37,10 @@ type Profile extending NamedObject {
     required property value -> str;
     property tags -> array<str>;
     multi property odd -> array<int64>;
+
+    # computed link and property test
+    link owner_user := .<profile[IS User];
+    property owner_name := .<profile[IS User].name;
 }
 
 type User extending NamedObject {
@@ -95,6 +99,9 @@ type ScalarTest {
     property p_array_int64 -> array<int64>;
     property p_array_json -> array<json>;
     property p_array_bytes -> array<bytes>;
+
+    property p_tuple -> tuple<int64, str>;
+    property p_array_tuple -> array<tuple<str, bool>>;
 }
 type BigIntTest {
     property value -> bigint;

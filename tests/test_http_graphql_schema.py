@@ -767,29 +767,6 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     },
                     {
                         "__typename": "__Field",
-                        "name": "owner",
-                        "description": None,
-                        "type": {
-                            "__typename": "__Type",
-                            "name": None,
-                            "kind": "LIST",
-                            "ofType": {
-                                "__typename": "__Type",
-                                "name": None,
-                                "kind": "NON_NULL",
-                                "ofType": {
-                                    "__typename": "__Type",
-                                    "name": "User",
-                                    "kind": "INTERFACE",
-                                    "ofType": None
-                                }
-                            }
-                        },
-                        "isDeprecated": False,
-                        "deprecationReason": None
-                    },
-                    {
-                        "__typename": "__Field",
                         "name": "owner_name",
                         "description": None,
                         "type": {
@@ -804,6 +781,29 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                                     "__typename": "__Type",
                                     "name": "String",
                                     "kind": "SCALAR",
+                                    "ofType": None
+                                }
+                            }
+                        },
+                        "isDeprecated": False,
+                        "deprecationReason": None
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "owner_user",
+                        "description": None,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": None,
+                            "kind": "LIST",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": None,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "__typename": "__Type",
+                                    "name": "User",
+                                    "kind": "INTERFACE",
                                     "ofType": None
                                 }
                             }
@@ -1186,7 +1186,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             },
                             {
                                 "__typename": "__Field",
-                                "name": "owner",
+                                "name": "owner_name",
                                 "description": None,
                                 "type": {
                                     "__typename": "__Type",
@@ -1203,7 +1203,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             },
                             {
                                 "__typename": "__Field",
-                                "name": "owner_name",
+                                "name": "owner_user",
                                 "description": None,
                                 "type": {
                                     "__typename": "__Type",
@@ -2536,7 +2536,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
         )
 
     def test_graphql_reflection_02(self):
-        # Make sure that "id", as well as computed "owner" and
+        # Make sure that "id", as well as computed "owner_user" and
         # "owner_name" are not reflected into insert or update
         result = self.graphql_query(r"""
             query {
@@ -2553,7 +2553,7 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
             }
         """)
 
-        for bad in ['id', 'owner', 'owner_name']:
+        for bad in ['id', 'owner_user', 'owner_name']:
             self.assertNotIn(
                 bad,
                 [t['name'] for t in result['in']['inputFields']]

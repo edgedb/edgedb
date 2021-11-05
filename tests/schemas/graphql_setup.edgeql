@@ -128,6 +128,9 @@ INSERT ScalarTest {
     p_array_str := ['hello', 'world'],
     p_array_json := [<json>'hello', <json>'world'],
     p_array_bytes := [b'hello', b'world'],
+
+    p_tuple := (123, 'test'),
+    p_array_tuple := [('hello', true), ('world', false)],
 };
 
 # Inheritance tests
