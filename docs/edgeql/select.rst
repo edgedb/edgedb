@@ -88,9 +88,10 @@ By default, this only returns the ``id`` of each object. If serialized to JSON, 
   ]
 
 
+.. _ref_eql_shapes:
 
-Field selection
-^^^^^^^^^^^^^^^
+Shapes
+^^^^^^
 
 To specify which properties to select, we attach a **shape** to ``Hero``. A shape can be attached to any object type expression in EdgeQL.
 

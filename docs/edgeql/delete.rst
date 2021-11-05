@@ -2,3 +2,8 @@
 
 Delete
 ======
+
+- Basic examples
+- Full query power of select
+- Passing other sets into delete
+- Cascading deletes

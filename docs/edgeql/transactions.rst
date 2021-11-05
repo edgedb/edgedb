@@ -2,3 +2,6 @@
 
 Transactions
 ============
+
+- Breakdown of transaction commands
+- Not recommended: use client libraries
