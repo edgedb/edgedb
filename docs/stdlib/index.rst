@@ -30,6 +30,7 @@ Standard Library
     constraints
     casts
     sys
+    cfg
     deprecated
 
 EdgeDB comes with a rigorously defined type system consisting of **scalar
