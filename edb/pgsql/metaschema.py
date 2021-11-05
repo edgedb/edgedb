@@ -3288,6 +3288,8 @@ class SysConfigFullFunction(dbops.Function):
                         SELECT * FROM pg_auto_conf_settings UNION ALL
                         SELECT * FROM pg_config
                     ) AS q
+                WHERE
+                    q.is_backend
             )
         $$;
     ELSE
@@ -3297,9 +3299,15 @@ class SysConfigFullFunction(dbops.Function):
                     q.*
                 FROM
                     (
+                        -- config_sys is here, because there
+                        -- is no other way to read instance-level
+                        -- configuration overrides.
+                        SELECT * FROM config_sys UNION ALL
                         SELECT * FROM pg_db_setting UNION ALL
                         SELECT * FROM pg_config
                     ) AS q
+                WHERE
+                    q.is_backend
             )
         $$;
     END IF;
