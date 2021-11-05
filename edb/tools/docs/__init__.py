@@ -36,7 +36,7 @@ class ProhibitedNodeTransform(s_transforms.SphinxTransform):
 
     def apply(self):
         for bq in list(self.document.traverse(d_nodes.block_quote)):
-            if ('pull-quote' not in bq.get('classes')):
+            if not bq['classes'] or 'pull-quote' not in bq['classes']:
                 raise shared.EdgeSphinxExtensionError(
                     f'blockquote found: {bq.asdom().toxml()!r} in {bq.source};'
                     f' Try using the "pull-quote" directive')
