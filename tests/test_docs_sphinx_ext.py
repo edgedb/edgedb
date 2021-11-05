@@ -901,6 +901,32 @@ class TestBlockquote(unittest.TestCase, BaseDomainTest):
         with self.assert_fails('blockquote found'):
             self.build(src, format='html')
 
+    def test_sphinx_eql_blockquote_02(self):
+        # Test that although regular block-qoutes are blocked
+        # (as their syntax is very confusing and fragile), we can
+        # still use explicit block-quotes via the `.. pull-quote::`
+        # directive.
+
+        src = '''
+        blah
+
+        .. pull-quote::
+
+            spam
+
+        blah2
+        '''
+
+        out = self.build(src, format='xml')
+        x = requests_xml.XML(xml=out)
+
+        self.assertEqual(
+            x.xpath('''
+                block_quote/*/text()
+            '''),
+            ['spam']
+        )
+
     def test_sphinx_eql_singlebacktick_01(self):
         src = '''
         Another use case is for giving short aliases to long module names
