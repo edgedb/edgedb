@@ -53,6 +53,7 @@ def compile_ir_to_sql_tree(
     external_rvars: Optional[
         Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     ] = None,
+
 ) -> pgast.Base:
     try:
         # Transform to sql tree

@@ -67,13 +67,13 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
+from edb.pgsql import common as pg_common
 from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
-from edb.pgsql import common as pg_common
+from edb.pgsql import params as pg_params
 from edb.pgsql import types as pg_types
 
 from edb.server import config
-from edb.server import pgcluster
 
 from . import dbstate
 from . import enums
@@ -109,7 +109,7 @@ class CompileContext:
     schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
     backend_runtime_params: Any = (
-        pgcluster.get_default_runtime_params())
+        pg_params.get_default_runtime_params())
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
@@ -253,8 +253,8 @@ class Compiler:
     def __init__(
         self,
         *,
-        backend_runtime_params: pgcluster.BackendRuntimeParams=
-            pgcluster.get_default_runtime_params(),
+        backend_runtime_params: pg_params.BackendRuntimeParams=
+            pg_params.get_default_runtime_params(),
     ):
         self._dbname = None
         self._cached_db = None

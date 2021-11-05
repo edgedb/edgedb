@@ -60,6 +60,7 @@ from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
+from edb.pgsql import params as pgparams
 from edb.pgsql.common import quote_ident as qi
 from edb.pgsql.common import quote_literal as ql
 
@@ -135,7 +136,7 @@ async def _ensure_edgedb_supergroup(
         name=pg_role_name,
         superuser=bool(
             instance_params.capabilities
-            & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
+            & pgparams.BackendCapabilities.SUPERUSER_ACCESS
         ),
         allow_login=False,
         allow_createdb=True,
@@ -184,7 +185,7 @@ async def _ensure_edgedb_role(
             superuser
             and bool(
                 instance_params.capabilities
-                & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
+                & pgparams.BackendCapabilities.SUPERUSER_ACCESS
             )
         ),
         allow_login=True,
@@ -255,7 +256,7 @@ async def _create_edgedb_template_database(
     instance_params = ctx.cluster.get_runtime_params().instance_params
     capabilities = instance_params.capabilities
     have_c_utf8 = (
-        capabilities & pgcluster.BackendCapabilities.C_UTF8_LOCALE)
+        capabilities & pgparams.BackendCapabilities.C_UTF8_LOCALE)
 
     logger.info('Creating template database...')
     block = dbops.SQLBlock()

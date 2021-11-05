@@ -54,11 +54,11 @@ from edb.server import defines
 from edb.server import compiler as edbcompiler
 from edb.server import config as edbconfig
 from edb.server import bootstrap as edbbootstrap
-from edb.server import pgcluster
 
 from . import common
 from . import dbops
 from . import types
+from . import params
 
 if TYPE_CHECKING:
     import asyncpg
@@ -3388,7 +3388,7 @@ class SysConfigFunction(dbops.Function):
 
     backend_caps := edgedb.get_backend_capabilities();
     IF (backend_caps
-        & {int(pgcluster.BackendCapabilities.CONFIGFILE_ACCESS)}) != 0
+        & {int(params.BackendCapabilities.CONFIGFILE_ACCESS)}) != 0
     THEN
         RETURN QUERY
         SELECT *
