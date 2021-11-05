@@ -27,6 +27,7 @@ from edb.schema import objects as s_obj
 from edb.edgeql import qltypes
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import params as pgparams
 
 from . import astutils
 from . import clauses
@@ -48,6 +49,14 @@ def compile_ConfigSet(
     result: pgast.BaseExpr
 
     if op.scope is qltypes.ConfigScope.INSTANCE and op.backend_setting:
+        if not (
+            ctx.env.backend_runtime_params.instance_params.capabilities
+            & pgparams.BackendCapabilities.CONFIGFILE_ACCESS
+        ):
+            raise errors.UnsupportedBackendFeatureError(
+                "configuring backend parameters via CONFIGURE INSTANCE"
+                " is not supported by the current backend"
+            )
         result = pgast.AlterSystem(
             name=op.backend_setting,
             value=val,

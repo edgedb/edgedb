@@ -967,9 +967,21 @@ async def _configure(
 
     await _execute_block(ctx.conn, block)
 
+    instance_params = ctx.cluster.get_runtime_params().instance_params
     for setname in config_spec:
         setting = config_spec[setname]
-        if setting.backend_setting and setting.default is not None:
+        if (
+            setting.backend_setting
+            and setting.default is not None
+            and (
+                # Do not attempt to run CONFIGURE INSTANCE on
+                # backends that don't support it.
+                # TODO: this should be replaced by instance-wide
+                #       emulation at backend connection time.
+                instance_params.capabilities
+                & pgparams.BackendCapabilities.CONFIGFILE_ACCESS
+            )
+        ):
             if isinstance(setting.default, statypes.Duration):
                 val = f'<std::duration>"{setting.default.to_iso8601()}"'
             else:

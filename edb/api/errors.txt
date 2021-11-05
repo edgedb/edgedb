@@ -145,6 +145,13 @@
 
 ####
 
+0x_09_00_00_00   BackendError
+
+0x_09_00_01_00   UnsupportedBackendFeatureError
+
+
+####
+
 0x_F0_00_00_00   LogMessage
 
 0x_F0_01_00_00   WarningMessage
