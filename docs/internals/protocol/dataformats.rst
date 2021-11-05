@@ -536,3 +536,18 @@ For example, the bigint value ``-15000`` is represented as:
 
     // digits
     0x00 0x01 0x13 0x88
+
+
+.. _ref_protocol_fmt_memory:
+
+cfg::memory
+===========
+
+The :eql:type:`cfg::memory` values are represented as a number of *bytes*
+encoded as a 64-bit integer, most sigificant byte first.
+
+For example, the ``cfg::memory`` value ``123MiB`` is represented as:
+
+.. code-block:: c
+
+    0x00 0x00 0x00 0x00 0x07 0xb0 0x00 0x00
