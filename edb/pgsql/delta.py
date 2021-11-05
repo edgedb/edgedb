@@ -244,6 +244,7 @@ class Query(MetaCommand, adapts=sd.Query):
                 schema,
                 schema.get('std::str'),
             ),
+            backend_runtime_params=context.backend_runtime_params,
         )
 
         sql_text = codegen.generate_source(sql_tree)
@@ -3689,6 +3690,7 @@ class PointerMetaCommand(MetaCommand):
             output_format=compiler.OutputFormat.NATIVE_INTERNAL,
             singleton_mode=expr_is_trivial,
             external_rvars=external_rvars,
+            backend_runtime_params=context.backend_runtime_params,
         )
 
         sql_text = codegen.generate_source(sql_tree)

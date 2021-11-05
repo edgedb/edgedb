@@ -108,7 +108,7 @@ class CompileContext:
     inline_objectids: bool = True
     schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
-    backend_runtime_params: Any = (
+    backend_runtime_params: pg_params.BackendRuntimeParams = (
         pg_params.get_default_runtime_params())
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
@@ -607,6 +607,7 @@ class Compiler:
             ),
             expected_cardinality_one=ctx.expected_cardinality_one,
             output_format=_convert_format(ctx.output_format),
+            backend_runtime_params=ctx.backend_runtime_params,
         )
 
         if (
@@ -1513,6 +1514,7 @@ class Compiler:
             ir,
             pretty=(debug.flags.edgeql_compile
                     or debug.flags.edgeql_compile_sql_text),
+            backend_runtime_params=ctx.backend_runtime_params,
         )
 
         sql = (sql_text.encode(),)
