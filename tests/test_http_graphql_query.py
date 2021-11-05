@@ -2448,17 +2448,17 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             """)
 
     def test_graphql_functional_scalars_04(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"Cannot query field 'p_array_json' on type 'ScalarTest'",
-                _line=4, _col=25):
-            self.graphql_query(r"""
-                query {
-                    ScalarTest {
-                        p_array_json
-                    }
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_array_json
                 }
-            """)
+            }
+        """, {
+            "ScalarTest": [{
+                'p_array_json': ["hello", "world"],
+            }]
+        })
 
     def test_graphql_functional_scalars_05(self):
         with self.assertRaisesRegex(
@@ -2496,6 +2496,32 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             "ScalarTest": [{
                 'p_array_str': ['hello', 'world'],
+            }]
+        })
+
+    def test_graphql_functional_scalars_08(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_tuple
+                }
+            }
+        """, {
+            "ScalarTest": [{
+                'p_tuple': [123, "test"],
+            }]
+        })
+
+    def test_graphql_functional_scalars_09(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_array_tuple
+                }
+            }
+        """, {
+            "ScalarTest": [{
+                'p_array_tuple': [["hello", True], ["world", False]],
             }]
         })
 

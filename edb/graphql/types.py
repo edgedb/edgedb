@@ -437,14 +437,8 @@ class GQLCoreSchema:
     ) -> Optional[GraphQLOutputType]:
         target: Optional[GraphQLOutputType] = None
 
-        # only arrays can be validly wrapped, other containers don't
-        # produce a valid graphql type
         if isinstance(edb_target, s_types.Array):
             subtype = edb_target.get_subtypes(self.edb_schema)[0]
-            if str(subtype.get_name(self.edb_schema)) == 'std::json':
-                # cannot expose arrays of JSON
-                return None
-
             el_type = self._convert_edb_type(subtype)
             if el_type is None:
                 # we can't expose an array of unexposable type
@@ -473,9 +467,8 @@ class GQLCoreSchema:
                 target = self._gql_enums.get(name)
 
         elif edb_target.is_tuple(self.edb_schema):
-            edb_typename = edb_target.get_verbosename(self.edb_schema)
-            raise g_errors.GraphQLCoreError(
-                f"Could not convert {edb_typename} to a GraphQL type.")
+            # Represent tuples as JSON.
+            target = EDB_TO_GQL_SCALARS_MAP['std::json']
 
         elif isinstance(edb_target, s_types.InheritingType):
             base_target = edb_target.get_topmost_concrete_base(self.edb_schema)
@@ -807,6 +800,13 @@ class GQLCoreSchema:
                 fields[name] = GraphQLInputField(intype)
 
             elif (
+                isinstance(edb_target, s_types.Collection) and
+                edb_target.contains_array_of_tuples(self.edb_schema)
+            ):
+                # Can't insert array<tuple<...>>
+                continue
+
+            elif (
                 isinstance(edb_target, s_scalars.ScalarType)
                 or isinstance(edb_target, s_types.Array)
             ):
@@ -896,6 +896,13 @@ class GQLCoreSchema:
                         ptr, name, edb_type, intype)
 
                 fields[name] = GraphQLInputField(intype)
+
+            elif (
+                isinstance(edb_target, s_types.Collection) and
+                edb_target.contains_array_of_tuples(self.edb_schema)
+            ):
+                # Can't update array<tuple<...>>
+                continue
 
             elif (
                 isinstance(edb_target, s_scalars.ScalarType)

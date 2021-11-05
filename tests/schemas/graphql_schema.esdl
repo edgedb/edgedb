@@ -39,7 +39,7 @@ type Profile extending NamedObject {
     multi property odd -> array<int64>;
 
     # computed link and property test
-    link owner := .<profile[IS User];
+    link owner_user := .<profile[IS User];
     property owner_name := .<profile[IS User].name;
 }
 
