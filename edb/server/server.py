@@ -388,7 +388,7 @@ class Server(ha_base.ClusterProtocol):
         finally:
             self._initing = False
 
-    def _reinit_idle_gc_collector(self) -> int:
+    def _reinit_idle_gc_collector(self) -> float:
         if self._auto_shutdown_after >= 0:
             return -1
 
@@ -823,6 +823,7 @@ class Server(ha_base.ClusterProtocol):
             ''', ignore_data=False)
             try:
                 data = binascii.a2b_hex(result[0][0][2:])
+                assert data is not None
                 self._report_config_typedesc = data
             except Exception as e:
                 raise RuntimeError(
