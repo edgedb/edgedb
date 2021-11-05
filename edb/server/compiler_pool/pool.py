@@ -33,11 +33,12 @@ import time
 
 import immutables
 
-from edb.server import defines
-from edb.server import pgcluster
-from edb.server import metrics
-
 from edb.common import debug
+
+from edb.pgsql import params as pgparams
+
+from edb.server import defines
+from edb.server import metrics
 
 from . import amsg
 from . import queue
@@ -72,7 +73,7 @@ class Worker:
         self,
         manager,
         dbs: state.DatabasesState,
-        backend_runtime_params: pgcluster.BackendRuntimeParams,
+        backend_runtime_params: pgparams.BackendRuntimeParams,
         std_schema,
         refl_schema,
         schema_class_layout,
@@ -166,7 +167,7 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
         loop,
         runstate_dir,
         dbindex,
-        backend_runtime_params: pgcluster.BackendRuntimeParams,
+        backend_runtime_params: pgparams.BackendRuntimeParams,
         std_schema,
         refl_schema,
         schema_class_layout,
@@ -733,7 +734,7 @@ async def create_compiler_pool(
     runstate_dir: str,
     pool_size: int,
     dbindex,
-    backend_runtime_params: pgcluster.BackendRuntimeParams,
+    backend_runtime_params: pgparams.BackendRuntimeParams,
     std_schema,
     refl_schema,
     schema_class_layout,

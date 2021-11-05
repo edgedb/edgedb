@@ -69,9 +69,9 @@ from edb.ir import utils as irutils
 
 from edb.pgsql import common
 from edb.pgsql import dbops
+from edb.pgsql import params
 
 from edb.server import defines as edbdef
-from edb.server import pgcluster
 
 from . import ast as pg_ast
 from .common import qname as q
@@ -187,21 +187,21 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
     def _get_backend_params(
         self,
         context: sd.CommandContext,
-    ) -> pgcluster.BackendRuntimeParams:
+    ) -> params.BackendRuntimeParams:
 
         ctx_backend_params = context.backend_runtime_params
         if ctx_backend_params is not None:
             backend_params = cast(
-                pgcluster.BackendRuntimeParams, ctx_backend_params)
+                params.BackendRuntimeParams, ctx_backend_params)
         else:
-            backend_params = pgcluster.get_default_runtime_params()
+            backend_params = params.get_default_runtime_params()
 
         return backend_params
 
     def _get_instance_params(
         self,
         context: sd.CommandContext,
-    ) -> pgcluster.BackendInstanceParams:
+    ) -> params.BackendInstanceParams:
         return self._get_backend_params(context).instance_params
 
     def _get_tenant_id(self, context: sd.CommandContext) -> str:
@@ -366,9 +366,9 @@ class AlterGlobalSchemaVersion(
         ctx_backend_params = context.backend_runtime_params
         if ctx_backend_params is not None:
             backend_params = cast(
-                pgcluster.BackendRuntimeParams, ctx_backend_params)
+                params.BackendRuntimeParams, ctx_backend_params)
         else:
-            backend_params = pgcluster.get_default_runtime_params()
+            backend_params = params.get_default_runtime_params()
 
         instance_params = backend_params.instance_params
         capabilities = instance_params.capabilities
@@ -377,7 +377,7 @@ class AlterGlobalSchemaVersion(
         tpl_db_name = common.get_database_backend_name(
             edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
 
-        if capabilities & pgcluster.BackendCapabilities.SUPERUSER_ACCESS:
+        if capabilities & params.BackendCapabilities.SUPERUSER_ACCESS:
             # Only superusers are generally allowed to make an UPDATE
             # lock on shared catalogs.
             lock = dbops.Query(
@@ -5310,7 +5310,7 @@ class CreateRole(MetaCommand, adapts=s_roles.CreateRole):
             if not backend_params.instance_params.base_superuser:
                 superuser_flag = (
                     capabilities
-                    & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
+                    & params.BackendCapabilities.SUPERUSER_ACCESS
                 )
 
         if backend_params.session_authorization_role is not None:
@@ -5390,7 +5390,7 @@ class AlterRole(MetaCommand, adapts=s_roles.AlterRole):
             if not instance_params.base_superuser:
                 superuser_flag = (
                     capabilities
-                    & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
+                    & params.BackendCapabilities.SUPERUSER_ACCESS
                 )
 
             kwargs['superuser'] = superuser_flag

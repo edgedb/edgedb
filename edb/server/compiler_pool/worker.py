@@ -32,17 +32,18 @@ import immutables
 
 from edb import graphql
 
+from edb.common import debug
+from edb.common import devmode
+from edb.common import markup
+
 from edb.edgeql import parser as ql_parser
+
+from edb.pgsql import params as pgparams
 
 from edb.schema import schema as s_schema
 
 from edb.server import compiler
 from edb.server import config
-from edb.server import pgcluster
-
-from edb.common import debug
-from edb.common import devmode
-from edb.common import markup
 
 from . import amsg
 from . import state
@@ -50,8 +51,8 @@ from . import state
 
 INITED: bool = False
 DBS: state.DatabasesState = immutables.Map()
-BACKEND_RUNTIME_PARAMS: pgcluster.BackendRuntimeParams = \
-    pgcluster.get_default_runtime_params()
+BACKEND_RUNTIME_PARAMS: pgparams.BackendRuntimeParams = \
+    pgparams.get_default_runtime_params()
 COMPILER: compiler.Compiler
 LAST_STATE: Optional[compiler.dbstate.CompilerConnectionState] = None
 STD_SCHEMA: s_schema.FlatSchema
