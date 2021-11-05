@@ -625,7 +625,8 @@ class ParameterStatus(ServerMessage):
 
 class ParameterStatus_SystemConfig(Struct):
 
-    typedesc = ArrayOf(UInt32, UInt8(), 'Type descriptor.')
+    typedesc = ArrayOf(UInt32, UInt8(), 'Type descriptor prefixed with '
+                                        'type descriptor uuid.')
     data = FixedArrayOf(1, DataElement, 'Configuration settings data.')
 
 
