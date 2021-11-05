@@ -927,6 +927,7 @@ pub fn is_keyword(s: &str) -> bool {
         | "refresh"
         | "reindex"
         | "revoke"
+        | "on"
         | "over"
         | "when"
         | "window"
