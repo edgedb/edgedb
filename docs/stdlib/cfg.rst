@@ -93,7 +93,7 @@ Client connections
   Time spent on waiting for query results doesn't count as idling.
   E.g. if the session idle timeout is set to 1 minute it would be OK
   to run a query that takes 2 minutes to compute; to limit the query
-  execution time use the `query_execution_timeout` setting.
+  execution time use the ``query_execution_timeout`` setting.
 
   The default is 60 seconds. Setting it to ``<duration>'0'`` disables
   the mechanism. Setting the timeout to less than ``2`` seconds is not
