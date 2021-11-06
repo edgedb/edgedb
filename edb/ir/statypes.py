@@ -304,35 +304,42 @@ class ConfigMemory:
 
     def __init__(
         self,
-        text: str,
+        val: str | int,
         /,
     ) -> None:
-        if text == '0':
-            self._value = 0
-            return
+        if isinstance(val, int):
+            self._value = val
+        elif isinstance(val, str):
+            text = val
+            if text == '0':
+                self._value = 0
+                return
 
-        m = self._parser.match(text)
-        if m is None:
-            raise errors.InvalidValueError(
-                f'unable to parse memory size: {text!r}')
+            m = self._parser.match(text)
+            if m is None:
+                raise errors.InvalidValueError(
+                    f'unable to parse memory size: {text!r}')
 
-        num = int(m.group('num'))
-        unit = m.group('unit')
+            num = int(m.group('num'))
+            unit = m.group('unit')
 
-        if unit == 'B':
-            self._value = num
-        elif unit == 'KiB':
-            self._value = num * self.KiB
-        elif unit == 'MiB':
-            self._value = num * self.MiB
-        elif unit == 'GiB':
-            self._value = num * self.GiB
-        elif unit == 'TiB':
-            self._value = num * self.TiB
-        elif unit == 'PiB':
-            self._value = num * self.PiB
+            if unit == 'B':
+                self._value = num
+            elif unit == 'KiB':
+                self._value = num * self.KiB
+            elif unit == 'MiB':
+                self._value = num * self.MiB
+            elif unit == 'GiB':
+                self._value = num * self.GiB
+            elif unit == 'TiB':
+                self._value = num * self.TiB
+            elif unit == 'PiB':
+                self._value = num * self.PiB
+            else:
+                raise AssertionError('unexpected unit')
         else:
-            raise AssertionError('unexpected unit')
+            raise ValueError(
+                f"invalid ConfigMemory value: {type(val)}, expected int | str")
 
     def to_nbytes(self) -> int:
         return self._value
