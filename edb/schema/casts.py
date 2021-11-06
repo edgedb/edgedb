@@ -173,17 +173,29 @@ def is_castable(
                 return False
 
 
+def get_cast_fullname_from_names(
+    module: str,
+    from_type: str,
+    to_type: str,
+) -> sn.QualName:
+    quals = [from_type, to_type]
+    shortname = sn.QualName(module, 'cast')
+    return sn.QualName(
+        module=shortname.module,
+        name=sn.get_specialized_name(shortname, *quals),
+    )
+
+
 def get_cast_fullname(
     schema: s_schema.Schema,
     module: str,
     from_type: s_types.TypeShell[s_types.Type],
     to_type: s_types.TypeShell[s_types.Type],
 ) -> sn.QualName:
-    quals = [str(from_type.get_name(schema)), str(to_type.get_name(schema))]
-    shortname = sn.QualName(module, 'cast')
-    return sn.QualName(
-        module=shortname.module,
-        name=sn.get_specialized_name(shortname, *quals),
+    return get_cast_fullname_from_names(
+        module,
+        str(from_type.get_name(schema)),
+        str(to_type.get_name(schema)),
     )
 
 

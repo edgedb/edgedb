@@ -82,7 +82,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_bytes_04(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError, r'expected json string or null'):
-            await self.con.query_one(""" SELECT <bytes>to_json('1'); """),
+            await self.con.query_one("""SELECT <bytes>to_json('1');"""),
 
         self.assertEqual(
             await self.con.query_one(r'''

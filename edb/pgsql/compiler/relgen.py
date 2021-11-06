@@ -1832,7 +1832,7 @@ def process_set_as_type_cast(
             if serialized is not None:
                 if irtyputils.is_collection(inner_set.typeref):
                     serialized = output.serialize_expr_to_json(
-                        serialized, path_id=inner_set.path_id,
+                        serialized, styperef=inner_set.path_id.target,
                         env=subctx.env)
 
                 pathctx.put_path_value_var(

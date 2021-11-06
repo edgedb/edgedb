@@ -92,6 +92,9 @@ def compile_cast(
             f'`...[IS {new_stype.get_displayname(ctx.env.schema)}]` instead',
             context=srcctx)
 
+    json_t = ctx.env.get_track_schema_type(
+        sn.QualName('std', 'json'))
+
     if isinstance(ir_set.expr, irast.Array):
         return _cast_array_literal(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
@@ -124,8 +127,6 @@ def compile_cast(
             cardinality_mod=cardinality_mod, ctx=ctx)
 
     else:
-        json_t = ctx.env.get_track_schema_type(
-            sn.QualName('std', 'json'))
         if (new_stype.issubclass(ctx.env.schema, json_t) and
                 ir_set.path_id.is_objtype_path()):
             # JSON casts of objects are special: we want the full shape
@@ -626,8 +627,15 @@ def _cast_array_literal(
                 context=srcctx) from None
         assert isinstance(new_stype, s_types.Array)
         el_type = new_stype.get_subtypes(ctx.env.schema)[0]
+        intermediate_stype = orig_stype
+
     else:
         el_type = new_stype
+        ctx.env.schema, intermediate_stype = s_types.Array.from_subtypes(
+            ctx.env.schema, [el_type])
+
+    intermediate_typeref = typegen.type_to_typeref(
+        intermediate_stype, env=ctx.env)
 
     casted_els = []
     for el in ir_set.expr.elements:
@@ -637,12 +645,12 @@ def _cast_array_literal(
         casted_els.append(el)
 
     new_array = setgen.ensure_set(
-        irast.Array(elements=casted_els, typeref=orig_typeref),
+        irast.Array(elements=casted_els, typeref=intermediate_typeref),
         ctx=ctx)
 
     if direct_cast is not None:
         return _cast_to_ir(
-            new_array, direct_cast, orig_stype, new_stype, ctx=ctx)
+            new_array, direct_cast, intermediate_stype, new_stype, ctx=ctx)
 
     else:
         cast_ir = irast.TypeCast(

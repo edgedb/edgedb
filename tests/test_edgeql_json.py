@@ -1380,9 +1380,100 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_bytes_cast_01(self):
         await self.assert_query_result(
-            r""" SELECT <json>b'foo'; """,
+            r"""SELECT <json>b'foo';""",
             ['Zm9v'],
             ['"Zm9v"'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>(foo := b'hello', bar := [b'world']);""",
+            [{'bar': ['d29ybGQ='], 'foo': 'aGVsbG8='}],
+            ['{"bar": ["d29ybGQ="], "foo": "aGVsbG8="}'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>{ x := b'hello' };""",
+            [{'x': 'aGVsbG8='}],
+            ['{"x": "aGVsbG8="}'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>[b'foo'];""",
+            [['Zm9v']],
+            ['["Zm9v"]'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>(b'foo',)""",
+            [['Zm9v']],
+            ['["Zm9v"]'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>[(b'foo',)][0]""",
+            [['Zm9v']],
+            ['["Zm9v"]'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>(a := b'foo')""",
+            [{"a": "Zm9v"}],
+            ['{"a": "Zm9v"}'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>[(a := b'foo')][0]""",
+            [{"a": "Zm9v"}],
+            ['{"a": "Zm9v"}'],
+        )
+
+    async def test_edgeql_json_bytes_output_01(self):
+        await self.assert_query_result(
+            r"""SELECT b'foo';""",
+            ['Zm9v'],
+            [b'foo'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT { x := b'hello' };""",
+            [{'x': 'aGVsbG8='}],
+            [{'x': b'hello'}],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT (b'foo',)""",
+            [['Zm9v']],
+            [[b'foo']],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT [(b'foo',)][0]""",
+            [['Zm9v']],
+            [[b'foo']],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT (a := b'foo')""",
+            [{"a": "Zm9v"}],
+            [{"a": b'foo'}],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT [(a := b'foo')][0]""",
+            [{"a": "Zm9v"}],
+            [{"a": b'foo'}],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT [b'foo'];""",
+            [['Zm9v']],
+            [[b'foo']],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT (foo := b'hello', bar := [b'world']);""",
+            [{'bar': ['d29ybGQ='], 'foo': 'aGVsbG8='}],
+            [{'bar': [b'world'], 'foo': b'hello'}],
         )
 
     async def test_edgeql_json_alias_01(self):

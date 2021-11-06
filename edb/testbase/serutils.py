@@ -94,6 +94,7 @@ def _stringify(o):
 @serialize.register(int)
 @serialize.register(float)
 @serialize.register(str)
+@serialize.register(bytes)
 @serialize.register(bool)
 @serialize.register(type(None))
 @serialize.register(decimal.Decimal)
