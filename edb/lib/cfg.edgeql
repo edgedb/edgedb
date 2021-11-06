@@ -215,3 +215,89 @@ CREATE CAST FROM cfg::memory TO std::json {
         SELECT to_jsonb(edgedb.cfg_memory_to_str(val))
     $$;
 };
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::=';
+    SET negator := 'std::!=';
+    USING SQL OPERATOR r'=(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL cfg::memory, r: OPTIONAL cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::!=';
+    SET negator := 'std::=';
+    USING SQL OPERATOR r'<>(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL cfg::memory, r: OPTIONAL cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::<';
+    SET negator := 'std::<=';
+    USING SQL OPERATOR r'>(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::<=';
+    SET negator := 'std::<';
+    USING SQL OPERATOR r'>=(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::>';
+    SET negator := 'std::>=';
+    USING SQL OPERATOR r'<(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::>=';
+    SET negator := 'std::>';
+    USING SQL OPERATOR r'<=(int8,int8)';
+};
