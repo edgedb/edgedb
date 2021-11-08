@@ -9,7 +9,7 @@ are designed to hold arbitrary schema-level metadata represented as a
 :eql:type:`str`.
 
 
-Standard Annotations
+Standard annotations
 --------------------
 
 There is a number of annotations defined in the standard library.
@@ -32,39 +32,24 @@ For example, consider the following declaration:
         }
     }
 
-The above annotations can be extracted via schema introspection queries
-and used to create a descriptive UI for an admin tool:
-
-.. code-block:: edgeql-repl
-
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
-    ...     name,
-    ...     annotations: {
-    ...         name,
-    ...         @value
-    ...     }
-    ... }
-    ... FILTER .name = 'default::Status';
-    {
-        Object {
-            name: 'default::Status',
-            annotations: {
-                Object {
-                    name: 'std::description',
-                    @value: 'All possible user activities'
-                },
-                Object {
-                    name: 'std::title',
-                    @value: 'Activity status'
-                }
-            }
-        }
-    }
-
 The ``deprecated`` annotation is used to mark deprecated items (e.g.
 :eql:func:`str_rpad`) and to provide some information such as what
 should be used instead.
+
+
+User-defined annotations
+------------------------
+
+To declare a custom constraint type beyond the three built-ins, add an abstract
+annotation type to your schema.
+
+.. code-block:: sdl
+
+  abstract annotation admin_note;
+
+  type Status {
+    annotation admin_note := 'system-critical';
+  }
 
 
 See Also

@@ -83,7 +83,7 @@ Multiple Inheritance
 ^^^^^^^^^^^^^^^^^^^^
 
 Object types can :ref:`extend more
-than one type <ref_eql_sdl_object_types_inheritance>` - that's called
+than one type <ref_eql_sdl_object_types_inheritance>` — that's called
 *multiple inheritance*. This mechanism allows building complex object
 types out of combinations of more basic types.
 
@@ -105,14 +105,16 @@ types out of combinations of more basic types.
 Name conflicts are not allowed; supertypes cannot share any link or property
 names.
 
-.. TODO: indexes
 
-.. TODO: constraints
+.. note::
 
-.. TODO: annotations
+  Refer to the dedicated pages on :ref:`Indexes <ref_datamodel_indexes>`,
+  :ref:`Constraints <ref_datamodel_constraints>`, and :ref:`Annotations
+  <ref_datamodel_annotations>` for full documentation on those concepts.
 
 See Also
 --------
+
 
 Object type
 :ref:`SDL <ref_eql_sdl_object_types>`,

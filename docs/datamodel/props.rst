@@ -188,8 +188,8 @@ are declared independent of a source or target, can contain :ref:`annotations
 Link properties
 ---------------
 
-Properties can also be defined on **links**. For a full guide, refer to the
-:ref:`Link Properties <ref_datamodel_linkprops>` docs.
+Properties can also be defined on **links**. For a full guide, refer to
+:ref:`Schema > Link Properties <ref_datamodel_linkprops>`.
 
 See Also
 --------
