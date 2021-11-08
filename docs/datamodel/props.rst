@@ -64,8 +64,6 @@ The values associated with a ``multi`` property are stored in no
 particular order. If order is important, use an :ref:`array
 <ref_datamodel_arrays>`. Otherwise, ``multi`` properties are recommended.
 
-.. TODO: Link to Sets and paths page
-
 Default values
 --------------
 
