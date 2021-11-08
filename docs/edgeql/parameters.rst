@@ -14,15 +14,14 @@ parameters are supplied externally.
   select <int64>$a + <int64>$b;
   select BlogPost filter .id = <uuid>$blog_id;
 
-Note that we provided an explicit type cast before the parameter; this is
-required for all parameters. This way, EdgeDB can strongly type all expressions
-involving parameters and enforce the parameter types when the query is
-executed.
+Note that we provided an explicit type cast before the parameter. This is
+required, as it enables EdgeDB to enforce the provided types at runtime.
 
 Usage with clients
 ------------------
 
-**REPL**
+REPL
+^^^^
 
 When you include a parameter reference in an EdgeDB REPL, you'll be prompted
 interactively to provide a value or values.
@@ -34,7 +33,8 @@ interactively to provide a value or values.
   {'I ❤️ EdgeDB!'}
 
 
-**Python**
+Python
+^^^^^^
 
 .. code-block:: python
 
@@ -46,7 +46,8 @@ interactively to provide a value or values.
       "select <datetime>$date;",
       date=datetime.today())
 
-**JavaScript**
+JavaScript
+^^^^^^^^^^
 
 .. code-block:: javascript
 
@@ -58,7 +59,8 @@ interactively to provide a value or values.
     date: new Date()
   });
 
-**Go**
+Go
+^^
 
 .. code-block:: go
 
