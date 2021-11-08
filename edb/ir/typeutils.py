@@ -107,12 +107,12 @@ def is_abstract(typeref: irast.TypeRef) -> bool:
 
 def is_json(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes the json type."""
-    return typeref.id == s_obj.get_known_type_id('std::json')
+    return typeref.real_base_type.id == s_obj.get_known_type_id('std::json')
 
 
 def is_bytes(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes the bytes type."""
-    return typeref.id == s_obj.get_known_type_id('std::bytes')
+    return typeref.real_base_type.id == s_obj.get_known_type_id('std::bytes')
 
 
 def is_persistent_tuple(typeref: irast.TypeRef) -> bool:

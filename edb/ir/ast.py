@@ -167,6 +167,10 @@ class TypeRef(ImmutableBase):
     def real_material_type(self) -> TypeRef:
         return self.material_type or self
 
+    @property
+    def real_base_type(self) -> TypeRef:
+        return self.base_type or self
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
             return False

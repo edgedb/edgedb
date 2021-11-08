@@ -1476,6 +1476,17 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             [{'bar': [b'world'], 'foo': b'hello'}],
         )
 
+    async def test_edgeql_json_bytes_output_02(self):
+        await self.con.execute(r'''
+            CREATE SCALAR TYPE bytes2 EXTENDING bytes;
+        ''')
+
+        await self.assert_query_result(
+            r"""SELECT [<bytes2>b'foo'];""",
+            [['Zm9v']],
+            [[b'foo']],
+        )
+
     async def test_edgeql_json_alias_01(self):
         await self.assert_query_result(
             r'''

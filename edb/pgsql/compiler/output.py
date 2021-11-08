@@ -546,6 +546,8 @@ def serialize_expr_to_json(
     elif irtyputils.is_collection(styperef) and not expr.ser_safe:
         val = coll_as_json_object(expr, styperef=styperef, env=env)
 
+    # TODO: We'll probably want to generalize this to other custom JSON
+    # casts once they exist.
     elif (
         irtyputils.is_bytes(styperef)
         and not expr.ser_safe
