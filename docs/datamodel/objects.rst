@@ -1,7 +1,7 @@
 .. _ref_datamodel_object_types:
 
 ============
-Object Types
+Object types
 ============
 
 

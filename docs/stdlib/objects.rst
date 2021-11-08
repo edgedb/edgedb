@@ -1,7 +1,7 @@
 .. _ref_std_object_types:
 
 ============
-Base Objects
+Base objects
 ============
 
 .. list-table::

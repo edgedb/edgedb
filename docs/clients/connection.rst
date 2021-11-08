@@ -1,6 +1,6 @@
 .. _ref_client_connection:
 
-Connection Parameters
+Connection parameters
 =====================
 
 The CLI and client libraries (collectively referred to as "clients" below) must

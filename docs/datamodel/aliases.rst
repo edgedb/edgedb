@@ -1,8 +1,8 @@
 .. _ref_datamodel_aliases:
 
-==================
-Expression Aliases
-==================
+=======
+Aliases
+=======
 
 .. important::
 

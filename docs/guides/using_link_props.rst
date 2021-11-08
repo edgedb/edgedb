@@ -114,8 +114,10 @@ Querying
 See Also
 --------
 
-Property
-:ref:`Data Model <ref_datamodel_linkprops>`, :ref:`SDL <ref_eql_sdl_props>`,
-:ref:`DDL <ref_eql_ddl_props>`,
-and :ref:`introspection <ref_eql_introspection_object_types>`
-(as part of overall object introspection).
+.. list-table::
+
+  * - :ref:`Data Model > Links > Link properties
+      <ref_datamodel_link_properties>`
+  * - :ref:`SDL > Properties <ref_eql_sdl_props>`
+  * - :ref:`DDL > Properties <ref_eql_ddl_props>`
+  * - :ref:`Introspection > Object Types <ref_eql_introspection_object_types>`

@@ -7,7 +7,7 @@ Properties
 :index: property
 
 Properties are used to associate primitive data with an :ref:`object type
-<ref_datamodel_object_types>` or :ref:`link <ref_datamodel_linkprops>`.
+<ref_datamodel_object_types>` or :ref:`link <ref_datamodel_link_properties>`.
 
 
 .. code-block:: sdl
@@ -189,7 +189,7 @@ Link properties
 ---------------
 
 Properties can also be defined on **links**. For a full guide, refer to
-:ref:`Schema > Link Properties <ref_datamodel_linkprops>`.
+:ref:`Guides > Using link properties <ref_guide_linkprops>`.
 
 See Also
 --------

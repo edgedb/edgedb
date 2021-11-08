@@ -1,7 +1,7 @@
 .. _ref_eql_functions:
 
 
-Functions and Operators
+Functions and operators
 -----------------------
 
 All functions and operators in EdgeDB are either *element-wise* or *aggregate*.
