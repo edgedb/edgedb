@@ -32,14 +32,14 @@ command below.
 
 .. code-block:: bash
 
-    $ curl https://sh.edgedb.com --proto '=https' -sSf1 | sh
+  $ curl https://sh.edgedb.com --proto '=https' -sSf1 | sh
 
 **Windows**
 
 .. code-block::
 
-    # in Powershell
-    PS> iwr https://ps1.edgedb.com -useb | iex
+  # in Powershell
+  PS> iwr https://ps1.edgedb.com -useb | iex
 
 This command downloads and executes a bash script that installs the ``edgedb``
 CLI on your machine. You may be asked for your password. Once the installation
@@ -57,52 +57,52 @@ In a terminal, create a new directory and ``cd`` into it.
 
 .. code-block:: bash
 
-    $ mkdir quickstart
-    $ cd quickstart
+  $ mkdir quickstart
+  $ cd quickstart
 
 Then initialize your EdgeDB project:
 
 .. code-block:: bash
 
-    $ edgedb project init
+  $ edgedb project init
 
 This starts an interactive tool that walks you through the process of setting
 up your first EdgeDB instance. You should see something like this:
 
 .. code-block:: bash
 
-    $ edgedb project init
+  $ edgedb project init
 
-    No `edgedb.toml` found at `~/path/to/quickstart`
-    or above. Do you want to initialize a new project? [Y/n]
-    > Y
+  No `edgedb.toml` found at `~/path/to/quickstart`
+  or above. Do you want to initialize a new project? [Y/n]
+  > Y
 
-    Specify the name of EdgeDB instance to use with this
-    project [default: edgedb_quickstart]:
-    > edgedb_quickstart
+  Specify the name of EdgeDB instance to use with this
+  project [default: edgedb_quickstart]:
+  > edgedb_quickstart
 
-    How would you like to run EdgeDB for this project?
-    1. Local (native package)
-    2. Docker
-    Type a number to choose an option:
-    > 1
+  How would you like to run EdgeDB for this project?
+  1. Local (native package)
+  2. Docker
+  Type a number to choose an option:
+  > 1
 
-    Checking EdgeDB versions...
-    Specify the version of EdgeDB to use with this project
-    [default: 1-beta3]:
-    > 1-beta3
-    ┌─────────────────────┬───────────────────────────────────────────────┐
-    │ Project directory   │ ~/path/to/quickstart                   │
-    │ Project config      │ ~/path/to/quickstart/edgedb.toml       │
-    │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema          │
-    │ Installation method │ Native System Package                         │
-    │ Version             │ 1.0b2+ga7130d5c7.cv202104290000-202105060205  │
-    │ Instance name       │ edgedb_quickstart                             │
-    └─────────────────────┴───────────────────────────────────────────────┘
-    Initializing EdgeDB instance...
-    Bootstrap complete. Server is up and running now.
-    Project initialialized.
-    To connect to edgedb_quickstart, just run `edgedb`.
+  Checking EdgeDB versions...
+  Specify the version of EdgeDB to use with this project
+  [default: 1-beta3]:
+  > 1-beta3
+  ┌─────────────────────┬───────────────────────────────────────────────┐
+  │ Project directory   │ ~/path/to/quickstart                   │
+  │ Project config      │ ~/path/to/quickstart/edgedb.toml       │
+  │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema          │
+  │ Installation method │ Native System Package                         │
+  │ Version             │ 1.0b2+ga7130d5c7.cv202104290000-202105060205  │
+  │ Instance name       │ edgedb_quickstart                             │
+  └─────────────────────┴───────────────────────────────────────────────┘
+  Initializing EdgeDB instance...
+  Bootstrap complete. Server is up and running now.
+  Project initialialized.
+  To connect to edgedb_quickstart, just run `edgedb`.
 
 
 This did a couple things.
@@ -120,10 +120,10 @@ EdgeDB projects work, check out
 
 .. note::
 
-    Quick note! You can have several "instances" of EdgeDB running on your
-    computer simultaneously. Each instance contains several "databases". Each
-    database may contain several "schema modules" (though commonly your schema
-    will be entirely defined inside the ``default`` module).
+  Quick note! You can have several "instances" of EdgeDB running on your
+  computer simultaneously. Each instance contains several "databases". Each
+  database may contain several "schema modules" (though commonly your schema
+  will be entirely defined inside the ``default`` module).
 
 Let's give it a try! Run ``edgedb`` in your terminal. This will connect to
 your database and open a REPL. You're now connected to a live EdgeDB instance
@@ -201,26 +201,26 @@ these questions to make sure you aren't making any unintended changes.
 
 .. code-block:: bash
 
-    $ edgedb migration create
-    did you create object type 'default::Person'? [y,n,l,c,b,s,q,?]
-    > y
-    did you create object type 'default::Movie'? [y,n,l,c,b,s,q,?]
-    > y
-    Created ./dbschema/migrations/00001.edgeql, id: m1la5u4qi...
+  $ edgedb migration create
+  did you create object type 'default::Person'? [y,n,l,c,b,s,q,?]
+  > y
+  did you create object type 'default::Movie'? [y,n,l,c,b,s,q,?]
+  > y
+  Created ./dbschema/migrations/00001.edgeql, id: m1la5u4qi...
 
 For now, just type ``y`` to confirm each change. But you have several other
 options too:
 
 .. code-block::
 
-    y - confirm the prompt, use the DDL statements
-    n - reject the prompt
-    l - list the DDL statements associated with prompt
-    c - list already confirmed EdgeQL statements
-    b - revert back to previous save point, perhaps previous question
-    s - stop and save changes (splits migration into multiple)
-    q - quit without saving changes
-    h or ? - print help
+  y - confirm the prompt, use the DDL statements
+  n - reject the prompt
+  l - list the DDL statements associated with prompt
+  c - list already confirmed EdgeQL statements
+  b - revert back to previous save point, perhaps previous question
+  s - stop and save changes (splits migration into multiple)
+  q - quit without saving changes
+  h or ? - print help
 
 Using these options, you can introspect the DDL (data definition language)
 commands associated with the change, split up the updates into several
@@ -231,11 +231,11 @@ in the ``dbschema/migrations`` directory!
 
 .. note::
 
-    If you're interested, open this migration file to see what's inside! It's
-    a simple EdgeQL script consisting of :ref:`DDL <ref_eql_sdl>` commands like
-    ``create type``, ``alter type``, and ``create property``. When you generate
-    migrations, EdgeDB reads your declared ``.esdl`` schema and generates a
-    migration path.
+  If you're interested, open this migration file to see what's inside! It's
+  a simple EdgeQL script consisting of :ref:`DDL <ref_eql_sdl>` commands like
+  ``create type``, ``alter type``, and ``create property``. When you generate
+  migrations, EdgeDB reads your declared ``.esdl`` schema and generates a
+  migration path.
 
 Execute the migration
 ---------------------
@@ -244,20 +244,21 @@ Let's apply the migration:
 
 .. code-block:: bash
 
-    $ edgedb migrate
-    Applied m1la5u4qi... (00001.edgeql)
+  $ edgedb migrate
+  Applied m1la5u4qi... (00001.edgeql)
 
-Let's make sure that worked. Run ``edgedb list types`` to view all currently-defined object types.
+Let's make sure that worked. Run ``edgedb list types`` to view all
+currently-defined object types.
 
 .. code-block::
 
-    $ edgedb list types
-    ┌─────────────────┬──────────────────────────────┐
-    │      Name       │          Extending           │
-    ├─────────────────┼──────────────────────────────┤
-    │ default::Movie  │ std::BaseObject, std::Object │
-    │ default::Person │ std::BaseObject, std::Object │
-    └─────────────────┴──────────────────────────────┘
+  $ edgedb list types
+  ┌─────────────────┬──────────────────────────────┐
+  │      Name       │          Extending           │
+  ├─────────────────┼──────────────────────────────┤
+  │ default::Movie  │ std::BaseObject, std::Object │
+  │ default::Person │ std::BaseObject, std::Object │
+  └─────────────────┴──────────────────────────────┘
 
 Looking good! Now let's add some data to the database!
 
@@ -276,17 +277,17 @@ Open the REPL:
 
 .. code-block:: bash
 
-    $ edgedb
+  $ edgedb
 
 Now, let's add Ryan Gosling to the database with a simple EdgeQL query:
 
 .. code-block:: edgeql-repl
 
-    edgedb> insert Person {
-    .......     first_name := 'Ryan',
-    .......     last_name := 'Gosling',
-    ....... };
-    {default::Person {id: 86d0eb18-b7ff-11eb-ba80-7b8e9facf817}}
+  edgedb> insert Person {
+  .......     first_name := 'Ryan',
+  .......     last_name := 'Gosling',
+  ....... };
+  {default::Person {id: 86d0eb18-b7ff-11eb-ba80-7b8e9facf817}}
 
 No sweat. As you can see, EdgeQL differs from SQL in some important ways. It
 uses curly braces and the assignment operator (``:=``) to make queries
@@ -296,27 +297,27 @@ and its actors simultaneously:
 
 .. code-block:: edgeql-repl
 
-    edgedb> insert Movie {
-    .......     title := 'Blade Runner 2049',
-    .......     year := 2017,
-    .......     director := (
-    .......         insert Person {
-    .......             first_name := 'Denis',
-    .......             last_name := 'Villeneuve',
-    .......         }
-    .......     ),
-    .......     actors := {
-    .......         (insert Person {
-    .......             first_name := 'Harrison',
-    .......             last_name := 'Ford',
-    .......         }),
-    .......         (insert Person {
-    .......             first_name := 'Ana',
-    .......             last_name := 'de Armas',
-    .......         }),
-    .......     }
-    ....... };
-    {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
+  edgedb> insert Movie {
+  .......   title := 'Blade Runner 2049',
+  .......   year := 2017,
+  .......   director := (
+  .......     insert Person {
+  .......       first_name := 'Denis',
+  .......       last_name := 'Villeneuve',
+  .......     }
+  .......   ),
+  .......   actors := {
+  .......     (insert Person {
+  .......       first_name := 'Harrison',
+  .......       last_name := 'Ford',
+  .......     }),
+  .......     (insert Person {
+  .......       first_name := 'Ana',
+  .......       last_name := 'de Armas',
+  .......     }),
+  .......   }
+  ....... };
+  {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
 
 As you can see, it's easy to nest :ref:`insert <ref_eql_insert>`
@@ -325,49 +326,32 @@ subqueries inside each other. Now lets add Ryan Gosling to the cast with an
 
 .. code-block:: edgeql-repl
 
-    edgedb> update Movie
-    ....... filter .title = 'Blade Runner 2049'
-    ....... set {
-    .......     actors += (
-    .......         select Person
-    .......         filter .id = <uuid>'86d0eb18-b7ff-11eb-ba80-7b8e9facf817'
-    .......     )
-    ....... };
-    {default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e}}
+  edgedb> update Movie
+  ....... filter .title = 'Blade Runner 2049'
+  ....... set {
+  .......   actors += (
+  .......     select Person
+  .......     filter .id = <uuid>'86d0eb18-b7ff-11eb-ba80-7b8e9facf817'
+  .......   )
+  ....... };
+  {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
 
 This query also uses a subquery to fetch Ryan Gosling and add him to the cast
 of Blade Runner 2049 using the ``+=`` operator. You could also remove a cast
 member with ``-=``.
 
-Our database is still a little sparse. Let's add another movie directed by
-Denis Villeneuve: "Dune".
+Our database is still a little sparse. Let's add a couple more movies.
 
 .. code-block:: edgeql-repl
 
-    edgedb> with denis := (
-    .......   select Person
-    .......   filter .first_name = 'Denis' and
-    .......          .last_name = 'Villeneuve'
-    .......   )
-    ....... insert Movie {
-    .......   title := 'Dune',
-    .......   director := assert_single(denis)
-    ....... };
-    {default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e}}
-
-Here, we fetch Denis Villeneuve, create Dune, and attach Villeneuve as
-director. For convenience, we've extracted the ``select Person`` subquery into
-a ``with`` block: a set of standalone expressions that can be assigned to a
-variable and used elsewhere in the query.
-
-When assigning to ``Movie.director``, we wrap the subquery result (called
-``denis``) in the ``assert_single`` function. In EdgeDB, the result of any
-query is a **set** (in the "set theory" sense). Since we're assigning to
-``Movie.director`` (a singular/"to-one" relation) , we need to provide a
-guarantee that the set we're assigning will only contain a single element. To
-do that we need to either 1) use ``LIMIT 1`` or 2) ``FILTER`` by a property
-with a uniqueness constraint (like ``.id``), or use ``assert_single``.
+  edgedb> insert Movie { title := "Dune" };
+  {default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e}}
+  edgedb> insert Movie {
+  .......   title := "Arrival",
+  .......   year := 2016
+  ....... };
+  {default::Movie {id: ca69776e-40df-11ec-b1b8-b7c909ac034a}}
 
 .. _ref_quickstart_queries:
 
@@ -378,11 +362,12 @@ Let's write some basic queries:
 
 .. code-block:: edgeql-repl
 
-    edgedb> SELECT Movie;
-    {
-      default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05},
-      default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e}
-    }
+  edgedb> select Movie;
+  {
+    default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05},
+    default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e},
+    default::Movie {id: ca69776e-40df-11ec-b1b8-b7c909ac034a}
+  }
 
 The above query simply returned all the ``Movie`` objects in the database. By
 default, only the ``id`` property is returned for each result. To select more
@@ -390,14 +375,15 @@ properties, we add a :ref:`shape <ref_reference_shapes>`:
 
 .. code-block:: edgeql-repl
 
-    edgedb> SELECT Movie {
-    .......     title,
-    .......     year
-    ....... };
-    {
-      default::Movie {title: 'Blade Runner 2049', year: 2017},
-      default::Movie {title: 'Dune', year: {}},
-    }
+  edgedb> select Movie {
+  .......     title,
+  .......     year
+  ....... };
+  {
+    default::Movie {title: 'Blade Runner 2049', year: 2017},
+    default::Movie {title: 'Dune', year: {}},
+    default::Movie {title: 'Arrival', year: 2016}
+  }
 
 This time, the results contain ``title`` and ``year`` as requested in
 the query shape. Note that the ``year`` for Dune is given as ``{}`` (the
@@ -410,54 +396,54 @@ at the end, anything after ``blade runner`` will match: "Blade Runner",
 
 .. code-block:: edgeql-repl
 
-    edgedb> SELECT Movie {
-    .......     title,
-    .......     year
-    ....... }
-    ....... FILTER .title ILIKE 'blade runner%';
-    {default::Movie {title: 'Blade Runner 2049', year: 2017}}
+  edgedb> select Movie {
+  .......     title,
+  .......     year
+  ....... }
+  ....... filter .title = "Blade Runner 2049";
+  {default::Movie {title: 'Blade Runner 2049', year: 2017}}
 
 Let's get more details about the ``Movie``:
 
 .. code-block:: edgeql-repl
 
-    edgedb> SELECT Movie {
-    .......     title,
-    .......     year,
-    .......     director: {
-    .......         first_name,
-    .......         last_name
-    .......     },
-    .......     actors: {
-    .......         first_name,
-    .......         last_name
-    .......     }
-    ....... }
-    ....... FILTER .title ILIKE 'blade runner%';
-    {
-      default::Movie {
-        title: 'Blade Runner 2049',
-        year: 2017,
-        director: default::Person {
-          first_name: 'Denis',
-          last_name: 'Villeneuve'
+  edgedb> select Movie {
+  .......     title,
+  .......     year,
+  .......     director: {
+  .......         first_name,
+  .......         last_name
+  .......     },
+  .......     actors: {
+  .......         first_name,
+  .......         last_name
+  .......     }
+  ....... }
+  ....... filter .title ILIKE 'blade runner%';
+  {
+    default::Movie {
+      title: 'Blade Runner 2049',
+      year: 2017,
+      director: default::Person {
+        first_name: 'Denis',
+        last_name: 'Villeneuve'
+      },
+      actors: {
+        default::Person {
+          first_name: 'Harrison',
+          last_name: 'Ford'
         },
-        actors: {
-          default::Person {
-            first_name: 'Harrison',
-            last_name: 'Ford'
-          },
-          default::Person {
-            first_name: 'Ryan',
-            last_name: 'Gosling'
-          },
-          default::Person {
-            first_name: 'Ana',
-            last_name: 'de Armas',
-          },
+        default::Person {
+          first_name: 'Ryan',
+          last_name: 'Gosling'
+        },
+        default::Person {
+          first_name: 'Ana',
+          last_name: 'de Armas',
         },
       },
-    }
+    },
+  }
 
 
 .. _ref_quickstart_migrations:
@@ -470,19 +456,19 @@ some of the actors, like Jason Momoa, Zendaya, and Oscar Isaac:
 
 .. code-block:: edgeql-repl
 
-    edgedb> INSERT Person {
-    .......     first_name := 'Jason',
-    .......     last_name := 'Momoa'
-    ....... };
-    default::Person {id: 618d4cd6-54db-11e9-8c54-67c38dbbba18}
-    edgedb> INSERT Person {
-    .......     first_name := 'Oscar',
-    .......     last_name := 'Isaac'
-    ....... };
-    default::Person {id: 618d5a64-54db-11e9-8c54-9393cfcd9598}
-    edgedb> INSERT Person { first_name := 'Zendaya'}
-    ERROR: MissingRequiredError: missing value for required property
-    'last_name' of object type 'default::Person'
+  edgedb> insert Person {
+  .......    first_name := 'Jason',
+  .......    last_name := 'Momoa'
+  ....... };
+  default::Person {id: 618d4cd6-54db-11e9-8c54-67c38dbbba18}
+  edgedb> insert Person {
+  .......    first_name := 'Oscar',
+  .......    last_name := 'Isaac'
+  ....... };
+  default::Person {id: 618d5a64-54db-11e9-8c54-9393cfcd9598}
+  edgedb> insert Person { first_name := 'Zendaya'}
+  ERROR: MissingRequiredError: missing value for required property
+  'last_name' of object type 'default::Person'
 
 Unfortunately, adding Zendaya isn't possible with the current schema
 since both ``first_name`` and ``last_name`` are required. So let's
@@ -492,42 +478,42 @@ First, we'll update the ``dbschema/schema.esdl``:
 
 .. code-block:: sdl
 
-    module default {
-        type Person {
-            required property first_name -> str;
+  module default {
+    type Person {
+      required property first_name -> str;
 
-            # delete "required"
-            property last_name -> str;
-        }
-        type Movie {
-            required property title -> str;
-            property year -> int64; # the year of release
-            required link director -> Person;
-            multi link actors -> Person;
-        }
-    };
+      # delete "required"
+      property last_name -> str;
+    }
+    type Movie {
+      required property title -> str;
+      property year -> int64; # the year of release
+      required link director -> Person;
+      multi link actors -> Person;
+    }
+  };
 
 Then we'll create a new migration and apply it:
 
 .. code-block:: bash
 
-    $ edgedb migration create
-    did you make property 'last_name' of object type
-    'default::Person' optional? [y,n,l,c,b,s,q,?]
-    > y
-    Created ./dbschema/migrations/00002.edgeql, id: m1k62y4x...
+  $ edgedb migration create
+  did you make property 'last_name' of object type
+  'default::Person' optional? [y,n,l,c,b,s,q,?]
+  > y
+  Created ./dbschema/migrations/00002.edgeql, id: m1k62y4x...
 
-    $ edgedb migrate
-    Applied m1k62y4x... (00002.edgeql)
+  $ edgedb migrate
+  Applied m1k62y4x... (00002.edgeql)
 
 Now back in our REPL we can add Zendaya:
 
 .. code-block:: edgeql-repl
 
-    edgeql> INSERT Person {
-    .......     first_name := 'Zendaya'
-    ....... };
-    {default::Person {id: 65fce84c-54dd-11e9-8c54-5f000ca496c9}}
+  edgeql> insert Person {
+  .......   first_name := 'Zendaya'
+  ....... };
+  {default::Person {id: 65fce84c-54dd-11e9-8c54-5f000ca496c9}}
 
 .. _ref_quickstart_computeds:
 
@@ -540,17 +526,18 @@ name for a given Person. We'll do this with a :ref:`computed property
 
 .. code-block:: edgeql-repl
 
-    edgedb> SELECT Person {
-    .......     full_name := .first_name ++ ' ' ++ .last_name
-    .......       IF EXISTS .last_name
-    .......       ELSE .first_name
-    ....... };
-    {
-      default::Person {full_name: 'Zendaya'},
-      default::Person {full_name: 'Harrison Ford'},
-      default::Person {full_name: 'Ryan Gosling'},
-      ...
-    }
+  edgedb> select Person {
+  .......   full_name :=
+  .......    .first_name ++ ' ' ++ .last_name
+  .......    if exists .last_name
+  .......    else .first_name
+  ....... };
+  {
+    default::Person {full_name: 'Zendaya'},
+    default::Person {full_name: 'Harrison Ford'},
+    default::Person {full_name: 'Ryan Gosling'},
+    ...
+  }
 
 Let's say we're planning to use ``full_name`` a lot. Instead of re-defining it
 in each query, we can add it directly to the schema alongside the other
@@ -558,63 +545,63 @@ properties of ``Person``. Let's update ``dbschema/default.esdl``:
 
 .. code-block:: sdl
 
-    module default {
-        type Person {
-            required property first_name -> str;
-            property last_name -> str;
+  module default {
+    type Person {
+      required property first_name -> str;
+      property last_name -> str;
 
-            # add computed property "name"
-            property full_name :=
-                .first_name ++ ' ' ++ .last_name
-                IF EXISTS .last_name
-                ELSE .first_name;
-        }
-        type Movie {
-            required property title -> str;
-            property year -> int64; # the year of release
-            required link director -> Person;
-            multi link actors -> Person;
-        }
-    };
+      # add computed property "name"
+      property full_name :=
+        .first_name ++ ' ' ++ .last_name
+        IF EXISTS .last_name
+        ELSE .first_name;
+    }
+    type Movie {
+      required property title -> str;
+      property year -> int64; # the year of release
+      required link director -> Person;
+      multi link actors -> Person;
+    }
+  };
 
 Then create and run another migration:
 
 .. code-block:: bash
 
-    $ edgedb migration create
-    did you create property 'full_name' of object type
-    'default::Person'? [y,n,l,c,b,s,q,?]
-    > y
-    Created ./dbschema/migrations/00003.edgeql, id:
-    m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
+  $ edgedb migration create
+  did you create property 'full_name' of object type
+  'default::Person'? [y,n,l,c,b,s,q,?]
+  > y
+  Created ./dbschema/migrations/00003.edgeql, id:
+  m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
 
-    $ edgedb migrate
-    Applied m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
-    (00003.edgeql)
+  $ edgedb migrate
+  Applied m1gd3vxwz3oopur6ljgg7kzrin3jh65xhhjbj6de2xaou6i7owyhaq
+  (00003.edgeql)
 
 Now we can easily fetch ``full_name`` just like any other property!
 
 .. code-block:: edgeql-repl
 
-    edgeql> SELECT Movie {
-    .......     title,
-    .......     year,
-    .......     director: { full_name },
-    .......     actors: { full_name }
-    ....... }
-    ....... FILTER .title = 'Dune';
-    {
-        default::Movie {
-            title: 'Dune',
-            year: {},
-            director: default::Person {name: 'Denis Villeneuve'},
-            actors: {
-                default::Person {name: 'Jason Momoa'},
-                default::Person {name: 'Zendaya'},
-                default::Person {name: 'Oscar Isaac'},
-            }
-        }
+  edgeql> select Movie {
+  .......    title,
+  .......    year,
+  .......    director: { full_name },
+  .......    actors: { full_name }
+  ....... }
+  ....... filter .title = 'Dune';
+  {
+    default::Movie {
+      title: 'Dune',
+      year: {},
+      director: default::Person {name: 'Denis Villeneuve'},
+      actors: {
+        default::Person {name: 'Jason Momoa'},
+        default::Person {name: 'Zendaya'},
+        default::Person {name: 'Oscar Isaac'},
+      }
     }
+  }
 
 
 .. _ref_quickstart_onwards:

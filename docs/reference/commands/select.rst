@@ -148,6 +148,8 @@ Consider an example using the ``FILTER`` optional clause:
     }
     FILTER User.name LIKE 'Alice%';
 
+
+
 The above example retrieves a single user with a specific name. The
 fact that there is only one such user is a detail that can be well-
 known and important to the creator of the database, but otherwise non-
