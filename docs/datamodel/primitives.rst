@@ -1,8 +1,8 @@
 .. _ref_datamodel_primitives:
 
-===============
-Primitive Types
-===============
+==========
+Primitives
+==========
 
 EdgeDB has a robust type system consisting of primitive and object types.
 Below is a review of EdgeDB's primitive types; later, these will be used to

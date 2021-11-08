@@ -115,9 +115,9 @@ expression, which will be executed upon insertion.
 Link properties
 ---------------
 
-In EdgeDB, links can store *properties*. There are countless scenarios where
-it's useful to store additional information about the *link itself*. For
-instance we can model a family tree with a single ``Person`` type.
+In EdgeDB, links can store *properties*. Like object types, links can contain
+**properties**. Link properties can be used to store metadata about links, such
+as *when* it was created or the *nature/strength* of the relationship.
 
 .. code-block:: sdl
 
@@ -128,13 +128,15 @@ instance we can model a family tree with a single ``Person`` type.
     }
   }
 
-``Person.family_members`` is a many-to-many relation. Each ``family_members``
-link can contain a string ``relationship`` containing the relationship of the ]
-two individuals.
+Above, we model a family tree with a single ``Person`` type. The ``Person.family_members`` link is a many-to-many relation; each ``family_members`` link can contain a string ``relationship`` describing the relationship of the two individuals.
 
-Refer to :ref:`Link Properties <ref_datamodel_linkprops>` for a more thorough
-reference.
+Due to how they're persisted under the hood, link properties must always be
+``single`` and ``optional``.
 
+.. note::
+
+  For a full guide on modeling, inserting, updating, and querying link
+  properties, see the :ref:`Using Link Properties <ref_guide_linkprops>` guide.
 
 .. _ref_datamodel_link_deletion:
 

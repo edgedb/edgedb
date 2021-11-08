@@ -18,7 +18,6 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     objects
     props
     links
-    linkprops
     computeds
     indexes
     constraints
