@@ -39,6 +39,7 @@ from edb.edgeql import qltypes
 from edb.testbase import server as tb
 from edb.schema import objects as s_obj
 
+from edb.server import args
 from edb.server import config
 from edb.server.config import ops
 from edb.server.config import spec
@@ -1146,7 +1147,7 @@ class TestSeparateCluster(tb.TestCase):
 
     async def test_server_config_idle_connection_01(self):
         async with tb.start_edgedb_server(
-            allow_insecure_http_clients=True,
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
             active_cons = []
             idle_cons = []
@@ -1184,7 +1185,7 @@ class TestSeparateCluster(tb.TestCase):
         from edb import protocol
 
         async with tb.start_edgedb_server(
-            allow_insecure_http_clients=True,
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
             conn = await sd.connect_test_protocol()
 
@@ -1201,7 +1202,7 @@ class TestSeparateCluster(tb.TestCase):
 
     async def test_server_config_db_config(self):
         async with tb.start_edgedb_server(
-            allow_insecure_http_clients=True,
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
             con1 = await sd.connect()
             con2 = await sd.connect()
@@ -1273,7 +1274,7 @@ class TestSeparateCluster(tb.TestCase):
             async with tb.start_edgedb_server(
                 data_dir=tmpdir,
                 runstate_dir=tmpdir,
-                insecure_dev_mode=True
+                security=args.ServerSecurityMode.InsecureDevMode,
             ) as sd:
                 c1 = await sd.connect()
                 c2 = await sd.connect()
@@ -1424,7 +1425,7 @@ class TestSeparateCluster(tb.TestCase):
             async with tb.start_edgedb_server(
                 data_dir=tmpdir,
                 runstate_dir=tmpdir,
-                insecure_dev_mode=True,
+                security=args.ServerSecurityMode.InsecureDevMode,
             ) as sd:
 
                 c1 = await sd.connect()
@@ -1446,7 +1447,7 @@ class TestSeparateCluster(tb.TestCase):
         from edb import protocol
 
         async with tb.start_edgedb_server(
-            allow_insecure_http_clients=True
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
             conn = await sd.connect_test_protocol()
 
@@ -1486,7 +1487,7 @@ class TestSeparateCluster(tb.TestCase):
 
     async def test_server_config_query_timeout(self):
         async with tb.start_edgedb_server(
-            allow_insecure_http_clients=True
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
             conn = await sd.connect()
 

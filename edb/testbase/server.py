@@ -52,6 +52,7 @@ from datetime import timedelta
 import edgedb
 
 from edb.edgeql import quote as qlquote
+from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
@@ -391,7 +392,7 @@ async def init_cluster(
     *,
     cleanup_atexit=True,
     init_settings=None,
-    allow_insecure_http_clients=False,
+    http_endpoint_security=edgedb_args.ServerEndpointSecurityMode.Optional,
 ) -> edgedb_cluster.BaseCluster:
     if data_dir is not None and backend_dsn is not None:
         raise ValueError(
@@ -403,17 +404,17 @@ async def init_cluster(
         cluster = edgedb_cluster.TempClusterWithRemotePg(
             backend_dsn, testmode=True, log_level='s',
             data_dir_prefix='edb-test-',
-            allow_insecure_http_clients=allow_insecure_http_clients)
+            http_endpoint_security=http_endpoint_security)
         destroy = True
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
             testmode=True, log_level='s', data_dir_prefix='edb-test-',
-            allow_insecure_http_clients=allow_insecure_http_clients)
+            http_endpoint_security=http_endpoint_security)
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
             data_dir=data_dir, log_level='s',
-            allow_insecure_http_clients=allow_insecure_http_clients)
+            http_endpoint_security=http_endpoint_security)
         destroy = False
 
     if await cluster.get_status() == 'not-initialized':
@@ -433,7 +434,7 @@ def _start_cluster(
     *,
     loop: asyncio.AbstractEventLoop,
     cleanup_atexit=True,
-    allow_insecure_http_clients=False,
+    http_endpoint_security=None,
 ):
     global _default_cluster
 
@@ -452,7 +453,7 @@ def _start_cluster(
                     data_dir=data_dir,
                     backend_dsn=backend_dsn,
                     cleanup_atexit=cleanup_atexit,
-                    allow_insecure_http_clients=allow_insecure_http_clients,
+                    http_endpoint_security=http_endpoint_security,
                 )
             )
 
@@ -553,7 +554,8 @@ class ClusterTestCase(TestCase):
         cls.cluster = _start_cluster(
             loop=cls.loop,
             cleanup_atexit=True,
-            allow_insecure_http_clients=True,
+            http_endpoint_security=(
+                edgedb_args.ServerEndpointSecurityMode.Optional),
         )
         cls.backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
 
@@ -1549,9 +1551,11 @@ class _EdgeDBServer:
         runstate_dir: Optional[str] = None,
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
-        insecure_dev_mode: bool = False,
-        allow_insecure_binary_clients: bool = False,
-        allow_insecure_http_clients: bool = True,  # see __aexit__
+        security: Optional[edgedb_args.ServerSecurityMode] = None,
+        binary_endpoint_security: Optional[
+            edgedb_args.ServerEndpointSecurityMode] = None,
+        http_endpoint_security: Optional[
+            edgedb_args.ServerEndpointSecurityMode] = None,  # see __aexit__
         enable_backend_adaptive_ha: bool = False,
         env: Optional[Dict[str, str]] = None,
     ) -> None:
@@ -1568,9 +1572,9 @@ class _EdgeDBServer:
         self.tenant_id = tenant_id
         self.proc = None
         self.data = None
-        self.insecure_dev_mode = insecure_dev_mode
-        self.allow_insecure_binary_clients = allow_insecure_binary_clients
-        self.allow_insecure_http_clients = allow_insecure_http_clients
+        self.security = security
+        self.binary_endpoint_security = binary_endpoint_security
+        self.http_endpoint_security = http_endpoint_security
         self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
         self.env = env
 
@@ -1686,14 +1690,16 @@ class _EdgeDBServer:
         if self.tenant_id:
             cmd += ['--tenant-id', self.tenant_id]
 
-        if self.insecure_dev_mode:
-            cmd += ['--insecure-dev-mode']
+        if self.security:
+            cmd += ['--security', str(self.security)]
 
-        if self.allow_insecure_binary_clients:
-            cmd += ['--allow-insecure-binary-clients']
+        if self.binary_endpoint_security:
+            cmd += ['--binary-endpoint-security',
+                    str(self.binary_endpoint_security)]
 
-        if self.allow_insecure_http_clients:
-            cmd += ['--allow-insecure-http-clients']
+        if self.http_endpoint_security:
+            cmd += ['--http-endpoint-security',
+                    str(self.http_endpoint_security)]
 
         if self.enable_backend_adaptive_ha:
             cmd += ['--enable-backend-adaptive-ha']
@@ -1742,9 +1748,15 @@ class _EdgeDBServer:
 
     async def __aexit__(self, exc_type, exc, tb):
         try:
-            if (self.allow_insecure_http_clients and
-                    self.data is not None and
-                    not self.auto_shutdown):
+            if (
+                (
+                    self.http_endpoint_security
+                    is edgedb_args.ServerEndpointSecurityMode.Optional
+                )
+                and
+                self.data is not None
+                and not self.auto_shutdown
+            ):
                 # It's a good idea to test most of the ad-hoc test clusters
                 # for any errors in background tasks, as such tests usually
                 # test the functionality that involves notifications and
@@ -1774,9 +1786,11 @@ def start_edgedb_server(
     data_dir: Optional[str] = None,
     reset_auth: Optional[bool] = None,
     tenant_id: Optional[str] = None,
-    insecure_dev_mode: bool = False,
-    allow_insecure_binary_clients: bool = False,
-    allow_insecure_http_clients: bool = False,
+    security: Optional[edgedb_args.ServerSecurityMode] = None,
+    binary_endpoint_security: Optional[
+        edgedb_args.ServerEndpointSecurityMode] = None,
+    http_endpoint_security: Optional[
+        edgedb_args.ServerEndpointSecurityMode] = None,
     enable_backend_adaptive_ha: bool = False,
     env: Optional[Dict[str, str]] = None,
 ):
@@ -1809,9 +1823,9 @@ def start_edgedb_server(
         data_dir=data_dir,
         runstate_dir=runstate_dir,
         reset_auth=reset_auth,
-        insecure_dev_mode=insecure_dev_mode,
-        allow_insecure_binary_clients=allow_insecure_binary_clients,
-        allow_insecure_http_clients=allow_insecure_http_clients,
+        security=security,
+        binary_endpoint_security=binary_endpoint_security,
+        http_endpoint_security=http_endpoint_security,
         enable_backend_adaptive_ha=enable_backend_adaptive_ha,
         env=env,
     )

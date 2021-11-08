@@ -29,6 +29,7 @@ import time
 from edb import edgeql
 from edb.testbase import lang as tb
 from edb.testbase import server as tbs
+from edb.server import args as edbargs
 from edb.server import compiler as edbcompiler
 from edb.server.compiler_pool import amsg
 from edb.server.compiler_pool import pool
@@ -295,7 +296,8 @@ class TestServerCompilerPool(tbs.TestCase):
     async def test_server_compiler_pool_with_server(self):
         async with tbs.start_edgedb_server(
             compiler_pool_size=2,
-            allow_insecure_http_clients=True,
+            http_endpoint_security=(
+                edbargs.ServerEndpointSecurityMode.Optional),
         ) as sd:
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
             pid1, pid2 = self._get_worker_pids(sd)

@@ -34,6 +34,7 @@ from edb.common import markup
 
 from edb.graphql import extension as graphql_ext
 
+from edb.server import args as srvargs
 from edb.server.protocol cimport binary
 # Without an explicit cimport of `pgproto.debug`, we
 # can't cimport `protocol.binary` for some reason.
@@ -65,10 +66,15 @@ cdef class HttpResponse:
 
 cdef class HttpProtocol:
 
-    def __init__(self, server, sslctx, *,
-                 external_auth: bool=False,
-                 allow_insecure_binary_clients: bool=False,
-                 allow_insecure_http_clients: bool=False):
+    def __init__(
+        self,
+        server,
+        sslctx,
+        *,
+        external_auth: bool=False,
+        binary_endpoint_security = None,
+        http_endpoint_security = None,
+    ):
         self.loop = server.get_loop()
         self.server = server
         self.transport = None
@@ -81,8 +87,8 @@ cdef class HttpProtocol:
         self.unprocessed = None
         self.first_data_call = True
 
-        self.allow_insecure_binary_clients = allow_insecure_binary_clients
-        self.allow_insecure_http_clients = allow_insecure_http_clients
+        self.binary_endpoint_security = binary_endpoint_security
+        self.http_endpoint_security = http_endpoint_security
         self.respond_hsts = False  # redirect non-TLS HTTP clients to TLS URL
 
         self.is_tls = False
@@ -138,7 +144,10 @@ cdef class HttpProtocol:
                 # as its first message kind is `V`.
                 #
                 # Switch protocols now (for compatibility).
-                if self.allow_insecure_binary_clients:
+                if (
+                    self.binary_endpoint_security
+                    is srvargs.ServerEndpointSecurityMode.Optional
+                ):
                     self._switch_to_binary_protocol(data)
                 else:
                     self._return_binary_error(
@@ -148,7 +157,10 @@ cdef class HttpProtocol:
             else:
                 # HTTP.
                 self._init_http_parser()
-                self.respond_hsts = not self.allow_insecure_http_clients
+                self.respond_hsts = (
+                    self.http_endpoint_security
+                    is srvargs.ServerEndpointSecurityMode.Tls
+                )
 
         try:
             self.parser.feed_data(data)
@@ -348,12 +360,23 @@ cdef class HttpProtocol:
             return
 
         if self.is_tls:
-            if self.allow_insecure_http_clients:
+            if (
+                self.http_endpoint_security
+                is srvargs.ServerEndpointSecurityMode.Optional
+            ):
                 response.custom_headers['Strict-Transport-Security'] = \
                     'max-age=0'
-            else:
+            elif (
+                self.http_endpoint_security
+                is srvargs.ServerEndpointSecurityMode.Tls
+            ):
                 response.custom_headers['Strict-Transport-Security'] = \
                     'max-age=31536000'
+            else:
+                raise AssertionError(
+                    f"unexpected http_endpoint_security "
+                    f"value: {self.http_endpoint_security}"
+                )
 
         try:
             await self.handle_request(request, response)
