@@ -25,7 +25,7 @@ We continue working on improving our schema and migration tools:
 EdgeQL
 ======
 
-* Add :ref:`free shapes <ref_datamodel_object_types_free>`
+* Add :ref:`free shapes <ref_datamodel_objects_free>`
   (:eql:gh:`#2533`).
 
   This construct provides a way to arbitrarily structure data without

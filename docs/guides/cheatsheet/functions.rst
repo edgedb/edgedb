@@ -46,3 +46,13 @@ Define and use polymorphic function:
     {'my_name_Alice'}
     q> SELECT make_name(42);
     {'my_name_42'}
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Functions <ref_datamodel_functions>`
+  * - :ref:`SDL > Functions <ref_eql_sdl_functions>`
+  * - :ref:`DDL > Functions <ref_eql_ddl_functions>`
+  * - :ref:`Reference > Function calls <ref_reference_function_call>`
+  * - :ref:`Introspection > Functions <ref_eql_introspection_functions>`
+

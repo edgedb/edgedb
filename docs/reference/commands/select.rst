@@ -256,3 +256,9 @@ Here is a summary of clauses that can be used with ``SELECT``:
 - *A* ORDER BY ``SET OF`` *B*
 - ``SET OF`` *A* OFFSET ``SET OF`` *B*
 - ``SET OF`` *A* LIMIT ``SET OF`` *B*
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`EdgeQL > Select <ref_eql_select>`
+  * - :ref:`Selecting data (cheatsheet) <ref_cheatsheet_select>`

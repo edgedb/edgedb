@@ -107,10 +107,9 @@ Indexes can be augmented with annotations.
   :eql:constraint:`exclusive` constraint is also automatically indexed.
 
 
-See Also
---------
+.. list-table::
 
-Index
-:ref:`SDL <ref_eql_sdl_indexes>`,
-:ref:`DDL <ref_eql_ddl_indexes>`,
-and :ref:`introspection <ref_eql_introspection_indexes>`.
+  * - **See also**
+  * - :ref:`SDL > Indexes <ref_eql_sdl_indexes>`
+  * - :ref:`DDL > Indexes <ref_eql_ddl_indexes>`
+  * - :ref:`Introspection > Indexes <ref_eql_introspection_indexes>`

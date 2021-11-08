@@ -183,3 +183,9 @@ an intuitive manner.
             )
         }
     );
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`EdgeQL > For <ref_eql_for>`

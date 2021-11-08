@@ -110,3 +110,14 @@ Introspection of the built-in :eql:func:`count`:
             return_type: Object { name: 'std::int64' }
         }
     }
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Functions <ref_datamodel_functions>`
+  * - :ref:`SDL > Functions <ref_eql_sdl_functions>`
+  * - :ref:`DDL > Functions <ref_eql_ddl_functions>`
+  * - :ref:`Reference > Function calls <ref_reference_function_call>`
+  * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
+

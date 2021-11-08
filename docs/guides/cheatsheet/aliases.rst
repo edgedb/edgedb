@@ -39,3 +39,11 @@ Define an alias for traversing a :ref:`backlink
 
 The aliases defined above allow you to query ``MovieAlias`` with
 :ref:`GraphQL <ref_cheatsheet_graphql>`.
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Aliases <ref_datamodel_aliases>`
+  * - :ref:`SDL > Aliases <ref_eql_sdl_aliases>`
+  * - :ref:`DDL > Aliases <ref_eql_ddl_aliases>`

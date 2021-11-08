@@ -414,3 +414,12 @@ Drop abstract link ``orderable``:
 .. code-block:: edgeql
 
     DROP ABSTRACT LINK orderable;
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Links <ref_datamodel_links>`
+  * - :ref:`SDL > Links <ref_eql_sdl_links>`
+  * - :ref:`Introspection > Object types
+      <ref_eql_introspection_object_types>`

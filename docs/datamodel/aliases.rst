@@ -71,9 +71,14 @@ queries.
 See Also
 --------
 
-All aliases are reflected in the database's built-in :ref:`GraphQL schema
-<ref_graphql_index>`.
+.. note::
 
-Alias
-:ref:`SDL <ref_eql_sdl_aliases>`,
-and :ref:`DDL <ref_eql_ddl_aliases>`.
+  All aliases are reflected in the database's built-in :ref:`GraphQL schema
+  <ref_graphql_index>`.
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`SDL > Aliases <ref_eql_sdl_aliases>`
+  * - :ref:`DDL > Aliases <ref_eql_ddl_aliases>`
+  * - :ref:`Cheatsheets > Aliases <ref_cheatsheet_aliases>`

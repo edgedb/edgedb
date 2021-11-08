@@ -43,3 +43,13 @@ default value:
     {'n/a'}
 
 
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Functions <ref_datamodel_functions>`
+  * - :ref:`SDL > Functions <ref_eql_sdl_functions>`
+  * - :ref:`DDL > Functions <ref_eql_ddl_functions>`
+  * - :ref:`Introspection > Functions <ref_eql_introspection_functions>`
+  * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
+

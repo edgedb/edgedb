@@ -6,7 +6,7 @@ Selecting Data
 .. note::
 
     The types used in these queries are defined :ref:`here
-    <ref_cheatsheet_types>`.
+    <ref_cheatsheet_object_types>`.
 
 
 ----------
@@ -177,7 +177,7 @@ variable in the ORDER BY clause.
 ----------
 
 
-.. _ref_datamodel_object_types_free:
+.. _ref_datamodel_objects_free:
 
 Selecting free objects.
 
@@ -218,3 +218,9 @@ return a single *free object* with ``results``, ``total``, and
 Without the :eql:func:`array_agg` the above query would return ``{}``
 instead of the named tuple if no ``matches`` are found.
 
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`EdgeQL > Select <ref_eql_select>`
+  * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`

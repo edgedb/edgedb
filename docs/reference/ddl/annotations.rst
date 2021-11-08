@@ -266,3 +266,12 @@ Drop the ``title`` annotation from the ``User`` object type:
     ALTER TYPE User {
         DROP ANNOTATION title;
     };
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Annotations <ref_datamodel_annotations>`
+  * - :ref:`SDL > Annotations <ref_eql_sdl_annotations>`
+  * - :ref:`Cheatsheets > Annotations <ref_cheatsheet_annotations>`
+  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`

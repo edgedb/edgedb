@@ -112,11 +112,10 @@ names.
   :ref:`Constraints <ref_datamodel_constraints>`, and :ref:`Annotations
   <ref_datamodel_annotations>` for full documentation on those concepts.
 
-See Also
---------
 
 
-Object type
-:ref:`SDL <ref_eql_sdl_object_types>`,
-:ref:`DDL <ref_eql_ddl_object_types>`,
-and :ref:`introspection <ref_eql_introspection_object_types>`.
+  * - **See also**
+  * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`
+  * - :ref:`DDL > Object types <ref_eql_ddl_object_types>`
+  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
+  * - :ref:`Cheatsheets > Object types <ref_cheatsheet_object_types>`

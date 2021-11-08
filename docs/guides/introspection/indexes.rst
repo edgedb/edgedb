@@ -69,3 +69,10 @@ Introspection of ``User.name`` index:
 
 For introspection of the index within the context of its host type see
 :ref:`object type introspection <ref_eql_introspection_object_types>`.
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Indexes <ref_datamodel_indexes>`
+  * - :ref:`SDL > Indexes <ref_eql_sdl_indexes>`
+  * - :ref:`DDL > Indexes <ref_eql_ddl_indexes>`

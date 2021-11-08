@@ -130,3 +130,9 @@ The following queries add or remove tags from some user's posts:
 The statement ``FOR <x> IN <expr>`` allows to express certain bulk
 updates more clearly. See
 :ref:`Usage of FOR statement<ref_eql_forstatement>` for more details.
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`EdgeQL > Update <ref_eql_update>`
+  * - :ref:`Updating data (cheatsheet) <ref_cheatsheet_update>`

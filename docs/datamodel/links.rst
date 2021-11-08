@@ -234,10 +234,10 @@ to eliminate repetitive SDL.
 See Also
 --------
 
-:ref:`Cookbook <ref_cookbook_links>` section about links.
+.. list-table::
 
-Link
-:ref:`SDL <ref_eql_sdl_links>`,
-:ref:`DDL <ref_eql_ddl_links>`,
-:ref:`introspection <ref_eql_introspection_object_types>`
-(as part of overall object introspection).
+  * - **See also**
+  * - :ref:`SDL > Links <ref_eql_sdl_links>`
+  * - :ref:`DDL > Links <ref_eql_ddl_links>`
+  * - :ref:`Introspection > Object types
+      <ref_eql_introspection_object_types>`

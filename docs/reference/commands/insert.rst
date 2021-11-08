@@ -218,3 +218,9 @@ what the ``UNLESS CONFLICT`` clause allows:
     So as far as each statement is concerned, it is some purely
     functional expression evaluated on some specific input (database
     state).
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`EdgeQL > Insert <ref_eql_insert>`
+  * - :ref:`Inserting data (cheatsheet) <ref_cheatsheet_insert>`

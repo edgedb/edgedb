@@ -64,3 +64,9 @@ And here's the equivalent ``DELETE (SELECT ...)`` statement:
     WITH MODULE example
     DELETE (SELECT User
             FILTER User.name = 'Alice Smith');
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`EdgeQL > Delete <ref_eql_delete>`
+  * - :ref:`Deleting data (cheatsheet) <ref_cheatsheet_delete>`

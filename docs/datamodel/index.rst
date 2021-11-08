@@ -22,9 +22,9 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     indexes
     constraints
     aliases
+    annotations
     functions
     inheritance
-    annotations
     extensions
     comparison
 
@@ -102,3 +102,5 @@ migrations <ref_guides_migrations>` guide.
   use SDL and migrations when building applications. However, if you prefer
   SQL-style imperative schema modeling, you are free to use DDL directly;
   reference the :ref:`DDL Reference <ref_eql_ddl>` to learn more.
+
+

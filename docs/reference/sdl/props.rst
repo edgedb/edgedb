@@ -171,3 +171,10 @@ The valid SDL sub-declarations are listed below:
 :sdl:synopsis:`<constraint-declarations>`
     Define a concrete :ref:`constraint <ref_eql_sdl_constraints>` on
     the property.
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Properties <ref_datamodel_props>`
+  * - :ref:`DDL > Properties <ref_eql_ddl_props>`
+  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`

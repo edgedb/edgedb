@@ -163,3 +163,10 @@ Drop the ``name`` index from the ``User`` object type:
     ALTER TYPE User {
         DROP INDEX ON (.name);
     };
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Indexes <ref_datamodel_indexes>`
+  * - :ref:`SDL > Indexes <ref_eql_sdl_indexes>`
+  * - :ref:`Introspection > Indexes <ref_eql_introspection_indexes>`

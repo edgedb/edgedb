@@ -68,3 +68,8 @@ parameter for bulk inserts. This value is then "unpacked" into an array of
 
 
 A similar approach can be used for bulk updates.
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Reference > Commands > For <ref_eql_statements_for>`

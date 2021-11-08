@@ -387,3 +387,11 @@ Remove property ``address`` from type ``User``:
     ALTER TYPE User {
         DROP PROPERTY address;
     };
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Properties <ref_datamodel_props>`
+  * - :ref:`SDL > Properties <ref_eql_sdl_props>`
+  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`

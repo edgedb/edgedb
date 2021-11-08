@@ -2,7 +2,7 @@
 
 
 =======
-Logical
+Boolean
 =======
 
 :edb-alt-title: Boolean Type and Logical Operators

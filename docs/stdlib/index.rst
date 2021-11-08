@@ -13,12 +13,12 @@ Standard Library
     generic
     string
     bool
-    numerics
+    numbers
     json
     uuid
-    bytes
     enum
     datetime
+    bytes
     sequence
     array
     tuple

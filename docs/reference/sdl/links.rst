@@ -192,3 +192,12 @@ The valid SDL sub-declarations are listed below:
 :sdl:synopsis:`<index-declarations>`
     Define an :ref:`index <ref_eql_sdl_indexes>` for this abstract
     link. Note that this index can only refer to link properties.
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Links <ref_datamodel_links>`
+  * - :ref:`DDL > Links <ref_eql_ddl_links>`
+  * - :ref:`Introspection > Object types
+      <ref_eql_introspection_object_types>`

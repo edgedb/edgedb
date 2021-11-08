@@ -56,3 +56,10 @@ The valid SDL sub-declarations are listed below:
 :sdl:synopsis:`<annotation-declarations>`
     Set index :ref:`annotation <ref_eql_sdl_annotations>`
     to a given *value*.
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Indexes <ref_datamodel_indexes>`
+  * - :ref:`DDL > Indexes <ref_eql_ddl_indexes>`
+  * - :ref:`Introspection > Indexes <ref_eql_introspection_indexes>`

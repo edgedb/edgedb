@@ -119,3 +119,12 @@ These sub-declarations are allowed in the ``Type`` block:
 
 :sdl:synopsis:`<index-declarations>`
     Define an :ref:`index <ref_eql_sdl_indexes>` for this object type.
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Object types <ref_datamodel_object_types>`
+  * - :ref:`DDL > Object types <ref_eql_ddl_object_types>`
+  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`
+  * - :ref:`Cheatsheets > Object types <ref_cheatsheet_object_types>`

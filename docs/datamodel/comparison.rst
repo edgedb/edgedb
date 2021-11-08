@@ -52,7 +52,7 @@ JOINs required.
 
 .. code-block:: edgeql
 
-  SELECT Movie {
+  select Movie {
     title,
     director: {
       name

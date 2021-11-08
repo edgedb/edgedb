@@ -92,3 +92,9 @@ module* on a per-query basis.
 This ``with module`` clause changes the default module to schema, so we can
 refer to ``schema::ObjectType`` (a built-in EdgeDB type) as simply
 ``ObjectType``.
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Reference > Commands > With <ref_eql_statements_with>`

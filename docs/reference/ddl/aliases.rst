@@ -112,3 +112,11 @@ Remove an alias:
 .. code-block:: edgeql
 
     DROP ALIAS SuperUsers;
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Aliases <ref_datamodel_aliases>`
+  * - :ref:`SDL > Aliases <ref_eql_sdl_aliases>`
+  * - :ref:`Cheatsheets > Aliases <ref_cheatsheet_aliases>`

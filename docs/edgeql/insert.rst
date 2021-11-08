@@ -308,3 +308,9 @@ using a :ref:`for loop <ref_eql_for>` to insert the objects.
     ...
   }
 
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Reference > Commands > Insert <ref_eql_statements_insert>`
+  * - :ref:`Inserting data (cheatsheet) <ref_cheatsheet_insert>`

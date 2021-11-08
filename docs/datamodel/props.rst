@@ -189,10 +189,9 @@ Link properties
 Properties can also be defined on **links**. For a full guide, refer to
 :ref:`Guides > Using link properties <ref_guide_linkprops>`.
 
-See Also
---------
+.. list-table::
 
-Property
-:ref:`SDL <ref_eql_sdl_props>`,
-:ref:`DDL <ref_eql_ddl_props>`,
-and :ref:`introspection <ref_eql_introspection_object_types>`.
+  * - **See also**
+  * - :ref:`SDL > Properties <ref_eql_sdl_props>`
+  * - :ref:`DDL > Properties <ref_eql_ddl_props>`
+  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`.

@@ -195,3 +195,11 @@ Constraints
         implicit :ref:`index <ref_datamodel_indexes>` on the link or
         property. This means that in the above example there's no need to
         add explicit indexes for the ``name`` property.
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Constraints <ref_datamodel_constraints>`
+  * - :ref:`SDL > Constraints <ref_eql_sdl_constraints>`
+  * - :ref:`DDL > Constraints <ref_eql_ddl_constraints>`
+  * - :ref:`Introspection > Constraints <ref_eql_introspection_constraints>`

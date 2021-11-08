@@ -28,13 +28,12 @@ This function accepts a :eql:type:`str` as an argument and produces a
     {'Hello!', 'World!'}
 
 
-See Also
---------
+.. list-table::
 
-Function
-:ref:`SDL <ref_eql_sdl_functions>`,
-:ref:`DDL <ref_eql_ddl_functions>`,
-and :ref:`introspection <ref_eql_introspection_functions>`.
-
-
+  * - **See also**
+  * - :ref:`SDL > Functions <ref_eql_sdl_functions>`
+  * - :ref:`DDL > Functions <ref_eql_ddl_functions>`
+  * - :ref:`Reference > Function calls <ref_reference_function_call>`
+  * - :ref:`Introspection > Functions <ref_eql_introspection_functions>`
+  * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
 

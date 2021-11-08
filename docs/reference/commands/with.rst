@@ -167,3 +167,8 @@ define ``U := User`` in the ``WITH`` block just to allow it to be used
 in the body of the ``UPDATE``. The goal is to indicate that the
 ``User`` in the ``UPDATE`` body is not in any way related to the
 ``User`` that's being updated.
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`EdgeQL > With <ref_eql_with>`

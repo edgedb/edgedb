@@ -1,8 +1,8 @@
 .. _ref_std_numeric:
 
-========
-Numerics
-========
+=======
+Numbers
+=======
 
 :edb-alt-title: Arithmetic Operators and Numeric Converter Functions
 

@@ -93,3 +93,8 @@ set into ``select`` to fetch properties and links of the (now-deleted) objects.
     title: 'Untitled',
   }}
 
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Reference > Commands > Delete <ref_eql_statements_delete>`
+  * - :ref:`Deleting data (cheatsheet) <ref_cheatsheet_delete>`

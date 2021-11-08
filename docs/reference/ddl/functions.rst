@@ -261,3 +261,14 @@ Remove the ``mysum`` function:
 .. code-block:: edgeql
 
     DROP FUNCTION mysum(a: int64, b: int64);
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Functions <ref_datamodel_functions>`
+  * - :ref:`SDL > Functions <ref_eql_sdl_functions>`
+  * - :ref:`Reference > Function calls <ref_reference_function_call>`
+  * - :ref:`Introspection > Functions <ref_eql_introspection_functions>`
+  * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
+

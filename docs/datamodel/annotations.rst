@@ -52,10 +52,10 @@ annotation type to your schema.
   }
 
 
-See Also
---------
+.. list-table::
 
-Annotation
-:ref:`SDL <ref_eql_sdl_annotations>`,
-:ref:`DDL <ref_eql_ddl_annotations>`,
-and :ref:`introspection <ref_eql_introspection>`.
+  * - **See also**
+  * - :ref:`SDL > Annotations <ref_eql_sdl_annotations>`
+  * - :ref:`DDL > Annotations <ref_eql_ddl_annotations>`
+  * - :ref:`Cheatsheets > Annotations <ref_cheatsheet_annotations>`
+  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`

@@ -167,3 +167,14 @@ The function name must be distinct from that of any existing function
 with the same argument types in the same module.  Functions of
 different argument types can share a name, in which case the functions
 are called *overloaded functions*.
+
+
+.. list-table::
+
+  * - **See also**
+  * - :ref:`Schema > Functions <ref_datamodel_functions>`
+  * - :ref:`DDL > Functions <ref_eql_ddl_functions>`
+  * - :ref:`Reference > Function calls <ref_reference_function_call>`
+  * - :ref:`Introspection > Functions <ref_eql_introspection_functions>`
+  * - :ref:`Cheatsheets > Functions <ref_cheatsheet_functions>`
+

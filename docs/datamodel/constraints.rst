@@ -106,11 +106,10 @@ This is commonly used add constraints to link properties.
   }
 
 
-See Also
---------
+.. list-table::
 
-Constraint
-:ref:`SDL <ref_eql_sdl_constraints>`,
-:ref:`DDL <ref_eql_ddl_constraints>`,
-:ref:`introspection <ref_eql_introspection_constraints>`, and
-constraints defined in the :ref:`standard library <ref_std_constraints>`.
+  * - **See also**
+  * - :ref:`SDL > Constraints <ref_eql_sdl_constraints>`
+  * - :ref:`DDL > Constraints <ref_eql_ddl_constraints>`
+  * - :ref:`Introspection > Constraints <ref_eql_introspection_constraints>`
+  * - :ref:`Standard Library > Constraints <ref_std_constraints>`
