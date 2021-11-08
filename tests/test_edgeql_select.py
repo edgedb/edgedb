@@ -6493,17 +6493,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             self.assertEqual(row[0].__tname__, "default::User")
             self.assertEqual(row[1].__tname__, "default::Issue")
 
-    @test.xfail("""
-        SchemaDefinitionError: cannot alter object type 'std::Object':
-        module std is read-only
-    """)
     async def test_edgeql_select_array_common_type_02(self):
-        # Issue #2387
         res = await self.con._fetchall("""
             SELECT [Object];
         """, __typenames__=True)
         for row in res:
-            self.assertEqual(row[0].__tname__, "std::Object")
+            self.assertTrue(row[0].__tname__.startswith("default::"))
 
     async def test_edgeql_select_free_shape_01(self):
         res = await self.con.query_single('SELECT {test := 1}')
