@@ -82,10 +82,10 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_bytes_04(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError, r'expected json string or null'):
-            await self.con.query_one("""SELECT <bytes>to_json('1');"""),
+            await self.con.query_single("""SELECT <bytes>to_json('1');"""),
 
         self.assertEqual(
-            await self.con.query_one(r'''
+            await self.con.query_single(r'''
                 SELECT <bytes>to_json('"aGVsbG8="');
             '''),
             b'hello',
@@ -93,13 +93,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError, r'invalid symbol'):
-            await self.con.query_one("""
+            await self.con.query_single("""
                 SELECT <bytes>to_json('"not base64!"');
             """)
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError, r'invalid base64 end sequence'):
-            await self.con.query_one("""
+            await self.con.query_single("""
                 SELECT <bytes>to_json('"a"');
             """)
 
