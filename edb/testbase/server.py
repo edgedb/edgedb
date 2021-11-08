@@ -945,8 +945,8 @@ class ConnectedTestCaseMixin:
                     self.fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
-            elif isinstance(shape, (str, int, timedelta, decimal.Decimal,
-                                    edgedb.RelativeDuration)):
+            elif isinstance(shape, (str, int, bytes, timedelta,
+                                    decimal.Decimal, edgedb.RelativeDuration)):
                 if data != shape:
                     self.fail(
                         f'{message}: {data!r} != {shape!r} '

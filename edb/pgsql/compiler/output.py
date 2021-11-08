@@ -28,8 +28,10 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import defines as s_defs
+from edb.schema import casts as s_casts
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import common
 from edb.pgsql import types as pgtypes
 
 from . import astutils
@@ -152,39 +154,54 @@ def array_as_json_object(
 ) -> pgast.BaseExpr:
     el_type = styperef.subtypes[0]
 
-    if irtyputils.is_tuple(el_type):
+    is_tuple = irtyputils.is_tuple(el_type)
+    # Tuples and bytes might need underlying casts to be done
+    if is_tuple or irtyputils.is_bytes(el_type):
         coldeflist = []
-        json_args: List[pgast.BaseExpr] = []
-        is_named = any(st.element_name for st in el_type.subtypes)
 
-        for i, st in enumerate(el_type.subtypes):
-            if is_named:
-                colname = st.element_name
-                assert colname
-                json_args.append(pgast.StringConstant(val=colname))
-            else:
-                colname = str(i)
+        out_alias = env.aliases.get('q')
 
-            val: pgast.BaseExpr = pgast.ColumnRef(name=[colname])
-            if irtyputils.is_collection(st):
-                val = coll_as_json_object(val, styperef=st, env=env)
+        val: pgast.BaseExpr
+        if is_tuple:
+            json_args: List[pgast.BaseExpr] = []
+            is_named = any(st.element_name for st in el_type.subtypes)
+            for i, st in enumerate(el_type.subtypes):
+                if is_named:
+                    colname = st.element_name
+                    assert colname
+                    json_args.append(pgast.StringConstant(val=colname))
+                else:
+                    colname = str(i)
 
-            json_args.append(val)
+                val = pgast.ColumnRef(name=[colname])
+                val = serialize_expr_to_json(
+                    val, styperef=st, nested=True, env=env)
 
-            if not irtyputils.is_persistent_tuple(el_type):
-                # Column definition list is only allowed for functions
-                # returning "record", i.e. an anonymous tuple, which
-                # would not be the case for schema-persistent tuple types.
-                coldeflist.append(
-                    pgast.ColumnDef(
-                        name=colname,
-                        typename=pgast.TypeName(
-                            name=pgtypes.pg_type_from_ir_typeref(st)
+                json_args.append(val)
+
+                if not irtyputils.is_persistent_tuple(el_type):
+                    # Column definition list is only allowed for functions
+                    # returning "record", i.e. an anonymous tuple, which
+                    # would not be the case for schema-persistent tuple types.
+                    coldeflist.append(
+                        pgast.ColumnDef(
+                            name=colname,
+                            typename=pgast.TypeName(
+                                name=pgtypes.pg_type_from_ir_typeref(st)
+                            )
                         )
                     )
-                )
 
-        json_func = 'build_object' if is_named else 'build_array'
+            json_func = 'build_object' if is_named else 'build_array'
+            agg_arg = _build_json(json_func, json_args, env=env)
+
+            needs_unnest = bool(el_type.subtypes)
+        else:
+            assert not el_type.subtypes
+            val = pgast.ColumnRef(name=[out_alias])
+            agg_arg = serialize_expr_to_json(
+                val, styperef=el_type, nested=True, env=env)
+            needs_unnest = True
 
         return pgast.SelectStmt(
             target_list=[
@@ -193,9 +210,7 @@ def array_as_json_object(
                         args=[
                             pgast.FuncCall(
                                 name=_get_json_func('agg', env=env),
-                                args=[
-                                    _build_json(json_func, json_args, env=env)
-                                ]
+                                args=[agg_arg],
                             ),
                             pgast.StringConstant(val='[]'),
                         ]
@@ -205,9 +220,7 @@ def array_as_json_object(
             ],
             from_clause=[
                 pgast.RangeFunction(
-                    alias=pgast.Alias(
-                        aliasname=env.aliases.get('q'),
-                    ),
+                    alias=pgast.Alias(aliasname=out_alias),
                     is_rowsfrom=True,
                     functions=[
                         pgast.FuncCall(
@@ -217,7 +230,7 @@ def array_as_json_object(
                         )
                     ]
                 )
-            ] if el_type.subtypes else [],
+            ] if needs_unnest else [],
         )
     else:
         return pgast.FuncCall(
@@ -255,8 +268,8 @@ def unnamed_tuple_as_json_object(
                     ),
                 ],
             )
-            if irtyputils.is_collection(el_type):
-                val = coll_as_json_object(val, styperef=el_type, env=env)
+            val = serialize_expr_to_json(
+                val, styperef=el_type, nested=True, env=env)
             vals.append(val)
 
         return _build_json(
@@ -282,8 +295,8 @@ def unnamed_tuple_as_json_object(
 
             val = pgast.ColumnRef(name=[str(el_idx)])
 
-            if irtyputils.is_collection(el_type):
-                val = coll_as_json_object(val, styperef=el_type, env=env)
+            val = serialize_expr_to_json(
+                val, styperef=el_type, nested=True, env=env)
 
             vals.append(val)
 
@@ -340,8 +353,8 @@ def named_tuple_as_json_object(
                     )
                 ]
             )
-            if irtyputils.is_collection(el_type):
-                val = coll_as_json_object(val, styperef=el_type, env=env)
+            val = serialize_expr_to_json(
+                val, styperef=el_type, nested=True, env=env)
             keyvals.append(val)
 
         return _build_json(
@@ -369,8 +382,8 @@ def named_tuple_as_json_object(
 
             val = pgast.ColumnRef(name=[el_type.element_name])
 
-            if irtyputils.is_collection(el_type):
-                val = coll_as_json_object(val, styperef=el_type, env=env)
+            val = serialize_expr_to_json(
+                val, styperef=el_type, nested=True, env=env)
 
             keyvals.append(val)
 
@@ -410,7 +423,7 @@ def named_tuple_as_json_object(
 def tuple_var_as_json_object(
     tvar: pgast.TupleVar,
     *,
-    path_id: irast.PathId,
+    styperef: irast.TypeRef,
     env: context.Environment,
 ) -> pgast.BaseExpr:
 
@@ -512,14 +525,14 @@ def serialize_expr_if_needed(
 
 def serialize_expr_to_json(
         expr: pgast.BaseExpr, *,
-        path_id: irast.PathId,
+        styperef: irast.TypeRef,
         nested: bool=False,
         env: context.Environment) -> pgast.BaseExpr:
 
     val: pgast.BaseExpr
 
     if isinstance(expr, pgast.TupleVar):
-        val = tuple_var_as_json_object(expr, path_id=path_id, env=env)
+        val = tuple_var_as_json_object(expr, styperef=styperef, env=env)
 
     elif isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
         val = _build_json(
@@ -530,8 +543,20 @@ def serialize_expr_to_json(
             env=env,
         )
 
-    elif path_id.is_collection_path() and not expr.ser_safe:
-        val = coll_as_json_object(expr, styperef=path_id.target, env=env)
+    elif irtyputils.is_collection(styperef) and not expr.ser_safe:
+        val = coll_as_json_object(expr, styperef=styperef, env=env)
+
+    # TODO: We'll probably want to generalize this to other custom JSON
+    # casts once they exist.
+    elif (
+        irtyputils.is_bytes(styperef)
+        and not expr.ser_safe
+    ):
+        cast_name = s_casts.get_cast_fullname_from_names(
+            'std', 'std::bytes', 'std::json')
+        val = pgast.FuncCall(
+            name=common.get_cast_backend_name(cast_name, aspect='function'),
+            args=[expr], null_safe=True, ser_safe=True)
 
     elif not nested:
         val = pgast.FuncCall(
@@ -554,7 +579,7 @@ def serialize_expr(
                              context.OutputFormat.JSON_ELEMENTS,
                              context.OutputFormat.JSONB):
         val = serialize_expr_to_json(
-            expr, path_id=path_id, nested=nested, env=env)
+            expr, styperef=path_id.target, nested=nested, env=env)
 
     elif env.output_format in (context.OutputFormat.NATIVE,
                                context.OutputFormat.NATIVE_INTERNAL,

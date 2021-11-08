@@ -33,9 +33,7 @@ Bytes
 
 .. eql:type:: std::bytes
 
-    A sequence of bytes.
-
-    Bytes cannot be cast into any other type. They represent raw data.
+    A sequence of bytes representing raw data.
 
     There's a special byte literal:
 
@@ -54,6 +52,15 @@ Bytes
         db> SELECT contains(b'qwerty', b'42');
         {false}
 
+    It is possible to :eql:op:`cast <CAST>` between :eql:type:`bytes` and
+    :eql:type:`json`. Bytes are represented as base64 encoded strings in json.:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT SELECT <json>b'Hello EdgeDB!';
+        {"\"SGVsbG8gRWRnZURCIQ==\""}
+        db> SELECT <bytes>to_json("\"SGVsbG8gRWRnZURCIQ==\"");
+        {b'Hello EdgeDB!'}
 
 ----------
 
