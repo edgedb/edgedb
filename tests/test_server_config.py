@@ -1000,16 +1000,16 @@ class TestServerConfig(tb.QueryTestCase):
                 "unable to parse '12mse'"):
             await self.con.execute('''
                 configure session set
-                    query_execution_timeout := <duration>'12mse'
+                    durprop := <duration>'12mse'
             ''')
 
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
-                r"invalid setting value type for session_idle_timeout: "
+                r"invalid setting value type for durprop: "
                 r"'std::str' \(expecting 'std::duration"):
             await self.con.execute('''
                 configure instance set
-                    session_idle_timeout := '12 seconds'
+                    durprop := '12 seconds'
             ''')
 
     async def test_server_proto_configure_compilation(self):
