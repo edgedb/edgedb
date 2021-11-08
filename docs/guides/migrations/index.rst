@@ -9,10 +9,12 @@ Migrations
     :maxdepth: 3
     :hidden:
 
-    proptype
-    proptolink
     names
     backlink
+    proptype
+    proptolink
+
+
 
 EdgeDB’s baked-in migration system lets you painlessly evolve your schema
 throughout the development process.

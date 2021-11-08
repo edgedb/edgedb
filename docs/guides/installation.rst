@@ -1,8 +1,8 @@
 .. _ref_admin_install:
 
-=================
-Installing EdgeDB
-=================
+============
+Installation
+============
 
 To install EdgeDB, first install EdgeDB's command line tool.
 

@@ -22,7 +22,7 @@ Currently this command displays the filesystem paths used by EdgeDB.
 Several directories are used, each storing different kinds of information. The
 exact path to these directories is determined by your operating system.
 Throughout the documentation, these paths are referred to as "EdgeDB config
-dir", "EdgeDB data dir", etc.
+directory", "EdgeDB data directory", etc.
 
 - **Config**: contains auto-generated credentials for all local instances and
   project metadata.

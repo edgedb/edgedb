@@ -323,6 +323,7 @@ class TestDocSnippets(unittest.TestCase):
                 elif lang in {
                     'bash',
                     'powershell',
+                    'shell',
                     'c',
                     'javascript',
                     'python',

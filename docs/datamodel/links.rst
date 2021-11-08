@@ -128,7 +128,10 @@ as *when* it was created or the *nature/strength* of the relationship.
     }
   }
 
-Above, we model a family tree with a single ``Person`` type. The ``Person.family_members`` link is a many-to-many relation; each ``family_members`` link can contain a string ``relationship`` describing the relationship of the two individuals.
+Above, we model a family tree with a single ``Person`` type. The ``Person.
+family_members`` link is a many-to-many relation; each ``family_members`` link
+can contain a string ``relationship`` describing the relationship of the two
+individuals.
 
 Due to how they're persisted under the hood, link properties must always be
 ``single`` and ``optional``.

@@ -36,7 +36,8 @@ into a singleton array.
 Element-wise operations
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-By contrast, the :eql:func:`len` function is element-wise; it computes the length of each string inside a set of strings; as such, it converts a set
+By contrast, the :eql:func:`len` function is element-wise; it computes the
+length of each string inside a set of strings; as such, it converts a set
 of :eql:type:`str` into an equally-sized set of :eql:type:`int64`.
 
 .. code-block:: edgeql-repl
