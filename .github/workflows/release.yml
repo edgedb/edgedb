@@ -35,6 +35,8 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-debian-stretch
@@ -54,6 +56,8 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
+
+
 
     - uses: actions/upload-artifact@v2
       with:
@@ -75,6 +79,8 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-debian-bullseye
@@ -94,6 +100,8 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
+
+
 
     - uses: actions/upload-artifact@v2
       with:
@@ -115,6 +123,8 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-ubuntu-bionic
@@ -134,6 +144,8 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
+
+
 
     - uses: actions/upload-artifact@v2
       with:
@@ -155,6 +167,8 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-centos-7
@@ -175,6 +189,8 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-centos-8
@@ -192,42 +208,15 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/cache@v2
-      id: sdk1010cache
-      with:
-        path: ~/.cache/MacOSX10.10.sdk/
-        key: MacOSX10.10.sdk
-
-    - name: Install Xcode
-      if: steps.sdk1010cache.outputs.cache-hit != 'true'
-      env:
-        XCODE_INSTALL_USER: github-ci@edgedb.com
-        XCODE_INSTALL_PASSWORD: ${{ secrets.BOT_APPLE_ID_PASSWORD }}
-        SPACESHIP_SKIP_2FA_UPGRADE: 1
-      run: |
-        xcversion install 6.4
-
-    - name: Cache 10.10 SDK
-      if: steps.sdk1010cache.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/.cache
-        cp -a \
-          /Applications/Xcode-6.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk/ \
-          ~/.cache/MacOSX10.10.sdk/
-
-    - name: Select macOS SDK
-      run: |
-        sudo cp -a \
-          ~/.cache/MacOSX10.10.sdk/ \
-          /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
-        sudo xcode-select -s /Library/Developer/CommandLineTools
-
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
         default: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v1
 
     - name: Build
       env:
@@ -236,7 +225,6 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
-        SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
       run: |
         edgedb-pkg/integration/macos/build.sh
 
