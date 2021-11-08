@@ -47,6 +47,7 @@ from . import dispatch
 from . import inference
 from . import pathctx
 from . import setgen
+from . import stmt
 from . import typegen
 
 from . import func  # NOQA
@@ -66,7 +67,19 @@ def compile__Optional(
 @dispatch.compile.register(qlast.Path)
 def compile_Path(
         expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
-    return setgen.compile_path(expr, ctx=ctx)
+    ir = setgen.compile_path(expr, ctx=ctx)
+    # We call compile_query_subject in order to create a new view for
+    # injecting properties if needed. This will only happen if
+    # expr_exposed, so stmt code paths that don't want a new view
+    # created (because there is a shape already specified or because
+    # it wants to create its own new view in its compile_query_subject call)
+    # should make sure expr_exposed is false.
+    # (Strictly speaking, the expr_exposed check here is redundant, but it
+    # saves on some pointless work in compile_query_subject.)
+    if ctx.expr_exposed:
+        ir = stmt.compile_query_subject(
+            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx)
+    return ir
 
 
 @dispatch.compile.register(qlast.BinOp)

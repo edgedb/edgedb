@@ -1426,7 +1426,6 @@ def _get_computable_ctx(
             if source_scls.is_view(ctx.env.schema):
                 scls_name = source_stype.get_name(ctx.env.schema)
                 subctx.aliased_views[scls_name] = None
-            subctx.source_map = qlctx.source_map.copy()
             subctx.view_nodes = qlctx.view_nodes.copy()
             subctx.view_map = ctx.view_map.new_child()
 

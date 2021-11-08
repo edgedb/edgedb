@@ -259,7 +259,9 @@ def compile_InsertQuery(
         stmt = irast.InsertStmt(context=expr.context)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        subject = dispatch.compile(expr.subject, ctx=ictx)
+        with ictx.new() as ectx:
+            ectx.expr_exposed = False
+            subject = dispatch.compile(expr.subject, ctx=ectx)
         assert isinstance(subject, irast.Set)
 
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
@@ -387,7 +389,9 @@ def compile_UpdateQuery(
         )
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        subject = dispatch.compile(expr.subject, ctx=ictx)
+        with ictx.new() as ectx:
+            ectx.expr_exposed = False
+            subject = dispatch.compile(expr.subject, ctx=ectx)
         assert isinstance(subject, irast.Set)
 
         subj_type = inference.infer_type(subject, ictx.env)
@@ -503,6 +507,7 @@ def compile_DeleteQuery(
         # DELETE Expr is a delete(SET OF X), so we need a scope fence.
         with ictx.newscope(fenced=True) as scopectx:
             scopectx.implicit_limit = 0
+            scopectx.expr_exposed = False
             subject = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
 
@@ -1083,6 +1088,7 @@ def compile_query_subject(
         is_insert: bool=False,
         is_update: bool=False,
         is_delete: bool=False,
+        allow_select_shape_inject: bool=False,
         forward_rptr: bool=False,
         parser_context: Optional[pctx.ParserContext]=None,
         ctx: context.ContextLevel) -> irast.Set:
@@ -1129,6 +1135,7 @@ def compile_query_subject(
             (
                 ctx.expr_exposed
                 and expr_stype.is_object_type()
+                and allow_select_shape_inject
 
                 and not forward_rptr
                 and (
