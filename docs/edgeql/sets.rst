@@ -9,13 +9,24 @@ Sets
 Everything is a Set
 -------------------
 
-All values in EdgeQL is actually **sets**: a collection of values of a given **type**. All elements of a set must have the same type. The number of items in a set is known as its **cardinality**. A set with a cardinality of zero is referred to as an **empty set**. A set with a cardinality of one is known as a **singleton**.
+All values in EdgeQL is actually **sets**: a collection of values of a given
+**type**. All elements of a set must have the same type. The number of items in
+a set is known as its **cardinality**. A set with a cardinality of zero is
+referred to as an **empty set**. A set with a cardinality of one is known as a
+**singleton**.
 
 .. note::
 
-  The term **cardinality** may refer to the *exact* number of elements in a given set or a *range* of possible values. Internally, EdgeDB tracks 5 different cardinality ranges: ``Empty`` (zero elements), ``One`` (a singleton set), ``AtMostOne`` (zero or one elements), ``AtLeastOne`` (one or more elements), and ``Many`` (any number of elements).
+  The term **cardinality** may refer to the *exact* number of elements in a
+  given set or a *range* of possible values. Internally, EdgeDB tracks 5
+  different cardinality ranges: ``Empty`` (zero elements), ``One`` (a singleton
+  set), ``AtMostOne`` (zero or one elements), ``AtLeastOne`` (one or more
+  elements), and ``Many`` (any number of elements).
 
-  EdgeDB uses this information to statically check queries for validity. For instance, when assigning to a ``required multi`` link, the value being assigned in question *must* have a cardinality of ``One`` or ``AtLeastOne`` (as empty sets are not permitted).
+  EdgeDB uses this information to statically check queries for validity. For
+  instance, when assigning to a ``required multi`` link, the value being
+  assigned in question *must* have a cardinality of ``One`` or ``AtLeastOne``
+  (as empty sets are not permitted).
 
 .. _ref_eql_set_constructor:
 
@@ -31,7 +42,11 @@ Sets are indicated with ``{curly braces}``.
   db> select {1, 2, 3};
   {1, 2, 3}
 
-All values in a set must have the same type. For convenience, EdgeDB will *implicitly cast* values to other types, as long as there is no loss of information (e.g. converting a ``int16`` to an ``int64``). For a full reference, see the casting table in :ref:`Standard Library > Casts <ref_std_casts_table>`.
+All values in a set must have the same type. For convenience, EdgeDB will
+*implicitly cast* values to other types, as long as there is no loss of
+information (e.g. converting a ``int16`` to an ``int64``). For a full
+reference, see the casting table in :ref:`Standard Library > Casts
+<ref_std_casts_table>`.
 
 .. code-block:: edgeql-repl
 
@@ -41,22 +56,28 @@ All values in a set must have the same type. For convenience, EdgeDB will *impli
   {1.0n, 1234.5678n}
 
 
-Attempting to declare a set containing elements of *incompatible* types is not permitted.
+Attempting to declare a set containing elements of *incompatible* types is not
+permitted.
 
 .. code-block:: edgeql-repl
 
   db> select {"apple", 3.14};
-  edgedb error: QueryError: operator 'UNION' cannot be applied to operands of type 'std::str' and 'std::float64'
+  edgedb error: QueryError: operator 'UNION' cannot be applied to operands of
+  type 'std::str' and 'std::float64'
     Hint: Consider using an explicit type cast or a conversion function.
 
 .. note::
 
-  Types are considered *compatible* if they can be implicitly cast into each other.
+  Types are considered *compatible* if they can be implicitly cast into each
+  other.
 
 Literals are singletons
 -----------------------
 
-Literal syntax like ``6`` or ``"hello world"`` is just a shorthand for declaring a *singleton* of a given type. This is why the literals we created in the previous section were printed inside braces: to indicate that these values are *actually sets*.
+Literal syntax like ``6`` or ``"hello world"`` is just a shorthand for
+declaring a *singleton* of a given type. This is why the literals we created in
+the previous section were printed inside braces: to indicate that these values
+are *actually sets*.
 
 .. code-block:: edgeql-repl
 
@@ -65,7 +86,9 @@ Literal syntax like ``6`` or ``"hello world"`` is just a shorthand for declaring
   db> select "hello world";
   {"hello world"}
 
-Wrapping a literal in curly braces does not change the meaning of the expression. For instance, ``"hello world"`` is *exactly equivalent* to ``{"hello world"}``.
+Wrapping a literal in curly braces does not change the meaning of the
+expression. For instance, ``"hello world"`` is *exactly equivalent* to ``
+{"hello world"}``.
 
 .. code-block:: edgeql-repl
 
@@ -90,13 +113,25 @@ You can retrieve the cardinality of a set with the :eql:func:`count` function.
 Empty sets
 ----------
 
-The reason EdgeQL introduced the concept of *sets* is to eliminate the concept of ``NULL``. In SQL databases ``NULL`` is a special value denoting the absence of data; in EdgeDB the absence of data is just an empty set.
+The reason EdgeQL introduced the concept of *sets* is to eliminate the concept
+of ``NULL``. In SQL databases ``NULL`` is a special value denoting the absence
+of data; in EdgeDB the absence of data is just an empty set.
 
 .. note::
 
-  Why is the existence of NULL a problem? Put simply, it's an edge case that permeates all of SQL and is often handled inconsistly in different circumstances. A number of specific inconsistencies are documented in detail on `the EdgeDB blog </blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_. For broader context, see Tony Hoare's talk `"The Billion Dollar Mistake" <https://www.infoq.com/presentations/Null-References-The-Billion-Dollar-Mistake-Tony-Hoare/>`_.
+  Why is the existence of NULL a problem? Put simply, it's an edge case that
+  permeates all of SQL and is often handled inconsistly in different
+  circumstances. A number of specific inconsistencies are documented in detail
+  in the `We Can Do Better Than SQL
+  </blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_ post on the
+  EdgeDB blog. For broader context, see Tony Hoare's talk
+  `"The Billion Dollar Mistake"
+  <https://www.infoq.com/presentations/Null-References-The-Billion-Dollar-Mistake-Tony-Hoare/>`_.
 
-Declaring empty sets isn't as simply as ``{}``. In EdgeQL, all expressions are *strongly typed*, including empty sets. With nonempty sets (like ``{1, 2, 3}``), the type is inferred from the set's contents (``int64``). But with empty sets this isn't possible, so an *explicitly cast* is required.
+Declaring empty sets isn't as simply as ``{}``. In EdgeQL, all expressions are
+*strongly typed*, including empty sets. With nonempty sets (like ``{1, 2, 3}``)
+, the type is inferred from the set's contents (``int64``). But with empty sets
+this isn't possible, so an *explicitly cast* is required.
 
 .. code-block:: edgeql-repl
 
@@ -120,7 +155,8 @@ Declaring empty sets isn't as simply as ``{}``. In EdgeQL, all expressions are *
   error: QueryError: expression returns value of indeterminate type
     ┌─ query:1:8
 
-You can check whether or not a set is *empty* with the :eql:op:`exists <EXISTS>` operator.
+You can check whether or not a set is *empty* with the :eql:op:`exists
+<EXISTS>` operator.
 
 .. code-block:: edgeql-repl
 
@@ -130,13 +166,14 @@ You can check whether or not a set is *empty* with the :eql:op:`exists <EXISTS>`
   {true}
 
 
-
 .. _ref_eql_set_references:
 
 Set references
 --------------
 
-A set reference is a *pointer* to a set of values. Most commonly, this is the name of an :ref:`object type <ref_datamodel_object_types>` you've declared in your schema.
+A set reference is a *pointer* to a set of values. Most commonly, this is the
+name of an :ref:`object type <ref_datamodel_object_types>` you've declared in
+your schema.
 
 .. code-block:: edgeql
 
@@ -148,11 +185,15 @@ A set reference is a *pointer* to a set of values. Most commonly, this is the na
   db> select count(User);
   {2}
 
-It may also be an *alias*, which can be defined in a :ref:`WITH block <ref_eql_with>` or as an :ref:`alias declaration <ref_eql_sdl_aliases>` in your schema.
+It may also be an *alias*, which can be defined in a :ref:`WITH block
+<ref_eql_with>` or as an :ref:`alias declaration <ref_eql_sdl_aliases>` in your
+schema.
 
 .. note::
 
-  In the example above, the ``User`` object type was declared inside the ``default`` module. If it was in a non-``default`` module (say, ``my_module``, we should need to use its *fully-qualified* name.
+  In the example above, the ``User`` object type was declared inside the
+  ``default`` module. If it was in a non-``default`` module (say,
+  ``my_module``, we should need to use its *fully-qualified* name.
 
   .. code-block:: edgeql
 
@@ -164,7 +205,9 @@ It may also be an *alias*, which can be defined in a :ref:`WITH block <ref_eql_w
 Multisets
 ---------
 
-Technically sets in EdgeDB are actually *multisets*, becauase they can contain duplicates of the same element. To eliminate duplicates, use the :eql:op:`DISTINCT set <DISTINCT>` operator.
+Technically sets in EdgeDB are actually *multisets*, becauase they can contain
+duplicates of the same element. To eliminate duplicates, use the
+:eql:op:`DISTINCT set <DISTINCT>` operator.
 
 .. code-block:: edgeql-repl
 
@@ -178,7 +221,8 @@ Technically sets in EdgeDB are actually *multisets*, becauase they can contain d
 Check membership
 ----------------
 
-Use the :eql:op:`IN` operator to check whether a set contains a particular element.
+Use the :eql:op:`IN` operator to check whether a set contains a particular
+element.
 
 .. code-block:: edgeql-repl
 
@@ -207,7 +251,10 @@ Use the :eql:op:`UNION` operator to merge two sets.
 Coalescing
 ----------
 
-Occasionally in queries, you need to handle the case where a set is empty. This can be achieved with a coalescing operator :eql:op:`?? <COALESCE>`. This is commonly used to provide default values for optional :ref:`query parameters <ref_eql_params>`.
+Occasionally in queries, you need to handle the case where a set is empty. This
+can be achieved with a coalescing operator :eql:op:`?? <COALESCE>`. This is
+commonly used to provide default values for optional :ref:`query parameters
+<ref_eql_params>`.
 
 .. code-block:: edgeql-repl
 
@@ -218,14 +265,23 @@ Occasionally in queries, you need to handle the case where a set is empty. This 
 
 .. note::
 
-  Coalescing is an example of a function/operator with :ref:`optional inputs <ref_sdl_function_typequal>`. By default, passing an empty set into a function/operator will "short circuit" the operation and return an empty set. However it's possible to mark inputs as *optional*, in which case the operation will be defined over empty sets. Another example is :eql:func:`count`, which returns ``{0}`` when an empty set is passed as input.
+  Coalescing is an example of a function/operator with :ref:`optional inputs
+  <ref_sdl_function_typequal>`. By default, passing an empty set into a
+  function/operator will "short circuit" the operation and return an empty set.
+  However it's possible to mark inputs as *optional*, in which case the
+  operation will be defined over empty sets. Another example is
+  :eql:func:`count`, which returns ``{0}`` when an empty set is passed as input.
 
 .. _ref_eql_set_type_filter:
 
 Inheritance
 -----------
 
-EdgeDB schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`; types (usually object types) can extend one or more other types. For intance you may declare an abstract object type ``Animal`` that is extended by ``Dog`` and ``Cat``. A set of type ``Animal`` may contain both ``Cat`` and ``Dog`` objects.
+EdgeDB schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`;
+types (usually object types) can extend one or more other types. For intance
+you may declare an abstract object type ``Animal`` that is extended by ``Dog``
+and ``Cat``. A set of type ``Animal`` may contain both ``Cat`` and ``Dog``
+objects.
 
 .. code-block:: edgeql-repl
 
@@ -236,7 +292,8 @@ EdgeDB schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`; t
     default::Cat {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be},
   }
 
-We can use the *type intersection* operator to restrict the elements of a set by subtype.
+We can use the *type intersection* operator to restrict the elements of a set
+by subtype.
 
 .. code-block:: edgeql-repl
 
@@ -250,7 +307,8 @@ We can use the *type intersection* operator to restrict the elements of a set by
     default::Cat {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be}
   }
 
-Type filters are commonly used in conjunction with :ref:`backlinks <ref_eql_select_backlinks>`.
+Type filters are commonly used in conjunction with :ref:`backlinks
+<ref_eql_select_backlinks>`.
 
 
 .. _ref_eql_set_aggregate:
@@ -258,7 +316,9 @@ Type filters are commonly used in conjunction with :ref:`backlinks <ref_eql_sele
 Aggregate vs element-wise operations
 ------------------------------------
 
-EdgeQL provides a large library of built-in functions and operators for handling data structures. Each functions and operators is either *aggregate* or *element-wise*.
+EdgeQL provides a large library of built-in functions and operators for
+handling data structures. Each functions and operators is either *aggregate* or
+*element-wise*.
 
 Element-wise operations are applied on *each element* of a set.
 
@@ -272,7 +332,8 @@ Element-wise operations are applied on *each element* of a set.
   {["hello", "world"], ["hi", "again"]}
 
 
-By contrast, *aggregate* operations accept a set with arbitrary cardinality and return a *singleton* (or perhaps an empty set if the input was also empty).
+By contrast, *aggregate* operations accept a set with arbitrary cardinality and
+return a *singleton* (or perhaps an empty set if the input was also empty).
 
 .. code-block:: edgeql-repl
 
@@ -283,14 +344,18 @@ By contrast, *aggregate* operations accept a set with arbitrary cardinality and 
   db> select min({1, 2, 3});
   {-3}
 
-When an *element-wise* operation accepts two inputs, the operation is applied *pair-wise*; in other words, the operation is applied to the *cartesian product* of the inputs.
+When an *element-wise* operation accepts two inputs, the operation is applied
+*pair-wise*; in other words, the operation is applied to the *cartesian
+product* of the inputs.
 
 .. code-block:: edgeql-repl
 
   db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'}
   {'aaaccc', 'aaaddd', 'bbbccc', 'bbbddd'}
 
-Accordingly, operations involving an empty set typically return an empty set (though certain operations like :eql:func:`count` are able to operate on empty sets).
+Accordingly, operations involving an empty set typically return an empty set
+(though certain operations like :eql:func:`count` are able to operate on empty
+sets).
 
 .. code-block:: edgeql-repl
 
@@ -302,16 +367,21 @@ Accordingly, operations involving an empty set typically return an empty set (th
 Conversion to/from arrays
 -------------------------
 
-Both arrays and sets are collections of values that share a type. EdgeQL provides ways to convert one into the other.
+Both arrays and sets are collections of values that share a type. EdgeQL
+provides ways to convert one into the other.
 
 edgedb> select array_unpack([1,2,3]);
 {1, 2, 3}
 edgedb> select array_agg({1,2,3});
 {[1, 2, 3]}
 
-You can perform many of the same operations on either sets or arrays. For instance, the :eql:func:`count` operation on sets is analogous to the :eql:func:`len` operation on arrays. Whether you prefer to deal primary with sets or arrays is largely a matter of taste.
+You can perform many of the same operations on either sets or arrays. For
+instance, the :eql:func:`count` operation on sets is analogous to the
+:eql:func:`len` operation on arrays. Whether you prefer to deal primary with
+sets or arrays is largely a matter of taste.
 
-Remember that an array literal is just a singleton set with an array type. A set can contain several arrays.
+Remember that an array literal is just a singleton set with an array type. A
+set can contain several arrays.
 
 edgedb> select [1, 2, 3];
 {[1, 2, 3]}

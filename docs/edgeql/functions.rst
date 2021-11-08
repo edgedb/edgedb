@@ -9,7 +9,8 @@ All functions and operators in EdgeDB are either *element-wise* or *aggregate*.
 Aggregate operations
 ^^^^^^^^^^^^^^^^^^^^
 
-Consider the :eql:func:`count` function. It returns the number of elements in a given set. As such, it operates on the input set *as a whole*.
+Consider the :eql:func:`count` function. It returns the number of elements in a
+given set. As such, it operates on the input set *as a whole*.
 
 .. code-block:: edgeql-repl
 
@@ -20,7 +21,8 @@ Consider the :eql:func:`count` function. It returns the number of elements in a 
   db> select count(<str>{});
   {0}
 
-Another example is :eql:func:`array_agg`, which converts a *set* of elements into a singleton array.
+Another example is :eql:func:`array_agg`, which converts a *set* of elements
+into a singleton array.
 
 .. code-block:: edgeql-repl
 
@@ -31,7 +33,8 @@ Another example is :eql:func:`array_agg`, which converts a *set* of elements int
 Element-wise operations
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Consider the :ref:`function <ref_std>` :eql:func:`len` used to transform a set of :eql:type:`str` into a set of :eql:type:`int64`.
+Consider the :ref:`function <ref_std>` :eql:func:`len` used to transform a set
+of :eql:type:`str` into a set of :eql:type:`int64`.
 
 .. code-block:: edgeql-repl
 
@@ -41,7 +44,10 @@ Consider the :ref:`function <ref_std>` :eql:func:`len` used to transform a set o
   {5, 5}
 
 
-This is known as an *element-wise* operation: the ``len`` function is applied to each element of the input set. In case of element-wise operations that accept multiple arguments, the operation is applied to a cartesian product cross-product of all the input sets.
+This is known as an *element-wise* operation: the ``len`` function is applied
+to each element of the input set. In case of element-wise operations that
+accept multiple arguments, the operation is applied to a cartesian product
+cross-product of all the input sets.
 
 .. code-block:: edgeql-repl
 
@@ -50,7 +56,10 @@ This is known as an *element-wise* operation: the ``len`` function is applied to
   db> select {true, false} or {true, false};
   {true, true, true, false}
 
-By extension, if any of the input sets are empty, the result of applying an element-wise function is also empty. In effect, when EdgeDB detects an empty set, it "short-circuits" and returns an empty set without applying the operation.
+By extension, if any of the input sets are empty, the result of applying an
+element-wise function is also empty. In effect, when EdgeDB detects an empty
+set, it "short-circuits" and returns an empty set without applying the
+operation.
 
 .. code-block:: edgeql-repl
 
@@ -62,7 +71,10 @@ By extension, if any of the input sets are empty, the result of applying an elem
 
 .. note::
 
-  Certain functions and operators avoid this "short-circuit" behavior by marking their inputs as :ref:`optional <ref_eql_sdl_functions_syntax>`. A notable example of an operator with optional inputs is the :eql:op:`?? <COALESCE>` operator.
+  Certain functions and operators avoid this "short-circuit" behavior by
+  marking their inputs as :ref:`optional <ref_eql_sdl_functions_syntax>`. A
+  notable example of an operator with optional inputs is the :eql:op:`??
+  <COALESCE>` operator.
 
   .. code-block:: edgeql-repl
 

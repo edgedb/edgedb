@@ -20,7 +20,11 @@ Select
 
 .. _ref_eql_select_backlinks:
 
-The ``select`` command retrieves or computes a set of values. We've already seen simple queries that select primitive values.
+The ``select`` command retrieves or computes a set of values, while possible
+applying filtering, ordering, and pagination operations.
+
+
+We've already seen simple queries that select primitive values.
 
 .. code-block:: edgeql-repl
 
@@ -30,20 +34,16 @@ The ``select`` command retrieves or computes a set of values. We've already seen
   {[1, 2, 3]}
 
 
-However most queries are selecting *objects* that live in the database. For demonstration purposes, the queries below assume the following schema.
+However most queries are selecting *objects* that live in the database. For
+demonstration purposes, the queries below assume the following schema.
+
 
 .. code-block:: sdl
 
   module default {
 
     abstract type Person {
-      required property name -> str {
-        constraint exclusive;
-      };
-    }
-
-    type Villain extending Person {
-      link nemesis -> Hero;
+      required property name -> str { constraint exclusive; };
     }
 
     type Hero extending Person {
@@ -51,8 +51,13 @@ However most queries are selecting *objects* that live in the database. For demo
       multi link villains := .<nemesis[IS Villain];
     }
 
+    type Villain extending Person {
+      link nemesis -> Hero;
+    }
+
     type Movie {
-      required property title -> str;
+      required property title -> str { constraint exclusive; }
+      required property release_year -> int64;
       multi link characters -> Person;
     }
 
@@ -62,7 +67,9 @@ However most queries are selecting *objects* that live in the database. For demo
 Selecting objects
 -----------------
 
-Let's start by selecting all ``Villains`` objects in the database. In this example, there are only three. Remember, ``Villain`` is a :ref:`reference <ref_eql_set_references>` to the set of all Villain objects.
+Let's start by selecting all ``Villains`` objects in the database. In this
+example, there are only three. Remember, ``Villain`` is a :ref:`reference
+<ref_eql_set_references>` to the set of all Villain objects.
 
 .. code-block:: edgeql-repl
 
@@ -77,7 +84,8 @@ Let's start by selecting all ``Villains`` objects in the database. In this examp
 
   For the sake of readability, the ``id`` values have been truncated.
 
-By default, this only returns the ``id`` of each object. If serialized to JSON, this result would look like this:
+By default, this only returns the ``id`` of each object. If serialized to JSON,
+this result would look like this:
 
 .. code-block::
 
@@ -93,7 +101,8 @@ By default, this only returns the ``id`` of each object. If serialized to JSON, 
 Shapes
 ^^^^^^
 
-To specify which properties to select, we attach a **shape** to ``Hero``. A shape can be attached to any object type expression in EdgeQL.
+To specify which properties to select, we attach a **shape** to ``Hero``. A
+shape can be attached to any object type expression in EdgeQL.
 
 .. code-block:: edgeql-repl
 
@@ -107,7 +116,8 @@ To specify which properties to select, we attach a **shape** to ``Hero``. A shap
 Nested shapes
 ^^^^^^^^^^^^^
 
-Nested shapes can be used to fetch linked objects and their properties. Here we fetch all ``Villain`` objects and their nemeses.
+Nested shapes can be used to fetch linked objects and their properties. Here we
+fetch all ``Villain`` objects and their nemeses.
 
 .. code-block:: edgeql-repl
 
@@ -123,7 +133,8 @@ Nested shapes can be used to fetch linked objects and their properties. Here we 
     ...
   }
 
-In the context of EdgeQL, computable links like ``Hero.villains`` are treated identically to concrete/non-computable links like ``Villain.nemesis``.
+In the context of EdgeQL, computable links like ``Hero.villains`` are treated
+identically to concrete/non-computable links like ``Villain.nemesis``.
 
 .. code-block:: edgeql-repl
 
@@ -146,9 +157,11 @@ In the context of EdgeQL, computable links like ``Hero.villains`` are treated id
 Filtering
 ---------
 
-To filter the set of selected objects, use a ``filter <expr>`` clause. The ``<expr>`` that follows the ``filter`` keyword can be *any boolean expression*.
+To filter the set of selected objects, use a ``filter <expr>`` clause. The
+``<expr>`` that follows the ``filter`` keyword can be *any boolean expression*.
 
-To reference the ``name`` property of the ``Villain``objects being selected, we use ``Villain.name``.
+To reference the ``name`` property of the ``Villain``objects being selected, we
+use ``Villain.name``.
 
 .. code-block:: edgeql-repl
 
@@ -157,11 +170,21 @@ To reference the ``name`` property of the ``Villain``objects being selected, we 
   {default::Villain {id: b233ca98..., name: 'Doc Ock'}}
 
 
-.. .. note::
 
-..   This query contains two occurrences of ``Villain``. The first (outer) is a reference to the set of all ``Villain`` objects; the inner occurrence is *inside* the select shape and has a different meaning. Inside the shape, we are in the *scope* of the object type being selected. Thus, the ``Villain`` keyword refers to the *current object* being selected. It is similar to the ``this`` keyword inside a class definition (also known as ``self`` in Python).
+.. This query contains two occurrences of ``Villain``. The first
+.. (outer) is a reference to the set of all ``Villain`` objects;
+.. the inner occurrence is *inside* the select shape and has a
+.. different meaning. Inside the shape, we are in the *scope* of
+.. the object type being selected. Thus, the ``Villain`` keyword
+.. refers to the *current object* being selected. It is similar to
+.. the ``this`` keyword inside a class definition (also known as
+.. ``self`` in Python).
 
-However, this looks a little clunky, so EdgeQL provides a shorthand: just drop ``Villain`` entirely and simply use ``.name``. Since we are selecting a set of Villains, it's clear from context that ``.name`` must refer to a link/property of the ``Villain`` type. In other words, we are in the **scope** of the ``Villain`` type.
+However, this looks a little clunky, so EdgeQL provides a shorthand: just drop
+``Villain`` entirely and simply use ``.name``. Since we are selecting a set of
+Villains, it's clear from context that ``.name`` must refer to a link/property
+of the ``Villain`` type. In other words, we are in the **scope** of the
+``Villain`` type.
 
 .. code-block:: edgeql-repl
 
@@ -169,26 +192,28 @@ However, this looks a little clunky, so EdgeQL provides a shorthand: just drop `
   ... filter .name = "Doc Ock"
   {default::Villain {name: 'Doc Ock'}}
 
-.. Filtering by ID
-.. ^^^^^^^^^^^^^^^
+Filtering by ID
+^^^^^^^^^^^^^^^
 
-.. To filter by ``id``, remember to cast the desired value to :ref:`uuid <ref_std_uuid>`:
+To filter by ``id``, remember to cast the desired ID to :ref:`uuid
+<ref_std_uuid>`:
 
-.. .. code-block:: edgeql-repl
+.. code-block:: edgeql-repl
 
-..   db> select Villain {id, name}
-..   ... filter .id = <uuid>"b233ca98-3c23-11ec-b81f-6ba8c4f0084e"
-..   {
-..     default::Villain {
-..       id: 'b233ca98-3c23-11ec-b81f-6ba8c4f0084e',
-..       name: 'Doc Ock'
-..     }
-..   }
+  db> select Villain {id, name}
+  ... filter .id = <uuid>"b233ca98-3c23-11ec-b81f-6ba8c4f0084e"
+  {
+    default::Villain {
+      id: 'b233ca98-3c23-11ec-b81f-6ba8c4f0084e',
+      name: 'Doc Ock'
+    }
+  }
 
 Nested filters
 ^^^^^^^^^^^^^^
 
-Filters can be added at every level of shape nesting. The query below applies a filter to both the selected ``Hero`` objects and their linked ``villains``.
+Filters can be added at every level of shape nesting. The query below applies a
+filter to both the selected ``Hero`` objects and their linked ``villains``.
 
 .. code-block:: edgeql-repl
 
@@ -213,7 +238,9 @@ Filters can be added at every level of shape nesting. The query below applies a 
     },
   }
 
-Note that the *scope* changes inside nested shapes. When we use ``.name`` in the outer ``filter``, it refers to the name of the hero. But when we use ``.name`` in the nested ``villains`` shape, the scope has changed to ``Villain``.
+Note that the *scope* changes inside nested shapes. When we use ``.name`` in
+the outer ``filter``, it refers to the name of the hero. But when we use ``.
+name`` in the nested ``villains`` shape, the scope has changed to ``Villain``.
 
 
 
@@ -239,11 +266,14 @@ Order the result of a query with an ``order by`` clause.
     default::Villain {name: 'Zemo'},
   }
 
-The expression provided to ``order by`` can be any primitive singleton expression, including arrays and tuples.
+The expression provided to ``order by`` can be any primitive singleton
+expression, including arrays and tuples.
 
 .. note::
 
-  When ordering by arrays or tuples, the leftmost elements are compared. If these elements are the same, the next element is used to "break the tie", and so on. If all elements are the same, the order is not well defined.
+  When ordering by arrays or tuples, the leftmost elements are compared. If
+  these elements are the same, the next element is used to "break the tie", and
+  so on. If all elements are the same, the order is not well defined.
 
 .. code-block:: edgeql-repl
 
@@ -255,12 +285,15 @@ The expression provided to ``order by`` can be any primitive singleton expressio
     default::Villain {name: 'Abomination'}
   }
 
-For a full reference on ordering, including how empty values are handles, see :ref:`Reference > Commands > Select <ref_reference_select_order>`.
+For a full reference on ordering, including how empty values are handles, see
+:ref:`Reference > Commands > Select <ref_reference_select_order>`.
 
 Pagination
 ----------
 
-EdgeDB supports standard ``limit`` and ``offset`` operators. These are commonly used in conjunction with ``order by``.
+EdgeDB supports standard ``limit`` and ``offset`` operators. These are
+typically used in conjunction with ``order by`` to maintain a consistent
+ordering across pagination queries.
 
 .. code-block:: edgeql-repl
 
@@ -274,7 +307,9 @@ EdgeDB supports standard ``limit`` and ``offset`` operators. These are commonly 
     default::Villain {name: 'Kraven the Hunter'},
   }
 
-The expressions passed to ``limit`` and ``offset`` can be any singleton ``int64`` expression. This query fetches all Villains except the last (sorted by name).
+The expressions passed to ``limit`` and ``offset`` can be any singleton
+``int64`` expression. This query fetches all Villains except the last (sorted
+by name).
 
 .. code-block:: edgeql-repl
 
@@ -292,7 +327,10 @@ The expressions passed to ``limit`` and ``offset`` can be any singleton ``int64`
 Computed fields
 ---------------
 
-Shapes can contain *computed fields*. These are EdgeQL expressions that are computed on the fly during the execution of the query. As with other clauses, we can use dot notation (e.g. ``.name``) to refer to the properties and links of the object type currently *in scope*.
+Shapes can contain *computed fields*. These are EdgeQL expressions that are
+computed on the fly during the execution of the query. As with other clauses,
+we can use dot notation (e.g. ``.name``) to refer to the properties and links
+of the object type currently *in scope*.
 
 
 .. code-block:: edgeql-repl
@@ -340,7 +378,8 @@ As with nested filters, the *current scope* changes inside nested shapes.
 Backlinks
 ^^^^^^^^^
 
-Fetching backlinks is a common use case for computed fields. To demonstrate this, let's fetch a list of all movies starring a particular Hero.
+Fetching backlinks is a common use case for computed fields. To demonstrate
+this, let's fetch a list of all movies starring a particular Hero.
 
 .. code-block:: edgeql-repl
 
@@ -363,9 +402,13 @@ Fetching backlinks is a common use case for computed fields. To demonstrate this
 
 .. note::
 
-  The computed backlink ``villains`` is a combination of the *backlink operator* ``.<`` and a type intersection ``[is Villain]``. For a full reference on backlink syntax, see :ref:`EdgeQL > Paths <ref_eql_paths_backlinks>`.
+  The computed backlink ``villains`` is a combination of the *backlink
+  operator* ``.<`` and a type intersection ``[is Villain]``. For a full
+  reference on backlink syntax, see :ref:`EdgeQL > Paths
+  <ref_eql_paths_backlinks>`.
 
-Instead of re-declaring backlinks inside every query where they're needed, it's common to add them directly into your schema as computed links.
+Instead of re-declaring backlinks inside every query where they're needed, it's
+common to add them directly into your schema as computed links.
 
 .. code-block:: sdl-diff
 
@@ -386,10 +429,13 @@ This simplifies future queries.
   } filter .name = "Iron Man";
 
 
+
 Subqueries
 ^^^^^^^^^^
 
-There's no limit to the complexity of computed expressions. EdgeQL is designed to be fully composable; entire queries can be embedded inside each other. Below, we use a subquery to select all movies containing a villain's nemesis.
+There's no limit to the complexity of computed expressions. EdgeQL is designed
+to be fully composable; entire queries can be embedded inside each other.
+Below, we use a subquery to select all movies containing a villain's nemesis.
 
 .. code-block:: edgeql-repl
 
@@ -423,11 +469,16 @@ Polymorphic queries
 
 :index: poly polymorphism nested shapes
 
-All queries thus far have referenced concrete object types: ``Hero`` and ``Villain``. However, both of these types extend the abstract type ``Person``, from which they inherit the ``name`` property.
+All queries thus far have referenced concrete object types: ``Hero`` and
+``Villain``. However, both of these types extend the abstract type ``Person``,
+from which they inherit the ``name`` property.
 
+Polymorphic sets
+^^^^^^^^^^^^^^^^
 
-
-It's possible to directly query all ``Person`` objects; the resulting set with be a mix of ``Hero`` and ``Villain`` objects (and possibly other subtypes of ``Person``, should they be declared).
+It's possible to directly query all ``Person`` objects; the resulting set with
+be a mix of ``Hero`` and ``Villain`` objects (and possibly other subtypes of
+``Person``, should they be declared).
 
 .. code-block:: edgeql-repl
 
@@ -440,7 +491,8 @@ It's possible to directly query all ``Person`` objects; the resulting set with b
     ...
   }
 
-You may also encounter such "mixed sets" when querying a link that points to an abstract type (such as ``Movie.characters``) or a :eql:op:`union type <TYPEOR>`.
+You may also encounter such "mixed sets" when querying a link that points to an
+abstract type (such as ``Movie.characters``) or a :eql:op:`union type <TYPEOR>`.
 
 
 .. code-block:: edgeql-repl
@@ -464,7 +516,13 @@ You may also encounter such "mixed sets" when querying a link that points to an 
     },
   }
 
-We can fetch different properties *conditional* on the subtype of each object by prefixing property/link references with ``[is <type>]``. This is known as a **polymorphic query**.
+
+Polymorphic fields
+^^^^^^^^^^^^^^^^^^
+
+We can fetch different properties *conditional* on the subtype of each object
+by prefixing property/link references with ``[is <type>]``. This is known as a
+**polymorphic query**.
 
 .. code-block:: edgeql-repl
 
@@ -492,9 +550,14 @@ We can fetch different properties *conditional* on the subtype of each object by
     ...
   }
 
-This syntax is intentionally similar to the type intersection operator. In effect, this operator conditionally returns the value of the referenced field only if the object matches a particular type. If the match fails, an empty set is returned.
+This syntax is intentionally similar to the type intersection operator. In
+effect, this operator conditionally returns the value of the referenced field
+only if the object matches a particular type. If the match fails, an empty set
+is returned.
 
-The line ``secret_identity := [is Hero].secret_identity`` is a bit redundant, since the computed property has the same name as the polymorphic field. In these cases, EdgeQL supports a shorthand.
+The line ``secret_identity := [is Hero].secret_identity`` is a bit redundant,
+since the computed property has the same name as the polymorphic field. In
+these cases, EdgeQL supports a shorthand.
 
 .. code-block:: edgeql-repl
 
@@ -519,33 +582,42 @@ The line ``secret_identity := [is Hero].secret_identity`` is a bit redundant, si
     ...
   }
 
-.. Relatedly, it's possible to filter links by subtype "inline" with a similar syntax. Below, we filter ``Movie.characters`` to include exclusively ``Hero`` objects.
+Filtering polymorphic links
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. .. code-block::
+Relatedly, it's possible to filter links by subtype "inline" with a similar
+syntax. Below, we filter ``Movie.characters`` to include exclusively ``Hero``
+objects.
 
-..   edgedb> select Movie {
-..   .......   title,
-..   .......   characters[IS Hero]: {
-..   .......     secret_identity
-..   .......   },
-..   ....... };
-..   {
-..     default::Movie {
-..       title: 'Spider-Man: Homecoming',
-..       characters: {default::Hero {secret_identity: 'Peter Parker'}},
-..     },
-..     default::Movie {
-..       title: 'Iron Man',
-..       characters: {default::Hero {secret_identity: 'Tony Stark'}},
-..     },
-..     ...
-..   }
+.. code-block::
+
+  edgedb> select Movie {
+  .......   title,
+  .......   characters[IS Hero]: {
+  .......     secret_identity
+  .......   },
+  ....... };
+  {
+    default::Movie {
+      title: 'Spider-Man: Homecoming',
+      characters: {default::Hero {secret_identity: 'Peter Parker'}},
+    },
+    default::Movie {
+      title: 'Iron Man',
+      characters: {default::Hero {secret_identity: 'Tony Stark'}},
+    },
+    ...
+  }
 
 
 Free objects
 ------------
 
-To select several values simultaneously, you can "bundle" them into a "free object". Free objects are a set of key-value pairs that can contain any expression. Here, the term "free" is used to indicate that the object in question is not an instance of a particular *object type*; instead, it's constructed ad hoc inside the query.
+To select several values simultaneously, you can "bundle" them into a "free
+object". Free objects are a set of key-value pairs that can contain any
+expression. Here, the term "free" is used to indicate that the object in
+question is not an instance of a particular *object type*; instead, it's
+constructed ad hoc inside the query.
 
 .. code-block:: edgeql-repl
 
@@ -572,13 +644,16 @@ To select several values simultaneously, you can "bundle" them into a "free obje
   }
 
 
-Note that the result is a *singleton* but each key corresponds to a set of values, which may have any cardinality.
+Note that the result is a *singleton* but each key corresponds to a set of
+values, which may have any cardinality.
 
 
-With clauses
-------------
+With block
+----------
 
-All top-level EdgeQL statements (``select``, ``insert``, ``update``, and ``delete``) can be prefixed with a ``with`` clause. These clauses let you declare standalone expressions that can be used in your query.
+All top-level EdgeQL statements (``select``, ``insert``, ``update``, and
+``delete``) can be prefixed with a ``with`` block. These blocks let you declare
+standalone expressions that can be used in your query.
 
 .. code-block:: edgeql-repl
 

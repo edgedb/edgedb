@@ -80,4 +80,5 @@ Follow along
 
 The best way to learn EdgeQL is to play with it! Use the `online EdgeQL shell
 </tutorial>`_ to execute any and all EdgeQL snippets in the following pages. Or
-follow the :ref:`Quickstart <ref_quickstart>` to spin up an EdgeDB instance on your computer, then open an :ref:`interactive shell <ref_cli_edgedb>`.
+follow the :ref:`Quickstart <ref_quickstart>` to spin up an EdgeDB instance on
+your computer, then open an :ref:`interactive shell <ref_cli_edgedb>`.

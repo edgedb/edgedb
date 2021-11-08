@@ -5,7 +5,8 @@ Parameters
 
 :edb-alt-title: Query Parameters
 
-EdgeQL queries can reference parameters with ``$`` notation. The value of these parameters are supplied externally.
+EdgeQL queries can reference parameters with ``$`` notation. The value of these
+parameters are supplied externally.
 
 .. code-block:: edgeql
 
@@ -13,14 +14,17 @@ EdgeQL queries can reference parameters with ``$`` notation. The value of these 
   select <int64>$a + <int64>$b;
   select BlogPost filter .id = <uuid>$blog_id;
 
-Note that we provided an explicit type cast before the parameter; this is required for all parameters. This way, EdgeDB can strongly type all expressions involving parameters and enforce the parameter types when the query is executed.
+Note that we provided an explicit type cast before the parameter; this is
+required for all parameters. This way, EdgeDB can strongly type all expressions
+involving parameters and enforce the parameter types when the query is executed.
 
 Usage with clients
 ------------------
 
 **REPL**
 
-When you include a parameter reference in an EdgeDB REPL, you'll be prompted interactively to provide a value or values.
+When you include a parameter reference in an EdgeDB REPL, you'll be prompted
+interactively to provide a value or values.
 
 .. code-block:: edgeql-repl
 
@@ -68,15 +72,20 @@ When you include a parameter reference in an EdgeDB REPL, you'll be prompted int
     &date, time.Now())
 
 
-Refer to the Datatypes page of your preferred :ref:`client library <ref_clients_index>` to learn more about mapping between EdgeDB types and language-native types.
+Refer to the Datatypes page of your preferred :ref:`client library
+<ref_clients_index>` to learn more about mapping between EdgeDB types and
+language-native types.
 
 
 Parameter types and JSON
 ------------------------<required>
 
-Parameters can be of any :ref:`scalar type <ref_datamodel_scalar_types>` or array thereof.
+Parameters can be of any :ref:`scalar type <ref_datamodel_scalar_types>` or
+array thereof.
 
-This may seem limiting at first, but in actuality this doesn't impose any practical limitation on what can be parameterized. To pass complex structures as parameters, use EdgeDB's built-in :ref:`JSON <ref_std_json>` functionality.
+This may seem limiting at first, but in actuality this doesn't impose any
+practical limitation on what can be parameterized. To pass complex structures
+as parameters, use EdgeDB's built-in :ref:`JSON <ref_std_json>` functionality.
 
 .. code-block:: edgeql-repl
 
@@ -93,7 +102,8 @@ Optional parameters
 -------------------
 
 By default, query parameters are ``required``; the query would fail if
-parameter value is an empty set. You can use ``optional`` modifier inside the type cast if the parameter is optional.
+parameter value is an empty set. You can use ``optional`` modifier inside the
+type cast if the parameter is optional.
 
 .. code-block:: edgeql-repl
 
@@ -101,7 +111,8 @@ parameter value is an empty set. You can use ``optional`` modifier inside the ty
   Parameter <str>$name (Ctrl+D for empty set `{}`):
   {}
 
-When using a client library, pass the idiomatic null pointer for your language: ``null``, ``None``, ``nil``, etc.
+When using a client library, pass the idiomatic null pointer for your language:
+``null``, ``None``, ``nil``, etc.
 
 .. note::
 
@@ -118,5 +129,9 @@ What can be parametrized?
 Any data manipulation language (DML) statement can be
 parametrized: ``select``, ``insert``, ``update``, and ``delete``.
 
-Schema definition language (SDL) and :ref:`configure <ref_eql_statements_configure>` statements **cannot** be parametrized. Data definition language (DDL) has limited support for parameters, but it's not a recommended pattern. Some of the limitations might be lifted in the future versions.
+Schema definition language (SDL) and :ref:`configure
+<ref_eql_statements_configure>` statements **cannot** be parametrized. Data
+definition language (DDL) has limited support for parameters, but it's not a
+recommended pattern. Some of the limitations might be lifted in the future
+versions.
 

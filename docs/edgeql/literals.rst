@@ -3,7 +3,8 @@
 Literals
 ========
 
-EdgeQL is *inextricably tied* to EdgeDB's rigorous type system. Below is an overview of how to declare a literal value of each *primitive type*.
+EdgeQL is *inextricably tied* to EdgeDB's rigorous type system. Below is an
+overview of how to declare a literal value of each *primitive type*.
 
 .. list-table::
 
@@ -46,7 +47,8 @@ EdgeQL is *inextricably tied* to EdgeDB's rigorous type system. Below is an over
 Strings
 -------
 
-The :eql:type:`str` type is a variable-length string of Unicode characters. A string can be declared with either single or double quotes.
+The :eql:type:`str` type is a variable-length string of Unicode characters. A
+string can be declared with either single or double quotes.
 
 .. code-block:: edgeql
 
@@ -65,7 +67,8 @@ The :eql:type:`str` type is a variable-length string of Unicode characters. A st
   {'hello
   there!'}
 
-There is a special syntax for declaring "raw strings". Raw strings treat the backslash ``\`` as a literal character instead of an escape character.
+There is a special syntax for declaring "raw strings". Raw strings treat the
+backslash ``\`` as a literal character instead of an escape character.
 
 .. code-block:: edgeql-repl
 
@@ -80,7 +83,8 @@ There is a special syntax for declaring "raw strings". Raw strings treat the bac
 
 
 
-EdgeQL contains a set of built-in functions and operators for searching, comparing, and manipulating strings.
+EdgeQL contains a set of built-in functions and operators for searching,
+comparing, and manipulating strings.
 
 .. code-block:: edgeql-repl
 
@@ -96,7 +100,8 @@ EdgeQL contains a set of built-in functions and operators for searching, compari
   {['hello', 'there']}
 
 
-For a complete reference on strings, see :ref:`Standard Library > String <ref_std_string>` or click an item below.
+For a complete reference on strings, see :ref:`Standard Library > String
+<ref_std_string>` or click an item below.
 
 .. list-table::
 
@@ -181,7 +186,10 @@ There are several numerical types in EdgeDB's type system.
     * - :eql:type:`decimal`
       - Arbitrary precision number.
 
-Number literals that *do not* contain a decimal are interpreted as ``int64``. Numbers containing decimals are interpreted as ``float64``. The ``n`` suffix designates a number with *arbitrary precision*: either ``bigint`` or ``decimal``.
+Number literals that *do not* contain a decimal are interpreted as ``int64``.
+Numbers containing decimals are interpreted as ``float64``. The ``n`` suffix
+designates a number with *arbitrary precision*: either ``bigint`` or
+``decimal``.
 
 ====================================== =============================
  Syntax                                 Inferred type
@@ -207,7 +215,9 @@ explicit type cast. For details on type casting, see :ref:`Casting
  :eql:code:`SELECT <float32>123.456;`   :eql:type:`float32`
 ====================================== =============================
 
-EdgeQL includes a full set of arithmetic and comparison operators. Parentheses can be used to indicate the order-of-operations or visually group subexpressions; this is true across all EdgeQL queries.
+EdgeQL includes a full set of arithmetic and comparison operators. Parentheses
+can be used to indicate the order-of-operations or visually group
+subexpressions; this is true across all EdgeQL queries.
 
 .. code-block:: edgeql-repl
 
@@ -221,7 +231,8 @@ EdgeQL includes a full set of arithmetic and comparison operators. Parentheses c
   {0.36363636363636365}
 
 
-EdgeQL provides a comprehensive set of built-in functions and operators on numerical data.
+EdgeQL provides a comprehensive set of built-in functions and operators on
+numerical data.
 
 .. list-table::
 
@@ -249,7 +260,10 @@ EdgeQL provides a comprehensive set of built-in functions and operators on numer
 JSON
 ----
 
-The :eql:type:`json` scalar type is a stringified representation of structured data. JSON literals are declared by explicitly casting other values or passing a properly formatted JSON string into :eql:func:`to_json`. Any type can be converted into JSON except :eql:type:`bytes`.
+The :eql:type:`json` scalar type is a stringified representation of structured
+data. JSON literals are declared by explicitly casting other values or passing
+a properly formatted JSON string into :eql:func:`to_json`. Any type can be
+converted into JSON except :eql:type:`bytes`.
 
 .. code-block:: edgeql-repl
 
@@ -279,7 +293,9 @@ JSON values support indexing operators. The resulting value is a ``json``.
   {'"c"'}
 
 
-EdgeQL supports a set of functions and operators on ``json`` values. Refer to the :ref:`Standard Library > JSON <ref_std_json>` or click an item below for details documentation.
+EdgeQL supports a set of functions and operators on ``json`` values. Refer to
+the :ref:`Standard Library > JSON <ref_std_json>` or click an item below for
+details documentation.
 
 .. list-table::
 
@@ -304,7 +320,9 @@ EdgeQL supports a set of functions and operators on ``json`` values. Refer to th
 UUID
 ----
 
-The :eql:type:`uuid` type is commonly used to represent object identifiers. UUID literal must be explicitly cast from a string value matching the UUID specification.
+The :eql:type:`uuid` type is commonly used to represent object identifiers.
+UUID literal must be explicitly cast from a string value matching the UUID
+specification.
 
 .. code-block:: edgeql-repl
 
@@ -418,7 +436,10 @@ Durations
 EdgeDB's typesystem contains two duration types.
 
 
-The :eql:type:`duration` type represents *exact* durations that can be represented by some fixed number of microseconds. It can be negative and it supports units of ``microseconds``, ``milliseconds``, ``seconds``, ``minutes``, and ``hours``.
+The :eql:type:`duration` type represents *exact* durations that can be
+represented by some fixed number of microseconds. It can be negative and it
+supports units of ``microseconds``, ``milliseconds``, ``seconds``, ``minutes``,
+and ``hours``.
 
 .. code-block:: edgeql-repl
 
@@ -429,11 +450,16 @@ The :eql:type:`duration` type represents *exact* durations that can be represent
   db> SELECT <duration>'5 hours 4 minutes 3 seconds';
   {<duration>'5:04:03'}
 
-The :eql:type:`cal::relative_duration` type represents a "calendar" duration, like ``1 month``. Because months have different number of days, ``1 month`` doesn't correspond to a fixed number of milliseconds, but it's often a useful quantity to represent recurring events, postponements, etc.
+The :eql:type:`cal::relative_duration` type represents a "calendar" duration,
+like ``1 month``. Because months have different number of days, ``1 month``
+doesn't correspond to a fixed number of milliseconds, but it's often a useful
+quantity to represent recurring events, postponements, etc.
 
 .. note::
 
-  The ``cal::relative_duration`` type supports the same units as ``duration``, plus ``days``, ``weeks``, ``months``, ``years``, ``decades``, ``centuries``, and ``millennium``.
+  The ``cal::relative_duration`` type supports the same units as ``duration``,
+  plus ``days``, ``weeks``, ``months``, ``years``, ``decades``, ``centuries``,
+  and ``millennium``.
 
 To declare relative duration literals:
 
@@ -467,7 +493,9 @@ EdgeQL supports a set of functions and operators on duration types.
 Tuples
 ------
 
-A tuple is *fixed-length*, *ordered* collection of values, each of which may have a *different type*. The elements of a tuple can be of any type, including scalars, arrays, tuples, and object types.
+A tuple is *fixed-length*, *ordered* collection of values, each of which may
+have a *different type*. The elements of a tuple can be of any type, including
+scalars, arrays, tuples, and object types.
 
 .. list-table::
   :header-rows: 1

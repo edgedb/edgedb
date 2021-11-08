@@ -9,9 +9,9 @@ Client Libraries
 
 Clients currently available:
 
-* `Python Client <00_python/index>`_
-* `Javascript Client <01_js/index>`_
-* `Go Client <02_go/index>`_
+* `Python <00_python/index>`_
+* `TypeScript/Javascript <01_js/index>`_
+* `Go <02_go/index>`_
 
 
 Other ways to query EdgeDB:

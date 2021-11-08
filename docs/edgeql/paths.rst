@@ -23,13 +23,15 @@ Consider the following schema:
     required link author -> User;
   }
 
-The simplest path is simply ``User``. This is a :ref:`set reference <ref_eql_set_references>` that refers to all ``User`` objects in the database.
+The simplest path is simply ``User``. This is a :ref:`set reference
+<ref_eql_set_references>` that refers to all ``User`` objects in the database.
 
 .. code-block:: edgeql
 
   select User;
 
-Paths can traverse links. The path below refers to *all Users who are the friend of another User*.
+Paths can traverse links. The path below refers to *all Users who are the
+friend of another User*.
 
 .. code-block:: edgeql
 
@@ -60,18 +62,24 @@ Paths can also include properties.
 Backlinks
 ---------
 
-All examples thus far have traversed links in the *forward direction*, however it's also possible to traverse links *backwards* with ``.<`` notation. These are called **backlinks**.
+All examples thus far have traversed links in the *forward direction*, however
+it's also possible to traverse links *backwards* with ``.<`` notation. These
+are called **backlinks**.
 
-Starting from each user, the path below traverses all *incoming* links labeled ``author`` and returns the union of their sources.
+Starting from each user, the path below traverses all *incoming* links labeled
+``author`` and returns the union of their sources.
 
 .. code-block:: edgeql
 
   select User.<author;
 
-As written, EdgeDB infers the *type* of this expression to be :eql:type:`BaseObject`, not ``BlogPost``. Why? Because in theory, there may be several links named ``author`` that point to ``User``.
+As written, EdgeDB infers the *type* of this expression to be
+:eql:type:`BaseObject`, not ``BlogPost``. Why? Because in theory, there may be
+several links named ``author`` that point to ``User``.
 
 .. note::
-  ``BaseObject`` is the root ancestor of all object types and it only contains a single property, ``id``.
+  ``BaseObject`` is the root ancestor of all object types and it only contains
+  a single property, ``id``.
 
 Consider the following addition to the schema:
 
@@ -89,7 +97,10 @@ Consider the following addition to the schema:
   +   required link author -> User;
   + }
 
-With the above schema, the path ``User.<author`` would return a mixed set of ``BlogPost`` and ``Comment`` objects. This may be desirable in some cases, but commonly you'll want to narrow the results to a particular type. To do so, use the :eql:op:`type intersection <ISINTERSECT>` operator: ``[is Foo]``:
+With the above schema, the path ``User.<author`` would return a mixed set of
+``BlogPost`` and ``Comment`` objects. This may be desirable in some cases, but
+commonly you'll want to narrow the results to a particular type. To do so, use
+the :eql:op:`type intersection <ISINTERSECT>` operator: ``[is Foo]``:
 
 .. code-block:: edgeql
 
@@ -102,7 +113,9 @@ With the above schema, the path ``User.<author`` would return a mixed set of ``B
 Link properties
 ---------------
 
-Paths can also reference :ref:`link properties <ref_datamodel_link_properties>` with ``@`` notation. To demonstrate this, let's add a property to the ``User.friends`` link:
+Paths can also reference :ref:`link properties <ref_datamodel_link_properties>`
+with ``@`` notation. To demonstrate this, let's add a property to the ``User.
+friends`` link:
 
 .. code-block:: sdl-diff
 
@@ -123,7 +136,9 @@ The following represents a set of all dates on which friendships were formed.
 Path roots
 ----------
 
-For simplicity, all examples above use set references like ``User`` as the root of the path; however, the root can be *any expression* returning object types. Below, the root of the path is a *subquery*.
+For simplicity, all examples above use set references like ``User`` as the root
+of the path; however, the root can be *any expression* returning object types.
+Below, the root of the path is a *subquery*.
 
 .. code-block:: edgeql-repl
 
@@ -132,6 +147,8 @@ For simplicity, all examples above use set references like ``User`` as the root 
   ... )
   ... select edgedb_lovers.author;
 
-This expression returns a set of all ``Users`` who have written a blog post titled "EdgeDB is awesome".
+This expression returns a set of all ``Users`` who have written a blog post
+titled "EdgeDB is awesome".
 
-For a full syntax definition, see the :ref:`Reference > Paths <ref_reference_paths>`.
+For a full syntax definition, see the :ref:`Reference > Paths
+<ref_reference_paths>`.

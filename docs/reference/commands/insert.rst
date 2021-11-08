@@ -49,6 +49,8 @@ See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
         INSERT <expression>
         [ "{" <link> := <insert-value-expr> [, ...]  "}" ]
 
+.. _ref_eql_statements_conflict:
+
 :eql:synopsis:`UNLESS CONFLICT [ ON <property-expr> ]`
     :index: unless conflict
 
@@ -60,6 +62,9 @@ See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
     specified by *property-expr*, then instead of failing with an
     error the ``INSERT`` statement produces an empty set (or an
     alternative result).
+
+    The exclusive constraint on ``<property-expr>`` cannot be defined on a
+    parent type.
 
     The specified *property-expr* may be either a reference to a
     property (or link) or a tuple of references to properties (or
@@ -203,6 +208,7 @@ what the ``UNLESS CONFLICT`` clause allows:
         name,
         is_admin
     };
+
 
 .. note::
 

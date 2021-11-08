@@ -9,7 +9,8 @@ A *path expression* (or simply a *path*) represents a set of values that are
 reachable when traversing a given sequence of links or properties from some
 source set.
 
-The result of a path expression depends on whether it terminates with a link or property reference.
+The result of a path expression depends on whether it terminates with a link or
+property reference.
 
 a) if a path *does not* end with a property reference, then it represents a
    unique set of objects reachable from the set at the root of the path;
