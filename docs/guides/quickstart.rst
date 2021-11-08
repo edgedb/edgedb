@@ -10,14 +10,14 @@ This quickstart will walk you through the entire process of creating a simple
 EdgeDB-powered application: installation, defining your schema, adding some
 data, and writing your first query. Let's jump in!
 
-..    :ref:`Installation <ref_quickstart_install>`
-..    :ref:`Initialize a project <ref_quickstart_createdb>`
-..    :ref:`Set up your schema <ref_quickstart_createdb_sdl>`
-..    :ref:`Insert data <ref_quickstart_insert_data>`
-..    :ref:`Run some queries <ref_quickstart_queries>`
-..    :ref:`Migrate your schema <ref_quickstart_migrations>`
-..    :ref:`Computed fields <ref_quickstart_computeds>`
-..    :ref:`Onwards and upwards <ref_quickstart_onwards>`
+- :ref:`Installation <ref_quickstart_install>`
+- :ref:`Initialize a project <ref_quickstart_createdb>`
+- :ref:`Set up your schema <ref_quickstart_createdb_sdl>`
+- :ref:`Insert data <ref_quickstart_insert_data>`
+- :ref:`Run some queries <ref_quickstart_queries>`
+- :ref:`Migrate your schema <ref_quickstart_migrations>`
+- :ref:`Computed fields <ref_quickstart_computeds>`
+- :ref:`Onwards and upwards <ref_quickstart_onwards>`
 
 
 .. _ref_quickstart_install:
@@ -57,8 +57,8 @@ In a terminal, create a new directory and ``cd`` into it.
 
 .. code-block:: bash
 
-    $ mkdir edgedb-quickstart
-    $ cd edgedb-quickstart
+    $ mkdir quickstart
+    $ cd quickstart
 
 Then initialize your EdgeDB project:
 
@@ -73,7 +73,7 @@ up your first EdgeDB instance. You should see something like this:
 
     $ edgedb project init
 
-    No `edgedb.toml` found at `~/path/to/edgedb-quickstart`
+    No `edgedb.toml` found at `~/path/to/quickstart`
     or above. Do you want to initialize a new project? [Y/n]
     > Y
 
@@ -92,9 +92,9 @@ up your first EdgeDB instance. You should see something like this:
     [default: 1-beta3]:
     > 1-beta3
     ┌─────────────────────┬───────────────────────────────────────────────┐
-    │ Project directory   │ ~/path/to/edgedb-quickstart                   │
-    │ Project config      │ ~/path/to/edgedb-quickstart/edgedb.toml       │
-    │ Schema dir (empty)  │ ~/path/to/edgedb-quickstart/dbschema          │
+    │ Project directory   │ ~/path/to/quickstart                   │
+    │ Project config      │ ~/path/to/quickstart/edgedb.toml       │
+    │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema          │
     │ Installation method │ Native System Package                         │
     │ Version             │ 1.0b2+ga7130d5c7.cv202104290000-202105060205  │
     │ Instance name       │ edgedb_quickstart                             │
@@ -111,7 +111,7 @@ First, it scaffolded your project by creating an ``edgedb.toml`` config file
 and a schema file ``dbschema/default.esdl``. In the next section, you'll
 define your schema in ``default.esdl``.
 
-Second, it spun up an EdgeDB instance called ``edgedb-quickstart`` (unless you
+Second, it spun up an EdgeDB instance called ``quickstart`` (unless you
 overrode this with a different name). As long as you're inside the project
 directory all ``edgedb`` CLI
 commands will be executed against this instance. For more details on how
@@ -131,8 +131,8 @@ running on your computer! Try executing a simple query:
 
 .. code-block:: edgeql-repl
 
-    edgedb> SELECT 1 + 1;
-    {2}
+  edgedb> SELECT 1 + 1;
+  {2}
 
 Run ``\q`` to exit the REPL. More interesting queries are coming soon,
 promise! But first we need to set up a schema.
@@ -151,13 +151,13 @@ your schema across several ``.esdl`` files; the filenames don't matter.
 
 .. note::
 
-    Syntax-highlighter packages/extensions for ``.esdl`` files are available
-    for
-    `Visual Studio Code <https://marketplace.visualstudio.com/
-    itemdetails?itemName=magicstack.edgedb>`_,
-    `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
-    `Atom <https://atom.io/packages/edgedb>`_,
-    and `Vim <https://github.com/edgedb/edgedb-vim>`_.
+  Syntax-highlighter packages/extensions for ``.esdl`` files are available
+  for
+  `Visual Studio Code <https://marketplace.visualstudio.com/
+  itemdetails?itemName=magicstack.edgedb>`_,
+  `Sublime Text <https://packagecontrol.io/packages/EdgeDB>`_,
+  `Atom <https://atom.io/packages/edgedb>`_,
+  and `Vim <https://github.com/edgedb/edgedb-vim>`_.
 
 Let's build a simple movie database. We'll need to define two **object types**
 (equivalent to table in SQL): Movie and Person. Open ``dbschema/default.esdl``
@@ -165,19 +165,19 @@ in your editor of choice and paste the following:
 
 .. code-block:: sdl
 
-    module default {
-        type Person {
-            required property first_name -> str;
-            required property last_name -> str;
-        }
+  module default {
+    type Person {
+      required property first_name -> str;
+      required property last_name -> str;
+    }
 
-        type Movie {
-            required property title -> str;
-            property year -> int64;
-            required link director -> Person;
-            multi link actors -> Person;
-        }
-    };
+    type Movie {
+      required property title -> str;
+      property year -> int64;
+      required link director -> Person;
+      multi link actors -> Person;
+    }
+  };
 
 Our ``Person`` schema just contains two string properties, ``first_name`` and
 ``last_name`` (both required). Our ``Movie`` schema contains a string property
@@ -250,26 +250,24 @@ Let's apply the migration:
 
 .. note::
 
-    Each EdgeDB instance can contain multiple databases! When an instance is
+    Each EdgeDB *instance* can contain multiple *databases*. When an instance is
     created, an initial database called ``edgedb`` is automatically created.
-    This is the instance against which all CLI commands are executed by
+    This is the instance against which all queries and commands are executed by
     default.
 
     To use a non-default database, first create it with ``edgedb
-    create-database my-database``. Then use the ``-d`` flag to tell the CLI
+    database create my_database``. Then use the ``-d`` flag to tell the CLI
     which instance to run against:
 
     .. code-block:: bash
 
-        $ edgedb -d my-database migrate
+        $ edgedb -d my_database migrate
 
-Let's make sure that worked. Run ``edgedb list-object-types`` to re-open the
-REPL. Then run the special ``\lt`` command to list all object types.
+Let's make sure that worked. Run ``edgedb list types`` to view all currently-defined object types.
 
 .. code-block::
 
-    $ edgedb
-    edgedb> \lt
+    $ edgedb list types
     ┌─────────────────┬──────────────────────────────┐
     │      Name       │          Extending           │
     ├─────────────────┼──────────────────────────────┤
