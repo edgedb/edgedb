@@ -58,8 +58,8 @@ cdef class HttpProtocol:
         bint external_auth
         bint respond_hsts
         bint is_tls
-        bint allow_insecure_binary_clients
-        bint allow_insecure_http_clients
+        object binary_endpoint_security
+        object http_endpoint_security
 
         HttpRequest current_request
 

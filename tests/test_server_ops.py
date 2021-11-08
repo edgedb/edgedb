@@ -38,7 +38,7 @@ from edb import protocol
 from edb.common import devmode
 from edb.common import taskgroup
 from edb.protocol import protocol as edb_protocol  # type: ignore
-from edb.server import pgcluster, pgconnparams
+from edb.server import args, pgcluster, pgconnparams
 from edb.testbase import server as tb
 
 
@@ -357,7 +357,7 @@ class TestServerOps(tb.TestCase):
 
     async def test_server_ops_downgrade_to_cleartext(self):
         async with tb.start_edgedb_server(
-            allow_insecure_binary_clients=True,
+            binary_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
             con = await edb_protocol.new_connection(
                 user='edgedb',
@@ -373,8 +373,8 @@ class TestServerOps(tb.TestCase):
 
     async def test_server_ops_no_cleartext(self):
         async with tb.start_edgedb_server(
-            allow_insecure_binary_clients=False,
-            allow_insecure_http_clients=False,
+            binary_endpoint_security=args.ServerEndpointSecurityMode.Tls,
+            http_endpoint_security=args.ServerEndpointSecurityMode.Tls,
         ) as sd:
             con = http.client.HTTPConnection(sd.host, sd.port)
             con.connect()
@@ -428,7 +428,7 @@ class TestServerOps(tb.TestCase):
 
     async def test_server_ops_cleartext_http_allowed(self):
         async with tb.start_edgedb_server(
-            allow_insecure_http_clients=True,
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
 
             con = http.client.HTTPConnection(sd.host, sd.port)

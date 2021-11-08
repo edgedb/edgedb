@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import logging
+import os
 import pathlib
 import re
 import warnings
@@ -32,6 +33,7 @@ import psutil
 
 from edb import buildmeta
 from edb.common import devmode
+from edb.common import enum
 from edb.schema import defines as schema_defines
 
 from . import defines
@@ -56,6 +58,18 @@ class StartupScript(NamedTuple):
     text: str
     database: str
     user: str
+
+
+class ServerSecurityMode(enum.StrEnum):
+
+    Strict = "strict"
+    InsecureDevMode = "insecure_dev_mode"
+
+
+class ServerEndpointSecurityMode(enum.StrEnum):
+
+    Tls = "tls"
+    Optional = "optional"
 
 
 class ServerConfig(NamedTuple):
@@ -96,9 +110,9 @@ class ServerConfig(NamedTuple):
     generate_self_signed_cert: bool
 
     default_auth_method: str
-    allow_insecure_binary_clients: bool
-    allow_insecure_http_clients: bool
-    insecure_dev_mode: bool
+    security: ServerSecurityMode
+    binary_endpoint_security: ServerEndpointSecurityMode
+    http_endpoint_security: ServerEndpointSecurityMode
 
     instance_name: Optional[str]
 
@@ -402,23 +416,42 @@ _server_options = [
              'no data dir. This option conflicts with --tls-cert-file and '
              '--tls-key-file, and defaults to True in dev mode.'),
     click.option(
-        '--allow-insecure-binary-clients',
-        envvar='EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS',
-        type=bool, is_flag=True, hidden=True,
-        help='Allow non-TLS client binary connections.'),
+        '--binary-endpoint-security',
+        envvar="EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY",
+        type=click.Choice(
+            ['default', 'tls', 'optional'],
+            case_sensitive=True,
+        ),
+        default='default',
+        help='Specifies the security mode of server binary endpoint. '
+             'When set to `optional`, non-TLS connections are allowed. '
+             'The default is `tls`.',
+    ),
     click.option(
-        '--allow-insecure-http-clients',
-        envvar="EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS",
-        type=bool, is_flag=True, hidden=True,
-        help='Allow non-TLS client HTTP connections.'),
+        '--http-endpoint-security',
+        envvar="EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY",
+        type=click.Choice(
+            ['default', 'tls', 'optional'],
+            case_sensitive=True,
+        ),
+        default='default',
+        help='Specifies the security mode of server HTTP endpoint. '
+             'When set to `optional`, non-TLS connections are allowed. '
+             'The default is `tls`.',
+    ),
     click.option(
-        '--insecure-dev-mode',
-        envvar="EDGEDB_SERVER_INSECURE_DEV_MODE",
-        type=bool, is_flag=True, hidden=True,
+        '--security',
+        envvar="EDGEDB_SERVER_SECURITY",
+        type=click.Choice(
+            ['default', 'strict', 'insecure_dev_mode'],
+            case_sensitive=True,
+        ),
+        default='default',
         help=(
-            'Set default authentication method to `Trust` '
-            'and enable non-TLS client HTTP connections. '
-            'Also implies `--generate-self-signed-cert`.'
+            'When set to `insecure_dev_mode`, sets the default '
+            'authentication method to `Trust`, enables non-TLS '
+            'client HTTP connections, and implies '
+            '`--generate-self-signed-cert`.  The default is `strict`.'
         ),
     ),
     click.option(
@@ -521,14 +554,64 @@ def parse_args(**kwargs: Any):
 
     del kwargs['postgres_dsn']
 
-    if kwargs['insecure_dev_mode']:
-        kwargs['allow_insecure_http_clients'] = True
+    if os.environ.get('EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS') == "1":
+        if kwargs['binary_endpoint_security'] == "tls":
+            abort(
+                "The value of deprecated "
+                "EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS environment "
+                "variable disagrees with --binary-endpoint-security"
+            )
+        else:
+            if kwargs['binary_endpoint_security'] == "default":
+                warnings.warn(
+                    "EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS is "
+                    "deprecated. Use EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY "
+                    "instead.",
+                    DeprecationWarning,
+                )
+            kwargs['binary_endpoint_security'] = 'optional'
+
+    if os.environ.get('EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS') == "1":
+        if kwargs['http_endpoint_security'] == "tls":
+            abort(
+                "The value of deprecated "
+                "EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS environment "
+                "variable disagrees with --http-endpoint-security"
+            )
+        else:
+            if kwargs['http_endpoint_security'] == "default":
+                warnings.warn(
+                    "EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS is "
+                    "deprecated. Use EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY "
+                    "instead.",
+                    DeprecationWarning,
+                )
+            kwargs['http_endpoint_security'] = 'optional'
+
+    if kwargs['security'] == 'insecure_dev_mode':
+        if kwargs['http_endpoint_security'] == 'default':
+            kwargs['http_endpoint_security'] = 'optional'
         if not kwargs['default_auth_method']:
             kwargs['default_auth_method'] = 'Trust'
         if not (kwargs['tls_cert_file'] or kwargs['tls_key_file']):
             kwargs['generate_self_signed_cert'] = True
     elif not kwargs['default_auth_method']:
         kwargs['default_auth_method'] = 'SCRAM'
+
+    if kwargs['security'] == 'default':
+        kwargs['security'] = 'strict'
+
+    if kwargs['binary_endpoint_security'] == 'default':
+        kwargs['binary_endpoint_security'] = 'tls'
+
+    if kwargs['http_endpoint_security'] == 'default':
+        kwargs['http_endpoint_security'] = 'tls'
+
+    kwargs['security'] = ServerSecurityMode(kwargs['security'])
+    kwargs['binary_endpoint_security'] = ServerEndpointSecurityMode(
+        kwargs['binary_endpoint_security'])
+    kwargs['http_endpoint_security'] = ServerEndpointSecurityMode(
+        kwargs['http_endpoint_security'])
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:

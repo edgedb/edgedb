@@ -126,8 +126,10 @@ class Server(ha_base.ClusterProtocol):
         nethosts,
         netport,
         testmode: bool = False,
-        allow_insecure_binary_clients: bool = False,
-        allow_insecure_http_clients: bool = False,
+        binary_endpoint_security: srvargs.ServerEndpointSecurityMode = (
+            srvargs.ServerEndpointSecurityMode.Tls),
+        http_endpoint_security: srvargs.ServerEndpointSecurityMode = (
+            srvargs.ServerEndpointSecurityMode.Tls),
         auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
         status_sink: Optional[Callable[[str], None]] = None,
@@ -221,8 +223,8 @@ class Server(ha_base.ClusterProtocol):
         self._sslctx = None
 
         self._default_auth_method = default_auth_method
-        self._allow_insecure_binary_clients = allow_insecure_binary_clients
-        self._allow_insecure_http_clients = allow_insecure_http_clients
+        self._binary_endpoint_security = binary_endpoint_security
+        self._http_endpoint_security = http_endpoint_security
         if backend_adaptive_ha:
             self._backend_adaptive_ha = adaptive_ha.AdaptiveHASupport(self)
         else:
@@ -1297,9 +1299,10 @@ class Server(ha_base.ClusterProtocol):
             nethost = await _resolve_localhost()
 
         proto_factory = lambda: protocol.HttpProtocol(
-            self, self._sslctx,
-            allow_insecure_binary_clients=self._allow_insecure_binary_clients,
-            allow_insecure_http_clients=self._allow_insecure_http_clients,
+            self,
+            self._sslctx,
+            binary_endpoint_security=self._binary_endpoint_security,
+            http_endpoint_security=self._http_endpoint_security,
         )
 
         return await self.__loop.create_server(
