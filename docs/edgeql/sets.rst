@@ -125,8 +125,8 @@ of data; in EdgeDB the absence of data is just an empty set.
   in the `We Can Do Better Than SQL
   </blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_ post on the
   EdgeDB blog. For broader context, see Tony Hoare's talk
-  `"The Billion Dollar Mistake"
-  <https://www.infoq.com/presentations/Null-References-The-Billion-Dollar-Mistake-Tony-Hoare/>`_.
+  `"The Billion Dollar Mistake" <https://bit.ly/3H238oG>`_.
+
 
 Declaring empty sets isn't as simply as ``{}``. In EdgeQL, all expressions are
 *strongly typed*, including empty sets. With nonempty sets (like ``{1, 2, 3}``)
@@ -175,7 +175,7 @@ A set reference is a *pointer* to a set of values. Most commonly, this is the
 name of an :ref:`object type <ref_datamodel_object_types>` you've declared in
 your schema.
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
 
   db> select User;
   {
@@ -195,7 +195,7 @@ schema.
   ``default`` module. If it was in a non-``default`` module (say,
   ``my_module``, we should need to use its *fully-qualified* name.
 
-  .. code-block:: edgeql
+  .. code-block:: edgeql-repl
 
     db> select my_module::User;
 
@@ -270,7 +270,8 @@ commonly used to provide default values for optional :ref:`query parameters
   function/operator will "short circuit" the operation and return an empty set.
   However it's possible to mark inputs as *optional*, in which case the
   operation will be defined over empty sets. Another example is
-  :eql:func:`count`, which returns ``{0}`` when an empty set is passed as input.
+  :eql:func:`count`, which returns ``{0}`` when an empty set is passed as
+  input.
 
 .. _ref_eql_set_type_filter:
 
@@ -370,9 +371,9 @@ Conversion to/from arrays
 Both arrays and sets are collections of values that share a type. EdgeQL
 provides ways to convert one into the other.
 
-edgedb> select array_unpack([1,2,3]);
+db> select array_unpack([1,2,3]);
 {1, 2, 3}
-edgedb> select array_agg({1,2,3});
+db> select array_agg({1,2,3});
 {[1, 2, 3]}
 
 You can perform many of the same operations on either sets or arrays. For
@@ -383,7 +384,7 @@ sets or arrays is largely a matter of taste.
 Remember that an array literal is just a singleton set with an array type. A
 set can contain several arrays.
 
-edgedb> select [1, 2, 3];
+db> select [1, 2, 3];
 {[1, 2, 3]}
-edgedb> select {[1, 2, 3], [4, 5, 6]};
+db> select {[1, 2, 3], [4, 5, 6]};
 {[1, 2, 3], [4, 5, 6]}

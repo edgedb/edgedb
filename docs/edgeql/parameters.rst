@@ -16,7 +16,8 @@ parameters are supplied externally.
 
 Note that we provided an explicit type cast before the parameter; this is
 required for all parameters. This way, EdgeDB can strongly type all expressions
-involving parameters and enforce the parameter types when the query is executed.
+involving parameters and enforce the parameter types when the query is
+executed.
 
 Usage with clients
 ------------------
@@ -28,7 +29,7 @@ interactively to provide a value or values.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select 'I ❤️ ' ++ <str>$var ++ '!';
+  db> select 'I ❤️ ' ++ <str>$var ++ '!';
   Parameter <str>$var: EdgeDB
   {'I ❤️ EdgeDB!'}
 
@@ -107,7 +108,7 @@ type cast if the parameter is optional.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select <optional str>$name;
+  db> select <optional str>$name;
   Parameter <str>$name (Ctrl+D for empty set `{}`):
   {}
 

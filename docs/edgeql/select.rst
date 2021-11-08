@@ -106,7 +106,7 @@ shape can be attached to any object type expression in EdgeQL.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Villain { id, name };
+  db> select Villain { id, name };
   {
     default::Villain { id: ea7bad4c..., name: 'Whiplash' },
     default::Villain { id: 6ddbb04a..., name: 'Green Goblin', },
@@ -122,7 +122,7 @@ fetch all ``Villain`` objects and their nemeses.
 .. code-block:: edgeql-repl
 
   db> select Villain {
-  ...   name
+  ...   name,
   ...   nemesis: { name }
   ... };
   {
@@ -139,7 +139,7 @@ identically to concrete/non-computable links like ``Villain.nemesis``.
 .. code-block:: edgeql-repl
 
   db> select Hero {
-  ...   name
+  ...   name,
   ...   villains: { name }
   ... };
   {
@@ -217,12 +217,12 @@ filter to both the selected ``Hero`` objects and their linked ``villains``.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Hero {
-  .......   name,
-  .......   villains: {
-  .......     name
-  .......   } filter .name ilike "%er"
-  ....... } filter .name ilike "%man";
+  db> select Hero {
+  ...   name,
+  ...   villains: {
+  ...     name
+  ...   } filter .name ilike "%er"
+  ... } filter .name ilike "%man";
   {
     default::Hero {
       name: 'Iron Man',
@@ -251,8 +251,8 @@ Order the result of a query with an ``order by`` clause.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Villain { name }
-  ....... order by .name
+  db> select Villain { name }
+  ... order by .name
   {
     default::Villain {name: 'Abomination'},
     default::Villain {name: 'Doc Ock'},
@@ -277,8 +277,8 @@ expression, including arrays and tuples.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Villain { name }
-  ....... order by .name desc
+  db> select Villain { name }
+  ... order by .name desc
   {
     default::Villain {name: 'Zemo'},
     ...
@@ -297,10 +297,10 @@ ordering across pagination queries.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Villain { name }
-  ....... order by .name
-  ....... offset 3
-  ....... limit 3;
+  db> select Villain { name }
+  ... order by .name
+  ... offset 3
+  ... limit 3;
   {
     default::Villain {name: 'Hela'},
     default::Villain {name: 'Justin Hammer'},
@@ -313,9 +313,9 @@ by name).
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Villain {name}
-  ....... order by .name
-  ....... limit count(Villain) - 1;
+  db> select Villain {name}
+  ... order by .name
+  ... limit count(Villain) - 1;
   {
     default::Villain {name: 'Abomination'},
     default::Villain {name: 'Doc Ock'},
@@ -383,10 +383,10 @@ this, let's fetch a list of all movies starring a particular Hero.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Hero {
-  .......   name,
-  .......   movies := .<characters[is Movie] { title }
-  ....... } filter .name = "Iron Man";
+  db> select Hero {
+  ...   name,
+  ...   movies := .<characters[is Movie] { title }
+  ... } filter .name = "Iron Man";
   {
     default::Hero {
       name: 'Iron Man',
@@ -439,14 +439,14 @@ Below, we use a subquery to select all movies containing a villain's nemesis.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Villain {
-  .......   name,
-  .......   nemesis_name := .nemesis.name
-  .......   movies_with_nemesis := (
-  .......     select Movie { title }
-  .......     filter Villain.nemesis in .characters
-  .......   )
-  ....... };
+  db> select Villain {
+  ...   name,
+  ...   nemesis_name := .nemesis.name,
+  ...   movies_with_nemesis := (
+  ...     select Movie { title }
+  ...     filter Villain.nemesis in .characters
+  ...   )
+  ... };
   {
     default::Villain {
       name: 'Loki',
@@ -460,7 +460,6 @@ Below, we use a subquery to select all movies containing a villain's nemesis.
     },
     ...
   }
-
 
 .. _ref_eql_polymorphic_queries:
 
@@ -482,7 +481,7 @@ be a mix of ``Hero`` and ``Villain`` objects (and possibly other subtypes of
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Person { name };
+  db> select Person { name };
   {
     default::Villain {name: 'Abomination'},
     default::Villain {name: 'Zemo'},
@@ -492,18 +491,18 @@ be a mix of ``Hero`` and ``Villain`` objects (and possibly other subtypes of
   }
 
 You may also encounter such "mixed sets" when querying a link that points to an
-abstract type (such as ``Movie.characters``) or a :eql:op:`union type <TYPEOR>`.
-
+abstract type (such as ``Movie.characters``) or a :eql:op:`union type
+<TYPEOR>`.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Movie {
-  .......   title,
-  .......   characters: {
-  .......     name
-  .......   }
-  ....... }
-  ....... filter .title = "Iron Man 2"
+  db> select Movie {
+  ...   title,
+  ...   characters: {
+  ...     name
+  ...   }
+  ... }
+  ... filter .title = "Iron Man 2"
   {
     default::Movie {
       title: 'Iron Man 2',
@@ -526,14 +525,14 @@ by prefixing property/link references with ``[is <type>]``. This is known as a
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Person {
-  .......   name,
-  .......   secret_identity := [is Hero].secret_identity,
-  .......   number_of_villains := count([is Hero].villains),
-  .......   nemesis := [is Villain].nemesis {
-  .......     name
-  .......   }
-  ....... };
+  db> select Person {
+  ...   name,
+  ...   secret_identity := [is Hero].secret_identity,
+  ...   number_of_villains := count([is Hero].villains),
+  ...   nemesis := [is Villain].nemesis {
+  ...     name
+  ...   }
+  ... };
   {
     default::Villain {
       name: 'Green Goblin',
@@ -561,13 +560,13 @@ these cases, EdgeQL supports a shorthand.
 
 .. code-block:: edgeql-repl
 
-  edgedb> select Person {
-  .......   name,
-  .......   [is Hero].secret_identity,
-  .......   [is Villain].nemesis: {
-  .......     name
-  .......   }
-  ....... };
+  db> select Person {
+  ...   name,
+  ...   [is Hero].secret_identity,
+  ...   [is Villain].nemesis: {
+  ...     name
+  ...   }
+  ... };
   {
     default::Villain {
       name: 'Green Goblin',
@@ -591,12 +590,12 @@ objects.
 
 .. code-block::
 
-  edgedb> select Movie {
-  .......   title,
-  .......   characters[IS Hero]: {
-  .......     secret_identity
-  .......   },
-  ....... };
+  db> select Movie {
+  ...   title,
+  ...   characters[IS Hero]: {
+  ...     secret_identity
+  ...   },
+  ... };
   {
     default::Movie {
       title: 'Spider-Man: Homecoming',
@@ -657,9 +656,9 @@ standalone expressions that can be used in your query.
 
 .. code-block:: edgeql-repl
 
-  edgedb> with hero_name := "Iron Man"
-  ....... select Hero { secret_identity }
-  ....... filter .name = hero_name;
+  db> with hero_name := "Iron Man"
+  ... select Hero { secret_identity }
+  ... filter .name = hero_name;
   {default::Hero {secret_identity: 'Tony Stark'}}
 
 

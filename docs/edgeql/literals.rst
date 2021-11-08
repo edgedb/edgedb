@@ -389,7 +389,8 @@ EdgeDB's typesystem contains several temporal types.
   * - :eql:type:`cal::local_time`
     - Time type
 
-All temporal literals are declared by casting an appropriately formatted string.
+All temporal literals are declared by casting an appropriately formatted
+string.
 
 .. code-block:: edgeql-repl
 

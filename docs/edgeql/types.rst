@@ -78,11 +78,11 @@ cases, the source data must be in a particular format, like casting ``str`` to
 
 .. code-block:: edgeql-repl
 
-  edgedb> select <BlogPost>10;
+  db> select <BlogPost>10;
   QueryError: cannot cast 'std::int64' to 'default::BlogPost'
-  edgedb> select <int64>'asdf';
+  db> select <int64>'asdf';
   InvalidValueError: invalid input syntax for type std::int64: "asdf"
-  edgedb> select <int16>100000000000000n;
+  db> select <int16>100000000000000n;
   NumericOutOfRangeError: std::int16 out of range
 
 For a comprehensive table of castability, see :ref:`Standard Library > Casts

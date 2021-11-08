@@ -139,7 +139,7 @@ Now lets write a nested insert for a ``multi`` link.
   ...   title := "Black Widow",
   ...   characters := {
   ...     (select Hero filter .name = "Black Widow"),
-  ...     (insert Hero { name := "Yelena Bolova"}),
+  ...     (insert Hero { name := "Yelena Belova"}),
   ...     (insert Villain {
   ...       name := "Dreykov",
   ...       nemesis := (select Hero filter .name = "Black Widow")
@@ -161,10 +161,10 @@ actually exist in the database;
 
 .. code-block:: edgeql-repl
 
-  edgedb> insert Hero {
-  .......   name := "Ant-Man",
-  .......   villains := (select Villain)
-  ....... };
+  db> insert Hero {
+  ...   name := "Ant-Man",
+  ...   villains := (select Villain)
+  ... };
   error: QueryError: modification of computed link 'villains' of object type
   'default::Hero' is prohibited
 
@@ -183,7 +183,7 @@ like this, you should pull that subquery into a ``with`` block.
   ...   title := "Black Widow",
   ...   characters := {
   ...     black_widow,
-  ...     (insert Hero { name := "Yelena Bolova"}),
+  ...     (insert Hero { name := "Yelena Belova"}),
   ...     (insert Villain {
   ...       name := "Dreykov",
   ...       nemesis := black_widow
@@ -200,7 +200,7 @@ can reference earlier ones.
 
   db> with
   ...  black_widow := (select Hero filter .name = "Black Widow"),
-  ...  yelena := (insert Hero { name := "Yelena Bolova"}),
+  ...  yelena := (insert Hero { name := "Yelena Belova"}),
   ...  dreykov := (insert Villain {name := "Dreykov", nemesis := black_widow})
   ... insert Movie {
   ...   title := "Black Widow",
@@ -254,12 +254,12 @@ lets you express *upsert* logic in a single EdgeQL query.
   ...   title := "Eternals",
   ...   release_year := 2021
   ... insert Movie {
-  ...   title := title
+  ...   title := title,
   ...   release_year := release_year
   ... }
   ... unless conflict on .title
   ... else (
-  ...   update Movie set { release_year := release_year })
+  ...   update Movie set { release_year := release_year }
   ... );
   {default::Movie {id: f1bf5ac0-3e9d-11ec-b78d-c7dfb363362c}}
 
@@ -276,11 +276,11 @@ return an *empty set* if a conflict occurs. This is a common way to prevent
 
 .. code-block:: edgeql-repl
 
-  edgedb> insert Hero { name := "The Wasp" } # initial insert
-  ....... unless conflict;
+  db> insert Hero { name := "The Wasp" } # initial insert
+  ... unless conflict;
   {default::Hero {id: 35b97a92-3e9b-11ec-8e39-6b9695d671ba}}
-  edgedb> insert Hero { name := "The Wasp" } # The Wasp now exists
-  ....... unless conflict;
+  db> insert Hero { name := "The Wasp" } # The Wasp now exists
+  ... unless conflict;
   {}
 
 .. _ref_bulk_insert:
@@ -294,12 +294,12 @@ using a :ref:`for loop <ref_eql_for>` to insert the objects.
 
 .. code-block:: edgeql-repl
 
-  edgedb> with
-  .......   raw_data := <json>$data,
-  .......   items := json_array_unpack(raw_data)
-  ....... for item in { items } union (
-  .......   insert Hero { name := <str>item['name'] }
-  ....... );
+  db> with
+  ...   raw_data := <json>$data,
+  ...   items := json_array_unpack(raw_data)
+  ... for item in { items } union (
+  ...   insert Hero { name := <str>item['name'] }
+  ... );
   Parameter <json>$data: [{"name":"Sersi"},{"name":"Ikaris"},{"name":"Thena"}]
   {
     default::Hero {id: 35b97a92-3e9b-11ec-8e39-6b9695d671ba},

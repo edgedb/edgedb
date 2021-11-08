@@ -9,8 +9,8 @@ declarations of standalone expressions that can be used in your query.
 
 .. code-block:: edgeql-repl
 
-  edgedb> with my_str := "hello world"
-  ....... select str_title(my_str);
+  db> with my_str := "hello world"
+  ... select str_title(my_str);
   {'Hello World'}
 
 
@@ -20,10 +20,10 @@ be referenced by later ones. Taken together, it becomes possible to write
 
 .. code-block:: edgeql-repl
 
-  edgedb> with a := 5,
-  .......   b := 2,
-  .......   c := a ^ b
-  ....... select c;
+  db> with a := 5,
+  ...   b := 2,
+  ...   c := a ^ b
+  ... select c;
   {25}
 
 
@@ -36,17 +36,17 @@ Avengers.
 
 .. code-block:: edgeql-repl
 
-  edgedb> with avenger_names := {
-  .......     'Iron Man',
-  .......     'Black Widow',
-  .......     'Captain America',
-  .......     'Thor',
-  .......     'Hawkeye',
-  .......     'The Hulk'
-  .......   },
-  .......   avengers := (select Hero filter .name in avengers_names)
-  ....... select Movie {title}
-  ....... filter avengers in .characters;
+  db> with avenger_names := {
+  ...     'Iron Man',
+  ...     'Black Widow',
+  ...     'Captain America',
+  ...     'Thor',
+  ...     'Hawkeye',
+  ...     'The Hulk'
+  ...   },
+  ...   avengers := (select Hero filter .name in avengers_names)
+  ... select Movie {title}
+  ... filter avengers in .characters;
   {
 
     default::Movie {title: 'Iron Man'},
@@ -86,8 +86,8 @@ module* on a per-query basis.
 
 .. code-block:: edgeql-repl
 
-  edgedb> with module schema
-  ....... select ObjectType;
+  db> with module schema
+  ... select ObjectType;
 
 This ``with module`` clause changes the default module to schema, so we can
 refer to ``schema::ObjectType`` (a built-in EdgeDB type) as simply

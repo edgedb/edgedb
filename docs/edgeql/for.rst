@@ -9,10 +9,10 @@ results into a single output set.
 
 .. code-block:: edgeql-repl
 
-  edgedb> for number in {0, 1, 2, 3}
-  ....... union (
-  .......   select { number, number + 0.5 }
-  ....... );
+  db> for number in {0, 1, 2, 3}
+  ... union (
+  ...   select { number, number + 0.5 }
+  ... );
   {0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5}
 
 This statements iterates through each number in the set. Inside the loop, the
@@ -33,10 +33,10 @@ A common use case for ``for`` is bulk insertion.
 
 .. code-block:: edgeql-repl
 
-  edgedb> for hero_name in {'Cersi', 'Ikaris', 'Thena'}
-  ....... union (
-  .......   insert Hero { name := hero_name }
-  ....... );
+  db> for hero_name in {'Cersi', 'Ikaris', 'Thena'}
+  ... union (
+  ...   insert Hero { name := hero_name }
+  ... );
   {
     default::Hero {id: d7d7e0f6-40ae-11ec-87b1-3f06bed494b9},
     default::Hero {id: d7d7f870-40ae-11ec-87b1-f712a4efc3a5},
@@ -53,13 +53,13 @@ parameter for bulk inserts. This value is then "unpacked" into an array of
 
 .. code-block:: edgeql-repl
 
-  edgedb> with
-  .......   raw_data := <json>$data,
-  .......   items := json_array_unpack(raw_data)
-  ....... for item in { items } union (
-  .......   insert Hero { name := <str>item['name'] }
-  ....... );
-  Parameter <json>$data: [{"name":"Sersi"}, {"name":"Ikaris"}, {"name":"Thena"}]
+  db> with
+  ...   raw_data := <json>$data,
+  ...   items := json_array_unpack(raw_data)
+  ... for item in { items } union (
+  ...   insert Hero { name := <str>item['name'] }
+  ... );
+  Parameter <json>$data: [{"name":"Sersi"},{"name":"Ikaris"},{"name":"Thena"}]
   {
     default::Hero {id: d7d7e0f6-40ae-11ec-87b1-3f06bed494b9},
     default::Hero {id: d7d7f870-40ae-11ec-87b1-f712a4efc3a5},

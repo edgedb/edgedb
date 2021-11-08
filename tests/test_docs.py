@@ -321,7 +321,13 @@ class TestDocSnippets(unittest.TestCase):
                 elif lang == 'json':
                     json.loads(snippet)
                 elif lang in {
-                    'bash', 'powershell', 'c', 'javascript', 'python'
+                    'bash',
+                    'powershell',
+                    'c',
+                    'javascript',
+                    'python',
+                    'typescript',
+                    'go'
                 }:
                     pass
                 elif lang[-5:] == '-diff':

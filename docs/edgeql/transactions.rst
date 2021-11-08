@@ -48,8 +48,8 @@ TypeScript/JS
     await tx.execute(`insert Fish { name := 'Wanda' };`);
   });
 
-Full documentation at :ref:`Client Libraries > TypeScript/JS
-</docs/clients/01_js/index>`;
+Full documentation at `Client Libraries > TypeScript/JS
+</docs/clients/01_js/index>`_;
 
 Python
 ^^^^^^
@@ -60,8 +60,8 @@ Python
       async with tx:
           await tx.execute("insert Fish { name := 'Wanda' };")
 
-Full documentation at :ref:`Client Libraries > Python
-<edgedb-python-asyncio-api-transaction>`;
+Full documentation at `Client Libraries > Python
+</docs/clients/00_python/index>`_;
 
 Golang
 ^^^^^^

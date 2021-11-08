@@ -20,7 +20,7 @@ on these clauses.
 .. code-block:: edgeql
 
   delete Hero
-  filter .name ilike 'the %';
+  filter .name ilike 'the %'
   order by .name
   offset 10
   limit 5;
@@ -33,23 +33,24 @@ possible to delete an object linked to by another.
 
 .. code-block:: edgeql-repl
 
-  edgedb> delete Hero filter .name = "Yelena Belova"
+  db> delete Hero filter .name = "Yelena Belova"
   ConstraintViolationError: deletion of default::Hero
   (af7076e0-3e98-11ec-abb3-b3435bbe7c7e) is prohibited by link target policy
   {}
 
 This deletion failed because Yelena is still in the ``characters`` list of
-Black Widow (the movie). We must destroy this link before Yelena can be deleted.
+the Black Widow movie. We must destroy this link before Yelena can be
+deleted.
 
 .. code-block:: edgeql-repl
 
-  edgedb> update Movie
-  ....... filter .title = "Black Widow"
-  ....... set {
-  .......   characters -= (select Hero filter .name = "Yelena Belova")
-  ....... };
+  db> update Movie
+  ... filter .title = "Black Widow"
+  ... set {
+  ...   characters -= (select Hero filter .name = "Yelena Belova")
+  ... };
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
-  edgedb> delete Hero filter .name = "Yelena Belova";
+  db> delete Hero filter .name = "Yelena Belova";
   {default::Hero {id: af7076e0-3e98-11ec-abb3-b3435bbe7c7e}}
 
 To avoid this behavior, we could update the ``Movie.characters`` link to use
@@ -60,11 +61,12 @@ the ``allow`` deletion policy.
     type Movie {
       required property title -> str { constraint exclusive; }
       required property release_year -> int64;
-  -   multi link characters -> Person {
+  -   multi link characters -> Person;
   +   multi link characters -> Person {
   +     on target delete allow;
   +   };
     }
+
 
 Cascading deletes
 ^^^^^^^^^^^^^^^^^
@@ -84,8 +86,8 @@ set into ``select`` to fetch properties and links of the (now-deleted) objects.
 
 .. code-block:: edgeql-repl
 
-  edgedb> with movie := (delete Movie filter .title = "Untitled")
-  ....... select movie {id, title};
+  db> with movie := (delete Movie filter .title = "Untitled")
+  ... select movie {id, title};
   {default::Movie {
     id: b11303c6-40ac-11ec-a77d-d393cdedde83,
     title: 'Untitled',
