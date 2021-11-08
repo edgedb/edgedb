@@ -1,5 +1,4 @@
 .. list-table::
-    :class: funcoptable
 
     * - :eql:type:`str`
       - A variable-length string

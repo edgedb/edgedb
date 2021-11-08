@@ -4,12 +4,9 @@
 Primitive Types
 ===============
 
-Property types
---------------
-
-Every property has a type. This can be a
-:ref:`scalar type <ref_datamodel_scalar_types>`, an :ref:`array
-<ref_std_array>`, a :ref:`tuple <ref_std_tuple>`, or an enum.
+EdgeDB has a robust type system consisting of primitive and object types.
+Below is a review of EdgeDB's primitive types; later, these will be used to
+declare *properties* on object types.
 
 
 .. _ref_datamodel_scalars:
