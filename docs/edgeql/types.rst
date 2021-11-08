@@ -23,8 +23,8 @@ dedicated type syntax.
 
 .. list-table::
 
-  * - Type
-    - Syntax
+  * - **Type**
+    - **Syntax**
   * - Array
     - ``array<x>``
   * - Tuple (unnamed)

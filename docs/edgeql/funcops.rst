@@ -5,12 +5,15 @@ Functions and Operators
 -----------------------
 
 All functions and operators in EdgeDB are either *element-wise* or *aggregate*.
+Element-wise operations are applied to each item in a set. Aggregate operations
+operate on sets *as a whole*.
 
 Aggregate operations
 ^^^^^^^^^^^^^^^^^^^^
 
-Consider the :eql:func:`count` function. It returns the number of elements in a
-given set. As such, it operates on the input set *as a whole*.
+An example of an aggregate function is :eql:func:`count`. It returns the number
+of elements in a given set. Regardless of the size of the input set, the result
+is a singleton integer.
 
 .. code-block:: edgeql-repl
 
@@ -33,8 +36,8 @@ into a singleton array.
 Element-wise operations
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Consider the :ref:`function <ref_std>` :eql:func:`len` used to transform a set
-of :eql:type:`str` into a set of :eql:type:`int64`.
+By contrast, the :eql:func:`len` function is element-wise; it computes the length of each string inside a set of strings; as such, it converts a set
+of :eql:type:`str` into an equally-sized set of :eql:type:`int64`.
 
 .. code-block:: edgeql-repl
 
@@ -43,9 +46,10 @@ of :eql:type:`str` into a set of :eql:type:`int64`.
   db> select len({'hello', 'world'});
   {5, 5}
 
+Cartesian products
+^^^^^^^^^^^^^^^^^^
 
-This is known as an *element-wise* operation: the ``len`` function is applied
-to each element of the input set. In case of element-wise operations that
+In case of element-wise operations that
 accept multiple arguments, the operation is applied to a cartesian product
 cross-product of all the input sets.
 
@@ -67,7 +71,6 @@ operation.
   {}
   db> select {} or {true, false};
   {}
-
 
 .. note::
 
