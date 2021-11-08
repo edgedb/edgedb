@@ -131,7 +131,7 @@ running on your computer! Try executing a simple query:
 
 .. code-block:: edgeql-repl
 
-  edgedb> SELECT 1 + 1;
+  edgedb> select 1 + 1;
   {2}
 
 Run ``\q`` to exit the REPL. More interesting queries are coming soon,
@@ -232,11 +232,10 @@ in the ``dbschema/migrations`` directory!
 .. note::
 
     If you're interested, open this migration file to see what's inside! It's
-    a simple EdgeQL script consisting of DDL commands like ``CREATE TYPE``,
-    ``ALTER TYPE``, and ``CREATE PROPERTY``. When you generate migrations,
-    EdgeDB reads your declared ``.esdl`` schema and generates a sequence of
-    DDL commands that bring the instance into agreement with it.
-
+    a simple EdgeQL script consisting of :ref:`DDL <ref_eql_sdl>` commands like
+    ``create type``, ``alter type``, and ``create property``. When you generate
+    migrations, EdgeDB reads your declared ``.esdl`` schema and generates a
+    migration path.
 
 Execute the migration
 ---------------------
@@ -247,21 +246,6 @@ Let's apply the migration:
 
     $ edgedb migrate
     Applied m1la5u4qi... (00001.edgeql)
-
-.. note::
-
-    Each EdgeDB *instance* can contain multiple *databases*. When an instance is
-    created, an initial database called ``edgedb`` is automatically created.
-    This is the instance against which all queries and commands are executed by
-    default.
-
-    To use a non-default database, first create it with ``edgedb
-    database create my_database``. Then use the ``-d`` flag to tell the CLI
-    which instance to run against:
-
-    .. code-block:: bash
-
-        $ edgedb -d my_database migrate
 
 Let's make sure that worked. Run ``edgedb list types`` to view all currently-defined object types.
 
@@ -298,43 +282,35 @@ Now, let's add Ryan Gosling to the database with a simple EdgeQL query:
 
 .. code-block:: edgeql-repl
 
-    edgedb> INSERT Person {
+    edgedb> insert Person {
     .......     first_name := 'Ryan',
     .......     last_name := 'Gosling',
     ....... };
     {default::Person {id: 86d0eb18-b7ff-11eb-ba80-7b8e9facf817}}
 
-That was easy!
-
-.. note::
-
-    By convention, we're using all-caps to indicate EdgeQL keywords, but
-    EdgeQL isn't case sensitive; if you want, you can use ``insert`` (or
-    ``InSeRt``) instead of ``INSERT``.
-
-As you can see, EdgeQL differs from SQL in some important ways. It uses curly
-braces and the assignment operator (``:=``) to make queries **explicit** and
-**intuitive** for the people who write them: programmers. It's also completely
-**composable**, so it's possible to add a movie, its director, and its actors
-simultaneously:
+No sweat. As you can see, EdgeQL differs from SQL in some important ways. It
+uses curly braces and the assignment operator (``:=``) to make queries
+**explicit** and **intuitive** for the people who write them: programmers. It's
+also completely **composable**, so it's possible to add a movie, its director,
+and its actors simultaneously:
 
 .. code-block:: edgeql-repl
 
-    edgedb> INSERT Movie {
+    edgedb> insert Movie {
     .......     title := 'Blade Runner 2049',
     .......     year := 2017,
     .......     director := (
-    .......         INSERT Person {
+    .......         insert Person {
     .......             first_name := 'Denis',
     .......             last_name := 'Villeneuve',
     .......         }
     .......     ),
     .......     actors := {
-    .......         (INSERT Person {
+    .......         (insert Person {
     .......             first_name := 'Harrison',
     .......             last_name := 'Ford',
     .......         }),
-    .......         (INSERT Person {
+    .......         (insert Person {
     .......             first_name := 'Ana',
     .......             last_name := 'de Armas',
     .......         }),
@@ -342,23 +318,19 @@ simultaneously:
     ....... };
     {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
-.. note::
 
-    The specific ``id`` values will differ from the ones
-    above. They are shown explicitly here for demonstration purposes.
-
-As you can see, it's easy to nest :ref:`INSERT <ref_eql_statements_insert>`
+As you can see, it's easy to nest :ref:`insert <ref_eql_insert>`
 subqueries inside each other. Now lets add Ryan Gosling to the cast with an
-:ref:`UPDATE <ref_eql_statements_update>`:
+:ref:`update <ref_eql_update>`:
 
 .. code-block:: edgeql-repl
 
-    edgedb> UPDATE Movie
-    ....... FILTER .title = 'Blade Runner 2049'
-    ....... SET {
+    edgedb> update Movie
+    ....... filter .title = 'Blade Runner 2049'
+    ....... set {
     .......     actors += (
-    .......         SELECT Person
-    .......         FILTER .id = <uuid>'86d0eb18-b7ff-11eb-ba80-7b8e9facf817'
+    .......         select Person
+    .......         filter .id = <uuid>'86d0eb18-b7ff-11eb-ba80-7b8e9facf817'
     .......     )
     ....... };
     {default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e}}
@@ -373,26 +345,29 @@ Denis Villeneuve: "Dune".
 
 .. code-block:: edgeql-repl
 
-    edgedb> INSERT Movie {
-    .......     title := 'Dune',
-    .......     director := (
-    .......         SELECT Person
-    .......         FILTER
-    .......             .first_name = 'Denis' AND
-    .......             .last_name = 'Villeneuve'
-    .......         # the LIMIT is needed to satisfy the single
-    .......         # link requirement validation
-    .......         LIMIT 1
-    .......     )
+    edgedb> with denis := (
+    .......   select Person
+    .......   filter .first_name = 'Denis' and
+    .......          .last_name = 'Villeneuve'
+    .......   )
+    ....... insert Movie {
+    .......   title := 'Dune',
+    .......   director := assert_single(denis)
     ....... };
     {default::Movie {id: 64d024dc-54d5-11e9-8c54-a3f59e1d995e}}
 
-We have to use ``LIMIT 1`` for this query to be valid. In EdgeDB, the result
-of a query is a **set** (in the "set theory" sense). Since we're assigning to
+Here, we fetch Denis Villeneuve, create Dune, and attach Villeneuve as
+director. For convenience, we've extracted the ``select Person`` subquery into
+a ``with`` block: a set of standalone expressions that can be assigned to a
+variable and used elsewhere in the query.
+
+When assigning to ``Movie.director``, we wrap the subquery result (called
+``denis``) in the ``assert_single`` function. In EdgeDB, the result of any
+query is a **set** (in the "set theory" sense). Since we're assigning to
 ``Movie.director`` (a singular/"to-one" relation) , we need to provide a
-guarantee that our query set will only contain a single element. To do that we
-need to either 1) use ``LIMIT 1`` or 2) ``FILTER`` by ``.id`` (or another
-property with a uniqueness constraint).
+guarantee that the set we're assigning will only contain a single element. To
+do that we need to either 1) use ``LIMIT 1`` or 2) ``FILTER`` by a property
+with a uniqueness constraint (like ``.id``), or use ``assert_single``.
 
 .. _ref_quickstart_queries:
 
