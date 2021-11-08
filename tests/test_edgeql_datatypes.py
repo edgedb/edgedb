@@ -807,6 +807,19 @@ class TestEdgeQLDT(tb.QueryTestCase):
             await self.con.query_single("SELECT <str><cfg::memory>1025"),
             '1025B')
 
+        self.assertEqual(
+            await self.con.query_single(
+                "SELECT <str><cfg::memory>2272753910888172544"),
+            '2219486241101731KiB')
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <str><cfg::memory>0"),
+            '0B')
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <str><cfg::memory>'0B'"),
+            '0B')
+
     async def test_edgeql_staeval_duration_01(self):
         valid = [
             ' 100   ',
@@ -913,12 +926,14 @@ class TestEdgeQLDT(tb.QueryTestCase):
     async def test_edgeql_staeval_memory_01(self):
         valid = [
             '0',
+            '0B',
             '123KiB',
             '11MiB',
             '0PiB',
             '1PiB',
             '111111GiB',
             '123B',
+            '2219486241101731KiB',
         ]
 
         invalid = [

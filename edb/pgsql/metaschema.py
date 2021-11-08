@@ -340,33 +340,29 @@ class ConfigMemoryToStrFunction(dbops.Function):
                     "val" >= (1024::int8 * 1024 * 1024 * 1024 * 1024) AND
                     "val" % (1024::int8 * 1024 * 1024 * 1024 * 1024) = 0
                 THEN
-                    trunc(
+                    (
                         "val" / (1024::int8 * 1024 * 1024 * 1024 * 1024)
                     )::text || 'PiB'
 
                 WHEN
                     "val" >= (1024::int8 * 1024 * 1024 * 1024) AND
                     "val" % (1024::int8 * 1024 * 1024 * 1024) = 0
-                THEN trunc(
+                THEN
+                    (
                         "val" / (1024::int8 * 1024 * 1024 * 1024)
                     )::text || 'TiB'
 
                 WHEN
                     "val" >= (1024::int8 * 1024 * 1024) AND
                     "val" % (1024::int8 * 1024 * 1024) = 0
-                THEN trunc(
-                    "val" / (1024::int8 * 1024 * 1024)
-                )::text || 'GiB'
+                THEN ("val" / (1024::int8 * 1024 * 1024))::text || 'GiB'
 
                 WHEN "val" >= 1024::int8 * 1024 AND
                      "val" % (1024::int8 * 1024) = 0
-                THEN trunc("val" / (1024::int8 * 1024))::text || 'MiB'
+                THEN ("val" / (1024::int8 * 1024))::text || 'MiB'
 
                 WHEN "val" >= 1024 AND "val" % 1024 = 0
-                THEN trunc("val" / 1024::int8)::text || 'KiB'
-
-                WHEN "val" = 0
-                THEN '0'
+                THEN ("val" / 1024::int8)::text || 'KiB'
 
                 ELSE "val"::text || 'B'
             END
