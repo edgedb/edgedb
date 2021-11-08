@@ -584,9 +584,8 @@ these cases, EdgeQL supports a shorthand.
 Filtering polymorphic links
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Relatedly, it's possible to filter links by subtype "inline" with a similar
-syntax. Below, we filter ``Movie.characters`` to include exclusively ``Hero``
-objects.
+Relatedly, it's possible to filter polymorphic links by subtype. Below, we
+exclusively fetch the ``Movie.characters`` of type ``Hero``.
 
 .. code-block::
 
