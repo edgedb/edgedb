@@ -37,7 +37,7 @@ Object types can *extend* other object types. The extending type (AKA the
   }
 
 For details on querying polymorphic data, see :ref:`EdgeQL > Select >
-Polymorphic queries <ref_eql_polymorphic_queries>`.
+Polymorphic queries <ref_eql_select_polymorphic>`.
 
 .. _ref_datamodel_inheritance_multiple:
 

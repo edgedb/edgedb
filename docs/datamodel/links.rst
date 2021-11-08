@@ -209,7 +209,7 @@ concrete object types.
 In practice, the ``Movie.characters`` link can point to a ``Hero``,
 ``Villain``, or any other non-abstract subtype of ``Person``. For details on
 how to write queries on such a link, refer to the :ref:`Polymorphic Queries
-docs <ref_eql_polymorphic_queries>`
+docs <ref_eql_select_polymorphic>`
 
 
 Abstract links

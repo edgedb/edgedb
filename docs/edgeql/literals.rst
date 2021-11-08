@@ -6,37 +6,61 @@ Literals
 EdgeQL is *inextricably tied* to EdgeDB's rigorous type system. Below is an
 overview of how to declare a literal value of each *primitive type*.
 
+
+Primitive types
+---------------
+
+Below is an overview of EdgeDB's type system. Click a link in the left column to jump to the associated section.
+
+
+
+
+
+
+
+
+
+
+
+
+
 .. list-table::
 
-    * - String type
+    * - :ref:`String <ref_eql_literal_strings>`
       - ``str``
 
-    * - Boolean type
+    * - :ref:`Boolean <ref_eql_literal_boolean>`
       - ``bool``
 
-    * - Numerical types
+    * - :ref:`Numbers <ref_eql_literal_numbers>`
       - ``int16`` ``int32`` ``int64``
         ``float32`` ``float64`` ``bigint``
         ``decimal``
 
-    * - JSON type
+    * - :ref:`JSON <ref_eql_literal_json>`
       - ``json``
 
-    * - UUID type
+    * - :ref:`UUID <ref_eql_literal_uuid>`
       - ``uuid``
 
-    * - Binary data
-      - ``bytes``
+    * - :ref:`Enums <ref_eql_literal_enum>`
+      - ``enum<X, Y, Z>``
 
-    * - Temporal types
+    * - :ref:`Dates and times <ref_eql_literal_dates>`
       - ``datetime`` ``duration``
         ``cal::local_datetime`` ``cal::local_date``
         ``cal::local_time`` ``cal::relative_duration``
 
-    * - Array types
+    * - :ref:`Durations <ref_eql_literal_durations>`
+      - ``duration`` ``cal::relative_duration``
+
+    * - :ref:`Bytes <ref_eql_literal_bytes>`
+      - ``bytes``
+
+    * - :ref:`Arrays <ref_eql_literal_array>`
       - ``array<x>``
 
-    * - Tuple types
+    * - :ref:`Tuples <ref_eql_literal_tuple>`
       - ``tuple<x, y, ...>`` or
         ``tuple<foo: x, bar: y, ...>``
 
@@ -337,19 +361,6 @@ Generate a random UUID.
   {b4d94e6c-3845-11ec-b0f4-93e867a589e7}
 
 
-.. _ref_eql_literal_bytes:
-
-Bytes
------
-
-The ``bytes`` type represents raw binary data.
-
-.. code-block:: edgeql-repl
-
-  db> SELECT b'bina\\x01ry';
-  {b'bina\\x01ry'}
-
-
 .. _ref_eql_literal_enum:
 
 Enums
@@ -489,6 +500,63 @@ EdgeQL supports a set of functions and operators on duration types.
   * - Truncation
     - :eql:func:`duration_truncate`
 
+
+
+
+.. _ref_eql_literal_bytes:
+
+Bytes
+-----
+
+The ``bytes`` type represents raw binary data.
+
+.. code-block:: edgeql-repl
+
+  db> SELECT b'bina\\x01ry';
+  {b'bina\\x01ry'}
+
+
+
+.. _ref_eql_literal_array:
+
+Arrays
+------
+
+An array is an *ordered* collection of values of the *same type*. For example:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT [1, 2, 3];
+    {[1, 2, 3]}
+    db> SELECT ['hello', 'world'];
+    {['hello', 'world']}
+    db> SELECT [(1, 2), (100, 200)];
+    {[(1, 2), (100, 200)]}
+
+EdgeQL provides a set of functions and operators on arrays.
+
+.. list-table::
+
+  * - Indexing and slicing
+    - :eql:op:`array[i] <ARRAYIDX>` :eql:op:`array[from:to] <ARRAYSLICE>`
+      :eql:func:`array_get`
+  * - Concatenation
+    - :eql:op:`array ++ array <ARRAYPLUS>`
+  * - Comparison operators
+    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+  * - Utilities
+    - :eql:func:`len` :eql:func:`array_join`
+  * - Search
+    - :eql:func:`contains` :eql:func:`find`
+  * - Conversion to/from sets
+    - :eql:func:`array_agg` :eql:func:`array_unpack`
+
+See :ref:`Standard Library > Array <ref_std_array>` for a complete
+reference on array data types.
+
+
 .. _ref_eql_literal_tuple:
 
 Tuples
@@ -531,44 +599,3 @@ Indexing tuples
 
 For a full reference on tuples, see :ref:`Standard Library > Tuple
 <ref_std_tuple>`.
-
-
-.. _ref_eql_literal_array:
-
-Arrays
-------
-
-An array is an *ordered* collection of values of the *same type*. For example:
-
-.. code-block:: edgeql-repl
-
-    db> SELECT [1, 2, 3];
-    {[1, 2, 3]}
-    db> SELECT ['hello', 'world'];
-    {['hello', 'world']}
-    db> SELECT [(1, 2), (100, 200)];
-    {[(1, 2), (100, 200)]}
-
-EdgeQL provides a set of functions and operators on arrays.
-
-.. list-table::
-
-  * - Indexing and slicing
-    - :eql:op:`array[i] <ARRAYIDX>` :eql:op:`array[from:to] <ARRAYSLICE>`
-      :eql:func:`array_get`
-  * - Concatenation
-    - :eql:op:`array ++ array <ARRAYPLUS>`
-  * - Comparison operators
-    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
-  * - Utilities
-    - :eql:func:`len` :eql:func:`array_join`
-  * - Search
-    - :eql:func:`contains` :eql:func:`find`
-  * - Conversion to/from sets
-    - :eql:func:`array_agg` :eql:func:`array_unpack`
-
-See :ref:`Standard Library > Array <ref_std_array>` for a complete
-reference on array data types.
-

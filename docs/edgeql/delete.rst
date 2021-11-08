@@ -97,4 +97,4 @@ set into ``select`` to fetch properties and links of the (now-deleted) objects.
 
   * - **See also**
   * - :ref:`Reference > Commands > Delete <ref_eql_statements_delete>`
-  * - :ref:`Deleting data (cheatsheet) <ref_cheatsheet_delete>`
+  * - :ref:`Cheatsheets > Deleting data <ref_cheatsheet_delete>`

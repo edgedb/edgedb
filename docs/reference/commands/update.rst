@@ -135,4 +135,4 @@ updates more clearly. See
 
   * - **See also**
   * - :ref:`EdgeQL > Update <ref_eql_update>`
-  * - :ref:`Updating data (cheatsheet) <ref_cheatsheet_update>`
+  * - :ref:`Cheatsheets > Updating data <ref_cheatsheet_update>`

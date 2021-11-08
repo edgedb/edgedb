@@ -79,7 +79,7 @@ language-native types.
 
 
 Parameter types and JSON
-------------------------<required>
+------------------------
 
 Parameters can be of any :ref:`scalar type <ref_datamodel_scalar_types>` or
 array thereof.

@@ -3,10 +3,22 @@
 Sets
 ====
 
+- :ref:`Everything is a set <ref_eql_everything_is_a_set>`
+- :ref:`Declaring sets <ref_eql_set_constructor>`
+- :ref:`Literals are singletons <ref_eql_set_literals_are_singletons>`
+- :ref:`Empty sets <ref_eql_empty_sets>`
+- :ref:`Set references <ref_eql_set_references>`
+- :ref:`Multisets <ref_eql_set_distinct>`
+- :ref:`Checking membership <ref_eql_set_in>`
+- :ref:`Merging <ref_eql_set_union>`
+- :ref:`Coalescing <ref_eql_set_coalesce>`
+- :ref:`Inheritance <ref_eql_set_type_filter>`
+- :ref:`Aggregate vs element-wise operations <ref_eql_set_aggregate>`
+- :ref:`Conversion to/from arrays <ref_eql_set_array_conversion>`
 
 .. _ref_eql_everything_is_a_set:
 
-Everything is a Set
+Everything is a set
 -------------------
 
 All values in EdgeQL is actually **sets**: a collection of values of a given
@@ -70,6 +82,8 @@ permitted.
 
   Types are considered *compatible* if they can be implicitly cast into each
   other.
+
+.. _ref_eql_set_literals_are_singletons:
 
 Literals are singletons
 -----------------------
@@ -218,8 +232,8 @@ duplicates of the same element. To eliminate duplicates, use the
 
 .. _ref_eql_set_in:
 
-Check membership
-----------------
+Checking membership
+-------------------
 
 Use the :eql:op:`IN` operator to check whether a set contains a particular
 element.
@@ -371,10 +385,12 @@ Conversion to/from arrays
 Both arrays and sets are collections of values that share a type. EdgeQL
 provides ways to convert one into the other.
 
-db> select array_unpack([1,2,3]);
-{1, 2, 3}
-db> select array_agg({1,2,3});
-{[1, 2, 3]}
+.. code-block:: edgeql-repl
+
+  db> select array_unpack([1,2,3]);
+  {1, 2, 3}
+  db> select array_agg({1,2,3});
+  {[1, 2, 3]}
 
 You can perform many of the same operations on either sets or arrays. For
 instance, the :eql:func:`count` operation on sets is analogous to the
@@ -384,7 +400,9 @@ sets or arrays is largely a matter of taste.
 Remember that an array literal is just a singleton set with an array type. A
 set can contain several arrays.
 
-db> select [1, 2, 3];
-{[1, 2, 3]}
-db> select {[1, 2, 3], [4, 5, 6]};
-{[1, 2, 3], [4, 5, 6]}
+.. code-block:: edgeql-repl
+
+  db> select [1, 2, 3];
+  {[1, 2, 3]}
+  db> select {[1, 2, 3], [4, 5, 6]};
+  {[1, 2, 3], [4, 5, 6]}

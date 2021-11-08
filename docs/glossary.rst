@@ -19,8 +19,7 @@ Glossary
       Link items define a specific relationship between two object types. Link
       instances relate one object to one or more different objects.
 
-      More on links in :ref:`Data Model <ref_datamodel_links>` and
-      :ref:`Cookbook <ref_cookbook_links>`.
+      More on links in :ref:`Data Model <ref_datamodel_links>`.
 
    set reference
       An identifier that represents a set of values. It can be the name of an

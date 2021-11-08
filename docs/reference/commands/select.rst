@@ -261,4 +261,4 @@ Here is a summary of clauses that can be used with ``SELECT``:
 
   * - **See also**
   * - :ref:`EdgeQL > Select <ref_eql_select>`
-  * - :ref:`Selecting data (cheatsheet) <ref_cheatsheet_select>`
+  * - :ref:`Cheatsheets > Selecting data <ref_cheatsheet_select>`

@@ -69,4 +69,4 @@ And here's the equivalent ``DELETE (SELECT ...)`` statement:
 
   * - **See also**
   * - :ref:`EdgeQL > Delete <ref_eql_delete>`
-  * - :ref:`Deleting data (cheatsheet) <ref_cheatsheet_delete>`
+  * - :ref:`Cheatsheets > Deleting data <ref_cheatsheet_delete>`

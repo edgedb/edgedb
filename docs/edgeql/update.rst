@@ -117,4 +117,4 @@ For documentation on performing *upsert* operations, see :ref:`EdgeQL > Insert
 
   * - **See also**
   * - :ref:`Reference > Commands > Update <ref_eql_statements_update>`
-  * - :ref:`Updating data (cheatsheet) <ref_cheatsheet_update>`
+  * - :ref:`Cheatsheets > Updating data <ref_cheatsheet_update>`

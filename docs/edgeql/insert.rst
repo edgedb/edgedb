@@ -3,6 +3,16 @@
 Insert
 ======
 
+
+- :ref:`Basic usage <ref_eql_insert_basic>`
+- :ref:`Inserting links <ref_eql_insert_links>`
+- :ref:`Nested inserts <ref_eql_insert_nested>`
+- :ref:`With block <ref_eql_insert_with>`
+- :ref:`Conflicts <ref_eql_insert_conflicts>`
+- :ref:`Bulk inserts <ref_eql_insert_bulk>`
+
+
+
 The ``insert`` command is used to create instances of object types. The code
 samples on this page assume the following schema:
 
@@ -32,8 +42,10 @@ samples on this page assume the following schema:
   }
 
 
-Basic examples
---------------
+.. _ref_eql_insert_basic:
+
+Basic usage
+-----------
 
 You can ``insert`` instances of any *non-abstract* object type.
 
@@ -70,6 +82,7 @@ You can only ``insert`` instances of concrete (non-abstract) object types.
   ... }
   error: QueryError: cannot insert into abstract object type 'default::Person'
 
+.. _ref_eql_insert_links:
 
 Inserting links
 ---------------
@@ -112,6 +125,8 @@ true).
   ... }
   {default::Movie {id: 9b1cf9e6-3e95-11ec-95a2-138eeb32759c}}
 
+
+.. _ref_eql_insert_nested:
 
 Nested inserts
 --------------
@@ -168,6 +183,7 @@ actually exist in the database;
   error: QueryError: modification of computed link 'villains' of object type
   'default::Hero' is prohibited
 
+.. _ref_eql_insert_with:
 
 With block
 ----------
@@ -208,6 +224,8 @@ can reference earlier ones.
   ... }
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
 
+
+.. _ref_eql_insert_conflicts:
 
 Conflicts
 ---------
@@ -267,6 +285,7 @@ When a conflict occurs during the initial ``insert``, the statement falls back
 to the ``update`` statement in the ``else`` clause. This updates the
 ``release_year`` of the conflicting object.
 
+
 Suppressing failures
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -283,7 +302,7 @@ return an *empty set* if a conflict occurs. This is a common way to prevent
   ... unless conflict;
   {}
 
-.. _ref_bulk_insert:
+.. _ref_eql_insert_bulk:
 
 Bulk inserts
 ------------
@@ -313,4 +332,4 @@ using a :ref:`for loop <ref_eql_for>` to insert the objects.
 
   * - **See also**
   * - :ref:`Reference > Commands > Insert <ref_eql_statements_insert>`
-  * - :ref:`Inserting data (cheatsheet) <ref_cheatsheet_insert>`
+  * - :ref:`Cheatsheets > Inserting data <ref_cheatsheet_insert>`

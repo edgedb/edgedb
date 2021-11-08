@@ -223,4 +223,4 @@ what the ``UNLESS CONFLICT`` clause allows:
 
   * - **See also**
   * - :ref:`EdgeQL > Insert <ref_eql_insert>`
-  * - :ref:`Inserting data (cheatsheet) <ref_cheatsheet_insert>`
+  * - :ref:`Cheatsheets > Inserting data <ref_cheatsheet_insert>`

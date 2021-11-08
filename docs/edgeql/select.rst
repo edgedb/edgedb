@@ -3,28 +3,18 @@
 Select
 ======
 
-- Basic examples
-- Selecting objects
-- Shapes
-- Nested shapes
-- Filter
-  - Scope
-- Order by
-- Limit/offset
-- With clauses
-- Computed properties
-  - Backlinks
-  - Subqueries
-- Polymorphic queries
-- Free objects
-
-.. _ref_eql_select_backlinks:
-
-The ``select`` command retrieves or computes a set of values, while possible
-applying filtering, ordering, and pagination operations.
+- :ref:`Selecting objects <ref_eql_select_objects>`
+- :ref:`Filtering <ref_eql_select_filter>`
+- :ref:`Ordering <ref_eql_select_order>`
+- :ref:`Pagination <ref_eql_select_pagination>`
+- :ref:`Computed fields <ref_eql_select_computeds>`
+- :ref:`Polymorphic queries <ref_eql_select_polymorphic>`
+- :ref:`Free objects <ref_eql_select_free_objects>`
+- :ref:`With blocks <ref_eql_select_with>`
 
 
-We've already seen simple queries that select primitive values.
+The ``select`` command retrieves or computes a set of values. We've already seen simple queries that select primitive values.
+
 
 .. code-block:: edgeql-repl
 
@@ -34,9 +24,9 @@ We've already seen simple queries that select primitive values.
   {[1, 2, 3]}
 
 
-However most queries are selecting *objects* that live in the database. For
-demonstration purposes, the queries below assume the following schema.
+However most queries are selecting *objects* that live in the database. When selecting objects, the ``select`` statement supports filters, ordering, and pagination operations.
 
+For demonstration purposes, the queries below assume the following schema.
 
 .. code-block:: sdl
 
@@ -63,6 +53,7 @@ demonstration purposes, the queries below assume the following schema.
 
   }
 
+.. _ref_eql_select_objects:
 
 Selecting objects
 -----------------
@@ -153,6 +144,7 @@ identically to concrete/non-computable links like ``Villain.nemesis``.
     ...
   }
 
+.. _ref_eql_select_filter:
 
 Filtering
 ---------
@@ -242,7 +234,7 @@ Note that the *scope* changes inside nested shapes. When we use ``.name`` in
 the outer ``filter``, it refers to the name of the hero. But when we use ``.
 name`` in the nested ``villains`` shape, the scope has changed to ``Villain``.
 
-
+.. _ref_eql_select_order:
 
 Ordering
 --------
@@ -288,6 +280,9 @@ expression, including arrays and tuples.
 For a full reference on ordering, including how empty values are handles, see
 :ref:`Reference > Commands > Select <ref_reference_select_order>`.
 
+
+.. _ref_eql_select_pagination:
+
 Pagination
 ----------
 
@@ -323,6 +318,8 @@ by name).
     default::Villain {name: 'Winter Soldier'}, # no Zemo
   }
 
+
+.. _ref_eql_select_computeds:
 
 Computed fields
 ---------------
@@ -374,6 +371,8 @@ As with nested filters, the *current scope* changes inside nested shapes.
     ...
   }
 
+
+.. _ref_eql_select_backlinks:
 
 Backlinks
 ^^^^^^^^^
@@ -461,7 +460,7 @@ Below, we use a subquery to select all movies containing a villain's nemesis.
     ...
   }
 
-.. _ref_eql_polymorphic_queries:
+.. _ref_eql_select_polymorphic:
 
 Polymorphic queries
 -------------------
@@ -607,6 +606,7 @@ exclusively fetch the ``Movie.characters`` of type ``Hero``.
     ...
   }
 
+.. _ref_eql_select_free_objects:
 
 Free objects
 ------------
@@ -645,6 +645,7 @@ constructed ad hoc inside the query.
 Note that the result is a *singleton* but each key corresponds to a set of
 values, which may have any cardinality.
 
+.. _ref_eql_select_with:
 
 With block
 ----------
@@ -667,4 +668,4 @@ For full documentation on ``with``, see :ref:`EdgeQL > With <ref_eql_with>`.
 
   * - **See also**
   * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`
-  * - :ref:`Selecting data (cheatsheet) <ref_cheatsheet_select>`
+  * - :ref:`Cheatsheets > Selecting data <ref_cheatsheet_select>`

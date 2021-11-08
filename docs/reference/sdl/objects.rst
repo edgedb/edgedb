@@ -51,7 +51,7 @@ definitions as well:
     }
 
 Introducing abstract types opens up the possibility of
-:ref:`polymorphic queries <ref_eql_polymorphic_queries>`.
+:ref:`polymorphic queries <ref_eql_select_polymorphic>`.
 
 
 .. _ref_eql_sdl_object_types_syntax:
