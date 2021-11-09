@@ -2362,6 +2362,7 @@ class CompositeMetaCommand(MetaCommand):
         schema: s_schema.Schema,
         obj: s_sources.Source,
         ptrnames: Dict[sn.UnqualName, Tuple[str, Tuple[str, ...]]],
+        pg_schema: Optional[str] = None,
     ) -> Optional[str]:
         if isinstance(obj, s_sources.Source):
             ptrs = dict(obj.get_pointers(schema).items(schema))
@@ -2394,6 +2395,9 @@ class CompositeMetaCommand(MetaCommand):
             aspect='table',
         )
 
+        if pg_schema is not None:
+            tabname = (pg_schema, tabname[1])
+
         talias = qi(tabname[1])
 
         coltext = ',\n'.join(
@@ -2415,9 +2419,14 @@ class CompositeMetaCommand(MetaCommand):
         obj: s_sources.Source,
         exclude_children: FrozenSet[s_sources.Source] = frozenset(),
         exclude_ptrs: FrozenSet[s_pointers.Pointer] = frozenset(),
+        exclude_self: bool = False,
+        pg_schema: Optional[str] = None,
     ) -> dbops.View:
         inhview_name = common.get_backend_name(
             schema, obj, catenate=False, aspect='inhview')
+
+        if pg_schema is not None:
+            inhview_name = (pg_schema, inhview_name[1])
 
         ptrs = {}
 
@@ -2455,10 +2464,13 @@ class CompositeMetaCommand(MetaCommand):
             )
             ptrs['target'] = ('target', lp_info.column_type)
 
-        components = [cls._get_select_from(schema, obj, ptrs)]
+        components = []
+        if not exclude_self:
+            components.append(
+                cls._get_select_from(schema, obj, ptrs, pg_schema))
 
         components.extend(
-            cls._get_select_from(schema, child, ptrs)
+            cls._get_select_from(schema, child, ptrs, pg_schema)
             for child in obj.descendants(schema)
             if has_table(child, schema) and child not in exclude_children
         )

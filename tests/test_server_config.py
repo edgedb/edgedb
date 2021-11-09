@@ -373,6 +373,38 @@ class TestServerConfig(tb.QueryTestCase):
     PARALLELISM_GRANULARITY = 'system'
     TRANSACTION_ISOLATION = False
 
+    async def test_server_proto_config_objects(self):
+        await self.assert_query_result(
+            """SELECT cfg::InstanceConfig IS cfg::AbstractConfig""",
+            [True],
+        )
+
+        await self.assert_query_result(
+            """SELECT cfg::InstanceConfig IS cfg::DatabaseConfig""",
+            [False],
+        )
+
+        await self.assert_query_result(
+            """SELECT cfg::InstanceConfig IS cfg::InstanceConfig""",
+            [True],
+        )
+
+        await self.assert_query_result(
+            """
+            SELECT cfg::AbstractConfig {
+                tname := .__type__.name
+            }
+            ORDER BY .__type__.name
+            """,
+            [{
+                "tname": "cfg::Config",
+            }, {
+                "tname": "cfg::DatabaseConfig",
+            }, {
+                "tname": "cfg::InstanceConfig",
+            }]
+        )
+
     async def test_server_proto_configure_01(self):
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,

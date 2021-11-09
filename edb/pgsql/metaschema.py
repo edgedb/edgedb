@@ -57,6 +57,7 @@ from edb.server import bootstrap as edbbootstrap
 
 from . import common
 from . import dbops
+from . import delta
 from . import types
 from . import params
 
@@ -4480,6 +4481,17 @@ async def generate_support_views(
         for tn, q in cfg_views
     ])
 
+    abstract_conf = delta.CompositeMetaCommand.get_inhview(
+        schema,
+        schema.get('cfg::AbstractConfig', type=s_objtypes.ObjectType),
+        exclude_self=True,
+        pg_schema='edgedbss',
+    )
+
+    commands.add_command(
+        dbops.CreateView(abstract_conf, or_replace=True)
+    )
+
     for dbview in _generate_database_views(schema):
         commands.add_command(dbops.CreateView(dbview, or_replace=True))
 
@@ -4999,6 +5011,7 @@ def _generate_config_type_view(
 
     _memo.add(stype)
 
+    tname = stype.get_name(schema)
     views = []
     json_casts = {
         c.get_to_type(schema): c
@@ -5152,7 +5165,7 @@ def _generate_config_type_view(
         target_cols.extend([
             f"{key_expr} AS id",
             f'(SELECT id FROM edgedb."_SchemaObjectType" '
-            f"WHERE name = 'cfg::Config') AS __type__",
+            f"WHERE name = {ql(str(tname))}) AS __type__",
         ])
 
         key_components = []
