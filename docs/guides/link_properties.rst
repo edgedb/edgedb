@@ -14,6 +14,9 @@ link properties have a few additional constraints: they're always *single* and
 Declaration
 -----------
 
+Let's a create a ``Person.friends`` link with a ``strength`` property
+corresponding to the strength of the friendship.
+
 .. code-block:: sdl
 
   type Person {
@@ -63,6 +66,7 @@ Inserting
 
 .. code-block:: edgeql
 
+  with alice :=
   insert Person {
     name := "Bob",
     friends := (
@@ -72,6 +76,10 @@ Inserting
       filter .name = "Alice"
     )
   }
+
+The ``@strength`` property is specified in the *shape* of the ``select`` subquery. This is only valid in a subquery *inside* an ``insert`` statement.
+
+We use the :ref:``
 
 Updating
 --------

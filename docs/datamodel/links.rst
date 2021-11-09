@@ -44,7 +44,7 @@ Required links
 All links are either ``optional`` or ``required``; the default is ``optional``.
 Use the ``required`` keyword to declare a required link. A required link must
 point to *at least one* target instance. In this scenario, every ``Person``
-must have a ``best_friend``.
+must have a ``best_friend``:
 
 .. code-block:: sdl
 
@@ -52,9 +52,8 @@ must have a ``best_friend``.
     required link best_friend -> Person;
   }
 
-You can define ``required multi links`` on an object type. In this scenario,
-every ``GroupChat`` must contain *at least one* user. Attempting to create a
-``GroupChat`` with no users would fail.
+Links with cardinality ``multi`` can also be ``required``;
+``required multi`` links must point to *at least one* target object.
 
 .. code-block:: sdl
 
@@ -65,6 +64,9 @@ every ``GroupChat`` must contain *at least one* user. Attempting to create a
   type GroupChat {
     required multi link members -> User;
   }
+
+In this scenario, each ``GroupChat`` must contain at least one user. Attempting
+to create a ``GroupChat`` with no users would fail.
 
 Exclusive constraints
 ---------------------
@@ -156,9 +158,9 @@ deleted, there are 4 possible *actions* that can be taken:
 
   .. note::
 
-    Deletion cascades are limited to a depth of `roughly 780
-    <https://github.com/edgedb/edgedb/issues/3063>`_ due to an upstream stack
-    size limitation.
+    There is `a limit
+    <https://github.com/edgedb/edgedb/issues/3063>`_ to the depth of a deletion
+    cascade due to an upstream stack size limitation.
 
 - ``allow`` - the target object is deleted and is removed from the
   set of the link targets.

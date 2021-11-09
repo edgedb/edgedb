@@ -20,9 +20,9 @@ guide!
 
     quickstart
     installation
-    using_projects
-    modeling_relations
-    using_link_props
+    projects
+    relations
+    link_properties
     migrations/index
     introspection/index
     cheatsheet/index

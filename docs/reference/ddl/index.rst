@@ -11,7 +11,7 @@ DDL
     objects
     scalars
     links
-    props
+    properties
     aliases
     indexes
     constraints

@@ -103,7 +103,7 @@ modified thereafter.
 Constraints
 -----------
 
-Properties can contain additional constraints. The example below showcases a
+Properties can be augmented wth constraints. The example below showcases a
 subset of EdgeDB's built-in constraints.
 
 .. code-block:: sdl
@@ -151,8 +151,9 @@ reference <ref_std_constraints>`.
 Annotations
 -----------
 
-Properties can contain annotations, small human-readable notes. Currently
-supported annotations are ``title``, ``description``, and ``deprecated``. Any
+Properties can contain annotations, small human-readable notes. The built-in
+annotations are ``title``, ``description``, and ``deprecated``. You can declare
+:ref:`custom annotation types <ref_datamodel_inheritance_annotations>`.
 
 .. code-block:: sdl
 

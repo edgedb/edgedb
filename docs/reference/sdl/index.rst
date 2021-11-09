@@ -75,7 +75,7 @@ to the previous migration:
     objects
     scalars
     links
-    props
+    properties
     aliases
     indexes
     constraints

@@ -16,7 +16,7 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
     modules
     primitives
     objects
-    props
+    properties
     links
     computeds
     indexes
@@ -30,9 +30,9 @@ One of EdgeDB's foundational features is **declarative schema modeling**.
 
 
 
-With EdgeDB, you can define your schema with EdgeDB's schema definition
-language, called **EdgeDB SDL** or simply **SDL**. SDL's declarative,
-object-oriented syntax will look familiar to users of ORM libraries.
+EdgeDB schemas are declared using **SDL** (EdgeDB Schema Definition Language).
+SDL's declarative, object-oriented syntax will look familiar to users of ORM
+libraries.
 
 .. code-block:: sdl
 

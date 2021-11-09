@@ -6,7 +6,7 @@ Object types
 
 
 *Object types* are the primary components of EdgeDB schema. They are analogous
-to SQL *tables* or *ORM models*, and consist of :ref:`properties
+to SQL *tables* or ORM *models*, and consist of :ref:`properties
 <ref_datamodel_props>` and :ref:`links <ref_datamodel_links>`.
 
 .. Properties
