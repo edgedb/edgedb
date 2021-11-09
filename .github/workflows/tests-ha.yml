@@ -1,6 +1,8 @@
 name: High Availability Tests
 
 on:
+  workflow_dispatch:
+    inputs: {}
   workflow_run:
     workflows: ["Tests"]
     types:
