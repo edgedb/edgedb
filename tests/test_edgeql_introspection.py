@@ -194,7 +194,8 @@ class TestIntrospection(tb.QueryTestCase):
                         name,
                         cardinality,
                         target: {
-                            name
+                            name,
+                            compound_type,
                         }
                     } ORDER BY .name
                 }
@@ -204,19 +205,31 @@ class TestIntrospection(tb.QueryTestCase):
                 'name': 'default::Comment',
                 'links': [{
                     'name': '__type__',
-                    'target': {'name': 'schema::Type'},
+                    'target': {
+                        'name': 'schema::Type',
+                        'compound_type': False,
+                    },
                     'cardinality': 'One',
                 }, {
                     'name': 'issue',
-                    'target': {'name': 'default::Issue'},
+                    'target': {
+                        'name': 'default::Issue',
+                        'compound_type': False,
+                    },
                     'cardinality': 'One',
                 }, {
                     'name': 'owner',
-                    'target': {'name': 'default::User'},
+                    'target': {
+                        'name': 'default::User',
+                        'compound_type': False,
+                    },
                     'cardinality': 'One',
                 }, {
                     'name': 'parent',
-                    'target': {'name': 'default::Comment'},
+                    'target': {
+                        'name': 'default::Comment',
+                        'compound_type': False,
+                    },
                     'cardinality': 'One',
                 }]
             }]
