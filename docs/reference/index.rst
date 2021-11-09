@@ -10,17 +10,17 @@ Reference
     :maxdepth: 3
     :hidden:
 
-    dev
-    connection
-    dsn
+
     edgeql/index
-    commands/index
     sdl/index
     ddl/index
+    connection
+    dsn
     observability
     dump_format
     backend_ha
     configuration
+    dev
     protocol/index
     admin/index
 

@@ -1,12 +1,13 @@
 .. _ref_reference_connection:
 
+=====================
+Connection Parameters
+=====================
+
 - :ref:`Instance parameters <ref_reference_connection_instance>`
 - :ref:`Priority levels <ref_reference_connection_priority>`
 - :ref:`Granular parameters <ref_reference_connection_granular>`
 
-=====================
-Connection Parameters
-=====================
 
 The CLI and client libraries (collectively referred to as "clients" below) must
 connect to an EdgeDB instance to run queries or commands. There are several
