@@ -1659,3 +1659,18 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
                     fight(Scorpion, SubZero);SELECT area(Shape)
                 """,
             )
+
+    async def test_edgeql_call_builtin_obj(self):
+        await self.con.execute(
+            r"""
+                CREATE FUNCTION get_obj(name: str) ->
+                  SET OF schema::Object USING (
+                    SELECT schema::Object FILTER .name = name);
+            """,
+        )
+
+        res = await self.con._fetchall("""
+            SELECT get_obj('std::BaseObject')
+        """, __typenames__=True)
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0].__tname__, "schema::ObjectType")
