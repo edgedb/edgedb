@@ -1634,6 +1634,14 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 );
             ''')
 
+        # Make sure unrelated functions with similar prefix
+        # aren't matched erroneously (#3115)
+        schema = self.load_schema(r'''
+            function len_strings(words: str) -> int64 using (
+                len(words)
+            );
+        ''', modname='default')
+
     @test.xfail('''
         RecursionError: maximum recursion depth exceeded in comparison
 
