@@ -51,6 +51,7 @@ def compile_where_clause(
         pathctx.register_set_in_scope(ctx.partial_path_prefix, ctx=ctx)
 
     with ctx.newscope(fenced=True) as subctx:
+        subctx.expr_exposed = context.Exposure.UNEXPOSED
         subctx.path_scope.unnest_fence = True
         ir_expr = dispatch.compile(where, ctx=subctx)
         bool_t = ctx.env.get_track_schema_type(sn.QualName('std', 'bool'))
@@ -72,6 +73,7 @@ def compile_orderby_clause(
         pathctx.register_set_in_scope(ctx.partial_path_prefix, ctx=ctx)
 
     with ctx.new() as subctx:
+        subctx.expr_exposed = context.Exposure.UNEXPOSED
         for sortexpr in sortexprs:
             with subctx.newscope(fenced=True) as exprctx:
                 exprctx.path_scope.unnest_fence = True
@@ -134,6 +136,7 @@ def compile_limit_offset_clause(
         ir_set = None
     else:
         with ctx.newscope(fenced=True) as subctx:
+            subctx.expr_exposed = context.Exposure.UNEXPOSED
             # Clear out the partial_path_prefix, since we aren't in
             # the scope of the select subject
             subctx.partial_path_prefix = None

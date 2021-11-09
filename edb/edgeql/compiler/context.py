@@ -52,6 +52,15 @@ if TYPE_CHECKING:
     from edb.schema import sources as s_sources
 
 
+class Exposure(enum.IntEnum):
+    UNEXPOSED = 0
+    BINDING = 1
+    EXPOSED = 2
+
+    def __bool__(self) -> bool:
+        return self == self.EXPOSED
+
+
 class ContextSwitchMode(enum.Enum):
     NEW = enum.auto()
     SUBQUERY = enum.auto()
@@ -564,7 +573,7 @@ class ContextLevel(compiler.ContextLevel):
             self.iterator_path_ids = frozenset()
             self.scope_id_ctr = compiler.SimpleCounter()
             self.view_scls = None
-            self.expr_exposed = False
+            self.expr_exposed = Exposure.UNEXPOSED
 
             self.partial_path_prefix = None
 

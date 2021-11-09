@@ -587,7 +587,9 @@ def compile_operator(
 
     _check_free_shape_op(node, ctx=ctx)
 
-    return setgen.ensure_set(node, typehint=rtype, ctx=ctx)
+    return stmt.maybe_add_view(
+        setgen.ensure_set(node, typehint=rtype, ctx=ctx),
+        ctx=ctx)
 
 
 # These ops are all footguns when used with free shapes,

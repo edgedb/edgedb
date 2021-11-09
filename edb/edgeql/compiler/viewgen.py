@@ -446,7 +446,7 @@ def _compile_qlexpr(
         shape_expr_ctx.partial_path_prefix = source_set
 
         if is_mutation and ptrcls is not None:
-            shape_expr_ctx.expr_exposed = True
+            shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED
             shape_expr_ctx.empty_result_type_hint = \
                 ptrcls.get_target(ctx.env.schema)
 
@@ -1202,11 +1202,15 @@ def _inline_type_computable(
     stype: s_objtypes.ObjectType,
     compname: str,
     propname: str,
+    is_mutation: bool,
     *,
     shape_ptrs: List[ShapePtr],
     ctx: context.ContextLevel,
 ) -> None:
     assert isinstance(stype, s_objtypes.ObjectType)
+    # Injecting into non-view objects /usually/ works, but it fails if the
+    # object is in the std library. Prevent it in general to find bugs faster.
+    assert is_mutation or stype.is_view(ctx.env.schema)
 
     ptr: Optional[s_pointers.Pointer]
     try:
@@ -1317,7 +1321,8 @@ def _get_shape_configuration_inner(
     ):
         assert isinstance(stype, s_objtypes.ObjectType)
         _inline_type_computable(
-            ir_set, stype, '__tid__', 'id', ctx=ctx, shape_ptrs=shape_ptrs)
+            ir_set, stype, '__tid__', 'id', is_mutation,
+            ctx=ctx, shape_ptrs=shape_ptrs)
 
     if (
         stype is not None
@@ -1325,7 +1330,8 @@ def _get_shape_configuration_inner(
     ):
         assert isinstance(stype, s_objtypes.ObjectType)
         _inline_type_computable(
-            ir_set, stype, '__tname__', 'name', ctx=ctx, shape_ptrs=shape_ptrs)
+            ir_set, stype, '__tname__', 'name', is_mutation,
+            ctx=ctx, shape_ptrs=shape_ptrs)
 
 
 def _get_early_shape_configuration(
