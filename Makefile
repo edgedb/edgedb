@@ -25,7 +25,7 @@ pygments:
 
 casts:
 	out=$$(edb gen-cast-table) && \
-		echo "$$out" > docs/reference/casts.csv
+		echo "$$out" > docs/reference/edgeql/casts.csv
 
 
 build:

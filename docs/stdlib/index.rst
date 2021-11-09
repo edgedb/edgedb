@@ -28,7 +28,6 @@ Standard Library
     math
     abstract
     constraints
-    casts
     sys
     cfg
     deprecated
@@ -82,7 +81,7 @@ Types and Sets
 
 - :ref:`Sets <ref_std_set>`
 - :ref:`Types <ref_std_type>`
-- :ref:`Casting <ref_std_casts>`
+- :ref:`Casting <ref_eql_casts>`
 
 Utilities
 ---------

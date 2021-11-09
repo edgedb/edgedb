@@ -1,7 +1,7 @@
 .. _ref_protocol_error_codes:
 
 ===========
-Error Codes
+Error codes
 ===========
 
 Error codes and names as specified in ``edb/api/errors.txt``:

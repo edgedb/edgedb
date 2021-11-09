@@ -1,7 +1,7 @@
 .. _ref_eql_introspection_object_types:
 
 ============
-Object Types
+Object types
 ============
 
 This section describes introspection of :ref:`object types

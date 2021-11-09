@@ -62,7 +62,9 @@ strings.
 
 The values associated with a ``multi`` property are stored in no
 particular order. If order is important, use an :ref:`array
-<ref_datamodel_arrays>`. Otherwise, ``multi`` properties are recommended.
+<ref_datamodel_arrays>`. Otherwise, ``multi`` properties are recommended. For a
+more involved discussion, see :ref:`EdgeQL > Sets
+<ref_eql_set_array_conversion>`.
 
 Default values
 --------------

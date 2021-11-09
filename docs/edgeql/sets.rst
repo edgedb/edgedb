@@ -58,7 +58,7 @@ All values in a set must have the same type. For convenience, EdgeDB will
 *implicitly cast* values to other types, as long as there is no loss of
 information (e.g. converting a ``int16`` to an ``int64``). For a full
 reference, see the casting table in :ref:`Standard Library > Casts
-<ref_std_casts_table>`.
+<ref_eql_casts_table>`.
 
 .. code-block:: edgeql-repl
 
@@ -251,8 +251,9 @@ Use the :eql:op:`UNION` operator to merge two sets.
 
   db> select 'aaa' union 'bbb' union 'ccc';
   {'aaa', 'bbb', 'ccc'}
-  db> select {1, 2} union {3, 4};
-  {1, 2, 3, 4}
+  db> select {1, 2} union {3.1, 4.4};
+  {1.0, 2.0, 3.1, 4.4}
+
 
 .. _ref_eql_set_coalesce:
 

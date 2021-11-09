@@ -1,4 +1,4 @@
-Dump File Format
+Dump file format
 ================
 
 This description uses the same :ref:`conventions <ref_protocol_conventions>`

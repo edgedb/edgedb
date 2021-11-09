@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_boolean:
 
-Boolean Expressions
-===================
+Working with booleans
+=====================
 
 Boolean expressions can be tricky sometimes, so here are a handful of
 tips and gotchas.

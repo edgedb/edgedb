@@ -1,7 +1,7 @@
 .. _ref_eql_ddl:
 
-Data Definition (DDL)
-=====================
+DDL
+===
 
 .. toctree::
     :maxdepth: 3

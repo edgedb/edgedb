@@ -45,16 +45,16 @@ CLI/Admin:
     :maxdepth: 3
     :hidden:
 
-    repl
+
     select
     insert
     update
     delete
-    objects
-    linkprop
-    functions
     boolean
+    objects
+    functions
     aliases
     annotations
     cli
+    repl
     admin

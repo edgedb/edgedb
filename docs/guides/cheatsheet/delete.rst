@@ -1,6 +1,6 @@
 .. _ref_cheatsheet_delete:
 
-Deleting Data
+Deleting data
 =============
 
 .. note::

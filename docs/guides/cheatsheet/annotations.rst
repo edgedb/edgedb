@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_annotations:
 
-Schema Annotations
-==================
+Declaring annotations
+=====================
 
 Use annotations to add descriptions to types and links:
 

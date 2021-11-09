@@ -36,10 +36,11 @@ EdgeQL is a spiritual successor to SQL designed with a few core principles in
 mind.
 
 **Compatible with modern languages**. A jaw-dropping amount of effort has been
-spend attempting to `bridge the gap <https://en.wikipedia.org/wiki/
-Object%E2%80%93relational_impedance_mismatch>`_ between SQL's *relational*
-paradigm and the *object-oriented* nature of modern programming languages.
-EdgeDB sidesteps this problem by modeling data in an *object-relational* way.
+spent attempting to `bridge the gap <https://en.wikipedia.org/wiki/
+Object%E2%80%93relational_impedance_mismatch>`_ between the *relational*
+paradigm of SQL and the *object-oriented* nature of modern programming
+languages. EdgeDB sidesteps this problem by modeling data in an
+*object-relational* way.
 
 **Strongly typed**. EdgeQL is *inextricably tied* to EdgeDB's rigorous
 object-oriented type system. The type of all expressions is statically

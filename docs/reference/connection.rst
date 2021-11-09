@@ -1,7 +1,7 @@
 .. _ref_reference_connection:
 
 =====================
-Connection Parameters
+Connection parameters
 =====================
 
 - :ref:`Instance parameters <ref_reference_connection_instance>`

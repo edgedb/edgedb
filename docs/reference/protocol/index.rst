@@ -1,7 +1,7 @@
 .. _ref_protocol_overview:
 
 ===============
-Binary Protocol
+Binary protocol
 ===============
 
 EdgeDB uses a message-based binary protocol for communication between
@@ -21,7 +21,7 @@ Unix-domain sockets.
 
 .. _ref_protocol_conventions:
 
-Conventions and Data Types
+Conventions and data Types
 ==========================
 
 The message format descriptions in this section use a C-like struct definitions

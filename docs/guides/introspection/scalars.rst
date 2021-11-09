@@ -1,7 +1,7 @@
 .. _ref_eql_introspection_scalar_types:
 
 ============
-Scalar Types
+Scalar types
 ============
 
 This section describes introspection of :ref:`scalar types

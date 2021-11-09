@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_aliases:
 
-Expression Aliases
-==================
+Declaring aliases
+=================
 
 
 Define an alias that merges some information from links as computed

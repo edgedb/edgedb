@@ -1,7 +1,7 @@
 .. _ref_eql_introspection_collection_types:
 
 ================
-Collection Types
+Collection types
 ================
 
 This section describes introspection of :ref:`collection types

@@ -1,6 +1,6 @@
 .. _ref_dsn:
 
-DSN Specification
+DSN specification
 #################
 
 DSNs (data source names) are a convenient and flexible way to specify

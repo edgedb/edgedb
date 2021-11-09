@@ -1,7 +1,7 @@
 .. _ref_eql_sdl:
 
-Schema Definition (SDL)
-=======================
+SDL
+===
 
 :edb-alt-title: Schema Definition Language
 

@@ -1,7 +1,7 @@
 .. _ref_admin_config:
 
 ====================
-Server Configuration
+Server configuration
 ====================
 
 EdgeDB exposes a number of configuration parameters that affect its

@@ -1,8 +1,8 @@
 .. _ref_cli_edgedb_connopts:
 
-=========================
-Common Connection Options
-=========================
+================
+Connection flags
+================
 
 The ``edgedb`` CLI supports a standard set of connection flags used to specify
 the *target* of a given command. The CLI always respects any connection

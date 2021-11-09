@@ -137,6 +137,7 @@ The ``cli.toml`` has the following structure. All fields are optional:
     :hidden:
 
     edgedb_connopts
+    network
     edgedb
     edgedb_dump
     edgedb_restore
@@ -152,4 +153,4 @@ The ``cli.toml`` has the following structure. All fields are optional:
     edgedb_instance/index
     edgedb_server/index
     edgedb_cli_upgrade
-    network
+

@@ -1,7 +1,7 @@
 .. _ref_proto_dataformats:
 
 =================
-Data Wire Formats
+Data wire formats
 =================
 
 This section describes the data wire format of standard EdgeDB types.

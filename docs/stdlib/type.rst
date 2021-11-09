@@ -234,7 +234,7 @@ Type
         };
 
     For more information about casting between different types consult
-    the :ref:`casting table <ref_std_casts_table>`.
+    the :ref:`casting table <ref_eql_casts_table>`.
 
 
 -----------

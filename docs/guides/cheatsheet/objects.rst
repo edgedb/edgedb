@@ -1,6 +1,6 @@
 .. _ref_cheatsheet_object_types:
 
-Object Types
+Object types
 ============
 
 

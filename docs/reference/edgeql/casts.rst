@@ -1,4 +1,4 @@
-.. _ref_std_casts:
+.. _ref_eql_casts:
 
 =====
 Casts
@@ -113,7 +113,7 @@ If *implicit* casting is supported for a given pair of types,
 *assignment* and *explicit* casting of those types is also supported.
 
 
-.. _ref_std_casts_table:
+.. _ref_eql_casts_table:
 
 Casting Table
 -------------

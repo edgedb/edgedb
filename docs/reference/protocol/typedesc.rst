@@ -1,7 +1,7 @@
 .. _ref_proto_typedesc:
 
 ================
-Type Descriptors
+Type descriptors
 ================
 
 This section describes how type information for query input and results

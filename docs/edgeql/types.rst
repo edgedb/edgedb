@@ -86,7 +86,7 @@ cases, the source data must be in a particular format, like casting ``str`` to
   NumericOutOfRangeError: std::int16 out of range
 
 For a comprehensive table of castability, see :ref:`Standard Library > Casts
-<ref_std_casts_table>`.
+<ref_eql_casts_table>`.
 
 
 .. _ref_eql_types_intersection:

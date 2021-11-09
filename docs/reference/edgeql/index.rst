@@ -76,6 +76,7 @@ Introspection command:
     eval
     shapes
     paths
+    casts
     functions
 
     select

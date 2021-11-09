@@ -1,6 +1,6 @@
 .. _ref_cheatsheet_update:
 
-Updating Data
+Updating data
 =============
 
 .. note::

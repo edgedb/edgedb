@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_repl:
 
-Interactive Shell
-=================
+Using the REPL
+==============
 
 List databases:
 

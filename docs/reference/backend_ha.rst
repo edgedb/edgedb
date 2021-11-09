@@ -1,6 +1,6 @@
 .. _ref_backend_ha:
 
-Backend High-Availability
+Backend high-availability
 =========================
 
 High availability is a sophisticated and systematic challenge, especially for
