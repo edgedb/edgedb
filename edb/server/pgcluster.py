@@ -861,13 +861,47 @@ async def get_remote_pg_cluster(
         caps = pgparams.BackendCapabilities.NONE
 
         try:
-            await conn.execute(f'ALTER SYSTEM SET foo = 10')
+            cur_cluster_name = await conn.fetchval(f'''
+                SELECT
+                    setting
+                FROM
+                    pg_file_settings
+                WHERE
+                    setting = 'cluster_name'
+                    AND sourcefile = ((
+                        SELECT setting
+                        FROM pg_settings WHERE name = 'data_directory'
+                    ) || '/postgresql.auto.conf')
+            ''')
         except asyncpg.InsufficientPrivilegeError:
             configfile_access = False
-        except asyncpg.UndefinedObjectError:
-            configfile_access = True
         else:
-            configfile_access = True
+            try:
+                await conn.execute(f"""
+                    ALTER SYSTEM SET cluster_name = 'edgedb-test'
+                """)
+            except asyncpg.InsufficientPrivilegeError:
+                configfile_access = False
+            except asyncpg.InternalServerError as e:
+                # Stolon keeper symlinks postgresql.auto.conf to /dev/null
+                # making ALTER SYSTEM fail with InternalServerError,
+                # see https://github.com/sorintlab/stolon/pull/343
+                if 'could not fsync file "postgresql.auto.conf"' in e.args[0]:
+                    configfile_access = False
+                else:
+                    raise
+            else:
+                configfile_access = True
+
+                if cur_cluster_name:
+                    await conn.execute(f"""
+                        ALTER SYSTEM SET cluster_name =
+                            '{pgcommon.quote_literal(cur_cluster_name)}'
+                    """)
+                else:
+                    await conn.execute(f"""
+                        ALTER SYSTEM SET cluster_name = DEFAULT
+                    """)
 
         if configfile_access:
             caps |= pgparams.BackendCapabilities.CONFIGFILE_ACCESS
