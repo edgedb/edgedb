@@ -49,6 +49,7 @@ from . import pathctx
 from . import polyres
 from . import schemactx
 from . import setgen
+from . import stmt
 from . import typegen
 
 if TYPE_CHECKING:
@@ -270,7 +271,8 @@ def compile_FunctionCall(
         tuple_path_ids=tuple_path_ids,
     )
 
-    return setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
+    ir_set = setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
+    return stmt.maybe_add_view(ir_set, ctx=ctx)
 
 
 #: A dictionary of conditional callables and the indices

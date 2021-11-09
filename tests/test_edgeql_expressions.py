@@ -5202,3 +5202,18 @@ aa \
                 single foo := assert_distinct(.name)
             }
         """)
+
+    async def test_edgeql_introspect_without_shape(self):
+        await self.assert_query_result(
+            """
+                SELECT (INTROSPECT TYPEOF BaseObject)
+            """,
+            [
+                {"id": {}}
+            ]
+        )
+        res = await self.con._fetchall("""
+            SELECT (INTROSPECT TYPEOF BaseObject)
+        """, __typenames__=True)
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0].__tname__, "schema::ObjectType")

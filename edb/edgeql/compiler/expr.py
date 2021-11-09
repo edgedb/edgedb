@@ -67,19 +67,7 @@ def compile__Optional(
 @dispatch.compile.register(qlast.Path)
 def compile_Path(
         expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
-    ir = setgen.compile_path(expr, ctx=ctx)
-    # We call compile_query_subject in order to create a new view for
-    # injecting properties if needed. This will only happen if
-    # expr_exposed, so stmt code paths that don't want a new view
-    # created (because there is a shape already specified or because
-    # it wants to create its own new view in its compile_query_subject call)
-    # should make sure expr_exposed is false.
-    # (Strictly speaking, the expr_exposed check here is redundant, but it
-    # saves on some pointless work in compile_query_subject.)
-    if ctx.expr_exposed:
-        ir = stmt.compile_query_subject(
-            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx)
-    return ir
+    return stmt.maybe_add_view(setgen.compile_path(expr, ctx=ctx), ctx=ctx)
 
 
 @dispatch.compile.register(qlast.BinOp)
@@ -582,7 +570,8 @@ def compile_Introspect(
             f'cannot introspect generic types',
             context=expr.type.context)
 
-    return setgen.ensure_set(irast.TypeIntrospection(typeref=typeref), ctx=ctx)
+    ir = setgen.ensure_set(irast.TypeIntrospection(typeref=typeref), ctx=ctx)
+    return stmt.maybe_add_view(ir, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Indirection)

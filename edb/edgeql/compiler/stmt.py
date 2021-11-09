@@ -1212,6 +1212,28 @@ def compile_query_subject(
     return expr
 
 
+def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
+    """Possibly wrap ir in a new view, if needed for tid/tname injection
+
+    This should be called by every ast leaf compilation that can originate
+    an object type.
+    """
+
+    # We call compile_query_subject in order to create a new view for
+    # injecting properties if needed. This will only happen if
+    # expr_exposed, so stmt code paths that don't want a new view
+    # created (because there is a shape already specified or because
+    # it wants to create its own new view in its compile_query_subject call)
+    # should make sure expr_exposed is false.
+    #
+    # The checks here are microoptimizations.
+    if ctx.expr_exposed and ir.path_id.is_objtype_path():
+        return compile_query_subject(
+            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx)
+    else:
+        return ir
+
+
 def compile_groupby_clause(
         groupexprs: Iterable[qlast.Base], *,
         ctx: context.ContextLevel) -> List[irast.Set]:
