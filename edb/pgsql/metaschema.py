@@ -262,7 +262,7 @@ class StrToConfigMemoryFunction(dbops.Function):
     """An implementation of std::str to cfg::memory cast."""
     text = r'''
         SELECT
-            CASE
+            (CASE
                 WHEN m.v[1] IS NOT NULL AND m.v[2] IS NOT NULL
                 THEN (
                     CASE
@@ -288,7 +288,7 @@ class StrToConfigMemoryFunction(dbops.Function):
                             -- Won't happen but we still have a guard for
                             -- completeness.
                             edgedb.raise(
-                                NULL::edgedb.memory_t,
+                                NULL::int8,
                                 'invalid_parameter_value',
                                 msg => (
                                     'unsupported memory size unit "' ||
@@ -300,10 +300,10 @@ class StrToConfigMemoryFunction(dbops.Function):
                 ELSE
                     CASE
                         WHEN "val" = '0'
-                        THEN 0
+                        THEN 0::int8
                         ELSE
                             edgedb.raise(
-                                NULL::edgedb.memory_t,
+                                NULL::int8,
                                 'invalid_parameter_value',
                                 msg => (
                                     'unable to parse memory size "' ||
@@ -311,7 +311,7 @@ class StrToConfigMemoryFunction(dbops.Function):
                                 )
                             )
                     END
-            END
+            END)::edgedb.memory_t
         FROM LATERAL (
             SELECT regexp_match(
                 "val", '^(\d+)([[:alpha:]]+)$') AS v
