@@ -259,7 +259,7 @@ Set
         FILTER .name = 'Dave'
         SET {
             friends := (SELECT U1 FILTER .name = 'Alice'),
-            coworkers := (SELECT U2 User FILTER .name = 'Bob')
+            coworkers := (SELECT U2 FILTER .name = 'Bob')
         };
 
 

@@ -4,6 +4,10 @@
 Constraints
 ===========
 
+.. important::
+
+  This section assumes a basic understanding of EdgeQL.
+
 Constraints gives users fine-grained control over which data is considered
 valid. The can be defined on a
 :ref:`scalar type <ref_datamodel_scalar_types>`, an
@@ -29,6 +33,8 @@ of a given constraint for the full documentation.
 Scalar type constraints
 -----------------------
 
+Custom scalar types can be constrained.
+
 .. code-block:: sdl
 
   scalar type username extending str {
@@ -38,7 +44,6 @@ Scalar type constraints
 Note: you can't use :eql:constraint:`exclusive` constraints on custom scalar
 types, as the concept of exclusivity is only defined in the context of a given
 object type.
-
 
 Use :eql:constraint:`expression` constraints to declare custom constraints
 using arbitrary EdgeQL expressions.
@@ -78,7 +83,7 @@ constraint logic must reference multiple links or properties.
 
 .. code-block:: sdl
 
-  type Vector {
+  type ConstrainedVector {
     required property x -> float64;
     required property y -> float64;
 

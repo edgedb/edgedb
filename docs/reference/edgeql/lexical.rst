@@ -1,7 +1,7 @@
 .. _ref_eql_lexical:
 
 
-Lexical Structure
+Lexical structure
 =================
 
 Every EdgeQL command is composed of a sequence of *tokens*, terminated by

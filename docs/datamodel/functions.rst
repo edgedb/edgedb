@@ -4,6 +4,11 @@
 Functions
 =========
 
+.. note::
+
+  This page documents how to define custom functions, however EdgeDB provides a
+  large library of built-in functions and operators. These are documented in
+  :ref:`Standard Library <ref_std>`.
 
 Functions are ways to transform one set of data into another.
 
@@ -16,16 +21,16 @@ string:
 
 .. code-block:: sdl
 
-    function exclamation(word: str) -> str
-        using (word ++ '!');
+  function exclamation(word: str) -> str
+    using (word ++ '!');
 
 This function accepts a :eql:type:`str` as an argument and produces a
 :eql:type:`str` as output as well.
 
 .. code-block:: edgeql-repl
 
-    test> select exclamation({'Hello', 'World'});
-    {'Hello!', 'World!'}
+  test> select exclamation({'Hello', 'World'});
+  {'Hello!', 'World!'}
 
 
 .. list-table::

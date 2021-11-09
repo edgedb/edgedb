@@ -41,7 +41,9 @@ User-defined annotations
 ------------------------
 
 To declare a custom constraint type beyond the three built-ins, add an abstract
-annotation type to your schema.
+annotation type to your schema. A custom annotation could be used to attach
+arbitrary JSON-encoded data to your schema—potentially useful for introspection
+and code generation.
 
 .. code-block:: sdl
 

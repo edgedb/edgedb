@@ -72,6 +72,10 @@ string can be declared with either single or double quotes.
   db> select r'hello\nthere!';
   {'hello
   there!'}
+  db> select r'hello
+  ... there!'; # multiline
+  {'hello
+  there!'}
 
 There is a special syntax for declaring "raw strings". Raw strings treat the
 backslash ``\`` as a literal character instead of an escape character.
@@ -86,6 +90,12 @@ backslash ``\`` as a literal character instead of an escape character.
   {'one
   two
   three'}
+  db> select $label$You can add an interstitial label
+  ... if you need to use "$$" in your string.$label$
+  {
+    'You can add an interstital label
+    if you need to use "$$" in your string.',
+  }
 
 
 
@@ -354,11 +364,15 @@ Enum types must be :ref:`declared in your schema <ref_datamodel_enums>`.
 
   scalar type Color extending enum<Red, Green, Blue>;
 
-Once declared, their values can be referenced with dot notation.
+Once declared, an enum literal can be declared with dot notation, or by
+casting an appropriate string literal:
 
-.. code-block:: edgeql
+.. code-block:: edgeql-repl
 
-  select Color.Red;
+  db> select Color.Red;
+  {Red}
+  db> select <Color>"Red";
+  {Red}
 
 
 .. _ref_eql_literal_dates:

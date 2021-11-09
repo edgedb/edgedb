@@ -1,7 +1,7 @@
 .. _ref_reference_function_call:
 
 
-Function Calls
+Function calls
 ==============
 
 

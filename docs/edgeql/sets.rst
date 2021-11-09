@@ -54,6 +54,14 @@ Sets are indicated with ``{curly braces}``.
   db> select {1, 2, 3};
   {1, 2, 3}
 
+Sets are *flat*: they cannot contain other sets. "Nested" sets are flattened
+automatically.
+
+.. code-block:: edgeql-repl
+
+  db> SELECT {1, {2, {3, 4}}};
+  {1, 2, 3, 4}
+
 All values in a set must have the same type. For convenience, EdgeDB will
 *implicitly cast* values to other types, as long as there is no loss of
 information (e.g. converting a ``int16`` to an ``int64``). For a full
@@ -330,6 +338,20 @@ EdgeQL provides a large library of built-in functions and operators for
 handling data structures. Each functions and operators is either *aggregate* or
 *element-wise*.
 
+By contrast, *aggregate* operations are applied to the set *as a whole*; they
+accept a set with arbitrary cardinality and return a *singleton* (or perhaps an
+empty set if the input was also empty).
+
+.. code-block:: edgeql-repl
+
+  db> select count({'aaa', 'bbb', 'ccc'})
+  {2}
+  db> select sum({1, 2, 3});
+  {6}
+  db> select min({1, 2, 3});
+  {-3}
+
+
 Element-wise operations are applied on *each element* of a set.
 
 .. code-block:: edgeql-repl
@@ -341,19 +363,6 @@ Element-wise operations are applied on *each element* of a set.
   db> select str_split({"hello world", "hi again"}, " ");
   {["hello", "world"], ["hi", "again"]}
 
-
-By contrast, *aggregate* operations accept a set with arbitrary cardinality and
-return a *singleton* (or perhaps an empty set if the input was also empty).
-
-.. code-block:: edgeql-repl
-
-  db> select count({'aaa', 'bbb', 'ccc'})
-  {2}
-  db> select sum({1, 2, 3});
-  {6}
-  db> select min({1, 2, 3});
-  {-3}
-
 When an *element-wise* operation accepts two inputs, the operation is applied
 *pair-wise*; in other words, the operation is applied to the *cartesian
 product* of the inputs.
@@ -363,14 +372,16 @@ product* of the inputs.
   db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'}
   {'aaaccc', 'aaaddd', 'bbbccc', 'bbbddd'}
 
-Accordingly, operations involving an empty set typically return an empty set
-(though certain operations like :eql:func:`count` are able to operate on empty
-sets).
+Accordingly, operations involving an empty set typically return an empty set.
+In constrast, aggregate operations like :eql:func:`count` are able to operate
+on empty sets.
 
 .. code-block:: edgeql-repl
 
-  db> select <str>{} ++ 'ccc'
+  db> select <str>{} ++ 'ccc';
   {}
+  db> select count(<str>{});
+  {0}
 
 .. _ref_eql_set_array_conversion:
 

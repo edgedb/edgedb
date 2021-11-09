@@ -72,6 +72,7 @@ Overloading
 
 An object type can overload an inherited property or link. All overloaded
 declarations must be prefixed with the ``overloaded`` prefix to avoid
+unintentional overloads.
 
 .. code-block:: sdl
 

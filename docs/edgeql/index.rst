@@ -46,14 +46,12 @@ languages. EdgeDB sidesteps this problem by modeling data in an
 object-oriented type system. The type of all expressions is statically
 inferred by EdgeDB.
 
-**Easy to learn**. Postgres-flavored SQL contains `469 keywords
-<https://www.postgresql.org/docs/current/sql-keywords-appendix.html>`_. By
-comparison EdgeQL contains 80.
-
-**Designed for programmers**. It uses ``{ curly braces }`` to define scopes and
-nested structures and the *assignment operator* ``:=`` to set values. Plus it
-contains a comprehensive standard library of functions, operators, and control
-flow constructs.
+**Designed for programmers**. EdgeQL prioritizes syntax over keywords; the
+result is a query language that looks more like code and less like word soup.
+It uses ``{ curly braces }`` to define scopes/structures and the *assignment
+operator* ``:=`` to set values. All told, EdgeQL syntax contains roughly 180
+reserved keywords; by comparison Postgres-flavored SQL contains `469
+<https://www.postgresql.org/docs/current/sql-keywords-appendix.html>`_.
 
 .. **Compiles to SQL**. All EdgeQL queries, no matter how complex, compile to a
 .. single PostgreSQL query under the hood. With the exception of ``GROUP BY``,

@@ -4,6 +4,8 @@
 Computeds
 =========
 
+:edb-alt-title: Computed properties and links
+
 .. important::
 
   This section assumes a basic understanding of EdgeQL. If you aren't familiar
@@ -26,8 +28,8 @@ field is referenced in a query.
 
 .. _ref_dot_notation:
 
-Dot notation
-------------
+Leading dot notation
+--------------------
 
 The example above used the special keyword ``__subject__`` to refer to
 the current object; it's analogous to ``this`` in many object-oriented
@@ -45,14 +47,15 @@ shorthand.
     property full_name := .first_name ++ ' ' ++ .last_name;
   }
 
-Type inference
---------------
+Type and cardinality inference
+------------------------------
 
-The type of a computed field is *inferred* from the expression. There's no need
-for the modifier keywords you use for non-computed fields (like ``multi`` and
-``required``). However, you can optionally specify them; if the provided EdgeQL
-expression disagrees with the modifiers, an error will be thrown the next time
-you try to :ref:`create a migration <ref_guide_migrations>`.
+The type and cardinality of a computed field is *inferred* from the expression.
+There's no need for the modifier keywords you use for non-computed fields (like
+``multi`` and ``required``). However, it's common to specify them anyway; it
+makes the schema more readable and acts as a sanity check: if the provided
+EdgeQL expression disagrees with the modifiers, an error will be thrown the
+next time you try to :ref:`create a migration <ref_guide_migrations>`.
 
 .. code-block:: sdl
 
@@ -67,8 +70,8 @@ Common use cases
 Filtering
 ^^^^^^^^^
 
-If you find yourself writing the same ``filter`` expression repeatedly,
-consider defining a computed field that encapsulates the filter.
+If you find yourself writing the same ``filter`` expression repeatedly in
+queries, consider defining a computed field that encapsulates the filter.
 
 .. code-block:: sdl
 

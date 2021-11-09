@@ -1,7 +1,7 @@
 .. _ref_eql_fundamentals_queries:
 
 ====================
-Evaluation Algorithm
+Evaluation algorithm
 ====================
 
 EdgeQL is a functional language in the sense that every expression is
