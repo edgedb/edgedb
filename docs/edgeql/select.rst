@@ -164,15 +164,13 @@ we use ``Villain.name``.
   {default::Villain {id: b233ca98..., name: 'Doc Ock'}}
 
 
+.. note::
 
-.. This query contains two occurrences of ``Villain``. The first
-.. (outer) is a reference to the set of all ``Villain`` objects;
-.. the inner occurrence is *inside* the select shape and has a
-.. different meaning. Inside the shape, we are in the *scope* of
-.. the object type being selected. Thus, the ``Villain`` keyword
-.. refers to the *current object* being selected. It is similar to
-.. the ``this`` keyword inside a class definition (also known as
-.. ``self`` in Python).
+  This query contains two occurrences of ``Villain``. The first
+  (outer) is passed as the argument to ``select`` and refers to the set of all
+  ``Villain`` objects. However the *inner* occurrence is inside the *scope* of
+  the ``select`` statement and is this a way to refer to the *object being
+  selected*.
 
 However, this looks a little clunky, so EdgeQL provides a shorthand: just drop
 ``Villain`` entirely and simply use ``.name``. Since we are selecting a set of

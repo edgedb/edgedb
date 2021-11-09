@@ -221,7 +221,8 @@ Set
     A ``DETACHED`` expression allows referring to some set as if it were
     defined in the top-level ``WITH`` block. ``DETACHED``
     expressions ignore all current scopes in which they are nested.
-    This makes it possible to write queries that reference the same set reference in multiple places.
+    This makes it possible to write queries that reference the same set
+    reference in multiple places.
 
     .. code-block:: edgeql
 
@@ -232,7 +233,9 @@ Set
             coworkers := (SELECT DETACHED User FILTER .name = 'Bob')
         };
 
-    Without ``DETACHED``, the occurrences of ``User`` inside the ``SET`` shape would be *bound* to the set of users named ``"Dave"``. However, in this context we want to run an unrelated query on the "unbound" ``User`` set.
+    Without ``DETACHED``, the occurrences of ``User`` inside the ``SET`` shape
+    would be *bound* to the set of users named ``"Dave"``. However, in this
+    context we want to run an unrelated query on the "unbound" ``User`` set.
 
     .. code-block:: edgeql
 
@@ -244,7 +247,9 @@ Set
             coworkers := (SELECT User FILTER .name = 'Bob')
         };
 
-    Instead of explicitly detaching a set, you can create a reference to it in a ``WITH`` block. All declarations inside a ``WITH`` block are implicitly detached.
+    Instead of explicitly detaching a set, you can create a reference to it in
+    a ``WITH`` block. All declarations inside a ``WITH`` block are implicitly
+    detached.
 
     .. code-block:: edgeql
 

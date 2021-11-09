@@ -66,7 +66,6 @@ Inserting
 
 .. code-block:: edgeql
 
-  with alice :=
   insert Person {
     name := "Bob",
     friends := (
@@ -77,9 +76,11 @@ Inserting
     )
   }
 
-The ``@strength`` property is specified in the *shape* of the ``select`` subquery. This is only valid in a subquery *inside* an ``insert`` statement.
+The ``@strength`` property is specified in the *shape* of the ``select``
+subquery. This is only valid in a subquery *inside* an ``insert`` statement.
 
-We use the :ref:``
+We are using the :eql:op:`detached <DETACHED>` operator to unbind the
+``Person`` reference from the scope of the ``insert`` query.
 
 Updating
 --------
