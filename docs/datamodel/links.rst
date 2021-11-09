@@ -149,12 +149,19 @@ Deletion policies
 Links can declare their own **deletion policy**. When they target of a link is
 deleted, there are 4 possible *actions* that can be taken:
 
-- ``restrict`` (default) - any attempt to delete the target object immediately
-  raises an exception;
+- ``restrict`` (default) - Any attempt to delete the target object immediately
+  raises an exception.
 - ``delete source`` - when the target of a link is deleted, the source
-  is also deleted;
+  is also deleted. This is useful for implementing cascading deletes.
+
+  .. note::
+
+    Deletion cascades are limited to a depth of `roughly 780
+    <https://github.com/edgedb/edgedb/issues/3063>`_ due to an upstream stack
+    size limitation.
+
 - ``allow`` - the target object is deleted and is removed from the
-  set of the link targets;
+  set of the link targets.
 - ``deferred restrict`` - any attempt to delete the target object
   raises an exception at the end of the transaction, unless by
   that time this object is no longer in the set of link targets.

@@ -24,5 +24,6 @@ Other ways to query EdgeDB:
     :glob:
     :hidden:
 
+    connection
     */index
 

@@ -47,6 +47,8 @@ There are several ways to uniquely identify an EdgeDB instance.
 
 Let's dig into each of these a bit more.
 
+.. _ref_reference_connection_instance_name:
+
 **Instance name**
   All local instances (instances created on your local machine using the CLI)
   are associated with a name. The name is all you need to connect; under the
