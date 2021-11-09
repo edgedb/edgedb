@@ -11,20 +11,17 @@ Reference
     :hidden:
 
     dev
-    lexical
-    eval
-    shapes
-    output
-    paths
+    connection
+    dsn
+    edgeql/index
+    commands/index
+    sdl/index
+    ddl/index
     observability
-    functions
     dump_format
     backend_ha
     configuration
     protocol/index
-    commands/index
-    sdl/index
-    ddl/index
     admin/index
 
 

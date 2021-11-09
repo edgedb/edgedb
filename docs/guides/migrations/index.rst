@@ -1,4 +1,4 @@
-.. _ref_guides_migrations:
+.. _ref_guide_migrations:
 
 
 ==========

@@ -15,7 +15,7 @@ parameters passed explicitly using flags.
 - If none of the above are present, the command fails.
 
 For a detailed breakdown of how connection information is resolved, read the
-:ref:`Connection Parameter Resolution <ref_client_connection>` docs.
+:ref:`Connection Parameter Resolution <ref_reference_connection>` docs.
 
 ################
 Connection flags

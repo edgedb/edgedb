@@ -92,7 +92,7 @@ EdgeDB’s baked-in migration system lets you painlessly evolve your schema
 throughout the development process. After modifying your ``.esdl`` files, you
 can *create* and *apply* a migration with the EdgeDB command-line tool. For a
 full guide on how migrations work, reference the :ref:`Creating and applying
-migrations <ref_guides_migrations>` guide.
+migrations <ref_guide_migrations>` guide.
 
 .. important::
 

@@ -28,7 +28,7 @@ Syntax
 
 The structure of the ``update`` statement (``update...filter...set``) is an
 intentional inversion of SQL's ``UPDATE...SET...WHERE`` syntax. Curiously, in
-SQL the ``where`` clauses typically occurs last despite being applied before
+SQL, the ``where`` clauses typically occurs *last* despite being applied before
 the ``set`` statement. EdgeQL is structured to reflect this; first, a target
 set is specified, then filters are applied, then the data is updated.
 
@@ -91,21 +91,24 @@ the results of a complex query.
 
 .. code-block:: edgeql-repl
 
-  db> with heroes := (
-  ...     select Hero
-  ...     filter exists .secret_identity
+  db> with people := (
+  ...     select Person
   ...     order by .name
   ...     offset 3
   ...     limit 3
   ...   )
-  ... update heroes
-  ... set { secret_identity := str_trim(.secret_identity) };
+  ... update people
+  ... set { name := str_trim(.name) };
   {
-    default::Hero {id: d4772e4c-3e7b-11ec-af13-df6eb3cb994e},
-    default::Hero {id: d476b12e-3e7b-11ec-af13-2717f3dc1d8a},
-    default::Hero {id: d4767bfa-3e7b-11ec-af13-27d0b40d1be9},
+    default::Hero {id: d4764c66-3e7b-11ec-af13-df1ba5b91187},
+    default::Hero {id: d7d7e0f6-40ae-11ec-87b1-3f06bed494b9},
+    default::Villain {id: d477a836-3e7b-11ec-af13-4fea611d1c31},
   }
 
+.. note::
+
+  You can pass any object-type expression into ``update``, including
+  polymorphic ones (as above).
 
 See also
 --------

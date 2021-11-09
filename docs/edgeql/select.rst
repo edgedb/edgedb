@@ -13,8 +13,8 @@ Select
 - :ref:`With blocks <ref_eql_select_with>`
 
 
-The ``select`` command retrieves or computes a set of values. We've already seen simple queries that select primitive values.
-
+The ``select`` command retrieves or computes a set of values. We've already
+seen simple queries that select primitive values.
 
 .. code-block:: edgeql-repl
 
@@ -24,7 +24,9 @@ The ``select`` command retrieves or computes a set of values. We've already seen
   {[1, 2, 3]}
 
 
-However most queries are selecting *objects* that live in the database. When selecting objects, the ``select`` statement supports filters, ordering, and pagination operations.
+However most queries are selecting *objects* that live in the database. When
+selecting objects, the ``select`` statement supports filters, ordering, and
+pagination operations.
 
 For demonstration purposes, the queries below assume the following schema.
 
@@ -152,8 +154,8 @@ Filtering
 To filter the set of selected objects, use a ``filter <expr>`` clause. The
 ``<expr>`` that follows the ``filter`` keyword can be *any boolean expression*.
 
-To reference the ``name`` property of the ``Villain``objects being selected, we
-use ``Villain.name``.
+To reference the ``name`` property of the ``Villain`` objects being selected,
+we use ``Villain.name``.
 
 .. code-block:: edgeql-repl
 
@@ -259,26 +261,34 @@ Order the result of a query with an ``order by`` clause.
   }
 
 The expression provided to ``order by`` can be any primitive singleton
-expression, including arrays and tuples.
+expression, including arrays and tuples. You can also order by multiple
+expressions and specify the *direction* with an ``asc`` (default) or ``desc``
+modifier.
 
 .. note::
 
-  When ordering by arrays or tuples, the leftmost elements are compared. If
-  these elements are the same, the next element is used to "break the tie", and
-  so on. If all elements are the same, the order is not well defined.
+  When ordering by multiple expressions, arrays, or tuples, the leftmost
+  expression/element is compared. If these elements are the same, the next
+  element is used to "break the tie", and so on. If all elements are the same,
+  the order is not well defined.
 
 .. code-block:: edgeql-repl
 
-  db> select Villain { name }
-  ... order by .name desc
+  db> select Movie { title, release_year }
+  ... order by
+  ...   .release_year desc then
+  ...   str_trim(.title) desc
   {
-    default::Villain {name: 'Zemo'},
+    default::Movie {title: 'Spider-Man: No Way Home', release_year: 2021},
     ...
-    default::Villain {name: 'Abomination'}
+    default::Movie {title: 'Iron Man', release_year: 2008},
   }
 
-For a full reference on ordering, including how empty values are handles, see
-:ref:`Reference > Commands > Select <ref_reference_select_order>`.
+
+When ordering by multiple expressions, each expression is separated with the
+``then`` keyword. For a full reference on ordering, including how empty values
+are handles, see :ref:`Reference > Commands > Select
+<ref_reference_select_order>`.
 
 
 .. _ref_eql_select_pagination:
@@ -286,7 +296,7 @@ For a full reference on ordering, including how empty values are handles, see
 Pagination
 ----------
 
-EdgeDB supports standard ``limit`` and ``offset`` operators. These are
+EdgeDB supports ``limit`` and ``offset`` clauses. These are
 typically used in conjunction with ``order by`` to maintain a consistent
 ordering across pagination queries.
 
@@ -415,10 +425,19 @@ common to add them directly into your schema as computed links.
       required property name -> str {
         constraint exclusive;
       };
-  +   movies := .<characters[is Movie]
+  +   multi link movies := .<characters[is Movie]
     }
 
-This simplifies future queries.
+.. note::
+
+  In the example above, the ``Person.movies`` is a ``multi link``. Including
+  these keywords is optional, since EdgeDB can infer this from the assigned
+  expression ``.<characters[is Movie]``. However, it's a good practice to
+  include the explicit keywords to make the schema more readable and "sanity
+  check" the cardinality.
+
+This simplifies future queries; ``Person.movies`` can now be traversed in
+shapes just like a non-computed link.
 
 .. code-block:: edgeql
 
@@ -548,10 +567,10 @@ by prefixing property/link references with ``[is <type>]``. This is known as a
     ...
   }
 
-This syntax is intentionally similar to the type intersection operator. In
-effect, this operator conditionally returns the value of the referenced field
-only if the object matches a particular type. If the match fails, an empty set
-is returned.
+This syntax might look familiar; it's the :ref:`type intersection
+<ref_eql_types_intersection>` again. In effect, this operator conditionally
+returns the value of the referenced field only if the object matches a
+particular type. If the match fails, an empty set is returned.
 
 The line ``secret_identity := [is Hero].secret_identity`` is a bit redundant,
 since the computed property has the same name as the polymorphic field. In

@@ -71,8 +71,6 @@ Optional links or properties can be omitted entirely:
   ... }
   {default::Hero {id: b0fbe9de-3e90-11ec-8c12-ffa2d5f0176a}}
 
-Abstract types and computable
-
 You can only ``insert`` instances of concrete (non-abstract) object types.
 
 .. code-block:: edgeql-repl
@@ -237,25 +235,24 @@ in the database.
 
 .. code-block:: edgeql-repl
 
-  db> with eternals := (
-  ...   insert Movie {
-  ...     title := "Eternals"
-  ...   }
-  ...   unless conflict on .title
-  ...   else (select Movie filter .title = "Eternals")
-  ... )
-  ... insert Movie {
-  ...   title := "Black Widow",
-  ...   characters := { black_widow }
+  db> insert Movie {
+  ...   title := "Eternals"
   ... }
+  ... unless conflict on .title
+  ... else (select Movie)
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
 
-In essence, ``unless conflict`` can provide a fallback expression in case an
-``insert`` fails. This query attempts to ``insert`` Eternals. If it already
-exists in the database, it will violate the uniqueness constraint on
-``Movie.title``, causing a *conflict* on the ``title`` field. The ``else``
-clause is then executed and returned instead.
+This query attempts to ``insert`` Eternals. If it already exists in the
+database, it will violate the uniqueness constraint on ``Movie.title``, causing
+a *conflict* on the ``title`` field. The ``else`` clause is then executed and
+returned instead. In essence, ``unless conflict`` lets us "catch" exclusivity
+conflicts and provide a fallback expression.
 
+.. note::
+
+  Note that the ``else`` clause is simply ``select Movie``. There's no need to
+  apply additional filters on ``Movie``; in the context of the ``else`` clause,
+  ``Movie`` is bound to the conflicting object.
 
 .. _ref_eql_upsert:
 

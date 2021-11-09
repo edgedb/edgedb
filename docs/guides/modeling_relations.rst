@@ -26,6 +26,9 @@ many-to-many.
     - ``multi``
     - No
 
+
+.. _ref_guide_many_to_one:
+
 Many-to-one
 ^^^^^^^^^^^
 
@@ -54,14 +57,18 @@ When fetching a ``Person``, it's possible to deeply fetch their collection of
 as a **backlink**; read the :ref:`SELECT docs <ref_eql_statements_select>` to
 learn more.
 
+
+.. _ref_guide_one_to_many:
+
 One-to-many
 ^^^^^^^^^^^
 
-In essence, one-to-many and many-to-one relationships are identical; the
-"directionality" of a relation is just a matter of perspective. In practice,
-though, there is a second way to implement such a relationship in EdgeDB.
-There's no material difference between these two approaches; which one you
-choose is largely a matter of taste.
+Conceptually, one-to-many and many-to-one relationships are identical; the
+"directionality" of a relation is just a matter of perspective.
+
+In practice, though, there are multiple ways to represent this kind of relation
+in EdgeDB. Here's the same person-shirt relation represented with a ``multi
+link``.
 
 .. code-block:: sdl
 
@@ -77,10 +84,21 @@ choose is largely a matter of taste.
     required property color -> str;
   }
 
-Don't forget the exclusive constraint! This is required to ensure that each
-``Shirt`` corresponds to a single ``Person``. Without it, the relationship will
-be many-to-many.
+.. note::
 
+  Don't forget the exclusive constraint! This is required to ensure that each
+  ``Shirt`` corresponds to a single ``Person``. Without it, the relationship
+  will be many-to-many.
+
+
+Under the hood, a ``multi link`` is stored in an intermediate `association
+table <https://en.wikipedia.org/wiki/Associative_entity>`_, whereas a ``single
+link`` is stored as a column in the object type where it is declared. As a
+result, single links are marginally more efficient. Generally ``single`` links
+are recommended when modeling 1:N relations.
+
+
+.. _ref_guide_one_to_one:
 
 One-to-one
 ^^^^^^^^^^
@@ -107,6 +125,8 @@ have more than one ``assigned_space``. Moreover, the
 :eql:constraint:`exclusive` constraint guarantees that a given ``ParkingSpace``
 can't be assigned to multiple ``Employees`` at once. Together the ``single
 link`` and exclusivity constraint constitute a *one-to-one* relationship.
+
+.. _ref_guide_many_to_many:
 
 Many-to-many
 ^^^^^^^^^^^^

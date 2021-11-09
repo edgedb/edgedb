@@ -33,7 +33,7 @@ dedicated type syntax.
     - ``tuple<foo: x, bar: y>``
 
 For additional details on type syntax, see :ref:`Schema > Primitive Types
-<ref_datamodel_arrays>`.
+<ref_datamodel_primitives>`.
 
 .. _ref_eql_types_typecast:
 
@@ -100,7 +100,7 @@ typed; you can't simply convert an object to an object of a different type.
 
 All elements of a given set have the same type; however, in the context of
 *sets of objects*, this may be misleading. A set of ``Animal`` objects may
-contain both ``Cat`` and ``Dog`` instances.
+contain instances of multiple subtypes, like ``Cat`` and ``Dog``.
 
 .. code-block:: edgeql-repl
 
@@ -121,6 +121,10 @@ by subtype.
     default::Dog {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
     default::Dog {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
   }
+
+Logically, this computes the intersection of the ``Animal`` and ``Dog`` sets;
+since only ``Dog`` objects occur in both sets, this can be conceptualized as a
+"filter" that removes all elements that aren't of type ``Dog``.
 
 .. Type unions
 .. -----------
@@ -146,15 +150,15 @@ The ``[is foo]`` "type intersection" syntax should not be confused with the
 
   db> select 5 is int64;
   {true}
-  db> select 3.14 is not int64;
-  {true}
+  db> select {3.14, 2.718} is not int64;
+  {true, true}
   db> select Animal is Dog;
   {true, true, false}
 
 
 
-The typeof operator
--------------------
+The ``typeof`` operator
+-----------------------\
 
 The type of any expression can be extracted with the :eql:op:`typeof <TYPEOF>`
 operator. This can be used in any expression that expects a type.

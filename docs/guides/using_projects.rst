@@ -89,7 +89,7 @@ How does this work in production?
 It doesn't. Projects are intended as a convenient development tool that make it
 easier to develop EdgeDB-backed applications locally. In production, you should
 provide instance credentials to your client library of choice using environment
-variables. See :ref:`Connection parameters <ref_client_connection>` page for
+variables. See :ref:`Connection parameters <ref_reference_connection>` page for
 more information.
 
 

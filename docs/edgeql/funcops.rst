@@ -1,4 +1,4 @@
-.. _ref_eql_functions:
+.. _ref_eql_funcops:
 
 
 Functions and operators
@@ -7,6 +7,8 @@ Functions and operators
 All functions and operators in EdgeDB are either *element-wise* or *aggregate*.
 Element-wise operations are applied to each item in a set. Aggregate operations
 operate on sets *as a whole*.
+
+.. _ref_eql_funcops_aggregate:
 
 Aggregate operations
 ^^^^^^^^^^^^^^^^^^^^
@@ -33,6 +35,8 @@ into a singleton array.
   {[1, 2, 3]}
 
 
+.. _ref_eql_funcops_elementwise:
+
 Element-wise operations
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -46,6 +50,9 @@ of :eql:type:`str` into an equally-sized set of :eql:type:`int64`.
   {5}
   db> select len({'hello', 'world'});
   {5, 5}
+
+
+.. _ref_eql_funcops_cartesian:
 
 Cartesian products
 ^^^^^^^^^^^^^^^^^^

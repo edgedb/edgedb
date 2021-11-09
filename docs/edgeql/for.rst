@@ -26,10 +26,10 @@ are merged into a single output set.
   is intended to indicate explicitly that the results of each loop execution
   are ultimately merged.
 
-Insertion
----------
+Bulk inserts
+------------
 
-A common use case for ``for`` is bulk insertion.
+The ``for`` statement is commonly used for bulk inserts.
 
 .. code-block:: edgeql-repl
 

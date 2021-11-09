@@ -10,21 +10,18 @@ Terminology
   worry if it doesn't all make sense immediately. The following pages go into
   detail on each concept below.
 
-A running EdgeDB process is known as an **instance**. You can create, start,
-stop, and destroy instances on your local computer with the :ref:`EdgeDB CLI
-<ref_cli_overview>`.
-
-.. Instances listen for incoming queries on a connection port.
+An EdgeDB **instance** is a collection of databases that store their data in
+a shared directory and are managed by a running EdgeDB process. You can create,
+start, stop, and destroy instances on your local computer with the :ref:`EdgeDB
+CLI <ref_cli_overview>`. Instances listen for incoming queries on a connection
+port.
 
 .. _ref_datamodel_databases:
 
 Each instance can contain several **databases**, each with a unique name. At
 the time of creation, all instances contain a single database called
-``edgedb``.
-
-.. This is the default database; all incoming queries are executed against it
-.. unless otherwise specified.
-
+``edgedb``. This is the default database; all incoming queries are executed
+against it unless otherwise specified.
 
 Each database can contain several **modules**, each with a unique name. Modules
 can be used to organize large schemas into logical units. In SDL, ``module``

@@ -52,7 +52,7 @@ The type of a computed field is *inferred* from the expression. There's no need
 for the modifier keywords you use for non-computed fields (like ``multi`` and
 ``required``). However, you can optionally specify them; if the provided EdgeQL
 expression disagrees with the modifiers, an error will be thrown the next time
-you try to :ref:`create a migration <ref_guides_migrations>`.
+you try to :ref:`create a migration <ref_guide_migrations>`.
 
 .. code-block:: sdl
 

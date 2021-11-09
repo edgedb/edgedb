@@ -1,8 +1,59 @@
-.. _ref_reference_output:
+.. _ref_reference_shapes:
 
-==============
-Output Shaping
-==============
+======
+Shapes
+======
+
+A *shape* is a powerful syntactic construct that can be used to describe
+type variants in queries, data in ``INSERT`` and ``UPDATE`` statements,
+and to specify the format of statement output.
+
+Shapes always follow an expression, and are a list of *shape elements*
+enclosed in curly braces:
+
+.. eql:synopsis::
+
+    <expr> "{"
+        <shape_element> [, ...]
+    "}"
+
+
+Shape element has the following syntax:
+
+.. eql:synopsis::
+
+    [ "[" IS <object-type> "]" ] <pointer-spec>
+
+If an optional :eql:synopsis:`<object-type>` filter is used,
+:eql:synopsis:`<pointer-spec>` will only apply to those objects in
+the :eql:synopsis:`<expr>` set that are instances of
+:eql:synopsis:`<object-type>`.
+
+:eql:synopsis:`<pointer-spec>` is one of the following:
+
+- a name of an existing link or property of a type produced
+  by :eql:synopsis:`<expr>`;
+
+- a declaration of a computed link or property in the form
+
+  .. eql:synopsis ::
+
+    [@]<name> := <ptrexpr>
+
+
+- a *subshape* in the form
+
+  .. eql:synopsis ::
+
+    <pointer-name>: [ "[" IS <target-type> "]" ] "{" ... "}"`
+
+  The :eql:synopsis:`<pointer-name>` is the name of an existing link
+  or property, and :eql:synopsis:`<target-type>` is an optional object
+  type that specifies the type of target objects selected or inserted,
+  depending on the context.
+
+Shaping Query Results
+=====================
 
 At the end of the day, EdgeQL has two jobs that are similar, yet distinct:
 
@@ -60,8 +111,7 @@ belong to which user and we no longer need the placeholder ``''`` for
 those users who don't have friends.
 
 The recommended way to get this information in EdgeDB, however, is to
-use :ref:`shapes <ref_reference_shapes>`, because they mimic the
-structure of the data and the output:
+use *shapes*, because they mimic the structure of the data and the output:
 
 .. code-block:: edgeql-repl
 
@@ -332,4 +382,3 @@ information is lost:
     The :eql:stmt:`FOR` statement preserves the shape given inside the
     ``UNION`` clause, effectively applying the shape to its entire
     result.
-

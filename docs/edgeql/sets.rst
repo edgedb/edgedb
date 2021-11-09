@@ -21,7 +21,7 @@ Sets
 Everything is a set
 -------------------
 
-All values in EdgeQL is actually **sets**: a collection of values of a given
+All values in EdgeQL are actually **sets**: a collection of values of a given
 **type**. All elements of a set must have the same type. The number of items in
 a set is known as its **cardinality**. A set with a cardinality of zero is
 referred to as an **empty set**. A set with a cardinality of one is known as a
@@ -101,8 +101,8 @@ are *actually sets*.
   {"hello world"}
 
 Wrapping a literal in curly braces does not change the meaning of the
-expression. For instance, ``"hello world"`` is *exactly equivalent* to ``
-{"hello world"}``.
+expression. For instance, ``"hello world"`` is *exactly equivalent* to
+``{"hello world"}``.
 
 .. code-block:: edgeql-repl
 
@@ -142,10 +142,10 @@ of data; in EdgeDB the absence of data is just an empty set.
   `"The Billion Dollar Mistake" <https://bit.ly/3H238oG>`_.
 
 
-Declaring empty sets isn't as simply as ``{}``. In EdgeQL, all expressions are
+Declaring empty sets isn't as simple as ``{}``; in EdgeQL, all expressions are
 *strongly typed*, including empty sets. With nonempty sets (like ``{1, 2, 3}``)
 , the type is inferred from the set's contents (``int64``). But with empty sets
-this isn't possible, so an *explicitly cast* is required.
+this isn't possible, so an *explicit cast* is required.
 
 .. code-block:: edgeql-repl
 
@@ -162,12 +162,6 @@ this isn't possible, so an *explicitly cast* is required.
   {}
   db> select count(<str>{});
   {0}
-
-.. code-block:: edgeql-repl
-
-  db> select {};
-  error: QueryError: expression returns value of indeterminate type
-    ┌─ query:1:8
 
 You can check whether or not a set is *empty* with the :eql:op:`exists
 <EXISTS>` operator.
@@ -219,7 +213,7 @@ schema.
 Multisets
 ---------
 
-Technically sets in EdgeDB are actually *multisets*, becauase they can contain
+Technically sets in EdgeDB are actually *multisets*, because they can contain
 duplicates of the same element. To eliminate duplicates, use the
 :eql:op:`DISTINCT set <DISTINCT>` operator.
 
@@ -385,6 +379,13 @@ Conversion to/from arrays
 Both arrays and sets are collections of values that share a type. EdgeQL
 provides ways to convert one into the other.
 
+.. note::
+
+  Remember that *all values* in EdgeQL are sets; an array literal is just a
+  singleton set of arrays. So here, "converting" a set into an array means
+  converting a set of type ``x`` into another set with cardinality
+  ``1`` (a singleton) and type ``array<x>``.
+
 .. code-block:: edgeql-repl
 
   db> select array_unpack([1,2,3]);
@@ -392,17 +393,21 @@ provides ways to convert one into the other.
   db> select array_agg({1,2,3});
   {[1, 2, 3]}
 
-You can perform many of the same operations on either sets or arrays. For
-instance, the :eql:func:`count` operation on sets is analogous to the
-:eql:func:`len` operation on arrays. Whether you prefer to deal primary with
-sets or arrays is largely a matter of taste.
+Arrays are an *ordered collection*, whereas sets are generally unordered
+(unless explicitly sorted with an ``order by`` clause in a :ref:`select
+<ref_eql_select_order>` statement).
 
-Remember that an array literal is just a singleton set with an array type. A
-set can contain several arrays.
+Element-wise scalar operations in the standard library cannot be applied to
+arrays, so sets of scalars are typically easier to manipulate, search, and
+transform than arrays.
 
 .. code-block:: edgeql-repl
 
-  db> select [1, 2, 3];
-  {[1, 2, 3]}
-  db> select {[1, 2, 3], [4, 5, 6]};
-  {[1, 2, 3], [4, 5, 6]}
+  db> select str_trim({'  hello', 'world  '});
+  {'hello', 'world'}
+  db> select str_trim(['  hello', 'world  ']);
+  error: QueryError: function "str_trim(arg0: array<std::str>)" does not exist
+
+Most :ref:`aggregate <ref_eql_funcops_aggregate>` operations have analogs that
+operate on arrays. For instance, the set function :eql:func:`count`
+is analogous to the array function :eql:func:`len`.

@@ -1,6 +1,6 @@
 .. _ref_eql_statements:
 
-Commands
+EdgeQL
 ========
 
 Statements in EdgeQL are a kind of an *expression* that has one or
@@ -70,6 +70,13 @@ Introspection command:
 .. toctree::
     :maxdepth: 3
     :hidden:
+
+
+    lexical
+    eval
+    shapes
+    paths
+    functions
 
     select
     for

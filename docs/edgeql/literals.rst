@@ -4,66 +4,48 @@ Literals
 ========
 
 EdgeQL is *inextricably tied* to EdgeDB's rigorous type system. Below is an
-overview of how to declare a literal value of each *primitive type*.
-
-
-Primitive types
----------------
-
-Below is an overview of EdgeDB's type system. Click a link in the left column to jump to the associated section.
-
-
-
-
-
-
-
-
-
-
-
-
+overview of how to declare a literal value of each *primitive type*. Click a
+link in the left column to jump to the associated section.
 
 .. list-table::
 
-    * - :ref:`String <ref_eql_literal_strings>`
-      - ``str``
+  * - :ref:`String <ref_eql_literal_strings>`
+    - ``str``
 
-    * - :ref:`Boolean <ref_eql_literal_boolean>`
-      - ``bool``
+  * - :ref:`Boolean <ref_eql_literal_boolean>`
+    - ``bool``
 
-    * - :ref:`Numbers <ref_eql_literal_numbers>`
-      - ``int16`` ``int32`` ``int64``
-        ``float32`` ``float64`` ``bigint``
-        ``decimal``
+  * - :ref:`Numbers <ref_eql_literal_numbers>`
+    - ``int16`` ``int32`` ``int64``
+      ``float32`` ``float64`` ``bigint``
+      ``decimal``
 
-    * - :ref:`JSON <ref_eql_literal_json>`
-      - ``json``
+  * - :ref:`JSON <ref_eql_literal_json>`
+    - ``json``
 
-    * - :ref:`UUID <ref_eql_literal_uuid>`
-      - ``uuid``
+  * - :ref:`UUID <ref_eql_literal_uuid>`
+    - ``uuid``
 
-    * - :ref:`Enums <ref_eql_literal_enum>`
-      - ``enum<X, Y, Z>``
+  * - :ref:`Enums <ref_eql_literal_enum>`
+    - ``enum<X, Y, Z>``
 
-    * - :ref:`Dates and times <ref_eql_literal_dates>`
-      - ``datetime`` ``duration``
-        ``cal::local_datetime`` ``cal::local_date``
-        ``cal::local_time`` ``cal::relative_duration``
+  * - :ref:`Dates and times <ref_eql_literal_dates>`
+    - ``datetime`` ``duration``
+      ``cal::local_datetime`` ``cal::local_date``
+      ``cal::local_time`` ``cal::relative_duration``
 
-    * - :ref:`Durations <ref_eql_literal_durations>`
-      - ``duration`` ``cal::relative_duration``
+  * - :ref:`Durations <ref_eql_literal_durations>`
+    - ``duration`` ``cal::relative_duration``
 
-    * - :ref:`Bytes <ref_eql_literal_bytes>`
-      - ``bytes``
+  * - :ref:`Bytes <ref_eql_literal_bytes>`
+    - ``bytes``
 
-    * - :ref:`Arrays <ref_eql_literal_array>`
-      - ``array<x>``
+  * - :ref:`Arrays <ref_eql_literal_array>`
+    - ``array<x>``
 
-    * - :ref:`Tuples <ref_eql_literal_tuple>`
-      - ``tuple<x, y, ...>`` or
-        ``tuple<foo: x, bar: y, ...>``
-
+  * - :ref:`Tuples <ref_eql_literal_tuple>`
+    - ``tuple<x, y, ...>`` or
+      ``tuple<foo: x, bar: y, ...>``
 
 
 .. _ref_eql_literal_strings:

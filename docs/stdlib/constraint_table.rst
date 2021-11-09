@@ -1,5 +1,7 @@
 .. list-table::
 
+    * - :eql:constraint:`exclusive`
+      - Enforce uniqueness among all instances of the containing type
 
     * - :eql:constraint:`expression`
       - Custom constraint expression
@@ -28,5 +30,3 @@
     * - :eql:constraint:`regexp`
       - Regex constraint (strings only)
 
-    * - :eql:constraint:`exclusive`
-      - Enforce uniqueness among all instances of the containing type
