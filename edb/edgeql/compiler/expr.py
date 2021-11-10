@@ -26,6 +26,7 @@ from typing import *
 
 from edb import errors
 
+from edb.common import context as ctx_utils
 from edb.edgeql import qltypes as ft
 
 from edb.ir import ast as irast
@@ -70,6 +71,7 @@ def compile_Path(
     return stmt.maybe_add_view(setgen.compile_path(expr, ctx=ctx), ctx=ctx)
 
 
+@dispatch.compile.register(qlast.SetConstructorOp)
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
@@ -145,18 +147,35 @@ def compile_Set(
                 ir_set = dispatch.compile(elements[0], ctx=scopectx)
                 return setgen.scoped_set(ir_set, ctx=scopectx)
         else:
-            # a set literal is just sugar for a UNION
-            op = 'UNION'
-
             # Turn it into a tree of UNIONs so we only blow up the nesting
             # depth logarithmically.
             # TODO: Introduce an N-ary operation that handles the whole thing?
             mid = len(elements) // 2
             ls, rs = elements[:mid], elements[mid:]
-            bigunion = qlast.BinOp(
-                left=qlast.Set(elements=ls) if len(ls) > 1 else ls[0],
-                right=qlast.Set(elements=rs) if len(rs) > 1 else rs[0],
-                op=op
+            ls_context = rs_context = None
+            if len(ls) > 1 and ls[0].context and ls[-1].context:
+                ls_context = ctx_utils.merge_context([
+                    ls[0].context, ls[-1].context])
+            if len(rs) > 1 and rs[0].context and rs[-1].context:
+                rs_context = ctx_utils.merge_context([
+                    rs[0].context, rs[-1].context])
+
+            bigunion = qlast.SetConstructorOp(
+                left=(
+                    qlast.Set(
+                        elements=ls,
+                        context=ls_context,
+                    )
+                    if len(ls) > 1 else ls[0]
+                ),
+                right=(
+                    qlast.Set(
+                        elements=rs,
+                        context=rs_context,
+                    )
+                    if len(rs) > 1 else rs[0]
+                ),
+                context=expr.context,
             )
             return dispatch.compile(bigunion, ctx=ctx)
     else:

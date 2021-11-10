@@ -108,7 +108,7 @@ class TestHttpNotebook(tb.BaseHttpExtensionTest, tb.server.QueryTestCase):
                     {
                         'kind': 'error',
                         'error': [
-                            'QueryError',
+                            'InvalidTypeError',
                             "operator '*' cannot be applied to operands "
                             "of type 'std::str' and 'std::int64'",
                             {
