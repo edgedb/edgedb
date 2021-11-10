@@ -2847,6 +2847,18 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_scope_link_narrow_computable_01(self):
+        await self.assert_query_result(
+            """
+                SELECT Card {
+                    owners[IS Bot]: {name}
+                } FILTER .name = 'Sprite'
+            """,
+            [
+                {"owners": [{"name": "Dave"}]},
+            ],
+        )
+
     async def test_edgeql_scope_branch_01(self):
         await self.assert_query_result(
             """
