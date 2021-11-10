@@ -282,10 +282,9 @@ modifier.
     default::Movie {title: 'Iron Man', release_year: 2008},
   }
 
-
 When ordering by multiple expressions, each expression is separated with the
 ``then`` keyword. For a full reference on ordering, including how empty values
-are handles, see :ref:`Reference > Commands > Select
+are handled, see :ref:`Reference > Commands > Select
 <ref_reference_select_order>`.
 
 

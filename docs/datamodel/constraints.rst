@@ -16,10 +16,6 @@ valid. The can be defined on a
 :ref:`concrete property <ref_datamodel_props>`.
 
 
-.. important::
-
-  Inside constraint declarations, the special keyword ``__subject__`` can used
-  to reference the *value* being constrained.
 
 Built-in constraints
 --------------------
@@ -30,36 +26,11 @@ of a given constraint for the full documentation.
 .. include:: ../stdlib/constraint_table.rst
 
 
-Scalar type constraints
------------------------
-
-Custom scalar types can be constrained.
-
-.. code-block:: sdl
-
-  scalar type username extending str {
-    constraint regexp(r'^[A-Za-z0-9_]{4,20}$');
-  }
-
-Note: you can't use :eql:constraint:`exclusive` constraints on custom scalar
-types, as the concept of exclusivity is only defined in the context of a given
-object type.
-
-Use :eql:constraint:`expression` constraints to declare custom constraints
-using arbitrary EdgeQL expressions.
-
-.. code-block:: sdl
-
-  scalar type title extending str {
-    constraint expression on (
-      __subject__ = str_trim(__subject__)
-    );
-  }
-
 Property constraints
 --------------------
 
-The constraint below uses the built-in :eql:func:`len` function, which returns
+Inside constraint declarations, the special keyword ``__subject__`` can used
+to reference the *value* being constrained. The constraint below uses the built-in :eql:func:`len` function, which returns
 the length of a string.
 
 .. code-block:: sdl
@@ -95,8 +66,9 @@ constraint logic must reference multiple links or properties.
 Link constraints
 ----------------
 
-When defining a constraint on a link, __subject__ refers to the *link itself*.
-This is commonly used add constraints to link properties.
+When defining a constraint on a link, ``__subject__`` refers to the *link
+itself*. This is commonly used add constraints to :ref:`link properties
+<ref_datamodel_link_properties>`.
 
 .. code-block:: sdl
 
@@ -110,6 +82,32 @@ This is commonly used add constraints to link properties.
     }
   }
 
+
+Scalar type constraints
+-----------------------
+
+Custom scalar types can be constrained.
+
+.. code-block:: sdl
+
+  scalar type username extending str {
+    constraint regexp(r'^[A-Za-z0-9_]{4,20}$');
+  }
+
+Note: you can't use :eql:constraint:`exclusive` constraints on custom scalar
+types, as the concept of exclusivity is only defined in the context of a given
+object type.
+
+Use :eql:constraint:`expression` constraints to declare custom constraints
+using arbitrary EdgeQL expressions.
+
+.. code-block:: sdl
+
+  scalar type title extending str {
+    constraint expression on (
+      __subject__ = str_trim(__subject__)
+    );
+  }
 
 .. list-table::
 
