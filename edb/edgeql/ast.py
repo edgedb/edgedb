@@ -281,6 +281,10 @@ class BinOp(Expr):
     right: Expr
 
 
+class SetConstructorOp(BinOp):
+    op: str = 'UNION'
+
+
 class WindowSpec(Clause, OrderByMixin):
     orderby: typing.List[SortExpr]
     partition: typing.List[Expr]

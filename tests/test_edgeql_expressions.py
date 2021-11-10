@@ -2685,7 +2685,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, "operator 'UNION' cannot be applied"):
             await self.con.execute(r'''
-                SELECT {1.0, <decimal>2.0};
+                SELECT 1.0 UNION <decimal>2.0;
             ''')
 
     async def test_edgeql_expr_introspect_01(self):
@@ -3081,7 +3081,7 @@ class TestExpressions(tb.QueryTestCase):
                 r"operator 'UNION' cannot be applied to operands.*anytype.*"):
 
             await self.con.execute("""
-                SELECT {[1, 2], []};
+                SELECT [1, 2] UNION [];
             """)
 
     async def test_edgeql_expr_array_22(self):
@@ -4294,6 +4294,55 @@ aa \
             r'''SELECT <tuple<int64, int64>>{} UNION (1, 2);''',
             [[1, 2]],
         )
+
+    async def test_edgeql_expr_setop_14(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"^set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'$"):
+            await self.con.execute(r'''
+                SELECT {1.0, <decimal>2.0};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"^set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'$"):
+            await self.con.execute(r'''
+                SELECT {{1.0, 2.0}, {1.0, <decimal>2.0}};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"^set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'$"):
+            await self.con.execute(r'''
+                SELECT {{1.0, <decimal>2.0}, {1.0, 2.0}};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"^set constructor has arguments of incompatible "
+                r"types 'std::decimal' and 'std::float64'$"):
+            await self.con.execute(r'''
+                SELECT {1.0, 2.0, 5.0, <decimal>2.0, 3.0, 4.0};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"operator 'UNION' cannot be applied to operands of type "
+                r"'std::int64' and 'std::str'$"):
+            await self.con.execute(r'''
+                SELECT {1, 2, 3, 4 UNION 'a', 5, 6, 7};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"operator 'UNION' cannot be applied to operands of type "
+                r"'std::int64' and 'std::str'$"):
+            await self.con.execute(r'''
+                SELECT {1, 2, 3, {{1, 4} UNION 'a'}, 5, 6, 7};
+            ''')
 
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(

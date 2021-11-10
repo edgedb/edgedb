@@ -486,9 +486,18 @@ def compile_operator(
                 ):
                     hint = 'Consider using the "++" operator for concatenation'
 
-            raise errors.QueryError(
-                f'operator {str(op_name)!r} cannot be applied to '
-                f'operands of type {types}',
+            if isinstance(qlexpr, qlast.SetConstructorOp):
+                msg = (
+                    f'set constructor has arguments of incompatible types '
+                    f'{types}'
+                )
+            else:
+                msg = (
+                    f'operator {str(op_name)!r} cannot be applied to '
+                    f'operands of type {types}'
+                )
+            raise errors.InvalidTypeError(
+                msg,
                 hint=hint,
                 context=qlexpr.context)
         elif len(matched) > 1:
