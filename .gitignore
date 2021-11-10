@@ -31,7 +31,7 @@ docs/_build
 /.coverage*
 /htmlcov
 
-/.vscode
+*/.vscode
 *.code-workspace
 /.pytest_cache
 /.mypy_cache
