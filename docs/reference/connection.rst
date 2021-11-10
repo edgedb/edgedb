@@ -51,11 +51,11 @@ Let's dig into each of these a bit more.
 
 **Instance name**
   All local instances (instances created on your local machine using the CLI)
-  are associated with a name. The name is all you need to connect; under the
+  are associated with a name. This name is that's needed to connect; under the
   hood, the CLI stores the instance credentials (username, password, etc) on
-  your file system in the EdgeDB config directory. The CLI and client libraries
-  look up these credentials to connect. (Run the ``edgedb info`` command to see
-  where credentials are stored on your machine.)
+  your file system in the EdgeDB :ref:`config directory
+  <ref_cli_edgedb_paths>`. The CLI and client libraries look up these
+  credentials to connect.
 
   You can also assign names to remote instances using :ref:`edgedb instance
   link <ref_cli_edgedb_instance_link>`. The CLI will save the credentials

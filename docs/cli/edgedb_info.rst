@@ -5,7 +5,8 @@
 edgedb info
 ===========
 
-Show information about the EdgeDB installation.
+Display information about the EdgeDB installation. Currently this command
+displays the filesystem paths used by EdgeDB.
 
 .. cli:synopsis::
 
@@ -17,10 +18,8 @@ Show information about the EdgeDB installation.
 Paths
 -----
 
-Currently this command displays the filesystem paths used by EdgeDB.
 
-Several directories are used, each storing different kinds of information. The
-exact path to these directories is determined by your operating system.
+EdgeDB uses several directories, each storing different kinds of information. The exact path to these directories is determined by your operating system.
 Throughout the documentation, these paths are referred to as "EdgeDB config
 directory", "EdgeDB data directory", etc.
 
