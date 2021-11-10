@@ -1,8 +1,8 @@
 .. _ref_migration_names:
 
-============
-Unique Names
-============
+==========================
+Making a property required
+==========================
 
 This example shows how a property may evolve to be more and more
 strict over time by looking at a user name field. However, similar

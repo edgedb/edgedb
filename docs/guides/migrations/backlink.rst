@@ -1,8 +1,8 @@
 .. _ref_migration_backlink:
 
-========
-Backlink
-========
+================
+Adding backlinks
+================
 
 This example shows how to handle a schema that makes use of a
 backlink. We'll use a linked-list structure to represent a sequence of

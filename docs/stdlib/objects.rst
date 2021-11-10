@@ -1,7 +1,7 @@
 .. _ref_std_object_types:
 
 ============
-Base Objects
+Base objects
 ============
 
 .. list-table::
@@ -33,7 +33,11 @@ which is a subtype of ``std::BaseObject``.
 
         abstract type std::BaseObject {
             # Universally unique object identifier
-            required readonly property id -> uuid;
+            required property id -> uuid {
+                default := (SELECT std::uuid_generate_v1mc());
+                readonly := true;
+                constraint exclusive;
+            }
 
             # Object type in the information schema.
             required readonly link __type__ -> schema::ObjectType;

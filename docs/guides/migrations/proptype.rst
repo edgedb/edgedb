@@ -1,8 +1,8 @@
 .. _ref_migration_proptype:
 
-====================
-Change Property Type
-====================
+===============================
+Changing the type of a property
+===============================
 
 This example shows how to change the type of a property. We'll use a
 character in an adventure game as the type of data we will evolve.

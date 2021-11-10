@@ -19,8 +19,10 @@ guide!
     :hidden:
 
     quickstart
-    cheatsheet/index
-    migrations/index
     installation
-    setup
-    configuration
+    projects
+    relations
+    link_properties
+    migrations/index
+    introspection/index
+    cheatsheet/index

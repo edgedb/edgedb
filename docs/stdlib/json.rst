@@ -24,8 +24,10 @@ JSON
     * - :eql:op:`json[name] <JSONOBJDEST>`
       - :eql:op-desc:`JSONOBJDEST`
 
-    * - :eql:op:`json = json <EQ>`, :eql:op:`json \< json <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`to_json`
       - :eql:func-desc:`to_json`

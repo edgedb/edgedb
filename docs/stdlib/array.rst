@@ -1,12 +1,56 @@
 .. _ref_std_array:
 
-
 =====
 Array
 =====
 
 :edb-alt-title: Array Functions and Operators
 
+Arrays store expressions of the *same type* in an ordered list.
+
+.. _ref_std_array_constructor:
+
+
+Constructing arrays
+^^^^^^^^^^^^^^^^^^^
+
+An array constructor is an expression that consists of a sequence of
+comma-separated expressions *of the same type* enclosed in square brackets.
+It produces an array value:
+
+.. eql:synopsis::
+
+    "[" <expr> [, ...] "]"
+
+For example:
+
+.. code-block:: edgeql-repl
+
+    db> SELECT [1, 2, 3];
+    {[1, 2, 3]}
+    db> SELECT [('a', 1), ('b', 2), ('c', 3)];
+    {[('a', 1), ('b', 2), ('c', 3)]}
+
+Empty arrays
+^^^^^^^^^^^^
+
+An empty array can also be created, but it must be used together with
+a type cast, since EdgeDB cannot infer the type of an array that contains no
+elements.
+
+.. code-block:: edgeql-repl
+
+    db> SELECT [];
+    QueryError: expression returns value of indeterminate type
+    Hint: Consider using an explicit type cast.
+    ### SELECT [];
+    ###        ^
+
+    db> SELECT <array<int64>>[];
+    {[]}
+
+Functions and operators
+^^^^^^^^^^^^^^^^^^^^^^^
 
 .. list-table::
     :class: funcoptable
@@ -20,8 +64,10 @@ Array
     * - :eql:op:`array ++ array <ARRAYPLUS>`
       - :eql:op-desc:`ARRAYPLUS`
 
-    * - :eql:op:`array = array <EQ>`, :eql:op:`array \< array <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`len`
       - Return number of elements in the array.
@@ -43,6 +89,38 @@ Array
 
     * - :eql:func:`array_unpack`
       - :eql:func-desc:`array_unpack`
+
+
+
+Reference
+^^^^^^^^^
+
+.. eql:type:: std::array
+
+    :index: array
+
+    Arrays represent a one-dimensional homogeneous ordered list.
+
+    Array indexing starts at zero.
+
+    With the exception of other array types, any type can be used as an
+    array element type.
+
+    An array type is created implicitly when an :ref:`array
+    constructor <ref_std_array_constructor>` is used:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT [1, 2];
+        {[1, 2]}
+
+    The syntax of an array type declaration can be found in :ref:`this
+    section <ref_datamodel_arrays>`.
+
+    See also the list of standard
+    :ref:`array functions <ref_std_array>` and
+    generic functions such as :eql:func:`len`.
+
 
 
 ----------
@@ -151,7 +229,7 @@ Array
 .. eql:function:: std::array_get(array: array<anytype>, \
                                  index: int64, \
                                  NAMED ONLY default: anytype = {} \
-                                 ) -> OPTIONAL anytype
+                              ) -> OPTIONAL anytype
 
     :index: array access get
 

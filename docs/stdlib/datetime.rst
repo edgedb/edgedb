@@ -1,29 +1,29 @@
 .. _ref_std_datetime:
 
 
-=============
-Date and Time
-=============
+========
+Temporal
+========
 
-:edb-alt-title: Date/Time Functions and Operators
+:edb-alt-title: Temporal Types, Functions, and Operators
 
 .. list-table::
     :class: funcoptable
 
     * - :eql:type:`datetime`
-      - TZ-aware point in time
+      - Timezone-aware point in time
+
+    * - :eql:type:`duration`
+      - Absolute time span
 
     * - :eql:type:`cal::local_datetime`
-      - Date and time w/o TZ
+      - Date and time w/o timezone
 
     * - :eql:type:`cal::local_date`
       - Date type
 
     * - :eql:type:`cal::local_time`
       - Time type
-
-    * - :eql:type:`duration`
-      - Absolute time span
 
     * - :eql:type:`cal::relative_duration`
       - Relative time span
@@ -34,8 +34,10 @@ Date and Time
     * - :eql:op:`dt - dt <DTMINUS>`
       - :eql:op-desc:`DTMINUS`
 
-    * - :eql:op:`dt = dt <EQ>`, :eql:op:`dt \< dt <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`to_str`
       - Render a date/time value to a string.
@@ -121,7 +123,11 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:type:: std::datetime
 
-    A timezone-aware type representing date and time.
+
+    A timezone-aware type representing a moment in time.
+
+    All dates must correspond to dates that exist in the proleptic Gregorian
+    calendar.
 
     :eql:op:`Casting <CAST>` is a simple way to obtain a
     :eql:type:`datetime` value in an expression:
@@ -148,9 +154,13 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         Hint: Please use ISO8601 format. Alternatively "to_datetime"
         function provides custom formatting options.
 
+    All ``datetime`` values are restricted to the range from year 1 to 9999.
+
     See functions :eql:func:`datetime_get`, :eql:func:`to_datetime`,
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`datetime`.
+
+
 
 
 ----------
@@ -186,6 +196,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         Hint: Please use ISO8601 format. Alternatively
         "cal::to_local_datetime" function provides custom formatting
         options.
+
+    All ``datetime`` values are restricted to the range from year 1 to 9999.
 
     See functions :eql:func:`datetime_get`, :eql:func:`cal::to_local_datetime`,
     and :eql:func:`to_str` for more ways of working with
@@ -337,6 +349,64 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         {<datetime>'2016-01-01T00:00:00+00:00'}
         db> select <cal::local_time>'22:00' + <cal::relative_duration>'1 hour';
         {<cal::local_time>'23:00:00'}
+
+    If an arithmetic operation results in a day that doesn't exist in the given
+    month, the last day of the month is used instead.
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_datetime>"2021-01-31T15:00:00"
+      ... + <cal::relative_duration>"1 month";
+      {<cal::local_datetime>'2021-02-28T15:00:00'}
+
+
+    During arithmetic operations involving a ``relative_duration`` consisting
+    of multiple components (units), higher-order components are applied first,
+    followed by lower-order elements.
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_datetime>"2021-01-31T15:00:00"
+      ... + <cal::relative_duration>"1 month 1 day";
+      {<cal::local_datetime>'2021-03-01T15:00:00'}
+
+    **Gotchas**
+
+    Due to the implementation of ``relative_duration`` logic, arithmetic
+    operations may have unintuitive properties. For simplicity, examples below
+    are represented with pseudocode.
+
+    Non-associative
+
+    .. code-block::
+
+      "2021-01-31" + "1 month" + "1 month"
+      does not equal
+      "2021-01-31" + ("1 month" + "1 month")
+
+    Lossy
+
+    .. code-block::
+
+      "2021-30-01" + "1 month"
+      equals
+      "2021-31-01" + "1 month"
+
+    Asymmetric
+
+    .. code-block::
+
+      "2021-31-01" + "1 month" - "1 month"
+      equals
+      "2021-28-01"
+
+    Non-monotonic
+
+    .. code-block::
+
+      "2021-31-01T01:00:00" + "1 month"
+      is less than
+      "2021-30-01T23:00:00" + "1 month"
 
     See functions :eql:func:`cal::to_relative_duration`, and :eql:func:`to_str`
     and date/time :eql:op:`operators <DTMINUS>` for more ways of working with

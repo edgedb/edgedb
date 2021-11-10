@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_cli:
 
-Command Line
-============
+Using the CLI
+=============
 
 To create a new database instance ``my_project`` for a project run
 this in the project directory, then follow the prompts:

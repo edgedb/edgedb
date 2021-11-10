@@ -27,8 +27,10 @@ String
     * - :eql:op:`str ILIKE pattern <ILIKE>`
       - :eql:op-desc:`ILIKE`
 
-    * - :eql:op:`str = str <EQ>`, :eql:op:`str \< str <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`to_str`
       - :eql:func-desc:`to_str`

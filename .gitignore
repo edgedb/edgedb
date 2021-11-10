@@ -3,6 +3,7 @@
 *.pyo
 *.o
 *.so
+.vscode
 *~
 .#*
 .*.swp
@@ -30,7 +31,6 @@ docs/_build
 /.coverage*
 /htmlcov
 
-/.vscode
 *.code-workspace
 /.pytest_cache
 /.mypy_cache

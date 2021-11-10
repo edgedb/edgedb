@@ -6,7 +6,7 @@ Cheatsheet
 .. note::
 
     The types used in these queries are defined :ref:`here
-    <ref_cheatsheet_types>`.
+    <ref_cheatsheet_object_types>`.
 
 
 ----------

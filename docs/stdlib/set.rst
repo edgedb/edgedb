@@ -4,7 +4,7 @@
 Set
 ===
 
-:edb-alt-title: Set Aggregates and Operators
+:edb-alt-title: Set Functions and Operators
 :index: set aggregate
 
 
@@ -28,6 +28,9 @@ Set
 
     * - :eql:op:`OPTIONAL anytype ?? set <COALESCE>`
       - :eql:op-desc:`COALESCE`
+
+    * - :eql:op:`DETACHED`
+      - :eql:op-desc:`DETACHED`
 
     * - :eql:op:`anytype [IS type] <ISINTERSECT>`
       - :eql:op-desc:`ISINTERSECT`
@@ -205,6 +208,60 @@ Set
 
     Without the coalescing operator the above query would skip any
     ``Issue`` without priority.
+
+
+----------
+
+.. _ref_stdlib_set_detached:
+
+.. eql:operator:: DETACHED: DETACHED SET OF anytype -> SET OF anytype
+
+    Detaches the input set reference from the current scope.
+
+    A ``DETACHED`` expression allows referring to some set as if it were
+    defined in the top-level ``WITH`` block. ``DETACHED``
+    expressions ignore all current scopes in which they are nested.
+    This makes it possible to write queries that reference the same set
+    reference in multiple places.
+
+    .. code-block:: edgeql
+
+        UPDATE User
+        FILTER .name = 'Dave'
+        SET {
+            friends := (SELECT DETACHED User FILTER .name = 'Alice'),
+            coworkers := (SELECT DETACHED User FILTER .name = 'Bob')
+        };
+
+    Without ``DETACHED``, the occurrences of ``User`` inside the ``SET`` shape
+    would be *bound* to the set of users named ``"Dave"``. However, in this
+    context we want to run an unrelated query on the "unbound" ``User`` set.
+
+    .. code-block:: edgeql
+
+        # does not work!
+        UPDATE User
+        FILTER .name = 'Dave'
+        SET {
+            friends := (SELECT User FILTER .name = 'Alice'),
+            coworkers := (SELECT User FILTER .name = 'Bob')
+        };
+
+    Instead of explicitly detaching a set, you can create a reference to it in
+    a ``WITH`` block. All declarations inside a ``WITH`` block are implicitly
+    detached.
+
+    .. code-block:: edgeql
+
+        WITH U1 := User,
+             U2 := User
+        UPDATE User
+        FILTER .name = 'Dave'
+        SET {
+            friends := (SELECT U1 FILTER .name = 'Alice'),
+            coworkers := (SELECT U2 FILTER .name = 'Bob')
+        };
+
 
 
 ----------
