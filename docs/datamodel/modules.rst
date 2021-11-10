@@ -47,7 +47,6 @@ necessary.
 .. code-block:: sdl
 
   module default {
-
     type User {
       required property email -> str;
     }
@@ -56,7 +55,6 @@ necessary.
       required property title -> str;
       required link author -> User;
     }
-
   }
 
 Standard modules

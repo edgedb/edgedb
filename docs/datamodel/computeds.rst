@@ -22,7 +22,7 @@ the fly* whenever that field is queried.
     property all_caps_name := str_upper(__subject__.name);
   }
 
-Computed fields are are associated with an EdgeQL expression. This expression
+Computed fields are associated with an EdgeQL expression. This expression
 can be an *arbitrary* EdgeQL query. This expression is evaluated whenever the
 field is referenced in a query.
 

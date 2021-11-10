@@ -19,10 +19,10 @@
       - Maximum length (strings only)
 
     * - :eql:constraint:`min_value`
-      - Maximum value numerically/lexicographically
+      - Minimum value numerically/lexicographically
 
     * - :eql:constraint:`min_ex_value`
-      - Maximum value numerically/lexicographically (exclusive range)
+      - Minimum value numerically/lexicographically (exclusive range)
 
     * - :eql:constraint:`min_len_value`
       - Minimum length (strings only)

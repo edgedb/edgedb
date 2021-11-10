@@ -19,7 +19,6 @@ samples on this page assume the following schema:
 .. code-block:: sdl
 
   module default {
-
     abstract type Person {
       required property name -> str { constraint exclusive; };
     }
@@ -38,7 +37,6 @@ samples on this page assume the following schema:
       required property release_year -> int64;
       multi link characters -> Person;
     }
-
   }
 
 

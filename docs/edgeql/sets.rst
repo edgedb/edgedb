@@ -69,9 +69,9 @@ A consequence of this is that nested sets are *flattened*.
 
 .. code-block:: edgeql-repl
 
-  db> SELECT {1, {2, {3, 4}}};
+  db> select {1, {2, {3, 4}}};
   {1, 2, 3, 4}
-  db> SELECT 1 union (2 union (3 union 4));
+  db> select 1 union (2 union (3 union 4));
   {1, 2, 3, 4}
 
 All values in a set must have the same type. For convenience, EdgeDB will

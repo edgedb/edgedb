@@ -76,10 +76,10 @@ values. They can optionally contain **link properties**.
 .. rubric:: Computed
 
 Links and properties can also be **computed**. Computed links and properties
-are not physically stored in the database, but they can used in queries just
+are not physically stored in the database, but they can be used in queries just
 like non-computed ones. The value will be computed as needed.
 
 .. rubric:: Function
 
-You can also declare custom strongly-types **functions** in addition to the
+You can also declare custom strongly-typed **functions** in addition to the
 :ref:`large library <ref_std>` of built-in functions and operators.

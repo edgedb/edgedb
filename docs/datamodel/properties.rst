@@ -160,7 +160,7 @@ annotations are ``title``, ``description``, and ``deprecated``. You can declare
   type User {
     property email -> str {
       annotation title := 'Email address';
-      annotation description := 'The user\'s email address.';
+      annotation description := "The user's email address.";
       annotation deprecated := 'Use NewUser instead.';
     }
   }

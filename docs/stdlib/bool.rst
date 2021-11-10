@@ -5,7 +5,7 @@
 Boolean
 =======
 
-:edb-alt-title: Boolean Type and Logical Operators
+:edb-alt-title: Boolean Functions and Operators
 
 
 .. list-table::

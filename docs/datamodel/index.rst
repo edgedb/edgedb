@@ -101,6 +101,6 @@ migrations <ref_guide_migrations>` guide.
   are known as DDL (*data definition language*). We recommend that most users
   use SDL and migrations when building applications. However, if you prefer
   SQL-style imperative schema modeling, you are free to use DDL directly;
-  reference the :ref:`DDL Reference <ref_eql_ddl>` to learn more.
+  go to :ref:`Reference > DDL <ref_eql_ddl>` to learn more.
 
 

@@ -229,7 +229,7 @@ Reference
 .. eql:function:: std::array_get(array: array<anytype>, \
                                  index: int64, \
                                  NAMED ONLY default: anytype = {} \
-                                 ) -> OPTIONAL anytype
+                              ) -> OPTIONAL anytype
 
     :index: array access get
 

@@ -20,9 +20,6 @@ link in the left column to jump to the associated section.
       ``float32`` ``float64`` ``bigint``
       ``decimal``
 
-  * - :ref:`JSON <ref_eql_literal_json>`
-    - ``json``
-
   * - :ref:`UUID <ref_eql_literal_uuid>`
     - ``uuid``
 
@@ -47,6 +44,8 @@ link in the left column to jump to the associated section.
     - ``tuple<x, y, ...>`` or
       ``tuple<foo: x, bar: y, ...>``
 
+  * - :ref:`JSON <ref_eql_literal_json>`
+    - ``json``
 
 .. _ref_eql_literal_strings:
 
@@ -174,26 +173,26 @@ There are several numerical types in EdgeDB's type system.
 
 .. list-table::
 
-    * - :eql:type:`int16`
-      - 16-bit integer
+  * - :eql:type:`int16`
+    - 16-bit integer
 
-    * - :eql:type:`int32`
-      - 32-bit integer
+  * - :eql:type:`int32`
+    - 32-bit integer
 
-    * - :eql:type:`int64`
-      - 64-bit integer
+  * - :eql:type:`int64`
+    - 64-bit integer
 
-    * - :eql:type:`float32`
-      - 32-bit floating point number
+  * - :eql:type:`float32`
+    - 32-bit floating point number
 
-    * - :eql:type:`float64`
-      - 64-bit floating point number
+  * - :eql:type:`float64`
+    - 64-bit floating point number
 
-    * - :eql:type:`bigint`
-      - Arbitrary precision integer.
+  * - :eql:type:`bigint`
+    - Arbitrary precision integer.
 
-    * - :eql:type:`decimal`
-      - Arbitrary precision number.
+  * - :eql:type:`decimal`
+    - Arbitrary precision number.
 
 Number literals that *do not* contain a decimal are interpreted as ``int64``.
 Numbers containing decimals are interpreted as ``float64``. The ``n`` suffix
@@ -203,12 +202,12 @@ designates a number with *arbitrary precision*: either ``bigint`` or
 ====================================== =============================
  Syntax                                 Inferred type
 ====================================== =============================
- :eql:code:`SELECT 3;`                  :eql:type:`int64`
- :eql:code:`SELECT 3.14;`               :eql:type:`float64`
- :eql:code:`SELECT 314e-2;`             :eql:type:`float64`
- :eql:code:`SELECT 42n;`                :eql:type:`bigint`
- :eql:code:`SELECT 42.0n;`              :eql:type:`decimal`
- :eql:code:`SELECT 42e+100n;`           :eql:type:`decimal`
+ :eql:code:`select 3;`                  :eql:type:`int64`
+ :eql:code:`select 3.14;`               :eql:type:`float64`
+ :eql:code:`select 314e-2;`             :eql:type:`float64`
+ :eql:code:`select 42n;`                :eql:type:`bigint`
+ :eql:code:`select 42.0n;`              :eql:type:`decimal`
+ :eql:code:`select 42e+100n;`           :eql:type:`decimal`
 
 ====================================== =============================
 
@@ -219,9 +218,9 @@ explicit type cast. For details on type casting, see :ref:`Casting
 ====================================== =============================
  Syntax                                 Type
 ====================================== =============================
- :eql:code:`SELECT <int16>1234;`        :eql:type:`int16`
- :eql:code:`SELECT <int32>123456;`      :eql:type:`int32`
- :eql:code:`SELECT <float32>123.456;`   :eql:type:`float32`
+ :eql:code:`select <int16>1234;`        :eql:type:`int16`
+ :eql:code:`select <int32>123456;`      :eql:type:`int32`
+ :eql:code:`select <float32>123.456;`   :eql:type:`float32`
 ====================================== =============================
 
 EdgeQL includes a full set of arithmetic and comparison operators. Parentheses
@@ -264,65 +263,6 @@ numerical data.
   * - Random number
     - :eql:func:`random`
 
-.. _ref_eql_literal_json:
-
-JSON
-----
-
-The :eql:type:`json` scalar type is a stringified representation of structured
-data. JSON literals are declared by explicitly casting other values or passing
-a properly formatted JSON string into :eql:func:`to_json`. Any type can be
-converted into JSON except :eql:type:`bytes`.
-
-.. code-block:: edgeql-repl
-
-  db> select <json>5;
-  {'5'}
-  db> select <json>"a string";
-  {'"a string"'}
-  db> select <json>["this", "is", "an", "array"];
-  {'["this", "is", "an", "array"]'}
-  db> select <json>("unnamed tuple", 2);
-  {'["unnamed tuple", 2]'}
-  db> select <json>(name := "named tuple", count := 2);
-  {'{
-    "name": "named tuple",
-    "count": 2
-  }'}
-  db> select to_json('{"a": 2, "b": 5}');
-  {'{"a": 2, "b": 5}'}
-
-JSON values support indexing operators. The resulting value is a ``json``.
-
-.. code-block:: edgeql-repl
-
-  db> select to_json('{"a": 2, "b": 5}')['a'];
-  {1}
-  db> select to_json('["a", "b", "c"]')[2];
-  {'"c"'}
-
-
-EdgeQL supports a set of functions and operators on ``json`` values. Refer to
-the :ref:`Standard Library > JSON <ref_std_json>` or click an item below for
-details documentation.
-
-.. list-table::
-
-    * - Indexing
-      - :eql:op:`json[i] <JSONIDX>` :eql:op:`json[from:to] <JSONSLICE>`
-        :eql:op:`json[name] <JSONOBJDEST>` :eql:func:`json_get`
-    * - Merging
-      - :eql:op:`json ++ json <JSONPLUS>`
-    * - Comparison operators
-      - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
-    * - Conversion to/from strings
-      - :eql:func:`to_json` :eql:func:`to_str`
-    * - Conversion to/from sets
-      - :eql:func:`json_array_unpack` :eql:func:`json_object_unpack`
-    * - Introspection
-      - :eql:func:`json_typeof`
 
 .. _ref_eql_literal_uuid:
 
@@ -444,11 +384,11 @@ and ``hours``.
 
 .. code-block:: edgeql-repl
 
-  db> SELECT <duration>'45.6 seconds';
+  db> select <duration>'45.6 seconds';
   {<duration>'0:00:45.6'}
-  db> SELECT <duration>'-15 microseconds';
+  db> select <duration>'-15 microseconds';
   {<duration>'-0:00:00.000015'}
-  db> SELECT <duration>'5 hours 4 minutes 3 seconds';
+  db> select <duration>'5 hours 4 minutes 3 seconds';
   {<duration>'5:04:03'}
 
 The :eql:type:`cal::relative_duration` type represents a "calendar" duration,
@@ -466,11 +406,11 @@ To declare relative duration literals:
 
 .. code-block:: edgeql-repl
 
-  db> SELECT <cal::relative_duration>'15 milliseconds';
+  db> select <cal::relative_duration>'15 milliseconds';
   {<cal::relative_duration>'PT.015S'}
-  db> SELECT <cal::relative_duration>'2 months 3 weeks 45 minutes';
+  db> select <cal::relative_duration>'2 months 3 weeks 45 minutes';
   {<cal::relative_duration>'P2M21DT45M'}
-  db> SELECT <cal::relative_duration>'-7 millennium';
+  db> select <cal::relative_duration>'-7 millennium';
   {<cal::relative_duration>'P-7000Y'}
 
 
@@ -490,8 +430,6 @@ EdgeQL supports a set of functions and operators on duration types.
     - :eql:func:`duration_truncate`
 
 
-
-
 .. _ref_eql_literal_bytes:
 
 Bytes
@@ -501,7 +439,7 @@ The ``bytes`` type represents raw binary data.
 
 .. code-block:: edgeql-repl
 
-  db> SELECT b'bina\\x01ry';
+  db> select b'bina\\x01ry';
   {b'bina\\x01ry'}
 
 
@@ -515,11 +453,11 @@ An array is an *ordered* collection of values of the *same type*. For example:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT [1, 2, 3];
+    db> select [1, 2, 3];
     {[1, 2, 3]}
-    db> SELECT ['hello', 'world'];
+    db> select ['hello', 'world'];
     {['hello', 'world']}
-    db> SELECT [(1, 2), (100, 200)];
+    db> select [(1, 2), (100, 200)];
     {[(1, 2), (100, 200)]}
 
 EdgeQL provides a set of functions and operators on arrays.
@@ -555,29 +493,36 @@ A tuple is *fixed-length*, *ordered* collection of values, each of which may
 have a *different type*. The elements of a tuple can be of any type, including
 scalars, arrays, tuples, and object types.
 
-.. list-table::
-  :header-rows: 1
+.. code-block:: edgeql-repl
 
-  * - **Syntax**
-    - **Inferred type**
-  * - :eql:code:`SELECT (true, 3.14, 'red');`
-    - ``tuple<bool, float64, str>``
-  * - :eql:code:`SELECT (name := "billie");`
-    - ``tuple<name: str>``
+  db> select ('Apple', 7, true);
+  {('Apple', 3.14)}
 
+Optionally, you can assign a key to each element of a tuple. These are known
+as *named tuples*. You must assign keys to all or none of the elements; you
+can't mix-and-match.
+
+.. code-block:: edgeql-repl
+
+  db> select (fruit := 'Apple', quantity := 3.14, fresh := true);
+  {(fruit := 'Apple', quantity := 3.14, fresh := true)}
 
 Indexing tuples
 ^^^^^^^^^^^^^^^
 
+Tuple elements can be accessed with dot notation. Under the hood, there's no
+difference between named and unnamed tuples. Named tuples support key-based
+and numerical indexing.
+
 .. code-block:: edgeql-repl
 
-    db> SELECT (1, 3.14, 'red').0;
+    db> select (1, 3.14, 'red').0;
     {1}
-    db> SELECT (1, 3.14, 'red').2;
+    db> select (1, 3.14, 'red').2;
     {'red'}
-    db> SELECT (name := 'george', age := 12).name;
+    db> select (name := 'george', age := 12).name;
     {('george')}
-    db> SELECT (name := 'george', age := 12).0;
+    db> select (name := 'george', age := 12).0;
     {('george')}
 
 .. important::
@@ -588,3 +533,63 @@ Indexing tuples
 
 For a full reference on tuples, see :ref:`Standard Library > Tuple
 <ref_std_tuple>`.
+
+.. _ref_eql_literal_json:
+
+JSON
+----
+
+The :eql:type:`json` scalar type is a stringified representation of structured
+data. JSON literals are declared by explicitly casting other values or passing
+a properly formatted JSON string into :eql:func:`to_json`. Any type can be
+converted into JSON except :eql:type:`bytes`.
+
+.. code-block:: edgeql-repl
+
+  db> select <json>5;
+  {'5'}
+  db> select <json>"a string";
+  {'"a string"'}
+  db> select <json>["this", "is", "an", "array"];
+  {'["this", "is", "an", "array"]'}
+  db> select <json>("unnamed tuple", 2);
+  {'["unnamed tuple", 2]'}
+  db> select <json>(name := "named tuple", count := 2);
+  {'{
+    "name": "named tuple",
+    "count": 2
+  }'}
+  db> select to_json('{"a": 2, "b": 5}');
+  {'{"a": 2, "b": 5}'}
+
+JSON values support indexing operators. The resulting value is a ``json``.
+
+.. code-block:: edgeql-repl
+
+  db> select to_json('{"a": 2, "b": 5}')['a'];
+  {1}
+  db> select to_json('["a", "b", "c"]')[2];
+  {'"c"'}
+
+
+EdgeQL supports a set of functions and operators on ``json`` values. Refer to
+the :ref:`Standard Library > JSON <ref_std_json>` or click an item below for
+details documentation.
+
+.. list-table::
+
+    * - Indexing
+      - :eql:op:`json[i] <JSONIDX>` :eql:op:`json[from:to] <JSONSLICE>`
+        :eql:op:`json[name] <JSONOBJDEST>` :eql:func:`json_get`
+    * - Merging
+      - :eql:op:`json ++ json <JSONPLUS>`
+    * - Comparison operators
+      - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    * - Conversion to/from strings
+      - :eql:func:`to_json` :eql:func:`to_str`
+    * - Conversion to/from sets
+      - :eql:func:`json_array_unpack` :eql:func:`json_object_unpack`
+    * - Introspection
+      - :eql:func:`json_typeof`

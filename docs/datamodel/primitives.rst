@@ -96,6 +96,8 @@ all elements (or none of them).
   }
 
 Named and unnamed tuples are the same data structure under the hood. You can
+add, remove, and change keys in a tuple type after it's been declared. For
+details, see :ref:`EdgeQL > Literals > Tuples <ref_eql_literal_tuple>`.
 
 .. important::
 

@@ -68,9 +68,6 @@ queries.
     filter .is_published = true
   );
 
-See Also
---------
-
 .. note::
 
   All aliases are reflected in the database's built-in :ref:`GraphQL schema

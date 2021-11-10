@@ -4,7 +4,7 @@
 Numbers
 =======
 
-:edb-alt-title: Arithmetic Operators and Numeric Converter Functions
+:edb-alt-title: Numerical Types, Functions, and Operators
 
 .. list-table::
     :class: funcoptable

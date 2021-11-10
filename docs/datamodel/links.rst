@@ -148,7 +148,7 @@ Due to how they're persisted under the hood, link properties must always be
 Deletion policies
 -----------------
 
-Links can declare their own **deletion policy**. When they target of a link is
+Links can declare their own **deletion policy**. When the target of a link is
 deleted, there are 4 possible *actions* that can be taken:
 
 - ``restrict`` (default) - Any attempt to delete the target object immediately

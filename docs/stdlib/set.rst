@@ -4,7 +4,7 @@
 Set
 ===
 
-:edb-alt-title: Set Aggregates and Operators
+:edb-alt-title: Set Functions and Operators
 :index: set aggregate
 
 

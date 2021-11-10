@@ -112,7 +112,7 @@ names.
   :ref:`Constraints <ref_datamodel_constraints>`, and :ref:`Annotations
   <ref_datamodel_annotations>` for full documentation on those concepts.
 
-
+.. list-table::
 
   * - **See also**
   * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`

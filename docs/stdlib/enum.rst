@@ -4,7 +4,7 @@
 Enum
 ====
 
-:edb-alt-title: Enumerated Type
+:edb-alt-title: Enum Type
 
 
 .. eql:type:: std::enum

@@ -33,7 +33,6 @@ For demonstration purposes, the queries below assume the following schema.
 .. code-block:: sdl
 
   module default {
-
     abstract type Person {
       required property name -> str { constraint exclusive; };
     }
@@ -52,7 +51,6 @@ For demonstration purposes, the queries below assume the following schema.
       required property release_year -> int64;
       multi link characters -> Person;
     }
-
   }
 
 .. _ref_eql_select_objects:
@@ -231,8 +229,9 @@ filter to both the selected ``Hero`` objects and their linked ``villains``.
   }
 
 Note that the *scope* changes inside nested shapes. When we use ``.name`` in
-the outer ``filter``, it refers to the name of the hero. But when we use ``.
-name`` in the nested ``villains`` shape, the scope has changed to ``Villain``.
+the outer ``filter``, it refers to the name of the hero. But when we use
+``.name`` in the nested ``villains`` shape, the scope has changed to
+``Villain``.
 
 .. _ref_eql_select_order:
 
