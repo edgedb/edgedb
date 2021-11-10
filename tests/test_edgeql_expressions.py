@@ -5217,3 +5217,16 @@ aa \
         """, __typenames__=True)
         self.assertEqual(len(res), 1)
         self.assertEqual(res[0].__tname__, "schema::ObjectType")
+
+    async def test_edgeql_object_injections(self):
+        await self.con._fetchall("""
+            SELECT <Object>{}
+        """, __typenames__=True)
+
+        await self.con._fetchall("""
+            WITH Z := (Object,), SELECT Z;
+        """, __typenames__=True)
+
+        await self.con._fetchall("""
+            FOR Z IN {(Object,)} UNION Z;
+        """, __typenames__=True)

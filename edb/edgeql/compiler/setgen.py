@@ -95,7 +95,7 @@ def new_set(
             qry.where = astutils.extend_binop(qry.where, f.qlast)
 
         with ctx.detached() as subctx:
-            subctx.expr_exposed = False
+            subctx.expr_exposed = context.Exposure.UNEXPOSED
             subctx.path_scope = subctx.env.path_scope.root
             # Put a placeholder to prevent recursion.
             subctx.type_rewrites[stype] = irast.Set()  # type: ignore
@@ -1342,7 +1342,7 @@ def computable_ptr_set(
         # a similar check on is_mutation in _normalize_view_ptr_expr.
         if (source_scls.get_expr_type(ctx.env.schema)
                 != s_types.ExprType.Select):
-            subctx.expr_exposed = True
+            subctx.expr_exposed = context.Exposure.EXPOSED
 
         comp_ir_set = dispatch.compile(qlexpr, ctx=subctx)
 

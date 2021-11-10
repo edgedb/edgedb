@@ -101,6 +101,7 @@ def init_context(
     ctx.implicit_tid_in_shapes = options.implicit_tid_in_shapes
     ctx.implicit_tname_in_shapes = options.implicit_tname_in_shapes
     ctx.implicit_limit = options.implicit_limit
+    ctx.expr_exposed = context.Exposure.EXPOSED
 
     return ctx
 
@@ -580,7 +581,7 @@ def declare_view_from_schema(
         return vc
 
     with ctx.detached() as subctx:
-        subctx.expr_exposed = False
+        subctx.expr_exposed = context.Exposure.UNEXPOSED
         view_expr = viewcls.get_expr(ctx.env.schema)
         assert view_expr is not None
         view_ql = qlparser.parse(view_expr.text)

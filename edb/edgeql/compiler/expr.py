@@ -529,16 +529,17 @@ def compile_TypeCast(
         with ctx.new() as subctx:
             if target_stype.contains_json(subctx.env.schema):
                 # JSON wants type shapes and acts as an output sink.
-                subctx.expr_exposed = True
+                subctx.expr_exposed = context.Exposure.EXPOSED
                 subctx.inhibit_implicit_limit = True
                 subctx.implicit_id_in_shapes = False
                 subctx.implicit_tid_in_shapes = False
                 subctx.implicit_tname_in_shapes = False
             ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
-    return casts.compile_cast(
+    res = casts.compile_cast(
         ir_expr, target_stype, cardinality_mod=expr.cardinality_mod,
         ctx=ctx, srcctx=expr.expr.context)
+    return stmt.maybe_add_view(res, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Introspect)

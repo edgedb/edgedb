@@ -180,7 +180,7 @@ def compile_ConfigInsert(
             _inject_tname(el.compexpr, ctx=ctx)
 
     with ctx.newscope(fenced=False) as subctx:
-        subctx.expr_exposed = True
+        subctx.expr_exposed = context.Exposure.EXPOSED
         subctx.modaliases = ctx.modaliases.copy()
         subctx.modaliases[None] = 'cfg'
         subctx.special_computables_in_mutation_shape |= {'_tname'}
