@@ -5,8 +5,8 @@ Inheritance
 ===========
 
 Inheritance is a crucial aspect of schema modeling in EdgeDB. Schema items can
-*extend* one or more parent types. When extending, the child (subclass) inherits
-the definition of its parents (superclass).
+*extend* one or more parent types. When extending, the child (subclass)
+inherits the definition of its parents (superclass).
 
 You can declare ``abstract`` object types, properties, links, constraints, and
 annotations.

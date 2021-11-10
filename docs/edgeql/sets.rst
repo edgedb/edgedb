@@ -54,8 +54,9 @@ Sets literals are declared with ``{curly braces}``.
   db> select {1, 2, 3};
   {1, 2, 3}
 
-In actuality, curly braces are a syntactic sugar for the :eql:op:`union`
-operator. The  previous examples are exactly equivalent to the following:
+In actuality, curly braces are a syntactic sugar for the
+:eql:op:`union <UNION>` operator. The  previous examples are perfectly
+equivalent to the following:
 
 .. code-block:: edgeql-repl
 

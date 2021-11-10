@@ -9,13 +9,12 @@ Constraints
   This section assumes a basic understanding of EdgeQL.
 
 Constraints gives users fine-grained control over which data is considered
-valid. The can be defined on a
-:ref:`scalar type <ref_datamodel_scalar_types>`, an
-:ref:`object type <ref_datamodel_object_types>`, a
-:ref:`concrete link <ref_datamodel_links>`, or a
-:ref:`concrete property <ref_datamodel_props>`.
+valid. The can be defined on :ref:`properties <ref_datamodel_props>`,
+:ref:`links <ref_datamodel_links>`, :ref:`object types
+<ref_datamodel_object_types>`, and  :ref:`custom scalars
+<ref_datamodel_links>`.
 
-
+.. _ref_datamodel_constraints_builtin:
 
 Built-in constraints
 --------------------
@@ -25,12 +24,16 @@ of a given constraint for the full documentation.
 
 .. include:: ../stdlib/constraint_table.rst
 
+The ``expression`` constraint is used to define custom constraint logic. Inside
+custom constraints, the keyword ``__subject__`` can used to reference the
+*value* being constrained.
 
-Property constraints
---------------------
+.. _ref_datamodel_constraints_properties:
 
-Inside constraint declarations, the special keyword ``__subject__`` can used
-to reference the *value* being constrained. The constraint below uses the built-in :eql:func:`len` function, which returns
+Constraints on properties
+-------------------------
+
+The constraint below uses the built-in :eql:func:`len` function, which returns
 the length of a string.
 
 .. code-block:: sdl
@@ -41,16 +44,20 @@ the length of a string.
     };
   }
 
-Object type constraints
------------------------
 
-Constraints can be defined on object types themselves. This is useful when the
+.. _ref_datamodel_constraints_objects:
+
+Constraints on object types
+---------------------------
+
+Constraints can be defined on object types. This is useful when the
 constraint logic must reference multiple links or properties.
 
 .. important::
 
   Inside an object type declaration, you can omit ``__subject__`` and simple
-  refer to properties with the shorthand ``.<name>`` notation.
+  refer to properties with the :ref:`leading dot notation <ref_dot_notation>`
+  (e.g. ``.<name>``).
 
 .. code-block:: sdl
 
@@ -63,8 +70,11 @@ constraint logic must reference multiple links or properties.
     );
   }
 
-Link constraints
-----------------
+
+.. _ref_datamodel_constraints_links:
+
+Constraints on links
+--------------------
 
 When defining a constraint on a link, ``__subject__`` refers to the *link
 itself*. This is commonly used add constraints to :ref:`link properties
@@ -83,8 +93,10 @@ itself*. This is commonly used add constraints to :ref:`link properties
   }
 
 
-Scalar type constraints
------------------------
+.. _ref_datamodel_constraints_scalars:
+
+Constraints on custom scalars
+-----------------------------
 
 Custom scalar types can be constrained.
 

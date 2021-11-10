@@ -15,6 +15,9 @@ Scalar types
 ^^^^^^^^^^^^
 .. include:: ../stdlib/scalar_table.rst
 
+Custom scalar types can also be declared. For full documentation, see :ref:`SDL
+> Scalar types <ref_eql_sdl_scalars>`.
+
 .. _ref_datamodel_enums:
 
 Enums

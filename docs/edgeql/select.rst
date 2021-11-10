@@ -333,8 +333,8 @@ Computed fields
 
 Shapes can contain *computed fields*. These are EdgeQL expressions that are
 computed on the fly during the execution of the query. As with other clauses,
-we can use leading dot notation (e.g. ``.name``) to refer to the properties and
-links of the object type currently *in scope*.
+we can use :ref:`leading dot notation <ref_dot_notation>` (e.g. ``.name``) to
+refer to the properties and links of the object type currently *in scope*.
 
 
 .. code-block:: edgeql-repl
