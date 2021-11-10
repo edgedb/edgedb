@@ -1933,9 +1933,12 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             123
         )
 
-        async with tb.start_edgedb_server(
-            adjacent_to=self.con, backend_dsn=self.backend_dsn
-        ) as sd:
+        server_args = {}
+        if self.backend_dsn:
+            server_args['backend_dsn'] = self.backend_dsn
+        else:
+            server_args['adjacent_to'] = self.con
+        async with tb.start_edgedb_server(**server_args) as sd:
 
             con2 = await sd.connect(
                 user=conargs.get('user'),
