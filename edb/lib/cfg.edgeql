@@ -59,13 +59,13 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     CREATE REQUIRED PROPERTY session_idle_timeout -> std::duration {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::report := 'true';
-        SET default := <std::duration>'0 seconds';
+        SET default := <std::duration>'60 seconds';
     };
 
     CREATE REQUIRED PROPERTY session_idle_transaction_timeout -> std::duration {
         CREATE ANNOTATION cfg::backend_setting :=
             '"idle_in_transaction_session_timeout"';
-        SET default := <std::duration>'0 seconds';
+        SET default := <std::duration>'10 seconds';
     };
 
     CREATE REQUIRED PROPERTY query_execution_timeout -> std::duration {
