@@ -56,13 +56,6 @@ Strings
 The :eql:type:`str` type is a variable-length string of Unicode characters. A
 string can be declared with either single or double quotes.
 
-.. code-block:: edgeql
-
-  select 'i ❤️ edgedb';
-  select 'hello there!';
-  select r'hello\nthere!'; # raw string
-
-
 .. code-block:: edgeql-repl
 
   db> select 'i ❤️ edgedb';
@@ -91,7 +84,7 @@ backslash ``\`` as a literal character instead of an escape character.
   two
   three'}
   db> select $label$You can add an interstitial label
-  ... if you need to use "$$" in your string.$label$
+  ... if you need to use "$$" in your string.$label$;
   {
     'You can add an interstital label
     if you need to use "$$" in your string.',
