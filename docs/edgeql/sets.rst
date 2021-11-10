@@ -45,21 +45,32 @@ referred to as an **empty set**. A set with a cardinality of one is known as a
 Declaring sets
 --------------
 
-Sets are indicated with ``{curly braces}``.
+Sets literals are declared with ``{curly braces}``.
 
 .. code-block:: edgeql-repl
 
-  db> select {"a", "set", "of", "strings"};
+  db> select {"set", "of", "strings"};
   {"a", "set", "of", "strings"}
   db> select {1, 2, 3};
   {1, 2, 3}
 
-Sets are *flat*: they cannot contain other sets. "Nested" sets are flattened
-automatically.
+In actuality, curly braces are a syntactic sugar for the :eql:op:`union`
+operator. The  previous examples are exactly equivalent to the following:
+
+.. code-block:: edgeql-repl
+
+  db> select "set" union "of" union "strings";
+  {"set", "of", "strings"}
+  db> select 1 union 2 union 3;
+  {1, 2, 3}
+
+A consequence of this is that nested sets are *flattened*.
 
 .. code-block:: edgeql-repl
 
   db> SELECT {1, {2, {3, 4}}};
+  {1, 2, 3, 4}
+  db> SELECT 1 union (2 union (3 union 4));
   {1, 2, 3, 4}
 
 All values in a set must have the same type. For convenience, EdgeDB will

@@ -169,7 +169,7 @@ we use ``Villain.name``.
   This query contains two occurrences of ``Villain``. The first
   (outer) is passed as the argument to ``select`` and refers to the set of all
   ``Villain`` objects. However the *inner* occurrence is inside the *scope* of
-  the ``select`` statement and is this a way to refer to the *object being
+  the ``select`` statement and refers to the *object being
   selected*.
 
 However, this looks a little clunky, so EdgeQL provides a shorthand: just drop
