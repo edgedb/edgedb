@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://edgedb.com"><img width="160px" src="logo.svg"></a>
+  <a href="https://www.edgedb.com"><img width="160px" src="logo.svg"></a>
 </p>
 
 [![Build Status](https://github.com/edgedb/edgedb/workflows/Tests/badge.svg?event=push&branch=master)](https://github.com/edgedb/edgedb/actions) [![Join GitHub discussions](https://img.shields.io/badge/join-github%20discussions-green)](https://github.com/edgedb/edgedb/discussions)
@@ -18,8 +18,8 @@ EdgeDB features:
 - built-in support for schema migrations;
 - native GraphQL support.
 
-Check out the [blog](https://edgedb.com/blog/edgedb-a-new-beginning)
-[posts](https://edgedb.com/blog/edgedb-1-0-alpha-1) for more examples and
+Check out the [blog](https://www.edgedb.com/blog/edgedb-a-new-beginning)
+[posts](https://www.edgedb.com/blog/edgedb-1-0-alpha-1) for more examples and
 the philosophy behind EdgeDB.
 
 ## Modern Type-safe Schema
@@ -104,18 +104,18 @@ planned or in development.
 
 # Getting Started
 
-Please refer to the [Tutorial](https://edgedb.com/docs/quickstart) section
+Please refer to the [Tutorial](https://www.edgedb.com/docs/quickstart) section
 of the documentation on how to install and run EdgeDB.
 
 # Documentation
 
 The EdgeDB documentation can be found at
-[edgedb.com/docs](https://edgedb.com/docs).
+[edgedb.com/docs](https://www.edgedb.com/docs).
 
 # Building From Source
 
 Please follow the instructions outlined
-[in the documentation](https://edgedb.com/docs/internals/dev).
+[in the documentation](https://www.edgedb.com/docs/internals/dev).
 
 # License
 
