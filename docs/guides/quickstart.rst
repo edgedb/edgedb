@@ -114,8 +114,8 @@ define your schema in ``default.esdl``.
 Second, it spun up an EdgeDB instance called ``quickstart`` (unless you
 overrode this with a different name). As long as you're inside the project
 directory all ``edgedb`` CLI commands will be executed against this instance.
-For more details on how EdgeDB projects work, check out the `Using proects
-<ref_guide_using_projects>`_ guide.
+For more details on how EdgeDB projects work, check out the :ref:`Using
+projects <ref_guide_using_projects>` guide.
 
 .. note::
 
@@ -632,4 +632,4 @@ a schema migration.
   `Python </docs/clients/00_python/index>`__, and
   `Go </docs/clients/02_go/index>`__.
 
-- Or just jump into the `docs <index_toplevel>`_!
+- Or just jump into the :ref:`docs <index_toplevel>`!
