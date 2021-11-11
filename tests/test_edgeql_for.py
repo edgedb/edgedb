@@ -337,7 +337,6 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('says that .letter could be multi')
     async def test_edgeql_for_in_computable_02b(self):
         await self.assert_query_result(
             r'''

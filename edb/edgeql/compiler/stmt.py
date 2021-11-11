@@ -1132,20 +1132,12 @@ def compile_query_subject(
                 and allow_select_shape_inject
 
                 and not forward_rptr
-                and (
-                    (
-                        viewgen.has_implicit_type_computables(
-                            expr_stype,
-                            is_mutation=is_mutation,
-                            ctx=ctx,
-                        )
-                        and not expr_stype.is_view(ctx.env.schema)
-                    ) or (
-                        expr_stype in ctx.env.materialized_sets
-                        # ahhhhhh
-                        and ctx.expr_exposed
-                    )
+                and viewgen.has_implicit_type_computables(
+                    expr_stype,
+                    is_mutation=is_mutation,
+                    ctx=ctx,
                 )
+                and not expr_stype.is_view(ctx.env.schema)
             )
             or is_mutation
         )
@@ -1167,13 +1159,6 @@ def compile_query_subject(
         # b) this is a mutation without an explicit shape,
         #    such as a DELETE, because mutation subjects are
         #    always expected to be derived types.
-        # c) this is a use of a type we think we are materializing,
-        #    which hacks around issues like
-        #    test_edgeql_volatility_select_hard_objects_09 where we
-        #    can't rely on the serialization done at an inner location.
-        #    (This is a hack, because I don't think it can generalize
-        #     to tuples/arrays containing objects. It is also fragile,
-        #     and performing it in with bindings breaks things...)
         shape = []
 
     if shape is not None and view_scls is None:
