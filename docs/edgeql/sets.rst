@@ -42,10 +42,11 @@ referred to as an **empty set**. A set with a cardinality of one is known as a
 
 .. _ref_eql_set_constructor:
 
-Declaring sets
---------------
+Constructing sets
+-----------------
 
-Sets literals are declared with ``{curly braces}``.
+Set literals are declared with *set constructor* syntax: a comma-separated
+list of values inside a set of ``{curly braces}``.
 
 .. code-block:: edgeql-repl
 
@@ -94,9 +95,8 @@ permitted.
 .. code-block:: edgeql-repl
 
   db> select {"apple", 3.14};
-  edgedb error: QueryError: operator 'UNION' cannot be applied to operands of
-  type 'std::str' and 'std::float64'
-    Hint: Consider using an explicit type cast or a conversion function.
+  error: QueryError: set constructor has arguments of incompatible types
+  'std::str' and 'std::int64'
 
 .. note::
 
