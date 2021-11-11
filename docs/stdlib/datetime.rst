@@ -252,6 +252,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 ----------
 
 
+
+.. _ref_datetime_duration:
+
 .. eql:type:: std::duration
 
     A type representing a span of time.

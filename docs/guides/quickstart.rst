@@ -78,8 +78,8 @@ up your first EdgeDB instance. You should see something like this:
   > Y
 
   Specify the name of EdgeDB instance to use with this
-  project [default: edgedb_quickstart]:
-  > edgedb_quickstart
+  project [default: quickstart]:
+  > quickstart
 
   How would you like to run EdgeDB for this project?
   1. Local (native package)
@@ -89,20 +89,20 @@ up your first EdgeDB instance. You should see something like this:
 
   Checking EdgeDB versions...
   Specify the version of EdgeDB to use with this project
-  [default: 1-beta3]:
-  > 1-beta3
+  [default: 1-rc2]:
+  > 1-rc2
   ┌─────────────────────┬───────────────────────────────────────────────┐
-  │ Project directory   │ ~/path/to/quickstart                   │
-  │ Project config      │ ~/path/to/quickstart/edgedb.toml       │
-  │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema          │
+  │ Project directory   │ ~/path/to/quickstart                          │
+  │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
+  │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema                 │
   │ Installation method │ Native System Package                         │
   │ Version             │ 1.0b2+ga7130d5c7.cv202104290000-202105060205  │
-  │ Instance name       │ edgedb_quickstart                             │
+  │ Instance name       │ quickstart                                    │
   └─────────────────────┴───────────────────────────────────────────────┘
   Initializing EdgeDB instance...
   Bootstrap complete. Server is up and running now.
   Project initialialized.
-  To connect to edgedb_quickstart, just run `edgedb`.
+  To connect to `quickstart`, just run `edgedb`.
 
 
 This did a couple things.
@@ -113,10 +113,9 @@ define your schema in ``default.esdl``.
 
 Second, it spun up an EdgeDB instance called ``quickstart`` (unless you
 overrode this with a different name). As long as you're inside the project
-directory all ``edgedb`` CLI
-commands will be executed against this instance. For more details on how
-EdgeDB projects work, check out
-`this blog post </blog/introducing-edgedb-projects>`_.
+directory all ``edgedb`` CLI commands will be executed against this instance.
+For more details on how EdgeDB projects work, check out the `Using proects
+<ref_guide_using_projects>`_ guide.
 
 .. note::
 
@@ -142,12 +141,23 @@ promise! But first we need to set up a schema.
 3. Set up your schema
 =====================
 
-With EdgeDB, you define your schema with EdgeDB's dedicated schema description
-language (SDL). It's an elegant, declarative way to define your data model. By
-convention, you write your schema inside a file called ``default.esdl`` inside
-a ``dbschema`` folder in your project directory. Alternatively you can split
-your schema across several ``.esdl`` files; the filenames don't matter.
+Open the ``quickstart`` directory in your IDE or editor of choice. You should
+see the following file structure.
 
+.. code-block::
+
+  /path/to/quickstart
+  ├── edgedb.toml
+  ├── dbschema
+  │   ├── default.esdl
+  │   ├── migrations
+
+EdgeDB schemas are defined with a dedicated schema description language called
+(predictably) EdgeDB SDL (or just **SDL** for short). It's an elegant,
+declarative way to define your data model. SDL lives inside ``.esdl`` files.
+Commonly, your entire schema will be declared in a file called
+``default.esdl`` but you can split your schema across several ``.esdl`` files;
+the filenames don't matter.
 
 .. note::
 
@@ -174,7 +184,7 @@ in your editor of choice and paste the following:
     type Movie {
       required property title -> str;
       property year -> int64;
-      required link director -> Person;
+      link director -> Person;
       multi link actors -> Person;
     }
   };
@@ -208,26 +218,10 @@ these questions to make sure you aren't making any unintended changes.
   > y
   Created ./dbschema/migrations/00001.edgeql, id: m1la5u4qi...
 
-For now, just type ``y`` to confirm each change. But you have several other
-options too:
-
-.. code-block::
-
-  y - confirm the prompt, use the DDL statements
-  n - reject the prompt
-  l - list the DDL statements associated with prompt
-  c - list already confirmed EdgeQL statements
-  b - revert back to previous save point, perhaps previous question
-  s - stop and save changes (splits migration into multiple)
-  q - quit without saving changes
-  h or ? - print help
-
-Using these options, you can introspect the DDL (data definition language)
-commands associated with the change, split up the updates into several
-individual migrations, revisit earlier questions, or exit the tool.
-
-When you complete the questions, a ``.edgeql`` migration file we be generated
-in the ``dbschema/migrations`` directory!
+For now, just type ``y`` to confirm each change. For a full breakdown of these
+options, refer to the dedicated :ref:`Migrations <ref_guide_migrations>`
+guide. Once you've answered the prompts, a ``.edgeql`` migration file we be
+generated in the ``dbschema/migrations`` directory/
 
 .. note::
 
@@ -236,6 +230,7 @@ in the ``dbschema/migrations`` directory!
   ``create type``, ``alter type``, and ``create property``. When you generate
   migrations, EdgeDB reads your declared ``.esdl`` schema and generates a
   migration path.
+
 
 Execute the migration
 ---------------------
@@ -279,32 +274,38 @@ Open the REPL:
 
   $ edgedb
 
-Now, let's add Ryan Gosling to the database with a simple EdgeQL query:
+Inserting objects
+-----------------
+
+Now, let's add Denis Villeneuve to the database with a simple EdgeQL query:
 
 .. code-block:: edgeql-repl
 
   edgedb> insert Person {
-  .......     first_name := 'Ryan',
-  .......     last_name := 'Gosling',
+  .......     first_name := 'Denis',
+  .......     last_name := 'Villeneuve',
   ....... };
   {default::Person {id: 86d0eb18-b7ff-11eb-ba80-7b8e9facf817}}
 
-No sweat. As you can see, EdgeQL differs from SQL in some important ways. It
+As you can see, EdgeQL differs from SQL in some important ways. It
 uses curly braces and the assignment operator (``:=``) to make queries
-**explicit** and **intuitive** for the people who write them: programmers. It's
-also completely **composable**, so it's possible to add a movie, its director,
-and its actors simultaneously:
+**explicit** and **intuitive** for the people who write them: programmers.
+It's also completely **composable**, so subqueries are easy; let's try a
+nested insert.
+
+The query below contains a :ref:`query parameter <ref_eql_params>`
+``$director_id``. After executing the query in the REPL, we'll be prompted to
+provide a value for it. Copy and paste the UUID for Denis Villeneuve from the
+previous query.
 
 .. code-block:: edgeql-repl
 
   edgedb> insert Movie {
-  .......   title := 'Blade Runner 2049',
+  .......   title := 'Blade Runnr 2049', # typo is intentional 🙃
   .......   year := 2017,
   .......   director := (
-  .......     insert Person {
-  .......       first_name := 'Denis',
-  .......       last_name := 'Villeneuve',
-  .......     }
+  .......     select Person
+  .......     filter .id = <uuid>$director_id
   .......   ),
   .......   actors := {
   .......     (insert Person {
@@ -317,31 +318,39 @@ and its actors simultaneously:
   .......     }),
   .......   }
   ....... };
+  Parameter <uuid>$director_id: 86d0eb18-b7ff-11eb-ba80-7b8e9facf817
   {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
+Updating objects
+----------------
 
-As you can see, it's easy to nest :ref:`insert <ref_eql_insert>`
-subqueries inside each other. Now lets add Ryan Gosling to the cast with an
-:ref:`update <ref_eql_update>`:
+Oops, we misspelled "Runner". Let's fix that with an :ref:`update
+<ref_eql_update>` query. While we're at it, we'll append Ryan Gosling to the
+cast with the ``+=`` operator. This operator links additional objects to a
+multi link; by contrast, ``-=`` unlinks elements and ``:=`` overwrites the
+link entirely.
 
 .. code-block:: edgeql-repl
 
   edgedb> update Movie
-  ....... filter .title = 'Blade Runner 2049'
+  ....... filter .title = 'Blade Runnr 2049'
   ....... set {
+  .......   title := "Blade Runner 2049",
   .......   actors += (
-  .......     select Person
-  .......     filter .id = <uuid>'86d0eb18-b7ff-11eb-ba80-7b8e9facf817'
+  .......     insert Person {
+  .......       first_name := "Ryan",
+  .......       last_name := "Gosling"
+  .......     }
   .......   )
   ....... };
   {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
 
-This query also uses a subquery to fetch Ryan Gosling and add him to the cast
-of Blade Runner 2049 using the ``+=`` operator. You could also remove a cast
-member with ``-=``.
+This query uses the ``+=`` operator to add Ryan Gosling to the cast of Blade
+Runner 2049 using the ``+=`` operator. You could also unlink cast members with
+``-=``.
 
-Our database is still a little sparse. Let's add a couple more movies.
+Our database is still a little sparse. Let's quickly add a couple more movies.
 
 .. code-block:: edgeql-repl
 
@@ -392,7 +401,7 @@ empty set). This is the equivalent of a ``NULL`` value in SQL.
 Let's narrow down the ``Movie`` search to "blade runner" using
 :eql:op:`ILIKE` (case-insensitive pattern matching). With the %
 at the end, anything after ``blade runner`` will match: "Blade Runner",
-"Blade Runner 2049", "BlAdE RUnnEr 2: Electric Boogaloo", etc....
+"Blade Runner 2049", "BlAdE RUnnEr", etc...
 
 .. code-block:: edgeql-repl
 
@@ -466,7 +475,7 @@ some of the actors, like Jason Momoa, Zendaya, and Oscar Isaac:
   .......    last_name := 'Isaac'
   ....... };
   default::Person {id: 618d5a64-54db-11e9-8c54-9393cfcd9598}
-  edgedb> insert Person { first_name := 'Zendaya'}
+  edgedb> insert Person { first_name := 'Zendaya'};
   ERROR: MissingRequiredError: missing value for required property
   'last_name' of object type 'default::Person'
 
@@ -474,7 +483,7 @@ Unfortunately, adding Zendaya isn't possible with the current schema
 since both ``first_name`` and ``last_name`` are required. So let's
 migrate our schema to make ``last_name`` optional.
 
-First, we'll update the ``dbschema/schema.esdl``:
+If necessary, close the REPL with ``\q``, then open ``dbschema/schema.esdl``.
 
 .. code-block:: sdl-diff
 
@@ -487,12 +496,12 @@ First, we'll update the ``dbschema/schema.esdl``:
       type Movie {
         required property title -> str;
         property year -> int64; # the year of release
-        required link director -> Person;
+        link director -> Person;
         multi link actors -> Person;
       }
     };
 
-Then we'll create a new migration and apply it:
+Then create a new migration and apply it:
 
 .. code-block:: bash
 
@@ -505,7 +514,7 @@ Then we'll create a new migration and apply it:
   $ edgedb migrate
   Applied m1k62y4x... (00002.edgeql)
 
-Now back in our REPL we can add Zendaya:
+Now re-open the REPL and add Zendaya:
 
 .. code-block:: edgeql-repl
 
@@ -517,7 +526,7 @@ Now back in our REPL we can add Zendaya:
 .. _ref_quickstart_computeds:
 
 7. Computeds
-==============
+============
 
 Now that last names are optional, we may want an easy way to retrieve the full
 name for a given Person. We'll do this with a :ref:`computed property
@@ -582,24 +591,17 @@ Now we can easily fetch ``full_name`` just like any other property!
 
 .. code-block:: edgeql-repl
 
-  edgeql> select Movie {
-  .......    title,
-  .......    year,
-  .......    director: { full_name },
-  .......    actors: { full_name }
-  ....... }
-  ....... filter .title = 'Dune';
+  edgeql> select Person {
+  .......   full_name
+  ....... };
   {
-    default::Movie {
-      title: 'Dune',
-      year: {},
-      director: default::Person {name: 'Denis Villeneuve'},
-      actors: {
-        default::Person {name: 'Jason Momoa'},
-        default::Person {name: 'Zendaya'},
-        default::Person {name: 'Oscar Isaac'},
-      }
-    }
+    default::Person {full_name: 'Denis Villeneuve'},
+    default::Person {full_name: 'Harrison Ford'},
+    default::Person {full_name: 'Ana de Armas'},
+    default::Person {full_name: 'Ryan Gosling'},
+    default::Person {full_name: 'Jason Momoa'},
+    default::Person {full_name: 'Oscar Isaac'},
+    default::Person {full_name: 'Zendaya'},
   }
 
 
@@ -630,4 +632,4 @@ a schema migration.
   `Python </docs/clients/00_python/index>`__, and
   `Go </docs/clients/02_go/index>`__.
 
-- Or just jump into the `docs </docs>`_!
+- Or just jump into the `docs <index_toplevel>`_!
