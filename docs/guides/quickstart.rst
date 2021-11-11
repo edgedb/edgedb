@@ -290,9 +290,13 @@ Now, let's add Denis Villeneuve to the database with a simple EdgeQL query:
 As you can see, EdgeQL differs from SQL in some important ways. It
 uses curly braces and the assignment operator (``:=``) to make queries
 **explicit** and **intuitive** for the people who write them: programmers.
-It's also completely **composable**, so subqueries are easy; let's try a nested insert.
+It's also completely **composable**, so subqueries are easy; let's try a
+nested insert.
 
-The query below contains a :ref:`query parameter <ref_eql_params>` ``$director_id``. After executing the query in the REPL, we'll be prompted to provide a value for it. Copy and paste the UUID for Denis Villeneuve from the previous query.
+The query below contains a :ref:`query parameter <ref_eql_params>`
+``$director_id``. After executing the query in the REPL, we'll be prompted to
+provide a value for it. Copy and paste the UUID for Denis Villeneuve from the
+previous query.
 
 .. code-block:: edgeql-repl
 
