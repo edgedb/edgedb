@@ -5,7 +5,6 @@
 This changelog summarizes new features and breaking changes in
 EdgeDB 1.0 Release Candidate 2 "Lacaille".
 
-
 Migrations
 ==========
 
@@ -225,3 +224,86 @@ deprecated functions.
 * Support connection pooling by default and retry features for
   `edgedb-go <https://github.com/edgedb/edgedb-go>`_ and release
   v0.8.3 driver.
+
+Environment variable renames
+============================
+
+For clarity and simplicity, several environment variables have been renamed
+and the set of supported values has been modified. The old variables have been
+deprecated and will be removed in a future release.
+
+.. list-table::
+
+  * - **Old name**
+    - **New name**
+  * - ``EDGEDB_TLS_VERIFY_HOSTNAME``
+    - ``EDGEDB_CLIENT_TLS_SECURITY``
+  * - ``EDGEDB_NO_VERSION_CHECK``
+    - ``EDGEDB_RUN_VERSION_CHECK``
+  * - ``EDGEDB_SKIP_DOCKER_CHECK``
+    - ``EDGEDB_INSTALL_IN_DOCKER``
+  * - ``EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS``
+    - ``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY``
+  * - ``EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS``
+    - ``EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY``
+  * - ``EDGEDB_SERVER_INSECURE_DEV_MODE``
+    - ``EDGEDB_SERVER_SECURITY``
+  * - ``EDGEDB_SERVER_SKIP_MIGRATIONS``
+    - ``EDGEDB_DOCKER_APPLY_MIGRATIONS``
+  * - ``EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT``
+    - ``EDGEDB_SERVER_TLS_CERT_MODE``
+  * - ``EDGEDB_HIDE_GENERATED_CERT``
+    - ``EDGEDB_DOCKER_SHOW_GENERATED_CERT``
+
+
+Client configuration
+--------------------
+
+``EDGEDB_CLIENT_TLS_SECURITY``
+    - ``insecure``
+    - ``no_host_verification``
+    - ``strict``
+    - ``default``: ``no_host_verification`` if custom certificate is supplied,
+      otherwise ``strict``
+
+**New**: ``EDGEDB_CLIENT_SECURITY``
+    - ``default``
+    - ``insecure_dev_mode``: for now, equivalent to setting
+      ``EDGEDB_CLIENT_TLS_SECURITY=insecure`` though this mode may
+      encapsulate other behavior later
+
+``EDGEDB_RUN_VERSION_CHECK``
+    - ``cached == default`` — run occasionally
+    - ``never`` — skips the check
+
+``EDGEDB_INSTALL_IN_DOCKER`` (CLI only)
+  - ``forbid == default``
+  - ``allow`` — skips the check
+
+Server configuration
+--------------------
+
+``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY``
+    - ``tls == default``
+    - ``optional`` — allow no TLS
+
+``EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY``
+    - ``tls == default``
+    - ``optional`` — allow no TLS
+
+``EDGEDB_SERVER_SECURITY``
+    - ``strict == default``
+    - ``insecure_dev_mode`` — disable password-based authentication and allow
+      unencrypted HTTP traffic
+
+``EDGEDB_DOCKER_APPLY_MIGRATIONS`` (Docker only)
+    - ``always == default``
+    - ``never``
+
+``EDGEDB_SERVER_TLS_CERT_MODE``
+    - ``file == default``
+    - ``self_signed`` — generate self-signed on bootstrap and when expired
+
+``EDGEDB_DOCKER_SHOW_GENERATED_CERT``
+    - ``always == default``
+    - ``never``

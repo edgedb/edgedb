@@ -289,7 +289,6 @@ instance-level configuration object.
   Sets the TLS security mode. Determines whether certificate and hostname
   verification is enabled. Possible values:
 
-
   - ``"strict"`` (**default**) — certificates and hostnames will be verified
   - ``"no_host_verification"`` — verify certificates but not hostnames
   - ``"insecure"`` — client libraries will trust self-signed TLS certificates.
