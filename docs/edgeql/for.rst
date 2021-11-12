@@ -48,8 +48,8 @@ loop, ``hero_name`` is bound to a ``str`` singleton, so it can be assigned to
 ``Hero.name``.
 
 Instead of literal sets, it's common to use a :ref:`json <ref_std_json>`
-parameter for bulk inserts. This value is then "unpacked" into an array of
-``json`` and used inside the foor
+parameter for bulk inserts. This value is then "unpacked" into a set of
+``json`` elements and used inside the ``for`` loop:
 
 .. code-block:: edgeql-repl
 

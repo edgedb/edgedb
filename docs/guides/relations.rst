@@ -103,7 +103,7 @@ are recommended when modeling 1:N relations.
 One-to-one
 ^^^^^^^^^^
 
-Under a *one-to-one* relationship, the source object links to a single intance
+Under a *one-to-one* relationship, the source object links to a single instance
 of the target type, and vice versa. As an example consider a schema to
 represent assigned parking spaces.
 

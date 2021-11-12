@@ -59,9 +59,13 @@ string can be declared with either single or double quotes.
 
   db> select 'i ❤️ edgedb';
   {'i ❤️ edgedb'}
-  db> select 'hello there!';
+  db> select "hello there!";
   {'hello there!'}
-  db> select r'hello\nthere!';
+  db> select 'hello\nthere!';
+  {'hello
+  there!'}
+  db> select 'hello
+  ... there!';
   {'hello
   there!'}
   db> select r'hello
@@ -141,7 +145,7 @@ For a complete reference on strings, see :ref:`Standard Library > String
 Booleans
 --------
 
-The :eql:type:`str` type represents a true/false value.
+The :eql:type:`bool` type represents a true/false value.
 
 .. code-block:: edgeql-repl
 
@@ -496,7 +500,7 @@ scalars, arrays, tuples, and object types.
 .. code-block:: edgeql-repl
 
   db> select ('Apple', 7, true);
-  {('Apple', 3.14)}
+  {('Apple', 7, true)}
 
 Optionally, you can assign a key to each element of a tuple. These are known
 as *named tuples*. You must assign keys to all or none of the elements; you

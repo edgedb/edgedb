@@ -3,7 +3,7 @@
 Transactions
 ============
 
-EdgeQL supports support for atomic transactions. The transaction API consists
+EdgeQL supports atomic transactions. The transaction API consists
 of several commands:
 
 :ref:`start transaction <ref_eql_statements_start_tx>`
