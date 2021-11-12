@@ -30,26 +30,27 @@ be referenced by later ones. Taken together, it becomes possible to write
 Subqueries
 ^^^^^^^^^^
 
-There's no limit to the complexity of the expressions that can beThe following
-query fetches a list of all movies featuring one or more of the original six
+There's no limit to the complexity of computed expressions. EdgeQL is fully
+composable; queries can be embedded inside each other simply. The following
+query fetches a list of all movies featuring at least one of the original six
 Avengers.
 
 .. code-block:: edgeql-repl
 
-  db> with avenger_names := {
+  db> with avengers := (select Hero filter .name in {
   ...     'Iron Man',
   ...     'Black Widow',
   ...     'Captain America',
   ...     'Thor',
   ...     'Hawkeye',
   ...     'The Hulk'
-  ...   },
-  ...   avengers := (select Hero filter .name in avengers_names)
+  ...   })
   ... select Movie {title}
   ... filter avengers in .characters;
   {
 
     default::Movie {title: 'Iron Man'},
+    default::Movie {title: 'The Incredible Hulk'},
     default::Movie {title: 'Iron Man 2'},
     default::Movie {title: 'Thor'},
     default::Movie {title: 'Captain America: The First Avenger'},
