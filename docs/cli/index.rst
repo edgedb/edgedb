@@ -2,16 +2,15 @@
 
 .. _ref_cli_overview:
 
-============
-Command Line
-============
+===
+CLI
+===
 
-:edb-alt-title: 'edgedb' command
+:edb-alt-title: The EdgeDB CLI
 
-EdgeDB includes the all-encompassing ``edgedb`` command-line tool. It
-provides an idiomatic way to do just about everything: install EdgeDB,
-spin up a local instance, open a REPL, execute queries, manage auth
-roles, introspect a database schema, create migrations, and more.
+The ``edgedb`` command-line interface (CLI) provides an idiomatic way to
+install EdgeDB, spin up local instances, open a REPL, execute queries, manage
+auth roles, introspect schema, create migrations, and more.
 
 You can install it with one shell command.
 
