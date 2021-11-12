@@ -124,8 +124,8 @@ fetch all ``Villain`` objects and their nemeses.
     ...
   }
 
-In the context of EdgeQL, computable links like ``Hero.villains`` are treated
-identically to concrete/non-computable links like ``Villain.nemesis``.
+In the context of EdgeQL, computed links like ``Hero.villains`` are treated
+identically to concrete/non-computed links like ``Villain.nemesis``.
 
 .. code-block:: edgeql-repl
 

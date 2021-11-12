@@ -10,7 +10,7 @@ is the recommended approach.
 To get started, navigate to the root directory of your codebase in a shell and
 run ``edgedb project init``. You'll see something like this:
 
-.. code-block:: shell
+.. code-block:: bash
 
   $ edgedb project init
   No `edgedb.toml` found in this repo or above.

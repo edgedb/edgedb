@@ -154,7 +154,7 @@ of data; in EdgeDB the absence of data is just an empty set.
 .. note::
 
   Why is the existence of NULL a problem? Put simply, it's an edge case that
-  permeates all of SQL and is often handled inconsistly in different
+  permeates all of SQL and is often handled inconsistently in different
   circumstances. A number of specific inconsistencies are documented in detail
   in the `We Can Do Better Than SQL
   </blog/we-can-do-better-than-sql#null-a-bag-of-surprises>`_ post on the
@@ -235,7 +235,7 @@ Multisets
 
 Technically sets in EdgeDB are actually *multisets*, because they can contain
 duplicates of the same element. To eliminate duplicates, use the
-:eql:op:`DISTINCT set <DISTINCT>` operator.
+:eql:op:`distinct <DISTINCT>` set operator.
 
 .. code-block:: edgeql-repl
 
@@ -308,7 +308,7 @@ Inheritance
 -----------
 
 EdgeDB schemas support :ref:`inheritance <ref_datamodel_objects_inheritance>`;
-types (usually object types) can extend one or more other types. For intance
+types (usually object types) can extend one or more other types. For instance
 you may declare an abstract object type ``Animal`` that is extended by ``Dog``
 and ``Cat``. A set of type ``Animal`` may contain both ``Cat`` and ``Dog``
 objects.

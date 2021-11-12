@@ -51,8 +51,6 @@ indicated with angle brackets containing a type expression.
     {10n}
     db> select <array<str>>[1, 2, 3];
     {['1', '2', '3']}
-    db> select <array<str>>[1, 2, 3];
-    {['1', '2', '3']}
     db> select <tuple<str, float64, bigint>>(1, 2, 3);
     {('1', 2, 3n)}
 
@@ -71,7 +69,7 @@ Type casts are useful for declaring literals for types like ``datetime``,
     {89381587-705d-458f-b837-860822e1b219}
 
 
-There are limits to what values can to be cast to a certain type. In some cases
+There are limits to what values can be cast to a certain type. In some cases
 two types are entirely incompatible, like ``bool`` and ``int64``; in other
 cases, the source data must be in a particular format, like casting ``str`` to
 ``datetime``.
@@ -158,7 +156,7 @@ The ``[is foo]`` "type intersection" syntax should not be confused with the
 
 
 The ``typeof`` operator
------------------------\
+-----------------------
 
 The type of any expression can be extracted with the :eql:op:`typeof <TYPEOF>`
 operator. This can be used in any expression that expects a type.
