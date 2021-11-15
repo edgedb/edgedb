@@ -28,7 +28,13 @@ DSNs also support query parameters (``?host=myhost.com``) to support advanced
 use cases. These query parameters fall into three categories: "plain"
 parameters (where the parameter contains the value itself), file parameters
 (where the param points to a local file containing the actual value), and
-environment parameters
+environment parameters (where the param is a reference to an environment
+variable containing the value).
+
+.. note::
+
+  For a breakdown of these configuration options, see :ref:`Reference >
+  Connection Parameters <ref_reference_connection_granular>`.
 
 
 .. list-table::

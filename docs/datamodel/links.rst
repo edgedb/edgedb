@@ -57,16 +57,16 @@ Links with cardinality ``multi`` can also be ``required``;
 
 .. code-block:: sdl
 
-  type User {
+  type Person {
     property name -> str;
   }
 
   type GroupChat {
-    required multi link members -> User;
+    required multi link members -> Person;
   }
 
-In this scenario, each ``GroupChat`` must contain at least one user. Attempting
-to create a ``GroupChat`` with no users would fail.
+In this scenario, each ``GroupChat`` must contain at least one person.
+Attempting to create a ``GroupChat`` with no members would fail.
 
 Exclusive constraints
 ---------------------
@@ -80,15 +80,15 @@ instances can link to the same target(s).
     property name -> str;
   }
 
-  type Club {
-    required multi link members -> User {
+  type GroupChat {
+    required multi link members -> Person {
       constraint exclusive;
     }
   }
 
 In the ``GroupChat`` example, the ``GroupChat.members`` link is now
-``exclusive``. No two ``GroupChats`` can link to the same ``User``; put
-differently, no ``User`` can be a ``member`` of multiple ``GroupChats``.
+``exclusive``. No two ``GroupChats`` can link to the same ``Person``; put
+differently, no ``Person`` can be a ``member`` of multiple ``GroupChats``.
 
 .. important::
 
@@ -101,16 +101,18 @@ Default values
 --------------
 
 Like properties, links can declare a default value in the form of an EdgeQL
-expression, which will be executed upon insertion.
+expression, which will be executed upon insertion. In the example below, new
+people are automatically assigned three random friends.
 
 .. code-block:: sdl
 
-  type User {
+  type Person {
     required property name -> str;
-    multi link friends -> User {
-      default := (select User filter .name = .name);
+    multi link friends -> Person {
+      default := (select Person order by random() limit 3);
     }
   }
+
 
 .. _ref_datamodel_link_properties:
 
