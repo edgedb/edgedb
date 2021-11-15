@@ -18,8 +18,8 @@ Processes
 
 Backend connections and performance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-``backend_connections_total``
-  **Counter.** Total number of backend connections established.
+``backend_connections_total`` **Counter**
+  Total number of backend connections established.
 
 ``backend_connections_current``
   **Gauge.** Current number of active backend connections.
