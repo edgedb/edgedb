@@ -3,8 +3,8 @@
 Observability
 =============
 
-All EdgeDB instances expose a Prometheus-compatible ``/metrics`` endpoint on
-port ``9090``. The following metrics are made available.
+All EdgeDB instances expose a Prometheus-compatible ``/metrics`` endpoint. The
+following metrics are made available.
 
 
 Processes
