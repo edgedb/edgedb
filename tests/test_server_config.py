@@ -535,9 +535,9 @@ class TestServerConfig(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
             edgedb.InterfaceError,
-            r'\bquery_single\(',
+            r'it does not return any data',
         ):
-            await self.con.query_single('''
+            await self.con.query_required_single('''
                 CONFIGURE INSTANCE INSERT cfg::TestInstanceConfig {
                     name := 'test_03_0122222222'
                 };

@@ -81,11 +81,7 @@ class TestServerOps(tb.TestCase):
                 # the cluster was started with an "--auto-shutdown-after=0"
                 # option, we expect this connection to be rejected
                 # and the cluster to be shutdown soon.
-                await edgedb.async_connect(
-                    user='edgedb',
-                    host=sd.host,
-                    port=sd.port,
-                    tls_ca_file=sd.tls_cert_file,
+                await sd.connect(
                     wait_until_available=0,
                 )
 
@@ -338,8 +334,6 @@ class TestServerOps(tb.TestCase):
                 await cluster.stop()
 
     async def _test_connection(self, con):
-        await con.connect()
-
         await con.send(
             protocol.ExecuteScript(
                 headers=[],
@@ -359,12 +353,9 @@ class TestServerOps(tb.TestCase):
         async with tb.start_edgedb_server(
             binary_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
-            con = await edb_protocol.new_connection(
+            con = await sd.connect_test_protocol(
                 user='edgedb',
-                password=sd.password,
-                host=sd.host,
-                port=sd.port,
-                use_tls=False,
+                tls_security='insecure',
             )
             try:
                 await self._test_connection(con)
@@ -399,20 +390,22 @@ class TestServerOps(tb.TestCase):
             finally:
                 con.close()
 
-            con = await edb_protocol.new_connection(
-                user='edgedb',
-                password=sd.password,
-                host=sd.host,
-                port=sd.port,
-                use_tls=False,
-            )
-            try:
-                with self.assertRaisesRegex(
-                    errors.BinaryProtocolError, "TLS Required"
-                ):
-                    await con.connect()
-            finally:
-                await con.aclose()
+            # TODO: Implement TLS-less connection in testbase/connection.py.
+            # con = await edb_protocol.new_connection(
+            #     user='edgedb',
+            #     password=sd.password,
+            #     host=sd.host,
+            #     port=sd.port,
+            #     tls_ca_file=None,
+            #     tls_security='no_host_verification',
+            # )
+            # try:
+            #     with self.assertRaisesRegex(
+            #         errors.BinaryProtocolError, "TLS Required"
+            #     ):
+            #         await con.connect()
+            # finally:
+            #     await con.aclose()
 
             con = await edb_protocol.new_connection(
                 user='edgedb',
@@ -422,6 +415,7 @@ class TestServerOps(tb.TestCase):
                 tls_ca_file=sd.tls_cert_file,
             )
             try:
+                await con.connect()
                 await self._test_connection(con)
             finally:
                 await con.aclose()
@@ -473,13 +467,7 @@ class TestServerOps(tb.TestCase):
             # Connect to let it autoshutdown; also test that
             # --allow-insecure-http-clients doesn't break binary
             # connections.
-            con = await edb_protocol.new_connection(
-                user='edgedb',
-                password=sd.password,
-                host=sd.host,
-                port=sd.port,
-                tls_ca_file=sd.tls_cert_file,
-            )
+            con = await sd.connect_test_protocol()
             try:
                 await self._test_connection(con)
             finally:
