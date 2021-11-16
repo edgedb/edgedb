@@ -172,7 +172,7 @@ class Duration:
                     raise errors.NumericOutOfRangeError(
                         'interval field value out of range')
             if parsed['milliseconds']:
-                value += int(parsed['milliseconds']) * 1_000
+                value += int(parsed['milliseconds'].ljust(3, '0')) * 1_000
             if parsed['microseconds']:
                 value += int(parsed['microseconds'].ljust(3, '0'))
             if parsed['submicro'] and int(parsed['submicro'][:1]) >= 5:
