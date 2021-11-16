@@ -1349,7 +1349,8 @@ class Server(ha_base.ClusterProtocol):
             if port:
                 addr_str = f"{{{', '.join(addr[0] for addr in addrs)}}}:{port}"
             else:
-                addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
+                addr_str = f"""{{{', '.join(
+                    f'{addr[0]}:{addr[1]}' for addr in addrs)}}}"""
         elif addrs:
             addr_str = f'{addrs[0][0]}:{addrs[0][1]}'
             port = addrs[0][1]
