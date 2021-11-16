@@ -62,6 +62,8 @@ from edb.common import taskgroup
 from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
 
+from edb.testbase import connection as tconn
+
 
 if TYPE_CHECKING:
     DatabaseName = str
@@ -694,7 +696,7 @@ class ConnectedTestCaseMixin:
                       password='test'):
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
-        return await edgedb.async_connect(**conargs)
+        return await tconn.async_connect_test_client(**conargs)
 
     def repl(self):
         """Open interactive EdgeQL REPL right in the test.
@@ -1445,8 +1447,9 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
     default_args.update(conn_args)
 
     try:
-        admin_conn = await edgedb.async_connect(
+        admin_conn = edgedb.create_async_client(
             database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+            concurrency=1,
             **default_args)
     except Exception as ex:
         raise RuntimeError(
@@ -1469,8 +1472,9 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
 
     dbconn = await edgedb.async_connect(database=dbname, **default_args)
     try:
-        async with dbconn.transaction():
-            await dbconn.execute(setup_script)
+        async for tx in dbconn.transaction():
+            async with tx:
+                await dbconn.execute(setup_script)
     except Exception as ex:
         raise RuntimeError(
             f'exception during initialization of {dbname!r} test DB: '
@@ -1524,7 +1528,7 @@ class _EdgeDBServerData(NamedTuple):
 
     async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
         conn_args = self.get_connect_args(**kwargs)
-        return await edgedb.async_connect(**conn_args)
+        return await tconn.async_connect_test_client(**conn_args)
 
     async def connect_test_protocol(self, **kwargs):
         conn_args = self.get_connect_args(**kwargs)

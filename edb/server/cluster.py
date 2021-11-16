@@ -135,12 +135,6 @@ class BaseCluster:
             'tls_ca_file': self._tls_cert_file,
         }
 
-    async def async_connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
-        connect_args = self.get_connect_args().copy()
-        connect_args.update(kwargs)
-
-        return await edgedb.async_connect(**connect_args)
-
     def connect(self, **kwargs: Any) -> edgedb.BlockingIOConnection:
         connect_args = self.get_connect_args().copy()
         connect_args.update(kwargs)
