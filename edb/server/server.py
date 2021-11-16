@@ -1351,7 +1351,7 @@ class Server(ha_base.ClusterProtocol):
             else:
                 addr_str = f"{{{', '.join('%s:%d' % addr for addr in addrs)}}}"
         elif addrs:
-            addr_str = "%s:%d" % addrs[0]
+            addr_str = f'{addrs[0][0]}:{addrs[0][1]}'
             port = addrs[0][1]
         else:
             addr_str = None
