@@ -363,7 +363,6 @@ empty set if the input was also empty).
   db> select min({1, 2, 3});
   {-3}
 
-
 Element-wise operations are applied on *each element* of a set.
 
 .. code-block:: edgeql-repl
