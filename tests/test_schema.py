@@ -2840,6 +2840,26 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_51(self):
+        schema = r'''
+        abstract type Version {
+            required link entity -> Versioned;
+        }
+
+        abstract type Barks;
+        abstract type Versioned;
+
+        type DogVersion extending Version, Barks {
+            overloaded required link entity -> Dog;
+        }
+
+        type Dog extending Versioned {
+            multi link versions := (SELECT Dog.<entity[IS DogVersion]);
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different
