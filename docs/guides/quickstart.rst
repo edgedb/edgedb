@@ -567,7 +567,7 @@ properties of ``Person``. Let's update ``dbschema/default.esdl``:
       type Movie {
         required property title -> str;
         property year -> int64; # the year of release
-        required link director -> Person;
+        link director -> Person;
         multi link actors -> Person;
       }
     };
