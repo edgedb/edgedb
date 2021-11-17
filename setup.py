@@ -39,10 +39,18 @@ try:
 except ImportError:
     setuptools_rust = None
 
+from typing import List
+
+
+CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
+
+# Dependencies needed both at build- and run-time
+COMMON_DEPS = [
+    'edgedb==0.18.1',
+    'parsing~=2.0',
+]
 
 RUNTIME_DEPS = [
-    'edgedb==0.18.1',
-
     'asyncpg~=0.24.0',
     'httptools>=0.3.0',
     'immutables>=0.16',
@@ -51,13 +59,11 @@ RUNTIME_DEPS = [
     'click~=7.1',
     'cryptography~=35.0',
     'graphql-core~=3.1.5',
-    'parsing~=2.0',
     'psutil~=5.8',
     'setproctitle~=1.2',
     'wcwidth~=0.2',
-]
+] + COMMON_DEPS
 
-CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
 
 DOCS_DEPS = [
     'docutils~=0.17.0',
@@ -103,7 +109,7 @@ BUILD_DEPS = [
     'packaging>=21.0',
     'setuptools-rust~=0.12.1',
     'wheel',  # needed by PyYAML and immutables, refs pypa/pip#5865
-]
+] + COMMON_DEPS
 
 RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst
 
@@ -116,7 +122,7 @@ EXTRA_DEPS = {
 }
 
 EXT_CFLAGS = ['-O2']
-EXT_LDFLAGS = []
+EXT_LDFLAGS: List[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -687,7 +693,7 @@ class build_ext(setuptools_build_ext.build_ext):
 class build_cli(setuptools.Command):
 
     description = "build the EdgeDB CLI"
-    user_options = []
+    user_options: List[str] = []
 
     def initialize_options(self):
         pass
@@ -802,7 +808,7 @@ def _version():
 
 setuptools.setup(
     version=_version(),
-    setup_requires=RUNTIME_DEPS + BUILD_DEPS,
+    setup_requires=BUILD_DEPS,
     python_requires='>=3.9.0',
     name='edgedb-server',
     description='EdgeDB Server',
