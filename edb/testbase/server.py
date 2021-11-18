@@ -55,6 +55,7 @@ from edb.edgeql import quote as qlquote
 from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
+from edb.server import server
 
 from edb.common import devmode
 from edb.common import taskgroup
@@ -1982,9 +1983,4 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
 
 
 def find_available_port():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.bind(("localhost", 0))
-        return sock.getsockname()[1]
-    finally:
-        sock.close()
+    return server._find_available_port()

@@ -178,6 +178,24 @@ class Server(ha_base.ClusterProtocol):
             defines.MIN_SUGGESTED_CLIENT_POOL_SIZE
         )
 
+        if netport == 0:
+            # When `netport` is 0 it means that the user wants the server
+            # to pick an available port automatically. The ideal way to
+            # do that would be for asyncio/uvloop to resolve the hostname,
+            # bind to the first resolved address with port=0, and then
+            # enforce the same port for all other resolved addresses.
+            #
+            # Unfortunately that's not what happens: asyncio (by design)
+            # binds to port 0 for all resolved addresses, meaning that
+            # binding to "localhost:0" can create two servers on
+            # 127.0.0.1 and ::1 bound to different ports!
+            #
+            # In light of that, we pick a random port manually here to
+            # make sure it's consistent across all listen-addresses.
+            # While this can be racy, it's the only way to do this without
+            # re-implementing most of `asyncio.create_server()`.
+            netport = _find_available_port()
+
         self._listen_hosts = nethosts
         self._listen_port = netport
 
@@ -1691,3 +1709,9 @@ def _fix_wildcard_host(hosts: Sequence[str]) -> Sequence[str]:
             )
             hosts = ['0.0.0.0']
     return hosts
+
+
+def _find_available_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("localhost", 0))
+        return sock.getsockname()[1]
