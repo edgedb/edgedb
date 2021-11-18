@@ -3684,7 +3684,7 @@ aa \
     async def test_edgeql_expr_tuple_indirection_06(self):
         await self.assert_query_result(
             r'''SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).0;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -3705,7 +3705,7 @@ aa \
     async def test_edgeql_expr_tuple_indirection_07(self):
         await self.assert_query_result(
             r'''WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.0;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -4480,7 +4480,7 @@ aa \
     async def test_edgeql_expr_aggregate_01(self):
         await self.assert_query_result(
             r'''SELECT count(DISTINCT {1, 1, 1});''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -5258,7 +5258,7 @@ aa \
                 SELECT (INTROSPECT TYPEOF BaseObject)
             """,
             [
-                {"id": {}}
+                {"id": str}
             ]
         )
         res = await self.con._fetchall("""

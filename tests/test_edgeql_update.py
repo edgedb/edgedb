@@ -1871,7 +1871,7 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 SELECT UpdateTest.comment;
             """,
-            {},
+            [],
         )
 
     async def test_edgeql_update_empty_02(self):
@@ -1914,7 +1914,7 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 SELECT UpdateTest.status;
             """,
-            {},
+            [],
         )
 
     async def test_edgeql_update_empty_05(self):

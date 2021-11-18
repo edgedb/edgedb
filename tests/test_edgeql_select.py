@@ -741,7 +741,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User {name, todo_ids := .todo.id} FILTER .name = 'Elvis';
             """,
             [
-                {'name': 'Elvis', 'todo_ids': [{}, {}]},
+                {'name': 'Elvis', 'todo_ids': [str, str]},
             ]
         )
 
@@ -752,7 +752,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT Z {name, asdf_id := .asdf.id} FILTER .name = 'Elvis';
             """,
             [
-                {'name': 'Elvis', 'asdf_id': {}},
+                {'name': 'Elvis', 'asdf_id': str},
             ]
         )
 
@@ -3420,8 +3420,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [
                 {'name': 'circle', 'val': 2, 'x': False},
                 {'name': 'hexagon', 'val': 4, 'x': True},
-                {'name': 'pentagon', 'val': {}, 'x': {}},
-                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
                 {'name': 'triangle', 'val': 10, 'x': False},
             ],
         )
@@ -3438,8 +3438,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [
                 {'name': 'circle', 'val': 2, 'x': True},
                 {'name': 'hexagon', 'val': 4, 'x': False},
-                {'name': 'pentagon', 'val': {}, 'x': {}},
-                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
                 {'name': 'triangle', 'val': 10, 'x': True},
             ],
         )
@@ -3461,11 +3461,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'x': [False, False],
             }, {
                 'name': 'hexagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'pentagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'square',
@@ -3496,11 +3496,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'x': [True, True],
             }, {
                 'name': 'hexagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'pentagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'square',
@@ -3766,8 +3766,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [
                 {'name': 'circle', 'val': 2, 'x': True},
                 {'name': 'hexagon', 'val': 4, 'x': True},
-                {'name': 'pentagon', 'val': {}, 'x': {}},
-                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
                 {'name': 'triangle', 'val': 10, 'x': False},
             ],
         )
@@ -3784,8 +3784,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [
                 {'name': 'circle', 'val': 2, 'x': False},
                 {'name': 'hexagon', 'val': 4, 'x': False},
-                {'name': 'pentagon', 'val': {}, 'x': {}},
-                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
                 {'name': 'triangle', 'val': 10, 'x': True},
             ],
         )
@@ -3807,11 +3807,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'x': [False, True],
             }, {
                 'name': 'hexagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'pentagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'square',
@@ -3842,11 +3842,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'x': [False, True],
             }, {
                 'name': 'hexagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'pentagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'square',
@@ -3929,8 +3929,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [
                 {'name': 'circle', 'val': 2, 'x': False},
                 {'name': 'hexagon', 'val': 4, 'x': False},
-                {'name': 'pentagon', 'val': {}, 'x': {}},
-                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
                 {'name': 'triangle', 'val': 10, 'x': True},
             ],
         )
@@ -3946,8 +3946,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [
                 {'name': 'circle', 'val': 2, 'x': True},
                 {'name': 'hexagon', 'val': 4, 'x': True},
-                {'name': 'pentagon', 'val': {}, 'x': {}},
-                {'name': 'square', 'val': {}, 'x': {}},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
                 {'name': 'triangle', 'val': 10, 'x': False},
             ],
         )
@@ -3968,11 +3968,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'x': [False, True],
             }, {
                 'name': 'hexagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'pentagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'square',
@@ -3999,11 +3999,11 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 'x': [False, True],
             }, {
                 'name': 'hexagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'pentagon',
-                'tags': {},
+                'tags': [],
                 'x': [],
             }, {
                 'name': 'square',
@@ -4281,15 +4281,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 <str>Issue.time_estimate
             );
             """,
-            [{}],
+            [1],
         )
 
     async def test_edgeql_select_cross_13(self):
         await self.assert_query_result(
             r"""
-            SELECT count(count( Issue.watchers));
+            SELECT count(count(Issue.watchers));
             """,
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -6719,28 +6719,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT <array<User>>{} UNION [User]
             ''',
-            [[{"id": {}}], [{"id": {}}]],
+            [[{"id": str}], [{"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <array<User>>{} ?? [User]
             ''',
-            [[{"id": {}}], [{"id": {}}]],
+            [[{"id": str}], [{"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <array<User>>{} IF false ELSE [User]
             ''',
-            [[{"id": {}}], [{"id": {}}]],
+            [[{"id": str}], [{"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT assert_exists([User])
             ''',
-            [[{"id": {}}], [{"id": {}}]],
+            [[{"id": str}], [{"id": str}]],
         )
 
     async def test_edgeql_collection_shape_02(self):
@@ -6748,28 +6748,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT <array<User>>{} UNION array_agg(User)
             ''',
-            [[{"id": {}}, {"id": {}}]],
+            [[{"id": str}, {"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <array<User>>{} ?? array_agg(User)
             ''',
-            [[{"id": {}}, {"id": {}}]],
+            [[{"id": str}, {"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <array<User>>{} IF false ELSE array_agg(User)
             ''',
-            [[{"id": {}}, {"id": {}}]],
+            [[{"id": str}, {"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT assert_exists(array_agg(User))
             ''',
-            [[{"id": {}}, {"id": {}}]],
+            [[{"id": str}, {"id": str}]],
         )
 
     async def test_edgeql_collection_shape_03(self):
@@ -6777,28 +6777,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT <tuple<User, int64>>{} UNION (User, 2)
             ''',
-            [[{"id": {}}, 2], [{"id": {}}, 2]],
+            [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <tuple<User, int64>>{} ?? (User, 2)
             ''',
-            [[{"id": {}}, 2], [{"id": {}}, 2]],
+            [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <tuple<User, int64>>{} IF false ELSE (User, 2)
             ''',
-            [[{"id": {}}, 2], [{"id": {}}, 2]],
+            [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT assert_exists((User, 2))
             ''',
-            [[{"id": {}}, 2], [{"id": {}}, 2]],
+            [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
     async def test_edgeql_collection_shape_04(self):
@@ -6806,7 +6806,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT [(User,)][0]
             ''',
-            [[{"id": {}}], [{"id": {}}]]
+            [[{"id": str}], [{"id": str}]]
         )
 
         await self.assert_query_result(
@@ -6821,7 +6821,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT ([User],).0
             ''',
-            [[{"id": {}}], [{"id": {}}]]
+            [[{"id": str}], [{"id": str}]]
         )
 
         await self.assert_query_result(
@@ -6837,7 +6837,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT { z := ([User],).0 }
             ''',
             [
-                {"z": [[{"id": {}}], [{"id": {}}]]}
+                {"z": [[{"id": str}], [{"id": str}]]}
             ]
         )
 
@@ -6847,7 +6847,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH Z := (<array<User>>{} IF false ELSE [User]),
                 SELECT (Z, array_agg(array_unpack(Z))).1;
             ''',
-            [[{"id": {}}], [{"id": {}}]]
+            [[{"id": str}], [{"id": str}]]
         )
 
         await self.assert_query_result(
@@ -6855,7 +6855,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH Z := (SELECT assert_exists([User]))
                 SELECT (Z, array_agg(array_unpack(Z))).1;
             ''',
-            [[{"id": {}}], [{"id": {}}]]
+            [[{"id": str}], [{"id": str}]]
         )
 
     async def test_edgeql_assert_fail_object_computed_01(self):

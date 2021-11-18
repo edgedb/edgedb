@@ -824,7 +824,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '100');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -832,7 +832,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, 'foo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -840,7 +840,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '0', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -848,7 +848,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '1', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -856,7 +856,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '2', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -864,7 +864,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '3', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -883,7 +883,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '4', 'b', 'foo', '2', 'bingo');
             ''',
-            {}
+            []
         )
 
     async def test_edgeql_json_get_02(self):
@@ -904,40 +904,40 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT json_get(JSONTest.data, '100');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT json_get(JSONTest.data, 'foo');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT json_get(JSONTest.data, '0', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT json_get(JSONTest.data, '1', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT json_get(JSONTest.data, '2', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT json_get(JSONTest.data, '3', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -952,7 +952,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             r'''
                 SELECT json_get(JSONTest.data, '4', 'b', 'foo', '2', 'bingo');
             ''',
-            {}
+            []
         )
 
     async def test_edgeql_json_get_03(self):

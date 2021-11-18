@@ -1319,37 +1319,37 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_numeric_06(self):
         await self.assert_query_result(
             r'''SELECT <int16>1;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT <int32>1;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT <int64>1;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT <float32>1;''',
-            [{}],
+            [1.0],
         )
 
         await self.assert_query_result(
             r'''SELECT <float64>1;''',
-            [{}],
+            [1.0],
         )
 
         await self.assert_query_result(
             r'''SELECT <bigint>1;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT <decimal>1;''',
-            [{}],
+            [1],
         )
 
     async def test_edgeql_casts_numeric_07(self):
@@ -1361,7 +1361,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 f'''
                     SELECT <{t1}><{t2}>1;
                 ''',
-                [{}],
+                [1],
             )
 
     async def test_edgeql_casts_collections_01(self):

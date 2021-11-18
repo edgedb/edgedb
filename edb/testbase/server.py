@@ -833,6 +833,13 @@ class ConnectedTestCaseMixin:
                         f'{_format_path(path)}')
 
         def _assert_dict_shape(path, data, shape):
+            if not isinstance(data, dict):
+                self.fail(
+                    f'{message}: expected dict '
+                    f'{_format_path(path)}')
+
+            # TODO: should we also check that there aren't *extra* keys
+            # (other than id, __tname__?)
             for sk, sv in shape.items():
                 if not data or sk not in data:
                     self.fail(

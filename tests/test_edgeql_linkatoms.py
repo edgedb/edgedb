@@ -50,12 +50,12 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                 }, {
                     'name': 'chair',
                     'tag_set1': {'wood', 'rectangle'},
-                    'tag_set2': {},
+                    'tag_set2': [],
                     'tag_array': ['wood', 'rectangle'],
                 }, {
                     'name': 'ectoplasm',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                     'tag_array': None,
                 }, {
                     'name': 'floor lamp',
@@ -64,8 +64,8 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'tag_array': ['metal', 'plastic'],
                 }, {
                     'name': 'mystery toy',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                     'tag_array': None,
                 }, {
                     'name': 'table',
@@ -74,12 +74,12 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                     'tag_array': ['wood', 'rectangle'],
                 }, {
                     'name': 'teapot',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                     'tag_array': ['ceramic', 'round'],
                 }, {
                     'name': 'tv',
-                    'tag_set1': {},
+                    'tag_set1': [],
                     'tag_set2': {'plastic', 'rectangle'},
                     'tag_array': ['plastic', 'rectangle'],
                 },
@@ -103,30 +103,30 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                 }, {
                     'name': 'chair',
                     'tag_set1': ['wood', 'rectangle'],
-                    'tag_set2': {},
+                    'tag_set2': [],
                 }, {
                     'name': 'ectoplasm',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                 }, {
                     'name': 'floor lamp',
                     'tag_set1': ['plastic', 'metal'],
                     'tag_set2': ['metal', 'plastic'],
                 }, {
                     'name': 'mystery toy',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                 }, {
                     'name': 'table',
                     'tag_set1': ['wood', 'rectangle'],
                     'tag_set2': ['rectangle', 'wood'],
                 }, {
                     'name': 'teapot',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                 }, {
                     'name': 'tv',
-                    'tag_set1': {},
+                    'tag_set1': [],
                     'tag_set2': ['plastic', 'rectangle'],
                 },
             ]
@@ -149,30 +149,30 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                 }, {
                     'name': 'chair',
                     'tag_set1': ['wood'],
-                    'tag_set2': {},
+                    'tag_set2': [],
                 }, {
                     'name': 'ectoplasm',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                 }, {
                     'name': 'floor lamp',
                     'tag_set1': ['plastic'],
                     'tag_set2': ['plastic'],
                 }, {
                     'name': 'mystery toy',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                 }, {
                     'name': 'table',
                     'tag_set1': ['wood'],
                     'tag_set2': ['wood'],
                 }, {
                     'name': 'teapot',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                 }, {
                     'name': 'tv',
-                    'tag_set1': {},
+                    'tag_set1': [],
                     'tag_set2': ['rectangle'],
                 },
             ]
@@ -195,30 +195,30 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
                 }, {
                     'name': 'chair',
                     'tag_set1': {'wood', 'rectangle'},
-                    'tag_set2': {},
+                    'tag_set2': [],
                 }, {
                     'name': 'ectoplasm',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                 }, {
                     'name': 'floor lamp',
                     'tag_set1': {'plastic'},
                     'tag_set2': {'metal', 'plastic'},
                 }, {
                     'name': 'mystery toy',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                 }, {
                     'name': 'table',
                     'tag_set1': {'wood', 'rectangle'},
                     'tag_set2': {'rectangle'},
                 }, {
                     'name': 'teapot',
-                    'tag_set1': {},
-                    'tag_set2': {},
+                    'tag_set1': [],
+                    'tag_set2': [],
                 }, {
                     'name': 'tv',
-                    'tag_set1': {},
+                    'tag_set1': [],
                     'tag_set2': {'plastic', 'rectangle'},
                 },
             ]
@@ -377,35 +377,35 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             [
                 {
                     'name': 'ball',
-                    'foo': {},
-                    'bar': {},
+                    'foo': [],
+                    'bar': [],
                 }, {
                     'name': 'chair',
                     'foo': {'wood', 'rectangle'},
-                    'bar': {},
+                    'bar': [],
                 }, {
                     'name': 'ectoplasm',
-                    'foo': {},
-                    'bar': {},
+                    'foo': [],
+                    'bar': [],
                 }, {
                     'name': 'floor lamp',
-                    'foo': {},
-                    'bar': {},
+                    'foo': [],
+                    'bar': [],
                 }, {
                     'name': 'mystery toy',
-                    'foo': {},
-                    'bar': {},
+                    'foo': [],
+                    'bar': [],
                 }, {
                     'name': 'table',
                     'foo': {'wood', 'rectangle'},
                     'bar': {'wood', 'rectangle'},
                 }, {
                     'name': 'teapot',
-                    'foo': {},
-                    'bar': {},
+                    'foo': [],
+                    'bar': [],
                 }, {
                     'name': 'tv',
-                    'foo': {},
+                    'foo': [],
                     'bar': {'rectangle'},
                 },
             ],
@@ -677,19 +677,19 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             [
                 {
                     'name': 'ball',
-                    'unpack': {}
+                    'unpack': []
                 }, {
                     'name': 'chair',
                     'unpack': {'rectangle', 'wood'}
                 }, {
                     'name': 'ectoplasm',
-                    'unpack': {}
+                    'unpack': []
                 }, {
                     'name': 'floor lamp',
                     'unpack': {'metal', 'plastic'}
                 }, {
                     'name': 'mystery toy',
-                    'unpack': {}
+                    'unpack': []
                 }, {
                     'name': 'table',
                     'unpack': {'rectangle', 'wood'}
@@ -716,19 +716,19 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             [
                 {
                     'name': 'ball',
-                    'unpack': {}
+                    'unpack': []
                 }, {
                     'name': 'chair',
                     'unpack': {'rectangle', 'wood'}
                 }, {
                     'name': 'ectoplasm',
-                    'unpack': {}
+                    'unpack': []
                 }, {
                     'name': 'floor lamp',
                     'unpack': {'metal', 'plastic'}
                 }, {
                     'name': 'mystery toy',
-                    'unpack': {}
+                    'unpack': []
                 }, {
                     'name': 'table',
                     'unpack': {'rectangle', 'wood'}
@@ -847,28 +847,28 @@ class TestEdgeQLLinkToScalarTypes(tb.QueryTestCase):
             [
                 {
                     'name': 'ball',
-                    'unique': {}
+                    'unique': []
                 }, {
                     'name': 'chair',
-                    'unique': {}
+                    'unique': []
                 }, {
                     'name': 'ectoplasm',
-                    'unique': {}
+                    'unique': []
                 }, {
                     'name': 'floor lamp',
                     'unique': {'metal'}
                 }, {
                     'name': 'mystery toy',
-                    'unique': {}
+                    'unique': []
                 }, {
                     'name': 'table',
-                    'unique': {}
+                    'unique': []
                 }, {
                     'name': 'teapot',
                     'unique': {'ceramic', 'round'}
                 }, {
                     'name': 'tv',
-                    'unique': {}
+                    'unique': []
                 },
             ],
         )

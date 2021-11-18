@@ -601,7 +601,7 @@ class TestIntrospection(tb.QueryTestCase):
                             {
                                 'name': 'std::max_len_value',
                                 'expr': '(__subject__ <= max)',
-                                'annotations': {},
+                                'annotations': [],
                                 'subject': {'name': 'body'},
                                 'params': [
                                     {
@@ -624,9 +624,9 @@ class TestIntrospection(tb.QueryTestCase):
                             {
                                 'name': 'std::exclusive',
                                 'expr': 'std::_is_exclusive(__subject__)',
-                                'annotations': {},
+                                'annotations': [],
                                 'subject': {'name': 'id'},
-                                'params': {},
+                                'params': [],
                                 'return_typemod': 'SingletonType',
                                 'return_type': {'name': 'std::bool'},
                                 'errmessage':
@@ -671,7 +671,7 @@ class TestIntrospection(tb.QueryTestCase):
                     {
                         'name': 'std::one_of',
                         'expr': 'std::contains(vals, __subject__)',
-                        'annotations': {},
+                        'annotations': [],
                         'subject': {'name': 'default::EmulatedEnum'},
                         'params': [
                             {

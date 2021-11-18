@@ -889,8 +889,8 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
             };
         ''', [
             {
-                'foo': [{"id": {}}, {"id": {}}, {"id": {}}],
-                'bar': [{"id": {}}, {"id": {}}, {"id": {}}],
+                'foo': [{"id": str}, {"id": str}, {"id": str}],
+                'bar': [{"id": str}, {"id": str}, {"id": str}],
             }
         ])
 
