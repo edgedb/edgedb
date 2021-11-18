@@ -310,6 +310,10 @@ class CreateOperator(
                     astnode.code.from_function,
                 )
             if astnode.code.code is not None:
+                # TODO: Make operators from code strict when we can?
+                cmd.set_attribute_value(
+                    'impl_is_strict', False
+                )
                 cmd.set_attribute_value(
                     'code',
                     astnode.code.code,

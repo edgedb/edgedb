@@ -173,6 +173,7 @@ std::`++` (l: array<anytype>, r: array<anytype>) -> array<anytype> {
     CREATE ANNOTATION std::identifier := 'concat';
     CREATE ANNOTATION std::description := 'Array concatenation.';
     SET volatility := 'Immutable';
+    SET impl_is_strict := false;
     USING SQL FUNCTION 'array_cat';
 };
 

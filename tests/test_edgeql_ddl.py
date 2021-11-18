@@ -8896,10 +8896,7 @@ type default::Foo {
                  CREATE CONSTRAINT expression ON (
                      <str>.num != asdf2()
                  );
-                 # FIXME: An index on asdf(.color) isn't supported currently
-                 # because passing nullable arguments requires filtering.
-                 # CREATE INDEX ON (asdf(.color));
-                 CREATE INDEX ON (.color);
+                 CREATE INDEX ON (asdf(.color));
                  CREATE PROPERTY lol -> str {
                      SET default := asdf2();
                  }

@@ -245,11 +245,6 @@ def compile_FunctionCall(
     else:
         tuple_path_ids = []
 
-    impl_is_strict = (
-        func.get_impl_is_strict(env.schema)
-        and func.get_language(env.schema) != qlast.Language.EdgeQL
-    )
-
     fcall = irast.FunctionCall(
         args=final_args,
         func_shortname=func_name,
@@ -274,7 +269,7 @@ def compile_FunctionCall(
         variadic_param_type=variadic_param_type,
         func_initial_value=func_initial_value,
         tuple_path_ids=tuple_path_ids,
-        impl_is_strict=impl_is_strict,
+        impl_is_strict=func.get_impl_is_strict(env.schema),
     )
 
     ir_set = setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
