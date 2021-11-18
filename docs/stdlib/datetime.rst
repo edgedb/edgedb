@@ -350,7 +350,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         db> select <datetime>'2019-01-01T00:00:00Z' -
         ...        <cal::relative_duration>'3 years';
         {<datetime>'2016-01-01T00:00:00+00:00'}
-        db> select <cal::local_time>'22:00' + <cal::relative_duration>'1 hour';
+        db> select <cal::local_time>'22:00' +
+        ...        <cal::relative_duration>'1 hour';
         {<cal::local_time>'23:00:00'}
 
     If an arithmetic operation results in a day that doesn't exist in the given
@@ -358,8 +359,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     .. code-block:: edgeql-repl
 
-      db> select <cal::local_datetime>"2021-01-31T15:00:00"
-      ... + <cal::relative_duration>"1 month";
+      db> select <cal::local_datetime>"2021-01-31T15:00:00" +
+      ...        <cal::relative_duration>"1 month";
       {<cal::local_datetime>'2021-02-28T15:00:00'}
 
 
@@ -369,47 +370,89 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
     .. code-block:: edgeql-repl
 
-      db> select <cal::local_datetime>"2021-01-31T15:00:00"
-      ... + <cal::relative_duration>"1 month 1 day";
-      {<cal::local_datetime>'2021-03-01T15:00:00'}
+      db> select <cal::local_datetime>"2021-04-30T15:00:00" +
+      ...        <cal::relative_duration>"1 month 1 day";
+      {<cal::local_datetime>'2021-05-31T15:00:00'}
+
+    Compare this to adding up the same duration components separately
+    with higher-order units first and then lower-order, which produces
+    the same result as above:
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_datetime>"2021-04-30T15:00:00" +
+      ...        <cal::relative_duration>"1 month" +
+      ...        <cal::relative_duration>"1 day";
+      {<cal::local_datetime>'2021-05-31T15:00:00'}
+
+    When the order is reversed the result may actually be different
+    for some corner cases:
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_datetime>"2021-04-30T15:00:00" +
+      ...        <cal::relative_duration>"1 day" +
+      ...        <cal::relative_duration>"1 month";
+      {<cal::local_datetime>'2021-06-01T15:00:00'}
 
     **Gotchas**
 
     Due to the implementation of ``relative_duration`` logic, arithmetic
-    operations may have unintuitive properties. For simplicity, examples below
-    are represented with pseudocode.
+    operations may behave counterintuitively.
 
     Non-associative
 
-    .. code-block::
+    .. code-block:: edgeql-repl
 
-      "2021-01-31" + "1 month" + "1 month"
-      does not equal
-      "2021-01-31" + ("1 month" + "1 month")
+      db> select <cal::local_datetime>'2021-01-31T00:00:00' +
+      ...        <cal::relative_duration>'1 month' +
+      ...        <cal::relative_duration>'1 month';
+      {<cal::local_datetime>'2021-03-28T00:00:00'}
+      db> select <cal::local_datetime>'2021-01-31T00:00:00' +
+      ...       (<cal::relative_duration>'1 month' +
+      ...        <cal::relative_duration>'1 month');
+      {<cal::local_datetime>'2021-03-31T00:00:00'}
+      db> select <cal::local_date>'2021-01-31' +
+      ...        <cal::relative_duration>'12 hours' +
+      ...        <cal::relative_duration>'12 hours';
+      {<cal::local_date>'2021-01-31'}
+      db> select <cal::local_date>'2021-01-31' +
+      ...       (<cal::relative_duration>'12 hours' +
+      ...        <cal::relative_duration>'12 hours');
+      {<cal::local_date>'2021-02-01'}
 
     Lossy
 
-    .. code-block::
+    .. code-block:: edgeql-repl
 
-      "2021-30-01" + "1 month"
-      equals
-      "2021-31-01" + "1 month"
+      db> with m := <cal::relative_duration>'1 month'
+      ... select <cal::local_date>'2021-01-31' + m
+      ...        =
+      ...        <cal::local_date>'2021-01-30' + m;
+      {true}
 
     Asymmetric
 
-    .. code-block::
+    .. code-block:: edgeql-repl
 
-      "2021-31-01" + "1 month" - "1 month"
-      equals
-      "2021-28-01"
+      db> with m := <cal::relative_duration>'1 month'
+      ... select <cal::local_date>'2021-01-31' + m - m;
+      {<cal::local_date>'2021-01-28'}
 
     Non-monotonic
 
-    .. code-block::
+    .. code-block:: edgeql-repl
 
-      "2021-31-01T01:00:00" + "1 month"
-      is less than
-      "2021-30-01T23:00:00" + "1 month"
+      db> with m := <cal::relative_duration>'1 month'
+      ... select <cal::local_datetime>'2021-01-31T01:00:00' + m
+      ...        <
+      ...        <cal::local_datetime>'2021-01-30T23:00:00' + m;
+      {true}
+      db> with m := <cal::relative_duration>'2 month'
+      ... select <cal::local_datetime>'2021-01-31T01:00:00' + m
+      ...        <
+      ...        <cal::local_datetime>'2021-01-30T23:00:00' + m;
+      {false}
 
     See functions :eql:func:`cal::to_relative_duration`, and :eql:func:`to_str`
     and date/time :eql:op:`operators <DTMINUS>` for more ways of working with
