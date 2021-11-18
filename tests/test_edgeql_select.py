@@ -6900,3 +6900,26 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             await self.con.query("""
                 SELECT array_agg((SELECT User {m := Publication}))[{1000}].m;
             """)
+
+    async def test_edgeql_select_call_null_01(self):
+        # testing calls with null args
+        await self.con.execute('''
+            create function foo(x: str, y: int64) -> str USING (x);
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := foo(.name, .val)
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': 'circle'},
+                {'name': 'hexagon', 'val': 4, 'x': 'hexagon'},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': 'triangle'},
+            ],
+        )

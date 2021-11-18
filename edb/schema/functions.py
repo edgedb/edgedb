@@ -740,6 +740,9 @@ class CallableObject(
     abstract = so.SchemaField(
         bool, default=False, inheritable=False, compcoef=0.909)
 
+    impl_is_strict = so.SchemaField(
+        bool, default=True, compcoef=0.4)
+
     def as_create_delta(
         self: CallableObjectT,
         schema: s_schema.Schema,

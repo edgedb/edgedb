@@ -668,6 +668,7 @@ class CallArg(ImmutableBase):
     expr_type_path_id: typing.Optional[PathId] = None
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
     multiplicity: qltypes.Multiplicity = qltypes.Multiplicity.UNKNOWN
+    is_default: bool = False
 
 
 class Call(ImmutableExpr):
@@ -707,6 +708,11 @@ class Call(ImmutableExpr):
 
     # Volatility of the function or operator.
     volatility: qltypes.Volatility
+
+    # Whether the underlying implementation is strict in all its required
+    # arguments (NULL inputs lead to NULL results). If not, we need to
+    # filter at the call site.
+    impl_is_strict: bool = False
 
 
 class FunctionCall(Call):

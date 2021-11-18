@@ -7088,9 +7088,7 @@ type default::Foo {
                     SET volatility := 'Immutable';
                     CREATE ANNOTATION std::description :=
                         'Logical conjunction.';
-                    USING SQL $$
-                        SELECT ("a" AND "b") OR ("a"::int & "b"::int)::bool
-                    $$;
+                    USING SQL EXPRESSION;
                 };
                 ''',
                 '''
@@ -8898,7 +8896,10 @@ type default::Foo {
                  CREATE CONSTRAINT expression ON (
                      <str>.num != asdf2()
                  );
-                 CREATE INDEX ON (asdf(.color));
+                 # FIXME: An index on asdf(.color) isn't supported currently
+                 # because passing nullable arguments requires filtering.
+                 # CREATE INDEX ON (asdf(.color));
+                 CREATE INDEX ON (.color);
                  CREATE PROPERTY lol -> str {
                      SET default := asdf2();
                  }
