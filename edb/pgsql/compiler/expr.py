@@ -238,7 +238,7 @@ def compile_TypeCast(
         )
 
     else:
-        raise RuntimeError('cast not supported')
+        raise errors.UnsupportedFeatureError('cast not supported')
 
     if expr.cardinality_mod is qlast.CardinalityModifier.Required:
         res = pgast.FuncCall(
@@ -327,7 +327,7 @@ def _compile_call_args(
             and ref.nullable
             and typemod == ql_ft.TypeModifier.SingletonType
         ):
-            raise RuntimeError(
+            raise errors.UnsupportedFeatureError(
                 'operations on potentially empty arguments not supported in '
                 'simple expressions')
     return args
@@ -360,7 +360,7 @@ def compile_OperatorCall(
             ],
         )
     elif expr.typemod is ql_ft.TypeModifier.SetOfType:
-        raise RuntimeError(
+        raise errors.UnsupportedFeatureError(
             f'set returning operator {expr.func_shortname!r} is not supported '
             f'in simple expressions')
 
@@ -594,7 +594,7 @@ def compile_FunctionCall(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if expr.typemod is ql_ft.TypeModifier.SetOfType:
-        raise RuntimeError(
+        raise errors.UnsupportedFeatureError(
             'set returning functions are not supported in simple expressions')
 
     args = _compile_call_args(expr, ctx=ctx)
@@ -725,7 +725,7 @@ def _compile_set_in_singleton_mode(
                 return set_expr
 
             if ptrref.source_ptr is None and source.rptr is not None:
-                raise RuntimeError(
+                raise errors.UnsupportedFeatureError(
                     'unexpectedly long path in simple expr')
 
             ptr_stor_info = pg_types.get_ptrref_storage_info(
