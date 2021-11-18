@@ -834,6 +834,7 @@ async def get_remote_pg_cluster(
         managed_clouds = {
             'rds_superuser': RemoteCluster,    # Amazon RDS
             'cloudsqlsuperuser': RemoteCluster,    # GCP Cloud SQL
+            'azure_pg_admin': RemoteCluster,    # Azure Postgres
         }
 
         managed_cloud_super = await conn.fetchval(
