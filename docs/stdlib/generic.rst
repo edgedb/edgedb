@@ -53,12 +53,16 @@ Generic
 
         db> SELECT 3 = 3.0;
         {true}
+        db> SELECT 3 = 3.14;
+        {false}
         db> SELECT [1, 2] = [1, 2];
         {true}
-        db> SELECT (x := 1, y := 2) = (x := 1, y := 2);
+        db> SELECT (1, 2) = (x := 1, y := 2);
         {true}
-        db> SELECT 'hello' = 'hello';
+        db> SELECT (x := 1, y := 2) = (a := 1, b := 2);
         {true}
+        db> SELECT 'hello' = 'world';
+        {false}
 
 
 ----------
@@ -70,7 +74,18 @@ Generic
 
     .. code-block:: edgeql-repl
 
+
+        db> SELECT 3 != 3.0;
+        {false}
         db> SELECT 3 != 3.14;
+        {true}
+        db> SELECT [1, 2] != [2, 1];
+        {false}
+        db> SELECT (1, 2) != (x := 1, y := 2);
+        {false}
+        db> SELECT (x := 1, y := 2) != (a := 1, b := 2);
+        {false}
+        db> SELECT 'hello' != 'world';
         {true}
 
 
@@ -108,14 +123,8 @@ Generic
 
         db> SELECT {2} ?!= {2};
         {false}
-
-    .. code-block:: edgeql-repl
-
         db> SELECT {1} ?!= <int64>{};
         {true}
-
-    .. code-block:: edgeql-repl
-
         db> SELECT <bool>{} ?!= <bool>{};
         {false}
 
@@ -127,15 +136,20 @@ Generic
 
     Less than operator.
 
-    Return ``true`` if the value of the left expression is less
-    than the value of the right expression.
+    Return ``true`` if the value of the left expression is less than
+    the value of the right expression. In EdgeQL any values can be
+    compared to each other as long as they are of the same type:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 1 < 2;
+        db> select 1 < 2;
         {true}
-        db> SELECT 2 < 2;
+        db> select 2 < 2;
         {false}
+        db> select 'hello' < 'world';
+        {true}
+        db> select (1, 'hello') < (1, 'world');
+        {true}
 
 ----------
 
@@ -145,7 +159,8 @@ Generic
     Greater than operator.
 
     Return ``true`` if the value of the left expression is greater
-    than the value of the right expression.
+    than the value of the right expression. In EdgeQL any values can be
+    compared to each other as long as they are of the same type:
 
     .. code-block:: edgeql-repl
 
@@ -153,6 +168,10 @@ Generic
         {false}
         db> SELECT 3 > 2;
         {true}
+        db> select 'hello' > 'world';
+        {false}
+        db> select (1, 'hello') > (1, 'world');
+        {false}
 
 
 ----------
@@ -162,14 +181,22 @@ Generic
 
     Less or equal operator.
 
-    Return ``true`` if the value of the left expression is less
-    than or equal to the value of the right expression.
+    Return ``true`` if the value of the left expression is less than
+    or equal to the value of the right expression. In EdgeQL any
+    values can be compared to each other as long as they are of the
+    same type:
 
     .. code-block:: edgeql-repl
 
         db> SELECT 1 <= 2;
         {true}
-        db> SELECT 'aaa' <= 'bbb';
+        db> select 2 <= 2;
+        {true}
+        db> select 3 <= 2;
+        {false}
+        db> select 'hello' <= 'world';
+        {true}
+        db> select (1, 'hello') <= (1, 'world');
         {true}
 
 
@@ -181,11 +208,21 @@ Generic
     Greater or equal operator.
 
     Return ``true`` if the value of the left expression is greater
-    than or equal to the value of the right expression.
+    than or equal to the value of the right expression. In EdgeQL any
+    values can be compared to each other as long as they are of the
+    same type:
 
     .. code-block:: edgeql-repl
 
         db> SELECT 1 >= 2;
+        {false}
+        db> SELECT 2 >= 2;
+        {true}
+        db> SELECT 3 >= 2;
+        {true}
+        db> select 'hello' >= 'world';
+        {false}
+        db> select (1, 'hello') >= (1, 'world');
         {false}
 
 
