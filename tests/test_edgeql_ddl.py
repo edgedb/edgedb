@@ -591,7 +591,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 } ORDER BY TestSelfLink2.foo2;
             """,
             [
-                {'bar2': {}, 'foo2': 'Alice'},
+                {'bar2': [], 'foo2': 'Alice'},
                 {'bar2': {'Alice'}, 'foo2': 'Bob'},
                 {'bar2': {'Alice', 'Bob'}, 'foo2': 'Carol'}
             ],
@@ -3519,7 +3519,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             r"""
                 SELECT int_func_1();
             """,
-            [{}],
+            [1],
         )
 
     async def test_edgeql_ddl_function_07(self):
@@ -6445,9 +6445,14 @@ type default::Foo {
                     (SELECT ggc.properties FILTER .name = 'a')
                         .annotations@value;
             """,
-            {}
+            []
         )
 
+    @test.xfail('''
+        Default value ought to get reset back to non-existent, since it
+        was inherited? (Or actually maybe not, since the prop is owned
+        by then?)
+    ''')
     async def test_edgeql_ddl_extending_05(self):
         # Check that field alters are propagated.
         await self.con.execute(r"""
@@ -6518,7 +6523,7 @@ type default::Foo {
 
         await self.con.execute(r"""
             ALTER TYPE ExtC5 ALTER PROPERTY a SET REQUIRED;
-            ALTER TYPE ExtC5 DROP EXTENDING ExtA5;
+            ALTER TYPE ExtC5 DROP EXTENDING ExtB5;
         """)
 
         await self.assert_query_result(
@@ -6532,7 +6537,7 @@ type default::Foo {
                     (SELECT C5.properties FILTER .name = 'a')
                         .default;
             """,
-            {}
+            []
         )
 
     async def test_edgeql_ddl_modules_01(self):
@@ -8188,7 +8193,7 @@ type default::Foo {
                 'name': 'default::ConTest01',
                 'properties': [{
                     'name': 'con_test',
-                    'constraints': {},
+                    'constraints': [],
                 }]
             }
         ])

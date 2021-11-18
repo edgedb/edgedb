@@ -100,7 +100,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_02(self):
         await self.assert_query_result(
             r'''SELECT array_agg({1, 2, 3})[0];''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -2836,7 +2836,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 SELECT min(<int64>Issue.number);
             ''',
-            [{}],
+            [1],
         )
 
     async def test_edgeql_functions_min_03(self):
@@ -3435,17 +3435,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_contains_03(self):
         await self.assert_query_result(
             r'''SELECT contains(<str>{}, <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT contains(<str>{}, 'a');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT contains('qwerty', <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -3486,17 +3486,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_contains_04(self):
         await self.assert_query_result(
             r'''SELECT contains(<bytes>{}, <bytes>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT contains(<bytes>{}, b'a');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT contains(b'qwerty', <bytes>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -3517,17 +3517,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_find_01(self):
         await self.assert_query_result(
             r'''SELECT find(<str>{}, <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT find(<str>{}, 'a');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT find('qwerty', <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -3568,7 +3568,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_find_02(self):
         await self.assert_query_result(
             r'''SELECT find(<bytes>{}, <bytes>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -3589,17 +3589,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_find_03(self):
         await self.assert_query_result(
             r'''SELECT find(<array<str>>{}, <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT find(<array<str>>{}, 'the');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT find(['the', 'quick', 'brown', 'fox'], <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(

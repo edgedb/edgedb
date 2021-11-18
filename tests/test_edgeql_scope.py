@@ -2654,7 +2654,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 SELECT (U.cards.a.name, U.cards.a.id, U.cards) LIMIT 1;
             """,
             [
-                [{}, {}, {"id": {}}],
+                [str, str, {"id": str}],
             ],
         )
 

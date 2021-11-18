@@ -870,7 +870,7 @@ class TestInsert(tb.QueryTestCase):
             ''',
             [{
                 'name': 'test',
-                'subject': {'id': {}},
+                'subject': {'id': str},
             }],
         )
 
@@ -1893,7 +1893,7 @@ class TestInsert(tb.QueryTestCase):
             """,
             [{
                 'l2': 99,
-                'subordinates': {},
+                'subordinates': [],
             }],
         )
 
@@ -3900,7 +3900,7 @@ class TestInsert(tb.QueryTestCase):
                 }
                 UNLESS CONFLICT ON .name ELSE (SELECT Obj);
             ''',
-            [{"id": {}}]
+            [{"id": str}]
         )
 
         await self.assert_query_result(
