@@ -2636,12 +2636,8 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
     def create_index(cls, index, schema, context):
         subject = index.get_subject(schema)
 
-        if not isinstance(subject, s_pointers.Pointer):
-            singletons = [subject]
-            path_prefix_anchor = ql_ast.Subject().name
-        else:
-            singletons = []
-            path_prefix_anchor = None
+        singletons = [subject]
+        path_prefix_anchor = ql_ast.Subject().name
 
         index_expr = index.get_expr(schema)
         ir = index_expr.irast

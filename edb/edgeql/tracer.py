@@ -574,6 +574,8 @@ def trace_Path(
                 # Abbreviated path.
                 if ctx.path_prefix in ctx.objects:
                     tip = ctx.objects[ctx.path_prefix]
+                    if isinstance(tip, Pointer):
+                        ptr = tip
                 else:
                     # We can't reason about this path.
                     return None

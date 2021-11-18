@@ -2860,6 +2860,16 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_52(self):
+        schema = r'''
+        abstract link friendship {
+            property strength -> float64;
+            index on (@strength);
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_get_migration_multi_module_01(self):
         schema = r'''
             # The two declared types declared are from different

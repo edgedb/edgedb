@@ -284,11 +284,7 @@ class IndexCommand(
             assert parent_ctx is not None
             assert isinstance(parent_ctx.op, sd.ObjectCommand)
             subject = parent_ctx.op.get_object(schema, context)
-
-            if isinstance(subject, s_abc.Pointer):
-                path_prefix_anchor = None
-            else:
-                path_prefix_anchor = qlast.Subject().name
+            path_prefix_anchor = qlast.Subject().name
 
             expr = type(value).compiled(
                 value,
