@@ -553,6 +553,112 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['01:02:03.004005'],
         )
 
+    async def test_edgeql_dt_local_datetime_03(self):
+        # Corner case which interprets month in a fuzzy way.
+        await self.assert_query_result(
+            r'''
+            with dur := <cal::relative_duration>'1 month'
+            select <cal::local_datetime>'2021-01-31T00:00:00' + dur;
+            ''',
+            ['2021-02-28T00:00:00'],
+        )
+
+        # + not always associative
+        await self.assert_query_result(
+            r'''
+            with
+                dur := <cal::relative_duration>'1 month',
+                date := <cal::local_datetime>'2021-01-31T00:00:00',
+            select date + (dur + dur) = (date + dur) + dur;
+            ''',
+            [False],
+        )
+
+        # - not always inverse of plus
+        await self.assert_query_result(
+            r'''
+            with
+                dur := <cal::relative_duration>'1 month',
+                date := <cal::local_datetime>'2021-01-31T00:00:00',
+            select date + dur - dur = date;
+            ''',
+            [False],
+        )
+
+        # - not always inverse of plus
+        await self.assert_query_result(
+            r'''
+            with
+                m1 := <cal::relative_duration>'1 month',
+                m11 := <cal::relative_duration>'11 month',
+                y1 := <cal::relative_duration>'1 year',
+                date := <cal::local_datetime>'2021-01-31T00:00:00',
+            select (
+                # duration alone
+                y1 = m1 + m11,
+                # date + duration
+                date + y1 = date + m1 + m11,
+            );
+            ''',
+            [[True, False]],
+        )
+
+    async def test_edgeql_dt_local_datetime_04(self):
+        # Order in which different parts of relative_duration is applied.
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 hr' +
+                <cal::relative_duration>'1 month';''',
+            ['2021-06-01T00:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 month' +
+                <cal::relative_duration>'1 hr';''',
+            ['2021-05-31T00:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 hr 1 month';''',
+            ['2021-05-31T00:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 month 1 hr';''',
+            ['2021-05-31T00:59:59'],
+        )
+
+    async def test_edgeql_dt_local_datetime_05(self):
+        # Order in which different parts of relative_duration is applied.
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 day' +
+                <cal::relative_duration>'1 month';''',
+            ['2021-06-01T23:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 month' +
+                <cal::relative_duration>'1 day';''',
+            ['2021-05-31T23:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 day 1 month';''',
+            ['2021-05-31T23:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 month 1 day';''',
+            ['2021-05-31T23:59:59'],
+        )
+
     async def test_edgeql_dt_local_date_01(self):
         await self.assert_query_result(
             r'''SELECT
@@ -587,6 +693,121 @@ class TestEdgeQLDT(tb.QueryTestCase):
             r'''SELECT <cal::local_date>'2018-10-10' -
                 <cal::local_date>'2017-10-10';''',
             ['8760:00:00'],
+        )
+
+    async def test_edgeql_dt_local_date_03(self):
+        # Corner case which interprets month in a fuzzy way.
+        await self.assert_query_result(
+            r'''
+            with dur := <cal::relative_duration>'1 month'
+            select <cal::local_date>'2021-01-31' + dur;
+            ''',
+            ['2021-02-28'],
+        )
+
+        # + not always associative
+        await self.assert_query_result(
+            r'''
+            with
+                dur := <cal::relative_duration>'1 month',
+                date := <cal::local_date>'2021-01-31',
+            select date + (dur + dur) = (date + dur) + dur;
+            ''',
+            [False],
+        )
+
+        # - not always inverse of plus
+        await self.assert_query_result(
+            r'''
+            with
+                dur := <cal::relative_duration>'1 month',
+                date := <cal::local_date>'2021-01-31',
+            select date + dur - dur = date;
+            ''',
+            [False],
+        )
+
+        # - not always inverse of plus
+        await self.assert_query_result(
+            r'''
+            with
+                m1 := <cal::relative_duration>'1 month',
+                m11 := <cal::relative_duration>'11 month',
+                y1 := <cal::relative_duration>'1 year',
+                date := <cal::local_date>'2021-01-31',
+            select (
+                # duration alone
+                y1 = m1 + m11,
+                # date + duration
+                date + y1 = date + m1 + m11,
+            );
+            ''',
+            [[True, False]],
+        )
+
+    async def test_edgeql_dt_local_date_04(self):
+        # Order in which different parts of relative_duration is applied.
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 hr' +
+                <cal::relative_duration>'1 month';''',
+            ['2021-05-30'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 month' +
+                <cal::relative_duration>'1 hr';''',
+            ['2021-05-30'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 hr 1 month';''',
+            ['2021-05-30'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 month 1 hr';''',
+            ['2021-05-30'],
+        )
+
+    async def test_edgeql_dt_local_date_05(self):
+        # Order in which different parts of relative_duration is applied.
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 day' +
+                <cal::relative_duration>'1 month';''',
+            ['2021-06-01'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 month' +
+                <cal::relative_duration>'1 day';''',
+            ['2021-05-31'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 day 1 month';''',
+            ['2021-05-31'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 month 1 day';''',
+            ['2021-05-31'],
+        )
+
+    async def test_edgeql_dt_local_date_06(self):
+        # Fractional day values are ignored when doing local_date arithmetic.
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'20 hr' +
+                <cal::relative_duration>'20 hr';''',
+            ['2021-04-30'],
         )
 
     @test.not_implemented('local_time diff is cal::relative_duration')
