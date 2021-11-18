@@ -23,6 +23,7 @@ from typing import *
 import asyncio
 import binascii
 import collections
+import ipaddress
 import json
 import logging
 import os
@@ -858,7 +859,7 @@ class Server(ha_base.ClusterProtocol):
     async def _restart_servers_new_addr(self, nethosts, netport):
         if not netport:
             raise RuntimeError('cannot restart without network port specified')
-        nethosts = _fix_wildcard_host(nethosts)
+        nethosts = _fix_wildcard_hosts(nethosts)
         servers_to_stop = []
         servers = {}
         if self._listen_port == netport:
@@ -1472,7 +1473,7 @@ class Server(ha_base.ClusterProtocol):
             )
 
         self._servers, actual_port, listen_addrs = await self._start_servers(
-            _fix_wildcard_host(self._listen_hosts), self._listen_port
+            _fix_wildcard_hosts(self._listen_hosts), self._listen_port
         )
         if self._listen_port == 0:
             self._listen_port = actual_port
@@ -1682,7 +1683,10 @@ async def _resolve_localhost() -> List[str]:
     if _is_ipv6_functional():
         # IPv6 is validated to work on this server, so return the resolved
         # addresses unfiltered.
-        return [a[4][0] for a in localhost_infos]
+        return [
+            a[4][0] for a in localhost_infos
+            if a[0] in {socket.AF_INET, socket.AF_INET6}
+        ]
 
     ipv4_infos = [a for a in localhost_infos if a[0] == socket.AF_INET]
 
@@ -1700,20 +1704,87 @@ async def _resolve_localhost() -> List[str]:
     return hosts
 
 
-def _fix_wildcard_host(hosts: Sequence[str]) -> Sequence[str]:
+def _cleanup_wildcard_hosts(
+    hosts: Sequence[str]
+) -> tuple[list[str], list[str]]:
+    """Filter out potentially conflicting hosts in presence of wildcards.
+
+    See `_fix_wildcard_hosts()` for more details.
+
+    Returns a tuple: first element is the new list of hosts, second
+    element is a list of rejected host addrs/names.
+    """
+
+    ipv4_hosts = set()
+    ipv6_hosts = set()
+    named_hosts = set()
+
+    for host in hosts:
+        try:
+            ip = ipaddress.IPv4Address(host)
+        except ValueError:
+            pass
+        else:
+            ipv4_hosts.add(ip)
+            continue
+
+        try:
+            ip6 = ipaddress.IPv6Address(host)
+        except ValueError:
+            pass
+        else:
+            ipv6_hosts.add(ip6)
+            continue
+
+        named_hosts.add(host)
+
+    if not ipv4_hosts and not ipv6_hosts:
+        return (list(hosts), [])
+
+    ipv4_wc = ipaddress.ip_address('0.0.0.0')
+    ipv6_wc = ipaddress.ip_address('::')
+
+    if ipv4_wc not in ipv4_hosts and ipv6_wc not in ipv6_hosts:
+        return (list(hosts), [])
+
+    if ipv4_wc in ipv4_hosts and ipv6_wc in ipv6_hosts:
+        return (
+            ['0.0.0.0', '::'],
+            [str(a) for a in
+                ((named_hosts | ipv4_hosts | ipv6_hosts) - {ipv4_wc, ipv6_wc})]
+        )
+
+    if ipv4_wc in ipv4_hosts:
+        return (
+            [str(a) for a in ({ipv4_wc} | ipv6_hosts)],
+            [str(a) for a in ((named_hosts | ipv4_hosts) - {ipv4_wc})]
+        )
+
+    if ipv6_wc in ipv6_hosts:
+        return (
+            [str(a) for a in ({ipv6_wc} | ipv4_hosts)],
+            [str(a) for a in ((named_hosts | ipv6_hosts) - {ipv6_wc})]
+        )
+
+    raise AssertionError('unreachable')
+
+
+def _fix_wildcard_hosts(hosts: Sequence[str]) -> Sequence[str]:
     # Even though it is sometimes not a conflict to bind on the same port of
     # both the wildcard host 0.0.0.0 and some specific host at the same time,
-    # we're still discarding other hosts if 0.0.0.0 is present because it
-    # should behave the same and we could avoid potential conflicts.
+    # we're still discarding other hosts if 0.0.0.0 (or ::0) is present
+    # because it should behave the same and we could avoid potential conflicts.
 
-    if '0.0.0.0' in hosts:
-        if len(hosts) > 1:
-            logger.warning(
-                "0.0.0.0 found in listen_addresses; "
-                "discarding the other hosts."
-            )
-            hosts = ['0.0.0.0']
-    return hosts
+    new_hosts, rejected_hosts = _cleanup_wildcard_hosts(hosts)
+
+    if rejected_hosts:
+        logger.warning(
+            "wildcard addresses found in listen_addresses; " +
+            "discarding the other hosts: " +
+            ", ".join(repr(h) for h in rejected_hosts)
+        )
+
+    return new_hosts
 
 
 def _find_available_port() -> int:
