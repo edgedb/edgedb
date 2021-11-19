@@ -147,6 +147,9 @@ class TestServerOps(tb.TestCase):
         status_fd, status_file = tempfile.mkstemp()
         os.close(status_fd)
 
+        status_fd, status_file_2 = tempfile.mkstemp()
+        os.close(status_fd)
+
         cmd = [
             sys.executable, '-m', 'edb.server.main',
             '--port', 'auto',
@@ -155,13 +158,14 @@ class TestServerOps(tb.TestCase):
             '--log-level=debug',
             '--max-backend-connections', '10',
             '--emit-server-status', status_file,
+            '--emit-server-status', status_file_2,
             '--generate-self-signed-cert',
         ]
 
         proc: Optional[asyncio.Process] = None
 
-        def _read():
-            with open(status_file, 'r') as f:
+        def _read(filename: str) -> str:
+            with open(filename, 'r') as f:
                 while True:
                     result = f.readline()
                     if not result:
@@ -171,8 +175,13 @@ class TestServerOps(tb.TestCase):
 
         async def _waiter() -> Tuple[str, Mapping[str, Any]]:
             loop = asyncio.get_running_loop()
-            line = await loop.run_in_executor(None, _read)
-            status, _, dataline = line.partition('=')
+            lines = await asyncio.gather(
+                loop.run_in_executor(None, _read, status_file),
+                loop.run_in_executor(None, _read, status_file_2),
+            )
+            self.assertEqual(len(lines), 2)
+            self.assertEqual(lines[0], lines[1])
+            status, _, dataline = lines[0].partition('=')
             return status, json.loads(dataline)
 
         try:

@@ -103,7 +103,7 @@ class ServerConfig(NamedTuple):
     auto_shutdown_after: float
 
     startup_script: Optional[StartupScript]
-    status_sink: Optional[Callable[[str], None]]
+    status_sinks: List[Callable[[str], None]]
 
     tls_cert_file: Optional[pathlib.Path]
     tls_key_file: Optional[pathlib.Path]
@@ -374,7 +374,8 @@ _server_options = [
              'echo runtime info to stdout; the format is JSON, prefixed by '
              '"EDGEDB_SERVER_DATA:", ended with a new line'),
     click.option(
-        '--emit-server-status', type=str, default=None, metavar='DEST',
+        '--emit-server-status',
+        type=str, default=None, metavar='DEST', multiple=True,
         help='Instruct the server to emit changes in status to DEST, '
              'where DEST is a URI specifying a file (file://<path>), '
              'or a file descriptor (fd://<fileno>).  If the URI scheme '
@@ -710,32 +711,37 @@ def parse_args(**kwargs: Any):
             ),
         )
 
-    status_sink = None
+    status_sinks = []
 
-    if status_sink_addr := kwargs['emit_server_status']:
-        if status_sink_addr.startswith('file://'):
-            status_sink = _status_sink_file(status_sink_addr[len('file://'):])
-        elif status_sink_addr.startswith('fd://'):
-            try:
-                fileno = int(status_sink_addr[len('fd://'):])
-            except ValueError:
+    if status_sink_addrs := kwargs['emit_server_status']:
+        for status_sink_addr in status_sink_addrs:
+            if status_sink_addr.startswith('file://'):
+                status_sink = _status_sink_file(
+                    status_sink_addr[len('file://'):])
+            elif status_sink_addr.startswith('fd://'):
+                fileno_str = status_sink_addr[len('fd://'):]
+                try:
+                    fileno = int(fileno_str)
+                except ValueError:
+                    abort(
+                        f'invalid file descriptor number in '
+                        f'--emit-server-status: {fileno_str!r}'
+                    )
+
+                status_sink = _status_sink_fd(fileno)
+            elif m := re.match(r'^(\w+)://', status_sink_addr):
                 abort(
-                    f'invalid file descriptor number in --emit-server-status: '
-                    f'{status_sink_addr[len("fd://")]!r}'
+                    f'unsupported destination scheme in --emit-server-status: '
+                    f'{m.group(1)}'
                 )
+            else:
+                # Assume it's a file.
+                status_sink = _status_sink_file(status_sink_addr)
 
-            status_sink = _status_sink_fd(fileno)
-        elif m := re.match(r'(^\w+)://', status_sink_addr):
-            abort(
-                f'unsupported destination scheme in --emit-server-status: '
-                f'{m.group(1)}'
-            )
-        else:
-            # Assume it's a file.
-            status_sink = _status_sink_file(status_sink_addr)
+            status_sinks.append(status_sink)
 
     return ServerConfig(
         startup_script=startup_script,
-        status_sink=status_sink,
+        status_sinks=status_sinks,
         **kwargs,
     )
