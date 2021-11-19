@@ -169,10 +169,6 @@ class ConstraintMech:
         else:
             origin_subject = subject
 
-        path_prefix_anchor = (
-            qlast.Subject().name if isinstance(subject, s_types.Type)
-            else None
-        )
         singletons = frozenset({subject})
 
         ir = qlcompiler.compile_ast_to_ir(
@@ -180,7 +176,7 @@ class ConstraintMech:
             schema,
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=path_prefix_anchor,
+                path_prefix_anchor=qlast.Subject().name,
                 apply_query_rewrites=not context.stdmode,
                 singletons=singletons,
             ),
