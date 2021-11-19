@@ -26,3 +26,4 @@ guide!
     migrations/index
     introspection/index
     cheatsheet/index
+    deployment/index
