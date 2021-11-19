@@ -454,24 +454,6 @@ class Set(Expr):
     elements: typing.List[Expr]
 
 
-# Expressions used only in statements
-#
-
-class ByExprBase(Base):
-    '''Abstract parent of all grouping sets.'''
-    __abstract_node__ = True
-
-
-class ByExpr(ByExprBase):
-    each: bool
-    expr: Expr
-
-
-class GroupBuiltin(ByExprBase):
-    name: str
-    elements: typing.List[ByExpr]
-
-
 # Statements
 #
 
