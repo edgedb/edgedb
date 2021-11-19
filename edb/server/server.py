@@ -133,7 +133,7 @@ class Server(ha_base.ClusterProtocol):
             srvargs.ServerEndpointSecurityMode.Tls),
         auto_shutdown_after: float = -1,
         echo_runtime_info: bool = False,
-        status_sink: Optional[Callable[[str], None]] = None,
+        status_sinks: Sequence[Callable[[str], None]] = (),
         startup_script: Optional[srvargs.StartupScript] = None,
         backend_adaptive_ha: bool = False,
         default_auth_method: str,
@@ -209,7 +209,7 @@ class Server(ha_base.ClusterProtocol):
         self._auto_shutdown_handler = None
 
         self._echo_runtime_info = echo_runtime_info
-        self._status_sink = status_sink
+        self._status_sinks = status_sinks
 
         self._startup_script = startup_script
 
@@ -1485,7 +1485,7 @@ class Server(ha_base.ClusterProtocol):
             }
             print(f'\nEDGEDB_SERVER_DATA:{json.dumps(ri)}\n', flush=True)
 
-        if self._status_sink is not None:
+        for status_sink in self._status_sinks:
             status = {
                 "listen_addrs": listen_addrs,
                 "port": self._listen_port,
@@ -1494,7 +1494,7 @@ class Server(ha_base.ClusterProtocol):
                 "tenant_id": self._tenant_id,
                 "tls_cert_file": self._tls_cert_file,
             }
-            self._status_sink(f'READY={json.dumps(status)}')
+            status_sink(f'READY={json.dumps(status)}')
 
     async def stop(self):
         try:

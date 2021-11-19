@@ -192,7 +192,7 @@ async def _run_server(
             netport=args.port,
             auto_shutdown_after=args.auto_shutdown_after,
             echo_runtime_info=args.echo_runtime_info,
-            status_sink=args.status_sink,
+            status_sinks=args.status_sinks,
             startup_script=args.startup_script,
             binary_endpoint_security=args.binary_endpoint_security,
             http_endpoint_security=args.http_endpoint_security,

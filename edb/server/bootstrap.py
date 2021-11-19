@@ -1272,8 +1272,8 @@ async def _check_catalog_compatibility(
         )
 
         if datadir_major != expected_ver.major:
-            if ctx.args.status_sink is not None:
-                ctx.args.status_sink(f'INCOMPATIBLE={json.dumps(status)}')
+            for status_sink in ctx.args.status_sinks:
+                status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
                 'database instance incompatible with this version of EdgeDB',
                 details=(
@@ -1289,8 +1289,8 @@ async def _check_catalog_compatibility(
             )
 
         if datadir_catver != expected_catver:
-            if ctx.args.status_sink is not None:
-                ctx.args.status_sink(f'INCOMPATIBLE={json.dumps(status)}')
+            for status_sink in ctx.args.status_sinks:
+                status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
                 'database instance incompatible with this version of EdgeDB',
                 details=(
