@@ -1313,10 +1313,6 @@ class Server(ha_base.ClusterProtocol):
     async def _start_server(
         self, host: str, port: int
     ) -> asyncio.AbstractServer:
-        nethost = None
-        if host == "localhost":
-            nethost = await _resolve_localhost()
-
         proto_factory = lambda: protocol.HttpProtocol(
             self,
             self._sslctx,
@@ -1325,7 +1321,7 @@ class Server(ha_base.ClusterProtocol):
         )
 
         return await self.__loop.create_server(
-            proto_factory, host=nethost or host, port=port)
+            proto_factory, host=host, port=port)
 
     async def _start_admin_server(self, port: int) -> asyncio.AbstractServer:
         admin_unix_sock_path = os.path.join(
@@ -1664,46 +1660,6 @@ class Server(ha_base.ClusterProtocol):
         return obj
 
 
-async def _resolve_localhost() -> List[str]:
-    # On many systems 'localhost' resolves to _both_ IPv4 and IPv6
-    # addresses, even if the system is not capable of handling
-    # IPv6 connections.  Due to the common nature of this issue
-    # we explicitly disable the AF_INET6 component of 'localhost'.
-
-    loop = asyncio.get_running_loop()
-    localhost_infos = await loop.getaddrinfo(
-        'localhost',
-        0,
-        family=socket.AF_UNSPEC,
-        type=socket.SOCK_STREAM,
-        flags=socket.AI_PASSIVE,
-        proto=0,
-    )
-
-    if _is_ipv6_functional():
-        # IPv6 is validated to work on this server, so return the resolved
-        # addresses unfiltered.
-        return [
-            a[4][0] for a in localhost_infos
-            if a[0] in {socket.AF_INET, socket.AF_INET6}
-        ]
-
-    ipv4_infos = [a for a in localhost_infos if a[0] == socket.AF_INET]
-
-    if not ipv4_infos:
-        # "localhost" did not resolve to an IPv4 address,
-        # let asyncio.create_server() handle the situation.
-        return ["localhost"]
-
-    # Replace 'localhost' with explicitly resolved AF_INET addresses.
-    hosts = []
-    for info in reversed(ipv4_infos):
-        addr, *_ = info[4]
-        hosts.append(addr)
-
-    return hosts
-
-
 def _cleanup_wildcard_hosts(
     hosts: Sequence[str]
 ) -> tuple[list[str], list[str]]:
@@ -1791,43 +1747,3 @@ def _find_available_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("localhost", 0))
         return sock.getsockname()[1]
-
-
-_IPv6_FUNCTIONAL: bool | None = None
-
-
-def _is_ipv6_functional() -> bool:
-    # A functional test that IPv6 is not only available but can
-    # actually function.
-
-    global _IPv6_FUNCTIONAL
-
-    if _IPv6_FUNCTIONAL is not None:
-        return _IPv6_FUNCTIONAL
-
-    if not hasattr(socket, 'AF_INET6'):
-        return False
-
-    try:
-        with socket.socket(socket.AF_INET6) as srv:
-            srv.bind(('::1', 0))
-            srv.listen()
-
-            srv_addr = srv.getsockname()[:2]
-
-            with socket.socket(socket.AF_INET6) as client:
-                client.connect(srv_addr)
-
-                srv_client, _ = srv.accept()
-                if client.send(b'1') != 1:
-                    raise RuntimeError('could not send data via IPv6')
-
-                if srv_client.recv(1) != b'1':
-                    raise RuntimeError('could not recv data via IPv6')
-    except Exception:
-        logger.info('IPv6 is not fully supported', exc_info=True)
-        _IPv6_FUNCTIONAL = False
-    else:
-        _IPv6_FUNCTIONAL = True
-
-    return _IPv6_FUNCTIONAL
