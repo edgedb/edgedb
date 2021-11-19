@@ -399,7 +399,7 @@ def __infer_slice(
     if node_type.issubclass(env.schema, str_t):
         base_name = 'string'
     elif node_type.issubclass(env.schema, json_t):
-        base_name = 'json array'
+        base_name = 'JSON array'
     elif node_type.issubclass(env.schema, bytes_t):
         base_name = 'bytes'
     elif isinstance(node_type, s_abc.Array):

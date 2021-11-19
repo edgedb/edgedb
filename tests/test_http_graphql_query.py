@@ -3128,7 +3128,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_33(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'expected json string'):
+                r'expected JSON string'):
 
             self.graphql_query(
                 r"""
@@ -3267,7 +3267,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_39(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'expected json number.+got json string'):
+                r'expected JSON number.+got JSON string'):
             self.graphql_query(
                 r"""
                     query($limit: Int!) {

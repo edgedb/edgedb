@@ -326,9 +326,14 @@ def _static_interpret_wrong_object_type(_code, err_details):
     if err_details.column_name:
         return SchemaRequired
 
+    hint = None
+    if err_details.detail_json:
+        hint = err_details.detail_json.get('hint')
+
     return errors.InvalidValueError(
         err_details.message,
-        details=err_details.detail if err_details.detail else None
+        details=err_details.detail if err_details.detail else None,
+        hint=hint,
     )
 
 
