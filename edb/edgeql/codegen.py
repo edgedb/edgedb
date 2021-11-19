@@ -375,20 +375,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if parenthesise:
             self.write(')')
 
-    def visit_ByExpr(self, node: qlast.ByExpr) -> None:
-        if node.each is not None:
-            if node.each:
-                self._write_keywords('EACH ')
-            else:
-                self._write_keywords('SET OF ')
-
-        self.visit(node.expr)
-
-    def visit_GroupBuiltin(self, node: qlast.GroupBuiltin) -> None:
-        self.write(node.name, '(')
-        self.visit_list(node.elements, newlines=False)
-        self.write(')')
-
     def visit_ModuleAliasDecl(self, node: qlast.ModuleAliasDecl) -> None:
         if node.alias:
             self.write(ident_to_str(node.alias))
