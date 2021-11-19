@@ -777,6 +777,7 @@ class FunctionCommand(MetaCommand):
             has_variadic=func_params.find_variadic(schema) is not None,
             set_returning=func_return_typemod is ql_ft.TypeModifier.SetOfType,
             volatility=func.get_volatility(schema),
+            strict=func.get_impl_is_strict(schema),
             returns=self.get_pgtype(
                 func, func.get_return_type(schema), schema),
             text=code)
@@ -1034,6 +1035,58 @@ class FunctionCommand(MetaCommand):
 
         return check
 
+    def sql_strict_consistency_check(
+        self,
+        cobj: s_funcs.CallableObject,
+        func: str,
+        schema: s_schema.Schema,
+    ) -> dbops.Command:
+        fname = cobj.get_verbosename(schema)
+
+        # impl_is_strict means that the function is strict in all
+        # singleton arguments, so we don't need to do the check if
+        # no such arguments exist.
+        if (
+            not cobj.get_impl_is_strict(schema)
+            or not cobj.get_params(schema).has_type_mod(
+                schema, ql_ft.TypeModifier.SingletonType
+            )
+        ):
+            return dbops.CommandGroup()
+
+        if '.' in func:
+            ns, func = func.split('.')
+        else:
+            ns = 'pg_catalog'
+
+        f_test = textwrap.dedent(f'''\
+            COALESCE((
+                SELECT bool_and(proisstrict) FROM pg_proc
+                INNER JOIN pg_namespace ON pg_namespace.oid = pronamespace
+                WHERE proname = {ql(func)} AND nspname = {ql(ns)}
+            ), false)
+        ''')
+
+        check = dbops.Query(text=f'''
+            PERFORM
+                edgedb.raise_on_null(
+                    NULLIF(
+                        false,
+                        {f_test}
+                    ),
+                    'invalid_function_definition',
+                    msg => format(
+                        '%s is declared to have a strict impl but does not',
+                        {ql(fname)}
+                    ),
+                    hint => (
+                        'Add `impl_is_strict := false` to the declaration.'
+                    )
+                );
+        ''')
+
+        return check
+
     def get_dummy_func_call(
         self,
         cobj: s_funcs.CallableObject,
@@ -1073,8 +1126,10 @@ class FunctionCommand(MetaCommand):
                 # Function backed directly by an SQL function.
                 # Check the consistency of the return type.
                 dexpr = self.get_dummy_func_call(func, sql_func, schema)
-                check = self.sql_rval_consistency_check(func, dexpr, schema)
-                return (check,)
+                return (
+                    self.sql_rval_consistency_check(func, dexpr, schema),
+                    self.sql_strict_consistency_check(func, sql_func, schema),
+                )
         else:
             func_language = func.get_language(schema)
 
@@ -1352,6 +1407,13 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
                         cexpr = self.get_dummy_operator_call(
                             oper, pg_oper_name, from_args, schema)
 
+                    # We don't do a strictness consistency check for
+                    # USING SQL OPERATOR because they are heavily
+                    # overloaded, and so we'd need to take the types
+                    # into account; this is doable, but doesn't seem
+                    # worth doing since the only non-strict operator
+                    # is || on arrays, and we use array_cat for that
+                    # anyway!
                     check = self.sql_rval_consistency_check(
                         oper, cexpr, schema)
                     self.pgops.add(check)
@@ -1395,6 +1457,9 @@ class CreateOperator(OperatorCommand, adapts=s_opers.CreateOperator):
                 cexpr = f"{qi(oper_func_name)}({', '.join(cargs)})"
                 check = self.sql_rval_consistency_check(oper, cexpr, schema)
                 self.pgops.add(check)
+            check2 = self.sql_strict_consistency_check(
+                oper, oper_func_name, schema)
+            self.pgops.add(check2)
 
         elif oper.get_from_expr(schema):
             # This operator is handled by the compiler and does not

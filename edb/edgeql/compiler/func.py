@@ -269,6 +269,7 @@ def compile_FunctionCall(
         variadic_param_type=variadic_param_type,
         func_initial_value=func_initial_value,
         tuple_path_ids=tuple_path_ids,
+        impl_is_strict=func.get_impl_is_strict(env.schema),
     )
 
     ir_set = setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
@@ -592,6 +593,7 @@ def compile_operator(
         typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
         tuple_path_ids=[],
+        impl_is_strict=oper.get_impl_is_strict(env.schema),
     )
 
     _check_free_shape_op(node, ctx=ctx)
@@ -860,7 +862,8 @@ def finalize_args(
                 arg, paramtype, srcctx=None, ctx=ctx)
 
         args.append(
-            irast.CallArg(expr=arg, expr_type_path_id=arg_type_path_id))
+            irast.CallArg(expr=arg, expr_type_path_id=arg_type_path_id,
+                          is_default=barg.is_default))
 
         # If we have any logged paths left over and our enclosing
         # context is logging paths, propagate them up.

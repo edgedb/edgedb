@@ -397,6 +397,9 @@ def _get_set_rvar(
             # {<const>[, <const> ...]}
             rvars = process_set_as_const_set(ir_set, stmt, ctx=ctx)
 
+        elif isinstance(expr, irast.OperatorCall):
+            rvars = process_set_as_oper_expr(ir_set, stmt, ctx=ctx)
+
         else:
             # All other expressions.
             rvars = process_set_as_expr(ir_set, stmt, ctx=ctx)
@@ -1902,6 +1905,24 @@ def process_set_as_const_set(
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
+def process_set_as_oper_expr(
+        ir_set: irast.Set, stmt: pgast.SelectStmt, *,
+        ctx: context.CompilerContextLevel) -> SetRVars:
+    expr = ir_set.expr
+    assert isinstance(expr, irast.OperatorCall)
+
+    # XXX: do we need a subrel?
+    with ctx.new() as newctx:
+        newctx.expr_exposed = False
+        args = _compile_call_args(ir_set, ctx=newctx)
+        oper_expr = exprcomp.compile_operator(expr, args, ctx=newctx)
+
+    pathctx.put_path_value_var_if_not_exists(
+        stmt, ir_set.path_id, oper_expr, env=ctx.env)
+
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+
+
 def process_set_as_expr(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -2608,20 +2629,34 @@ def _compile_func_epilogue(
     return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
-def _compile_func_args(
+def _compile_call_args(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel
 ) -> List[pgast.BaseExpr]:
     expr = ir_set.expr
-    assert isinstance(expr, irast.FunctionCall)
+    assert isinstance(expr, irast.Call)
 
     args = []
 
-    for ir_arg in expr.args:
+    for ir_arg, typemod in zip(expr.args, expr.params_typemods):
         arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(output.output_as_value(arg_ref, env=ctx.env))
+        if (
+            not expr.impl_is_strict
+            and ir_arg.cardinality.can_be_zero()
+            and not ir_arg.is_default
+            and arg_ref.nullable
+            and typemod == qltypes.TypeModifier.SingletonType
+        ):
+            ctx.rel.where_clause = astutils.extend_binop(
+                ctx.rel.where_clause,
+                pgast.NullTest(arg=arg_ref, negated=True)
+            )
 
-        if ir_arg.expr_type_path_id is not None:
+        if (
+            isinstance(expr, irast.FunctionCall)
+            and ir_arg.expr_type_path_id is not None
+        ):
             # Object type arguments are represented by two
             # SQL arguments: object id and object type id.
             # The latter is needed for proper overload
@@ -2635,7 +2670,11 @@ def _compile_func_args(
             )
             args.append(type_ref)
 
-    if expr.has_empty_variadic and expr.variadic_param_type is not None:
+    if (
+        isinstance(expr, irast.FunctionCall)
+        and expr.has_empty_variadic
+        and expr.variadic_param_type is not None
+    ):
         var = pgast.TypeCast(
             arg=pgast.ArrayExpr(elements=[]),
             type_name=pgast.TypeName(
@@ -2675,7 +2714,7 @@ def process_set_as_func_enumerate(
     with ctx.subrel() as newctx:
         with newctx.new() as newctx2:
             newctx2.expr_exposed = False
-            args = _compile_func_args(inner_func_set, ctx=newctx2)
+            args = _compile_call_args(inner_func_set, ctx=newctx2)
         func_name = get_func_call_backend_name(inner_func, ctx=newctx)
 
         set_expr = _process_set_func_with_ordinality(
@@ -2699,7 +2738,7 @@ def process_set_as_func_expr(
 
     with ctx.subrel() as newctx:
         newctx.expr_exposed = False
-        args = _compile_func_args(ir_set, ctx=newctx)
+        args = _compile_call_args(ir_set, ctx=newctx)
         name = get_func_call_backend_name(expr, ctx=newctx)
 
         if expr.typemod is qltypes.TypeModifier.SetOfType:

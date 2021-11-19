@@ -260,6 +260,7 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
             ) -> std::int64 {
                 USING SQL FUNCTION 'edgedb.get_pg_type_for_edgedb_type';
                 SET volatility := 'STABLE';
+                SET impl_is_strict := false;
             };
 
             CREATE FUNCTION sys::_expr_from_json(
