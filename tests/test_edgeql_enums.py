@@ -282,5 +282,5 @@ class TestEdgeQLEnums(tb.QueryTestCase):
     async def test_edgeql_enums_json_cast_03(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                r'expected json string or null; got json number'):
+                r'expected JSON string or null; got JSON number'):
             await self.con.execute("SELECT <color_enum_t><json>12")

@@ -1097,9 +1097,9 @@ class AssertJSONTypeFunction(dbops.Function):
                     msg => coalesce(
                         msg,
                         (
-                            'expected json '
+                            'expected JSON '
                             || array_to_string(typenames, ' or ')
-                            || '; got json '
+                            || '; got JSON '
                             || coalesce(jsonb_typeof(val), 'UNKNOWN')
                         )
                     ),
@@ -1742,7 +1742,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
                 1
             ),
             'invalid_parameter_value',
-            'string index ' || "index"::text || ' is out of bounds',
+            "typename" || ' index ' || "index"::text || ' is out of bounds',
             "detail"
         )
     '''
@@ -1754,6 +1754,7 @@ class StringIndexWithBoundsFunction(dbops.Function):
                 ('val', ('text',)),
                 ('index', ('bigint',)),
                 ('detail', ('text',)),
+                ('typename', ('text',), "'string'"),
             ],
             returns=('text',),
             # Same volatility as raise_on_empty
@@ -1936,7 +1937,7 @@ class JSONIndexByTextFunction(dbops.Function):
                     val -> index,
                     'invalid_parameter_value',
                     msg => (
-                        'json index ' || quote_literal(index)
+                        'JSON index ' || quote_literal(index)
                         || ' is out of bounds'
                     ),
                     detail => detail
@@ -1947,7 +1948,7 @@ class JSONIndexByTextFunction(dbops.Function):
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => (
-                        'cannot index json ' || jsonb_typeof(val)
+                        'cannot index JSON ' || jsonb_typeof(val)
                         || ' by ' || pg_typeof(index)::text
                     ),
                     detail => detail
@@ -1958,10 +1959,13 @@ class JSONIndexByTextFunction(dbops.Function):
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => (
-                        'cannot index json '
+                        'cannot index JSON '
                         || coalesce(jsonb_typeof(val), 'UNKNOWN')
                     ),
-                    detail => detail
+                    detail => (
+                        '{"hint":"Retrieving an element by a string index '
+                        || 'is only available for JSON objects."}'
+                    )
                 )
             END
     '''
@@ -1992,7 +1996,7 @@ class JSONIndexByIntFunction(dbops.Function):
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => (
-                        'cannot index json ' || jsonb_typeof(val)
+                        'cannot index JSON ' || jsonb_typeof(val)
                         || ' by ' || pg_typeof(index)::text
                     ),
                     detail => detail
@@ -2002,19 +2006,30 @@ class JSONIndexByIntFunction(dbops.Function):
                 edgedb.raise_on_null(
                     val -> index::int,
                     'invalid_parameter_value',
-                    msg => 'json index ' || index::text || ' is out of bounds',
+                    msg => 'JSON index ' || index::text || ' is out of bounds',
                     detail => detail
                 )
+            )
+            WHEN 'string' THEN (
+                to_jsonb(edgedb._index(
+                    val#>>'{}',
+                    index,
+                    detail,
+                    'JSON'
+                ))
             )
             ELSE
                 edgedb.raise(
                     NULL::jsonb,
                     'wrong_object_type',
                     msg => (
-                        'cannot index json '
+                        'cannot index JSON '
                         || coalesce(jsonb_typeof(val), 'UNKNOWN')
                     ),
-                    detail => detail
+                    detail => (
+                        '{"hint":"Retrieving an element by an integer index '
+                        || 'is only available for JSON arrays and strings."}'
+                    )
                 )
             END
     '''
@@ -2038,14 +2053,34 @@ class JSONIndexByIntFunction(dbops.Function):
 class JSONSliceFunction(dbops.Function):
     """Get a JSON array slice."""
     text = r'''
-        SELECT to_jsonb(_slice(
-            (
-                SELECT array_agg(value)
-                FROM jsonb_array_elements(
-                    edgedb.jsonb_assert_type(val, ARRAY['array']))
-            ),
-            start, stop
-        ))
+        SELECT
+            CASE jsonb_typeof(val)
+            WHEN 'array' THEN (
+                to_jsonb(_slice(
+                    (
+                        SELECT array_agg(value)
+                        FROM jsonb_array_elements(val)
+                    ),
+                    start, stop
+                ))
+            )
+            WHEN 'string' THEN (
+                to_jsonb(_slice(val#>>'{}', start, stop))
+            )
+            ELSE
+                edgedb.raise(
+                    NULL::jsonb,
+                    'wrong_object_type',
+                    msg => (
+                        'cannot slice JSON '
+                        || coalesce(jsonb_typeof(val), 'UNKNOWN')
+                    ),
+                    detail => (
+                        '{"hint":"Slicing is only available for JSON arrays'
+                        || ' and strings."}'
+                    )
+                )
+            END
     '''
 
     def __init__(self) -> None:
@@ -2089,7 +2124,7 @@ class DatetimeInFunction(dbops.Function):
                     ),
                     detail => (
                         '{"hint":"Please use ISO8601 format. Example: '
-                        || '2010-12-27T23:59:59-07:00 Alternatively '
+                        || '2010-12-27T23:59:59-07:00. Alternatively '
                         || '\"to_datetime\" function provides custom '
                         || 'formatting options."}'
                     )
