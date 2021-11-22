@@ -272,8 +272,10 @@ def _generate_cert(
         )
         .add_extension(
             x509.SubjectAlternativeName(
-                [x509.DNSName(name) for name in listen_hosts
-                 if name != '0.0.0.0']
+                [
+                    x509.DNSName(name) for name in listen_hosts
+                    if name not in {'0.0.0.0', '::'}
+                ]
             ),
             critical=False,
         )

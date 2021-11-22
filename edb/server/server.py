@@ -179,24 +179,6 @@ class Server(ha_base.ClusterProtocol):
             defines.MIN_SUGGESTED_CLIENT_POOL_SIZE
         )
 
-        if netport == 0:
-            # When `netport` is 0 it means that the user wants the server
-            # to pick an available port automatically. The ideal way to
-            # do that would be for asyncio/uvloop to resolve the hostname,
-            # bind to the first resolved address with port=0, and then
-            # enforce the same port for all other resolved addresses.
-            #
-            # Unfortunately that's not what happens: asyncio (by design)
-            # binds to port 0 for all resolved addresses, meaning that
-            # binding to "localhost:0" can create two servers on
-            # 127.0.0.1 and ::1 bound to different ports!
-            #
-            # In light of that, we pick a random port manually here to
-            # make sure it's consistent across all listen-addresses.
-            # While this can be racy, it's the only way to do this without
-            # re-implementing most of `asyncio.create_server()`.
-            netport = _find_available_port()
-
         self._listen_hosts = nethosts
         self._listen_port = netport
 
@@ -859,7 +841,7 @@ class Server(ha_base.ClusterProtocol):
     async def _restart_servers_new_addr(self, nethosts, netport):
         if not netport:
             raise RuntimeError('cannot restart without network port specified')
-        nethosts = _fix_wildcard_hosts(nethosts)
+        nethosts = await _resolve_interfaces(nethosts)
         servers_to_stop = []
         servers = {}
         if self._listen_port == netport:
@@ -877,10 +859,11 @@ class Server(ha_base.ClusterProtocol):
             servers_to_stop = self._servers.values()
             admin = True
 
-        new_servers, *_ = await self._start_servers(
-            hosts_to_start, netport, admin
-        )
-        servers.update(new_servers)
+        if hosts_to_start:
+            new_servers, *_ = await self._start_servers(
+                hosts_to_start, netport, admin
+            )
+            servers.update(new_servers)
         self._servers = servers
         self._listen_hosts = nethosts
         self._listen_port = netport
@@ -1312,7 +1295,7 @@ class Server(ha_base.ClusterProtocol):
 
     async def _start_server(
         self, host: str, port: int
-    ) -> asyncio.AbstractServer:
+    ) -> Optional[asyncio.AbstractServer]:
         proto_factory = lambda: protocol.HttpProtocol(
             self,
             self._sslctx,
@@ -1320,8 +1303,14 @@ class Server(ha_base.ClusterProtocol):
             http_endpoint_security=self._http_endpoint_security,
         )
 
-        return await self.__loop.create_server(
-            proto_factory, host=host, port=port)
+        try:
+            return await self.__loop.create_server(
+                proto_factory, host=host, port=port)
+        except Exception as e:
+            logger.warning(
+                f"could not create listen socket for '{host}:{port}': {e}"
+            )
+            return None
 
     async def _start_admin_server(self, port: int) -> asyncio.AbstractServer:
         admin_unix_sock_path = os.path.join(
@@ -1341,19 +1330,46 @@ class Server(ha_base.ClusterProtocol):
 
     async def _start_servers(self, hosts, port, admin=True):
         servers = {}
-        try:
-            async with taskgroup.TaskGroup() as g:
+        if port == 0:
+            # Automatic port selection requires us to start servers
+            # sequentially until we get a working bound socket to ensure
+            # consistent port value across all requested listen addresses.
+            try:
                 for host in hosts:
-                    servers[host] = g.create_task(
-                        self._start_server(host, port)
+                    server = await self._start_server(host, port)
+                    if server is not None and port == 0:
+                        port = server.sockets[0].getsockname()[1]
+                    servers[host] = server
+            except Exception:
+                await self._stop_servers(servers.values())
+                raise
+        else:
+            start_tasks = {}
+            try:
+                async with taskgroup.TaskGroup() as g:
+                    for host in hosts:
+                        start_tasks[host] = g.create_task(
+                            self._start_server(host, port)
+                        )
+            except Exception:
+                await self._stop_servers([
+                    fut.result() for fut in start_tasks.values()
+                    if (
+                        fut.done()
+                        and fut.exception() is None
+                        and fut.result() is not None
                     )
-        except Exception:
-            await self._stop_servers([
-                fut.result() for fut in servers.values()
-                if fut.done() and fut.exception() is None
-            ])
-            raise
-        servers = {host: fut.result() for host, fut in servers.items()}
+                ])
+                raise
+
+            servers.update({
+                host: fut.result()
+                for host, fut in start_tasks.items()
+                if fut.result() is not None
+            })
+
+        if not servers:
+            raise StartupError("could not create any listen sockets")
 
         addrs = []
         for tcp_srv in servers.values():
@@ -1469,10 +1485,11 @@ class Server(ha_base.ClusterProtocol):
             )
 
         self._servers, actual_port, listen_addrs = await self._start_servers(
-            _fix_wildcard_hosts(self._listen_hosts), self._listen_port
+            await _resolve_interfaces(self._listen_hosts),
+            self._listen_port,
         )
-        if self._listen_port == 0:
-            self._listen_port = actual_port
+        self._listen_hosts = listen_addrs
+        self._listen_port = actual_port
 
         self._accepting_connections = True
         self._serving = True
@@ -1660,12 +1677,14 @@ class Server(ha_base.ClusterProtocol):
         return obj
 
 
-def _cleanup_wildcard_hosts(
+def _cleanup_wildcard_addrs(
     hosts: Sequence[str]
 ) -> tuple[list[str], list[str]]:
-    """Filter out potentially conflicting hosts in presence of wildcards.
+    """Filter out conflicting addresses in presence of INADDR_ANY wildcards.
 
-    See `_fix_wildcard_hosts()` for more details.
+    Attempting to bind to 0.0.0.0 (or ::) _and_ a non-wildcard address will
+    usually result in EADDRINUSE.  To avoid this, filter out all specific
+    addresses if a wildcard is present in the *hosts* sequence.
 
     Returns a tuple: first element is the new list of hosts, second
     element is a list of rejected host addrs/names.
@@ -1675,7 +1694,15 @@ def _cleanup_wildcard_hosts(
     ipv6_hosts = set()
     named_hosts = set()
 
+    ipv4_wc = ipaddress.ip_address('0.0.0.0')
+    ipv6_wc = ipaddress.ip_address('::')
+
     for host in hosts:
+        if host == "*":
+            ipv4_hosts.add(ipv4_wc)
+            ipv6_hosts.add(ipv6_wc)
+            continue
+
         try:
             ip = ipaddress.IPv4Address(host)
         except ValueError:
@@ -1696,9 +1723,6 @@ def _cleanup_wildcard_hosts(
 
     if not ipv4_hosts and not ipv6_hosts:
         return (list(hosts), [])
-
-    ipv4_wc = ipaddress.ip_address('0.0.0.0')
-    ipv6_wc = ipaddress.ip_address('::')
 
     if ipv4_wc not in ipv4_hosts and ipv6_wc not in ipv6_hosts:
         return (list(hosts), [])
@@ -1725,25 +1749,46 @@ def _cleanup_wildcard_hosts(
     raise AssertionError('unreachable')
 
 
-def _fix_wildcard_hosts(hosts: Sequence[str]) -> Sequence[str]:
-    # Even though it is sometimes not a conflict to bind on the same port of
-    # both the wildcard host 0.0.0.0 and some specific host at the same time,
-    # we're still discarding other hosts if 0.0.0.0 (or ::0) is present
-    # because it should behave the same and we could avoid potential conflicts.
+async def _resolve_host(host: str) -> list[str] | Exception:
+    loop = asyncio.get_running_loop()
+    try:
+        addrinfo = await loop.getaddrinfo(
+            None if host == '*' else host,
+            0,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
+            flags=socket.AI_PASSIVE,
+        )
+    except Exception as e:
+        return e
+    else:
+        return [addr[4][0] for addr in addrinfo]
 
-    new_hosts, rejected_hosts = _cleanup_wildcard_hosts(hosts)
 
-    if rejected_hosts:
+async def _resolve_interfaces(hosts: Sequence[str]) -> Sequence[str]:
+
+    async with taskgroup.TaskGroup() as g:
+        resolve_tasks = {
+            host: g.create_task(_resolve_host(host))
+            for host in hosts
+        }
+
+    addrs = []
+    for host, fut in resolve_tasks.items():
+        result = fut.result()
+        if isinstance(result, Exception):
+            logger.warning(
+                f"could not translate host name {host!r} to address: {result}")
+        else:
+            addrs.extend(result)
+
+    clean_addrs, rejected_addrs = _cleanup_wildcard_addrs(addrs)
+
+    if rejected_addrs:
         logger.warning(
             "wildcard addresses found in listen_addresses; " +
-            "discarding the other hosts: " +
-            ", ".join(repr(h) for h in rejected_hosts)
+            "discarding the other addresses: " +
+            ", ".join(repr(h) for h in rejected_addrs)
         )
 
-    return new_hosts
-
-
-def _find_available_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("localhost", 0))
-        return sock.getsockname()[1]
+    return clean_addrs

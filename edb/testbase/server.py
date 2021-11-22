@@ -55,7 +55,6 @@ from edb.edgeql import quote as qlquote
 from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
-from edb.server import server
 
 from edb.common import devmode
 from edb.common import taskgroup
@@ -1552,6 +1551,7 @@ class _EdgeDBServer:
     def __init__(
         self,
         *,
+        bind_addrs: Tuple[str, ...] = ('localhost',),
         bootstrap_command: Optional[str],
         auto_shutdown: bool,
         adjacent_to: Optional[edgedb.AsyncIOConnection],
@@ -1571,6 +1571,7 @@ class _EdgeDBServer:
         enable_backend_adaptive_ha: bool = False,
         env: Optional[Dict[str, str]] = None,
     ) -> None:
+        self.bind_addrs = bind_addrs
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
         self.adjacent_to = adjacent_to
@@ -1643,6 +1644,9 @@ class _EdgeDBServer:
             '--compiler-pool-size', str(self.compiler_pool_size),
             '--generate-self-signed-cert',
         ]
+
+        for addr in self.bind_addrs:
+            cmd.extend(('--bind-address', addr))
 
         reset_auth = self.reset_auth
 
@@ -1731,15 +1735,24 @@ class _EdgeDBServer:
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
             env=env,
-            stdout=None,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             pass_fds=(status_w.fileno(),),
         )
 
-        try:
-            self.data = data = await asyncio.wait_for(
+        status_task = asyncio.create_task(
+            asyncio.wait_for(
                 self.wait_for_server_readiness(stat_reader),
                 timeout=240,
+            ),
+        )
+        try:
+            _, pending = await asyncio.wait(
+                [
+                    status_task,
+                    asyncio.create_task(self.proc.wait()),
+                ],
+                return_when=asyncio.FIRST_COMPLETED,
             )
         except (Exception, asyncio.CancelledError):
             try:
@@ -1749,6 +1762,20 @@ class _EdgeDBServer:
         finally:
             stat_writer.close()
             status_w.close()
+
+        if pending:
+            for task in pending:
+                if not task.done():
+                    task.cancel()
+
+            await asyncio.wait(pending, timeout=10)
+
+        if self.proc.returncode is not None:
+            output = (await self.proc.stdout.read()).decode().strip()
+            raise edgedb_cluster.ClusterError(output)
+        else:
+            assert status_task.done()
+            data = status_task.result()
 
         return _EdgeDBServerData(
             host='127.0.0.1',
@@ -1787,6 +1814,7 @@ class _EdgeDBServer:
 
 def start_edgedb_server(
     *,
+    bind_addrs: tuple[str, ...] = ('localhost',),
     auto_shutdown: bool=False,
     bootstrap_command: Optional[str]=None,
     max_allowed_connections: Optional[int]=10,
@@ -1824,6 +1852,7 @@ def start_edgedb_server(
             'backend_dsn and adjacent_to options are mutually exclusive')
 
     return _EdgeDBServer(
+        bind_addrs=bind_addrs,
         auto_shutdown=auto_shutdown,
         bootstrap_command=bootstrap_command,
         max_allowed_connections=max_allowed_connections,
@@ -1982,5 +2011,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     return cases
 
 
-def find_available_port():
-    return server._find_available_port()
+def find_available_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("localhost", 0))
+        return sock.getsockname()[1]
