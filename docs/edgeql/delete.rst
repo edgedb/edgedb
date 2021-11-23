@@ -59,7 +59,7 @@ the ``allow`` deletion policy.
 .. code-block:: sdl-diff
 
     type Movie {
-      required property title -> str { constraint exclusive; }
+      required property title -> str { constraint exclusive };
       required property release_year -> int64;
   -   multi link characters -> Person;
   +   multi link characters -> Person {

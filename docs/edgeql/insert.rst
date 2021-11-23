@@ -20,7 +20,7 @@ samples on this page assume the following schema:
 
   module default {
     abstract type Person {
-      required property name -> str { constraint exclusive; };
+      required property name -> str { constraint exclusive };
     }
 
     type Hero extending Person {
@@ -33,7 +33,7 @@ samples on this page assume the following schema:
     }
 
     type Movie {
-      required property title -> str { constraint exclusive; }
+      required property title -> str { constraint exclusive };
       required property release_year -> int64;
       multi link characters -> Person;
     }

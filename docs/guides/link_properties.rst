@@ -20,7 +20,7 @@ corresponding to the strength of the friendship.
 .. code-block:: sdl
 
   type Person {
-    required property name -> str { constraint exclusive; }
+    required property name -> str { constraint exclusive };
 
     multi link friends -> Person {
       property strength -> float64;
@@ -33,7 +33,7 @@ Constraints
 .. code-block:: sdl
 
   type Person {
-    required property name -> str { constraint exclusive; }
+    required property name -> str { constraint exclusive };
 
     multi link friends -> Person {
       property strength -> float64;
@@ -56,7 +56,7 @@ To index on a link property, you must declare an abstract link and extend it.
   }
 
   type Person {
-    required property name -> str { constraint exclusive; }
+    required property name -> str { constraint exclusive };
     multi link friends extending friendship -> Person;
   }
 
