@@ -400,7 +400,8 @@ on empty sets.
   db> select count(<str>{});
   {0}
 
-For a more complete discussion of cardinality, see :ref:`Reference > Cardinality <ref_reference_cardinality>`.
+For a more complete discussion of cardinality, see :ref:`Reference >
+Cardinality <ref_reference_cardinality>`.
 
 .. _ref_eql_set_array_conversion:
 

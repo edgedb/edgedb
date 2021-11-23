@@ -8,23 +8,6 @@ Modules
 Every EdgeDB database can contain several **modules**, each with a unique name.
 Modules can be used to organize large schemas.
 
-Modules can contain a wide range of *schema elements*: object types (equivalent
-to tables in SQL), custom scalar types, expression aliases, abstract links and
-properties, functions, and more. Each of these schema elements has a name; no
-two elements in the same module can share the same name.
-
-You can split up your schemas however you see fit. Most users put their entire
-schema inside a single module called ``default``.
-
-.. _ref_name_resolution:
-
-Fully-qualified names
----------------------
-
-When referencing schema objects in a different module, you must use a
-*fully-qualified* name of the form ``module_name::object_name``. Consider the
-following schema:
-
 .. code-block:: sdl
 
   module default {
@@ -40,7 +23,22 @@ following schema:
     }
   }
 
-Note how ``BlogPost.author`` points to ``auth::User``. If ``User`` and
+Modules can contain a wide range of *schema elements*: object types (equivalent
+to tables in SQL), custom scalar types, expression aliases, abstract links and
+properties, functions, and more. Each of these schema elements has a name; no
+two elements in the same module can share the same name.
+
+You can split up your schemas however you see fit. Most users put their entire
+schema inside a single module called ``default``.
+
+.. _ref_name_resolution:
+
+Fully-qualified names
+---------------------
+
+When referencing schema objects in a different module, you must use a
+*fully-qualified* name of the form ``module_name::object_name``. In the schema
+above, note how ``BlogPost.author`` points to ``auth::User``. If ``User`` and
 ``BlogPost`` were in the same module the ``auth::`` prefix wouldn't be
 necessary.
 

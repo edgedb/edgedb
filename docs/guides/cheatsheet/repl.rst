@@ -3,14 +3,16 @@
 Using the REPL
 ==============
 
-Execute a query. To execute a query in the REPL, terminate the statement with a semicolon and press "ENTER".
+Execute a query. To execute a query in the REPL, terminate the statement with
+a semicolon and press "ENTER".
 
 .. code-block:: edgeql-repl
 
     db> select 5;
     {5}
 
-Alternatively, you can run the query without a semicolon with ⌥-Enter on macOS or Alt-Enter on Windows/Linux.
+Alternatively, you can run the query without a semicolon with ⌥-Enter on macOS
+or Alt-Enter on Windows/Linux.
 
 .. code-block:: edgeql-repl
 
@@ -20,7 +22,8 @@ Alternatively, you can run the query without a semicolon with ⌥-Enter on macOS
 
 ----------
 
-Use query parameters. If your query contains a parameter, you will be prompted for a value.
+Use query parameters. If your query contains a parameter, you will be prompted
+for a value.
 
 .. code-block:: edgeql-repl
 

@@ -11,8 +11,8 @@ Introspection of the ``schema::Index``:
 
 .. code-block:: edgeql-repl
 
-    db> wit schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -21,7 +21,7 @@ Introspection of the ``schema::Index``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::Index';
+    ... filter .name = 'schema::Index';
     {
         Object {
             name: 'schema::Index',
@@ -56,11 +56,11 @@ Introspection of ``User.name`` index:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT Index {
+    db> with module schema
+    ... select Index {
     ...     expr,
     ... }
-    ... FILTER .expr LIKE '%.name';
+    ... filter .expr like '%.name';
     {
         Object {
             expr: '.name'
