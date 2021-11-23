@@ -24,6 +24,9 @@ Any unspecified values will fall back to their defaults:
   Password: null
   Database name: "edgedb"
 
+Query parameters
+----------------
+
 DSNs also support query parameters (``?host=myhost.com``) to support advanced
 use cases. These query parameters fall into three categories: "plain"
 parameters (where the parameter contains the value itself), file parameters
@@ -63,9 +66,9 @@ variable containing the value).
   * - ``tls_cert_file``
     - ``tls_cert_file_file``
     - ``tls_cert_file_env``
-  * - ``tls_verify_hostname``
-    - ``tls_verify_hostname_file``
-    - ``tls_verify_hostname_env``
+  * - ``tls_security``
+    - ``tls_security_file``
+    - ``tls_security_env``
 
 **Plain params**
   These "plain" parameters can be used to provide values for options that can't
@@ -91,7 +94,7 @@ variable containing the value).
     # ./username.txt
     my_username
 
-  Relative params are resolved relative to the currect working directory at the
+  Relative params are resolved relative to the current working directory at the
   time of connection.
 
 **Environment params**

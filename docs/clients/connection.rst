@@ -6,21 +6,22 @@ Connection
 There are a couple ways to provide connection information to a client
 library.
 
-- Use **projects**. This is the recommended approach for local
-  development. Once the project is initialized, all client libraries that are
+- Use **projects**. This is the recommended approach for *local
+  development*. Once the project is initialized, all client libraries that are
   running inside the project directory can auto-discover the project-linked
   instance, no need for environment variables or hard-coded credentials.
   Follow the :ref:`Using projects <ref_guide_using_projects>` guide to get
   started.
 
-- Configure a **DSN** (connection URL) with the ``EDGEDB_DSN`` environment
-  variable. This is the recommended approach in production. A DSN is a
+- Set the ``EDGEDB_DSN`` environment to a valid DSN (connection string). This
+  is the recommended approach in *production*. A DSN is a
   connection URL of the form ``edgedb://user:pass@host:port/database``. For a
   guide to DSNs, see the :ref:`DSN Specification <ref_dsn>`.
 
   The value of ``EDGEDB_DSN`` can also be an :ref:`instance name
-  <ref_reference_connection_instance_name>`.
-
+  <ref_reference_connection_instance_name>`. You can create new instances
+  manually with the :ref:`edgedb instance create
+  <ref_cli_edgedb_instance_create>` command.
 
 - Explicitly pass a DSN or :ref:`instance name
   <ref_reference_connection_instance_name>`
@@ -34,8 +35,12 @@ library.
       dsn: "edgedb://..."
     });
 
-  You can create new instances manually with :ref:`the CLI
-  <ref_cli_edgedb_instance_create>`.
+  Only use this approach in development; it isn't recommended to include
+  sensitive information hard-coded in your production source code. Use
+  environment variables instead. How to set environment variables depends on
+  your development environment; different languages, frameworks, cloud hosting
+  providers, and container-based workflows each provide various mechanisms for
+  doing so.
 
 These are the most common ways to connect to an instance, however EdgeDB
 supports several other options for advanced use cases. For a complete reference
