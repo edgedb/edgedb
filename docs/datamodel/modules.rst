@@ -42,18 +42,6 @@ above, note how ``BlogPost.author`` points to ``auth::User``. If ``User`` and
 ``BlogPost`` were in the same module the ``auth::`` prefix wouldn't be
 necessary.
 
-.. code-block:: sdl
-
-  module default {
-    type User {
-      required property email -> str;
-    }
-
-    type BlogPost {
-      required property title -> str;
-      required link author -> User;
-    }
-  }
 
 Standard modules
 ----------------
