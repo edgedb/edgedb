@@ -100,8 +100,9 @@ permitted.
 
 .. note::
 
-  Types are considered *compatible* if they can be implicitly cast into each
-  other.
+  Types are considered *compatible* if one can be implicitly cast into each
+  other. For reference on implicit castability, see :ref:`Standard Library >
+  Casts <ref_eql_casts_table>`.
 
 .. _ref_eql_set_literals_are_singletons:
 
@@ -434,3 +435,20 @@ transform than arrays.
 Most :ref:`aggregate <ref_eql_funcops_aggregate>` operations have analogs that
 operate on arrays. For instance, the set function :eql:func:`count`
 is analogous to the array function :eql:func:`len`.
+
+
+Reference
+---------
+
+.. list-table::
+
+  * - Set operators
+    - :eql:op:`DISTINCT <DISTINCT>` :eql:op:`IN <IN>` :eql:op:`UNION <UNION>`
+      :eql:op:`EXISTS <EXISTS>` :eql:op:`IF..ELSE <IF..ELSE>`
+      :eql:op:`?? <COALESCE>` :eql:op:`DETACHED`
+      :eql:op:`[IS type] <ISINTERSECT>`
+  * - Utility functions
+    - :eql:func:`count` :eql:func:`enumerate`
+  * - Cardinality assertion
+    - :eql:func:`assert_distinct` :eql:func:`assert_single`
+      :eql:func:`assert_exists`
