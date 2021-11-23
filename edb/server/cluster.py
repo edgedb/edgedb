@@ -56,22 +56,31 @@ class BaseCluster:
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        security: Optional[
+            edgedb_args.ServerSecurityMode
+        ] = None,
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode
         ] = None
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
+        self._edgedb_cmd.append('--tls-cert-mode=generate_self_signed')
+
         if log_level:
             self._edgedb_cmd.extend(['--log-level', log_level])
 
         if devmode.is_in_dev_mode():
             self._edgedb_cmd.append('--devmode')
-        else:
-            self._edgedb_cmd.append('--generate-self-signed-cert')
 
         if testmode:
             self._edgedb_cmd.append('--testmode')
+
+        if security:
+            self._edgedb_cmd.extend((
+                '--security',
+                str(security),
+            ))
 
         if http_endpoint_security:
             self._edgedb_cmd.extend((
@@ -347,6 +356,9 @@ class Cluster(BaseCluster):
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        security: Optional[
+            edgedb_args.ServerSecurityMode
+        ] = None,
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode
         ] = None
@@ -360,6 +372,7 @@ class Cluster(BaseCluster):
             env=env,
             testmode=testmode,
             log_level=log_level,
+            security=security,
             http_endpoint_security=http_endpoint_security,
         )
         self._edgedb_cmd.extend(['-D', str(self._data_dir)])
@@ -401,6 +414,9 @@ class TempCluster(Cluster):
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        security: Optional[
+            edgedb_args.ServerSecurityMode
+        ] = None,
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode
         ] = None
@@ -418,6 +434,7 @@ class TempCluster(Cluster):
             env=env,
             testmode=testmode,
             log_level=log_level,
+            security=security,
             http_endpoint_security=http_endpoint_security,
         )
 
@@ -472,9 +489,12 @@ class TempClusterWithRemotePg(BaseCluster):
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        security: Optional[
+            edgedb_args.ServerSecurityMode
+        ] = None,
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode
-        ] = None
+        ] = None,
     ) -> None:
         runstate_dir = pathlib.Path(
             tempfile.mkdtemp(
@@ -486,7 +506,7 @@ class TempClusterWithRemotePg(BaseCluster):
         self._backend_dsn = backend_dsn
         super().__init__(
             runstate_dir, env=env, testmode=testmode, log_level=log_level,
-            http_endpoint_security=http_endpoint_security)
+            security=security, http_endpoint_security=http_endpoint_security)
         self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
 
     async def _new_pg_cluster(self) -> pgcluster.BaseCluster:

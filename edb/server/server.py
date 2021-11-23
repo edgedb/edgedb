@@ -221,6 +221,7 @@ class Server(ha_base.ClusterProtocol):
         self._task_group = None
         self._stop_evt = asyncio.Event()
         self._tls_cert_file = None
+        self._tls_cert_newly_generated = False
         self._sslctx = None
 
         self._default_auth_method = default_auth_method
@@ -1337,9 +1338,10 @@ class Server(ha_base.ClusterProtocol):
             try:
                 for host in hosts:
                     server = await self._start_server(host, port)
-                    if server is not None and port == 0:
-                        port = server.sockets[0].getsockname()[1]
-                    servers[host] = server
+                    if server is not None:
+                        if port == 0:
+                            port = server.sockets[0].getsockname()[1]
+                        servers[host] = server
             except Exception:
                 await self._stop_servers(servers.values())
                 raise
@@ -1401,7 +1403,12 @@ class Server(ha_base.ClusterProtocol):
 
         return servers, port, addrs
 
-    def init_tls(self, tls_cert_file, tls_key_file):
+    def init_tls(
+        self,
+        tls_cert_file,
+        tls_key_file,
+        tls_cert_newly_generated,
+    ):
         assert self._sslctx is None
         tls_password_needed = False
 
@@ -1455,6 +1462,7 @@ class Server(ha_base.ClusterProtocol):
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         self._sslctx = sslctx
         self._tls_cert_file = str(tls_cert_file)
+        self._tls_cert_newly_generated = tls_cert_newly_generated
 
     async def _stop_servers(self, servers):
         async with taskgroup.TaskGroup() as g:
@@ -1510,6 +1518,7 @@ class Server(ha_base.ClusterProtocol):
                 "main_pid": os.getpid(),
                 "tenant_id": self._tenant_id,
                 "tls_cert_file": self._tls_cert_file,
+                "tls_cert_newly_generated": self._tls_cert_newly_generated,
             }
             status_sink(f'READY={json.dumps(status)}')
 

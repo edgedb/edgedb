@@ -394,6 +394,7 @@ async def init_cluster(
     *,
     cleanup_atexit=True,
     init_settings=None,
+    security=edgedb_args.ServerSecurityMode.Strict,
     http_endpoint_security=edgedb_args.ServerEndpointSecurityMode.Optional,
 ) -> edgedb_cluster.BaseCluster:
     if data_dir is not None and backend_dsn is not None:
@@ -406,16 +407,19 @@ async def init_cluster(
         cluster = edgedb_cluster.TempClusterWithRemotePg(
             backend_dsn, testmode=True, log_level='s',
             data_dir_prefix='edb-test-',
+            security=security,
             http_endpoint_security=http_endpoint_security)
         destroy = True
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
             testmode=True, log_level='s', data_dir_prefix='edb-test-',
+            security=security,
             http_endpoint_security=http_endpoint_security)
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
             data_dir=data_dir, log_level='s',
+            security=security,
             http_endpoint_security=http_endpoint_security)
         destroy = False
 
@@ -1642,7 +1646,7 @@ class _EdgeDBServer:
             '--testmode',
             '--emit-server-status', f'fd://{status_w.fileno()}',
             '--compiler-pool-size', str(self.compiler_pool_size),
-            '--generate-self-signed-cert',
+            '--tls-cert-mode=generate_self_signed',
         ]
 
         for addr in self.bind_addrs:

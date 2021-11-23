@@ -24,6 +24,7 @@ import asyncio
 import http.client
 import json
 import os.path
+import pathlib
 import random
 import subprocess
 import ssl
@@ -102,7 +103,7 @@ class TestServerOps(tb.TestCase):
             '--bootstrap-only',
             '--log-level=error',
             '--max-backend-connections', '10',
-            '--generate-self-signed-cert',
+            '--tls-cert-mode=generate_self_signed',
         ]
 
         # Note: for debug comment "stderr=subprocess.PIPE".
@@ -160,7 +161,7 @@ class TestServerOps(tb.TestCase):
             '--max-backend-connections', '10',
             '--emit-server-status', status_file,
             '--emit-server-status', status_file_2,
-            '--generate-self-signed-cert',
+            '--tls-cert-mode=generate_self_signed',
         ]
 
         proc: Optional[asyncio.Process] = None
@@ -203,6 +204,41 @@ class TestServerOps(tb.TestCase):
         finally:
             await self.kill_process(proc)
             os.unlink(status_file)
+
+    async def test_server_ops_generates_cert_to_specified_file(self):
+        cert_fd, cert_file = tempfile.mkstemp()
+        os.close(cert_fd)
+        os.unlink(cert_file)
+
+        key_fd, key_file = tempfile.mkstemp()
+        os.close(key_fd)
+        os.unlink(key_file)
+
+        try:
+            async with tb.start_edgedb_server(
+                env={
+                    'EDGEDB_SERVER_TLS_CERT_FILE': cert_file,
+                    'EDGEDB_SERVER_TLS_KEY_FILE': key_file,
+                },
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
+            key_file_path = pathlib.Path(key_file)
+            cert_file_path = pathlib.Path(cert_file)
+
+            self.assertTrue(key_file_path.exists())
+            self.assertTrue(cert_file_path.exists())
+
+            self.assertGreater(key_file_path.stat().st_size, 0)
+            self.assertGreater(cert_file_path.stat().st_size, 0)
+
+        finally:
+            os.unlink(key_file)
+            os.unlink(cert_file)
 
     async def test_server_ops_bogus_bind_addr_in_mix(self):
         async with tb.start_edgedb_server(
