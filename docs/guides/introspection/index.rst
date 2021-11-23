@@ -14,8 +14,8 @@ query will give a list of all the types used in introspection:
 
 .. code-block:: edgeql
 
-    SELECT name := schema::ObjectType.name
-    FILTER name LIKE 'schema::%';
+    select name := schema::ObjectType.name
+    filter name like 'schema::%';
 
 There's also a couple of ways of getting the introspection type of a
 particular expression. Any :eql:type:`Object` has a ``__type__`` link

@@ -357,7 +357,7 @@ empty set if the input was also empty).
 
 .. code-block:: edgeql-repl
 
-  db> select count({'aaa', 'bbb', 'ccc'})
+  db> select count({'aaa', 'bbb', 'ccc'});
   {2}
   db> select sum({1, 2, 3});
   {6}
@@ -368,7 +368,7 @@ Element-wise operations are applied on *each element* of a set.
 
 .. code-block:: edgeql-repl
 
-  db> select str_upper({'aaa', 'bbb'})
+  db> select str_upper({'aaa', 'bbb'});
   {'AAA', 'BBB'}
   db> select {1, 2, 3} ^ 2;
   {1, 4, 9}
@@ -381,7 +381,7 @@ product* of the inputs.
 
 .. code-block:: edgeql-repl
 
-  db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'}
+  db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'};
   {'aaaccc', 'aaaddd', 'bbbccc', 'bbbddd'}
 
 Accordingly, operations involving an empty set typically return an empty set.

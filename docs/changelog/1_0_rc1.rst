@@ -109,10 +109,10 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT assert_exists((SELECT User FILTER .name = "Administrator"))
+    db> SELECT assert_exists((SELECT User FILTER .name = "Administrator"));
     {default::User {id: ...}}
 
-    db> SELECT assert_exists((SELECT User FILTER .name = "Nonexistent"))
+    db> SELECT assert_exists((SELECT User FILTER .name = "Nonexistent"));
     ERROR: CardinalityViolationError: assert_exists violation: expression
            returned an empty set.
 

@@ -33,7 +33,7 @@ possible to delete an object linked to by another.
 
 .. code-block:: edgeql-repl
 
-  db> delete Hero filter .name = "Yelena Belova"
+  db> delete Hero filter .name = "Yelena Belova";
   ConstraintViolationError: deletion of default::Hero
   (af7076e0-3e98-11ec-abb3-b3435bbe7c7e) is prohibited by link target policy
   {}

@@ -179,7 +179,7 @@ we use ``Villain.name``.
 .. code-block:: edgeql-repl
 
   db> select Villain {id, name}
-  ... filter Villain.name = "Doc Ock"
+  ... filter Villain.name = "Doc Ock";
   {default::Villain {id: b233ca98..., name: 'Doc Ock'}}
 
 
@@ -200,7 +200,7 @@ of the ``Villain`` type. In other words, we are in the **scope** of the
 .. code-block:: edgeql-repl
 
   db> select Villain {name}
-  ... filter .name = "Doc Ock"
+  ... filter .name = "Doc Ock";
   {default::Villain {name: 'Doc Ock'}}
 
 Filtering by ID
@@ -212,7 +212,7 @@ To filter by ``id``, remember to cast the desired ID to :ref:`uuid
 .. code-block:: edgeql-repl
 
   db> select Villain {id, name}
-  ... filter .id = <uuid>"b233ca98-3c23-11ec-b81f-6ba8c4f0084e"
+  ... filter .id = <uuid>"b233ca98-3c23-11ec-b81f-6ba8c4f0084e";
   {
     default::Villain {
       id: 'b233ca98-3c23-11ec-b81f-6ba8c4f0084e',
@@ -264,7 +264,7 @@ Order the result of a query with an ``order by`` clause.
 .. code-block:: edgeql-repl
 
   db> select Villain { name }
-  ... order by .name
+  ... order by .name;
   {
     default::Villain {name: 'Abomination'},
     default::Villain {name: 'Doc Ock'},
@@ -278,8 +278,18 @@ Order the result of a query with an ``order by`` clause.
     default::Villain {name: 'Zemo'},
   }
 
-The expression provided to ``order by`` can be any primitive singleton
-expression, including arrays and tuples. You can also order by multiple
+The expression provided to ``order by`` may be *any* singleton
+expression, primitive or otherwise.
+
+.. note::
+
+  In EdgeDB all values are orderable. Objects are compared using their ``id``;
+  tuples and arrays are compared element-by-element from left to right. By
+  extension, the generic comparison operators :eql:op:`= <EQ>`,
+  :eql:op:`\< <LT>`, :eql:op:`\> <GT>`, etc. can be used with any two
+  expressions of the same type.
+
+You can also order by multiple
 expressions and specify the *direction* with an ``asc`` (default) or ``desc``
 modifier.
 
@@ -295,7 +305,7 @@ modifier.
   db> select Movie { title, release_year }
   ... order by
   ...   .release_year desc then
-  ...   str_trim(.title) desc
+  ...   str_trim(.title) desc;
   {
     default::Movie {title: 'Spider-Man: No Way Home', release_year: 2021},
     ...
@@ -537,7 +547,7 @@ abstract type (such as ``Movie.characters``) or a :eql:op:`union type
   ...     name
   ...   }
   ... }
-  ... filter .title = "Iron Man 2"
+  ... filter .title = "Iron Man 2";
   {
     default::Movie {
       title: 'Iron Man 2',

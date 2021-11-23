@@ -11,8 +11,8 @@ Introspection of the ``schema::ObjectType``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -21,7 +21,7 @@ Introspection of the ``schema::ObjectType``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::ObjectType';
+    ... filter .name = 'schema::ObjectType';
     {
         Object {
             name: 'schema::ObjectType',
@@ -66,8 +66,8 @@ Introspection of ``User``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     abstract,
     ...     bases: { name },
@@ -88,7 +88,7 @@ Introspection of ``User``:
     ...     constraints: { name },
     ...     indexes: { expr },
     ... }
-    ... FILTER .name = 'default::User';
+    ... filter .name = 'default::User';
     {
         Object {
             name: 'default::User',

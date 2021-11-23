@@ -41,7 +41,7 @@ events like these:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT Event {
+    db> select Event {
     ...     name,
     ...     prev: { name },
     ... };
@@ -82,7 +82,7 @@ Trying out the new link on our existing data gives us:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT Event {
+    db> select Event {
     ...     name,
     ...     prev_name := .prev.name,
     ...     next_name := .next.name,
@@ -144,7 +144,7 @@ symmetrical:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT Event {
+    db> select Event {
     ...     name,
     ...     prev_name := .prev.name,
     ...     next_name := .next.name,

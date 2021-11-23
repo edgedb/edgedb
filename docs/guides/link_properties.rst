@@ -108,7 +108,7 @@ Querying
   .......     name,
   .......     @strength
   .......   }
-  ....... }
+  ....... };
   {
     default::Person {name: 'Alice', friends: {}},
     default::Person {

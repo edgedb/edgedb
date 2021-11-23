@@ -12,8 +12,8 @@ Introspection of the ``schema::Operator``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -22,7 +22,7 @@ Introspection of the ``schema::Operator``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::Operator';
+    ... filter .name = 'schema::Operator';
     {
         Object {
             name: 'schema::Operator',
@@ -45,8 +45,8 @@ Since ``params`` are quite important to operators, here's their structure:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -55,7 +55,7 @@ Since ``params`` are quite important to operators, here's their structure:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::Parameter';
+    ... filter .name = 'schema::Parameter';
     {
         Object {
             name: 'schema::Parameter',
@@ -78,8 +78,8 @@ Introspection of the :eql:op:`AND` operator:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT Operator {
+    db> with module schema
+    ... select Operator {
     ...     name,
     ...     operator_kind,
     ...     annotations: { name, @value },
@@ -94,7 +94,7 @@ Introspection of the :eql:op:`AND` operator:
     ...     return_typemod,
     ...     return_type: { name },
     ... }
-    ... FILTER .name = 'std::AND';
+    ... filter .name = 'std::AND';
     {
         Object {
             name: 'std::AND',

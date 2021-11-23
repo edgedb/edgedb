@@ -11,8 +11,8 @@ Introspection of the ``schema::Constraint``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -21,7 +21,7 @@ Introspection of the ``schema::Constraint``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::Constraint';
+    ... filter .name = 'schema::Constraint';
     {
         Object {
             name: 'schema::Constraint',
@@ -60,8 +60,8 @@ Introspection of the scalar ``maxex_100`` with focus on the constraint:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ScalarType {
+    db> with module schema
+    ... select ScalarType {
     ...     name,
     ...     constraints: {
     ...         name,
@@ -74,7 +74,7 @@ Introspection of the scalar ``maxex_100`` with focus on the constraint:
     ...         errmessage,
     ...     },
     ... }
-    ... FILTER .name = 'default::maxex_100';
+    ... filter .name = 'default::maxex_100';
     {
         Object {
             name: 'default::maxex_100',

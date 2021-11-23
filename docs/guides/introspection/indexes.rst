@@ -11,7 +11,7 @@ Introspection of the ``schema::Index``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
+    db> wit schema
     ... SELECT ObjectType {
     ...     name,
     ...     links: {

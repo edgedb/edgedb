@@ -11,8 +11,8 @@ Introspection of the ``schema::ScalarType``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -21,7 +21,7 @@ Introspection of the ``schema::ScalarType``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::ScalarType';
+    ... filter .name = 'schema::ScalarType';
     {
         Object {
             name: 'schema::ScalarType',
@@ -46,8 +46,8 @@ Introspection of the built-in scalar :eql:type:`str`:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ScalarType {
+    db> with module schema
+    ... select ScalarType {
     ...     name,
     ...     default,
     ...     enum_values,
@@ -57,7 +57,7 @@ Introspection of the built-in scalar :eql:type:`str`:
     ...     annotations: { name, @value },
     ...     constraints: { name },
     ... }
-    ... FILTER .name = 'std::str';
+    ... filter .name = 'std::str';
     {
         Object {
             name: 'std::str',
@@ -82,8 +82,8 @@ Introspection of the enum scalar ``Color``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ScalarType {
+    db> with module schema
+    ... select ScalarType {
     ...     name,
     ...     default,
     ...     enum_values,
@@ -93,7 +93,7 @@ Introspection of the enum scalar ``Color``:
     ...     annotations: { name, @value },
     ...     constraints: { name },
     ... }
-    ... FILTER .name = 'default::Color';
+    ... filter .name = 'default::Color';
     {
         Object {
             name: 'default::Color',

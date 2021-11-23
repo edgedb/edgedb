@@ -12,8 +12,8 @@ Introspection of the ``schema::Cast``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -22,7 +22,7 @@ Introspection of the ``schema::Cast``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::Cast';
+    ... filter .name = 'schema::Cast';
     {
         Object {
             name: 'schema::Cast',
@@ -45,14 +45,14 @@ types:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT Cast {
+    db> with module schema
+    ... select Cast {
     ...     allow_assignment,
     ...     allow_implicit,
     ...     to_type: { name },
     ... }
-    ... FILTER .from_type.name = 'std::int64'
-    ... ORDER BY .to_type.name;
+    ... filter .from_type.name = 'std::int64'
+    ... order by .to_type.name;
     {
         Object {
             allow_assignment: false,
@@ -106,9 +106,9 @@ of those types:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT {1, 2n};
+    db> select {1, 2n};
     {1n, 2n}
-    db> SELECT {1, 2.0};
+    db> select {1, 2.0};
     {1.0, 2.0}
 
 What happens if there's no implicit cast between a couple of scalars
@@ -117,7 +117,7 @@ such that all of the set elements can be implicitly cast into that:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT INTROSPECT (TYPEOF {<int64>1, <float32>2}).name;
+    db> select introspect (typeof {<int64>1, <float32>2}).name;
     {'std::float64'}
 
 The scalar types :eql:type:`int64` and :eql:type:`float32` cannot be
@@ -138,12 +138,12 @@ allowed. For example, consider the following type:
 
 .. code-block:: edgeql-repl
 
-    db> INSERT Example {
+    db> insert Example {
     ...     p_int16 := 1,
     ...     p_float32 := 2
     ... };
     {Object { id: <uuid>'...' }}
-    db> INSERT Example {
+    db> insert Example {
     ...     p_json := 3  # assignment cast to json not allowed
     ... };
     InvalidPropertyTargetError: invalid target for property

@@ -15,8 +15,8 @@ Introspection of the ``schema::Array``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -25,7 +25,7 @@ Introspection of the ``schema::Array``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::Array';
+    ... filter .name = 'schema::Array';
     {
         Object {
             name: 'schema::Array',
@@ -53,18 +53,18 @@ Introspection of the ``User`` with emphasis on properties:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     properties: {
     ...         name,
     ...         target: {
     ...             name,
-    ...             [IS Array].element_type: { name },
+    ...             [is Array].element_type: { name },
     ...         },
     ...     },
     ... }
-    ... FILTER .name = 'default::User';
+    ... filter .name = 'default::User';
     {
         Object {
             name: 'default::User',
@@ -89,8 +89,8 @@ Introspection of the ``schema::Tuple``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -99,7 +99,7 @@ Introspection of the ``schema::Tuple``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::Tuple';
+    ... filter .name = 'schema::Tuple';
     {
         Object {
             name: 'schema::Tuple',
@@ -119,16 +119,16 @@ the :eql:func:`sys::get_version` function:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT `Function` {
-    ...     return_type[IS Tuple]: {
+    db> with module schema
+    ... select `Function` {
+    ...     return_type[is Tuple]: {
     ...         element_types: {
     ...             name,
     ...             type: { name }
-    ...         } ORDER BY .num
+    ...         } order by .num
     ...     }
     ... }
-    ... FILTER .name = 'sys::get_version';
+    ... filter .name = 'sys::get_version';
     {
         Object {
             return_type: Object {
