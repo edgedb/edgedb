@@ -22,13 +22,34 @@ seen simple queries that select primitive values.
   {'hello world'}
   db> select [1, 2, 3];
   {[1, 2, 3]}
+  db> select {1, 2, 3};
+  {1, 2, 3}
 
 
-However most queries are selecting *objects* that live in the database. When
-selecting objects, the ``select`` statement supports filters, ordering, and
-pagination operations.
+With the help of an inline alias, we can add filters, ordering, and pagination
+clauses.
 
-For demonstration purposes, the queries below assume the following schema.
+.. code-block:: edgeql-repl
+
+  db> with x := {1, 2, 3, 4, 5}
+  ... select x
+  ... filter x >= 3;
+  {3, 4, 5}
+  db> with x := {1, 2, 3, 4, 5}
+  ... select x
+  ... order by x desc;
+  {5, 4, 3, 2, 1}
+  db> with x := {1, 2, 3, 4, 5}
+  ... select x
+  ... offset 1 limit 3;
+  {2, 3, 4}
+
+
+Selecting objects
+-----------------
+
+However most queries are selecting *objects* that live in the database. For
+demonstration purposes, the queries below assume the following schema.
 
 .. code-block:: sdl
 
