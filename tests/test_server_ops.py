@@ -39,6 +39,7 @@ from edb.common import devmode
 from edb.common import taskgroup
 from edb.protocol import protocol as edb_protocol  # type: ignore
 from edb.server import args, pgcluster, pgconnparams
+from edb.server import cluster as edbcluster
 from edb.testbase import server as tb
 
 
@@ -202,6 +203,30 @@ class TestServerOps(tb.TestCase):
         finally:
             await self.kill_process(proc)
             os.unlink(status_file)
+
+    async def test_server_ops_bogus_bind_addr_in_mix(self):
+        async with tb.start_edgedb_server(
+            bind_addrs=('host.invalid', '127.0.0.1',),
+        ) as sd:
+            con = await sd.connect()
+            try:
+                await con.query_single("SELECT 1")
+            finally:
+                await con.aclose()
+
+    async def test_server_ops_bogus_bind_addr_only(self):
+        with self.assertRaisesRegex(
+            edbcluster.ClusterError,
+            "could not create any listen sockets",
+        ):
+            async with tb.start_edgedb_server(
+                bind_addrs=('host.invalid',),
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
 
     async def test_server_ops_set_pg_max_connections(self):
         actual = random.randint(50, 100)
