@@ -78,6 +78,7 @@ Introspection command:
     paths
     casts
     functions
+    cardinality
 
     select
     for

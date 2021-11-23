@@ -59,7 +59,8 @@ Similar to :ref:`selecting fields <ref_eql_shapes>` in ``select``, ``insert``
 statements include a *shape* specified with ``curly braces``; the values of
 properties/links are assigned with the ``:=`` operator.
 
-Optional links or properties can be omitted entirely:
+Optional links or properties can be omitted entirely, as well as those with an
+``default`` value (like ``id``).
 
 .. code-block:: edgeql-repl
 

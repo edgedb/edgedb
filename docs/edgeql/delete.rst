@@ -82,7 +82,9 @@ Return value
 ------------
 
 A ``delete`` statement returns the set of deleted objects. You can pass this
-set into ``select`` to fetch properties and links of the (now-deleted) objects.
+set into ``select`` to fetch properties and links of the (now-deleted)
+objects. This is the last moment this data will be available before being
+permanently deleted.
 
 .. code-block:: edgeql-repl
 

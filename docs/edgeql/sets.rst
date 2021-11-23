@@ -341,17 +341,22 @@ by subtype.
 Type filters are commonly used in conjunction with :ref:`backlinks
 <ref_eql_select_backlinks>`.
 
-
 .. _ref_eql_set_aggregate:
 
 Aggregate vs element-wise operations
 ------------------------------------
 
 EdgeQL provides a large library of built-in functions and operators for
-handling data structures. Each functions and operators is either *aggregate* or
-*element-wise*.
+handling data structures. It's useful to consider functions/operators as either
+*aggregate* or *element-wise*.
 
-By contrast, *aggregate* operations are applied to the set *as a whole*; they
+.. note::
+
+  This is an over-simplification, but it's a useful mental model when just
+  starting out with EdgeDB. For a more complete guide, see :ref:`Reference >
+  Cardinality <ref_reference_cardinality>`.
+
+*Aggregate* operations are applied to the set *as a whole*; they
 accept a set with arbitrary cardinality and return a *singleton* (or perhaps an
 empty set if the input was also empty).
 
@@ -375,8 +380,8 @@ Element-wise operations are applied on *each element* of a set.
   db> select str_split({"hello world", "hi again"}, " ");
   {["hello", "world"], ["hi", "again"]}
 
-When an *element-wise* operation accepts two inputs, the operation is applied
-*pair-wise*; in other words, the operation is applied to the *cartesian
+When an *element-wise* operation accepts two or more inputs, the operation is
+applied *pair-wise*; in other words, the operation is applied to the *cartesian
 product* of the inputs.
 
 .. code-block:: edgeql-repl
@@ -394,6 +399,8 @@ on empty sets.
   {}
   db> select count(<str>{});
   {0}
+
+For a more complete discussion of cardinality, see :ref:`Reference > Cardinality <ref_reference_cardinality>`.
 
 .. _ref_eql_set_array_conversion:
 
@@ -432,9 +439,9 @@ transform than arrays.
   db> select str_trim(['  hello', 'world  ']);
   error: QueryError: function "str_trim(arg0: array<std::str>)" does not exist
 
-Most :ref:`aggregate <ref_eql_funcops_aggregate>` operations have analogs that
-operate on arrays. For instance, the set function :eql:func:`count`
-is analogous to the array function :eql:func:`len`.
+Most :ref:`aggregate <ref_reference_cardinality_aggregate>` operations have
+analogs that operate on arrays. For instance, the set function
+:eql:func:`count` is analogous to the array function :eql:func:`len`.
 
 
 Reference
