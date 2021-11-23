@@ -394,17 +394,23 @@ and ``hours``.
   {<duration>'-0:00:00.000015'}
   db> select <duration>'5 hours 4 minutes 3 seconds';
   {<duration>'5:04:03'}
+  db> select <duration>'8760 hours'; # about a year
+  {<duration>'8760:00:00'}
 
-The :eql:type:`cal::relative_duration` type represents a "calendar" duration,
-like ``1 month``. Because months have different number of days, ``1 month``
-doesn't correspond to a fixed number of milliseconds, but it's often a useful
-quantity to represent recurring events, postponements, etc.
+All temporal units beyond ``hour`` no longer correspond to a fixed duration of
+time; the length of a day/month/year/etc. changes based on daylight savings
+time, the month in question, leap years, etc.
+
+By contrast, the :eql:type:`cal::relative_duration` type represents a
+"calendar" duration, like ``1 month``. Because months have different number of
+days, ``1 month`` doesn't correspond to a fixed number of milliseconds, but
+it's often a useful quantity to represent recurring events, postponements, etc.
 
 .. note::
 
   The ``cal::relative_duration`` type supports the same units as ``duration``,
   plus ``days``, ``weeks``, ``months``, ``years``, ``decades``, ``centuries``,
-  and ``millennium``.
+  and ``millennia``.
 
 To declare relative duration literals:
 
@@ -414,7 +420,7 @@ To declare relative duration literals:
   {<cal::relative_duration>'PT.015S'}
   db> select <cal::relative_duration>'2 months 3 weeks 45 minutes';
   {<cal::relative_duration>'P2M21DT45M'}
-  db> select <cal::relative_duration>'-7 millennium';
+  db> select <cal::relative_duration>'-7 millennia';
   {<cal::relative_duration>'P-7000Y'}
 
 

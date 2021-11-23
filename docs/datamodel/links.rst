@@ -242,10 +242,9 @@ to eliminate repetitive SDL.
     multi link friends extending link_with_strength -> Person;
   }
 
-See Also
---------
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`SDL > Links <ref_eql_sdl_links>`

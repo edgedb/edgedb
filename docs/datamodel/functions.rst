@@ -34,6 +34,7 @@ This function accepts a :eql:type:`str` as an argument and produces a
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`SDL > Functions <ref_eql_sdl_functions>`

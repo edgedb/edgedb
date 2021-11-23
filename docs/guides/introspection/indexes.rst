@@ -71,6 +71,7 @@ For introspection of the index within the context of its host type see
 :ref:`object type introspection <ref_eql_introspection_object_types>`.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Indexes <ref_datamodel_indexes>`

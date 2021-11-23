@@ -220,6 +220,7 @@ instead of the named tuple if no ``matches`` are found.
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > Select <ref_eql_select>`

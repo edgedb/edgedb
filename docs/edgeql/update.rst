@@ -118,6 +118,5 @@ For documentation on performing *upsert* operations, see :ref:`EdgeQL > Insert
 
 .. list-table::
 
-  * - **See also**
   * - :ref:`Reference > Commands > Update <ref_eql_statements_update>`
   * - :ref:`Cheatsheets > Updating data <ref_cheatsheet_update>`

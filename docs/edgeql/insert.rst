@@ -324,6 +324,7 @@ using a :ref:`for loop <ref_eql_for>` to insert the objects.
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Reference > Commands > Insert <ref_eql_statements_insert>`

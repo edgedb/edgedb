@@ -165,6 +165,7 @@ Drop the ``name`` index from the ``User`` object type:
     };
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Indexes <ref_datamodel_indexes>`

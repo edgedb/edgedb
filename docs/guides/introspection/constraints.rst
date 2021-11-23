@@ -101,6 +101,7 @@ Introspection of the scalar ``maxex_100`` with focus on the constraint:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Constraints <ref_datamodel_constraints>`

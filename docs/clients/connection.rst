@@ -31,7 +31,7 @@ library.
 
   .. code-block:: typescript
 
-    const client = await edgedb.createClient({
+    const client = edgedb.createClient({
       dsn: "edgedb://..."
     });
 

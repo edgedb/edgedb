@@ -680,6 +680,7 @@ standalone expressions that can be used in your query.
 For full documentation on ``with``, see :ref:`EdgeQL > With <ref_eql_with>`.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`

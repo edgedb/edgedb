@@ -14,9 +14,10 @@ At the moment there are only two extensions available:
 - ``graphql``: enables :ref:`GraphQL <ref_graphql_index>`
 
 
-See Also
---------
+.. list-table::
+  :class: seealso
 
-:ref:`SDL <ref_eql_sdl_extensions>`,
-:eql:stmt:`CREATE EXTENSION`,
-:eql:stmt:`DROP EXTENSION`.
+  * - **See also**
+  * - :ref:`SDL > Extensions <ref_eql_sdl_extensions>`
+  * - :eql:stmt:`DDL > CREATE EXTENSION <CREATE EXTENSION>`
+  * - :eql:stmt:`DDL > DROP EXTENSION <DROP EXTENSION>`

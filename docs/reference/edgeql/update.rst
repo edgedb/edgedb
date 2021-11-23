@@ -132,6 +132,7 @@ updates more clearly. See
 :ref:`Usage of FOR statement<ref_eql_forstatement>` for more details.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > Update <ref_eql_update>`

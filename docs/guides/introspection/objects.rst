@@ -145,6 +145,7 @@ Introspection of ``User``:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Object types <ref_datamodel_object_types>`

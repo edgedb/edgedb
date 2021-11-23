@@ -113,6 +113,7 @@ Introspection of the built-in :eql:func:`count`:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Functions <ref_datamodel_functions>`

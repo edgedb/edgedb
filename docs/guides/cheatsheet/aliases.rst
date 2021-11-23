@@ -42,6 +42,7 @@ The aliases defined above allow you to query ``MovieAlias`` with
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Aliases <ref_datamodel_aliases>`

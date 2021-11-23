@@ -45,6 +45,7 @@ default value:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Functions <ref_datamodel_functions>`

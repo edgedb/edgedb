@@ -186,6 +186,7 @@ an intuitive manner.
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > For <ref_eql_for>`

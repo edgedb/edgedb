@@ -173,6 +173,7 @@ The valid SDL sub-declarations are listed below:
     the property.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Properties <ref_datamodel_props>`

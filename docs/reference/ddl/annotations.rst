@@ -269,6 +269,7 @@ Drop the ``title`` annotation from the ``User`` object type:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Annotations <ref_datamodel_annotations>`

@@ -258,6 +258,7 @@ Here is a summary of clauses that can be used with ``SELECT``:
 - ``SET OF`` *A* LIMIT ``SET OF`` *B*
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > Select <ref_eql_select>`

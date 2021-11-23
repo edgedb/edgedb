@@ -117,10 +117,12 @@ See Also
 
 Computed fields don't need to be pre-defined in your schema; you can drop them
 into individual queries as well. They behave in exactly the same way. For more
-information, see the :ref:`shapes docs <ref_reference_shapes>`.
+information, see the :ref:`EdgeQL > Select > Computeds
+<ref_eql_select_computeds>`.
 
-Computed
-:ref:`link SDL <ref_eql_sdl_links>`,
-:ref:`link DDL <ref_eql_ddl_links>`,
-:ref:`property SDL <ref_eql_sdl_links>`,
-and :ref:`property DDL <ref_eql_ddl_links>`.
+.. list-table::
+
+  * - :ref:`SDL > Links <ref_eql_sdl_links>`
+  * - :ref:`DDL > Links <ref_eql_ddl_links>`
+  * - :ref:`SDL > Properties <ref_eql_sdl_links>`
+  * - :ref:`DDL > Properties <ref_eql_ddl_links>`

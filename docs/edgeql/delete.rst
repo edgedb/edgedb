@@ -94,6 +94,7 @@ set into ``select`` to fetch properties and links of the (now-deleted) objects.
   }}
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Reference > Commands > Delete <ref_eql_statements_delete>`

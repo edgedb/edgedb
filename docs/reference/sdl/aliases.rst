@@ -58,6 +58,7 @@ The valid SDL sub-declarations are listed below:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Aliases <ref_datamodel_aliases>`

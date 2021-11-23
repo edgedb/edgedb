@@ -34,6 +34,7 @@ Alternative way to delete all reviews from a specific user:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > Delete <ref_eql_delete>`

@@ -148,6 +148,7 @@ Update the ``list_order`` link property for a specific link:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > Update <ref_eql_update>`

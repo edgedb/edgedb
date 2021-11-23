@@ -201,6 +201,7 @@ inserting nested structures:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > Insert <ref_eql_insert>`

@@ -70,6 +70,7 @@ parameter for bulk inserts. This value is then "unpacked" into a set of
 A similar approach can be used for bulk updates.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Reference > Commands > For <ref_eql_statements_for>`

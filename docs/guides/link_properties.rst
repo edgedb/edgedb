@@ -120,11 +120,12 @@ Querying
   }
 
 
-See Also
---------
+
 
 .. list-table::
+  :class: seealso
 
+  * - **See also**
   * - :ref:`Data Model > Links > Link properties
       <ref_datamodel_link_properties>`
   * - :ref:`SDL > Properties <ref_eql_sdl_props>`

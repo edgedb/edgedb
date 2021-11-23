@@ -197,6 +197,7 @@ Constraints
         add explicit indexes for the ``name`` property.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Constraints <ref_datamodel_constraints>`
