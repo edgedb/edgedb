@@ -481,17 +481,13 @@ class ConstraintCommand(
                 return value
 
             elif field.name in {'subjectexpr', 'finalexpr'}:
-                anchors = {'__subject__': base}
-                path_prefix_anchor = (
-                    '__subject__' if isinstance(base, s_types.Type) else None
-                )
                 return s_expr.Expression.compiled(
                     value,
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
-                        anchors=anchors,
-                        path_prefix_anchor=path_prefix_anchor,
+                        anchors={qlast.Subject().name: base},
+                        path_prefix_anchor=qlast.Subject().name,
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
                         apply_query_rewrites=not context.stdmode,
@@ -741,17 +737,12 @@ class ConstraintCommand(
         attrs['args'] = args
 
         assert subject is not None
-        path_prefix_anchor = (
-            qlast.Subject().name if isinstance(subject, s_types.Type)
-            else None
-        )
-
         final_expr = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr_ql, schema, {}),
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=path_prefix_anchor,
+                path_prefix_anchor=qlast.Subject().name,
                 apply_query_rewrites=not context.stdmode,
             ),
         )
@@ -777,7 +768,7 @@ class ConstraintCommand(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     anchors={qlast.Subject().name: subject},
-                    path_prefix_anchor=path_prefix_anchor,
+                    path_prefix_anchor=qlast.Subject().name,
                     singletons=singletons,
                     apply_query_rewrites=not context.stdmode,
                 ),

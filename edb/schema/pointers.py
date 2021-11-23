@@ -1248,8 +1248,6 @@ class PointerCommandOrFragment(
         expr_description: Optional[str] = None,
     ) -> s_expr.Expression:
         singletons: List[Union[s_types.Type, Pointer]] = []
-        path_prefix_anchor = None
-        anchors: Dict[str, Any] = {}
 
         parent_ctx = self.get_referrer_context_or_die(context)
         source = parent_ctx.op.get_object(schema, context)
@@ -1282,10 +1280,8 @@ class PointerCommandOrFragment(
                 transient=True,
             )
 
-        anchors[qlast.Source().name] = source
         assert isinstance(source, (s_types.Type, Pointer))
         singletons = [source]
-        path_prefix_anchor = qlast.Source().name
 
         if target_as_singleton:
             src = self.scls.get_source(schema)
@@ -1301,8 +1297,8 @@ class PointerCommandOrFragment(
             options=qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
                 schema_object_context=self.get_schema_metaclass(),
-                anchors=anchors,
-                path_prefix_anchor=path_prefix_anchor,
+                anchors={qlast.Source().name: source},
+                path_prefix_anchor=qlast.Source().name,
                 singletons=frozenset(singletons),
                 apply_query_rewrites=not context.stdmode,
                 track_schema_ref_exprs=track_schema_ref_exprs,

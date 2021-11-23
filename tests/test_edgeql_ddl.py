@@ -12201,6 +12201,18 @@ type default::Foo {
                 };
             """)
 
+    async def test_edgeql_ddl_linkprop_partial_paths(self):
+        await self.con.execute(r"""
+            CREATE TYPE Foo {
+                CREATE LINK x -> Object {
+                    CREATE PROPERTY z -> str;
+                    CREATE CONSTRAINT expression ON (@z != "lol");
+                    CREATE INDEX ON (@z);
+                    CREATE PROPERTY y := @z ++ "!";
+                };
+            };
+        """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False

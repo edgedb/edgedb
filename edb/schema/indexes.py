@@ -283,7 +283,6 @@ class IndexCommand(
             assert parent_ctx is not None
             assert isinstance(parent_ctx.op, sd.ObjectCommand)
             subject = parent_ctx.op.get_object(schema, context)
-            path_prefix_anchor = qlast.Subject().name
 
             expr = type(value).compiled(
                 value,
@@ -292,7 +291,7 @@ class IndexCommand(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
                     anchors={qlast.Subject().name: subject},
-                    path_prefix_anchor=path_prefix_anchor,
+                    path_prefix_anchor=qlast.Subject().name,
                     singletons=frozenset([subject]),
                     apply_query_rewrites=not context.stdmode,
                     track_schema_ref_exprs=track_schema_ref_exprs,
