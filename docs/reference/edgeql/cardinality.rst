@@ -1,7 +1,9 @@
 .. _ref_reference_cardinality:
 
 Cardinality
------------
+===========
+
+
 
 It's often useful to think of EdgeDB functions/operators as either
 *element-wise* or *aggregate*. Element-wise operations are applied to *each
@@ -97,7 +99,7 @@ operation.
 
 
 Per-input cardinality
----------------------
+=====================
 
 Ultimately, the distinction between "aggregate vs element-wise" operations is
 a false one. Consider the :eql:op:`IN` operation.
