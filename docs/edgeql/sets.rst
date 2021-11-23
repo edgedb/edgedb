@@ -4,7 +4,7 @@ Sets
 ====
 
 - :ref:`Everything is a set <ref_eql_everything_is_a_set>`
-- :ref:`Declaring sets <ref_eql_set_constructor>`
+- :ref:`Constructing sets <ref_eql_set_constructor>`
 - :ref:`Literals are singletons <ref_eql_set_literals_are_singletons>`
 - :ref:`Empty sets <ref_eql_empty_sets>`
 - :ref:`Set references <ref_eql_set_references>`
@@ -26,19 +26,6 @@ All values in EdgeQL are actually **sets**: a collection of values of a given
 a set is known as its **cardinality**. A set with a cardinality of zero is
 referred to as an **empty set**. A set with a cardinality of one is known as a
 **singleton**.
-
-.. note::
-
-  The term **cardinality** may refer to the *exact* number of elements in a
-  given set or a *range* of possible values. Internally, EdgeDB tracks 5
-  different cardinality ranges: ``Empty`` (zero elements), ``One`` (a singleton
-  set), ``AtMostOne`` (zero or one elements), ``AtLeastOne`` (one or more
-  elements), and ``Many`` (any number of elements).
-
-  EdgeDB uses this information to statically check queries for validity. For
-  instance, when assigning to a ``required multi`` link, the value being
-  assigned in question *must* have a cardinality of ``One`` or ``AtLeastOne``
-  (as empty sets are not permitted).
 
 .. _ref_eql_set_constructor:
 
@@ -87,7 +74,6 @@ reference, see the casting table in :ref:`Standard Library > Casts
   {1.0, 1.5}
   db> select {1, 1234.5678n};
   {1.0n, 1234.5678n}
-
 
 Attempting to declare a set containing elements of *incompatible* types is not
 permitted.
