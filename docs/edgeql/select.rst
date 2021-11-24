@@ -632,7 +632,7 @@ Filtering polymorphic links
 Relatedly, it's possible to filter polymorphic links by subtype. Below, we
 exclusively fetch the ``Movie.characters`` of type ``Hero``.
 
-.. code-block::
+.. code-block:: edgeql-repl
 
   db> select Movie {
   ...   title,
