@@ -25,7 +25,6 @@ import os
 import pathlib
 import re
 import warnings
-import sys
 import tempfile
 
 import click
@@ -48,9 +47,14 @@ TLS_KEY_FILE_NAME = "edbprivkey.pem"
 logger = logging.getLogger('edb.server')
 
 
-def abort(msg, *args) -> NoReturn:
-    logger.critical(msg, *args)
-    sys.exit(1)
+class FatalConfigurationError(Exception):
+
+    def __init__(self, msg: str, exit_code: int = 1) -> None:
+        super().__init__(msg, exit_code)
+
+
+def abort(msg: str, *, exit_code: int = 1) -> NoReturn:
+    raise FatalConfigurationError(msg, exit_code)
 
 
 class StartupScript(NamedTuple):
@@ -70,6 +74,12 @@ class ServerEndpointSecurityMode(enum.StrEnum):
 
     Tls = "tls"
     Optional = "optional"
+
+
+class ServerTlsCertMode(enum.StrEnum):
+
+    RequireFile = "require_file"
+    SelfSigned = "generate_self_signed"
 
 
 class ServerConfig(NamedTuple):
@@ -107,7 +117,7 @@ class ServerConfig(NamedTuple):
 
     tls_cert_file: Optional[pathlib.Path]
     tls_key_file: Optional[pathlib.Path]
-    generate_self_signed_cert: bool
+    tls_cert_mode: ServerTlsCertMode
 
     default_auth_method: str
     security: ServerSecurityMode
@@ -395,27 +405,48 @@ _server_options = [
     click.option(
         '--tls-cert-file',
         type=PathPath(),
-        help='Specify a path to a single file in PEM format containing the '
-             'TLS certificate to run the server, as well as any number of CA '
-             'certificates needed to establish the certificate’s '
-             'authenticity. If not present, the server will try to find '
-             f'`{TLS_CERT_FILE_NAME}` in the --data-dir if set.'),
+        envvar="EDGEDB_SERVER_TLS_CERT_FILE",
+        help='Specifies a path to a file containing a server TLS certificate '
+             'in PEM format, as well as possibly any number of CA '
+             'certificates needed to establish the certificate '
+             'authenticity.  If the file does not exist and the '
+             '--tls-cert-mode option is set to "generate_self_signed", a '
+             'self-signed certificate will be automatically created in '
+             'the specified path.'),
     click.option(
-        '--tls-key-file', type=PathPath(),
-        help='Specify a path to a file containing the private key. If not '
-             f'present, the server will try to find `{TLS_KEY_FILE_NAME}` in '
-             'the --data dir if set. If not found, the private key will be '
-             'taken from --tls-cert-file as well. If the private key is '
-             'protected by a password, specify it with the environment '
-             'variable: EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD.'),
+        '--tls-key-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_TLS_KEY_FILE",
+        help='Specifies a path to a file containing the private key in PEM '
+             'format.  If the file does not exist and the --tls-cert-mode '
+             'option is set to "generate_self_signed", the private key will '
+             'be automatically created in the specified path.'),
+    click.option(
+        '--tls-cert-mode',
+        envvar="EDGEDB_SERVER_TLS_CERT_MODE",
+        type=click.Choice(
+            ['default'] + list(ServerTlsCertMode.__members__.values()),
+            case_sensitive=True,
+        ),
+        default='default',
+        help='Specifies what to do when the TLS certificate and key are '
+             'either not specified or are missing.  When set to '
+             '"require_file", the TLS certificate and key must be specified '
+             'in the --tls-cert-file and --tls-key-file options and both must '
+             'exist.  When set to "generate_self_signed" a new self-signed '
+             'certificate and private key will be generated and placed in the '
+             'path specified by --tls-cert-file/--tls-key-file, if those are '
+             'set, otherwise the generated certificate and key are stored as '
+             f'`{TLS_CERT_FILE_NAME}` and `{TLS_KEY_FILE_NAME}` in the data '
+             'directory, or, if the server is running with --backend-dsn, '
+             'in a subdirectory of --runstate-dir.\n\nThe default is '
+             '"require_file" when the --security option is set to "strict", '
+             'and "generate_self_signed" when the --security option is set to '
+             '"insecure_dev_mode"'),
     click.option(
         '--generate-self-signed-cert', type=bool, default=False, is_flag=True,
-        help='When set, a new self-signed certificate will be generated '
-             'together with its private key if no cert is found in the data '
-             'dir. The generated files will be stored in the data dir, or a '
-             'temporary dir (deleted once the server is stopped) if there is '
-             'no data dir. This option conflicts with --tls-cert-file and '
-             '--tls-key-file, and defaults to True in dev mode.'),
+        help='DEPRECATED.\n\n'
+             'Use --tls-cert-mode=generate_self_signed instead.'),
     click.option(
         '--binary-endpoint-security',
         envvar="EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY",
@@ -452,7 +483,7 @@ _server_options = [
             'When set to `insecure_dev_mode`, sets the default '
             'authentication method to `Trust`, enables non-TLS '
             'client HTTP connections, and implies '
-            '`--generate-self-signed-cert`.  The default is `strict`.'
+            '`--tls-cert-mode=generate_self_signed`.  The default is `strict`.'
         ),
     ),
     click.option(
@@ -555,6 +586,17 @@ def parse_args(**kwargs: Any):
 
     del kwargs['postgres_dsn']
 
+    if kwargs['generate_self_signed_cert']:
+        warnings.warn(
+            "The `--generate-self-signed-cert` option is deprecated, use "
+            "`--tls-cert-mode=generate_self_signed` instead.",
+            DeprecationWarning,
+        )
+        if kwargs['tls_cert_mode'] == 'default':
+            kwargs['tls_cert_mode'] = 'generate_self_signed'
+
+    del kwargs['generate_self_signed_cert']
+
     if os.environ.get('EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS') == "1":
         if kwargs['binary_endpoint_security'] == "tls":
             abort(
@@ -589,18 +631,21 @@ def parse_args(**kwargs: Any):
                 )
             kwargs['http_endpoint_security'] = 'optional'
 
+    if kwargs['security'] == 'default':
+        if devmode.is_in_dev_mode():
+            kwargs['security'] = 'insecure_dev_mode'
+        else:
+            kwargs['security'] = 'strict'
+
     if kwargs['security'] == 'insecure_dev_mode':
         if kwargs['http_endpoint_security'] == 'default':
             kwargs['http_endpoint_security'] = 'optional'
         if not kwargs['default_auth_method']:
             kwargs['default_auth_method'] = 'Trust'
-        if not (kwargs['tls_cert_file'] or kwargs['tls_key_file']):
-            kwargs['generate_self_signed_cert'] = True
+        if kwargs['tls_cert_mode'] == 'default':
+            kwargs['tls_cert_mode'] = 'generate_self_signed'
     elif not kwargs['default_auth_method']:
         kwargs['default_auth_method'] = 'SCRAM'
-
-    if kwargs['security'] == 'default':
-        kwargs['security'] = 'strict'
 
     if kwargs['binary_endpoint_security'] == 'default':
         kwargs['binary_endpoint_security'] = 'tls'
@@ -608,11 +653,15 @@ def parse_args(**kwargs: Any):
     if kwargs['http_endpoint_security'] == 'default':
         kwargs['http_endpoint_security'] = 'tls'
 
+    if kwargs['tls_cert_mode'] == 'default':
+        kwargs['tls_cert_mode'] = 'require_file'
+
     kwargs['security'] = ServerSecurityMode(kwargs['security'])
     kwargs['binary_endpoint_security'] = ServerEndpointSecurityMode(
         kwargs['binary_endpoint_security'])
     kwargs['http_endpoint_security'] = ServerEndpointSecurityMode(
         kwargs['http_endpoint_security'])
+    kwargs['tls_cert_mode'] = ServerTlsCertMode(kwargs['tls_cert_mode'])
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
@@ -640,49 +689,66 @@ def parse_args(**kwargs: Any):
         elif kwargs['backend_dsn']:
             abort('The -D and --backend-dsn options are mutually exclusive.')
 
-    if kwargs['tls_cert_file'] or kwargs['tls_key_file']:
-        if tls_cert_file := kwargs['tls_cert_file']:
-            if kwargs['generate_self_signed_cert']:
-                abort("--tls-cert-file and --generate-self-signed-cert are "
-                      "mutually exclusive.")
-            tls_cert_file = tls_cert_file.resolve()
-            if not tls_cert_file.exists():
-                abort(f"File doesn't exist: --tls-cert-file={tls_cert_file}")
-            kwargs['tls_cert_file'] = tls_cert_file
-        elif kwargs['data_dir'] and (
-            tls_cert_file := kwargs['data_dir'] / TLS_CERT_FILE_NAME
-        ).exists():
-            kwargs['tls_cert_file'] = tls_cert_file
-        else:
-            abort("Cannot find --tls-cert-file, but --tls-key-file is set")
+    if kwargs['tls_key_file'] and not kwargs['tls_cert_file']:
+        abort('When --tls-key-file is set, --tls-cert-file must also be set.')
 
-        if tls_key_file := kwargs['tls_key_file']:
-            if kwargs['generate_self_signed_cert']:
-                abort("--tls-key-file and --generate-self-signed-cert are "
-                      "mutually exclusive.")
-            tls_key_file = tls_key_file.resolve()
-            if not tls_key_file.exists():
-                abort(f"File doesn't exist: --tls-key-file={tls_key_file}")
-            kwargs['tls_key_file'] = tls_key_file
-        elif kwargs['data_dir'] and (
-            tls_key_file := kwargs['data_dir'] / TLS_KEY_FILE_NAME
-        ).exists():
-            kwargs['tls_key_file'] = tls_key_file
-    else:
-        if devmode.is_in_dev_mode():
-            kwargs['generate_self_signed_cert'] = True
-        if data_dir := kwargs['data_dir']:
-            if (tls_cert_file := data_dir / TLS_CERT_FILE_NAME).exists():
-                kwargs['tls_cert_file'] = tls_cert_file
-                kwargs['generate_self_signed_cert'] = False
-                if (tls_key_file := data_dir / TLS_KEY_FILE_NAME).exists():
-                    kwargs['tls_key_file'] = tls_key_file
+    self_signing = kwargs['tls_cert_mode'] is ServerTlsCertMode.SelfSigned
+
+    if tls_cert_file := kwargs['tls_cert_file']:
+        tls_cert_file = tls_cert_file.resolve()
+        if not tls_cert_file.exists() and not self_signing:
+            abort(f"File doesn't exist: --tls-cert-file={tls_cert_file}")
+        kwargs['tls_cert_file'] = tls_cert_file
+    elif self_signing:
+        if kwargs['data_dir']:
+            tls_cert_file = kwargs['data_dir'] / TLS_CERT_FILE_NAME
+        else:
+            tls_cert_file = pathlib.Path('<runstate>') / TLS_CERT_FILE_NAME
+        kwargs['tls_cert_file'] = tls_cert_file
+
+    if tls_key_file := kwargs['tls_key_file']:
+        tls_key_file = tls_key_file.resolve()
+        if not tls_key_file.exists() and not self_signing:
+            abort(f"File doesn't exist: --tls-key-file={tls_key_file}")
+        kwargs['tls_key_file'] = tls_key_file
+    elif self_signing:
+        tls_key_file = tls_cert_file.parent / TLS_KEY_FILE_NAME
+        kwargs['tls_key_file'] = tls_key_file
+
+    if not kwargs['bootstrap_only'] and not self_signing:
+        if not kwargs['tls_cert_file']:
+            abort(
+                "no TLS certificate specified and certificate auto-generation"
+                " has not been requested; see help for --tls-cert-mode",
+                exit_code=10,
+            )
+        elif not kwargs['tls_cert_file'].exists():
+            abort(
+                f"specified TLS certificate file \"{kwargs['tls_cert_file']}\""
+                " does not exist and certificate auto-generation has not been"
+                " requested; see help for --tls-cert-mode",
+                exit_code=10,
+            )
+
     if (
-        not kwargs['generate_self_signed_cert']
-        and not kwargs['tls_cert_file']
-        and not kwargs['bootstrap_only']
+        kwargs['tls_cert_file']
+        and kwargs['tls_cert_file'].exists()
+        and not kwargs['tls_cert_file'].is_file()
     ):
-        abort('Please specify a TLS certificate with --tls-cert-file.')
+        abort(
+            f"specified TLS certificate file \"{kwargs['tls_cert_file']}\""
+            " is not a regular file"
+        )
+
+    if (
+        kwargs['tls_key_file']
+        and kwargs['tls_key_file'].exists()
+        and not kwargs['tls_key_file'].is_file()
+    ):
+        abort(
+            f"specified TLS private key file \"{kwargs['tls_key_file']}\""
+            " is not a regular file"
+        )
 
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]

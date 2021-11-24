@@ -301,8 +301,13 @@ Server configuration
     - ``never``
 
 ``EDGEDB_SERVER_TLS_CERT_MODE``
-    - ``file == default``
-    - ``self_signed`` — generate self-signed on bootstrap and when expired
+    - ``require_file`` — requires a valid TLS certificate and key to be
+      specified
+    - ``generate_self_signed`` generate self-signed certificate and private
+      key on bootstrap if certificate or key are not specified or missing
+    - ``default`` (equals to ``require_file`` if ``EDGEDB_SERVER_SECURITY``
+      is set to ``strict``, equals to ``generate_self_signed`` if
+      ``EDGEDB_SERVER_SECURITY`` is set to ``insecure_dev_mode``)
 
 ``EDGEDB_DOCKER_SHOW_GENERATED_CERT``
     - ``always == default``

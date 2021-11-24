@@ -68,9 +68,9 @@ logger = logging.getLogger('edb.server')
 _server_initialized = False
 
 
-def abort(msg, *args) -> NoReturn:
+def abort(msg, *args, exit_code=1) -> NoReturn:
     logger.critical(msg, *args)
-    sys.exit(1)
+    sys.exit(exit_code)
 
 
 @contextlib.contextmanager
@@ -202,21 +202,25 @@ async def _run_server(
         )
         await sc.wait_for(ss.init())
 
-        if args.generate_self_signed_cert:
-            ss.init_tls(
-                *_generate_cert(
-                    args.data_dir or pathlib.Path(internal_runstate_dir),
+        tls_cert_newly_generated = False
+        if args.tls_cert_mode is srvargs.ServerTlsCertMode.SelfSigned:
+            assert args.tls_cert_file is not None
+            assert args.tls_key_file is not None
+            if not args.tls_cert_file.exists():
+                _generate_cert(
+                    args.tls_cert_file,
+                    args.tls_key_file,
                     ss.get_listen_hosts(),
                 )
-            )
+                tls_cert_newly_generated = True
+
+        ss.init_tls(
+            args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
         if args.bootstrap_only:
             if args.startup_script:
                 await sc.wait_for(ss.run_startup_script_and_exit())
             return
-
-        if not args.generate_self_signed_cert:
-            ss.init_tls(args.tls_cert_file, args.tls_key_file)
 
         try:
             await sc.wait_for(ss.start())
@@ -240,9 +244,11 @@ async def _run_server(
 
 
 def _generate_cert(
-    cert_dir: pathlib.Path, listen_hosts: Iterable[str]
-) -> Tuple[pathlib.Path, Optional[pathlib.Path]]:
-    logger.info("Generating self-signed TLS certificate.")
+    tls_cert_file: pathlib.Path,
+    tls_key_file: pathlib.Path,
+    listen_hosts: Iterable[str]
+) -> None:
+    logger.info(f'generating self-signed TLS certificate in "{tls_cert_file}"')
 
     from cryptography import x509
     from cryptography.hazmat import backends
@@ -285,11 +291,10 @@ def _generate_cert(
             backend=backend,
         )
     )
-    cert_file = cert_dir / srvargs.TLS_CERT_FILE_NAME
-    key_file = cert_dir / srvargs.TLS_KEY_FILE_NAME
-    with cert_file.open("wb") as f:
+    with tls_cert_file.open("wb") as f:
         f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
-    with key_file.open("wb") as f:
+    tls_cert_file.chmod(0o644)
+    with tls_key_file.open("wb") as f:
         f.write(
             private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -297,7 +302,7 @@ def _generate_cert(
                 encryption_algorithm=serialization.NoEncryption(),
             )
         )
-    return cert_file, key_file
+    tls_key_file.chmod(0o600)
 
 
 async def _get_local_pgcluster(
@@ -469,7 +474,10 @@ async def run_server(
                 not args.bootstrap_only
                 or args.bootstrap_script
                 or args.bootstrap_command
-                or args.generate_self_signed_cert
+                or (
+                    args.tls_cert_mode
+                    is srvargs.ServerTlsCertMode.SelfSigned
+                )
             ):
                 if args.data_dir:
                     cluster.set_connection_params(
@@ -483,6 +491,21 @@ async def run_server(
                     )
 
                 with _internal_state_dir(runstate_dir) as int_runstate_dir:
+                    if (
+                        args.tls_cert_file
+                        and '<runstate>' in str(args.tls_cert_file)
+                    ):
+                        args = args._replace(
+                            tls_cert_file=pathlib.Path(
+                                str(args.tls_cert_file).replace(
+                                    '<runstate>', int_runstate_dir)
+                            ),
+                            tls_key_file=pathlib.Path(
+                                str(args.tls_key_file).replace(
+                                    '<runstate>', int_runstate_dir)
+                            )
+                        )
+
                     await _run_server(
                         cluster,
                         args,
@@ -541,7 +564,10 @@ def server_main(**kwargs):
     if kwargs['devmode'] is not None:
         devmode.enable_dev_mode(kwargs['devmode'])
 
-    server_args = srvargs.parse_args(**kwargs)
+    try:
+        server_args = srvargs.parse_args(**kwargs)
+    except srvargs.FatalConfigurationError as e:
+        abort(e.args[0], exit_code=e.args[1])
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}
