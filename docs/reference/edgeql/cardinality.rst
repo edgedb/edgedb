@@ -149,7 +149,7 @@ for user-defined functions, but it is used by certain standard library
 functions.
 
 Similarly the ``optional`` qualifier marks the input as optional; an operation
-will be executed is an optional input is empty or omitted, whereas passing an
+will be executed is an optional input is empty, whereas passing an
 empty set for a "standard" (non-optional) element-wise input will always
 result in an empty set.
 
