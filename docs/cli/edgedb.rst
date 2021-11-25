@@ -107,7 +107,7 @@ Options
     ``default``
         Resolves to ``strict`` if no custom certificate is supplied via
         :cli:synopsis:`--tls-ca-file`, environment variable, etc. Otherwise,
-        resolved to ``no_host_verification``.
+        resolves to ``no_host_verification``.
 
     ``strict``
         Verify TLS certificate and hostname.
