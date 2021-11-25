@@ -205,8 +205,8 @@ async def _run_server(
         tls_cert_newly_generated = False
         if args.tls_cert_mode is srvargs.ServerTlsCertMode.SelfSigned:
             assert args.tls_cert_file is not None
-            assert args.tls_key_file is not None
             if not args.tls_cert_file.exists():
+                assert args.tls_key_file is not None
                 _generate_cert(
                     args.tls_cert_file,
                     args.tls_key_file,
