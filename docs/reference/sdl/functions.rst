@@ -114,6 +114,8 @@ This declaration defines a new constraint with the following options:
     specified.  The expression has to be of a type compatible with the
     type of the argument.
 
+.. _ref_sdl_function_rettype:
+
 :eql:synopsis:`<rettype>`
     The return data type (optionally module-qualified).
 

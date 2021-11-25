@@ -82,9 +82,8 @@ of :eql:type:`str` into an equally-sized set of :eql:type:`int64`.
 Cartesian products
 ^^^^^^^^^^^^^^^^^^
 
-In case of element-wise operations that
-accept multiple arguments, the operation is applied to a cartesian product
-cross-product of all the input sets.
+In case of element-wise operations that accept multiple arguments, the
+operation is applied to a cartesian product of all the input sets.
 
 .. code-block:: edgeql-repl
 
@@ -143,18 +142,25 @@ it determined on a per-input basis.
 Type qualifiers
 ^^^^^^^^^^^^^^^
 
-When defining custom functions, all inputs  are element-wise by default. The
+When defining functions, all inputs are element-wise by default. The
 ``set of`` :ref:`type qualifier  <ref_sdl_function_typequal>` is used to
-designate an input as aggregate. The ``optional`` qualifier marks the input as
-optional; an operation will be executed is an optional input is empty or
-omitted, whereas passing an empty set for a "standard" (non-optional)
-element-wise input will always result in an empty set.
+designate an input as *aggregate*. Currently this modifier is not supported
+for user-defined functions, but it is used by certain standard library
+functions.
+
+Similarly the ``optional`` qualifier marks the input as optional; an operation
+will be executed is an optional input is empty or omitted, whereas passing an
+empty set for a "standard" (non-optional) element-wise input will always
+result in an empty set.
+
+Similarly, the *output* of a function :ref:`can be annotated
+<ref_sdl_function_rettype>` with ``set of`` and ``optional`` qualifiers.
 
 
 Cardinality computation
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-To compute the final cardinality of a function/operator call, take the
+To compute the number of times a function/operator will be invoked, take the
 cardinality of each input and apply the following transformations, based on
 the type qualifier (or lack thereof) for each:
 
@@ -164,5 +170,5 @@ the type qualifier (or lack thereof) for each:
   optional:      N -> N == 0 ? 1 : N
   aggregate:     N -> 1
 
-The cardinality of the resulting set is the product of the resulting numbers.
-
+The ultimate cardinality of the result is the union of the results of each
+invokation; as such, it depends on the *values returned* by each invokation.

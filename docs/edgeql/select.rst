@@ -26,8 +26,8 @@ seen simple queries that select primitive values.
   {1, 2, 3}
 
 
-With the help of an inline alias, we can add filters, ordering, and pagination
-clauses.
+With the help of a ``with`` block, we can add filters, ordering, and
+pagination clauses.
 
 .. code-block:: edgeql-repl
 
@@ -43,6 +43,13 @@ clauses.
   ... select x
   ... offset 1 limit 3;
   {2, 3, 4}
+
+This queries can also be rewritten to use inline aliases, like so:
+
+.. code-block:: edgeql-repl
+
+  db> select x := {1, 2, 3, 4, 5}
+  ... filter x >= 3;
 
 
 Selecting objects

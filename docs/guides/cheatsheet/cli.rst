@@ -16,7 +16,7 @@ Otherwise, a new project will be initialized and an ``edgedb.toml`` file and
 ``dbschema`` directory will be generated. For details on using projects, see
 the :ref:`dedicated guide <ref_guide_using_projects>`.
 
-Once initializing, you can run the CLI commands below without additional
+Once initialized, you can run the CLI commands below without additional
 connection options. If you don't set up a project, you'll need to use
 :ref:`flags <ref_cli_edgedb_connopts>` to specify the target instance for each
 command.

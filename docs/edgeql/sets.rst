@@ -86,7 +86,7 @@ permitted.
 
 .. note::
 
-  Types are considered *compatible* if one can be implicitly cast into each
+  Types are considered *compatible* if one can be implicitly cast into the
   other. For reference on implicit castability, see :ref:`Standard Library >
   Casts <ref_eql_casts_table>`.
 
@@ -367,8 +367,8 @@ Element-wise operations are applied on *each element* of a set.
   {["hello", "world"], ["hi", "again"]}
 
 When an *element-wise* operation accepts two or more inputs, the operation is
-applied *pair-wise*; in other words, the operation is applied to the *cartesian
-product* of the inputs.
+applied to all possible combinations of inputs; in other words, the operation
+is applied to the *cartesian product* of the inputs.
 
 .. code-block:: edgeql-repl
 

@@ -67,8 +67,8 @@ schema definition language.
 By convention, this schema lives inside of ``.esdl`` files inside the
 ``dbschema`` directory of your project. You can keep your entire schema in one
 file (typically called ``default.esdl``) or split it across several files. The
-EdgeDB CLI will automatically deep-merge all declarations. This files can be
-directly modified to reflect changes to your schema.
+EdgeDB CLI will automatically deep-merge all declarations. Your ``.esdl``
+file(s) can be directly modified to reflect changes to your schema.
 
 .. code-block:: sdl-diff
 

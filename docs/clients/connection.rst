@@ -37,10 +37,9 @@ library.
 
   Only use this approach in development; it isn't recommended to include
   sensitive information hard-coded in your production source code. Use
-  environment variables instead. How to set environment variables depends on
-  your development environment; different languages, frameworks, cloud hosting
+  environment variables instead. Different languages, frameworks, cloud hosting
   providers, and container-based workflows each provide various mechanisms for
-  doing so.
+  setting environment variables.
 
 These are the most common ways to connect to an instance, however EdgeDB
 supports several other options for advanced use cases. For a complete reference
