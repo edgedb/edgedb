@@ -216,10 +216,8 @@ class TestServerOps(tb.TestCase):
 
         try:
             async with tb.start_edgedb_server(
-                env={
-                    'EDGEDB_SERVER_TLS_CERT_FILE': cert_file,
-                    'EDGEDB_SERVER_TLS_KEY_FILE': key_file,
-                },
+                tls_cert_file=cert_file,
+                tls_key_file=key_file,
             ) as sd:
                 con = await sd.connect()
                 try:
@@ -235,6 +233,18 @@ class TestServerOps(tb.TestCase):
 
             self.assertGreater(key_file_path.stat().st_size, 0)
             self.assertGreater(cert_file_path.stat().st_size, 0)
+
+            # Check that the server works with the generated cert/key
+            async with tb.start_edgedb_server(
+                tls_cert_file=cert_file,
+                tls_key_file=key_file,
+                tls_cert_mode=args.ServerTlsCertMode.RequireFile,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
 
         finally:
             os.unlink(key_file)

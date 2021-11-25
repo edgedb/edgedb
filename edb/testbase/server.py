@@ -1573,6 +1573,10 @@ class _EdgeDBServer:
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode] = None,  # see __aexit__
         enable_backend_adaptive_ha: bool = False,
+        tls_cert_file: Optional[os.PathLike] = None,
+        tls_key_file: Optional[os.PathLike] = None,
+        tls_cert_mode: edgedb_args.ServerTlsCertMode = (
+            edgedb_args.ServerTlsCertMode.SelfSigned),
         env: Optional[Dict[str, str]] = None,
     ) -> None:
         self.bind_addrs = bind_addrs
@@ -1593,6 +1597,9 @@ class _EdgeDBServer:
         self.binary_endpoint_security = binary_endpoint_security
         self.http_endpoint_security = http_endpoint_security
         self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
+        self.tls_cert_file = tls_cert_file
+        self.tls_key_file = tls_key_file
+        self.tls_cert_mode = tls_cert_mode
         self.env = env
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
@@ -1646,7 +1653,7 @@ class _EdgeDBServer:
             '--testmode',
             '--emit-server-status', f'fd://{status_w.fileno()}',
             '--compiler-pool-size', str(self.compiler_pool_size),
-            '--tls-cert-mode=generate_self_signed',
+            '--tls-cert-mode', str(self.tls_cert_mode),
         ]
 
         for addr in self.bind_addrs:
@@ -1723,6 +1730,12 @@ class _EdgeDBServer:
 
         if self.enable_backend_adaptive_ha:
             cmd += ['--enable-backend-adaptive-ha']
+
+        if self.tls_cert_file:
+            cmd += ['--tls-cert-file', self.tls_cert_file]
+
+        if self.tls_key_file:
+            cmd += ['--tls-key-file', self.tls_key_file]
 
         if self.debug:
             print(
@@ -1836,6 +1849,10 @@ def start_edgedb_server(
     http_endpoint_security: Optional[
         edgedb_args.ServerEndpointSecurityMode] = None,
     enable_backend_adaptive_ha: bool = False,
+    tls_cert_file: Optional[os.PathLike] = None,
+    tls_key_file: Optional[os.PathLike] = None,
+    tls_cert_mode: edgedb_args.ServerTlsCertMode = (
+        edgedb_args.ServerTlsCertMode.SelfSigned),
     env: Optional[Dict[str, str]] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
@@ -1872,6 +1889,9 @@ def start_edgedb_server(
         binary_endpoint_security=binary_endpoint_security,
         http_endpoint_security=http_endpoint_security,
         enable_backend_adaptive_ha=enable_backend_adaptive_ha,
+        tls_cert_file=tls_cert_file,
+        tls_key_file=tls_key_file,
+        tls_cert_mode=tls_cert_mode,
         env=env,
     )
 
