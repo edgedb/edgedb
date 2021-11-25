@@ -44,7 +44,7 @@ pagination clauses.
   ... offset 1 limit 3;
   {2, 3, 4}
 
-This queries can also be rewritten to use inline aliases, like so:
+These queries can also be rewritten to use inline aliases, like so:
 
 .. code-block:: edgeql-repl
 
