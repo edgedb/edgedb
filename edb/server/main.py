@@ -205,7 +205,6 @@ async def _run_server(
         tls_cert_newly_generated = False
         if args.tls_cert_mode is srvargs.ServerTlsCertMode.SelfSigned:
             assert args.tls_cert_file is not None
-            assert args.tls_key_file is not None
             if not args.tls_cert_file.exists():
                 _generate_cert(
                     args.tls_cert_file,
@@ -245,7 +244,7 @@ async def _run_server(
 
 def _generate_cert(
     tls_cert_file: pathlib.Path,
-    tls_key_file: pathlib.Path,
+    tls_key_file: Optional[pathlib.Path],
     listen_hosts: Iterable[str]
 ) -> None:
     logger.info(f'generating self-signed TLS certificate in "{tls_cert_file}"')
@@ -294,8 +293,13 @@ def _generate_cert(
     with tls_cert_file.open("wb") as f:
         f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
     tls_cert_file.chmod(0o644)
-    with tls_key_file.open("wb") as f:
-        f.write(
+    if tls_key_file is None:
+        tls_key_file = tls_cert_file
+        mode = "a"
+    else:
+        mode = "w"
+    with tls_key_file.open(f"{mode}b") as kf:
+        kf.write(
             private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
                 format=serialization.PrivateFormat.TraditionalOpenSSL,

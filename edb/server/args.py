@@ -695,24 +695,22 @@ def parse_args(**kwargs: Any):
     self_signing = kwargs['tls_cert_mode'] is ServerTlsCertMode.SelfSigned
 
     if tls_cert_file := kwargs['tls_cert_file']:
-        tls_cert_file = tls_cert_file.resolve()
         if not tls_cert_file.exists() and not self_signing:
             abort(f"File doesn't exist: --tls-cert-file={tls_cert_file}")
         kwargs['tls_cert_file'] = tls_cert_file
     elif self_signing:
         if kwargs['data_dir']:
             tls_cert_file = kwargs['data_dir'] / TLS_CERT_FILE_NAME
+            tls_key_file = kwargs['data_dir'] / TLS_KEY_FILE_NAME
         else:
             tls_cert_file = pathlib.Path('<runstate>') / TLS_CERT_FILE_NAME
+            tls_key_file = pathlib.Path('<runstate>') / TLS_KEY_FILE_NAME
         kwargs['tls_cert_file'] = tls_cert_file
+        kwargs['tls_key_file'] = tls_key_file
 
     if tls_key_file := kwargs['tls_key_file']:
-        tls_key_file = tls_key_file.resolve()
         if not tls_key_file.exists() and not self_signing:
             abort(f"File doesn't exist: --tls-key-file={tls_key_file}")
-        kwargs['tls_key_file'] = tls_key_file
-    elif self_signing:
-        tls_key_file = tls_cert_file.parent / TLS_KEY_FILE_NAME
         kwargs['tls_key_file'] = tls_key_file
 
     if not kwargs['bootstrap_only'] and not self_signing:

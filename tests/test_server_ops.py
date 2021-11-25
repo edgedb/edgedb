@@ -205,7 +205,7 @@ class TestServerOps(tb.TestCase):
             await self.kill_process(proc)
             os.unlink(status_file)
 
-    async def test_server_ops_generates_cert_to_specified_file(self):
+    async def test_server_ops_generates_cert_to_separate_files(self):
         cert_fd, cert_file = tempfile.mkstemp()
         os.close(cert_fd)
         os.unlink(cert_file)
@@ -216,10 +216,8 @@ class TestServerOps(tb.TestCase):
 
         try:
             async with tb.start_edgedb_server(
-                env={
-                    'EDGEDB_SERVER_TLS_CERT_FILE': cert_file,
-                    'EDGEDB_SERVER_TLS_KEY_FILE': key_file,
-                },
+                tls_cert_file=cert_file,
+                tls_key_file=key_file,
             ) as sd:
                 con = await sd.connect()
                 try:
@@ -236,8 +234,59 @@ class TestServerOps(tb.TestCase):
             self.assertGreater(key_file_path.stat().st_size, 0)
             self.assertGreater(cert_file_path.stat().st_size, 0)
 
+            # Append the key to the cert file.
+            with open(cert_file_path, "a") as c, open(key_file_path, "r") as k:
+                print(k.read(), file=c)
+
+            # Check that the server works with the generated cert/key
+            async with tb.start_edgedb_server(
+                tls_cert_file=cert_file,
+                tls_key_file=key_file,
+                tls_cert_mode=args.ServerTlsCertMode.RequireFile,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
         finally:
             os.unlink(key_file)
+            os.unlink(cert_file)
+
+    async def test_server_ops_generates_cert_to_combined_file(self):
+        cert_fd, cert_file = tempfile.mkstemp()
+        os.close(cert_fd)
+        os.unlink(cert_file)
+
+        try:
+            async with tb.start_edgedb_server(
+                tls_cert_file=cert_file,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
+            cert_file_path = pathlib.Path(cert_file)
+
+            self.assertTrue(cert_file_path.exists())
+
+            self.assertGreater(cert_file_path.stat().st_size, 0)
+
+            # Check that the server works with the combined cert/key file
+            async with tb.start_edgedb_server(
+                tls_cert_file=cert_file,
+                tls_cert_mode=args.ServerTlsCertMode.RequireFile,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
+        finally:
             os.unlink(cert_file)
 
     async def test_server_ops_bogus_bind_addr_in_mix(self):
