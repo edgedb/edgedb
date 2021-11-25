@@ -167,7 +167,7 @@ the type qualifier (or lack thereof) for each:
 .. code-block::
 
   element-wise:  N -> N
-  optional:      N -> N == 0 ? 1 : N
+  optional:      N -> max(1, N)
   aggregate:     N -> 1
 
 The ultimate cardinality of the result is the union of the results of each
