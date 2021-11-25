@@ -487,6 +487,16 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_update_bad_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'free objects cannot be updated',
+        ):
+            await self.con.execute('''\
+                WITH foo := {bar := 1}
+                UPDATE foo SET { bar := 2 };
+            ''')
+
     async def test_edgeql_update_filter_01(self):
         await self.assert_query_result(
             r"""

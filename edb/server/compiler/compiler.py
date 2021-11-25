@@ -582,6 +582,7 @@ class Compiler:
                 json_parameters=ctx.json_parameters,
                 implicit_limit=ctx.implicit_limit,
                 allow_writing_protected_pointers=ctx.schema_reflection_mode,
+                bootstrap_mode=ctx.bootstrap_mode,
                 apply_query_rewrites=(
                     not ctx.bootstrap_mode
                     and not ctx.schema_reflection_mode

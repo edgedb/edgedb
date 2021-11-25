@@ -1931,6 +1931,16 @@ class TestInsert(tb.QueryTestCase):
                 INSERT Foo;
             """)
 
+    async def test_edgeql_insert_free_obj(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"free objects cannot be inserted",
+            _position=23,
+        ):
+            await self.con.execute("""\
+                INSERT std::FreeObject;
+            """)
+
     async def test_edgeql_insert_selfref_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,

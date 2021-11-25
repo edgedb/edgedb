@@ -99,6 +99,12 @@ class ObjectType(
     def is_object_type(self) -> bool:
         return True
 
+    def is_free_object_type(self, schema: s_schema.Schema) -> bool:
+        return self.issubclass(
+            schema,
+            schema.get('std::FreeObject', type=ObjectType),
+        )
+
     def is_union_type(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_union_of(schema))
 
