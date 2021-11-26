@@ -275,9 +275,12 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type UniqueName_3 extending UniqueName, UniqueName_2;
         """
 
-    @tb.must_fail(errors.InvalidLinkTargetError,
-                  'invalid link target, expected object type, got scalar type',
-                  position=69)
+    @tb.must_fail(
+        errors.InvalidLinkTargetError,
+        "invalid link target type, expected object type, "
+        "got scalar type 'std::str'",
+        position=69,
+    )
     def test_schema_bad_link_01(self):
         """
             type Object {
@@ -285,13 +288,28 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
-    @tb.must_fail(errors.InvalidLinkTargetError,
-                  'invalid link target, expected object type, got scalar type',
-                  position=69)
+    @tb.must_fail(
+        errors.InvalidLinkTargetError,
+        "invalid link target type, expected object type, "
+        "got scalar type 'std::int64'",
+        position=69,
+    )
     def test_schema_bad_link_02(self):
         """
             type Object {
                 link foo := 1 + 1
+            };
+        """
+
+    @tb.must_fail(
+        errors.InvalidLinkTargetError,
+        "object type 'std::FreeObject' is not a valid link target",
+        position=69,
+    )
+    def test_schema_bad_link_03(self):
+        """
+            type Object {
+                link foo -> FreeObject
             };
         """
 

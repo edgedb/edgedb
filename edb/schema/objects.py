@@ -2412,6 +2412,9 @@ class ObjectCollectionShell(Shell, Generic[Object_T]):
         self.items = items
         self.collection_type = collection_type
 
+    def __iter__(self) -> Iterator[ObjectShell[Object_T]]:
+        return iter(self.items)
+
     def resolve(self, schema: s_schema.Schema) -> ObjectCollection[Object_T]:
         return self.collection_type.create(
             schema,

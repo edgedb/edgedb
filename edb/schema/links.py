@@ -242,8 +242,15 @@ class LinkCommand(
         if not target.is_object_type():
             srcctx = self.get_attribute_source_context('target')
             raise errors.InvalidLinkTargetError(
-                f'invalid link target, expected object type, got '
-                f'{target.get_schema_class_displayname()}',
+                f'invalid link target type, expected object type, got '
+                f'{target.get_verbosename(schema)}',
+                context=srcctx,
+            )
+
+        if target.is_free_object_type(schema):
+            srcctx = self.get_attribute_source_context('target')
+            raise errors.InvalidLinkTargetError(
+                f'{target.get_verbosename(schema)} is not a valid link target',
                 context=srcctx,
             )
 

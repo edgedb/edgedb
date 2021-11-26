@@ -2348,6 +2348,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> so.Object_T:
         ...
 
@@ -2359,6 +2360,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[so.Object_T]:
         ...
 
@@ -2369,6 +2371,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[so.Object_T]:
         metaclass = self.get_schema_metaclass()
         if name is None:
@@ -2700,6 +2703,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.QualifiedObject_T, so.NoDefaultT] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> so.QualifiedObject_T:
         ...
 
@@ -2711,6 +2715,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[so.QualifiedObject_T]:
         ...
 
@@ -2722,6 +2727,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         name: Optional[sn.Name] = None,
         default: Union[
             so.QualifiedObject_T, so.NoDefaultT, None] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[so.QualifiedObject_T]:
         if name is None:
             name = self.classname
@@ -2729,11 +2735,10 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
             if rename is not None:
                 name = rename
         metaclass = self.get_schema_metaclass()
-        return cast(
-            Optional[so.QualifiedObject_T],
-            schema.get(name, type=metaclass, default=default,
-                       sourcectx=self.source_context),
-        )
+        if sourcectx is None:
+            sourcectx = self.source_context
+        return schema.get(
+            name, type=metaclass, default=default, sourcectx=sourcectx)
 
 
 class GlobalObjectCommand(ObjectCommand[so.GlobalObject_T]):
