@@ -4,7 +4,7 @@ Sets
 ====
 
 - :ref:`Everything is a set <ref_eql_everything_is_a_set>`
-- :ref:`Declaring sets <ref_eql_set_constructor>`
+- :ref:`Constructing sets <ref_eql_set_constructor>`
 - :ref:`Literals are singletons <ref_eql_set_literals_are_singletons>`
 - :ref:`Empty sets <ref_eql_empty_sets>`
 - :ref:`Set references <ref_eql_set_references>`
@@ -26,19 +26,6 @@ All values in EdgeQL are actually **sets**: a collection of values of a given
 a set is known as its **cardinality**. A set with a cardinality of zero is
 referred to as an **empty set**. A set with a cardinality of one is known as a
 **singleton**.
-
-.. note::
-
-  The term **cardinality** may refer to the *exact* number of elements in a
-  given set or a *range* of possible values. Internally, EdgeDB tracks 5
-  different cardinality ranges: ``Empty`` (zero elements), ``One`` (a singleton
-  set), ``AtMostOne`` (zero or one elements), ``AtLeastOne`` (one or more
-  elements), and ``Many`` (any number of elements).
-
-  EdgeDB uses this information to statically check queries for validity. For
-  instance, when assigning to a ``required multi`` link, the value being
-  assigned in question *must* have a cardinality of ``One`` or ``AtLeastOne``
-  (as empty sets are not permitted).
 
 .. _ref_eql_set_constructor:
 
@@ -88,7 +75,6 @@ reference, see the casting table in :ref:`Standard Library > Casts
   db> select {1, 1234.5678n};
   {1.0n, 1234.5678n}
 
-
 Attempting to declare a set containing elements of *incompatible* types is not
 permitted.
 
@@ -100,8 +86,9 @@ permitted.
 
 .. note::
 
-  Types are considered *compatible* if they can be implicitly cast into each
-  other.
+  Types are considered *compatible* if one can be implicitly cast into the
+  other. For reference on implicit castability, see :ref:`Standard Library >
+  Casts <ref_eql_casts_table>`.
 
 .. _ref_eql_set_literals_are_singletons:
 
@@ -340,48 +327,52 @@ by subtype.
 Type filters are commonly used in conjunction with :ref:`backlinks
 <ref_eql_select_backlinks>`.
 
-
 .. _ref_eql_set_aggregate:
 
 Aggregate vs element-wise operations
 ------------------------------------
 
 EdgeQL provides a large library of built-in functions and operators for
-handling data structures. Each functions and operators is either *aggregate* or
-*element-wise*.
+handling data structures. It's useful to consider functions/operators as either
+*aggregate* or *element-wise*.
 
-By contrast, *aggregate* operations are applied to the set *as a whole*; they
+.. note::
+
+  This is an over-simplification, but it's a useful mental model when just
+  starting out with EdgeDB. For a more complete guide, see :ref:`Reference >
+  Cardinality <ref_reference_cardinality>`.
+
+*Aggregate* operations are applied to the set *as a whole*; they
 accept a set with arbitrary cardinality and return a *singleton* (or perhaps an
 empty set if the input was also empty).
 
 .. code-block:: edgeql-repl
 
-  db> select count({'aaa', 'bbb', 'ccc'})
+  db> select count({'aaa', 'bbb', 'ccc'});
   {2}
   db> select sum({1, 2, 3});
   {6}
   db> select min({1, 2, 3});
   {-3}
 
-
 Element-wise operations are applied on *each element* of a set.
 
 .. code-block:: edgeql-repl
 
-  db> select str_upper({'aaa', 'bbb'})
+  db> select str_upper({'aaa', 'bbb'});
   {'AAA', 'BBB'}
   db> select {1, 2, 3} ^ 2;
   {1, 4, 9}
   db> select str_split({"hello world", "hi again"}, " ");
   {["hello", "world"], ["hi", "again"]}
 
-When an *element-wise* operation accepts two inputs, the operation is applied
-*pair-wise*; in other words, the operation is applied to the *cartesian
-product* of the inputs.
+When an *element-wise* operation accepts two or more inputs, the operation is
+applied to all possible combinations of inputs; in other words, the operation
+is applied to the *cartesian product* of the inputs.
 
 .. code-block:: edgeql-repl
 
-  db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'}
+  db> select {'aaa', 'bbb'} ++ {'ccc', 'ddd'};
   {'aaaccc', 'aaaddd', 'bbbccc', 'bbbddd'}
 
 Accordingly, operations involving an empty set typically return an empty set.
@@ -394,6 +385,9 @@ on empty sets.
   {}
   db> select count(<str>{});
   {0}
+
+For a more complete discussion of cardinality, see :ref:`Reference >
+Cardinality <ref_reference_cardinality>`.
 
 .. _ref_eql_set_array_conversion:
 
@@ -432,6 +426,23 @@ transform than arrays.
   db> select str_trim(['  hello', 'world  ']);
   error: QueryError: function "str_trim(arg0: array<std::str>)" does not exist
 
-Most :ref:`aggregate <ref_eql_funcops_aggregate>` operations have analogs that
-operate on arrays. For instance, the set function :eql:func:`count`
-is analogous to the array function :eql:func:`len`.
+Most :ref:`aggregate <ref_reference_cardinality_aggregate>` operations have
+analogs that operate on arrays. For instance, the set function
+:eql:func:`count` is analogous to the array function :eql:func:`len`.
+
+
+Reference
+---------
+
+.. list-table::
+
+  * - Set operators
+    - :eql:op:`DISTINCT <DISTINCT>` :eql:op:`IN <IN>` :eql:op:`UNION <UNION>`
+      :eql:op:`EXISTS <EXISTS>` :eql:op:`IF..ELSE <IF..ELSE>`
+      :eql:op:`?? <COALESCE>` :eql:op:`DETACHED`
+      :eql:op:`[IS type] <ISINTERSECT>`
+  * - Utility functions
+    - :eql:func:`count` :eql:func:`enumerate`
+  * - Cardinality assertion
+    - :eql:func:`assert_distinct` :eql:func:`assert_single`
+      :eql:func:`assert_exists`

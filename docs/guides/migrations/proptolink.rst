@@ -37,7 +37,7 @@ The initial setup may look something like this:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT Character {name, class};
+    db> select Character {name, class};
     {
       default::Character {name: 'Alice', class: warrior},
       default::Character {name: 'Billie', class: scholar},
@@ -152,7 +152,7 @@ We can see the changes after the data migration is complete:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT Character {
+    db> select Character {
     ...     name,
     ...     class,
     ...     new_class: {
@@ -250,7 +250,7 @@ Finally, we have replaced the original ``class`` property with a link:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT Character {
+    db> select Character {
     ...     name,
     ...     class: {
     ...         name,

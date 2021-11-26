@@ -26,6 +26,13 @@ Computed fields are associated with an EdgeQL expression. This expression
 can be an *arbitrary* EdgeQL query. This expression is evaluated whenever the
 field is referenced in a query.
 
+.. note::
+
+  Computed fields don't need to be pre-defined in your schema; you can drop
+  them into individual queries as well. They behave in exactly the same way.
+  For more information, see the :ref:`EdgeQL > Select > Computeds
+  <ref_eql_select_computeds>`.
+
 .. _ref_dot_notation:
 
 Leading dot notation
@@ -112,15 +119,10 @@ conjunction with a *type filter* ``[IS BlogPost]`` to fetch all the
 the EdgeQL docs for :ref:`Backlinks <ref_eql_paths>`.
 
 
-See Also
---------
+.. list-table::
+  :class: seealso
 
-Computed fields don't need to be pre-defined in your schema; you can drop them
-into individual queries as well. They behave in exactly the same way. For more
-information, see the :ref:`shapes docs <ref_reference_shapes>`.
-
-Computed
-:ref:`link SDL <ref_eql_sdl_links>`,
-:ref:`link DDL <ref_eql_ddl_links>`,
-:ref:`property SDL <ref_eql_sdl_links>`,
-and :ref:`property DDL <ref_eql_ddl_links>`.
+  * - :ref:`SDL > Links <ref_eql_sdl_links>`
+  * - :ref:`DDL > Links <ref_eql_ddl_links>`
+  * - :ref:`SDL > Properties <ref_eql_sdl_links>`
+  * - :ref:`DDL > Properties <ref_eql_ddl_links>`

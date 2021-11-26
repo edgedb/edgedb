@@ -22,19 +22,47 @@ seen simple queries that select primitive values.
   {'hello world'}
   db> select [1, 2, 3];
   {[1, 2, 3]}
+  db> select {1, 2, 3};
+  {1, 2, 3}
 
 
-However most queries are selecting *objects* that live in the database. When
-selecting objects, the ``select`` statement supports filters, ordering, and
-pagination operations.
+With the help of a ``with`` block, we can add filters, ordering, and
+pagination clauses.
 
-For demonstration purposes, the queries below assume the following schema.
+.. code-block:: edgeql-repl
+
+  db> with x := {1, 2, 3, 4, 5}
+  ... select x
+  ... filter x >= 3;
+  {3, 4, 5}
+  db> with x := {1, 2, 3, 4, 5}
+  ... select x
+  ... order by x desc;
+  {5, 4, 3, 2, 1}
+  db> with x := {1, 2, 3, 4, 5}
+  ... select x
+  ... offset 1 limit 3;
+  {2, 3, 4}
+
+These queries can also be rewritten to use inline aliases, like so:
+
+.. code-block:: edgeql-repl
+
+  db> select x := {1, 2, 3, 4, 5}
+  ... filter x >= 3;
+
+
+Selecting objects
+-----------------
+
+However most queries are selecting *objects* that live in the database. For
+demonstration purposes, the queries below assume the following schema.
 
 .. code-block:: sdl
 
   module default {
     abstract type Person {
-      required property name -> str { constraint exclusive; };
+      required property name -> str { constraint exclusive };
     }
 
     type Hero extending Person {
@@ -47,7 +75,7 @@ For demonstration purposes, the queries below assume the following schema.
     }
 
     type Movie {
-      required property title -> str { constraint exclusive; }
+      required property title -> str { constraint exclusive };
       required property release_year -> int64;
       multi link characters -> Person;
     }
@@ -158,7 +186,7 @@ we use ``Villain.name``.
 .. code-block:: edgeql-repl
 
   db> select Villain {id, name}
-  ... filter Villain.name = "Doc Ock"
+  ... filter Villain.name = "Doc Ock";
   {default::Villain {id: b233ca98..., name: 'Doc Ock'}}
 
 
@@ -179,7 +207,7 @@ of the ``Villain`` type. In other words, we are in the **scope** of the
 .. code-block:: edgeql-repl
 
   db> select Villain {name}
-  ... filter .name = "Doc Ock"
+  ... filter .name = "Doc Ock";
   {default::Villain {name: 'Doc Ock'}}
 
 Filtering by ID
@@ -191,7 +219,7 @@ To filter by ``id``, remember to cast the desired ID to :ref:`uuid
 .. code-block:: edgeql-repl
 
   db> select Villain {id, name}
-  ... filter .id = <uuid>"b233ca98-3c23-11ec-b81f-6ba8c4f0084e"
+  ... filter .id = <uuid>"b233ca98-3c23-11ec-b81f-6ba8c4f0084e";
   {
     default::Villain {
       id: 'b233ca98-3c23-11ec-b81f-6ba8c4f0084e',
@@ -243,7 +271,7 @@ Order the result of a query with an ``order by`` clause.
 .. code-block:: edgeql-repl
 
   db> select Villain { name }
-  ... order by .name
+  ... order by .name;
   {
     default::Villain {name: 'Abomination'},
     default::Villain {name: 'Doc Ock'},
@@ -257,8 +285,18 @@ Order the result of a query with an ``order by`` clause.
     default::Villain {name: 'Zemo'},
   }
 
-The expression provided to ``order by`` can be any primitive singleton
-expression, including arrays and tuples. You can also order by multiple
+The expression provided to ``order by`` may be *any* singleton
+expression, primitive or otherwise.
+
+.. note::
+
+  In EdgeDB all values are orderable. Objects are compared using their ``id``;
+  tuples and arrays are compared element-by-element from left to right. By
+  extension, the generic comparison operators :eql:op:`= <EQ>`,
+  :eql:op:`\< <LT>`, :eql:op:`\> <GT>`, etc. can be used with any two
+  expressions of the same type.
+
+You can also order by multiple
 expressions and specify the *direction* with an ``asc`` (default) or ``desc``
 modifier.
 
@@ -274,7 +312,7 @@ modifier.
   db> select Movie { title, release_year }
   ... order by
   ...   .release_year desc then
-  ...   str_trim(.title) desc
+  ...   str_trim(.title) desc;
   {
     default::Movie {title: 'Spider-Man: No Way Home', release_year: 2021},
     ...
@@ -516,7 +554,7 @@ abstract type (such as ``Movie.characters``) or a :eql:op:`union type
   ...     name
   ...   }
   ... }
-  ... filter .title = "Iron Man 2"
+  ... filter .title = "Iron Man 2";
   {
     default::Movie {
       title: 'Iron Man 2',
@@ -601,7 +639,7 @@ Filtering polymorphic links
 Relatedly, it's possible to filter polymorphic links by subtype. Below, we
 exclusively fetch the ``Movie.characters`` of type ``Hero``.
 
-.. code-block::
+.. code-block:: edgeql-repl
 
   db> select Movie {
   ...   title,
@@ -680,6 +718,7 @@ standalone expressions that can be used in your query.
 For full documentation on ``with``, see :ref:`EdgeQL > With <ref_eql_with>`.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`

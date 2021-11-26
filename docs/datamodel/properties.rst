@@ -193,6 +193,7 @@ Properties can also be defined on **links**. For a full guide, refer to
 :ref:`Guides > Using link properties <ref_guide_linkprops>`.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`SDL > Properties <ref_eql_sdl_props>`

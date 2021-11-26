@@ -3,8 +3,8 @@
 Observability
 =============
 
-All EdgeDB instances expose a Prometheus-compatible ``/metrics`` endpoint on
-port ``9090``. The following metrics are made available.
+All EdgeDB instances expose a Prometheus-compatible ``/metrics`` endpoint. The
+following metrics are made available.
 
 
 Processes
@@ -19,7 +19,8 @@ Processes
 Backend connections and performance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ``backend_connections_total``
-  **Counter.** Total number of backend connections established.
+  **Counter**
+  Total number of backend connections established.
 
 ``backend_connections_current``
   **Gauge.** Current number of active backend connections.

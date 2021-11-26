@@ -83,6 +83,7 @@ command:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Annotations <ref_datamodel_annotations>`

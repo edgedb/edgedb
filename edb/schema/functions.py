@@ -876,7 +876,7 @@ class CallableObject(
         schema: s_schema.Schema,
         reference: so.Object,
     ) -> bool:
-        # Paramters cannot be deleted via DDL syntax,
+        # Parameters cannot be deleted via DDL syntax,
         # so the only possible scenario is the deletion of
         # the host function.
         return not isinstance(reference, Parameter)

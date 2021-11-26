@@ -220,6 +220,7 @@ what the ``UNLESS CONFLICT`` clause allows:
     state).
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > Insert <ref_eql_insert>`

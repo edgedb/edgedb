@@ -66,6 +66,7 @@ And here's the equivalent ``DELETE (SELECT ...)`` statement:
             FILTER User.name = 'Alice Smith');
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > Delete <ref_eql_delete>`

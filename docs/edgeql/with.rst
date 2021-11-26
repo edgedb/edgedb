@@ -96,6 +96,7 @@ refer to ``schema::ObjectType`` (a built-in EdgeDB type) as simply
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Reference > Commands > With <ref_eql_statements_with>`

@@ -96,7 +96,9 @@ Examples
     RESET ALIAS *;
 
 
-See Also
---------
+.. list-table::
+  :class: seealso
 
-:ref:`SET ALIAS <ref_eql_statements_session_set_alias>` command.
+  * - **See also**
+  * - :ref:`Reference > EdgeQL > SET ALIAS
+      <ref_eql_statements_session_set_alias>`

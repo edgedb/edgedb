@@ -83,6 +83,7 @@ The only valid SDL sub-declarations are *concrete annotations*:
     enclosing annotation to a specific value.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Annotations <ref_datamodel_annotations>`

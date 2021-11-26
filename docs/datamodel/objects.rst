@@ -113,6 +113,7 @@ names.
   <ref_datamodel_annotations>` for full documentation on those concepts.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`SDL > Object types <ref_eql_sdl_object_types>`

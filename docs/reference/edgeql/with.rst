@@ -169,6 +169,7 @@ in the body of the ``UPDATE``. The goal is to indicate that the
 ``User`` that's being updated.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`EdgeQL > With <ref_eql_with>`

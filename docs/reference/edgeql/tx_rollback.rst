@@ -54,11 +54,17 @@ Description
 updates made by the transaction to be discarded.
 
 
-See Also
---------
+.. list-table::
+  :class: seealso
 
-:ref:`START TRANSACTION <ref_eql_statements_start_tx>`,
-:ref:`COMMIT <ref_eql_statements_commit_tx>`,
-:ref:`DECLARE SAVEPOINT <ref_eql_statements_declare_savepoint>`,
-:ref:`ROLLBACK TO SAVEPOINT <ref_eql_statements_rollback_savepoint>`,
-and :ref:`RELEASE SAVEPOINT <ref_eql_statements_release_savepoint>`.
+  * - **See also**
+  * - :ref:`Reference > EdgeQL > START TRANSACTION
+      <ref_eql_statements_start_tx>`
+  * - :ref:`Reference > EdgeQL > COMMIT
+      <ref_eql_statements_commit_tx>`
+  * - :ref:`Reference > EdgeQL > DECLARE SAVEPOINT
+      <ref_eql_statements_declare_savepoint>`
+  * - :ref:`Reference > EdgeQL > ROLLBACK TO SAVEPOINT
+      <ref_eql_statements_rollback_savepoint>`
+  * - :ref:`Reference > EdgeQL > RELEASE SAVEPOINT
+      <ref_eql_statements_release_savepoint>`

@@ -35,7 +35,7 @@ determining some game actions. Se we end up with something like this:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT Character {name, description};
+    db> select Character {name, description};
     {
       default::Character {name: 'Alice', description: 'Tall and strong'},
       default::Character {name: 'Billie', description: 'Smart and aloof'},
@@ -73,7 +73,7 @@ renamed, the data is all preserved:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT Character {name, class};
+    db> select Character {name, class};
     {
       default::Character {name: 'Alice', class: 'Tall and strong'},
       default::Character {name: 'Billie', class: 'Smart and aloof'},
@@ -167,7 +167,7 @@ The final migration converted all the ``class`` property values:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT Character {name, class};
+    db> select Character {name, class};
     {
       default::Character {name: 'Alice', class: warrior},
       default::Character {name: 'Billie', class: scholar},

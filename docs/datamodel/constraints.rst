@@ -40,7 +40,11 @@ the length of a string.
 
   type User {
     required property username -> str {
+      # as custom constraint
       constraint expression on (len(__subject__) < 25);
+
+      # with built-in
+      constraint min_len_value(25);
     };
   }
 
@@ -111,7 +115,8 @@ types, as the concept of exclusivity is only defined in the context of a given
 object type.
 
 Use :eql:constraint:`expression` constraints to declare custom constraints
-using arbitrary EdgeQL expressions.
+using arbitrary EdgeQL expressions. The example below uses the built-in
+:eql:func:`str_trim` function.
 
 .. code-block:: sdl
 
@@ -122,6 +127,7 @@ using arbitrary EdgeQL expressions.
   }
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`SDL > Constraints <ref_eql_sdl_constraints>`

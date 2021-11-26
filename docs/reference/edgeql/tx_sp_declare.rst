@@ -80,11 +80,18 @@ Example
 
     ROLLBACK;
 
-See Also
---------
 
-:ref:`START TRANSACTION <ref_eql_statements_start_tx>`,
-:ref:`COMMIT <ref_eql_statements_commit_tx>`,
-:ref:`ROLLBACK <ref_eql_statements_rollback_tx>`,
-:ref:`ROLLBACK TO SAVEPOINT <ref_eql_statements_rollback_savepoint>`,
-and :ref:`RELEASE SAVEPOINT <ref_eql_statements_release_savepoint>`.
+.. list-table::
+  :class: seealso
+
+  * - **See also**
+  * - :ref:`Reference > EdgeQL > START TRANSACTION
+      <ref_eql_statements_start_tx>`
+  * - :ref:`Reference > EdgeQL > COMMIT
+      <ref_eql_statements_commit_tx>`
+  * - :ref:`Reference > EdgeQL > ROLLBACK
+      <ref_eql_statements_rollback_tx>`,
+  * - :ref:`Reference > EdgeQL > ROLLBACK TO SAVEPOINT
+      <ref_eql_statements_rollback_savepoint>`
+  * - :ref:`Reference > EdgeQL > RELEASE SAVEPOINT
+      <ref_eql_statements_release_savepoint>`

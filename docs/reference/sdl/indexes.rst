@@ -58,6 +58,7 @@ The valid SDL sub-declarations are listed below:
     to a given *value*.
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Indexes <ref_datamodel_indexes>`

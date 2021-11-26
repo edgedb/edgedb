@@ -33,7 +33,7 @@ possible to delete an object linked to by another.
 
 .. code-block:: edgeql-repl
 
-  db> delete Hero filter .name = "Yelena Belova"
+  db> delete Hero filter .name = "Yelena Belova";
   ConstraintViolationError: deletion of default::Hero
   (af7076e0-3e98-11ec-abb3-b3435bbe7c7e) is prohibited by link target policy
   {}
@@ -59,7 +59,7 @@ the ``allow`` deletion policy.
 .. code-block:: sdl-diff
 
     type Movie {
-      required property title -> str { constraint exclusive; }
+      required property title -> str { constraint exclusive };
       required property release_year -> int64;
   -   multi link characters -> Person;
   +   multi link characters -> Person {
@@ -82,7 +82,9 @@ Return value
 ------------
 
 A ``delete`` statement returns the set of deleted objects. You can pass this
-set into ``select`` to fetch properties and links of the (now-deleted) objects.
+set into ``select`` to fetch properties and links of the (now-deleted)
+objects. This is the last moment this data will be available before being
+permanently deleted.
 
 .. code-block:: edgeql-repl
 
@@ -94,6 +96,7 @@ set into ``select`` to fetch properties and links of the (now-deleted) objects.
   }}
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Reference > Commands > Delete <ref_eql_statements_delete>`

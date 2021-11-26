@@ -1,3 +1,5 @@
+.. _ref_changelog_rc2:
+
 ========
 1.0 RC 2
 ========
@@ -50,7 +52,7 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT User {comp := enumerate(.name)}
+    db> SELECT User {comp := enumerate(.name)};
     {default::User {comp: (0, 'alice')}}
 
 * Fix some issues with :eql:func:`enumerate` applied to the results of

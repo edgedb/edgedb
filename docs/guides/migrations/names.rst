@@ -163,8 +163,8 @@ look like they are ending in a UUID:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT User { name }
-    ... FILTER
+    db> select User { name }
+    ... filter
     ...     re_test('.* [a-z0-9]{8}(-[a-z0-9]{4}){3}-[a-z0-9]{12}$', .name);
     {
       default::User {name: 'change me bc30d45a-2bcf-11ec-a6c2-6ff21f33a302'},

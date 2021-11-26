@@ -259,7 +259,7 @@ instance-level configuration object.
   * - ``EDGEDB_CLIENT_TLS_SECURITY``
     - ``--tls-security``
   * - ``EDGEDB_CLIENT_SECURITY``
-    - ``--tls-verify-hostname``
+    - N/A
 
 **EDGEDB_DATABASE**
   Each EdgeDB *instance* can contain multiple *databases*. When in instance is
@@ -302,7 +302,10 @@ instance-level configuration object.
 
   Currently there is only one valid value: ``insecure_dev_mode``. Setting
   ``EDGEDB_CLIENT_SECURITY=insecure_dev_mode`` disables all TLS security
-  measures. This is useful when developing locally with Docker.
+  measures. Currently it is equivalent to setting
+  ``EDGEDB_CLIENT_TLS_SECURITY=insecure`` but it may encompass additional
+  configuration settings later.  This is most commonly used when developing
+  locally with Docker.
 
 
 .. _ref_reference_connection_granular_override:

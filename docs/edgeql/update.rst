@@ -51,7 +51,7 @@ values.
   ... };
   {default::Title {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
   db> select Movie { num_characters := count(.characters) }
-  ... filter .title = "Black Widow"
+  ... filter .title = "Black Widow";
   {default::Movie {num_characters: 3}}
 
 To add additional linked items, use the ``+=`` operator.
@@ -65,7 +65,7 @@ To add additional linked items, use the ``+=`` operator.
   ... };
   {default::Title {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
   db> select Movie { num_characters := count(.characters) }
-  ... filter .title = "Black Widow"
+  ... filter .title = "Black Widow";
   {default::Movie {num_characters: 4}}
 
 To remove items, use ``-=``.
@@ -79,7 +79,7 @@ To remove items, use ``-=``.
   ... };
   {default::Title {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
   db> select Movie { num_characters := count(.characters) }
-  ... filter .title = "Black Widow"
+  ... filter .title = "Black Widow";
   {default::Movie {num_characters: 2}}
 
 With blocks
@@ -118,6 +118,5 @@ For documentation on performing *upsert* operations, see :ref:`EdgeQL > Insert
 
 .. list-table::
 
-  * - **See also**
   * - :ref:`Reference > Commands > Update <ref_eql_statements_update>`
   * - :ref:`Cheatsheets > Updating data <ref_cheatsheet_update>`

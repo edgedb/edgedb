@@ -11,8 +11,8 @@ Introspection of the ``schema::Function``:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -21,7 +21,7 @@ Introspection of the ``schema::Function``:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::Function';
+    ... filter .name = 'schema::Function';
     {
         Object {
             name: 'schema::Function',
@@ -43,8 +43,8 @@ Since ``params`` are quite important to functions, here's their structure:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     links: {
     ...         name,
@@ -53,7 +53,7 @@ Since ``params`` are quite important to functions, here's their structure:
     ...         name,
     ...     }
     ... }
-    ... FILTER .name = 'schema::Parameter';
+    ... filter .name = 'schema::Parameter';
     {
         Object {
             name: 'schema::Parameter',
@@ -76,8 +76,8 @@ Introspection of the built-in :eql:func:`count`:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT `Function` {
+    db> with module schema
+    ... select `Function` {
     ...     name,
     ...     annotations: { name, @value },
     ...     params: {
@@ -91,7 +91,7 @@ Introspection of the built-in :eql:func:`count`:
     ...     return_typemod,
     ...     return_type: { name },
     ... }
-    ... FILTER .name = 'std::count';
+    ... filter .name = 'std::count';
     {
         Object {
             name: 'std::count',
@@ -113,6 +113,7 @@ Introspection of the built-in :eql:func:`count`:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Functions <ref_datamodel_functions>`

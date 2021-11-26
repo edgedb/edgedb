@@ -83,7 +83,7 @@ language-native types.
 Parameter types and JSON
 ------------------------
 
-Paramters can only be :ref:`scalars <ref_datamodel_scalar_types>` or
+Parameters can only be :ref:`scalars <ref_datamodel_scalar_types>` or
 arrays of scalars. This may seem limiting at first, but in actuality this
 doesn't impose any practical limitation on what can be parameterized. To pass
 complex structures as parameters, use EdgeDB's built-in :ref:`JSON
@@ -95,7 +95,7 @@ complex structures as parameters, use EdgeDB's built-in :ref:`JSON
   ... insert User {
   ...   name := <str>data['name'],
   ...   age := <int64>data['age'],
-  ... }
+  ... };
   Parameter <json>$data: {"name":"Fido", "legs": 4}
   {default::Dog {id: 8d286cfe-3c0a-11ec-aa68-3f3076ebd97f}}
 

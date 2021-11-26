@@ -14,7 +14,6 @@ EdgeQL
     sets
     paths
     types
-    funcops
     parameters
     select
     insert

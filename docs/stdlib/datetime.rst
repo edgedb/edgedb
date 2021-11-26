@@ -333,14 +333,14 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     - ``'years'``
     - ``'decades'``
     - ``'centuries'``
-    - ``'millennium'``
+    - ``'millennia'``
 
     .. code-block:: edgeql
 
         SELECT <cal::relative_duration>'45.6 seconds';
         SELECT <cal::relative_duration>'15 milliseconds';
         SELECT <cal::relative_duration>'3 weeks 45 minutes';
-        SELECT <cal::relative_duration>'-7 millennium';
+        SELECT <cal::relative_duration>'-7 millennia';
 
     All date/time types support the ``+`` and ``-`` arithmetic operations
     with relative_durations:

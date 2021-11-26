@@ -24,11 +24,20 @@ Any unspecified values will fall back to their defaults:
   Password: null
   Database name: "edgedb"
 
+Query parameters
+----------------
+
 DSNs also support query parameters (``?host=myhost.com``) to support advanced
 use cases. These query parameters fall into three categories: "plain"
 parameters (where the parameter contains the value itself), file parameters
 (where the param points to a local file containing the actual value), and
-environment parameters
+environment parameters (where the param is a reference to an environment
+variable containing the value).
+
+.. note::
+
+  For a breakdown of these configuration options, see :ref:`Reference >
+  Connection Parameters <ref_reference_connection_granular>`.
 
 
 .. list-table::
@@ -57,9 +66,9 @@ environment parameters
   * - ``tls_cert_file``
     - ``tls_cert_file_file``
     - ``tls_cert_file_env``
-  * - ``tls_verify_hostname``
-    - ``tls_verify_hostname_file``
-    - ``tls_verify_hostname_env``
+  * - ``tls_security``
+    - ``tls_security_file``
+    - ``tls_security_env``
 
 **Plain params**
   These "plain" parameters can be used to provide values for options that can't
@@ -85,7 +94,7 @@ environment parameters
     # ./username.txt
     my_username
 
-  Relative params are resolved relative to the currect working directory at the
+  Relative params are resolved relative to the current working directory at the
   time of connection.
 
 **Environment params**

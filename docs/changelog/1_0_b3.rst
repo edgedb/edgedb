@@ -69,7 +69,7 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT assert_single((SELECT User FILTER .name = "Unique"))
+    db> SELECT assert_single((SELECT User FILTER .name = "Unique"));
     {default::User {id: ...}}
 
     db> SELECT assert_single((SELECT User))

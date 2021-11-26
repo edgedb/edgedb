@@ -77,7 +77,9 @@ Examples
     SET ALIAS foo AS MODULE std;
 
 
-See Also
---------
+.. list-table::
+  :class: seealso
 
-:ref:`RESET ALIAS <ref_eql_statements_session_reset_alias>` command.
+  * - **See also**
+  * - :ref:`Reference > EdgeQL > RESET ALIAS
+      <ref_eql_statements_session_reset_alias>`

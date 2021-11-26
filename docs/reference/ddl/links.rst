@@ -417,6 +417,7 @@ Drop abstract link ``orderable``:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Links <ref_datamodel_links>`

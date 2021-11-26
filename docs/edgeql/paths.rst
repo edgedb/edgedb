@@ -43,19 +43,13 @@ Paths can traverse arbitrarily many links.
 
   select BlogPost.author.friends.friends;
 
-Paths can also include properties.
+Paths can terminate with a property reference.
 
 .. code-block:: edgeql
 
   select BlogPost.title; # all blog post titles
   select BlogPost.author.email; # all author emails
   select User.friends.email; # all friends' emails
-
-.. note::
-
-  Properties do not contain links, so a property reference will always be the
-  terminal element of a path.
-
 
 .. _ref_eql_paths_backlinks:
 

@@ -390,6 +390,7 @@ Remove property ``address`` from type ``User``:
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Properties <ref_datamodel_props>`

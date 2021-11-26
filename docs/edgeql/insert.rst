@@ -20,7 +20,7 @@ samples on this page assume the following schema:
 
   module default {
     abstract type Person {
-      required property name -> str { constraint exclusive; };
+      required property name -> str { constraint exclusive };
     }
 
     type Hero extending Person {
@@ -33,7 +33,7 @@ samples on this page assume the following schema:
     }
 
     type Movie {
-      required property title -> str { constraint exclusive; }
+      required property title -> str { constraint exclusive };
       required property release_year -> int64;
       multi link characters -> Person;
     }
@@ -52,21 +52,22 @@ You can ``insert`` instances of any *non-abstract* object type.
   db> insert Hero {
   ...   name := "Spider-Man",
   ...   secret_identity := "Peter Parker"
-  ... }
+  ... };
   {default::Hero {id: b0fbe9de-3e90-11ec-8c12-ffa2d5f0176a}}
 
 Similar to :ref:`selecting fields <ref_eql_shapes>` in ``select``, ``insert``
 statements include a *shape* specified with ``curly braces``; the values of
 properties/links are assigned with the ``:=`` operator.
 
-Optional links or properties can be omitted entirely:
+Optional links or properties can be omitted entirely, as well as those with an
+``default`` value (like ``id``).
 
 .. code-block:: edgeql-repl
 
   db> insert Hero {
   ...   name := "Spider-Man"
   ...   # secret_identity is omitted
-  ... }
+  ... };
   {default::Hero {id: b0fbe9de-3e90-11ec-8c12-ffa2d5f0176a}}
 
 You can only ``insert`` instances of concrete (non-abstract) object types.
@@ -75,7 +76,7 @@ You can only ``insert`` instances of concrete (non-abstract) object types.
 
   db> insert Person {
   ...   name := "The Man With No Name"
-  ... }
+  ... };
   error: QueryError: cannot insert into abstract object type 'default::Person'
 
 .. _ref_eql_insert_links:
@@ -90,7 +91,7 @@ EdgeQL's composable syntax makes link insertion painless.
   db> insert Villain {
   ...   name := "Doc Ock",
   ...   nemesis := (select Hero filter .name = "Spider-Man")
-  ... }
+  ... };
 
 To assign to the ``Villain.nemesis`` link, we're using a *subquery*. This
 subquery is executed and resolves to a singleton set of type ``Hero``, which is
@@ -118,7 +119,7 @@ true).
   ...       'Green Goblin'
   ...     }
   ...   )
-  ... }
+  ... };
   {default::Movie {id: 9b1cf9e6-3e95-11ec-95a2-138eeb32759c}}
 
 
@@ -138,7 +139,7 @@ execute *nested inserts*.
   ...     name := "Shang-Chi",
   ...     secret_identity := "Shaun"
   ...   })
-  ... }
+  ... };
   {default::Villain {id: d47888a0-3e7b-11ec-af13-fb68c8777851}}
 
 
@@ -156,7 +157,7 @@ Now lets write a nested insert for a ``multi`` link.
   ...       nemesis := (select Hero filter .name = "Black Widow")
   ...     })
   ...   }
-  ... }
+  ... };
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
 
 
@@ -201,7 +202,7 @@ like this, you should pull that subquery into a ``with`` block.
   ...       nemesis := black_widow
   ...     })
   ...   }
-  ... }
+  ... };
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
 
 
@@ -217,7 +218,7 @@ can reference earlier ones.
   ... insert Movie {
   ...   title := "Black Widow",
   ...   characters := { black_widow, yelena, dreykov }
-  ... }
+  ... };
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
 
 
@@ -237,7 +238,7 @@ in the database.
   ...   title := "Eternals"
   ... }
   ... unless conflict on .title
-  ... else (select Movie)
+  ... else (select Movie);
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
 
 This query attempts to ``insert`` Eternals. If it already exists in the
@@ -324,6 +325,7 @@ using a :ref:`for loop <ref_eql_for>` to insert the objects.
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Reference > Commands > Insert <ref_eql_statements_insert>`

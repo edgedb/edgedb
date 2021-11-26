@@ -108,6 +108,7 @@ Indexes can be augmented with annotations.
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`SDL > Indexes <ref_eql_sdl_indexes>`

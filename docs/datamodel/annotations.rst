@@ -55,6 +55,7 @@ and code generation.
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`SDL > Annotations <ref_eql_sdl_annotations>`

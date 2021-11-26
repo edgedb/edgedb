@@ -461,6 +461,7 @@ Remove constraint "min_value" from the property "score" of the
 
 
 .. list-table::
+  :class: seealso
 
   * - **See also**
   * - :ref:`Schema > Constraints <ref_datamodel_constraints>`
