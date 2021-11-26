@@ -190,6 +190,9 @@ class Type(
     def is_object_type(self) -> bool:
         return False
 
+    def is_free_object_type(self, schema: s_schema.Schema) -> bool:
+        return False
+
     def is_union_type(self, schema: s_schema.Schema) -> bool:
         return False
 

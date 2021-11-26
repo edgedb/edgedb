@@ -275,6 +275,14 @@ def compile_InsertQuery(
                 f'{subject_stype.get_verbosename(ctx.env.schema)}',
                 context=expr.subject.context)
 
+        if (
+            subject_stype.is_free_object_type(ctx.env.schema)
+            and not ctx.env.options.bootstrap_mode
+        ):
+            raise errors.QueryError(
+                f'free objects cannot be inserted',
+                context=expr.subject.context)
+
         if subject_stype.is_view(ctx.env.schema):
             raise errors.QueryError(
                 f'cannot insert into expression alias '
@@ -402,6 +410,11 @@ def compile_UpdateQuery(
                 context=expr.subject.context
             )
 
+        if subj_type.is_free_object_type(ctx.env.schema):
+            raise errors.QueryError(
+                f'free objects cannot be updated',
+                context=expr.subject.context)
+
         ictx.partial_path_prefix = subject
 
         clauses.compile_where_clause(
@@ -515,6 +528,11 @@ def compile_DeleteQuery(
                 f'cannot delete non-ObjectType objects',
                 context=expr.subject.context
             )
+
+        if subj_type.is_free_object_type(ctx.env.schema):
+            raise errors.QueryError(
+                f'free objects cannot be deleted',
+                context=expr.subject.context)
 
         with ictx.new() as bodyctx:
             bodyctx.implicit_id_in_shapes = False
