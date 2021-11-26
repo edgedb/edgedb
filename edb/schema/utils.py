@@ -303,12 +303,16 @@ def ast_to_type_shell(
     elif isinstance(node.maintype, qlast.AnyType):
         from . import pseudo as s_pseudo
         return s_pseudo.PseudoTypeShell(
-            name=sn.UnqualName('anytype'))  # type: ignore
+            name=sn.UnqualName('anytype'),
+            sourcectx=node.maintype.context,
+        )  # type: ignore
 
     elif isinstance(node.maintype, qlast.AnyTuple):
         from . import pseudo as s_pseudo
         return s_pseudo.PseudoTypeShell(
-            name=sn.UnqualName('anytuple'))  # type: ignore
+            name=sn.UnqualName('anytuple'),
+            sourcectx=node.maintype.context,
+        )  # type: ignore
 
     assert isinstance(node.maintype, qlast.ObjectRef)
 

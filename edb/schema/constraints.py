@@ -1020,7 +1020,7 @@ class CreateConstraint(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         astnode: qlast.ObjectDDL,
-        bases: Any,
+        bases: List[Constraint],
         referrer: so.Object,
     ) -> sd.ObjectCommand[Constraint]:
         cmd = super().as_inherited_ref_cmd(

@@ -610,12 +610,13 @@ class CreateReferencedObject(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         astnode: qlast.ObjectDDL,
-        bases: Any,
+        bases: List[ReferencedT],
         referrer: so.Object,
     ) -> sd.ObjectCommand[ReferencedT]:
         cmd = cls(classname=cls._classname_from_ast(schema, astnode, context))
         cmd.set_attribute_value('name', cmd.classname)
-        cmd.set_attribute_value('bases', so.ObjectList.create(schema, bases))
+        cmd.set_attribute_value(
+            'bases', so.ObjectList.create(schema, bases).as_shell(schema))
         return cmd
 
     @classmethod
@@ -1079,7 +1080,7 @@ class CreateReferencedInheritingObject(
                             implicit_bases,
                         )
 
-                    self.set_attribute_value('bases', bases)
+                    self.set_attribute_value('bases', bases.as_shell(schema))
 
                 if referrer.get_is_derived(schema):
                     self.set_attribute_value('is_derived', True)

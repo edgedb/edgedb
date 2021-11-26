@@ -100,10 +100,16 @@ class ObjectType(
         return True
 
     def is_free_object_type(self, schema: s_schema.Schema) -> bool:
-        return self.issubclass(
-            schema,
-            schema.get('std::FreeObject', type=ObjectType),
-        )
+        if self.get_name(schema) == sn.QualName('std', 'FreeObject'):
+            return True
+
+        FreeObject = schema.get(
+            'std::FreeObject', type=ObjectType, default=None)
+        if FreeObject is None:
+            # Possible in bootstrap before FreeObject is declared
+            return False
+        else:
+            return self.issubclass(schema, FreeObject)
 
     def is_union_type(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_union_of(schema))
@@ -481,8 +487,10 @@ class RenameObjectType(
     pass
 
 
-class RebaseObjectType(ObjectTypeCommand,
-                       inheriting.RebaseInheritingObject[ObjectType]):
+class RebaseObjectType(
+    ObjectTypeCommand,
+    s_types.RebaseInheritingType[ObjectType],
+):
     pass
 
 

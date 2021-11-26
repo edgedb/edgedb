@@ -23,6 +23,7 @@ from typing import *
 from edb import edgeql
 from edb import errors
 from edb.common import ast
+from edb.common import parsing
 from edb.common import verutils
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -201,6 +202,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Index:
         ...
 
@@ -212,6 +214,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[Index]:
         ...
 
@@ -222,10 +225,12 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT, None] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[Index]:
         try:
             return super().get_object(
-                schema, context, name=name, default=default
+                schema, context, name=name,
+                default=default, sourcectx=sourcectx,
             )
         except errors.InvalidReferenceError:
             referrer_ctx = self.get_referrer_context_or_die(context)

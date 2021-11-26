@@ -1752,7 +1752,7 @@ class CreatePointer(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         astnode: qlast.ObjectDDL,
-        bases: Any,
+        bases: List[Pointer_T],
         referrer: so.Object,
     ) -> sd.ObjectCommand[Pointer_T]:
         cmd = super().as_inherited_ref_cmd(

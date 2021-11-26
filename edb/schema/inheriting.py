@@ -22,6 +22,7 @@ from typing import *
 
 from edb import errors
 
+from edb.common import context as ctx_utils
 from edb.common import struct
 from edb.edgeql import ast as qlast
 from edb.schema import schema as s_schema
@@ -166,12 +167,12 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         sn.QualName,
         Tuple[
             Type[
-                s_referencing.CreateReferencedObject[
-                    s_referencing.ReferencedObject
+                s_referencing.CreateReferencedInheritingObject[
+                    s_referencing.ReferencedInheritingObject
                 ]
             ],
             qlast.ObjectDDL,
-            List[so.InheritingObject],
+            List[s_referencing.ReferencedInheritingObject],
         ],
     ]:
         from . import referencing as s_referencing
@@ -182,12 +183,12 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
             sn.QualName,
             Tuple[
                 Type[
-                    s_referencing.CreateReferencedObject[
-                        s_referencing.ReferencedObject
+                    s_referencing.CreateReferencedInheritingObject[
+                        s_referencing.ReferencedInheritingObject
                     ]
                 ],
                 qlast.ObjectDDL,
-                List[so.InheritingObject],
+                List[s_referencing.ReferencedInheritingObject],
             ],
         ] = {}
 
@@ -209,7 +210,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                     sd.CreateObject, mcls)
                 assert issubclass(
                     create_cmd,
-                    s_referencing.CreateReferencedObject,
+                    s_referencing.CreateReferencedInheritingObject,
                 )
 
                 astnode = create_cmd.as_inherited_ref_ast(
@@ -720,8 +721,16 @@ class CreateInheritingObject(
 
         assert isinstance(astnode, qlast.ObjectDDL)
         bases = cls._classbases_from_ast(schema, astnode, context)
-        if bases is not None:
-            cmd.set_attribute_value('bases', bases)
+        ctxes = [b.sourcectx for b in bases if b.sourcectx is not None]
+        if ctxes:
+            srcctx = ctx_utils.merge_context(ctxes)
+        else:
+            srcctx = None
+        cmd.set_attribute_value(
+            'bases',
+            so.ObjectCollectionShell(bases, collection_type=so.ObjectList),
+            source_context=srcctx,
+        )
 
         return cmd
 
@@ -1099,7 +1108,8 @@ class RebaseInheritingObject(
                 idx = index[ref.name]
 
             bases[idx:idx] = [
-                self.get_object(schema, context, name=b.name)
+                self.get_object(
+                    schema, context, name=b.name, sourcectx=b.sourcectx)
                 for b in new_bases if b.name not in existing_bases
             ]
             index = {b.get_name(schema): i for i, b in enumerate(bases)}

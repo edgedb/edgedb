@@ -6540,6 +6540,24 @@ type default::Foo {
             []
         )
 
+    async def test_edgeql_ddl_extending_06(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"'std::FreeObject' cannot be a parent type",
+        ):
+            await self.con.execute("""
+                CREATE TYPE SomeObject6 EXTENDING FreeObject;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaError,
+            r"'std::FreeObject' cannot be a parent type",
+        ):
+            await self.con.execute("""
+                CREATE TYPE SomeObject6;
+                ALTER TYPE SomeObject6 EXTENDING FreeObject;
+            """)
+
     async def test_edgeql_ddl_modules_01(self):
         try:
             await self.con.execute(r"""
