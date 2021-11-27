@@ -250,6 +250,28 @@ class TestServerOps(tb.TestCase):
             os.unlink(key_file)
             os.unlink(cert_file)
 
+    async def test_server_ops_generates_cert_to_default_location(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            async with tb.start_edgedb_server(
+                data_dir=temp_dir,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
+            # Check that the server works with the generated cert/key
+            async with tb.start_edgedb_server(
+                data_dir=temp_dir,
+                tls_cert_mode=args.ServerTlsCertMode.RequireFile,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
     async def test_server_ops_bogus_bind_addr_in_mix(self):
         async with tb.start_edgedb_server(
             bind_addrs=('host.invalid', '127.0.0.1',),
