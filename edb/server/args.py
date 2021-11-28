@@ -697,35 +697,26 @@ def parse_args(**kwargs: Any):
 
     self_signing = kwargs['tls_cert_mode'] is ServerTlsCertMode.SelfSigned
 
-    if tls_cert_file := kwargs['tls_cert_file']:
-        if not tls_cert_file.exists() and not self_signing:
-            abort(f"File doesn't exist: --tls-cert-file={tls_cert_file}")
-        kwargs['tls_cert_file'] = tls_cert_file
-    elif self_signing:
+    if not kwargs['tls_cert_file']:
         if kwargs['data_dir']:
             tls_cert_file = kwargs['data_dir'] / TLS_CERT_FILE_NAME
             tls_key_file = kwargs['data_dir'] / TLS_KEY_FILE_NAME
-        else:
+        elif self_signing:
             tls_cert_file = pathlib.Path('<runstate>') / TLS_CERT_FILE_NAME
             tls_key_file = pathlib.Path('<runstate>') / TLS_KEY_FILE_NAME
-        kwargs['tls_cert_file'] = tls_cert_file
-        kwargs['tls_key_file'] = tls_key_file
-
-    if tls_key_file := kwargs['tls_key_file']:
-        if not tls_key_file.exists() and not self_signing:
-            abort(f"File doesn't exist: --tls-key-file={tls_key_file}")
-        kwargs['tls_key_file'] = tls_key_file
-
-    if not kwargs['bootstrap_only'] and not self_signing:
-        if not kwargs['tls_cert_file']:
+        else:
             abort(
                 "no TLS certificate specified and certificate auto-generation"
                 " has not been requested; see help for --tls-cert-mode",
                 exit_code=10,
             )
-        elif not kwargs['tls_cert_file'].exists():
+        kwargs['tls_cert_file'] = tls_cert_file
+        kwargs['tls_key_file'] = tls_key_file
+
+    if not kwargs['bootstrap_only'] and not self_signing:
+        if not kwargs['tls_cert_file'].exists():
             abort(
-                f"specified TLS certificate file \"{kwargs['tls_cert_file']}\""
+                f"TLS certificate file \"{kwargs['tls_cert_file']}\""
                 " does not exist and certificate auto-generation has not been"
                 " requested; see help for --tls-cert-mode",
                 exit_code=10,
@@ -737,7 +728,7 @@ def parse_args(**kwargs: Any):
         and not kwargs['tls_cert_file'].is_file()
     ):
         abort(
-            f"specified TLS certificate file \"{kwargs['tls_cert_file']}\""
+            f"TLS certificate file \"{kwargs['tls_cert_file']}\""
             " is not a regular file"
         )
 
@@ -747,7 +738,7 @@ def parse_args(**kwargs: Any):
         and not kwargs['tls_key_file'].is_file()
     ):
         abort(
-            f"specified TLS private key file \"{kwargs['tls_key_file']}\""
+            f"TLS private key file \"{kwargs['tls_key_file']}\""
             " is not a regular file"
         )
 
