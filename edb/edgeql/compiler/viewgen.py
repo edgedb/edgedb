@@ -645,6 +645,10 @@ def _normalize_view_ptr_expr(
 
         ptr_required = base_required
         ptr_cardinality = base_cardinality
+        if shape_el.where:
+            # If the shape has a filter on it, we need to force a reinference
+            # of the cardinality, to produce an error if needed.
+            ptr_cardinality = None
         if ptr_cardinality is None or not ptr_cardinality.is_known():
             # We do not know the parent's pointer cardinality yet.
             ctx.env.pointer_derivation_map[base_ptrcls].append(ptrcls)
