@@ -10294,6 +10294,24 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
+    async def test_edgeql_migration_tuple_01(self):
+        await self.migrate(r'''
+            type Bag {
+                property switching_tuple -> tuple<name: str, weight: int64>;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r"Please specify a conversion expression to alter the type of "
+            r"property 'switching_tuple'"
+        ):
+            await self.migrate(r'''
+                type Bag {
+                    property switching_tuple -> tuple<name: str, age: int64>;
+                };
+            ''')
+
 
 class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False

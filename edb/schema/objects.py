@@ -2682,6 +2682,26 @@ class ObjectDict(
             super().create(schema, data.values(), _keys=tuple(data.keys())),
         )
 
+    @classmethod
+    def compare_values(
+        cls,
+        ours: ObjectCollection[Object_T],
+        theirs: ObjectCollection[Object_T],
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: ComparisonContext,
+        compcoef: float,
+    ) -> float:
+        assert isinstance(ours, ObjectDict)
+        assert isinstance(theirs, ObjectDict)
+        if ours.keys(our_schema) != theirs.keys(their_schema):
+            return compcoef
+        return super().compare_values(
+            ours, theirs,
+            our_schema=our_schema, their_schema=their_schema,
+            context=context, compcoef=compcoef)
+
     def __init__(
         self,
         _ids: Collection[uuid.UUID],
