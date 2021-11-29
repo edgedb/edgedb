@@ -1570,11 +1570,23 @@ class Server(ha_base.ClusterProtocol):
             else:
                 return self._task_group.create_task(coro)
         else:
-            # Silence the "coroutine not awaited" warning
-            logger.debug(
-                "Task is not started and ignored: %r", coro.cr_code.co_name
-            )
-            coro.__await__()
+            # Silence the "coroutine not awaited" warning by creating the task
+            # and cancelling it immediately.
+            detail = getattr(coro.cr_code, 'co_name', 'unknown')
+            origin = getattr(coro, 'cr_origin', None)
+            if origin:
+                detail += "\n" + "\n".join(
+                    f"    {path}, line {lineno}, in {method}"
+                    for path, lineno, method in origin
+                )
+            else:
+                detail += (
+                    "; set sys.set_coroutine_origin_tracking_depth() to debug"
+                )
+            logger.debug("Task is not started and ignored: %s", detail)
+            task = self.__loop.create_task(coro)
+            task.cancel()
+            return task
 
     async def serve_forever(self):
         await self._stop_evt.wait()
