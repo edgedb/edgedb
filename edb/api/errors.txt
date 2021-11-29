@@ -174,3 +174,5 @@
 0x_FF_02_01_03   InvalidArgumentError
 
 0x_FF_03_00_00   NoDataError
+
+0x_FF_04_00_00   InternalClientError
