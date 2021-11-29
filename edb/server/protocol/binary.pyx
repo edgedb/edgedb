@@ -366,6 +366,7 @@ cdef class EdgeConnection:
 
     cdef abort_pinned_pgcon(self):
         if self._pinned_pgcon is not None:
+            self._pinned_pgcon.pinned_by = None
             self._pinned_pgcon.abort()
             self.server.release_pgcon(
                 self.dbname, self._pinned_pgcon, discard=True)
