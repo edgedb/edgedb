@@ -6971,6 +6971,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
         )
 
     async def test_edgeql_select_subshape_filter_01(self):
+        # TODO: produce a better error message with a hint here?
         async with self.assertRaisesRegexTx(
             edgedb.QueryError,
             "possibly an empty set returned",
