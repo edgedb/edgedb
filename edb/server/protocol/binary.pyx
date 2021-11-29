@@ -1194,6 +1194,8 @@ cdef class EdgeConnection:
         return query_unit
 
     def signal_side_effects(self, side_effects):
+        if not self.server._accept_new_tasks:
+            return
         if side_effects & dbview.SideEffects.SchemaChanges:
             self.server.create_task(
                 self.server._signal_sysevent(
@@ -2231,7 +2233,10 @@ cdef class EdgeConnection:
         return out_buf
 
     def connection_made(self, transport):
-        if not self.server._accepting_connections:
+        if (
+            not self.server._accepting_connections
+            or not self.server._accept_new_tasks
+        ):
             transport.abort()
             return
 
@@ -2307,6 +2312,7 @@ cdef class EdgeConnection:
                     # reaches the backend, we'll be setting a trap for the
                     # _next_ query that is unlucky enough to pick up this
                     # Postgres backend from the connection pool.
+                    # TODO(fantix): hold server shutdown to complete this task
                     self.server.create_task(
                         self.server._cancel_and_discard_pgcon(
                             self._pinned_pgcon,

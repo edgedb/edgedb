@@ -549,7 +549,7 @@ class Server(ha_base.ClusterProtocol):
 
     def schedule_reported_config_if_needed(self, setting_name):
         setting = self._config_settings[setting_name]
-        if setting.report:
+        if setting.report and self._accept_new_tasks:
             self.create_task(
                 self.load_reported_config(), interruptable=True)
 
@@ -1098,6 +1098,9 @@ class Server(ha_base.ClusterProtocol):
             raise
 
     def _on_remote_ddl(self, dbname):
+        if not self._accept_new_tasks:
+            return
+
         # Triggered by a postgres notification event 'schema-changes'
         # on the __edgedb_sysevent__ channel
         async def task():
@@ -1110,6 +1113,9 @@ class Server(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def _on_remote_database_config_change(self, dbname):
+        if not self._accept_new_tasks:
+            return
+
         # Triggered by a postgres notification event 'database-config-changes'
         # on the __edgedb_sysevent__ channel
         async def task():
@@ -1123,6 +1129,9 @@ class Server(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def _on_local_database_config_change(self, dbname):
+        if not self._accept_new_tasks:
+            return
+
         # Triggered by DB Index.
         # It's easier and safer to just schedule full re-introspection
         # of the DB and update all components of it.
@@ -1137,6 +1146,9 @@ class Server(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def _on_remote_system_config_change(self):
+        if not self._accept_new_tasks:
+            return
+
         # Triggered by a postgres notification event 'system-config-changes'
         # on the __edgedb_sysevent__ channel
 
@@ -1151,6 +1163,9 @@ class Server(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def _on_global_schema_change(self):
+        if not self._accept_new_tasks:
+            return
+
         async def task():
             try:
                 await self._reintrospect_global_schema()
@@ -1179,7 +1194,10 @@ class Server(ha_base.ClusterProtocol):
             )
             self.__sys_pgcon = None
             self._sys_pgcon_ready_evt.clear()
-            self.create_task(self._reconnect_sys_pgcon(), interruptable=True)
+            if self._accept_new_tasks:
+                self.create_task(
+                    self._reconnect_sys_pgcon(), interruptable=True
+                )
             self._on_pgcon_broken(True)
         except Exception:
             metrics.background_errors.inc(1.0, 'on_sys_pgcon_connection_lost')
@@ -1625,9 +1643,10 @@ class Server(ha_base.ClusterProtocol):
         # to the old master.
         self._ha_master_serial += 1
 
-        self.create_task(
-            self._pg_pool.prune_all_connections(), interruptable=True
-        )
+        if self._accept_new_tasks:
+            self.create_task(
+                self._pg_pool.prune_all_connections(), interruptable=True
+            )
 
         if self.__sys_pgcon is None:
             # Assume a reconnect task is already running, now that we know the
