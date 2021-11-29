@@ -6969,3 +6969,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'name': 'triangle', 'val': 10, 'x': [10, 0]},
             ],
         )
+
+    async def test_edgeql_select_subshape_filter_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "possibly an empty set returned",
+        ):
+            await self.con.query(
+                r'''
+                SELECT Comment { owner: { name } FILTER false }
+                ''',
+            )
