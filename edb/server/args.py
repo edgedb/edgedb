@@ -82,6 +82,12 @@ class ServerTlsCertMode(enum.StrEnum):
     SelfSigned = "generate_self_signed"
 
 
+class ServerAuthMethod(enum.StrEnum):
+
+    Trust = "Trust"
+    Scram = "SCRAM"
+
+
 class ServerConfig(NamedTuple):
 
     data_dir: pathlib.Path
@@ -119,7 +125,7 @@ class ServerConfig(NamedTuple):
     tls_key_file: Optional[pathlib.Path]
     tls_cert_mode: ServerTlsCertMode
 
-    default_auth_method: str
+    default_auth_method: ServerAuthMethod
     security: ServerSecurityMode
     binary_endpoint_security: ServerEndpointSecurityMode
     http_endpoint_security: ServerEndpointSecurityMode
@@ -490,7 +496,7 @@ _server_options = [
         "--default-auth-method",
         envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD",
         type=click.Choice(
-            ['SCRAM', 'Trust'],
+            list(ServerAuthMethod.__members__.values()),
             case_sensitive=True,
         ),
         help=(
@@ -662,6 +668,8 @@ def parse_args(**kwargs: Any):
     kwargs['http_endpoint_security'] = ServerEndpointSecurityMode(
         kwargs['http_endpoint_security'])
     kwargs['tls_cert_mode'] = ServerTlsCertMode(kwargs['tls_cert_mode'])
+    kwargs['default_auth_method'] = ServerAuthMethod(
+        kwargs['default_auth_method'])
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:

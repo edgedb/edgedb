@@ -1568,6 +1568,7 @@ class _EdgeDBServer:
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
         security: Optional[edgedb_args.ServerSecurityMode] = None,
+        default_auth_method: Optional[edgedb_args.ServerAuthMethod] = None,
         binary_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode] = None,
         http_endpoint_security: Optional[
@@ -1594,6 +1595,7 @@ class _EdgeDBServer:
         self.proc = None
         self.data = None
         self.security = security
+        self.default_auth_method = default_auth_method
         self.binary_endpoint_security = binary_endpoint_security
         self.http_endpoint_security = http_endpoint_security
         self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
@@ -1720,6 +1722,9 @@ class _EdgeDBServer:
         if self.security:
             cmd += ['--security', str(self.security)]
 
+        if self.default_auth_method:
+            cmd += ['--default-auth-method', str(self.default_auth_method)]
+
         if self.binary_endpoint_security:
             cmd += ['--binary-endpoint-security',
                     str(self.binary_endpoint_security)]
@@ -1844,6 +1849,7 @@ def start_edgedb_server(
     reset_auth: Optional[bool] = None,
     tenant_id: Optional[str] = None,
     security: Optional[edgedb_args.ServerSecurityMode] = None,
+    default_auth_method: Optional[edgedb_args.ServerAuthMethod] = None,
     binary_endpoint_security: Optional[
         edgedb_args.ServerEndpointSecurityMode] = None,
     http_endpoint_security: Optional[
@@ -1886,6 +1892,7 @@ def start_edgedb_server(
         runstate_dir=runstate_dir,
         reset_auth=reset_auth,
         security=security,
+        default_auth_method=default_auth_method,
         binary_endpoint_security=binary_endpoint_security,
         http_endpoint_security=http_endpoint_security,
         enable_backend_adaptive_ha=enable_backend_adaptive_ha,

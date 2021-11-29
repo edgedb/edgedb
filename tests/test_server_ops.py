@@ -254,6 +254,7 @@ class TestServerOps(tb.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
+                default_auth_method=args.ServerAuthMethod.Trust,
             ) as sd:
                 con = await sd.connect()
                 try:
@@ -264,7 +265,9 @@ class TestServerOps(tb.TestCase):
             # Check that the server works with the generated cert/key
             async with tb.start_edgedb_server(
                 data_dir=temp_dir,
+                runstate_dir=temp_dir,
                 tls_cert_mode=args.ServerTlsCertMode.RequireFile,
+                default_auth_method=args.ServerAuthMethod.Trust,
             ) as sd:
                 con = await sd.connect()
                 try:
