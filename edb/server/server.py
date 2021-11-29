@@ -136,7 +136,7 @@ class Server(ha_base.ClusterProtocol):
         status_sinks: Sequence[Callable[[str], None]] = (),
         startup_script: Optional[srvargs.StartupScript] = None,
         backend_adaptive_ha: bool = False,
-        default_auth_method: str,
+        default_auth_method: srvargs.ServerAuthMethod,
     ):
         self.__loop = asyncio.get_running_loop()
         self._config_settings = config.get_settings()
