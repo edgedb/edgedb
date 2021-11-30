@@ -146,7 +146,7 @@ jobs:
         target: << tgt.name >>
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
