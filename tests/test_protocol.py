@@ -254,3 +254,36 @@ class TestServerCancellation(tb.TestCase):
                     con.terminate()
                 for con in other_conns:
                     await con.aclose()
+
+    async def test_proto_gh3170_connection_lost_error(self):
+        async with tb.start_edgedb_server() as sd:
+            self.assertNotIn(
+                'edgedb_server_background_errors_total'
+                '{source="release_pgcon"}',
+                sd.fetch_metrics(),
+            )
+            con = await sd.connect_test_protocol()
+            try:
+                await con.send(
+                    protocol.ExecuteScript(
+                        headers=[],
+                        script='START TRANSACTION'
+                    )
+                )
+                await con.recv_match(
+                    protocol.CommandComplete,
+                    status='START TRANSACTION'
+                )
+                await con.recv_match(
+                    protocol.ReadyForCommand,
+                    transaction_state=protocol.TransactionState.IN_TRANSACTION,
+                )
+                await con.aclose()
+                self.assertNotIn(
+                    'edgedb_server_background_errors_total'
+                    '{source="release_pgcon"}',
+                    sd.fetch_metrics(),
+                )
+            except Exception:
+                await con.aclose()
+                raise

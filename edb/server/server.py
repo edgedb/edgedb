@@ -520,7 +520,11 @@ class Server(ha_base.ClusterProtocol):
             if not discard:
                 logger.warning('Released an unhealthy pgcon; discard now.')
             discard = True
-        self._pg_pool.release(dbname, conn, discard=discard)
+        try:
+            self._pg_pool.release(dbname, conn, discard=discard)
+        except Exception:
+            metrics.background_errors.inc(1.0, 'release_pgcon')
+            raise
 
     async def load_sys_config(self):
         syscon = await self._acquire_sys_pgcon()
