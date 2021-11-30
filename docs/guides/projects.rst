@@ -21,7 +21,7 @@ run ``edgedb project init``. You'll see something like this:
   2. Docker
   > 1
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [1-rc2]:
+  Specify the version of EdgeDB to use with this project [1-rc3]:
   > # left blank for default
   Specify the name of EdgeDB instance to use with this project:
   > my_instance
@@ -170,6 +170,6 @@ project init`` inside project again to create or select a new instance.
   Type a number to select an option:
   > 1
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 1-rc2]:
-  > 1-rc2
+  Specify the version of EdgeDB to use with this project [default: 1-rc3]:
+  > 1-rc3
 
