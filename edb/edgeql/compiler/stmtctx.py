@@ -248,6 +248,7 @@ def fini_expression(
         ),
         type_rewrites={s.typeref.id: s for s in ctx.type_rewrites.values()},
         dml_exprs=ctx.env.dml_exprs,
+        singletons=ctx.env.singletons,
     )
     return result
 

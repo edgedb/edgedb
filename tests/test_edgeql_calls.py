@@ -1660,6 +1660,19 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
                 """,
             )
 
+    async def test_edgeql_calls_obj_04(self):
+        await self.con.execute("""
+            CREATE FUNCTION thing(s: schema::Constraint) -> str
+                USING (s.name ++ s.expr);
+
+            CREATE FUNCTION frob(s: schema::Object) -> str
+                USING ("ahhhh");
+            CREATE FUNCTION frob(s: schema::Constraint) -> str
+                USING (s.name ++ s.expr);
+            CREATE FUNCTION frob(s: schema::Pointer) -> str
+                USING (s.name ++ <str>s.required);
+        """)
+
     async def test_edgeql_call_builtin_obj(self):
         await self.con.execute(
             r"""

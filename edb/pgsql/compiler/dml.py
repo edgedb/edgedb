@@ -87,8 +87,6 @@ def init_dml_stmt(
         A ``DMLParts`` tuple containing a map of DML CTEs as well as the
         common range CTE for UPDATE/DELETE statements.
     """
-    clauses.init_stmt(ir_stmt, ctx, parent_ctx)
-
     range_cte: Optional[pgast.CommonTableExpr]
     range_rvar: Optional[pgast.RelRangeVar]
 
@@ -426,7 +424,6 @@ def fini_dml_stmt(
             dml_stmts=dml_stack, path_id=ir_stmt.subject.path_id, ctx=ctx)
 
     clauses.compile_output(ir_stmt.result, ctx=ctx)
-    clauses.fini_stmt(wrapper, ctx, parent_ctx)
 
     ctx.dml_stmt_stack.pop()
 

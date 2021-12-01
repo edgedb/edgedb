@@ -543,6 +543,7 @@ class Statement(Command):
     source_map: typing.Dict[s_pointers.Pointer, ComputableInfo]
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[uuid.UUID, Set]
+    singletons: typing.List[PathId]
 
 
 class TypeIntrospection(ImmutableExpr):
