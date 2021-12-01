@@ -917,6 +917,10 @@ class PathFinder(NodeVisitor):
         with self.subquery():
             self.generic_visit(query)
 
+    def visit_Set(self, expr: qlast.Set) -> None:
+        with self.subquery():
+            self.visit(expr.elements)
+
     def visit_func_or_op(self, op: str, args: List[qlast.Expr]) -> None:
         # Totally ignoring that polymorphic whatever is needed
         arg_specs = BASIS.get(op)

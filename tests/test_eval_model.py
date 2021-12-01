@@ -164,6 +164,14 @@ class TestModelSmokeTests(unittest.TestCase):
             sort=False,
         )
 
+    def test_model_set_union(self):
+        self.assert_test_query(
+            r"""
+            SELECT count({User, Card})
+            """,
+            [13],
+        )
+
     def test_edgeql_coalesce_set_of_01(self):
         self.assert_test_query(
             r'''
