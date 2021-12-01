@@ -149,7 +149,7 @@ class Server(ha_base.ClusterProtocol):
 
         self._serving = False
         self._initing = False
-        self._accept_new_tasks = False
+        self._shutting_down = False
 
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
@@ -208,7 +208,6 @@ class Server(ha_base.ClusterProtocol):
 
         self._binary_proto_id_counter = 0
         self._binary_conns = collections.OrderedDict()
-        self._accepting_connections = False
 
         self._servers = {}
 
@@ -266,6 +265,12 @@ class Server(ha_base.ClusterProtocol):
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
 
+    def is_shutting_down(self):
+        return self._shutting_down
+
+    def is_accepting_connections(self):
+        return self._serving
+
     def on_binary_client_created(self) -> str:
         self._binary_proto_id_counter += 1
 
@@ -298,13 +303,8 @@ class Server(ha_base.ClusterProtocol):
         metrics.current_client_connections.dec()
 
         if not self._binary_conns and self._auto_shutdown_after >= 0:
-
-            def shutdown():
-                self._accepting_connections = False
-                self._stop_evt.set()
-
             self._auto_shutdown_handler = self.__loop.call_later(
-                self._auto_shutdown_after, shutdown)
+                self._auto_shutdown_after, self._stop_evt.set)
 
     def _report_connections(self, *, event: str) -> None:
         log_metrics.info(
@@ -549,7 +549,7 @@ class Server(ha_base.ClusterProtocol):
 
     def schedule_reported_config_if_needed(self, setting_name):
         setting = self._config_settings[setting_name]
-        if setting.report and self._accept_new_tasks:
+        if setting.report and not self._shutting_down:
             self.create_task(
                 self.load_reported_config(), interruptable=True)
 
@@ -1098,7 +1098,7 @@ class Server(ha_base.ClusterProtocol):
             raise
 
     def _on_remote_ddl(self, dbname):
-        if not self._accept_new_tasks:
+        if self._shutting_down:
             return
 
         # Triggered by a postgres notification event 'schema-changes'
@@ -1113,7 +1113,7 @@ class Server(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def _on_remote_database_config_change(self, dbname):
-        if not self._accept_new_tasks:
+        if self._shutting_down:
             return
 
         # Triggered by a postgres notification event 'database-config-changes'
@@ -1129,7 +1129,7 @@ class Server(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def _on_local_database_config_change(self, dbname):
-        if not self._accept_new_tasks:
+        if self._shutting_down:
             return
 
         # Triggered by DB Index.
@@ -1146,7 +1146,7 @@ class Server(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def _on_remote_system_config_change(self):
-        if not self._accept_new_tasks:
+        if self._shutting_down:
             return
 
         # Triggered by a postgres notification event 'system-config-changes'
@@ -1163,7 +1163,7 @@ class Server(ha_base.ClusterProtocol):
         self.create_task(task(), interruptable=True)
 
     def _on_global_schema_change(self):
-        if not self._accept_new_tasks:
+        if self._shutting_down:
             return
 
         async def task():
@@ -1194,7 +1194,7 @@ class Server(ha_base.ClusterProtocol):
             )
             self.__sys_pgcon = None
             self._sys_pgcon_ready_evt.clear()
-            if self._accept_new_tasks:
+            if not self._shutting_down:
                 self.create_task(
                     self._reconnect_sys_pgcon(), interruptable=True
                 )
@@ -1494,10 +1494,9 @@ class Server(ha_base.ClusterProtocol):
 
     async def start(self):
         self._stop_evt.clear()
+        tg = await taskgroup.TaskGroup().__aenter__()
         assert self._task_group is None
-        self._task_group = taskgroup.TaskGroup()
-        await self._task_group.__aenter__()
-        self._accept_new_tasks = True
+        self._task_group = tg
 
         self._http_request_logger = self.create_task(
             self._request_stats_logger(), interruptable=True
@@ -1521,7 +1520,6 @@ class Server(ha_base.ClusterProtocol):
         self._listen_hosts = listen_addrs
         self._listen_port = actual_port
 
-        self._accepting_connections = True
         self._serving = True
 
         if self._echo_runtime_info:
@@ -1547,7 +1545,9 @@ class Server(ha_base.ClusterProtocol):
     async def stop(self):
         try:
             self._serving = False
-            self._accept_new_tasks = False
+            self._shutting_down = True
+            tg = self._task_group
+            self._task_group = None
 
             if self._idle_gc_handler is not None:
                 self._idle_gc_handler.cancel()
@@ -1564,9 +1564,7 @@ class Server(ha_base.ClusterProtocol):
                 conn.stop()
             self._binary_conns.clear()
 
-            if self._task_group is not None:
-                tg = self._task_group
-                self._task_group = None
+            if tg is not None:
                 await tg.__aexit__(*sys.exc_info())
 
             await self._destroy_compiler_pool()
@@ -1582,12 +1580,7 @@ class Server(ha_base.ClusterProtocol):
         # randomly in the middle when the event loop stops; while tasks with
         # interruptable=False are always awaited before the server stops, so
         # that e.g. all finally blocks get a chance to execute in those tasks.
-        if self._accept_new_tasks:
-            if interruptable:
-                return self.__loop.create_task(coro)
-            else:
-                return self._task_group.create_task(coro)
-        else:
+        if self._task_group is None:
             # Silence the "coroutine not awaited" warning by creating the task
             # and cancelling it immediately.
             detail = getattr(coro.cr_code, 'co_name', 'unknown')
@@ -1605,6 +1598,11 @@ class Server(ha_base.ClusterProtocol):
             task = self.__loop.create_task(coro)
             task.cancel()
             return task
+        else:
+            if interruptable:
+                return self.__loop.create_task(coro)
+            else:
+                return self._task_group.create_task(coro)
 
     async def serve_forever(self):
         await self._stop_evt.wait()
@@ -1643,7 +1641,7 @@ class Server(ha_base.ClusterProtocol):
         # to the old master.
         self._ha_master_serial += 1
 
-        if self._accept_new_tasks:
+        if not self._shutting_down:
             self.create_task(
                 self._pg_pool.prune_all_connections(), interruptable=True
             )

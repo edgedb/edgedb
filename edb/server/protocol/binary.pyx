@@ -1194,7 +1194,7 @@ cdef class EdgeConnection:
         return query_unit
 
     def signal_side_effects(self, side_effects):
-        if not self.server._accept_new_tasks:
+        if self.server.is_shutting_down():
             return
         if side_effects & dbview.SideEffects.SchemaChanges:
             self.server.create_task(
@@ -2234,8 +2234,8 @@ cdef class EdgeConnection:
 
     def connection_made(self, transport):
         if (
-            not self.server._accepting_connections
-            or not self.server._accept_new_tasks
+            not self.server.is_accepting_connections()
+            or self.server.is_shutting_down()
         ):
             transport.abort()
             return
