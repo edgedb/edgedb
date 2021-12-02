@@ -80,6 +80,9 @@ jobs:
         PKG_SUBDIST: "nightly"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
+<% if tgt.family == "generic" %>
+        BUILD_GENERIC: true
+<% endif %>
       run: |
         edgedb-pkg/integration/macos/build.sh
 

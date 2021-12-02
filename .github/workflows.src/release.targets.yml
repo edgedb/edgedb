@@ -41,4 +41,4 @@ targets:
         - name: macos-x86_64
           platform: macos
           platform_version: x86_64
-          family: macos
+          family: generic
