@@ -1305,7 +1305,6 @@ class TestSeparateCluster(tb.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             async with tb.start_edgedb_server(
                 data_dir=tmpdir,
-                runstate_dir=tmpdir,
                 security=args.ServerSecurityMode.InsecureDevMode,
             ) as sd:
                 c1 = await sd.connect()
@@ -1456,7 +1455,6 @@ class TestSeparateCluster(tb.TestCase):
 
             async with tb.start_edgedb_server(
                 data_dir=tmpdir,
-                runstate_dir=tmpdir,
                 security=args.ServerSecurityMode.InsecureDevMode,
             ) as sd:
 

@@ -21,6 +21,7 @@ import asyncio
 import contextlib
 import edgedb
 
+from edb.server import args as srv_args
 from edb.server import compiler
 from edb import protocol
 from edb.testbase import server as tb
@@ -256,7 +257,9 @@ class TestServerCancellation(tb.TestCase):
                     await con.aclose()
 
     async def test_proto_gh3170_connection_lost_error(self):
-        async with tb.start_edgedb_server() as sd:
+        async with tb.start_edgedb_server(
+            security=srv_args.ServerSecurityMode.InsecureDevMode,
+        ) as sd:
             self.assertNotIn(
                 'edgedb_server_background_errors_total'
                 '{source="release_pgcon"}',
