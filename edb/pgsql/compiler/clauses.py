@@ -225,10 +225,7 @@ def compile_filter_clause(
     with ctx.new() as ctx1:
         ctx1.expr_exposed = False
 
-        if (
-            cardinality is qltypes.Cardinality.ONE
-            or cardinality is qltypes.Cardinality.AT_MOST_ONE
-        ):
+        if cardinality.is_single():
             where_clause = dispatch.compile(ir_set, ctx=ctx)
         else:
             # In WHERE we compile ir.Set as a boolean disjunction:

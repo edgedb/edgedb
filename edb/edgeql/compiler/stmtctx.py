@@ -142,6 +142,10 @@ def fini_expression(
 
     ctx.path_scope.validate_unique_ids()
 
+    # Infer cardinalities of type rewrites
+    for rw in ctx.type_rewrites.values():
+        inference.infer_cardinality(rw, scope_tree=ctx.path_scope, ctx=inf_ctx)
+
     # ConfigSet and ConfigReset don't like being part of a Set
     if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
         ir.expr.scope_tree = ctx.path_scope
