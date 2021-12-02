@@ -1878,6 +1878,9 @@ def start_edgedb_server(
         raise RuntimeError(
             'backend_dsn and adjacent_to options are mutually exclusive')
 
+    if not runstate_dir and data_dir:
+        runstate_dir = data_dir
+
     return _EdgeDBServer(
         bind_addrs=bind_addrs,
         auto_shutdown=auto_shutdown,
