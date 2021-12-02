@@ -136,11 +136,6 @@ def fini_expression(
         scope_tree=ctx.path_scope,
         ctx=inf_ctx,
     )
-    cardinality = inference.infer_cardinality(
-        ir,
-        scope_tree=ctx.path_scope,
-        ctx=inf_ctx,
-    )
 
     # Fix up weak namespaces
     _rewrite_weak_namespaces(ir, ctx)
