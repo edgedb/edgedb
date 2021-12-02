@@ -52,7 +52,7 @@ def init_toplevel_query(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> None:
 
-    ctx.toplevel_stmt = ctx.stmt = ctx.rel = pgast.SelectStmt()
+    ctx.toplevel_stmt = ctx.stmt = ctx.rel
     update_scope(ir_set, ctx.rel, ctx=ctx)
     ctx.pending_query = ctx.rel
 

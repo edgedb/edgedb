@@ -2356,6 +2356,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ],
             )
 
+        async with self._run_and_rollback():
+            # This had trouble if there was a SELECT, at one point.
+            await self.con.execute("""
+                ALTER TYPE Foo ALTER PROPERTY m_p {
+                    SET TYPE int64 USING (SELECT <int64>.m_p + <int64>.r_p)
+                }
+            """)
+
         # Conversion expression that reduces cardinality...
         async with self._run_and_rollback():
             await self.con.execute("""
@@ -2497,6 +2505,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     {'l': {'@lp': 3}},
                 ],
             )
+
+        async with self._run_and_rollback():
+            # Also once had SELECT trouble
+            await self.con.execute("""
+                ALTER TYPE Foo ALTER LINK l ALTER PROPERTY lp {
+                    SET TYPE int64 USING (SELECT <int64>@lp)
+                }
+            """)
 
     async def test_edgeql_ddl_ptr_set_type_using_02(self):
         await self.con.execute(r"""

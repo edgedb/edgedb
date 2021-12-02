@@ -37,56 +37,6 @@ from . import relctx
 from . import relgen
 
 
-def init_stmt(
-        stmt: irast.Stmt, ctx: context.CompilerContextLevel,
-        parent_ctx: context.CompilerContextLevel) -> None:
-    if ctx.toplevel_stmt is context.NO_STMT:
-        parent_ctx.toplevel_stmt = ctx.toplevel_stmt = ctx.stmt
-
-
-def fini_stmt(
-        stmt: pgast.Query, ctx: context.CompilerContextLevel,
-        parent_ctx: context.CompilerContextLevel) -> None:
-
-    if stmt is ctx.toplevel_stmt:
-        scan_check_ctes(ctx.env.check_ctes, ctx=ctx)
-
-        # Type rewrites go first.
-        if stmt.ctes is None:
-            stmt.ctes = []
-        stmt.ctes[:0] = list(ctx.type_ctes.values())
-
-        stmt.argnames = argmap = ctx.argmap
-
-        if not ctx.env.use_named_params:
-            # Adding unused parameters into a CTE
-            targets = []
-            for param in ctx.env.query_params:
-                if param.name in argmap:
-                    continue
-                if param.name.isdecimal():
-                    idx = int(param.name) + 1
-                else:
-                    idx = len(argmap) + 1
-                argmap[param.name] = pgast.Param(
-                    index=idx,
-                    required=param.required,
-                )
-                targets.append(pgast.ResTarget(val=pgast.TypeCast(
-                    arg=pgast.ParamRef(number=idx),
-                    type_name=pgast.TypeName(
-                        name=pg_types.pg_type_from_ir_typeref(param.ir_type)
-                    )
-                )))
-            if targets:
-                ctx.toplevel_stmt.append_cte(
-                    pgast.CommonTableExpr(
-                        name="__unused_vars",
-                        query=pgast.SelectStmt(target_list=targets)
-                    )
-                )
-
-
 def get_volatility_ref(
         path_id: irast.PathId, *,
         ctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
@@ -338,6 +288,7 @@ def compile_limit_offset_clause(
 
 
 def scan_check_ctes(
+    stmt: pgast.Query,
     check_ctes: List[pgast.CommonTableExpr],
     *,
     ctx: context.CompilerContextLevel,
@@ -388,7 +339,48 @@ def scan_check_ctes(
             rexpr=val,
         )
     )
-    ctx.toplevel_stmt.append_cte(pgast.CommonTableExpr(
+    stmt.append_cte(pgast.CommonTableExpr(
         query=update_query,
         name=ctx.env.aliases.get(hint='check_scan')
     ))
+
+
+def fini_toplevel(
+        stmt: pgast.Query, ctx: context.CompilerContextLevel) -> None:
+
+    scan_check_ctes(stmt, ctx.env.check_ctes, ctx=ctx)
+
+    # Type rewrites go first.
+    if stmt.ctes is None:
+        stmt.ctes = []
+    stmt.ctes[:0] = list(ctx.type_ctes.values())
+
+    stmt.argnames = argmap = ctx.argmap
+
+    if not ctx.env.use_named_params:
+        # Adding unused parameters into a CTE
+        targets = []
+        for param in ctx.env.query_params:
+            if param.name in argmap:
+                continue
+            if param.name.isdecimal():
+                idx = int(param.name) + 1
+            else:
+                idx = len(argmap) + 1
+            argmap[param.name] = pgast.Param(
+                index=idx,
+                required=param.required,
+            )
+            targets.append(pgast.ResTarget(val=pgast.TypeCast(
+                arg=pgast.ParamRef(number=idx),
+                type_name=pgast.TypeName(
+                    name=pg_types.pg_type_from_ir_typeref(param.ir_type)
+                )
+            )))
+        if targets:
+            stmt.append_cte(
+                pgast.CommonTableExpr(
+                    name="__unused_vars",
+                    query=pgast.SelectStmt(target_list=targets)
+                )
+            )

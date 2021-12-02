@@ -30,7 +30,6 @@ from edb.pgsql import ast as pgast
 from edb.pgsql import params as pgparams
 
 from . import astutils
-from . import clauses
 from . import context
 from . import dispatch
 from . import pathctx
@@ -380,7 +379,6 @@ def compile_ConfigInsert(
             subctx.expr_exposed = True
             rewritten = _rewrite_config_insert(stmt.expr, ctx=subctx)
             dispatch.compile(rewritten, ctx=subctx)
-            clauses.fini_stmt(ctx.rel, ctx=subctx, parent_ctx=ctx)
 
             return pathctx.get_path_serialized_output(
                 ctx.rel, stmt.expr.path_id, env=ctx.env)
