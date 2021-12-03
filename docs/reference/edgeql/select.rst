@@ -66,8 +66,8 @@ SELECT
     an empty set when evaluating an *expression* are sorted *after*
     all other values; if ``EMPTY FIRST`` is specified, then they
     are sorted *before* all other values.  If neither is specified,
-    ``EMPTY FIRST`` is assumed when ``ASC`` is specified or implied,
-    and ``EMPTY LAST`` when ``DESC`` is specified.
+    ``EMPTY LAST`` is assumed when ``ASC`` is specified or implied,
+    and ``EMPTY FIRST`` when ``DESC`` is specified.
 
 :eql:synopsis:`OFFSET <offset-expr>`
     The optional ``OFFSET`` clause, where

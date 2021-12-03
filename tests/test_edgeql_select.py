@@ -2681,6 +2681,35 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 ORDER BY User.<owner[IS Issue].number;
             """)
 
+    async def test_edgeql_select_order_05(self):
+        # test the defaults with nones
+        # ascending implies nones last, descending implies nones first
+        await self.assert_query_result(
+            r'''
+            SELECT Issue {name, time_estimate}
+            FILTER .name LIKE '%EdgeDB%'
+            ORDER BY .time_estimate;
+            ''',
+            [
+                {"name": "Release EdgeDB", "time_estimate": 3000},
+                {"name": "Improve EdgeDB repl output rendering.",
+                 "time_estimate": None},
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT Issue {name, time_estimate}
+            FILTER .name LIKE '%EdgeDB%'
+            ORDER BY .time_estimate DESC;
+            ''',
+            [
+                {"name": "Improve EdgeDB repl output rendering.",
+                 "time_estimate": None},
+                {"name": "Release EdgeDB", "time_estimate": 3000},
+            ]
+        )
+
     async def test_edgeql_select_where_01(self):
         await self.assert_query_result(
             r'''

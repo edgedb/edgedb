@@ -655,9 +655,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
             if node.nulls is None:
                 if node.dir == pgast.SortDesc:
-                    self.write(' NULLS LAST')
-                else:
                     self.write(' NULLS FIRST')
+                else:
+                    self.write(' NULLS LAST')
             elif node.nulls == pgast.NullsFirst:
                 self.write(' NULLS FIRST')
             elif node.nulls == pgast.NullsLast:

@@ -429,8 +429,8 @@ def eval_orderby(
     # it in one go...)
     for sort in reversed(orderby):
         nones_bigger = (
-            (sort.direction == 'ASC' and sort.nones_order == 'last')
-            or (sort.direction == 'DESC' and sort.nones_order == 'first')
+            (sort.direction == 'ASC' and sort.nones_order != 'first')
+            or (sort.direction == 'DESC' and sort.nones_order != 'last')
         )
 
         # Decorate
