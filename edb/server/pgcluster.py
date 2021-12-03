@@ -966,8 +966,24 @@ async def get_remote_pg_cluster(
     try:
         cluster_type, superuser_name = await _get_cluster_type(conn)
         max_connections = await _get_pg_settings(conn, 'max_connections')
+        capabilities = await _detect_capabilities(conn)
+        if t_id != buildmeta.get_default_tenant_id():
+            # GOTCHA: This tenant_id check cannot protect us from running
+            # multiple EdgeDB servers using the default tenant_id with
+            # different catalog versions on the same backend. However, that
+            # would fail during bootstrap in single-role/database mode.
+            if not capabilities & pgparams.BackendCapabilities.CREATE_ROLE:
+                raise ClusterError(
+                    "The remote backend doesn't support CREATE ROLE; "
+                    "multi-tenancy is disabled."
+                )
+            if not capabilities & pgparams.BackendCapabilities.CREATE_DATABASE:
+                raise ClusterError(
+                    "The remote backend doesn't support CREATE DATABASE; "
+                    "multi-tenancy is disabled."
+                )
         instance_params = pgparams.BackendInstanceParams(
-            capabilities=await _detect_capabilities(conn),
+            capabilities=capabilities,
             base_superuser=superuser_name,
             max_connections=int(max_connections),
             reserved_connections=await _get_reserved_connections(conn),
