@@ -2726,19 +2726,20 @@ class CreateIndex(IndexCommand, adapts=s_indexes.CreateIndex):
 
         sql_tree = compiler.compile_ir_to_sql_tree(
             ir.expr, singleton_mode=True)
-        sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
 
         if isinstance(sql_tree, pg_ast.ImplicitRowExpr):
-            # Trim the parentheses to avoid PostgreSQL choking on double
-            # parentheses. since it expects only a single set around the column
-            # list.
-            sql_expr = sql_expr[1:-1]
+            sql_exprs = [
+                codegen.SQLSourceGenerator.to_source(el)
+                for el in sql_tree.args
+            ]
+        else:
+            sql_exprs = [codegen.SQLSourceGenerator.to_source(sql_tree)]
 
         module_name = index.get_name(schema).module
         index_name = common.get_index_backend_name(
             index.id, module_name, catenate=False)
         pg_index = dbops.Index(
-            name=index_name[1], table_name=table_name, expr=sql_expr,
+            name=index_name[1], table_name=table_name, exprs=sql_exprs,
             unique=False, inherit=True,
             metadata={'schemaname': str(index.get_name(schema))})
         return dbops.CreateIndex(pg_index)
