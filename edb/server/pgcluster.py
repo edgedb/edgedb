@@ -931,6 +931,16 @@ async def get_remote_pg_cluster(
         if coll is not None:
             caps |= pgparams.BackendCapabilities.C_UTF8_LOCALE
 
+        roles = await conn.fetchrow('''
+            SELECT rolcreaterole, rolcreatedb FROM pg_roles
+            WHERE rolname = (SELECT current_user);
+        ''')
+
+        if roles['rolcreaterole']:
+            caps |= pgparams.BackendCapabilities.CREATE_ROLE
+        if roles['rolcreatedb']:
+            caps |= pgparams.BackendCapabilities.CREATE_DATABASE
+
         return caps
 
     async def _get_pg_settings(

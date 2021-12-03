@@ -33,12 +33,18 @@ class BackendCapabilities(enum.IntFlag):
     CONFIGFILE_ACCESS = 1 << 1
     #: Whether the PostgreSQL server supports the C.UTF-8 locale
     C_UTF8_LOCALE = 1 << 2
+    #: Whether CREATE ROLE is allowed
+    CREATE_ROLE = 1 << 3
+    #: Whether CREATE DATABASE is allowed
+    CREATE_DATABASE = 1 << 4
 
 
 ALL_BACKEND_CAPABILITIES = (
     BackendCapabilities.SUPERUSER_ACCESS
     | BackendCapabilities.CONFIGFILE_ACCESS
     | BackendCapabilities.C_UTF8_LOCALE
+    | BackendCapabilities.CREATE_ROLE
+    | BackendCapabilities.CREATE_DATABASE
 )
 
 
