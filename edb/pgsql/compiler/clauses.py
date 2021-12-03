@@ -304,7 +304,8 @@ def collapse_query(query: pgast.Query) -> pgast.BaseExpr:
         query.target_list[0].val, query.from_clause[0])
     if val:
         return val
-    return query
+    else:
+        return query
 
 
 def compile_orderby_clause(
