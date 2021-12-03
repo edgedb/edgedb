@@ -476,7 +476,6 @@ class SubjectMixin(Base):
 class ReturningMixin(Base):
     __abstract_node__ = True
     result: Expr
-    result_alias: typing.Optional[str] = None
 
 
 class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
@@ -521,7 +520,7 @@ class Query(Statement):
 
 
 class SelectQuery(Query, ReturningMixin, SelectClauseMixin):
-    pass
+    result_alias: typing.Optional[str] = None
 
 
 class GroupQuery(SelectQuery, SubjectMixin):

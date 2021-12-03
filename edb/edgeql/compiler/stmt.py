@@ -214,7 +214,6 @@ def compile_ForQuery(
                     astutils.ensure_qlstmt(qlstmt.result),
                     view_scls=ctx.view_scls,
                     view_rptr=ctx.view_rptr,
-                    result_alias=qlstmt.result_alias,
                     view_name=ctx.toplevel_result_view_name,
                     forward_rptr=True,
                     ctx=bctx,

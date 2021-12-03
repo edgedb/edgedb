@@ -3060,6 +3060,8 @@ aa';
         SELECT x;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected ':='", hint=None, line=3, col=17)
     def test_edgeql_syntax_selectfor_05(self):
         """
         FOR x IN {1, 2, 3}
