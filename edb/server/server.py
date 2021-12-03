@@ -268,7 +268,7 @@ class Server(ha_base.ClusterProtocol):
     def is_shutting_down(self):
         return self._shutting_down
 
-    def is_accepting_connections(self):
+    def is_serving(self):
         return self._serving
 
     def on_binary_client_created(self) -> str:
@@ -303,8 +303,13 @@ class Server(ha_base.ClusterProtocol):
         metrics.current_client_connections.dec()
 
         if not self._binary_conns and self._auto_shutdown_after >= 0:
+
+            def shutdown():
+                self._serving = False
+                self._stop_evt.set()
+
             self._auto_shutdown_handler = self.__loop.call_later(
-                self._auto_shutdown_after, self._stop_evt.set)
+                self._auto_shutdown_after, shutdown)
 
     def _report_connections(self, *, event: str) -> None:
         log_metrics.info(
@@ -1575,34 +1580,39 @@ class Server(ha_base.ClusterProtocol):
                 self.__sys_pgcon = None
             self._sys_pgcon_waiter = None
 
+    def _discard_coro(self, coro):
+        # Silence the "coroutine not awaited" warning by creating the task
+        # and cancelling it immediately.
+        detail = getattr(coro.cr_code, 'co_name', 'unknown')
+        origin = getattr(coro, 'cr_origin', None)
+        if origin:
+            detail += "\n" + "\n".join(
+                f"    {path}, line {lineno}, in {method}"
+                for path, lineno, method in origin
+            )
+        else:
+            detail += (
+                "; set sys.set_coroutine_origin_tracking_depth() to debug"
+            )
+        logger.debug("Task is not started and ignored: %s", detail)
+        task = self.__loop.create_task(coro)
+        task.cancel()
+        return task
+
     def create_task(self, coro, *, interruptable):
         # Interruptable tasks are regular asyncio tasks that may be interrupted
         # randomly in the middle when the event loop stops; while tasks with
         # interruptable=False are always awaited before the server stops, so
         # that e.g. all finally blocks get a chance to execute in those tasks.
         if self._task_group is None:
-            # Silence the "coroutine not awaited" warning by creating the task
-            # and cancelling it immediately.
-            detail = getattr(coro.cr_code, 'co_name', 'unknown')
-            origin = getattr(coro, 'cr_origin', None)
-            if origin:
-                detail += "\n" + "\n".join(
-                    f"    {path}, line {lineno}, in {method}"
-                    for path, lineno, method in origin
-                )
-            else:
-                detail += (
-                    "; set sys.set_coroutine_origin_tracking_depth() to debug"
-                )
-            logger.debug("Task is not started and ignored: %s", detail)
-            task = self.__loop.create_task(coro)
-            task.cancel()
-            return task
+            # When we don't have self._task_group, it means either that the
+            # server was never started (bootstrap-only), or it's shutting down.
+            # In this case, we shall discard the coroutine.
+            return self._discard_coro(coro)
+        elif interruptable:
+            return self.__loop.create_task(coro)
         else:
-            if interruptable:
-                return self.__loop.create_task(coro)
-            else:
-                return self._task_group.create_task(coro)
+            return self._task_group.create_task(coro)
 
     async def serve_forever(self):
         await self._stop_evt.wait()

@@ -2233,10 +2233,7 @@ cdef class EdgeConnection:
         return out_buf
 
     def connection_made(self, transport):
-        if (
-            not self.server.is_accepting_connections()
-            or self.server.is_shutting_down()
-        ):
+        if not self.server.is_serving():
             transport.abort()
             return
 
