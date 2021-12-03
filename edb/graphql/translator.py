@@ -1527,18 +1527,18 @@ class GraphQLTranslator:
         if direction == 'ASC':
             direction = qlast.SortAsc
             # nulls are optional, but are 'SMALLEST' by default
-            if nulls == 'BIGGEST':
-                nulls = qlast.NonesLast
-            else:
+            if nulls == 'SMALLEST':
                 nulls = qlast.NonesFirst
+            else:
+                nulls = qlast.NonesLast
 
         else:  # DESC
             direction = qlast.SortDesc
             # nulls are optional, but are 'SMALLEST' by default
-            if nulls == 'BIGGEST':
-                nulls = qlast.NonesFirst
-            else:
+            if nulls == 'SMALLEST':
                 nulls = qlast.NonesLast
+            else:
+                nulls = qlast.NonesFirst
 
         return [Ordering(names=[], direction=direction, nulls=nulls)]
 

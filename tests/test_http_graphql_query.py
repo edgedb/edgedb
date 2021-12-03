@@ -3684,14 +3684,6 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             "User": [
                 {
-                    "name": "John",
-                    "profile": None,
-                },
-                {
-                    "name": "Jane",
-                    "profile": None,
-                },
-                {
                     "name": "Bob",
                     "profile": {
                         "name": "Bob profile",
@@ -3704,7 +3696,15 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
                         "name": "Alice profile",
                         "value": "special",
                     },
-                }
+                },
+                {
+                    "name": "John",
+                    "profile": None,
+                },
+                {
+                    "name": "Jane",
+                    "profile": None,
+                },
             ]
         })
 
