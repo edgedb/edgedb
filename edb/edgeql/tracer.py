@@ -388,7 +388,7 @@ def result_alias_context(
 ) -> Generator[TracerContext, None, None]:
 
     alias: Optional[str] = None
-    if isinstance(node, qlast.ReturningMixin):
+    if isinstance(node, qlast.SelectQuery):
         alias = node.result_alias
     elif isinstance(node, qlast.SubjectMixin):
         alias = node.subject_alias

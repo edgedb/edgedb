@@ -325,8 +325,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         # guarantee an newline here
         self.new_lines = 1
         self._write_keywords('UNION ')
-        if node.result_alias:
-            self.write(node.result_alias, ' := ')
         self._block_ws(1)
         self.visit(node.result)
         self.indentation -= 1

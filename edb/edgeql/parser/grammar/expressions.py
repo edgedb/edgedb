@@ -113,12 +113,11 @@ class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
 class SimpleFor(Nonterm):
     def reduce_For(self, *kids):
         r"%reduce FOR Identifier IN Set \
-                  UNION OptionallyAliasedExpr"
+                  UNION Expr"
         self.val = qlast.ForQuery(
             iterator_alias=kids[1].val,
             iterator=kids[3].val,
-            result=kids[5].val.expr,
-            result_alias=kids[5].val.alias,
+            result=kids[5].val,
         )
 
 
