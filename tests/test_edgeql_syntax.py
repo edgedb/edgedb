@@ -3031,17 +3031,11 @@ aa';
         );
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"missing '{' before.+array_unpack",
-                  line=2, col=26)
     def test_edgeql_syntax_selectfor_02(self):
         """
         SELECT (FOR s IN array_unpack([1, 2, 3]) UNION s);
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"missing '{' before.+array_unpack",
-                  line=3, col=22)
     def test_edgeql_syntax_selectfor_03(self):
         """
         WITH x := (
