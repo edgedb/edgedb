@@ -317,7 +317,7 @@ def compile_orderby_clause(
         with ctx.new() as orderctx:
             orderctx.expr_exposed = False
 
-            # In OPDER BY we compile ir.Set as a subquery:
+            # In ORDER BY we compile ir.Set as a subquery:
             #    SELECT SetRel.value FROM SetRel)
             subq = relgen.set_as_subquery(
                 expr.expr, as_value=True, ctx=orderctx)
