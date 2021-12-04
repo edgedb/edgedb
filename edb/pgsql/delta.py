@@ -371,14 +371,10 @@ class AlterGlobalSchemaVersion(
         else:
             backend_params = params.get_default_runtime_params()
 
-        instance_params = backend_params.instance_params
-        capabilities = instance_params.capabilities
-        tenant_id = instance_params.tenant_id
-
         tpl_db_name = common.get_database_backend_name(
-            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=tenant_id)
+            edbdef.EDGEDB_TEMPLATE_DB, tenant_id=backend_params.tenant_id)
 
-        if capabilities & params.BackendCapabilities.SUPERUSER_ACCESS:
+        if backend_params.has_superuser_access:
             # Only superusers are generally allowed to make an UPDATE
             # lock on shared catalogs.
             lock = dbops.Query(
@@ -5379,19 +5375,16 @@ class CreateRole(MetaCommand, adapts=s_roles.CreateRole):
         role_name = str(role.get_name(schema))
 
         backend_params = self._get_backend_params(context)
-        capabilities = backend_params.instance_params.capabilities
-        tenant_id = backend_params.instance_params.tenant_id
+        instance_params = backend_params.instance_params
+        tenant_id = instance_params.tenant_id
 
         if role.get_superuser(schema):
             membership.append(edbdef.EDGEDB_SUPERGROUP)
 
             # If the cluster is not exposing an explicit superuser role,
             # we will make the created Postgres role superuser if we can
-            if not backend_params.instance_params.base_superuser:
-                superuser_flag = (
-                    capabilities
-                    & params.BackendCapabilities.SUPERUSER_ACCESS
-                )
+            if not instance_params.base_superuser:
+                superuser_flag = backend_params.has_superuser_access
 
         if backend_params.session_authorization_role is not None:
             # When we connect to the backend via a proxy role, we
@@ -5430,9 +5423,8 @@ class AlterRole(MetaCommand, adapts=s_roles.AlterRole):
         role = self.scls
 
         backend_params = self._get_backend_params(context)
-        capabilities = backend_params.instance_params.capabilities
-        tenant_id = backend_params.instance_params.tenant_id
         instance_params = backend_params.instance_params
+        tenant_id = instance_params.tenant_id
         role_name = str(role.get_name(schema))
 
         kwargs = {}
@@ -5468,10 +5460,7 @@ class AlterRole(MetaCommand, adapts=s_roles.AlterRole):
             # If the cluster is not exposing an explicit superuser role,
             # we will make the modified Postgres role superuser if we can
             if not instance_params.base_superuser:
-                superuser_flag = (
-                    capabilities
-                    & params.BackendCapabilities.SUPERUSER_ACCESS
-                )
+                superuser_flag = backend_params.has_superuser_access
 
             kwargs['superuser'] = superuser_flag
 

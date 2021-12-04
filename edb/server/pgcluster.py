@@ -348,10 +348,7 @@ class Cluster(BaseCluster):
             logger.info(
                 'Initializing database cluster in %s', self._data_dir)
 
-            instance_params = self.get_runtime_params().instance_params
-            capabilities = instance_params.capabilities
-            have_c_utf8 = (
-                capabilities & pgparams.BackendCapabilities.C_UTF8_LOCALE)
+            have_c_utf8 = self.get_runtime_params().has_c_utf8_locale
             await self.init(
                 username='postgres',
                 locale='C.UTF-8' if have_c_utf8 else 'en_US.UTF-8',

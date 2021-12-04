@@ -60,7 +60,6 @@ from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
-from edb.pgsql import params as pgparams
 from edb.pgsql.common import quote_ident as qi
 from edb.pgsql.common import quote_literal as ql
 
@@ -122,8 +121,8 @@ async def _ensure_edgedb_supergroup(
     members: Iterable[str] = (),
 ) -> None:
     member_of = set(member_of)
-    instance_params = ctx.cluster.get_runtime_params().instance_params
-    superuser_role = instance_params.base_superuser
+    backend_params = ctx.cluster.get_runtime_params()
+    superuser_role = backend_params.instance_params.base_superuser
     if superuser_role:
         # If the cluster is exposing an explicit superuser role,
         # become a member of that instead of creating a superuser
@@ -134,10 +133,7 @@ async def _ensure_edgedb_supergroup(
 
     role = dbops.Role(
         name=pg_role_name,
-        superuser=bool(
-            instance_params.capabilities
-            & pgparams.BackendCapabilities.SUPERUSER_ACCESS
-        ),
+        superuser=backend_params.has_superuser_access,
         allow_login=False,
         allow_createdb=True,
         allow_createrole=True,
@@ -177,17 +173,11 @@ async def _ensure_edgedb_role(
     if login_role != sup_role:
         members.add(login_role)
 
-    instance_params = ctx.cluster.get_runtime_params().instance_params
+    backend_params = ctx.cluster.get_runtime_params()
     pg_role_name = ctx.cluster.get_role_name(role_name)
     role = dbops.Role(
         name=pg_role_name,
-        superuser=(
-            superuser
-            and bool(
-                instance_params.capabilities
-                & pgparams.BackendCapabilities.SUPERUSER_ACCESS
-            )
-        ),
+        superuser=superuser and backend_params.has_superuser_access,
         allow_login=True,
         allow_createdb=True,
         allow_createrole=True,
@@ -196,7 +186,7 @@ async def _ensure_edgedb_role(
         metadata=dict(
             id=str(objid),
             name=role_name,
-            tenant_id=instance_params.tenant_id,
+            tenant_id=backend_params.tenant_id,
             builtin=builtin,
         ),
     )
@@ -215,7 +205,7 @@ async def _ensure_edgedb_role(
 
 
 async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
-    tenant_id = ctx.cluster.get_runtime_params().instance_params.tenant_id
+    tenant_id = ctx.cluster.get_runtime_params().tenant_id
     is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
 
     if is_default_tenant:
@@ -253,10 +243,8 @@ async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
 async def _create_edgedb_template_database(
     ctx: BootstrapContext,
 ) -> uuid.UUID:
-    instance_params = ctx.cluster.get_runtime_params().instance_params
-    capabilities = instance_params.capabilities
-    have_c_utf8 = (
-        capabilities & pgparams.BackendCapabilities.C_UTF8_LOCALE)
+    backend_params = ctx.cluster.get_runtime_params()
+    have_c_utf8 = backend_params.has_c_utf8_locale
 
     logger.info('Creating template database...')
     block = dbops.SQLBlock()
@@ -270,7 +258,7 @@ async def _create_edgedb_template_database(
         encoding='UTF8',
         metadata=dict(
             id=str(dbid),
-            tenant_id=instance_params.tenant_id,
+            tenant_id=backend_params.tenant_id,
             name=edbdef.EDGEDB_TEMPLATE_DB,
             builtin=True,
         ),
@@ -967,7 +955,7 @@ async def _configure(
 
     await _execute_block(ctx.conn, block)
 
-    instance_params = ctx.cluster.get_runtime_params().instance_params
+    backend_params = ctx.cluster.get_runtime_params()
     for setname in config_spec:
         setting = config_spec[setname]
         if (
@@ -978,8 +966,7 @@ async def _configure(
                 # backends that don't support it.
                 # TODO: this should be replaced by instance-wide
                 #       emulation at backend connection time.
-                instance_params.capabilities
-                & pgparams.BackendCapabilities.CONFIGFILE_ACCESS
+                backend_params.has_configfile_access
             )
         ):
             if isinstance(setting.default, statypes.Duration):

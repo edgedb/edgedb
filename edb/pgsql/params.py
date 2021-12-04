@@ -62,6 +62,45 @@ class BackendRuntimeParams(NamedTuple):
     instance_params: BackendInstanceParams
     session_authorization_role: Optional[str] = None
 
+    @property
+    def tenant_id(self) -> str:
+        return self.instance_params.tenant_id
+
+    @property
+    def has_superuser_access(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.SUPERUSER_ACCESS
+        )
+
+    @property
+    def has_configfile_access(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.CONFIGFILE_ACCESS
+        )
+
+    @property
+    def has_c_utf8_locale(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.C_UTF8_LOCALE
+        )
+
+    @property
+    def has_create_role(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.CREATE_ROLE
+        )
+
+    @property
+    def has_create_database(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.CREATE_DATABASE
+        )
+
 
 @functools.lru_cache
 def get_default_runtime_params(
