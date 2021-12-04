@@ -229,6 +229,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     PARAMETER = 'PARAMETER'
     PROPERTY = 'PROPERTY'
     PSEUDO_TYPE = 'PSEUDO TYPE'
+    RANGE_TYPE = 'RANGE TYPE'
     ROLE = 'ROLE'
     SCALAR_TYPE = 'SCALAR TYPE'
     TUPLE_TYPE = 'TUPLE TYPE'

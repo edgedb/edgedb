@@ -104,6 +104,10 @@ class Array(Collection):
     pass
 
 
+class Range(Collection):
+    pass
+
+
 class Pointer(Object):
     pass
 

@@ -33,6 +33,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
+from edb.schema import types as s_types
 
 from . import common
 
@@ -62,6 +63,17 @@ base_type_name_map = {
         ('edgedb', 'date_duration_t'),
 
     s_obj.get_known_type_id('cfg::memory'): ('edgedb', 'memory_t'),
+}
+
+type_to_range_name_map = {
+    ('int4',): ('int4range',),
+    ('int8',): ('int8range',),
+    ('numeric',): ('numrange',),
+    ('float4',): ('edgedb', 'float32_range_t'),
+    ('float8',): ('edgedb', 'float64_range_t'),
+    ('edgedb', 'timestamptz_t'): ('edgedb', 'datetime_range_t'),
+    ('edgedb', 'timestamp_t'): ('edgedb', 'local_datetime_range_t'),
+    ('edgedb', 'date_t'): ('daterange',),
 }
 
 base_type_name_map_r = {
@@ -108,6 +120,17 @@ base_type_name_map_r = {
 
     'edgedb.memory_t': sn.QualName('cfg', 'memory'),
     'memory_t': sn.QualName('cfg', 'memory'),
+}
+
+# Use the known type IDs to generate corresponding range type IDs
+base_range_name_map = {
+    s_types.generate_type_id(
+        f'''range-{
+            s_obj.get_known_type_id(
+                base_type_name_map_r[".".join(pg_type)])
+        }'''
+    ): pg_range
+    for pg_type, pg_range in type_to_range_name_map.items()
 }
 
 
@@ -171,6 +194,10 @@ def pg_type_array(tp: Tuple[str, ...]) -> Tuple[str, ...]:
         return (tp[0], tp[1] + '[]')
 
 
+def pg_type_range(tp: Tuple[str, ...]) -> Tuple[str, ...]:
+    return type_to_range_name_map[tp]
+
+
 def pg_type_from_object(
         schema: s_schema.Schema,
         obj: s_obj.Object,
@@ -197,6 +224,15 @@ def pg_type_from_object(
                 persistent_tuples=persistent_tuples)
             return pg_type_array(tp)
 
+    elif isinstance(obj, s_abc.Range):
+        if obj.is_polymorphic(schema):
+            return ('anyrange',)
+        else:
+            tp = pg_type_from_object(
+                schema, obj.get_subtypes(schema)[0],
+                persistent_tuples=persistent_tuples)
+            return pg_type_range(tp)
+
     elif isinstance(obj, s_objtypes.ObjectType):
         return ('uuid',)
 
@@ -222,10 +258,19 @@ def pg_type_from_ir_typeref(
                 ir_typeref.subtypes[0],
                 serialized=serialized,
                 persistent_tuples=persistent_tuples)
-            if len(tp) == 1:
-                return (tp[0] + '[]',)
-            else:
-                return (tp[0], tp[1] + '[]')
+            return pg_type_array(tp)
+
+    if irtyputils.is_range(ir_typeref):
+        if (irtyputils.is_generic(ir_typeref)
+                or (irtyputils.is_abstract(ir_typeref.subtypes[0])
+                    and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
+            return ('anyrange',)
+        else:
+            tp = pg_type_from_ir_typeref(
+                ir_typeref.subtypes[0],
+                serialized=serialized,
+                persistent_tuples=persistent_tuples)
+            return pg_type_range(tp)
 
     elif irtyputils.is_anytuple(ir_typeref):
         return ('record',)

@@ -175,7 +175,7 @@ class TypeSerializer:
                 assert len(element_names) == len(subtypes)
 
                 type_id = self._get_collection_type_id(
-                    t.schema_name, subtypes, element_names)
+                    t.get_schema_name(), subtypes, element_names)
 
                 if type_id in self.uuid_to_pos:
                     return type_id
@@ -190,7 +190,8 @@ class TypeSerializer:
                     buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
 
             else:
-                type_id = self._get_collection_type_id(t.schema_name, subtypes)
+                type_id = self._get_collection_type_id(
+                    t.get_schema_name(), subtypes)
 
                 if type_id in self.uuid_to_pos:
                     return type_id
@@ -211,7 +212,8 @@ class TypeSerializer:
                         for st in t.get_subtypes(self.schema)]
 
             assert len(subtypes) == 1
-            type_id = self._get_collection_type_id(t.schema_name, subtypes)
+            type_id = self._get_collection_type_id(
+                t.get_schema_name(), subtypes)
 
             if type_id in self.uuid_to_pos:
                 return type_id

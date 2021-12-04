@@ -208,15 +208,16 @@ class CreateOperator(
 
         # We'll need to make sure that there's no mix of recursive and
         # non-recursive operators being overloaded.
-        all_arrays = all_tuples = True
+        all_arrays = all_tuples = all_ranges = True
         for param in params.objects(schema):
             ptype = param.get_type(schema)
             all_arrays = all_arrays and ptype.is_array()
             all_tuples = all_tuples and ptype.is_tuple(schema)
+            all_ranges = all_ranges and ptype.is_range()
 
         # It's illegal to declare an operator as recursive unless all
         # of its operands are the same basic type of collection.
-        if recursive and not (all_arrays or all_tuples):
+        if recursive and not any([all_arrays, all_tuples, all_ranges]):
             raise errors.InvalidOperatorDefinitionError(
                 f'cannot create the `{signature}` operator: '
                 f'operands of a recursive operator must either be '
@@ -255,7 +256,7 @@ class CreateOperator(
             oper_recursive = oper.get_recursive(schema)
             if recursive != oper_recursive:
                 oper_signature = oper.get_display_signature(schema)
-                oper_all_arrays = oper_all_tuples = True
+                oper_all_arrays = oper_all_tuples = oper_all_ranges = True
                 for param in oper.get_params(schema).objects(schema):
                     ptype = param.get_type(schema)
                     oper_all_arrays = oper_all_arrays and ptype.is_array()
@@ -263,9 +264,11 @@ class CreateOperator(
                         oper_all_tuples
                         and ptype.is_tuple(schema)
                     )
+                    oper_all_ranges = oper_all_ranges and ptype.is_range()
 
                 if (all_arrays == oper_all_arrays and
-                        all_tuples == oper_all_tuples):
+                        all_tuples == oper_all_tuples and
+                        all_ranges == oper_all_ranges):
                     new_rec = 'recursive' if recursive else 'non-recursive'
                     oper_rec = \
                         'recursive' if oper_recursive else 'non-recursive'
