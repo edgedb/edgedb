@@ -1585,7 +1585,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     INSERT Publication {
                         title := 'Introduction to EdgeDB',
                         authors := (
-                            FOR v IN {enumerate({'Yury', 'Elvis'})}
+                            FOR v IN enumerate({'Yury', 'Elvis'})
                             UNION (
                                 SELECT User { @list_order := v.0 }
                                 FILTER .name = v.1
@@ -5796,7 +5796,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT Issue {
                     asdf := (
-                        FOR z IN {.due_date} UNION (1)
+                        FOR z IN .due_date UNION (1)
                     )
                 }
                 FILTER .name = 'Release EdgeDB';

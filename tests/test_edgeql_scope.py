@@ -3236,7 +3236,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     multi tag := User.name ++ " - " ++ .name,
                 }
             }),
-            FOR x IN {A} UNION (x.cards.tag);
+            FOR x IN A UNION (x.cards.tag);
         ''')
         self.assertEqual(len(baseline), 22)
 

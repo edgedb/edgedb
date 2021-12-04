@@ -39,7 +39,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
                  'Giant turtle', 'Golem', 'Imp', 'Sprite']
         await self.assert_query_result(
             r'''
-                FOR C IN {Card}
+                FOR C IN Card
                 # C and Card are not related here
                 UNION (C.name, Card.name);
             ''',
@@ -50,7 +50,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_cross_02(self):
         await self.assert_query_result(
             r'''
-                FOR C IN {Card}
+                FOR C IN Card
                 # C and Card are not related here, so count(Card) should be 9
                 UNION (C.name, count(Card));
             ''',
@@ -71,7 +71,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_cross_03(self):
         await self.assert_query_result(
             r'''
-                FOR Card IN {Card}
+                FOR Card IN Card
                 # Card is shadowed here
                 UNION (Card.name, count(Card));
             ''',
@@ -92,7 +92,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
     async def test_edgeql_for_cross_04(self):
         await self.assert_query_result(
             r'''
-                FOR C IN {Card}
+                FOR C IN Card
                 # C and Card are not related here, so count(Card) should be 9
                 UNION (count(C), count(Card));
             ''',
@@ -597,7 +597,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
             r'''
                 SELECT User {
                     select_deck := (
-                        FOR letter IN {'X'}
+                        FOR letter IN 'X'
                         UNION (
                             ((SELECT .deck).name)
                         )

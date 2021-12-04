@@ -3062,6 +3062,81 @@ aa';
         UNION y := (x + 2);
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Complex expressions in a FOR query must be parenthesized',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_06(self):
+        """
+        FOR x in DETACHED foo UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Complex expressions in a FOR query must be parenthesized',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_08(self):
+        """
+        FOR x in foo + bar UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Complex expressions in a FOR query must be parenthesized',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_09(self):
+        """
+        FOR x in foo.bar + bar UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Complex expressions in a FOR query must be parenthesized',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_10(self):
+        """
+        FOR x in foo { x } UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Complex expressions in a FOR query must be parenthesized',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_11(self):
+        """
+        FOR x in SELECT 1 UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_12(self):
+        """
+        FOR x in Foo UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_13(self):
+        """
+        FOR x in Foo.bar UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_14(self):
+        """
+        FOR x in (SELECT 1) UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_15(self):
+        """
+        FOR x in [1,2,3] UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_16(self):
+        """
+        FOR x in (1,2,3) UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_16(self):
+        """
+        FOR x in .test UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_17(self):
+        """
+        FOR x in ({1,2} + {3,4}) UNION x;
+        """
+
     def test_edgeql_syntax_deletefor_01(self):
         """
         FOR x IN {(('Alice', 'White') UNION ('Bob', 'Green'))}
