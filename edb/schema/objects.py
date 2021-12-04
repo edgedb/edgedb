@@ -594,6 +594,7 @@ class ObjectMeta(type):
         reflection: ReflectionMethod = ReflectionMethod.REGULAR,
         reflection_link: Optional[str] = None,
         data_safe: bool = False,
+        **kwargs: Any,
     ) -> ObjectMeta:
         refdicts: collections.OrderedDict[str, RefDict]
 
@@ -624,7 +625,7 @@ class ObjectMeta(type):
             del clsdict[k]
 
         try:
-            cls = super().__new__(mcls, name, bases, clsdict)
+            cls = super().__new__(mcls, name, bases, clsdict, **kwargs)
         except TypeError as ex:
             raise TypeError(
                 f'Object metaclass has failed to create class {name}: {ex}')

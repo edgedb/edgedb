@@ -74,12 +74,17 @@ def is_collection(typeref: irast.TypeRef) -> bool:
 
 def is_array(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes an array type."""
-    return typeref.collection == s_types.Array.schema_name
+    return typeref.collection == s_types.Array.get_schema_name()
 
 
 def is_tuple(typeref: irast.TypeRef) -> bool:
-    """Return True if *typeref* describes an tuple type."""
-    return typeref.collection == s_types.Tuple.schema_name
+    """Return True if *typeref* describes a tuple type."""
+    return typeref.collection == s_types.Tuple.get_schema_name()
+
+
+def is_range(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes a range type."""
+    return typeref.collection == s_types.Range.get_schema_name()
 
 
 def is_any(typeref: irast.TypeRef) -> bool:
@@ -344,7 +349,7 @@ def type_to_typeref(
             name_hint=typename or t.get_name(schema),
             material_type=material_typeref,
             element_name=_name,
-            collection=t.schema_name,
+            collection=t.get_schema_name(),
             in_schema=t.get_is_persistent(schema),
             subtypes=tuple(
                 type_to_typeref(schema, st, _name=sn)  # note: no cache
@@ -366,7 +371,7 @@ def type_to_typeref(
             name_hint=typename or t.get_name(schema),
             material_type=material_typeref,
             element_name=_name,
-            collection=t.schema_name,
+            collection=t.get_schema_name(),
             in_schema=t.get_is_persistent(schema),
             subtypes=tuple(
                 type_to_typeref(schema, st, cache=cache)

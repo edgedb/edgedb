@@ -18,13 +18,17 @@
 
 CREATE MODULE cal;
 
-CREATE SCALAR TYPE cal::local_datetime EXTENDING std::anyscalar;
+CREATE SCALAR TYPE cal::local_datetime
+    EXTENDING std::anyscalar, std::anycontiguous;
 
-CREATE SCALAR TYPE cal::local_date EXTENDING std::anyscalar;
+CREATE SCALAR TYPE cal::local_date
+    EXTENDING std::anyscalar, std::anydiscrete;
 
-CREATE SCALAR TYPE cal::local_time EXTENDING std::anyscalar;
+CREATE SCALAR TYPE cal::local_time
+    EXTENDING std::anyscalar, std::anycontiguous;
 
-CREATE SCALAR TYPE cal::relative_duration EXTENDING std::anyscalar;
+CREATE SCALAR TYPE cal::relative_duration
+    EXTENDING std::anyscalar, std::anycontiguous;
 
 
 ## Functions
@@ -1506,4 +1510,134 @@ std::max(vals: SET OF array<cal::relative_duration>) -> OPTIONAL array<cal::rela
     SET force_return_cast := true;
     SET preserves_optionality := true;
     USING SQL FUNCTION 'max';
+};
+
+
+## Range functions
+
+CREATE FUNCTION
+std::range(
+    lower: optional cal::local_datetime = {},
+    upper: optional cal::local_datetime = {},
+    named only inclower: bool = true,
+    named only incupper: bool = false
+) -> range<cal::local_datetime>
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT CASE
+            WHEN "inclower" AND "incupper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '[]')
+            WHEN NOT "inclower" AND "incupper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '(]')
+            WHEN NOT "inclower" AND NOT "incupper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '()')
+            WHEN "inclower" AND NOT "incupper"
+            THEN edgedb.local_datetime_range_t("lower", "upper", '[)')
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
+std::range(
+    lower: optional cal::local_date = {},
+    upper: optional cal::local_date = {},
+    named only inclower: bool = true,
+    named only incupper: bool = false
+) -> range<cal::local_date>
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT CASE
+            WHEN "inclower" AND "incupper"
+            THEN edgedb.local_date_range_t("lower", "upper", '[]')
+            WHEN NOT "inclower" AND "incupper"
+            THEN edgedb.local_date_range_t("lower", "upper", '(]')
+            WHEN NOT "inclower" AND NOT "incupper"
+            THEN edgedb.local_date_range_t("lower", "upper", '()')
+            WHEN "inclower" AND NOT "incupper"
+            THEN edgedb.local_date_range_t("lower", "upper", '[)')
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
+std::range(
+    lower: optional cal::local_time = {},
+    upper: optional cal::local_time = {},
+    named only inclower: bool = true,
+    named only incupper: bool = false
+) -> range<cal::local_time>
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT CASE
+            WHEN "inclower" AND "incupper"
+            THEN edgedb.local_time_range_t("lower", "upper", '[]')
+            WHEN NOT "inclower" AND "incupper"
+            THEN edgedb.local_time_range_t("lower", "upper", '(]')
+            WHEN NOT "inclower" AND NOT "incupper"
+            THEN edgedb.local_time_range_t("lower", "upper", '()')
+            WHEN "inclower" AND NOT "incupper"
+            THEN edgedb.local_time_range_t("lower", "upper", '[)')
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
+std::range(
+    lower: optional cal::relative_duration = {},
+    upper: optional cal::relative_duration = {},
+    named only inclower: bool = true,
+    named only incupper: bool = false
+) -> range<cal::relative_duration>
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT CASE
+            WHEN "inclower" AND "incupper"
+            THEN edgedb.relative_duration_range_t("lower", "upper", '[]')
+            WHEN NOT "inclower" AND "incupper"
+            THEN edgedb.relative_duration_range_t("lower", "upper", '(]')
+            WHEN NOT "inclower" AND NOT "incupper"
+            THEN edgedb.relative_duration_range_t("lower", "upper", '()')
+            WHEN "inclower" AND NOT "incupper"
+            THEN edgedb.relative_duration_range_t("lower", "upper", '[)')
+        END
+    $$;
+};
+
+
+CREATE FUNCTION
+std::range_unpack(
+    val: range<cal::local_datetime>,
+    step: cal::relative_duration
+) -> set of cal::local_datetime
+{
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT
+            generate_series(
+                (
+                    lower(val) + (
+                        CASE WHEN upper_inc(val)
+                            THEN '0'::interval
+                            ELSE step
+                        END
+                    )
+                )::timestamp,
+                (
+                    upper(val) - (
+                        CASE WHEN upper_inc(val)
+                            THEN '0'::interval
+                            ELSE step
+                        END
+                    )
+                )::timestamp,
+                step::interval
+            )::edgedb.timestamp_t
+    $$;
 };

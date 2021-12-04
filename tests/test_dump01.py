@@ -473,6 +473,7 @@ class DumpTestCaseMixin:
                         {'name': 'std::int64'},
                         {'name': 'std::anyint'},
                         {'name': 'std::anyreal'},
+                        {'name': 'std::anypoint'},
                         {'name': 'std::anyscalar'},
                     ],
                     'constraints': [

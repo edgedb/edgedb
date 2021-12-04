@@ -4020,6 +4020,348 @@ aa \
             [{"b": {"c": [1]}}],
         )
 
+    async def test_edgeql_expr_range_01(self):
+        for ops in [('=', '!='), ('?=', '?!=')]:
+            # equals
+            for op in ops:
+                answer = op == ops[0]
+                await self.assert_query_result(
+                    f'''select range(-1, 2) {op} range(-1, 2);''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(-1, 2) {op}
+                               range(-1, 2, inclower := true);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(-1, 2) {op}
+                               range(-1, 2, incupper := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(-1, 2) {op}
+                               range(-1, 2,
+                                     inclower := true,
+                                     incupper := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(<int64>{{}}, 2) {op}
+                               range(<int64>{{}}, 2);
+                    ''',
+                    [answer],
+                )
+
+                await self.assert_query_result(
+                    f'''
+                        select range(1, <int64>{{}}) {op}
+                               range(1, <int64>{{}});
+                    ''',
+                    [answer],
+                )
+
+            # not equals
+            for op in ops:
+                answer = op != ops[0]
+                await self.assert_query_result(
+                    f'''select range(-1, 2) {op} range(1, 3);''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(-1, 2) {op}
+                               range(-1, 2, inclower := false);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(-1, 2) {op}
+                               range(-1, 2, incupper := true);
+                    ''',
+                    [answer],
+                )
+                await self.assert_query_result(
+                    f'''
+                        select range(-1, 2) {op}
+                               range(-1, 2,
+                                     inclower := false,
+                                     incupper := true);
+                    ''',
+                    [answer],
+                )
+
+    async def test_edgeql_expr_range_02(self):
+        for op in ['>', '<=']:
+            answer = op == '>'
+            await self.assert_query_result(
+                f'''select range(1, 2) {op} range(-1, 2);''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(1, 2) {op} range(-1, 20);''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(1, 3) {op} range(1, 2);''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(1, <int64>{{}}) {op} range(1, 2);''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(1, 3) {op} range(<int64>{{}}, 2);''',
+                [answer],
+            )
+
+        for op in ['<', '>=']:
+            answer = op == '<'
+            await self.assert_query_result(
+                f'''select range(-2, 2) {op} range(1, 2);''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(-2, 20) {op} range(1, 2);''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(1, 2) {op} range(1, 3);''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(1, 2) {op} range(1, <int64>{{}});''',
+                [answer],
+            )
+            await self.assert_query_result(
+                f'''select range(<int64>{{}}, 2) {op} range(1, 3);''',
+                [answer],
+            )
+
+    async def test_edgeql_expr_range_03(self):
+        await self.assert_query_result(
+            r'''select range_get_upper(range(1, 5));''',
+            [5],
+        )
+
+        await self.assert_query_result(
+            r'''select range_get_upper(range(1, 5, incupper := true));''',
+            [6],
+        )
+
+        await self.assert_query_result(
+            r'''select range_get_lower(range(1, 5));''',
+            [1],
+        )
+
+        await self.assert_query_result(
+            r'''select range_get_lower(range(1, 5, inclower := false));''',
+            [2],
+        )
+
+        await self.assert_query_result(
+            r'''select range_get_upper(range(1));''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''select range_get_lower(range(<int64>{}, 5));''',
+            [],
+        )
+
+    async def test_edgeql_expr_range_04(self):
+        await self.assert_query_result(
+            r'''select range_is_inclusive_upper(range(1, 5));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'select range_is_inclusive_upper(range(1, 5, incupper := true));',
+            # The upper bound for integers is never included
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select range_is_inclusive_lower(range(1, 5));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'select range_is_inclusive_lower(range(1, 5, inclower := false));',
+            # The lower bound for integers is always included
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select range_is_inclusive_upper(range(<int64>{}));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select range_is_inclusive_lower(range(<int64>{}));''',
+            [False],
+        )
+
+    async def test_edgeql_expr_range_05(self):
+        await self.assert_query_result(
+            r'''
+                select range(1, 5) + range(2, 7) = range(1, 7);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select range(<int64>{}, 5) + range(2, 7) =
+                    range(<int64>{}, 7);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select range(2) + range(1, 7) = range(1);
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_06(self):
+        await self.assert_query_result(
+            r'''
+                select range(1, 5) * range(2, 7) = range(2, 5);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select range(<int64>{}, 5) * range(2, 7) =
+                    range(2, 5);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select range(2) * range(1, 7) = range(2, 7);
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_07(self):
+        await self.assert_query_result(
+            r'''
+                select range(1, 5) - range(2, 7) = range(1, 2);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select range(<int64>{}, 5) - range(2, 7) =
+                    range(<int64>{}, 2);
+            ''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select range(2) - range(1, 7) = range(7);
+            ''',
+            [True],
+        )
+
+    async def test_edgeql_expr_range_08(self):
+        await self.assert_query_result(
+            r'''select contains(range(1, 5), range(2, 4));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(range(1, 5), range(2, 7));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(range(1, 5), range(-2, 4));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(range(1), range(2, 7));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(range(1, 5), range(2));''',
+            [False],
+        )
+
+    async def test_edgeql_expr_range_09(self):
+        await self.assert_query_result(
+            r'''select contains(range(1, 5), 2);''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(range(1, 5), 5);''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(range(1, 5), 15);''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(range(1), 15);''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select contains(range(1), 0);''',
+            [False],
+        )
+
+    async def test_edgeql_expr_range_10(self):
+        await self.assert_query_result(
+            r'''select overlaps(range(1, 5), range(2, 4));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select overlaps(range(1, 5), range(5, 7));''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''select overlaps(range(1, 5), range(2, 7));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select overlaps(range(1), range(2, 7));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select overlaps(range(1, 5), range(2));''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select overlaps(range(<int64>{}, 5), range(2));''',
+            [True],
+        )
+
     async def test_edgeql_expr_cannot_assign_dunder_type_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError, r'cannot assign to __type__'):

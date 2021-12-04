@@ -140,6 +140,13 @@ CREATE TYPE schema::Tuple EXTENDING schema::CollectionType {
 };
 
 
+CREATE TYPE schema::Range EXTENDING schema::CollectionType {
+    CREATE REQUIRED LINK element_type -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
+};
+
+
 CREATE TYPE schema::Delta EXTENDING schema::Object {
     CREATE MULTI LINK parents -> schema::Delta;
 };

@@ -262,6 +262,88 @@ class RelativeDurationDomain(dbops.Domain):
         )
 
 
+class Int16Range(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('int2',)],
+            subtype=('int2',),
+        )
+
+
+class BigintRange(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('edgedb', 'bigint_t')],
+            subtype=('edgedb', 'bigint_t'),
+        )
+
+
+class Float32Range(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('float4',)],
+            subtype=('float4',),
+        )
+
+
+class Float64Range(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('float8',)],
+            subtype=('float8',),
+            subtype_diff=('float8mi',)
+        )
+
+
+class DurationRange(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('edgedb', 'duration_t')],
+            subtype=('edgedb', 'duration_t'),
+        )
+
+
+class DatetimeRange(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('edgedb', 'timestamptz_t')],
+            subtype=('edgedb', 'timestamptz_t'),
+        )
+
+
+class LocalDatetimeRange(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('edgedb', 'timestamp_t')],
+            subtype=('edgedb', 'timestamp_t'),
+        )
+
+
+class LocalDateRange(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('edgedb', 'date_t')],
+            subtype=('edgedb', 'date_t'),
+        )
+
+
+class LocalTimeRange(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[('time',)],
+            subtype=('time',),
+        )
+
+
+class RelativeDurationRange(dbops.Range):
+    def __init__(self) -> None:
+        super().__init__(
+            name=types.type_to_range_name_map[
+                ('edgedb', 'relative_duration_t')],
+            subtype=('edgedb', 'relative_duration_t'),
+        )
+
+
 class StrToConfigMemoryFunction(dbops.Function):
     """An implementation of std::str to cfg::memory cast."""
     text = r'''
@@ -3704,8 +3786,36 @@ class GetCachedReflection(dbops.Function):
 class GetBaseScalarTypeMap(dbops.Function):
     """Return a map of base EdgeDB scalar type ids to Postgres type names."""
 
+    # FIXME: ridiculous hack to map range<intXX> onto intXrange. Needs some
+    # actual proper structure.
     text = f'''
         VALUES
+            ('a5c3791c-f7ce-47ae-461f-1364701c2826',
+             {ql('edgedb.int16_range_t')}),
+            ('9cd6f1bb-820a-e4e0-15cf-bc45c4e7baa0',
+             {ql('pg_catalog.int4range')}),
+            ('2dcd88a1-d377-baa4-c12e-d4abfef28c86',
+             {ql('pg_catalog.int8range')}),
+            ('e0169746-82b2-efaf-ec9e-fea17257877c',
+             {ql('edgedb.float32_range_t')}),
+            ('b5052505-ceb2-a54d-f438-97a8f6a2120b',
+             {ql('edgedb.float64_range_t')}),
+            ('0558af14-8978-8d50-ab05-5baa6d59eac2',
+             {ql('edgedb.bigint_range_t')}),
+            ('c98e3620-6f26-d050-921e-24fbfb0b5873',
+             {ql('pg_catalog.numrange')}),
+            ('c3eacb49-68ae-b322-933f-9795ee6e4b18',
+             {ql('edgedb.duration_range_t')}),
+            ('1847fc4b-5f10-5b74-8257-168c3a85faa5',
+             {ql('edgedb.datetime_range_t')}),
+            ('31bc1223-f64b-a6f0-b9b3-c7f3df5321dc',
+             {ql('edgedb.local_datetime_range_t')}),
+            ('ca752a6b-54a8-ba10-285b-13a79b02a110',
+             {ql('edgedb.local_date_range_t')}),
+            ('cb6b6932-b696-bc85-5363-8ecfb38afd62',
+             {ql('edgedb.local_time_range_t')}),
+            ('19fb660d-2e35-9edd-2b27-e006ca85e620',
+             {ql('edgedb.relative_duration_range_t')}),
             {", ".join(
                 f"""(
                     {ql(str(k))}::uuid,
@@ -3902,6 +4012,16 @@ async def bootstrap(
         dbops.CreateFunction(DescribeInstanceConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeDatabaseConfigAsDDLFunctionForwardDecl()),
         dbops.CreateFunction(DescribeRolesAsDDLFunctionForwardDecl()),
+        dbops.CreateRange(Int16Range()),
+        dbops.CreateRange(BigintRange()),
+        dbops.CreateRange(Float32Range()),
+        dbops.CreateRange(Float64Range()),
+        dbops.CreateRange(DurationRange()),
+        dbops.CreateRange(DatetimeRange()),
+        dbops.CreateRange(LocalDatetimeRange()),
+        dbops.CreateRange(LocalDateRange()),
+        dbops.CreateRange(LocalTimeRange()),
+        dbops.CreateRange(RelativeDurationRange()),
     ])
 
     block = dbops.PLTopBlock()

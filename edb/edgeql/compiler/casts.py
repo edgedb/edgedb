@@ -111,6 +111,13 @@ def compile_cast(
         return _cast_array(
             ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
 
+    elif (
+        orig_stype.is_range()
+        and not s_types.is_type_compatible(
+            orig_stype, new_stype, schema=ctx.env.schema)
+    ):
+        raise NotImplementedError
+
     elif orig_stype.issubclass(ctx.env.schema, new_stype):
         # The new type is a supertype of the old type,
         # and is always a wider domain, so we simply reassign

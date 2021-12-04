@@ -178,6 +178,9 @@ def __infer_type_introspection(
     elif irtyputils.is_tuple(ir.typeref):
         return cast(s_objtypes.ObjectType,
                     env.schema.get('schema::Tuple'))
+    elif irtyputils.is_range(ir.typeref):
+        return cast(s_objtypes.ObjectType,
+                    env.schema.get('schema::Range'))
     else:
         raise errors.QueryError(
             'unexpected type in INTROSPECT', context=ir.context)

@@ -62,6 +62,23 @@ base_type_name_map = {
     s_obj.get_known_type_id('cfg::memory'): ('edgedb', 'memory_t'),
 }
 
+type_to_range_name_map = {
+    ('int2',): ('edgedb', 'int16_range_t'),
+    ('int4',): ('int4range',),
+    ('int8',): ('int8range',),
+    ('edgedb', 'bigint_t'): ('edgedb', 'bigint_range_t'),
+    ('numeric',): ('numrange',),
+    ('float4',): ('edgedb', 'float32_range_t'),
+    ('float8',): ('edgedb', 'float64_range_t'),
+    ('edgedb', 'timestamptz_t'): ('edgedb', 'datetime_range_t'),
+    ('edgedb', 'duration_t',): ('edgedb', 'duration_range_t'),
+    ('edgedb', 'timestamp_t'): ('edgedb', 'local_datetime_range_t'),
+    ('edgedb', 'date_t'): ('edgedb', 'local_date_range_t'),
+    ('time',): ('edgedb', 'local_time_range_t'),
+    ('edgedb', 'relative_duration_t'):
+        ('edgedb', 'relative_duration_range_t'),
+}
+
 base_type_name_map_r = {
     'character varying': sn.QualName('std', 'str'),
     'character': sn.QualName('std', 'str'),
@@ -165,6 +182,10 @@ def pg_type_array(tp: Tuple[str, ...]) -> Tuple[str, ...]:
         return (tp[0], tp[1] + '[]')
 
 
+def pg_type_range(tp: Tuple[str, ...]) -> Tuple[str, ...]:
+    return type_to_range_name_map[tp]
+
+
 def pg_type_from_object(
         schema: s_schema.Schema,
         obj: s_obj.Object,
@@ -191,6 +212,15 @@ def pg_type_from_object(
                 persistent_tuples=persistent_tuples)
             return pg_type_array(tp)
 
+    elif isinstance(obj, s_abc.Range):
+        if obj.is_polymorphic(schema):
+            return ('anyrange',)
+        else:
+            tp = pg_type_from_object(
+                schema, obj.get_subtypes(schema)[0],
+                persistent_tuples=persistent_tuples)
+            return pg_type_range(tp)
+
     elif isinstance(obj, s_objtypes.ObjectType):
         return ('uuid',)
 
@@ -216,10 +246,19 @@ def pg_type_from_ir_typeref(
                 ir_typeref.subtypes[0],
                 serialized=serialized,
                 persistent_tuples=persistent_tuples)
-            if len(tp) == 1:
-                return (tp[0] + '[]',)
-            else:
-                return (tp[0], tp[1] + '[]')
+            return pg_type_array(tp)
+
+    if irtyputils.is_range(ir_typeref):
+        if (irtyputils.is_generic(ir_typeref)
+                or (irtyputils.is_abstract(ir_typeref.subtypes[0])
+                    and irtyputils.is_scalar(ir_typeref.subtypes[0]))):
+            return ('anyrange',)
+        else:
+            tp = pg_type_from_ir_typeref(
+                ir_typeref.subtypes[0],
+                serialized=serialized,
+                persistent_tuples=persistent_tuples)
+            return pg_type_range(tp)
 
     elif irtyputils.is_anytuple(ir_typeref):
         return ('record',)
