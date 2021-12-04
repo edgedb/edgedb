@@ -563,7 +563,7 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
         tags: "nightly,nightly_${{ steps.describe.outputs.version-slot }}_cv${{ steps.describe.outputs.catalog-version }}"
         workdir: dockerfile
-        buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=.nightly
+        buildargs: version=${{ steps.describe.outputs.version-slot }},subdist=nightly
     
 
   publish-debian-bullseye:
