@@ -1280,6 +1280,15 @@ class AtomicExpr(Nonterm):
     def reduce_AtomicPath(self, *kids):
         self.val = kids[0].val
 
+    @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_LANGBRACKET_FullTypeExpr_RANGBRACKET_AtomicExpr(
+            self, *kids):
+        self.val = qlast.TypeCast(
+            expr=kids[3].val,
+            type=kids[1].val,
+            cardinality_mod=None,
+        )
+
 
 # Duplication of Path above, but with BasicExpr at the root
 class AtomicPath(Nonterm):

@@ -3127,14 +3127,27 @@ aa';
         FOR x in (1,2,3) UNION x;
         """
 
-    def test_edgeql_syntax_selectfor_16(self):
+    def test_edgeql_syntax_selectfor_17(self):
         """
         FOR x in .test UNION x;
         """
 
-    def test_edgeql_syntax_selectfor_17(self):
+    def test_edgeql_syntax_selectfor_18(self):
         """
         FOR x in ({1,2} + {3,4}) UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_19(self):
+        """
+        FOR x in <datetime>'1999-03-31T15:17:00Z' UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r'Complex expressions in a FOR query must be parenthesized',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_20(self):
+        """
+        FOR x in <datetime>'1999-03-31T15:17:00Z'++'' UNION x;
         """
 
     def test_edgeql_syntax_deletefor_01(self):

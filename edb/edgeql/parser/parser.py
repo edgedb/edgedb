@@ -144,12 +144,22 @@ class EdgeQLParserBase(parsing.Parser):
         def _matches_for(i):
             return (
                 len(self.parser._stack) >= i + 3
-                and isinstance(self.parser._stack[-3-i][0], tokens.T_FOR)
-                and isinstance(self.parser._stack[-2-i][0], gr_exprs.Identifier)
-                and isinstance(self.parser._stack[-1-i][0], tokens.T_IN)
+                and isinstance(self.parser._stack[-3 - i][0], tokens.T_FOR)
+                and isinstance(
+                    self.parser._stack[-2 - i][0], gr_exprs.Identifier)
+                and isinstance(self.parser._stack[-1 - i][0], tokens.T_IN)
             )
 
         # Check if we're in the `FOR x IN <bad_token>` situation
+        if (
+            len(self.parser._stack) >= 4
+            and isinstance(self.parser._stack[-2][0], tokens.T_RANGBRACKET)
+            and isinstance(self.parser._stack[-3][0], gr_exprs.FullTypeExpr)
+            and isinstance(self.parser._stack[-4][0], tokens.T_LANGBRACKET)
+            and _matches_for(4)
+        ):
+            return 4, 'for iterator'
+
         if (
             len(self.parser._stack) >= 2
             and isinstance(self.parser._stack[-2][0], gr_exprs.AtomicExpr)
