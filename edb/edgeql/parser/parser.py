@@ -117,8 +117,8 @@ class EdgeQLParserBase(parsing.Parser):
                     else:
                         msg = f'Unexpected {token.text()!r}'
                 elif rule == 'for iterator':
-                    msg = ("Complex expressions in a FOR query must be "
-                           "parenthesized")
+                    msg = ("Complex expressions in a FOR iterator clause must "
+                           "be parenthesized")
 
                     if i > 0:
                         context = pctx.merge_context([

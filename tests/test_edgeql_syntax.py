@@ -3063,7 +3063,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Complex expressions in a FOR query must be parenthesized',
+                  'Complex expressions in a FOR iterator clause must be '
+                  'parenthesized',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_06(self):
         """
@@ -3071,7 +3072,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Complex expressions in a FOR query must be parenthesized',
+                  'Complex expressions in a FOR iterator clause must be '
+                  'parenthesized',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_08(self):
         """
@@ -3079,7 +3081,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Complex expressions in a FOR query must be parenthesized',
+                  'Complex expressions in a FOR iterator clause must be '
+                  'parenthesized',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_09(self):
         """
@@ -3087,7 +3090,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Complex expressions in a FOR query must be parenthesized',
+                  'Complex expressions in a FOR iterator clause must be '
+                  'parenthesized',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_10(self):
         """
@@ -3095,7 +3099,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Complex expressions in a FOR query must be parenthesized',
+                  'Complex expressions in a FOR iterator clause must be '
+                  'parenthesized',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_11(self):
         """
@@ -3143,7 +3148,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r'Complex expressions in a FOR query must be parenthesized',
+                  'Complex expressions in a FOR iterator clause must be '
+                  'parenthesized',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_20(self):
         """

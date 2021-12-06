@@ -33,7 +33,7 @@ FOR
 	a :ref:`function call <ref_reference_function_call>`,
 	a :ref:`set constructor <ref_eql_set_constructor>`,
 	a :ref:`path <ref_reference_paths>`,
-	or a parenthesized expression or statement.
+	or any parenthesized expression or statement.
 
 :eql:synopsis:`UNION <output-expr>`
     The ``UNION`` clause of the ``FOR`` statement has this general form:
