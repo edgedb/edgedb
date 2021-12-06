@@ -112,7 +112,7 @@ class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
 
 class SimpleFor(Nonterm):
     def reduce_For(self, *kids):
-        r"%reduce FOR Identifier IN Set \
+        r"%reduce FOR Identifier IN AtomicExpr \
                   UNION Expr"
         self.val = qlast.ForQuery(
             iterator_alias=kids[1].val,
@@ -843,38 +843,11 @@ class ParenExpr(Nonterm):
         self.val = kids[1].val
 
 
-class Expr(Nonterm):
-    # Path | Expr { ... } | Constant | '(' Expr ')' | FuncExpr
+class BaseAtomicExpr(Nonterm):
+    # { ... } | Constant | '(' Expr ')' | FuncExpr
     # | Tuple | NamedTuple | Collection | Set
-    # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
-    # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
-    # | Expr '**' Expr | Expr '<' Expr | Expr '>' Expr
-    # | Expr '=' Expr
-    # | Expr AND Expr | Expr OR Expr | NOT Expr
-    # | Expr LIKE Expr | Expr NOT LIKE Expr
-    # | Expr ILIKE Expr | Expr NOT ILIKE Expr
-    # | Expr IS TypeExpr | Expr IS NOT TypeExpr
-    # | INTROSPECT TypeExpr
-    # | Expr IN Expr | Expr NOT IN Expr
-    # | Expr '[' Expr ']'
-    # | Expr '[' Expr ':' Expr ']'
-    # | Expr '[' ':' Expr ']'
-    # | Expr '[' Expr ':' ']'
-    # | Expr '[' IS NodeName ']'
-    # | '<' TypeName '>' Expr
-    # | Expr IF Expr ELSE Expr
-    # | Expr ?? Expr
-    # | Expr UNION Expr | Expr UNION Expr
-    # | DISTINCT Expr
-    # | DETACHED Expr
-    # | EXISTS Expr
     # | '__source__' | '__subject__'
-
-    def reduce_Path(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_Expr_Shape(self, *kids):
-        self.val = qlast.Shape(expr=kids[0].val, elements=kids[1].val)
+    # | NodeName | PathStep
 
     def reduce_FreeShape(self, *kids):
         self.val = kids[0].val
@@ -892,15 +865,6 @@ class Expr(Nonterm):
     def reduce_ParenExpr(self, *kids):
         self.val = kids[0].val
 
-    def reduce_Expr_IndirectionEl(self, *kids):
-        expr = kids[0].val
-        if isinstance(expr, qlast.Indirection):
-            self.val = expr
-            expr.indirection.append(kids[1].val)
-        else:
-            self.val = qlast.Indirection(arg=expr,
-                                         indirection=[kids[1].val])
-
     def reduce_FuncExpr(self, *kids):
         self.val = kids[0].val
 
@@ -916,6 +880,61 @@ class Expr(Nonterm):
     def reduce_NamedTuple(self, *kids):
         self.val = kids[0].val
 
+    @parsing.precedence(precedence.P_DOT)
+    def reduce_NodeName(self, *kids):
+        self.val = qlast.Path(
+            steps=[qlast.ObjectRef(name=kids[0].val.name,
+                                   module=kids[0].val.module)])
+
+    @parsing.precedence(precedence.P_DOT)
+    def reduce_PathStep(self, *kids):
+        self.val = qlast.Path(steps=[kids[0].val], partial=True)
+
+    @parsing.precedence(precedence.P_DOT)
+    def reduce_DOT_FCONST(self, *kids):
+        # this is a valid link-like syntax for accessing unnamed tuples
+        self.val = qlast.Path(
+            steps=_float_to_path(kids[1], kids[0].context),
+            partial=True)
+
+
+class Expr(Nonterm):
+    # BaseAtomicExpr
+    # Path | Expr { ... }
+
+    # | Expr '[' Expr ']'
+    # | Expr '[' Expr ':' Expr ']'
+    # | Expr '[' ':' Expr ']'
+    # | Expr '[' Expr ':' ']'
+    # | Expr '[' IS NodeName ']'
+
+    # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
+    # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
+    # | Expr '**' Expr | Expr '<' Expr | Expr '>' Expr
+    # | Expr '=' Expr
+    # | Expr AND Expr | Expr OR Expr | NOT Expr
+    # | Expr LIKE Expr | Expr NOT LIKE Expr
+    # | Expr ILIKE Expr | Expr NOT ILIKE Expr
+    # | Expr IS TypeExpr | Expr IS NOT TypeExpr
+    # | INTROSPECT TypeExpr
+    # | Expr IN Expr | Expr NOT IN Expr
+    # | '<' TypeName '>' Expr
+    # | Expr IF Expr ELSE Expr
+    # | Expr ?? Expr
+    # | Expr UNION Expr | Expr UNION Expr
+    # | DISTINCT Expr
+    # | DETACHED Expr
+    # | EXISTS Expr
+
+    def reduce_BaseAtomicExpr(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_Path(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_Expr_Shape(self, *kids):
+        self.val = qlast.Shape(expr=kids[0].val, elements=kids[1].val)
+
     def reduce_EXISTS_Expr(self, *kids):
         self.val = qlast.UnaryOp(op='EXISTS', operand=kids[1].val)
 
@@ -924,6 +943,15 @@ class Expr(Nonterm):
 
     def reduce_DETACHED_Expr(self, *kids):
         self.val = qlast.DetachedExpr(expr=kids[1].val)
+
+    def reduce_Expr_IndirectionEl(self, *kids):
+        expr = kids[0].val
+        if isinstance(expr, qlast.Indirection):
+            self.val = expr
+            expr.indirection.append(kids[1].val)
+        else:
+            self.val = qlast.Indirection(arg=expr,
+                                         indirection=[kids[1].val])
 
     @parsing.precedence(precedence.P_UMINUS)
     def reduce_PLUS_Expr(self, *kids):
@@ -1192,73 +1220,91 @@ class BaseBooleanConstant(Nonterm):
         self.val = qlast.BooleanConstant(value='false')
 
 
+def ensure_path(expr):
+    if not isinstance(expr, qlast.Path):
+        expr = qlast.Path(steps=[expr])
+    return expr
+
+
+def _float_to_path(self, token, context):
+    from edb.schema import pointers as s_pointers
+
+    # make sure that the float is of the type 0.1
+    parts = token.val.split('.')
+    if not (len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()):
+        raise errors.EdgeQLSyntaxError(
+            f"Unexpected {token.val!r}",
+            context=token.context)
+
+    # context for the AST is established manually here
+    return [
+        qlast.Ptr(
+            ptr=qlast.ObjectRef(
+                name=parts[0],
+                context=token.context,
+            ),
+            direction=s_pointers.PointerDirection.Outbound,
+            context=context,
+        ),
+        qlast.Ptr(
+            ptr=qlast.ObjectRef(
+                name=parts[1],
+                context=token.context,
+            ),
+            direction=s_pointers.PointerDirection.Outbound,
+            context=token.context,
+        )
+    ]
+
+
 class Path(Nonterm):
     @parsing.precedence(precedence.P_DOT)
-    def reduce_NodeName(self, *kids):
-        self.val = qlast.Path(
-            steps=[qlast.ObjectRef(name=kids[0].val.name,
-                                   module=kids[0].val.module)])
-
-    @parsing.precedence(precedence.P_DOT)
     def reduce_Expr_PathStep(self, *kids):
-        path = kids[0].val
-        if not isinstance(path, qlast.Path):
-            path = qlast.Path(steps=[path])
-
+        path = ensure_path(kids[0].val)
         path.steps.append(kids[1].val)
         self.val = path
-
-    @parsing.precedence(precedence.P_DOT)
-    def reduce_PathStep(self, *kids):
-        self.val = qlast.Path(steps=[kids[0].val], partial=True)
 
     # special case of Path.0.1 etc.
     @parsing.precedence(precedence.P_DOT)
     def reduce_Expr_DOT_FCONST(self, *kids):
         # this is a valid link-like syntax for accessing unnamed tuples
-        path = kids[0].val
-        if not isinstance(path, qlast.Path):
-            path = qlast.Path(steps=[path])
-
-        path.steps.extend(self._float_to_path(kids[2], kids[1].context))
+        path = ensure_path(kids[0].val)
+        path.steps.extend(_float_to_path(kids[2], kids[1].context))
         self.val = path
 
+
+class AtomicExpr(Nonterm):
+    def reduce_BaseAtomicExpr(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AtomicPath(self, *kids):
+        self.val = kids[0].val
+
+    @parsing.precedence(precedence.P_TYPECAST)
+    def reduce_LANGBRACKET_FullTypeExpr_RANGBRACKET_AtomicExpr(
+            self, *kids):
+        self.val = qlast.TypeCast(
+            expr=kids[3].val,
+            type=kids[1].val,
+            cardinality_mod=None,
+        )
+
+
+# Duplication of Path above, but with BasicExpr at the root
+class AtomicPath(Nonterm):
     @parsing.precedence(precedence.P_DOT)
-    def reduce_DOT_FCONST(self, *kids):
+    def reduce_AtomicExpr_PathStep(self, *kids):
+        path = ensure_path(kids[0].val)
+        path.steps.append(kids[1].val)
+        self.val = path
+
+    # special case of Path.0.1 etc.
+    @parsing.precedence(precedence.P_DOT)
+    def reduce_AtomicExpr_DOT_FCONST(self, *kids):
         # this is a valid link-like syntax for accessing unnamed tuples
-        self.val = qlast.Path(
-            steps=self._float_to_path(kids[1], kids[0].context),
-            partial=True)
-
-    def _float_to_path(self, token, context):
-        from edb.schema import pointers as s_pointers
-
-        # make sure that the float is of the type 0.1
-        parts = token.val.split('.')
-        if not (len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()):
-            raise errors.EdgeQLSyntaxError(
-                f"Unexpected {token.val!r}",
-                context=token.context)
-
-        # context for the AST is established manually here
-        return [
-            qlast.Ptr(
-                ptr=qlast.ObjectRef(
-                    name=parts[0],
-                    context=token.context,
-                ),
-                direction=s_pointers.PointerDirection.Outbound,
-                context=context,
-            ),
-            qlast.Ptr(
-                ptr=qlast.ObjectRef(
-                    name=parts[1],
-                    context=token.context,
-                ),
-                direction=s_pointers.PointerDirection.Outbound,
-                context=token.context,
-            )
-        ]
+        path = ensure_path(kids[0].val)
+        path.steps.extend(_float_to_path(kids[2], kids[1].context))
+        self.val = path
 
 
 class PathStep(Nonterm):

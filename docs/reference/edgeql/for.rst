@@ -15,7 +15,7 @@ FOR
 
     [ WITH <with-item> [, ...] ]
 
-    FOR <variable> IN "{" <iterator-set> [, ...]  "}"
+    FOR <variable> IN <iterator-expr>
 
     UNION <output-expr> ;
 
@@ -29,8 +29,11 @@ FOR
         FOR <variable> IN <iterator-expr>
 
     where :eql:synopsis:`<iterator-expr>` is a
-    :ref:`set constructor <ref_eql_set_constructor>` of arbitrary
-    type.
+	:ref:`literal <ref_eql_literals>`,
+	a :ref:`function call <ref_reference_function_call>`,
+	a :ref:`set constructor <ref_eql_set_constructor>`,
+	a :ref:`path <ref_reference_paths>`,
+	or any parenthesized expression or statement.
 
 :eql:synopsis:`UNION <output-expr>`
     The ``UNION`` clause of the ``FOR`` statement has this general form:

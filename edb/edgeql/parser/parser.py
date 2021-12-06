@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from edb import errors
 from edb.common import debug, parsing
+from edb.common import context as pctx
 from edb.common.english import add_a as a
 
 from .grammar import rust_lexer, tokens
@@ -73,8 +74,8 @@ class EdgeQLParserBase(parsing.Parser):
                                       tokens.T_UPDATE,
                                       tokens.T_DELETE))
                 ):
-                    hint = ("Statement used as an expression must be "
-                            "enclosed in a set of parentheses")
+                    hint = ("Missing parentheses around statement used "
+                            "as an expression")
                     # We want the error context correspond to the
                     # statement keyword
                     context = ltok.context
@@ -116,8 +117,14 @@ class EdgeQLParserBase(parsing.Parser):
                     else:
                         msg = f'Unexpected {token.text()!r}'
                 elif rule == 'for iterator':
-                    msg = (f"missing '{{' before {token.text()!r} "
-                           f"in a FOR query")
+                    msg = ("Missing parentheses around complex expression in "
+                           "a FOR iterator clause")
+
+                    if i > 0:
+                        context = pctx.merge_context([
+                            self.parser._stack[-i][0].context, context,
+                        ])
+                    token = None
                 elif hasattr(token, 'val'):
                     msg = f'Unexpected {token.val!r}'
                 elif token_kind == 'NL':
@@ -134,12 +141,41 @@ class EdgeQLParserBase(parsing.Parser):
         # to infer the parser rule when the error occurred.
         rule = ''
 
+        def _matches_for(i):
+            return (
+                len(self.parser._stack) >= i + 3
+                and isinstance(self.parser._stack[-3 - i][0], tokens.T_FOR)
+                and isinstance(
+                    self.parser._stack[-2 - i][0], gr_exprs.Identifier)
+                and isinstance(self.parser._stack[-1 - i][0], tokens.T_IN)
+            )
+
         # Check if we're in the `FOR x IN <bad_token>` situation
-        if (len(self.parser._stack) >= 3 and
-                isinstance(self.parser._stack[-3][0], tokens.T_FOR) and
-                isinstance(self.parser._stack[-2][0], gr_exprs.Identifier) and
-                isinstance(self.parser._stack[-1][0], tokens.T_IN)):
+        if (
+            len(self.parser._stack) >= 4
+            and isinstance(self.parser._stack[-2][0], tokens.T_RANGBRACKET)
+            and isinstance(self.parser._stack[-3][0], gr_exprs.FullTypeExpr)
+            and isinstance(self.parser._stack[-4][0], tokens.T_LANGBRACKET)
+            and _matches_for(4)
+        ):
+            return 4, 'for iterator'
+
+        if (
+            len(self.parser._stack) >= 2
+            and isinstance(self.parser._stack[-2][0], gr_exprs.AtomicExpr)
+            and _matches_for(2)
+        ):
             return 2, 'for iterator'
+
+        if (
+            len(self.parser._stack) >= 1
+            and isinstance(self.parser._stack[-1][0], gr_exprs.BaseAtomicExpr)
+            and _matches_for(1)
+        ):
+            return 1, 'for iterator'
+
+        if _matches_for(0):
+            return 0, 'for iterator'
 
         # If the last valid token was a closing brace/parent/bracket,
         # so we need to find a match for it before deciding what rule
