@@ -319,7 +319,10 @@ class Server(ha_base.ClusterProtocol):
         started_at = time.monotonic()
         try:
             rv = await pgcon.connect(
-                self._get_pgaddr(), pg_dbname, self._tenant_id)
+                self._get_pgaddr(),
+                pg_dbname,
+                self.get_backend_runtime_params(),
+            )
         except Exception:
             metrics.backend_connection_establishment_errors.inc()
             raise
