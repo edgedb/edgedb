@@ -74,8 +74,8 @@ class EdgeQLParserBase(parsing.Parser):
                                       tokens.T_UPDATE,
                                       tokens.T_DELETE))
                 ):
-                    hint = ("Statement used as an expression must be "
-                            "enclosed in a set of parentheses")
+                    hint = ("Missing parentheses around statement used "
+                            "as an expression")
                     # We want the error context correspond to the
                     # statement keyword
                     context = ltok.context
@@ -117,8 +117,8 @@ class EdgeQLParserBase(parsing.Parser):
                     else:
                         msg = f'Unexpected {token.text()!r}'
                 elif rule == 'for iterator':
-                    msg = ("Complex expressions in a FOR iterator clause must "
-                           "be parenthesized")
+                    msg = ("Missing parentheses around complex expression in "
+                           "a FOR iterator clause")
 
                     if i > 0:
                         context = pctx.merge_context([

@@ -3063,8 +3063,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Complex expressions in a FOR iterator clause must be '
-                  'parenthesized',
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_06(self):
         """
@@ -3072,8 +3072,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Complex expressions in a FOR iterator clause must be '
-                  'parenthesized',
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_08(self):
         """
@@ -3081,8 +3081,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Complex expressions in a FOR iterator clause must be '
-                  'parenthesized',
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_09(self):
         """
@@ -3090,8 +3090,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Complex expressions in a FOR iterator clause must be '
-                  'parenthesized',
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_10(self):
         """
@@ -3099,8 +3099,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Complex expressions in a FOR iterator clause must be '
-                  'parenthesized',
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_11(self):
         """
@@ -3148,8 +3148,8 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  'Complex expressions in a FOR iterator clause must be '
-                  'parenthesized',
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
                   hint=None, line=2, col=18)
     def test_edgeql_syntax_selectfor_20(self):
         """
@@ -3306,8 +3306,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_12(self):
         """
@@ -3316,8 +3316,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_13(self):
         """
@@ -3326,8 +3326,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_14(self):
         """
@@ -3336,8 +3336,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_15(self):
         """
@@ -3346,8 +3346,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_16(self):
         """
@@ -3356,8 +3356,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_17(self):
         """
@@ -3366,8 +3366,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=23)
     def test_edgeql_syntax_function_18(self):
         """
@@ -3376,8 +3376,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=26)
     def test_edgeql_syntax_function_19(self):
         """
