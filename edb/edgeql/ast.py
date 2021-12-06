@@ -470,7 +470,6 @@ class Statement(Command, Expr):
 class SubjectMixin(Base):
     __abstract_node__ = True
     subject: Expr
-    subject_alias: typing.Optional[str] = None
 
 
 class ReturningMixin(Base):
@@ -524,6 +523,7 @@ class SelectQuery(Query, ReturningMixin, SelectClauseMixin):
 
 
 class GroupQuery(SelectQuery, SubjectMixin):
+    subject_alias: typing.Optional[str] = None
     using: typing.List[AliasedExpr]
     by: typing.List[Expr]
     into: str

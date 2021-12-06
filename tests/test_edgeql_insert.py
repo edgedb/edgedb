@@ -656,7 +656,7 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    I := (INSERT _ := InsertTest {
+                    I := (INSERT InsertTest {
                         name := 'IT returning 4',
                         l2 := 9999,
                     })
@@ -670,7 +670,7 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    I := (INSERT _ := InsertTest {
+                    I := (INSERT InsertTest {
                         name := 'IT returning 4',
                         l2 := 9,
                     })

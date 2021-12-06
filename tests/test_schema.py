@@ -2741,8 +2741,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property comp := count((
                     # Use an alias in WITH block in a computable
                     WITH x := .val
-                    # Use an alias in UPDATE in a computable
-                    UPDATE y := Bar FILTER x = y.val
+                    UPDATE Bar FILTER x = Bar.val
                     SET {
                         val := 'foo'
                     }
@@ -2769,8 +2768,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property comp := count((
                     # Use an alias in WITH block in a computable
                     WITH x := .val
-                    # Use an alias in DELETE in a computable
-                    DELETE y := Bar FILTER x = y.val
+                    DELETE Bar FILTER x = Bar.val
                 ))
             }
 
