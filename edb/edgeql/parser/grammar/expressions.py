@@ -176,10 +176,9 @@ class SimpleGroup(Nonterm):
 
 class SimpleInsert(Nonterm):
     def reduce_Insert(self, *kids):
-        r'%reduce INSERT OptionallyAliasedExpr OptUnlessConflictClause'
+        r'%reduce INSERT Expr OptUnlessConflictClause'
 
-        subj = kids[1].val.expr
-        subj_alias = kids[1].val.alias
+        subj = kids[1].val
 
         # check that the insert subject is either a path or a shape
         if isinstance(subj, qlast.Shape):
@@ -198,7 +197,6 @@ class SimpleInsert(Nonterm):
 
         self.val = qlast.InsertQuery(
             subject=objtype,
-            subject_alias=subj_alias,
             shape=shape,
             unless_conflict=unless_conflict,
         )
@@ -206,10 +204,9 @@ class SimpleInsert(Nonterm):
 
 class SimpleUpdate(Nonterm):
     def reduce_Update(self, *kids):
-        "%reduce UPDATE OptionallyAliasedExpr OptFilterClause SET Shape"
+        "%reduce UPDATE Expr OptFilterClause SET Shape"
         self.val = qlast.UpdateQuery(
-            subject=kids[1].val.expr,
-            subject_alias=kids[1].val.alias,
+            subject=kids[1].val,
             where=kids[2].val,
             shape=kids[4].val,
         )
@@ -217,11 +214,10 @@ class SimpleUpdate(Nonterm):
 
 class SimpleDelete(Nonterm):
     def reduce_Delete(self, *kids):
-        r"%reduce DELETE OptionallyAliasedExpr \
+        r"%reduce DELETE Expr \
                   OptFilterClause OptSortClause OptSelectLimit"
         self.val = qlast.DeleteQuery(
-            subject=kids[1].val.expr,
-            subject_alias=kids[1].val.alias,
+            subject=kids[1].val,
             where=kids[2].val,
             orderby=kids[3].val,
             offset=kids[4].val[0],

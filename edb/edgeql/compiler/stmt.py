@@ -304,7 +304,6 @@ def compile_InsertQuery(
                 shape=expr.shape,
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
-                result_alias=expr.subject_alias,
                 is_insert=True,
                 ctx=bodyctx)
 
@@ -431,7 +430,6 @@ def compile_UpdateQuery(
                 shape=expr.shape,
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
-                result_alias=expr.subject_alias,
                 is_update=True,
                 ctx=bodyctx)
 
@@ -485,7 +483,6 @@ def compile_DeleteQuery(
                 subjql = qlast.SelectQuery(
                     result=qlast.SelectQuery(
                         result=expr.subject,
-                        result_alias=expr.subject_alias,
                         where=expr.where,
                         orderby=expr.orderby,
                         context=expr.context,
@@ -498,7 +495,6 @@ def compile_DeleteQuery(
             else:
                 subjql = qlast.SelectQuery(
                     result=expr.subject,
-                    result_alias=expr.subject_alias,
                     where=expr.where,
                     orderby=expr.orderby,
                     offset=expr.offset,

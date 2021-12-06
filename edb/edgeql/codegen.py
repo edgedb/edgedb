@@ -271,8 +271,6 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self._write_keywords('DELETE')
         self._block_ws(1)
-        if node.subject_alias:
-            self.write(node.subject_alias, ' := ')
         self.visit(node.subject)
         self._block_ws(-1)
         self._visit_filter(node)

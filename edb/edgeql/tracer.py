@@ -390,7 +390,7 @@ def result_alias_context(
     alias: Optional[str] = None
     if isinstance(node, qlast.SelectQuery):
         alias = node.result_alias
-    elif isinstance(node, qlast.SubjectMixin):
+    elif isinstance(node, qlast.GroupQuery):
         alias = node.subject_alias
 
     # potentially SELECT uses an alias for the main result
