@@ -1746,7 +1746,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             self.run_ddl(schema, r'''
                 ALTER FUNCTION foo(v: int64) USING (
                     # This is very broken now
-                    1 + (SELECT Foo LIMIT 1).val
+                    assert_exists(1 + (SELECT Foo LIMIT 1).val)
                 );
             ''')
 
@@ -1756,7 +1756,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 property val := 1;
             }
 
-            function foo(v: int64) -> int64 using (
+            function foo(v: int64) -> optional int64 using (
                 1 + (SELECT Foo LIMIT 1).val
             );
         ''', modname='default')
@@ -2591,7 +2591,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
     def test_schema_get_migration_35(self):
         schema = r'''
-            function bar() -> str using(SELECT <str>Object.id LIMIT 1);
+            function bar() -> optional str using(
+                SELECT <str>Object.id LIMIT 1);
         '''
 
         self._assert_migration_consistency(schema)
@@ -4573,7 +4574,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property bar -> array<int64>;
             };
 
-            function hello16() -> int64
+            function hello16() -> optional int64
                 using (
                     SELECT len((SELECT Foo LIMIT 1).bar)
                 )
@@ -4582,7 +4583,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property bar -> array<float64>;
             };
 
-            function hello16() -> int64
+            function hello16() -> optional int64
                 using (
                     SELECT len((SELECT Foo LIMIT 1).bar)
                 )
@@ -4597,7 +4598,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Bar;
 
-            function hello17() -> Bar
+            function hello17() -> optional Bar
                 using (
                     SELECT Bar
                     OFFSET len((SELECT Foo.bar LIMIT 1)) ?? 0
@@ -4610,7 +4611,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Bar;
 
-            function hello17() -> Bar
+            function hello17() -> optional Bar
                 using (
                     SELECT Bar
                     OFFSET len((SELECT Foo.bar LIMIT 1)) ?? 0
@@ -4802,7 +4803,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     property val := 1;
                 }
 
-                function foo(v: int64) -> int64 using (
+                function foo(v: int64) -> optional int64 using (
                     1 + (SELECT Foo LIMIT 1).val
                 );
             """, r"""
@@ -4811,7 +4812,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     property val := foo(1);
                 }
 
-                function foo(v: int64) -> int64 using (
+                function foo(v: int64) -> optional int64 using (
                     1 + (SELECT Foo LIMIT 1).val
                 );
             """])

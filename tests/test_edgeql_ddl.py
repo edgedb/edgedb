@@ -3454,7 +3454,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
 
             CREATE FUNCTION my_edgeql_func2(s: std::str)
-                -> schema::ObjectType
+                -> OPTIONAL schema::ObjectType
                 USING EdgeQL $$
                     SELECT
                         schema::ObjectType
@@ -4315,6 +4315,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_ddl_function_34(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidFunctionDefinitionError,
+            r"return cardinality mismatch"
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION broken_edgeql_func25(
+                    a: std::int64) -> std::int64
+                USING EdgeQL $$
+                    SELECT a FILTER a > 0
+                $$;
+            """)
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {
@@ -4672,7 +4685,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_function_volatility_09(self):
         await self.con.execute('''
-            CREATE TYPE FuncVol { CREATE PROPERTY i -> int64 };
+            CREATE TYPE FuncVol { CREATE REQUIRED PROPERTY i -> int64 };
             CREATE FUNCTION obj_func(obj: FuncVol) -> int64 {
                 USING (obj.i)
             };
@@ -10350,7 +10363,7 @@ type default::Foo {
     async def test_edgeql_ddl_rename_ref_function_01(self):
         await self._simple_rename_ref_tests(
             """
-            CREATE FUNCTION foo(x: Note) ->  str {
+            CREATE FUNCTION foo(x: Note) -> OPTIONAL str {
                 USING (SELECT ('Note note ' ++ x.note ++
                                (SELECT Note.note LIMIT 1)))
             }
@@ -10374,7 +10387,7 @@ type default::Foo {
                 CREATE PROPERTY name -> str;
             };
 
-            CREATE FUNCTION foo(x: Note, y: Name) -> str {
+            CREATE FUNCTION foo(x: Note, y: Name) -> OPTIONAL str {
                 USING (SELECT (x.note ++ " " ++ y.name))
             };
         """)
@@ -10416,7 +10429,7 @@ type default::Foo {
     async def test_edgeql_ddl_rename_ref_function_03(self):
         await self._simple_rename_ref_tests(
             """
-            CREATE FUNCTION foo(x: str) -> Note {
+            CREATE FUNCTION foo(x: str) -> OPTIONAL Note {
                 USING (SELECT Note FILTER .note = x LIMIT 1)
             }
             """,
@@ -10427,7 +10440,7 @@ type default::Foo {
     async def test_edgeql_ddl_rename_ref_function_04(self):
         await self._simple_rename_ref_tests(
             """
-            CREATE FUNCTION foo(x: str) -> Note {
+            CREATE FUNCTION foo(x: str) -> OPTIONAL Note {
                 USING (SELECT Note FILTER .note = x LIMIT 1)
             }
             """,
