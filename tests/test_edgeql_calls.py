@@ -1357,7 +1357,7 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
             INSERT C38 { name := 'yay' };
             CREATE FUNCTION call38(
                 a: C38
-            ) -> str
+            ) -> OPTIONAL str
                 USING (
                     SELECT a.name
                 );
@@ -1384,8 +1384,8 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
     async def test_edgeql_calls_40(self):
         await self.con.execute('''
             CREATE TYPE Rectangle {
-                CREATE PROPERTY width -> int64;
-                CREATE PROPERTY height -> int64;
+                CREATE REQUIRED PROPERTY width -> int64;
+                CREATE REQUIRED PROPERTY height -> int64;
             };
 
             INSERT Rectangle { width := 2, height := 3 };
@@ -1437,12 +1437,12 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
             CREATE TYPE Shape;
             CREATE TYPE FlatShape;
             CREATE TYPE Rectangle EXTENDING FlatShape {
-                CREATE PROPERTY w -> float64;
-                CREATE PROPERTY h -> float64;
+                CREATE REQUIRED PROPERTY w -> float64;
+                CREATE REQUIRED PROPERTY h -> float64;
             };
 
             CREATE TYPE Circle EXTENDING FlatShape {
-                CREATE PROPERTY r -> float64;
+                CREATE REQUIRED PROPERTY r -> float64;
             };
 
             # Use -1 as the error indicator, as we don't have the means
@@ -1572,7 +1572,7 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
     async def test_edgeql_calls_obj_03(self):
         await self.con.execute("""
             CREATE TYPE Person {
-                CREATE PROPERTY name -> str;
+                CREATE REQUIRED PROPERTY name -> str;
             };
             CREATE FUNCTION fight(one: Person, two: Person) -> str
                 USING (one.name ++ " fights " ++ two.name);
@@ -1662,14 +1662,14 @@ class TestEdgeQLFuncCalls(tb.DDLTestCase):
 
     async def test_edgeql_calls_obj_04(self):
         await self.con.execute("""
-            CREATE FUNCTION thing(s: schema::Constraint) -> str
+            CREATE FUNCTION thing(s: schema::Constraint) -> OPTIONAL str
                 USING (s.name ++ s.expr);
 
             CREATE FUNCTION frob(s: schema::Object) -> str
                 USING ("ahhhh");
-            CREATE FUNCTION frob(s: schema::Constraint) -> str
+            CREATE FUNCTION frob(s: schema::Constraint) -> OPTIONAL str
                 USING (s.name ++ s.expr);
-            CREATE FUNCTION frob(s: schema::Pointer) -> str
+            CREATE FUNCTION frob(s: schema::Pointer) -> OPTIONAL str
                 USING (s.name ++ <str>s.required);
         """)
 

@@ -2282,5 +2282,15 @@ def compile_function(
             ),
             context=body.qlast.context,
         )
+    elif (return_typemod is ft.TypeModifier.SingletonType
+            and ir.cardinality.can_be_zero()):
+        raise errors.InvalidFunctionDefinitionError(
+            f'return cardinality mismatch in function declared to return '
+            f'exactly one value',
+            details=(
+                f'Function may return an empty set.'
+            ),
+            context=body.qlast.context,
+        )
 
     return compiled
