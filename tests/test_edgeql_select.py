@@ -6981,3 +6981,72 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT Comment { owner: { name } FILTER false }
                 ''',
             )
+
+    async def test_edgeql_select_linkprop_rebind_01(self):
+        # or maybe this should be disallowed, I guess, but it shouldn't crash.
+        await self.assert_query_result(
+            r'''
+            SELECT Issue {
+              owner := (
+                WITH C := Issue.owner
+                SELECT C {name, @since}
+              )
+            } FILTER .name = "Release EdgeDB";
+            ''',
+            [
+                {
+                    "owner": {
+                        "@since": "2018-01-01T00:00:00+00:00",
+                        "name": "Elvis",
+                    }
+                }
+            ]
+        )
+
+    async def test_edgeql_select_linkprop_rebind_02(self):
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+              todo := (
+                WITH C := User.todo
+                SELECT C {@rank}
+              )
+            } FILTER .name = 'Elvis';
+            ''',
+            [
+                {
+                    "todo": [
+                        {"@rank": 42},
+                        {"@rank": 42},
+                    ]
+                }
+            ]
+        )
+
+    @test.xfail("Issue #3245")
+    async def test_edgeql_select_linkprop_rebind_03(self):
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+              todo := (
+                WITH
+                  U := (
+                    SELECT User.todo {
+                      __linkprop_todo := User.todo@rank
+                    }
+                  )
+                SELECT U {
+                  single z := U.__linkprop_todo
+                }
+              )
+            } FILTER .name = 'Elvis';
+            ''',
+            [
+                {
+                    "todo": [
+                        {"z": 42},
+                        {"z": 42},
+                    ]
+                }
+            ]
+        )

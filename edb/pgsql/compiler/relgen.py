@@ -714,6 +714,11 @@ def process_set_as_link_property_ref(
         else:
             link_prefix = ir_source
 
+        # If this is a WITH bound link, dive through a bit to get to it.
+        while link_prefix.rptr is None:
+            assert isinstance(link_prefix.expr, irast.SelectStmt)
+            link_prefix = link_prefix.expr.result
+
         source_scope_stmt = relctx.get_scope_stmt(
             ir_source.path_id, ctx=newctx)
 
@@ -907,9 +912,15 @@ def process_set_as_path(
     if is_linkprop:
         backtrack_src = ir_source
         ctx.disable_semi_join.add(backtrack_src.path_id)
-        assert ir_source.rptr is not None
+
+        # If this is a WITH bound link, dive through a bit to get to it.
+        while backtrack_src.rptr is None:
+            assert isinstance(backtrack_src.expr, irast.SelectStmt)
+            backtrack_src = backtrack_src.expr.result
+            # ctx.disable_semi_join.add(backtrack_src.path_id)
+
         while backtrack_src.path_id.is_type_intersection_path():
-            backtrack_src = ir_source.rptr.source
+            backtrack_src = backtrack_src.rptr.source
             ctx.disable_semi_join.add(backtrack_src.path_id)
 
     semi_join = (
@@ -1221,7 +1232,21 @@ def process_set_as_subquery(
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause, cond_expr)
 
-    return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+    rvars = _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+    # If the inner set also exposes a pointer path souce, we need to
+    # also expose a pointer path source. See tests like
+    # test_edgeql_select_linkprop_rebind_01
+    if pathctx.maybe_get_path_rvar(
+            stmt, inner_id.ptr_path(), aspect='source', env=ctx.env):
+        rvars.new.append(
+            SetRVar(
+                rvars.main.rvar,
+                outer_id.ptr_path(),
+                aspects=('source',),
+            )
+        )
+
+    return rvars
 
 
 def process_set_as_membership_expr(
