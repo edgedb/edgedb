@@ -532,7 +532,12 @@ class TypeShell(so.ObjectShell[TypeT_co]):
         view_name: Optional[s_name.QualName] = None,
         attrs: Optional[Dict[str, Any]] = None,
     ) -> sd.Command:
-        raise NotImplementedError
+        raise errors.UnsupportedFeatureError(
+            f'unsupported type intersection in schema',
+            hint=f'Type intersections are currently '
+                 f'unsupported as valid link targets.',
+            context=self.sourcectx,
+        )
 
 
 class TypeExprShell(TypeShell[TypeT_co]):

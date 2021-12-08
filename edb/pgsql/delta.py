@@ -2099,7 +2099,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         for prop, new_typ in props:
             try:
                 cmd.add(new_typ.as_create_delta(schema))
-            except NotImplementedError:
+            except errors.UnsupportedFeatureError:
                 pass
 
             delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
