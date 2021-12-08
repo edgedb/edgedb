@@ -1221,7 +1221,14 @@ def _get_local_obj(
 
     obj = ctx.objects.get(refname)
 
-    if obj is not None and not isinstance(obj, tracer_type):
+    if isinstance(obj, s_pseudo.PseudoType):
+        raise errors.SchemaError(
+            f'invalid type: {obj.get_verbosename(ctx.schema)} is a generic '
+            f'type and they are not supported in user-defined schema',
+            context=sourcectx,
+        )
+
+    elif obj is not None and not isinstance(obj, tracer_type):
         obj_type = TRACER_TO_REAL_TYPE_MAP[type(obj)]
         real_type = TRACER_TO_REAL_TYPE_MAP[tracer_type]
         raise errors.InvalidReferenceError(

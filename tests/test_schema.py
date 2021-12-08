@@ -475,6 +475,33 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    @tb.must_fail(errors.SchemaError,
+                  "invalid type: pseudotype 'anytype' is a generic type")
+    def test_schema_bad_type_12(self):
+        """
+            type Foo {
+                property val -> anytype;
+            }
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "invalid type: pseudotype 'anytype' is a generic type")
+    def test_schema_bad_type_13(self):
+        """
+            type Foo {
+                link val -> anytype;
+            }
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "invalid type: pseudotype 'anytuple' is a generic type")
+    def test_schema_bad_type_14(self):
+        """
+            type Foo {
+                property val -> anytuple;
+            }
+        """
+
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
             type Object {
