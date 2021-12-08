@@ -1963,6 +1963,22 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 ALTER TYPE Foo ALTER PROPERTY b RESET TYPE;
             ''')
 
+    async def test_edgeql_ddl_link_target_bad_04(self):
+        await self.con.execute('''
+            CREATE TYPE Foo;
+            CREATE TYPE Bar;
+        ''')
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            "unsupported type intersection in schema"
+        ):
+            await self.con.execute('''
+                CREATE TYPE Spam {
+                    CREATE MULTI LINK foobar := Foo[IS Bar]
+                };
+            ''')
+
     async def test_edgeql_ddl_link_target_merge_01(self):
         await self.con.execute('''
 

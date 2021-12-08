@@ -464,6 +464,17 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type Foo3 extending Foo0;
         """
 
+    @tb.must_fail(errors.UnsupportedFeatureError,
+                  "unsupported type intersection in schema")
+    def test_schema_bad_type_11(self):
+        """
+            type Foo;
+            type Bar;
+            type Spam {
+                multi link foobar := Foo[IS Bar];
+            }
+        """
+
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
             type Object {
