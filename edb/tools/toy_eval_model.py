@@ -1158,10 +1158,10 @@ def clean_data(x: Data, cheat: bool, *, is_el: bool=False) -> Data:
     elif isinstance(x, tuple):
         return tuple(clean_data(v, cheat) for v in x)
     elif isinstance(x, list):
-        l = [clean_data(v, cheat) for v in x]
-        if cheat and is_el and len(l) == 1:
-            return l[0]
-        return l
+        res = [clean_data(v, cheat) for v in x]
+        if cheat and is_el and len(res) == 1:
+            return res[0]
+        return res
     else:
         return x
 
