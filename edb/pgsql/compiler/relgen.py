@@ -907,9 +907,10 @@ def process_set_as_path(
     if is_linkprop:
         backtrack_src = ir_source
         ctx.disable_semi_join.add(backtrack_src.path_id)
-        assert ir_source.rptr is not None
+
+        assert backtrack_src.rptr
         while backtrack_src.path_id.is_type_intersection_path():
-            backtrack_src = ir_source.rptr.source
+            backtrack_src = backtrack_src.rptr.source
             ctx.disable_semi_join.add(backtrack_src.path_id)
 
     semi_join = (
@@ -1221,7 +1222,21 @@ def process_set_as_subquery(
             stmt.where_clause = astutils.extend_binop(
                 stmt.where_clause, cond_expr)
 
-    return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+    rvars = _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
+    # If the inner set also exposes a pointer path souce, we need to
+    # also expose a pointer path source. See tests like
+    # test_edgeql_select_linkprop_rebind_01
+    if pathctx.maybe_get_path_rvar(
+            stmt, inner_id.ptr_path(), aspect='source', env=ctx.env):
+        rvars.new.append(
+            SetRVar(
+                rvars.main.rvar,
+                outer_id.ptr_path(),
+                aspects=('source',),
+            )
+        )
+
+    return rvars
 
 
 def process_set_as_membership_expr(

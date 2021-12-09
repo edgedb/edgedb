@@ -594,11 +594,19 @@ class PathId:
             else:
                 yield path_id
 
-    def startswith(self, path_id: PathId) -> bool:
+    def startswith(
+            self, path_id: PathId, permissive_ptr_path: bool=False) -> bool:
         """Return true if this ``PathId`` has *path_id* as a prefix."""
-        return self._get_prefix(len(path_id)) == path_id
+        base = self._get_prefix(len(path_id))
+        return base == path_id or (
+            permissive_ptr_path and base.tgt_path() == path_id)
 
-    def replace_prefix(self, prefix: PathId, replacement: PathId) -> PathId:
+    def replace_prefix(
+        self,
+        prefix: PathId,
+        replacement: PathId,
+        permissive_ptr_path: bool=False,
+    ) -> PathId:
         """Return a copy of this ``PathId`` with *prefix* replaced by
            *replacement*.
 
@@ -606,7 +614,7 @@ class PathId:
 
                PathId(A.b.c).replace_prefix(A.b, X.y) == PathId(X.y.c)
         """
-        if self.startswith(prefix):
+        if self.startswith(prefix, permissive_ptr_path=permissive_ptr_path):
             prefix_len = len(prefix)
             if prefix_len < len(self):
                 result = self.__class__(self)

@@ -84,7 +84,8 @@ def map_path_id(
         path_id_map.items(), key=lambda kv: len(kv[0]), reverse=True)
 
     for outer_id, inner_id in sorted_map:
-        new_path_id = path_id.replace_prefix(outer_id, inner_id)
+        new_path_id = path_id.replace_prefix(
+            outer_id, inner_id, permissive_ptr_path=True)
         if new_path_id != path_id:
             path_id = new_path_id
             break
