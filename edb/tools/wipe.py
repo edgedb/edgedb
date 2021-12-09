@@ -51,7 +51,7 @@ class AbsPath(click.Path):
 
 @edbcommands.command('wipe')
 @click.option(
-    '--postgres-dsn',
+    '--backend-dsn',
     type=str,
     help='DSN of the remote Postgres instance to wipe EdgeDB from')
 @click.option(
@@ -80,7 +80,7 @@ class AbsPath(click.Path):
     help='list cluster tenants instead of performing a wipe')
 def wipe(
     *,
-    postgres_dsn,
+    backend_dsn,
     data_dir,
     tenant_id,
     yes,
@@ -88,7 +88,7 @@ def wipe(
     list_tenants,
 ):
     asyncio.run(do_wipe(
-        postgres_dsn=postgres_dsn,
+        backend_dsn=backend_dsn,
         data_dir=data_dir,
         tenant_id=tenant_id,
         yes=yes,
@@ -99,16 +99,16 @@ def wipe(
 
 async def do_wipe(
     *,
-    postgres_dsn,
+    backend_dsn,
     data_dir,
     tenant_id,
     yes,
     dry_run,
     list_tenants,
 ):
-    if postgres_dsn:
+    if backend_dsn:
         cluster = await pgcluster.get_remote_pg_cluster(
-            postgres_dsn,
+            backend_dsn,
             tenant_id='<unknown>',
         )
     elif data_dir:
@@ -145,14 +145,17 @@ async def do_wipe(
 
     try:
         conn = await cluster.connect()
-        if not tenant_id:
+        if tenant_id:
+            tenants = list(tenant_id)
+        else:
             tenants = await _get_all_tenants(conn)
-            if list_tenants:
-                print('\n'.join(t if t else '(none)' for t in tenants))
-                return
 
-        for tenant in tenants:
-            await wipe_tenant(cluster, conn, tenant, dry_run)
+        if list_tenants:
+            print('\n'.join(t if t else '(none)' for t in tenants))
+            return
+        else:
+            for tenant in tenants:
+                await wipe_tenant(cluster, conn, tenant, dry_run)
     finally:
         await conn.close()
         if cluster_started_by_us:
