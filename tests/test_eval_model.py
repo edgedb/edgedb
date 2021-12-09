@@ -32,9 +32,11 @@ class TestModelSmokeTests(unittest.TestCase):
 
     DB1 = model.DB1
 
-    def assert_test_query(self, query, expected, *, db=DB1, sort=True):
+    def assert_test_query(
+        self, query, expected, *, db=DB1, sort=True, singleton_cheating=False
+    ):
         qltree = model.parse(query)
-        result = model.go(qltree, db)
+        result = model.go(qltree, db, singleton_cheating)
         if sort:
             result.sort()
             expected.sort()
@@ -526,4 +528,17 @@ class TestModelSmokeTests(unittest.TestCase):
             SELECT count((SELECT _ := User {name} FILTER User.name = 'Alice'));
             """,
             [4],
+        )
+
+    def test_test_singleton_cheat(self):
+        # we have a lot of trouble with this one in the real compiler.
+        self.assert_test_query(
+            r"""
+            SELECT User { name } FILTER .name = 'Alice';
+            """,
+            [
+                {'name': 'Alice'}
+            ],
+            singleton_cheating=True,
+            sort=False,
         )

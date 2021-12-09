@@ -1150,21 +1150,24 @@ def strip_shapes(x: Data) -> Data:
         return x
 
 
-def clean_data(x: Data) -> Data:
+def clean_data(x: Data, cheat: bool, *, is_el: bool=False) -> Data:
     if isinstance(x, Obj):
-        return clean_data(x.shape)
+        return clean_data(x.shape, cheat)
     elif isinstance(x, dict):
-        return {k: clean_data(v) for k, v in x.items()}
+        return {k: clean_data(v, cheat, is_el=True) for k, v in x.items()}
     elif isinstance(x, tuple):
-        return tuple(clean_data(v) for v in x)
+        return tuple(clean_data(v, cheat) for v in x)
     elif isinstance(x, list):
-        return [clean_data(v) for v in x]
+        res = [clean_data(v, cheat) for v in x]
+        if cheat and is_el and len(res) == 1:
+            return res[0]
+        return res
     else:
         return x
 
 
-def go(q: qlast.Expr, db: DB) -> Data:
-    return clean_data(toplevel_query(q, db))
+def go(q: qlast.Expr, db: DB, cheat: bool) -> Data:
+    return clean_data(toplevel_query(q, db), cheat)
 
 
 class EdbJSONEncoder(json.JSONEncoder):
@@ -1174,11 +1177,15 @@ class EdbJSONEncoder(json.JSONEncoder):
         return super().default(x)
 
 
-def run(db: DB, s: str, print_asts: bool, output_mode: str) -> None:
+def run(
+    db: DB,
+    s: str,
+    print_asts: bool, output_mode: str, singleton_cheating: bool,
+) -> None:
     q = parse(s)
     if print_asts:
         debug.dump(q)
-    res = go(q, db)
+    res = go(q, db, singleton_cheating)
     if output_mode == 'pprint':
         pprint.pprint(res)
     elif output_mode == 'json':
@@ -1187,7 +1194,12 @@ def run(db: DB, s: str, print_asts: bool, output_mode: str) -> None:
         debug.dump(res)
 
 
-def repl(db: DB, print_asts: bool=False, output_mode: str='debug') -> None:
+def repl(
+    db: DB,
+    print_asts: bool=False,
+    output_mode: str='debug',
+    singleton_cheating: bool=False,
+) -> None:
     # for now users should just invoke this script with rlwrap since I
     # don't want to fiddle with history or anything
     while True:
@@ -1198,7 +1210,7 @@ def repl(db: DB, print_asts: bool=False, output_mode: str='debug') -> None:
             if not s:
                 return
         try:
-            run(db, s, print_asts, output_mode)
+            run(db, s, print_asts, output_mode, singleton_cheating)
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
@@ -1474,6 +1486,13 @@ parser.add_argument('--pprint', '-p', action='store_true',
 parser.add_argument('--json', '-j', action='store_true',
                     help='Use json.dump instead of debug.dump')
 
+# The toy model currently doesn't understand cardinality inference,
+# but reading shape output where everything is a list is just awful.
+# So as a hacky workaround for now, add a flag to just print size one
+# sets as if they were singletons.
+parser.add_argument('--singleton-cheating', '-s', action='store_true',
+                    help='Print length one shape elements as singletons')
+
 parser.add_argument('commands', metavar='cmd', type=str, nargs='*',
                     help='commands to run')
 
@@ -1487,9 +1506,9 @@ def main() -> None:
 
     if args.commands:
         for arg in args.commands:
-            run(db, arg, args.debug, output_mode)
+            run(db, arg, args.debug, output_mode, args.singleton_cheating)
     else:
-        return repl(db, args.debug, output_mode)
+        return repl(db, args.debug, output_mode, args.singleton_cheating)
 
 
 if __name__ == '__main__':
