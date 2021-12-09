@@ -1223,7 +1223,7 @@ def process_set_as_subquery(
                 stmt.where_clause, cond_expr)
 
     rvars = _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
-    # If the inner set also exposes a pointer path souce, we need to
+    # If the inner set also exposes a pointer path source, we need to
     # also expose a pointer path source. See tests like
     # test_edgeql_select_linkprop_rebind_01
     if pathctx.maybe_get_path_rvar(
