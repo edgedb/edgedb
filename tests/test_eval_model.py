@@ -530,8 +530,7 @@ class TestModelSmokeTests(unittest.TestCase):
             [4],
         )
 
-    def test_test_singleton_cheat(self):
-        # we have a lot of trouble with this one in the real compiler.
+    def test_model_singleton_cheat(self):
         self.assert_test_query(
             r"""
             SELECT User { name } FILTER .name = 'Alice';
@@ -539,6 +538,37 @@ class TestModelSmokeTests(unittest.TestCase):
             [
                 {'name': 'Alice'}
             ],
+            singleton_cheating=True,
+            sort=False,
+        )
+
+    def test_model_computed_01(self):
+        self.assert_test_query(
+            r"""
+            SELECT User { name, deck_cost } ORDER BY .name;
+            """,
+            [
+                {"name": "Alice", "deck_cost": 11},
+                {"name": "Bob", "deck_cost": 9},
+                {"name": "Carol", "deck_cost": 16},
+                {"name": "Dave", "deck_cost": 20},
+            ],
+            singleton_cheating=True,
+            sort=False,
+        )
+
+    def test_model_computed_02(self):
+        self.assert_test_query(
+            r"""
+            SELECT User { deck: {name, @total_cost} ORDER BY .name}
+            FILTER .name = 'Alice';
+            """,
+            [{"deck": [
+                {"name": "Bog monster", "@total_cost": 6},
+                {"name": "Dragon", "@total_cost": 10},
+                {"name": "Giant turtle", "@total_cost": 9},
+                {"name": "Imp", "@total_cost": 2},
+            ]}],
             singleton_cheating=True,
             sort=False,
         )
