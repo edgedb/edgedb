@@ -90,7 +90,13 @@ def bsid(n: int) -> uuid.UUID:
 Data = Any
 Result = List[Data]
 Row = Tuple[Data, ...]
-DB = Dict[uuid.UUID, Dict[str, Data]]
+
+
+class DB(NamedTuple):
+    data: Dict[uuid.UUID, Dict[str, Data]]
+    # We have a bad hacky mechanism for specifying schema computables,
+    # but it's good enough to let us have these things in test queries.
+    schema_computables: Dict[str, Dict[str, qlast.Expr]]
 
 
 class Obj:
@@ -112,9 +118,29 @@ class Obj:
     def __repr__(self) -> str:
         return f'Obj{self.shape!r}'
 
+    def get(self, name: str, db: DB) -> Optional[Data]:
+        if name in self.data:
+            return self.data[name]
+        else:
+            return db.data[self.id].get(name)
 
-def mk_db(data: Iterable[Dict[str, Data]]) -> DB:
-    return {x["id"]: x for x in data}
+    def get_required(self, name: str, db: DB) -> Data:
+        x = self.get(name, db)
+        assert x
+        return x
+
+
+def mk_db(
+    data: Iterable[Dict[str, Data]],
+    schema_computables: Dict[str, Dict[str, str]],
+) -> DB:
+    return DB(
+        {x["id"]: x for x in data},
+        {
+            typ: {ptr: parse_fragment(ql) for ptr, ql in d.items()}
+            for typ, d in schema_computables.items()
+        }
+    )
 
 
 def bslink(n: int, **kwargs: Data) -> Data:
@@ -399,6 +425,15 @@ def ptr_name(ptr: qlast.Ptr) -> str:
     if ptr.type == 'property':
         name = '@' + name
     return name
+
+
+def ensure_qlstmt(expr: qlast.Expr) -> qlast.Statement:
+    if not isinstance(expr, qlast.Statement):
+        expr = qlast.SelectQuery(
+            result=expr,
+            implicit=True,
+        )
+    return expr
 
 
 def eval_filter(
@@ -731,13 +766,65 @@ def eval(node: qlast.Base, ctx: EvalContext) -> Result:
 # Query setup
 
 
-def get_links(obj: Data, key: str) -> Result:
-    out = obj.get(key)
-    if out is None:
-        out = []
-    if not isinstance(out, list):
-        out = [out]
-    return out
+def fix_links(links: Optional[Data]) -> Result:
+    if links is None:
+        links = []
+    if not isinstance(links, list):
+        links = [links]
+    return links
+
+
+def lookup_computed(
+    obj: Obj, name: str, ctx: EvalContext
+) -> Optional[Tuple[qlast.Expr, str, Obj]]:
+    """Lookup a schema-computed property
+
+    Return (code, source type name, source object).
+    """
+    if not (typ := obj.get('__type__', ctx.db)):
+        return None
+
+    typ_computed = ctx.db.schema_computables.get(typ)
+    if name[0] != '@' and typ_computed and name in typ_computed:
+        return typ_computed[name], typ, obj
+
+    elif (
+        name[0] == '@'
+        and (src := obj.get('@source', ctx.db))
+        and (src_ptr := obj.get('@__source_link', ctx.db))
+        and (src_type := src.get('__type__', ctx.db))
+        and (src_computed := ctx.db.schema_computables.get(src_type))
+        and f'{src_ptr}{name}' in src_computed
+    ):
+        return src_computed[f'{src_ptr}{name}'], src_type, src
+    else:
+        return None
+
+
+def eval_computed(
+    obj: Obj, name: str, query: qlast.Expr, typ: str, src: Obj, *,
+    ctx: EvalContext,
+) -> Result:
+    paths = [qlast.Path(steps=[qlast.ObjectRef(name=typ)])]
+
+    if name[0] != '@':
+        input_tuple: Tuple[Data, ...] = (obj,)
+    else:
+        # For linkprops, we want both the source and the target in the
+        # query input.
+        paths.append(qlast.Path(
+            steps=paths[0].steps + [qlast.Ptr(ptr=qlast.ObjectRef(name=name))]
+        ))
+        input_tuple = (src, obj)
+
+    subctx = EvalContext(
+        query_input_list=[simplify_path(p) for p in paths],
+        input_tuple=input_tuple,
+        aliases={},
+        cur_path=paths[-1],
+        db=ctx.db,
+    )
+    return subquery(query, ctx=subctx)
 
 
 def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
@@ -745,11 +832,11 @@ def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
         return [base[int(ptr.ptr)]]
     elif isinstance(base, Obj):
         name = '@' + ptr.ptr if ptr.is_link_property else ptr.ptr
-        if name in base.data:
-            obj = base.data
-        else:
-            obj = ctx.db[base.id]
-        return get_links(obj, name)
+        data = base.get(name, ctx.db)
+        # could be computed
+        if data is None and (computed := lookup_computed(base, name, ctx)):
+            data = eval_computed(base, name, *computed, ctx=ctx)
+        return fix_links(data)
     else:
         return [base[ptr.ptr]]
 
@@ -757,8 +844,8 @@ def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
 def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
     # XXX: This is slow even by the standards of this terribly slow model
     res = []
-    for obj in ctx.db.values():
-        for tgt in get_links(obj, ptr.ptr):
+    for obj in ctx.db.data.values():
+        for tgt in fix_links(obj.get(ptr.ptr)):
             if base == tgt:
                 # Extract any lprops and put them on the backlink
                 data = {k: v for k, v in tgt.data.items() if k[0] == '@'}
@@ -776,7 +863,7 @@ def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
 def eval_intersect(
         base: Data, ptr: ITypeIntersection, ctx: EvalContext) -> Result:
     # TODO: we want actual types but for now we just match directly
-    typ = ctx.db[base.id]["__type__"]
+    typ = ctx.db.data[base.id]["__type__"]
     return [base] if typ == ptr.typ else []
 
 
@@ -786,7 +873,7 @@ def eval_objref(name: str, ctx: EvalContext) -> Result:
         return ctx.aliases[name]
 
     return [
-        Obj(obj["id"]) for obj in ctx.db.values()
+        Obj(obj["id"]) for obj in ctx.db.data.values()
         if obj["__type__"] == name
     ]
 
@@ -1055,6 +1142,11 @@ def parse(querystr: str) -> qlast.Expr:
     return statements[0]
 
 
+def parse_fragment(querystr: str) -> qlast.Expr:
+    source = edgeql.Source.from_string(querystr)
+    return edgeql.parse_fragment(source)
+
+
 def analyze_paths(
     q: qlast.Expr,
     extra_subqs: Iterable[
@@ -1252,6 +1344,8 @@ def load_json_obj(obj: Any) -> Any:
         for v1 in vs:
             if isinstance(v1, dict):
                 lprops = {lk: lv for lk, lv in v1.items() if lk[0] == '@'}
+                lprops['@source'] = Obj(uuid.UUID(obj['id']))
+                lprops['@__source_link'] = k
                 v1 = Obj(uuid.UUID(v1['id']), data=lprops)
             nvs.append(v1)
         nv = nvs if isinstance(v, list) else nvs[0]
@@ -1443,6 +1537,20 @@ CARDS_DB = [
 PersonT = "Person"
 NoteT = "Note"
 FooT = "Foo"
+
+SCHEMA_COMPUTABLES = {
+    'Card': {
+        'owners': '.<deck[IS User]',
+        'elemental_cost': "<str>.cost ++ ' ' ++ .element",
+        'good_awards': "(SELECT .awards FILTER .name != '3rd')",
+    },
+    'User': {
+        'deck_cost': 'sum(.deck.cost)',
+        'deck@total_cost': '@count * .cost',
+        'avatar@tag': '.name ++ (("-" ++ @text) ?? "")',
+    },
+}
+
 DB1 = mk_db([
     # FreeObject
     {"id": bsid(0x01), "__type__": "FreeObject"},
@@ -1476,7 +1584,7 @@ DB1 = mk_db([
      "tgt": [bslink(0x82), bslink(0x83)]},
     {"id": bsid(0x93), "__type__": "Obj", "n": 3,
      "tgt": [bslink(0x83), bslink(0x84)]},
-] + load_json_db(CARDS_DB))
+] + load_json_db(CARDS_DB), SCHEMA_COMPUTABLES)
 
 parser = argparse.ArgumentParser(description='Toy EdgeQL eval model')
 parser.add_argument('--debug', '-d', action='store_true',
