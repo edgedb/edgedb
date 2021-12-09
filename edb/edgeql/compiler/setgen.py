@@ -239,6 +239,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
     path_sets = []
 
     for i, step in enumerate(expr.steps):
+        is_computable = False
+
         if isinstance(step, qlast.SpecialAnchor):
             path_tip = resolve_special_anchor(step, ctx=ctx)
 
@@ -412,7 +414,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 ptrcls = typegen.ptrcls_from_ptrref(
                     path_tip.rptr.ptrref, ctx=ctx)
                 if _is_computable_ptr(ptrcls, ctx=ctx):
-                    computables.append(path_tip)
+                    is_computable = True
 
         elif isinstance(step, qlast.TypeIntersection):
             arg_type = inference.infer_type(path_tip, ctx.env)
@@ -478,21 +480,18 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         # We compile computables under namespaces, but we need to have
         # the source of the computable *not* under that namespace (and
         # potentially with the source's expr/rptr/etc?), so we need to
-        # do some remapping. This is a little fiddly, since we may have
-        # picked up *additional* namespaces.
-        key = path_tip.path_id.strip_namespace(path_tip.path_id.namespace)
-        entries = ctx.view_map.get(key, ())
-        for inner_path_id, mapped in entries:
-            fixed_inner = inner_path_id.merge_namespace(ctx.path_id_namespace)
-            if fixed_inner == path_tip.path_id:
-                path_tip = new_set_from_set(
-                    path_tip,
-                    path_id=mapped.path_id,
-                    preserve_scope_ns=True,
-                    expr=mapped.expr,
-                    rptr=mapped.rptr,
-                    ctx=ctx)
-                break
+        # do some remapping.
+        if mapped := get_view_map_remapping(path_tip.path_id, ctx):
+            path_tip = new_set_from_set(
+                path_tip,
+                path_id=mapped.path_id,
+                preserve_scope_ns=True,
+                expr=mapped.expr,
+                rptr=mapped.rptr,
+                ctx=ctx)
+
+        if is_computable:
+            computables.append(path_tip)
 
         if pathctx.path_is_banned(path_tip.path_id, ctx=ctx):
             dname = stype.get_displayname(ctx.env.schema)
@@ -1401,6 +1400,49 @@ def update_view_map(
     ctx.view_map[key] = ((path_id, remapped_source),) + old
 
 
+def get_view_map_remapping(
+    path_id: irast.PathId, ctx: context.ContextLevel
+) -> Optional[irast.Set]:
+    """Perform path_id remapping based on outer views
+
+    This is a little fiddly, since we may have
+    picked up *additional* namespaces.
+    """
+    key = path_id.strip_namespace(path_id.namespace)
+    entries = ctx.view_map.get(key, ())
+    for inner_path_id, mapped in entries:
+        fixed_inner = inner_path_id.merge_namespace(ctx.path_id_namespace)
+        if fixed_inner == path_id:
+            return mapped
+    return None
+
+
+def remap_path_id(
+    path_id: irast.PathId, ctx: context.ContextLevel
+) -> irast.PathId:
+    """Remap a path_id based on the view_map, one step at a time.
+
+    This is intended to mirror what happens to paths in compile_path.
+    """
+    new_id = None
+    hit = False
+    for prefix in path_id.iter_prefixes():
+        if not new_id:
+            new_id = prefix
+        else:
+            nrptr, dir = prefix.rptr(), prefix.rptr_dir()
+            assert nrptr and dir
+            new_id = new_id.extend(
+                ptrref=nrptr, direction=dir, ns=prefix.namespace)
+
+        if mapped := get_view_map_remapping(new_id, ctx):
+            hit = True
+            new_id = mapped.path_id
+
+    assert new_id and (new_id == path_id or hit)
+    return new_id
+
+
 def _get_computable_ctx(
     *,
     rptr: irast.Pointer,
@@ -1470,6 +1512,14 @@ def _get_computable_ctx(
             inner_path_id = inner_path_id.merge_namespace(subns)
 
             subctx.pending_stmt_full_path_id_namespace = frozenset(subns)
+
+            with subctx.new() as remapctx:
+                remapctx.path_id_namespace |= subns
+                # We need to run the inner_path_id through the same
+                # remapping process that happens in compile_path, or
+                # else the path id won't match, since the prefix will
+                # get remapped first.
+                inner_path_id = remap_path_id(inner_path_id, remapctx)
 
             remapped_source = new_set_from_set(
                 rptr.source, rptr=rptr.source.rptr,

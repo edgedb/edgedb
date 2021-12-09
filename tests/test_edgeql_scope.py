@@ -3380,3 +3380,114 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [{"friends": []}, "n/a"],
             ]
         )
+
+    async def test_edgeql_select_outer_rebind_01(self):
+        await self.assert_query_result(
+            r'''
+            select User {
+              deck := (
+                with
+                  U := (
+                    select User.deck {
+                      el := User.deck.element
+                    }
+                  )
+                select U {
+                  name,
+                  el2 := U.el
+                } order by .name
+              )
+            } filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "deck": [
+                        {"el2": "Water", "name": "Bog monster"},
+                        {"el2": "Fire", "name": "Dragon"},
+                        {"el2": "Water", "name": "Giant turtle"},
+                        {"el2": "Fire", "name": "Imp"}
+                    ]
+                }
+            ]
+        )
+
+    @test.xfail("still breaks with a computed link")
+    async def test_edgeql_select_outer_rebind_02(self):
+        await self.assert_query_result(
+            r'''
+            select Card {
+              owners := (
+                with
+                  U := (
+                    select Card.owners {
+                      n := Card.owners.name
+                    }
+                  )
+                select U {
+                  n
+                } order by .name
+              )
+            } FILTER .name = 'Djinn';
+            ''',
+            [{"name": "Djinn", "owners": [{"n": "Carol"}, {"n": "Dave"}]}]
+        )
+
+    async def test_edgeql_select_outer_rebind_03(self):
+        await self.assert_query_result(
+            r'''
+            select User {
+              deck := (
+                with
+                  U := (
+                    select User.deck {
+                      cnt := User.deck@count
+                    }
+                  )
+                select U {
+                  name,
+                  cnt2 := U.cnt
+                } order by .name
+              )
+            } filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "deck": [
+                        {"cnt2": 3, "name": "Bog monster"},
+                        {"cnt2": 2, "name": "Dragon"},
+                        {"cnt2": 3, "name": "Giant turtle"},
+                        {"cnt2": 2, "name": "Imp"}
+                    ]
+                }
+            ]
+        )
+
+    async def test_edgeql_select_outer_rebind_04(self):
+        await self.assert_query_result(
+            r'''
+            select User {
+              avatar := (
+                with
+                  U := (
+                    select User.avatar {
+                      t := User.avatar@text,
+                      retag := User.avatar@tag,
+                    }
+                  )
+                select U {
+                  name,
+                  t2 := U.t,
+                  retag,
+                }
+              )
+            } order by .name
+            ''',
+            [
+                {"avatar": {
+                    "name": "Dragon", "retag": "Dragon-Best", "t2": "Best"}},
+                {"avatar": None},
+                {"avatar": None},
+                {"avatar": {
+                    "name": "Djinn", "retag": "Djinn-Wow", "t2": "Wow"}}
+            ]
+        )
