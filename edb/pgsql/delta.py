@@ -5357,12 +5357,32 @@ class DropDatabase(MetaCommand, adapts=s_db.DropDatabase):
         return schema
 
 
-class CreateRole(MetaCommand, adapts=s_roles.CreateRole):
+class RoleMixin:
+    def ensure_has_create_role(self, backend_params):
+        if not backend_params.has_create_role:
+            self.pgops.add(
+                dbops.Query(
+                    f'''
+                    SELECT
+                        edgedb.raise(
+                            NULL::uuid,
+                            msg => 'operation is not supported by the backend'
+                        )
+                    INTO _dummy_text
+                    '''
+                )
+            )
+
+
+class CreateRole(MetaCommand, RoleMixin, adapts=s_roles.CreateRole):
     def apply(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        backend_params = self._get_backend_params(context)
+        self.ensure_has_create_role(backend_params)
+
         schema = super().apply(schema, context)
         role = self.scls
 
@@ -5374,7 +5394,6 @@ class CreateRole(MetaCommand, adapts=s_roles.CreateRole):
 
         role_name = str(role.get_name(schema))
 
-        backend_params = self._get_backend_params(context)
         instance_params = backend_params.instance_params
         tenant_id = instance_params.tenant_id
 
@@ -5413,7 +5432,7 @@ class CreateRole(MetaCommand, adapts=s_roles.CreateRole):
         return schema
 
 
-class AlterRole(MetaCommand, adapts=s_roles.AlterRole):
+class AlterRole(MetaCommand, RoleMixin, adapts=s_roles.AlterRole):
     def apply(
         self,
         schema: s_schema.Schema,
@@ -5442,6 +5461,7 @@ class AlterRole(MetaCommand, adapts=s_roles.AlterRole):
         pg_role_name = common.get_role_backend_name(
             role_name, tenant_id=tenant_id)
         if self.has_attribute_value('superuser'):
+            self.ensure_has_create_role(backend_params)
             membership = list(role.get_bases(schema).names(schema))
             membership.append(edbdef.EDGEDB_SUPERGROUP)
             self.pgops.add(
@@ -5464,18 +5484,24 @@ class AlterRole(MetaCommand, adapts=s_roles.AlterRole):
 
             kwargs['superuser'] = superuser_flag
 
-        dbrole = dbops.Role(name=pg_role_name, **kwargs)
+        if backend_params.has_create_role:
+            dbrole = dbops.Role(name=pg_role_name, **kwargs)
+        else:
+            dbrole = dbops.SingleRole(**kwargs)
         self.pgops.add(dbops.AlterRole(dbrole))
 
         return schema
 
 
-class RebaseRole(MetaCommand, adapts=s_roles.RebaseRole):
+class RebaseRole(MetaCommand, RoleMixin, adapts=s_roles.RebaseRole):
     def apply(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        backend_params = self._get_backend_params(context)
+        self.ensure_has_create_role(backend_params)
+
         schema = super().apply(schema, context)
         role = self.scls
 
@@ -5501,12 +5527,15 @@ class RebaseRole(MetaCommand, adapts=s_roles.RebaseRole):
         return schema
 
 
-class DeleteRole(MetaCommand, adapts=s_roles.DeleteRole):
+class DeleteRole(MetaCommand, RoleMixin, adapts=s_roles.DeleteRole):
     def apply(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        backend_params = self._get_backend_params(context)
+        self.ensure_has_create_role(backend_params)
+
         schema = super().apply(schema, context)
         tenant_id = self._get_tenant_id(context)
         self.pgops.add(dbops.DropRole(

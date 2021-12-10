@@ -91,6 +91,15 @@ class BaseCluster:
         )
 
     def get_role_name(self, role_name: str) -> str:
+        if (
+            not self._instance_params.capabilities
+            & pgparams.BackendCapabilities.CREATE_ROLE
+        ):
+            assert (
+                role_name == defines.EDGEDB_SUPERUSER
+            ), f"role_name={role_name} is not allowed"
+            return self.get_connection_params().user
+
         return get_database_backend_name(
             role_name,
             tenant_id=self._instance_params.tenant_id,
