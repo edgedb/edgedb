@@ -513,12 +513,14 @@ cdef class PGConnection:
         self.server = server
 
     def mark_as_system_db(self):
-        assert defines.EDGEDB_SYSTEM_DB in self.dbname
+        if self.server.get_backend_runtime_params().has_create_database:
+            assert defines.EDGEDB_SYSTEM_DB in self.dbname
         self.is_system_db = True
 
     async def listen_for_sysevent(self):
         try:
-            assert defines.EDGEDB_SYSTEM_DB in self.dbname
+            if self.server.get_backend_runtime_params().has_create_database:
+                assert defines.EDGEDB_SYSTEM_DB in self.dbname
             await self.simple_query(
                 b'LISTEN __edgedb_sysevent__;',
                 ignore_data=True
@@ -530,7 +532,8 @@ cdef class PGConnection:
                 raise
 
     async def signal_sysevent(self, event, **kwargs):
-        assert defines.EDGEDB_SYSTEM_DB in self.dbname
+        if self.server.get_backend_runtime_params().has_create_database:
+            assert defines.EDGEDB_SYSTEM_DB in self.dbname
         event = json.dumps({
             'event': event,
             'server_id': self.server._server_id,

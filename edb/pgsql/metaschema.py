@@ -715,7 +715,16 @@ class GetBackendTenantIDFunction(dbops.Function):
 class GetDatabaseBackendNameFunction(dbops.Function):
 
     text = f'''
-        SELECT edgedb.get_backend_tenant_id() || '_' || "db_name"
+    SELECT
+        CASE
+        WHEN
+            (edgedb.get_backend_capabilities()
+             & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+        THEN
+            edgedb.get_backend_tenant_id() || '_' || "db_name"
+        ELSE
+            current_database()::text
+        END
     '''
 
     def __init__(self) -> None:
@@ -732,7 +741,16 @@ class GetDatabaseBackendNameFunction(dbops.Function):
 class GetRoleBackendNameFunction(dbops.Function):
 
     text = f'''
-        SELECT edgedb.get_backend_tenant_id() || '_' || "role_name"
+    SELECT
+        CASE
+        WHEN
+            (edgedb.get_backend_capabilities()
+             & {int(params.BackendCapabilities.CREATE_ROLE)}) != 0
+        THEN
+            edgedb.get_backend_tenant_id() || '_' || "role_name"
+        ELSE
+            current_user::text
+        END
     '''
 
     def __init__(self) -> None:
@@ -881,18 +899,36 @@ class GetSharedObjectMetadata(dbops.Function):
 
 class GetDatabaseMetadataFunction(dbops.Function):
     """Return EdgeDB metadata associated with a given database."""
-    text = '''
+    text = f'''
         SELECT
-            edgedb.shobj_metadata(
-                (SELECT
-                    oid
-                 FROM
-                    pg_database
-                 WHERE
-                    datname = edgedb.get_database_backend_name("dbname")
-                ),
-                'pg_database'
-            )
+            CASE
+            WHEN
+                "dbname" = {ql(defines.EDGEDB_SUPERUSER_DB)}
+                OR (edgedb.get_backend_capabilities()
+                    & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+            THEN
+                edgedb.shobj_metadata(
+                    (SELECT
+                        oid
+                     FROM
+                        pg_database
+                     WHERE
+                        datname = edgedb.get_database_backend_name("dbname")
+                    ),
+                    'pg_database'
+                )
+            ELSE
+                COALESCE(
+                    (SELECT
+                        json
+                     FROM
+                        edgedbinstdata.instdata
+                     WHERE
+                        key = "dbname" || 'metadata'
+                    ),
+                    '{{}}'::jsonb
+                )
+            END
     '''
 
     def __init__(self) -> None:
@@ -909,10 +945,18 @@ class GetCurrentDatabaseFunction(dbops.Function):
 
     text = f'''
         SELECT
-            substr(
-                current_database(),
-                char_length(edgedb.get_backend_tenant_id()) + 2
-            )
+            CASE
+            WHEN
+                (edgedb.get_backend_capabilities()
+                 & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+            THEN
+                substr(
+                    current_database(),
+                    char_length(edgedb.get_backend_tenant_id()) + 2
+                )
+            ELSE
+                {ql(defines.EDGEDB_SUPERUSER_DB)}
+            END
     '''
 
     def __init__(self) -> None:
@@ -3914,12 +3958,18 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
             (SELECT id FROM edgedb."_SchemaObjectType"
                  WHERE name = 'sys::Database')
                 AS {qi(ptr_col_name(schema, Database, '__type__'))},
-            (datname IN (
-                edgedb.get_database_backend_name(
-                    {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                edgedb.get_database_backend_name(
-                    {ql(defines.EDGEDB_SYSTEM_DB)})
-            ))
+            (CASE WHEN
+                (edgedb.get_backend_capabilities()
+                 & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+             THEN
+                datname IN (
+                    edgedb.get_database_backend_name(
+                        {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                    edgedb.get_database_backend_name(
+                        {ql(defines.EDGEDB_SYSTEM_DB)})
+                )
+             ELSE False END
+            )
                 AS {qi(ptr_col_name(schema, Database, 'internal'))},
             (d.description)->>'name'
                 AS {qi(ptr_col_name(schema, Database, 'name'))},

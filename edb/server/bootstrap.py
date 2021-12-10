@@ -18,6 +18,8 @@
 
 
 from __future__ import annotations
+
+import textwrap
 from typing import *
 
 import json
@@ -60,6 +62,7 @@ from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
+from edb.pgsql import params
 from edb.pgsql.common import quote_ident as qi
 from edb.pgsql.common import quote_literal as ql
 
@@ -242,6 +245,17 @@ async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
                 return True
             else:
                 return False
+
+        else:
+            result = await ctx.conn.fetchval('''
+                SELECT
+                    pg_catalog.shobj_description(d.oid, 'pg_database')
+                FROM
+                    pg_catalog.pg_database d
+                WHERE
+                    d.datname = current_database()
+            ''')
+            return not result
 
     if is_default_tenant:
         result = await ctx.conn.fetch('''
@@ -439,6 +453,7 @@ class StdlibBits(NamedTuple):
 async def _make_stdlib(
     ctx: BootstrapContext,
     testmode: bool,
+    global_ids: Mapping[str, uuid.UUID],
 ) -> StdlibBits:
     schema = s_schema.ChainedSchema(
         s_schema.FlatSchema(),
@@ -484,6 +499,14 @@ async def _make_stdlib(
     schema, plan = _process_delta(ctx, schema_version, schema)
     std_plans.append(schema_version)
     plan.generate(current_block)
+
+    stdglobals = '\n'.join([
+        f'''CREATE SUPERUSER ROLE {edbdef.EDGEDB_SUPERUSER} {{
+            SET id := <uuid>'{global_ids[edbdef.EDGEDB_SUPERUSER]}'
+        }};''',
+    ])
+
+    schema = await _execute_edgeql_ddl(schema, stdglobals)
 
     _, global_schema_version = s_std.make_global_schema_version(schema)
     schema, plan = _process_delta(ctx, global_schema_version, schema)
@@ -640,6 +663,7 @@ async def _amend_stdlib(
 async def _init_stdlib(
     ctx: BootstrapContext,
     testmode: bool,
+    global_ids: Mapping[str, uuid.UUID],
 ) -> Tuple[StdlibBits, config.Spec, edbcompiler.Compiler]:
     in_dev_mode = devmode.is_in_dev_mode()
     conn = ctx.conn
@@ -665,7 +689,7 @@ async def _init_stdlib(
 
     if stdlib is None:
         logger.info('Compiling the standard library...')
-        stdlib = await _make_stdlib(ctx, in_dev_mode or testmode)
+        stdlib = await _make_stdlib(ctx, in_dev_mode or testmode, global_ids)
 
     logger.info('Creating the necessary PostgreSQL extensions...')
     await metaschema.create_pg_extensions(conn)
@@ -704,19 +728,34 @@ async def _init_stdlib(
             global_metadata = await conn.fetchval(
                 f'SELECT edgedb.get_database_metadata({ql(tpl_db_name)})',
             )
+            global_metadata = json.loads(global_metadata)
 
             pl_block = dbops.PLTopBlock()
 
-            dbops.SetMetadata(
+            set_metadata_text = dbops.SetMetadata(
                 dbops.Database(name='__dummy_placeholder_database__'),
-                json.loads(global_metadata),
-            ).generate(pl_block)
-
-            text = pl_block.to_string()
-            text = text.replace(
+                global_metadata,
+            ).code(pl_block)
+            set_metadata_text = set_metadata_text.replace(
                 '__dummy_placeholder_database__',
                 f"' || quote_ident({tpl_pg_db_name_dyn}) || '",
             )
+
+            set_single_db_metadata_text = dbops.SetSingleDBMetadata(
+                edbdef.EDGEDB_TEMPLATE_DB, global_metadata
+            ).code(pl_block)
+
+            pl_block.add_command(textwrap.dedent(f"""\
+                IF (edgedb.get_backend_capabilities()
+                    & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+                THEN
+                {textwrap.indent(set_metadata_text, '    ')}
+                ELSE
+                {textwrap.indent(set_single_db_metadata_text, '    ')}
+                END IF
+                """))
+
+            text = pl_block.to_string()
 
             tpldbdump += b'\n' + text.encode('utf-8')
 
@@ -975,10 +1014,18 @@ async def _configure(
 
     config_json = config.to_json(config_spec, settings, include_source=False)
     block = dbops.PLTopBlock()
-    dbops.UpdateMetadata(
-        dbops.Database(name=ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB)),
-        {'sysconfig': json.loads(config_json)},
-    ).generate(block)
+    metadata = {'sysconfig': json.loads(config_json)}
+    if ctx.cluster.get_runtime_params().has_create_database:
+        dbops.UpdateMetadata(
+            dbops.Database(
+                name=ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB)
+            ),
+            metadata,
+        ).generate(block)
+    else:
+        dbops.UpdateSingleDBMetadata(
+            edbdef.EDGEDB_SYSTEM_DB, metadata,
+        ).generate(block)
 
     await _execute_block(ctx.conn, block)
 
@@ -1201,6 +1248,17 @@ async def _populate_misc_instance_data(
             json.dumps(json_single_role_metadata),
         )
 
+    if not backend_params.has_create_database:
+        await _store_static_json_cache(
+            ctx,
+            f'{edbdef.EDGEDB_TEMPLATE_DB}metadata',
+            json.dumps({}),
+        )
+        await _store_static_json_cache(
+            ctx,
+            f'{edbdef.EDGEDB_SYSTEM_DB}metadata',
+            json.dumps({}),
+        )
     return json_instance_data
 
 
@@ -1233,6 +1291,29 @@ async def _create_edgedb_database(
     return objid
 
 
+async def _set_edgedb_database_metadata(
+    ctx: BootstrapContext,
+    database: str,
+    *,
+    objid: Optional[uuid.UUID] = None,
+) -> uuid.UUID:
+    logger.info(f'Configuring database: {database}')
+    block = dbops.SQLBlock()
+    if objid is None:
+        objid = uuidgen.uuid1mc()
+    instance_params = ctx.cluster.get_runtime_params().instance_params
+    db = dbops.Database(ctx.cluster.get_db_name(database))
+    metadata = dict(
+        id=str(objid),
+        tenant_id=instance_params.tenant_id,
+        name=database,
+        builtin=False,
+    )
+    dbops.SetMetadata(db, metadata).generate(block)
+    await _execute_block(ctx.conn, block)
+    return objid
+
+
 def _pg_log_listener(conn, msg):
     if msg.severity_en == 'WARNING':
         level = logging.WARNING
@@ -1253,10 +1334,18 @@ async def _get_instance_data(conn: Any) -> Dict[str, Any]:
 async def _check_catalog_compatibility(
     ctx: BootstrapContext,
 ) -> asyncpg_con.Connection:
-    tenant_id = ctx.cluster.get_runtime_params().instance_params.tenant_id
+    backend_params = ctx.cluster.get_runtime_params()
+    tenant_id = backend_params.tenant_id
     is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
 
-    if is_default_tenant:
+    if not backend_params.has_create_database:
+        sys_db = await ctx.conn.fetchval(f'''
+            SELECT current_database()
+            FROM edgedbinstdata.instdata
+            WHERE key = '{edbdef.EDGEDB_TEMPLATE_DB}metadata'
+            AND json->>'tenant_id' = '{tenant_id}'
+        ''')
+    elif is_default_tenant:
         sys_db = await ctx.conn.fetchval(f'''
             SELECT datname
             FROM pg_database
@@ -1355,7 +1444,7 @@ async def _start(ctx: BootstrapContext) -> None:
         await conn.close()
 
 
-async def _bootstrap_edgedb_super_roles(ctx):
+async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
     cluster = ctx.cluster
 
     await _ensure_edgedb_supergroup(
@@ -1363,7 +1452,7 @@ async def _bootstrap_edgedb_super_roles(ctx):
         edbdef.EDGEDB_SUPERGROUP,
     )
 
-    await _ensure_edgedb_role(
+    superuser_uid = await _ensure_edgedb_role(
         ctx,
         edbdef.EDGEDB_SUPERUSER,
         superuser=True,
@@ -1374,6 +1463,7 @@ async def _bootstrap_edgedb_super_roles(ctx):
 
     await _execute(ctx.conn, f'SET ROLE {qi(superuser)}')
     cluster.set_default_session_authorization(superuser)
+    return superuser_uid
 
 
 async def _bootstrap(ctx: BootstrapContext) -> None:
@@ -1382,7 +1472,9 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
     backend_params = cluster.get_runtime_params()
 
     if backend_params.has_create_role:
-        await _bootstrap_edgedb_super_roles(ctx)
+        superuser_uid = await _bootstrap_edgedb_super_roles(ctx)
+    else:
+        superuser_uid = uuidgen.uuid1mc()
 
     in_dev_mode = devmode.is_in_dev_mode()
     # Protect against multiple EdgeDB tenants from trying to bootstrap
@@ -1392,20 +1484,29 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
         bootstrap_lock = 0xEDB00001
         await ctx.conn.execute('SELECT pg_advisory_lock($1)', bootstrap_lock)
 
-    await _create_edgedb_template_database(ctx)
-
-    tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
-    conn = await cluster.connect(database=tpl_db)
+    if backend_params.has_create_database:
+        new_template_db_id = await _create_edgedb_template_database(ctx)
+        tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
+        conn = await cluster.connect(database=tpl_db)
+    else:
+        new_template_db_id = uuidgen.uuid1mc()
 
     try:
-        tpl_ctx = ctx._replace(conn=conn)
-        conn.add_log_listener(_pg_log_listener)
+        if backend_params.has_create_database:
+            tpl_ctx = ctx._replace(conn=conn)
+            conn.add_log_listener(_pg_log_listener)
+        else:
+            tpl_ctx = ctx
 
         await _populate_misc_instance_data(tpl_ctx)
 
         stdlib, config_spec, compiler = await _init_stdlib(
             tpl_ctx,
             testmode=args.testmode,
+            global_ids={
+                edbdef.EDGEDB_SUPERUSER: superuser_uid,
+                edbdef.EDGEDB_TEMPLATE_DB: new_template_db_id,
+            }
         )
         await _compile_sys_queries(
             tpl_ctx,
@@ -1415,8 +1516,8 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
         )
 
         schema = s_schema.FlatSchema()
-        schema = await _init_defaults(schema, compiler, conn)
-        schema = await _populate_data(schema, compiler, conn)
+        schema = await _init_defaults(schema, compiler, tpl_ctx.conn)
+        schema = await _populate_data(schema, compiler, tpl_ctx.conn)
     finally:
         if in_dev_mode:
             await ctx.conn.execute(
@@ -1424,37 +1525,53 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
                 bootstrap_lock,
             )
 
-        await conn.close()
+        if backend_params.has_create_database:
+            await conn.close()
 
-    await _create_edgedb_database(
-        ctx,
-        edbdef.EDGEDB_SYSTEM_DB,
-        edbdef.EDGEDB_SUPERUSER,
-        builtin=True,
-    )
+    if backend_params.has_create_database:
+        await _create_edgedb_database(
+            ctx,
+            edbdef.EDGEDB_SYSTEM_DB,
+            edbdef.EDGEDB_SUPERUSER,
+            builtin=True,
+        )
 
-    conn = await cluster.connect(
-        database=cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB))
+        conn = await cluster.connect(
+            database=cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB))
 
-    try:
-        conn.add_log_listener(_pg_log_listener)
+        try:
+            conn.add_log_listener(_pg_log_listener)
+            await _configure(
+                ctx._replace(conn=conn),
+                config_spec=config_spec,
+                schema=schema,
+                compiler=compiler,
+            )
+        finally:
+            await conn.close()
+    else:
         await _configure(
-            ctx._replace(conn=conn),
+            ctx,
             config_spec=config_spec,
             schema=schema,
             compiler=compiler,
         )
-    finally:
-        await conn.close()
 
-    await _create_edgedb_database(
-        ctx,
-        edbdef.EDGEDB_SUPERUSER_DB,
-        edbdef.EDGEDB_SUPERUSER,
-    )
+    if backend_params.has_create_database:
+        await _create_edgedb_database(
+            ctx,
+            edbdef.EDGEDB_SUPERUSER_DB,
+            edbdef.EDGEDB_SUPERUSER,
+        )
+    else:
+        await _set_edgedb_database_metadata(
+            ctx,
+            edbdef.EDGEDB_SUPERUSER_DB,
+        )
 
     if (
-        args.default_database_user
+        backend_params.has_create_role
+        and args.default_database_user
         and args.default_database_user != edbdef.EDGEDB_SUPERUSER
     ):
         await _ensure_edgedb_role(
@@ -1467,7 +1584,8 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
         await _execute(ctx.conn, f"SET ROLE {qi(def_role)}")
 
     if (
-        args.default_database
+        backend_params.has_create_database
+        and args.default_database
         and args.default_database != edbdef.EDGEDB_SUPERUSER_DB
     ):
         await _create_edgedb_database(
