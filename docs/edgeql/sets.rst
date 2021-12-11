@@ -38,7 +38,7 @@ list of values inside a set of ``{curly braces}``.
 .. code-block:: edgeql-repl
 
   db> select {"set", "of", "strings"};
-  {"a", "set", "of", "strings"}
+  {"set", "of", "strings"}
   db> select {1, 2, 3};
   {1, 2, 3}
 
@@ -82,7 +82,7 @@ permitted.
 
   db> select {"apple", 3.14};
   error: QueryError: set constructor has arguments of incompatible types
-  'std::str' and 'std::int64'
+  'std::str' and 'std::float64'
 
 .. note::
 
@@ -348,12 +348,12 @@ empty set if the input was also empty).
 
 .. code-block:: edgeql-repl
 
-  db> select count({'aaa', 'bbb', 'ccc'});
+  db> select count({'aaa', 'bbb'});
   {2}
   db> select sum({1, 2, 3});
   {6}
   db> select min({1, 2, 3});
-  {-3}
+  {1}
 
 Element-wise operations are applied on *each element* of a set.
 
