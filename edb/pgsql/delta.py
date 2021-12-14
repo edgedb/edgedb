@@ -5096,10 +5096,12 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 if target_is_affected and current_target is not None:
                     affected_targets.add(current_target)
             else:
-                if source.is_view(schema):
+                if source.is_view(eff_schema):
                     continue
 
-                affected_sources.add(source)
+                current_source = schema.get_by_id(source.id, None)
+                if current_source:
+                    affected_sources.add(current_source)
 
                 if target_is_affected:
                     affected_targets.add(target)

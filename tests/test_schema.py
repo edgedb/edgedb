@@ -6668,6 +6668,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             scalar type foo extending enum<Foo, Bar, Baz>;
         """])
 
+    def test_schema_to_empty_01(self):
+        self._assert_migration_equivalence([r"""
+            type A {
+                property name -> str;
+            }
+            type B {
+                property name -> str;
+            }
+            type C extending A, B {
+            }
+        """])
+
     def test_schema_migrations_union_01(self):
         with self.assertRaisesRegex(
             errors.QueryError,
