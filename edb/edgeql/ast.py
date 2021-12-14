@@ -176,8 +176,12 @@ class BaseAlias(Clause):
     alias: typing.Optional[str]
 
 
-class AliasedExpr(BaseAlias):
+class OptionallyAliasedExpr(BaseAlias):
     expr: Expr
+
+
+class AliasedExpr(OptionallyAliasedExpr):
+    # alias isn't optional
     alias: str
 
 
@@ -522,11 +526,34 @@ class SelectQuery(Query, ReturningMixin, SelectClauseMixin):
     result_alias: typing.Optional[str] = None
 
 
-class GroupQuery(SelectQuery, SubjectMixin):
+class GroupingIdentList(Base):
+    elements: typing.Tuple[GroupingAtom, ...]
+
+
+GroupingAtom = typing.Union[ObjectRef, GroupingIdentList]
+
+
+class GroupingElement(Base):
+    __abstract_node__ = True
+
+
+class GroupingSimple(Base):
+    element: GroupingAtom
+
+
+class GroupingSets(Base):
+    sets: typing.List[GroupingElement]
+
+
+class GroupingOperation(Base):
+    oper: str
+    elements: typing.List[GroupingAtom]
+
+
+class GroupQuery(Query, SubjectMixin):
     subject_alias: typing.Optional[str] = None
-    using: typing.List[AliasedExpr]
-    by: typing.List[Expr]
-    into: str
+    by: typing.List[OptionallyAliasedExpr]
+    using: typing.Optional[typing.List[GroupingElement]]
 
 
 class InsertQuery(Query, SubjectMixin):

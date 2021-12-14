@@ -99,14 +99,47 @@ AliasedExprSpec = collections.namedtuple(
     'AliasedExprSpec', ['alias', 'expr'], module=__name__)
 
 
-# ByExpr will eventually be expanded to include more than just
+# UsingExpr will eventually be expanded to include more than just
 # Identifiers as its members (such as CUBE, ROLLUP and grouping sets).
-class ByExpr(Nonterm):
+class GroupingIdent(Nonterm):
     def reduce_Identifier(self, *kids):
-        self.val = qlast.Path(steps=[qlast.ObjectRef(name=kids[0].val)])
+        self.val = qlast.ObjectRef(name=kids[0].val)
 
 
-class ByExprList(ListNonterm, element=ByExpr, separator=tokens.T_COMMA):
+class GroupingIdentList(ListNonterm, element=GroupingIdent,
+                        separator=tokens.T_COMMA):
+    pass
+
+
+class GroupingAtom(Nonterm):
+    def reduce_GroupingIdent(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_LPAREN_GroupingIdentList_RPAREN(self, *kids):
+        self.val = qlast.GroupingIdentList(elements=kids[1].val)
+
+
+class GroupingAtomList(ListNonterm, element=GroupingAtom,
+                       separator=tokens.T_COMMA):
+    pass
+
+
+class GroupingElement(Nonterm):
+    def reduce_GroupingIdent(self, *kids):
+        self.val = qlast.GroupingSimple(element=kids[0].val)
+
+    def reduce_LBRACE_GroupingElementList_RBRACE(self, *kids):
+        self.val = qlast.GroupingSets(sets=kids[1].val)
+
+    def reduce_ROLLUP_LPAREN_GroupingAtomList_RPAREN(self, *kids):
+        self.val = qlast.GroupingOperation(oper='rollup', elements=kids[2].val)
+
+    def reduce_CUBE_LPAREN_GroupingAtomList_RPAREN(self, *kids):
+        self.val = qlast.GroupingOperation(oper='cube', elements=kids[2].val)
+
+
+class GroupingElementList(
+        ListNonterm, element=GroupingElement, separator=tokens.T_COMMA):
     pass
 
 
@@ -151,26 +184,52 @@ class SimpleSelect(Nonterm):
             )
 
 
+class UsingClause(Nonterm):
+    def reduce_USING_GroupingElementList(self, *kids):
+        self.val = kids[1].val
+
+
+class OptUsingClause(Nonterm):
+    def reduce_UsingClause(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
+class ByClause(Nonterm):
+    def reduce_AliasedExpr(self, *kids):
+        val = kids[0].val
+        self.val = qlast.OptionallyAliasedExpr(alias=val.alias, expr=val.expr)
+
+    def reduce_DOT_PathStepName(self, *kids):
+        from edb.schema import pointers as s_pointers
+
+        val = qlast.Path(
+            partial=True,
+            steps=[qlast.Ptr(
+                ptr=kids[1].val,
+                direction=s_pointers.PointerDirection.Outbound
+            )]
+        )
+        self.val = qlast.OptionallyAliasedExpr(alias=None, expr=val)
+
+
+class ByClauseList(ListNonterm, element=ByClause,
+                   separator=tokens.T_COMMA):
+    pass
+
+
 class SimpleGroup(Nonterm):
     def reduce_Group(self, *kids):
         r"%reduce GROUP OptionallyAliasedExpr \
-                  USING AliasedExprList \
-                  BY ByExprList \
-                  INTO Identifier \
-                  UNION OptionallyAliasedExpr \
-                  OptFilterClause OptSortClause OptSelectLimit"
+                  BY ByClauseList \
+                  OptUsingClause"
         self.val = qlast.GroupQuery(
             subject=kids[1].val.expr,
             subject_alias=kids[1].val.alias,
-            using=kids[3].val,
-            by=kids[5].val,
-            into=kids[7].val,
-            result=kids[9].val.expr,
-            result_alias=kids[9].val.alias,
-            where=kids[10].val,
-            orderby=kids[11].val,
-            offset=kids[12].val[0],
-            limit=kids[12].val[1],
+            by=kids[3].val,
+            using=kids[4].val,
         )
 
 
