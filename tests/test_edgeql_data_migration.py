@@ -10312,6 +10312,20 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_migration_inheritance_to_empty_01(self):
+        await self.migrate(r'''
+            type A {
+                property name -> str;
+            }
+            type B {
+                property name -> str;
+            }
+            type C extending A, B {
+            }
+        ''')
+
+        await self.migrate('')
+
 
 class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
