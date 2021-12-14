@@ -541,10 +541,6 @@ class GroupingSimple(Base):
     element: GroupingAtom
 
 
-class GroupingSets(Base):
-    sets: typing.List[GroupingElement]
-
-
 class GroupingOperation(Base):
     oper: str
     elements: typing.List[GroupingAtom]
@@ -553,7 +549,7 @@ class GroupingOperation(Base):
 class GroupQuery(Query, SubjectMixin):
     subject_alias: typing.Optional[str] = None
     by: typing.List[OptionallyAliasedExpr]
-    using: typing.Optional[typing.List[GroupingElement]]
+    groupings: typing.Optional[typing.List[GroupingElement]]
 
 
 class InsertQuery(Query, SubjectMixin):

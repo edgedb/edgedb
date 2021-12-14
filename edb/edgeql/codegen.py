@@ -342,14 +342,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_GroupingSimple(self, node: qlast.GroupingSimple) -> None:
         self.visit(node.element)
 
-    def visit_GroupingSets(self, node: qlast.GroupingSets) -> None:
-        self.write('{')
-        self.visit_list(node.sets, newlines=False)
-        self.write('}')
-
     def visit_GroupingOperation(self, node: qlast.GroupingOperation) -> None:
         self._write_keywords(node.oper)
-        self.write(' (')
+        self.write('(')
         self.visit_list(node.elements, newlines=False)
         self.write(')')
 
@@ -372,10 +367,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._block_ws(1)
         self.visit_list(node.by)
         self._block_ws(-1)
-        if node.using is not None:
-            self._write_keywords('USING')
+        if node.groupings is not None:
+            self._write_keywords('GROUPINGS')
             self._block_ws(1)
-            self.visit_list(node.using, newlines=False)
+            self.visit_list(node.groupings, newlines=False)
             self._block_ws(-1)
 
     def visit_ModuleAliasDecl(self, node: qlast.ModuleAliasDecl) -> None:

@@ -28,6 +28,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "final",
     "first",
     "from",
+    "groupings",
     "function",
     "implicit",
     "index",
