@@ -12276,6 +12276,21 @@ type default::Foo {
             };
         """)
 
+    async def test_edgeql_ddl_drop_parent_multi_link(self):
+        await self.con.execute(r"""
+            CREATE TYPE C;
+            CREATE TYPE D {
+                CREATE MULTI LINK multi_link -> C;
+            };
+            CREATE TYPE E EXTENDING D
+        """)
+
+        await self.con.execute(r"""
+            ALTER TYPE D {
+                DROP LINK multi_link;
+            };
+        """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
