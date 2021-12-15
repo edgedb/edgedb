@@ -623,9 +623,9 @@ def get_group_keys(node: qlast.GroupQuery) -> Tuple[str, ...]:
 
 
 def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[str, ...]]:
-    if node.groupings:
+    if node.using:
         toplevel_gsets = []
-        for col in node.groupings:
+        for col in node.using:
             gsets = simplify_grouping_sets(col)
             simp_gsets = [flatten_grouping_atom(x) for x in gsets]
             toplevel_gsets.extend(simp_gsets)

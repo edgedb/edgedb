@@ -367,10 +367,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._block_ws(1)
         self.visit_list(node.by)
         self._block_ws(-1)
-        if node.groupings is not None:
-            self._write_keywords('GROUPINGS')
+        if node.using is not None:
+            self._write_keywords('USING')
             self._block_ws(1)
-            self.visit_list(node.groupings, newlines=False)
+            self.visit_list(node.using, newlines=False)
             self._block_ws(-1)
 
     def visit_ModuleAliasDecl(self, node: qlast.ModuleAliasDecl) -> None:
