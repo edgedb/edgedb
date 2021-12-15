@@ -154,10 +154,12 @@ def _sd_notify(message):
         notify_socket = '\0' + notify_socket[1:]
 
     sd_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-    sd_sock.connect(notify_socket)
 
     try:
+        sd_sock.connect(notify_socket)
         sd_sock.sendall(message.encode())
+    except Exception as e:
+        logger.info('Could not send systemd notification: %s', e)
     finally:
         sd_sock.close()
 
