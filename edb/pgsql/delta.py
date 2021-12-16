@@ -2576,7 +2576,7 @@ class CompositeMetaCommand(MetaCommand):
         exclude_children: FrozenSet[s_sources.Source] = frozenset(),
     ) -> None:
         for base in obj.get_ancestors(schema).objects(schema):
-            if has_table(base, schema):
+            if has_table(base, schema) and not context.is_deleting(base):
                 self.alter_inhview(
                     schema,
                     context,
