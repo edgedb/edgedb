@@ -16,6 +16,9 @@
 # limitations under the License.
 #
 
+# ALL OF THESE TESTS USE OUT OF DATE SYNTAX.
+# They are left in as a starting point for new tests.
+
 
 import os.path
 

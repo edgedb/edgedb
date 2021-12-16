@@ -536,11 +536,8 @@ def eval_aliases(node: qlast.Statement, ctx: EvalContext) -> EvalContext:
 
 
 @_eval.register
-def eval_Select(
-    node: qlast.SelectQuery, ctx: EvalContext, aliases: bool=True
-) -> Result:
-    if aliases:
-        ctx = eval_aliases(node, ctx)
+def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> Result:
+    ctx = eval_aliases(node, ctx)
 
     # XXX: I believe this is right, but:
     # WHERE and ORDER BY are treated as subqueries of the result query,
@@ -573,6 +570,7 @@ def eval_Select(
     return [row[-1] for row in out]
 
 
+# From the itertools docs
 def powerset(iterable: Iterable[T]) -> Iterable[Tuple[T, ...]]:
     "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
     s = list(iterable)
@@ -604,10 +602,6 @@ def simplify_grouping_sets(
 ByElement = Union[IORef, IPtr]
 
 
-def _get_key_name(by: ByElement) -> str:
-    return by.name
-
-
 def get_by_element(atom: Union[qlast.ObjectRef, qlast.Path]) -> ByElement:
     if isinstance(atom, qlast.ObjectRef):
         return IORef(atom.name)
@@ -624,10 +618,6 @@ def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[ByElement, ...]:
             x for g in atom.elements
             for x in flatten_grouping_atom(g)
         )
-
-
-# def get_group_keys(node: qlast.GroupQuery) -> Tuple[str, ...]:
-#     return tuple(_get_by_alias_name(by) for by in node.by)
 
 
 def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[ByElement, ...]]:
@@ -659,7 +649,7 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
     all_keys = tuple(dedup([x for g in grouping_sets for x in g]))
 
     # For every subject value, evaluate all of the expressions in the
-    # BY clause and record them.
+    # USING clause and all the path prefixes used in BY and record them.
     vals_and_keys = []
     for val in subject_vals:
         subctx = replace(ctx, query_input_list=new_qil,
@@ -668,11 +658,13 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
                          aliases=ctx.aliases.copy())
 
         keys: Dict[ByElement, Data] = {}
+        # Collect all the USING bindings
         for using in (node.using or ()):
             using_val = eval(using.expr, ctx=subctx)
             assert len(using_val) <= 1
             subctx.aliases[using.alias] = using_val
             keys[IORef(using.alias)] = using_val
+        # And collect all the partial path references
         for key_el in all_keys:
             if isinstance(key_el, IPtr):
                 key_val = eval_ptr(val, key_el, ctx=subctx)
@@ -711,8 +703,8 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
     # Now we can produce our output.
     out = []
     for (grouping, _), (bindings, elements) in groups.items():
-        nbindings = {k.name: v for k, v in bindings.items()}
-        key_obj = Obj(FREE_ID, nbindings, nbindings)
+        key_dict = {k.name: v for k, v in bindings.items()}
+        key_obj = Obj(FREE_ID, key_dict, key_dict)
         group_dict = {
             'key': [key_obj],
             'elements': elements,
@@ -1175,7 +1167,7 @@ class PathFinder(NodeVisitor):
 
             with self.update_path(query, subject=True):
                 # deal with shadowing?
-                self.visit(query.by)
+                self.visit(query.using)
 
     def visit_Shape(self, shape: qlast.Shape) -> None:
         self.visit(shape.expr)
