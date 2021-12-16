@@ -760,7 +760,11 @@ class Compiler:
             and ctx.log_ddl_as_migrations
             and not isinstance(
                 stmt,
-                (qlast.CreateMigration, qlast.GlobalObjectCommand),
+                (
+                    qlast.CreateMigration,
+                    qlast.GlobalObjectCommand,
+                    qlast.DropMigration,
+                ),
             )
         ):
             cm = qlast.CreateMigration(
@@ -1285,6 +1289,11 @@ class Compiler:
 
             current_tx.update_migration_state(None)
             query = self._compile_ql_transaction(ctx, tx_cmd)
+
+        elif isinstance(ql, qlast.DropMigration):
+            self._assert_not_in_migration_block(ctx, ql)
+
+            query = self._compile_and_apply_ddl_stmt(ctx, ql)
 
         else:
             raise AssertionError(f'unexpected migration command: {ql}')
