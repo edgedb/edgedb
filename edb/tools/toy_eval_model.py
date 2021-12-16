@@ -593,6 +593,8 @@ def simplify_grouping_sets(
         gset: qlast.GroupingElement) -> List[qlast.GroupingAtom]:
     if isinstance(gset, qlast.GroupingSimple):
         return [gset.element]
+    elif isinstance(gset, qlast.GroupingSets):
+        return [x for s in gset.sets for x in simplify_grouping_sets(s)]
     elif isinstance(gset, qlast.GroupingOperation):
         if gset.oper == 'cube':
             return [
@@ -623,14 +625,17 @@ def get_group_keys(node: qlast.GroupQuery) -> Tuple[str, ...]:
 
 
 def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[str, ...]]:
-    if node.groupings:
+    if node.using:
         toplevel_gsets = []
-        for col in node.groupings:
+        for col in node.using:
             gsets = simplify_grouping_sets(col)
             simp_gsets = [flatten_grouping_atom(x) for x in gsets]
-            toplevel_gsets.extend(simp_gsets)
+            toplevel_gsets.append(simp_gsets)
 
-        return toplevel_gsets
+        return [
+            tuple(x for y in g for x in y)
+            for g in itertools.product(*toplevel_gsets)
+        ]
 
     else:
         return [get_group_keys(node)]

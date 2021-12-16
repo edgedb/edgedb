@@ -99,6 +99,8 @@ AliasedExprSpec = collections.namedtuple(
     'AliasedExprSpec', ['alias', 'expr'], module=__name__)
 
 
+# UsingExpr will eventually be expanded to include more than just
+# Identifiers as its members (such as CUBE, ROLLUP and grouping sets).
 class GroupingIdent(Nonterm):
     def reduce_Identifier(self, *kids):
         self.val = qlast.ObjectRef(name=kids[0].val)
@@ -123,9 +125,11 @@ class GroupingAtomList(ListNonterm, element=GroupingAtom,
 
 
 class GroupingElement(Nonterm):
-    def reduce_LPAREN_GroupingIdentList_RPAREN(self, *kids):
-        self.val = qlast.GroupingSimple(element=qlast.GroupingIdentList(
-            elements=kids[1].val))
+    def reduce_GroupingIdent(self, *kids):
+        self.val = qlast.GroupingSimple(element=kids[0].val)
+
+    def reduce_LBRACE_GroupingElementList_RBRACE(self, *kids):
+        self.val = qlast.GroupingSets(sets=kids[1].val)
 
     def reduce_ROLLUP_LPAREN_GroupingAtomList_RPAREN(self, *kids):
         self.val = qlast.GroupingOperation(oper='rollup', elements=kids[2].val)
@@ -180,13 +184,13 @@ class SimpleSelect(Nonterm):
             )
 
 
-class GroupingsClause(Nonterm):
-    def reduce_GROUPINGS_GroupingElementList(self, *kids):
+class UsingClause(Nonterm):
+    def reduce_USING_GroupingElementList(self, *kids):
         self.val = kids[1].val
 
 
-class OptGroupingsClause(Nonterm):
-    def reduce_GroupingsClause(self, *kids):
+class OptUsingClause(Nonterm):
+    def reduce_UsingClause(self, *kids):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
@@ -220,12 +224,12 @@ class SimpleGroup(Nonterm):
     def reduce_Group(self, *kids):
         r"%reduce GROUP OptionallyAliasedExpr \
                   BY ByClauseList \
-                  OptGroupingsClause"
+                  OptUsingClause"
         self.val = qlast.GroupQuery(
             subject=kids[1].val.expr,
             subject_alias=kids[1].val.alias,
             by=kids[3].val,
-            groupings=kids[4].val,
+            using=kids[4].val,
         )
 
 

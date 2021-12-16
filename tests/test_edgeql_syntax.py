@@ -2636,14 +2636,14 @@ aa';
             _1 := User
         GROUP _2 := _1
         BY _ :=  _2.name
-        GROUPINGS (_);
+        USING _;
         """
 
     def test_edgeql_syntax_group_03(self):
         """
         GROUP User := User
         BY G :=  User.name
-        GROUPINGS (G);
+        USING G;
         """
 
     def test_edgeql_syntax_group_04(self):
@@ -2694,7 +2694,7 @@ aa';
             .age,
             .rank,
             .status
-        GROUPINGS (letter), (age), ROLLUP(rank, status);
+        USING letter, {age, ROLLUP (rank, status)};
         """
 
     def test_edgeql_syntax_group_09(self):
@@ -2706,7 +2706,7 @@ aa';
             .age,
             .rank,
             .status
-        GROUPINGS CUBE(letter, age, rank, staus);
+        USING CUBE (letter, age, rank, staus);
         """
 
     def test_edgeql_syntax_set_01(self):
