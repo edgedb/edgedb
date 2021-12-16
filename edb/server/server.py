@@ -277,11 +277,11 @@ class Server(ha_base.ClusterProtocol):
 
     def on_binary_client_connected(self, conn):
         self._binary_conns[conn] = True
+        metrics.current_client_connections.inc()
 
     def on_binary_client_authed(self, conn):
         self._report_connections(event='opened')
         metrics.total_client_connections.inc()
-        metrics.current_client_connections.inc()
 
     def on_binary_client_after_idling(self, conn):
         try:
