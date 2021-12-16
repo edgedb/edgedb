@@ -63,18 +63,18 @@
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v2-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
         restore-keys: |
-          edb-rust-v2-
+          edb-rust-v3-
 
     - name: Handle cached Cython extensions
       uses: actions/cache@v2
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
         restore-keys: |
-          edb-ext-v3-
+          edb-ext-v4-
 
     - name: Handle cached PostgreSQL build
       uses: actions/cache@v2
@@ -154,11 +154,12 @@
         if [[ "$CACHE_HIT" != "true" ]]; then
           rm -rf ${BUILD_LIB}
           mkdir -p build/rust_extensions
-          rsync -aP ./build/rust_extensions/ ${BUILD_LIB}/
+          rsync -av ./build/rust_extensions/ ${BUILD_LIB}/
           python setup.py -v build_rust
-          rsync -aP ${BUILD_LIB}/ build/rust_extensions/
+          rsync -av ${BUILD_LIB}/ build/rust_extensions/
+          rm -rf ${BUILD_LIB}
         fi
-        rsync -aP ./build/rust_extensions/edb/ ./edb/
+        rsync -av ./build/rust_extensions/edb/ ./edb/
 
     # Build extensions
 
@@ -179,11 +180,12 @@
         if [[ "$CACHE_HIT" != "true" ]]; then
           rm -rf ${BUILD_LIB}
           mkdir -p ./build/extensions
-          rsync -aP ./build/extensions/ ${BUILD_LIB}/
-          python setup.py -v build_ext
-          rsync -aP ${BUILD_LIB}/ ./build/extensions/
+          rsync -av ./build/extensions/ ${BUILD_LIB}/
+          BUILD_EXT_MODE=py-only python setup.py -v build_ext
+          rsync -av ${BUILD_LIB}/ ./build/extensions/
+          rm -rf ${BUILD_LIB}
         fi
-        rsync -aP ./build/extensions/edb/ ./edb/
+        rsync -av ./build/extensions/edb/ ./edb/
 
     # Build parsers
 
@@ -203,7 +205,7 @@
         if [[ "$CACHE_HIT" != "true" ]]; then
           python setup.py -v build_parsers --inplace
         fi
-        rsync -aP ./build/lib/edb/ ./edb/
+        rsync -av ./build/lib/edb/ ./edb/
 
     # Build PostgreSQL
 
@@ -251,12 +253,12 @@
         BUILD_EXT_MODE: skip
       run: |
         if [[ "$CACHE_HIT" == "true" ]]; then
-          rsync -aP $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+          rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
         else
           # --no-use-pep517 because we have explicitly installed all deps
           # and don't want them to be reinstalled in an "isolated env".
           pip install --no-use-pep517 --no-deps -e .[test,docs]
-          rsync -aP ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
+          rsync -av ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
         fi
 
     # Refresh the bootstrap cache
@@ -327,14 +329,14 @@
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v2-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v2
       id: ext-cache
       with:
         path: build/extensions
-        key: edb-ext-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
 
     - name: Restore compiled parsers cache
       uses: actions/cache@v2
@@ -381,11 +383,11 @@
     - name: Restore cache into the source tree
       run: |
         cp -v build/cli/bin/edgedb edb/cli/edgedb
-        rsync -aP ./build/rust_extensions/edb/ ./edb/
-        rsync -aP ./build/extensions/edb/ ./edb/
-        rsync -aP ./build/lib/edb/ ./edb/
+        rsync -av ./build/rust_extensions/edb/ ./edb/
+        rsync -av ./build/extensions/edb/ ./edb/
+        rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
-        rsync -aP $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+        rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
 <%- endmacro %>
 
 <% macro setup_terraform() -%>
