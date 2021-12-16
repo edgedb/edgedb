@@ -99,11 +99,15 @@ AliasedExprSpec = collections.namedtuple(
     'AliasedExprSpec', ['alias', 'expr'], module=__name__)
 
 
-# UsingExpr will eventually be expanded to include more than just
-# Identifiers as its members (such as CUBE, ROLLUP and grouping sets).
 class GroupingIdent(Nonterm):
     def reduce_Identifier(self, *kids):
         self.val = qlast.ObjectRef(name=kids[0].val)
+
+    def reduce_DOT_Identifier(self, *kids):
+        self.val = qlast.Path(
+            partial=True,
+            steps=[qlast.Ptr(ptr=qlast.ObjectRef(name=kids[1].val))],
+        )
 
 
 class GroupingIdentList(ListNonterm, element=GroupingIdent,
@@ -184,52 +188,32 @@ class SimpleSelect(Nonterm):
             )
 
 
-class UsingClause(Nonterm):
-    def reduce_USING_GroupingElementList(self, *kids):
+class ByClause(Nonterm):
+    def reduce_BY_GroupingElementList(self, *kids):
         self.val = kids[1].val
 
 
 class OptUsingClause(Nonterm):
-    def reduce_UsingClause(self, *kids):
-        self.val = kids[0].val
+    def reduce_USING_AliasedExprList(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_USING_AliasedExprList_COMMA(self, *kids):
+        self.val = kids[1].val
 
     def reduce_empty(self, *kids):
         self.val = None
 
 
-class ByClause(Nonterm):
-    def reduce_AliasedExpr(self, *kids):
-        val = kids[0].val
-        self.val = qlast.OptionallyAliasedExpr(alias=val.alias, expr=val.expr)
-
-    def reduce_DOT_PathStepName(self, *kids):
-        from edb.schema import pointers as s_pointers
-
-        val = qlast.Path(
-            partial=True,
-            steps=[qlast.Ptr(
-                ptr=kids[1].val,
-                direction=s_pointers.PointerDirection.Outbound
-            )]
-        )
-        self.val = qlast.OptionallyAliasedExpr(alias=None, expr=val)
-
-
-class ByClauseList(ListNonterm, element=ByClause,
-                   separator=tokens.T_COMMA):
-    pass
-
-
 class SimpleGroup(Nonterm):
     def reduce_Group(self, *kids):
         r"%reduce GROUP OptionallyAliasedExpr \
-                  BY ByClauseList \
-                  OptUsingClause"
+                  OptUsingClause \
+                  ByClause"
         self.val = qlast.GroupQuery(
             subject=kids[1].val.expr,
             subject_alias=kids[1].val.alias,
+            using=kids[2].val,
             by=kids[3].val,
-            using=kids[4].val,
         )
 
 

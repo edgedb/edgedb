@@ -199,8 +199,8 @@ class ITypeIntersection(NamedTuple):
 
 class IPtr(NamedTuple):
     name: str
-    direction: Optional[str]
-    is_link_property: bool
+    direction: Optional[str] = None
+    is_link_property: bool = False
 
 
 IPathElement = Union[IPartial, IExpr, IORef, ITypeIntersection, IPtr]
@@ -573,15 +573,6 @@ def eval_Select(
     return [row[-1] for row in out]
 
 
-def _get_by_alias_name(by: qlast.OptionallyAliasedExpr) -> str:
-    if by.alias is None:
-        assert isinstance(by.expr, qlast.Path)
-        assert isinstance(by.expr.steps[0], qlast.Ptr)
-        return by.expr.steps[0].ptr.name
-    else:
-        return by.alias
-
-
 def powerset(iterable: Iterable[T]) -> Iterable[Tuple[T, ...]]:
     "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
     s = list(iterable)
@@ -610,9 +601,24 @@ def simplify_grouping_sets(
     raise ValueError
 
 
-def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[str, ...]:
+ByElement = Union[IORef, IPtr]
+
+
+def _get_key_name(by: ByElement) -> str:
+    return by.name
+
+
+def get_by_element(atom: Union[qlast.ObjectRef, qlast.Path]) -> ByElement:
     if isinstance(atom, qlast.ObjectRef):
-        return (atom.name,)
+        return IORef(atom.name)
+    else:
+        assert isinstance(atom.steps[0], qlast.Ptr)
+        return IPtr(atom.steps[0].ptr.name)
+
+
+def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[ByElement, ...]:
+    if isinstance(atom, (qlast.ObjectRef, qlast.Path)):
+        return (get_by_element(atom),)
     else:
         return tuple(
             x for g in atom.elements
@@ -620,25 +626,21 @@ def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[str, ...]:
         )
 
 
-def get_group_keys(node: qlast.GroupQuery) -> Tuple[str, ...]:
-    return tuple(_get_by_alias_name(by) for by in node.by)
+# def get_group_keys(node: qlast.GroupQuery) -> Tuple[str, ...]:
+#     return tuple(_get_by_alias_name(by) for by in node.by)
 
 
-def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[str, ...]]:
-    if node.using:
-        toplevel_gsets = []
-        for col in node.using:
-            gsets = simplify_grouping_sets(col)
-            simp_gsets = [flatten_grouping_atom(x) for x in gsets]
-            toplevel_gsets.append(simp_gsets)
+def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[ByElement, ...]]:
+    toplevel_gsets = []
+    for col in node.by:
+        gsets = simplify_grouping_sets(col)
+        simp_gsets = [flatten_grouping_atom(x) for x in gsets]
+        toplevel_gsets.append(simp_gsets)
 
-        return [
-            tuple(x for y in g for x in y)
-            for g in itertools.product(*toplevel_gsets)
-        ]
-
-    else:
-        return [get_group_keys(node)]
+    return [
+        tuple(x for y in g for x in y)
+        for g in itertools.product(*toplevel_gsets)
+    ]
 
 
 @_eval.register
@@ -654,7 +656,7 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
 
     # Collect all the grouping sets from the node
     grouping_sets = get_grouping_sets(node)
-    all_keys = get_group_keys(node)
+    all_keys = tuple(dedup([x for g in grouping_sets for x in g]))
 
     # For every subject value, evaluate all of the expressions in the
     # BY clause and record them.
@@ -665,35 +667,39 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
                          input_tuple=ctx.input_tuple + (val,),
                          aliases=ctx.aliases.copy())
 
-        keys = {}
-        for by in node.by:
-            by_val = eval(by.expr, ctx=subctx)
-            assert len(by_val) <= 1
-            keys[_get_by_alias_name(by)] = by_val
-            # Q: Only put the alias into the subctx if it is really aliased
-            if by.alias:
-                subctx.aliases[by.alias] = by_val
+        keys: Dict[ByElement, Data] = {}
+        for using in (node.using or ()):
+            using_val = eval(using.expr, ctx=subctx)
+            assert len(using_val) <= 1
+            subctx.aliases[using.alias] = using_val
+            keys[IORef(using.alias)] = using_val
+        for key_el in all_keys:
+            if isinstance(key_el, IPtr):
+                key_val = eval_ptr(val, key_el, ctx=subctx)
+                assert len(key_val) <= 1
+                keys[key_el] = key_val
 
         vals_and_keys.append((val, keys))
 
     # With the keys computed, run through every grouping set and
     # produce our groups.
     groups: Dict[
-        Tuple[Tuple[str, ...], Tuple[Data, ...]],
-        Tuple[Dict[str, Data], List[Data]]
+        Tuple[Tuple[ByElement, ...], Tuple[Data, ...]],
+        Tuple[Dict[ByElement, Data], List[Data]]
     ] = {}
     # Rebuild the set tuple from all_keys to both deduplicate
     # and ensure a canonical order.
-    grouping_sets = {
+    grouping_sets = dedup([
         tuple(k for k in all_keys if k in grouping_set)
         for grouping_set in grouping_sets
-    }
+    ])
     for grouping_set in grouping_sets:
         for val, keys in vals_and_keys:
             # Prune the keys down to just this grouping set
             keys = {k: v if k in grouping_set else [] for k, v in keys.items()}
             key = tuple(
-                None if not keys[k] else keys[k][0] for k in grouping_set)
+                None if not keys[k] else keys[k][0]
+                for k in grouping_set)
             groups.setdefault(
                 (grouping_set, key), (keys, []))[1].append(val)
 
@@ -705,11 +711,12 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
     # Now we can produce our output.
     out = []
     for (grouping, _), (bindings, elements) in groups.items():
-        key_obj = Obj(FREE_ID, bindings, bindings)
+        nbindings = {k.name: v for k, v in bindings.items()}
+        key_obj = Obj(FREE_ID, nbindings, nbindings)
         group_dict = {
             'key': [key_obj],
             'elements': elements,
-            'grouping': [list(grouping)],
+            'grouping': [[g.name for g in grouping]],
         }
         group_obj = Obj(FREE_ID, group_dict, group_dict)
         out.append(group_obj)

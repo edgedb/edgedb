@@ -530,7 +530,7 @@ class GroupingIdentList(Base):
     elements: typing.Tuple[GroupingAtom, ...]
 
 
-GroupingAtom = typing.Union[ObjectRef, GroupingIdentList]
+GroupingAtom = typing.Union[ObjectRef, Path, GroupingIdentList]
 
 
 class GroupingElement(Base):
@@ -552,8 +552,8 @@ class GroupingOperation(Base):
 
 class GroupQuery(Query, SubjectMixin):
     subject_alias: typing.Optional[str] = None
-    by: typing.List[OptionallyAliasedExpr]
-    using: typing.Optional[typing.List[GroupingElement]]
+    using: typing.Optional[typing.List[AliasedExpr]]
+    by: typing.List[GroupingElement]
 
 
 class InsertQuery(Query, SubjectMixin):

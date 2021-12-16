@@ -2635,32 +2635,33 @@ aa';
         WITH
             _1 := User
         GROUP _2 := _1
-        BY _ :=  _2.name
-        USING _;
+        USING _ :=  _2.name
+        BY _;
         """
 
     def test_edgeql_syntax_group_03(self):
         """
         GROUP User := User
-        BY G :=  User.name
-        USING G;
+        USING G :=  User.name
+        BY G;
         """
 
     def test_edgeql_syntax_group_04(self):
         """
         GROUP F := User.friends
-        BY G :=  F.name;
+        BY .name;
         """
 
     def test_edgeql_syntax_group_05(self):
         """
         GROUP
             User
-        BY
+        USING
             G1 := User.name,
             G2 := User.age,
             G3 := User.rank,
-            G4 := User.status;
+            G4 := User.status
+        BY G1, G2, G3, G4;
         """
 
     def test_edgeql_syntax_group_06(self):
@@ -2678,8 +2679,22 @@ aa';
         """
         GROUP
             User
-        BY
+        USING
             letter := (.name)[0],
+        BY
+            letter,
+            .age,
+            .rank,
+            .status;
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY
+            letter,
             .age,
             .rank,
             .status;
@@ -2689,24 +2704,18 @@ aa';
         """
         GROUP
             User
-        BY
-            letter := (.name)[0],
-            .age,
-            .rank,
-            .status
-        USING letter, {age, ROLLUP (rank, status)};
+        USING
+            letter := (.name)[0]
+        BY {letter, age, ROLLUP(rank, status)};
         """
 
     def test_edgeql_syntax_group_09(self):
         """
         GROUP
             User
-        BY
-            letter := (.name)[0],
-            .age,
-            .rank,
-            .status
-        USING CUBE (letter, age, rank, staus);
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, age, rank, staus);
         """
 
     def test_edgeql_syntax_set_01(self):

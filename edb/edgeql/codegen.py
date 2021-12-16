@@ -368,15 +368,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(any_ident_to_str(node.subject_alias), ' := ')
         self.visit(node.subject)
         self._block_ws(-1)
-        self._write_keywords('BY')
-        self._block_ws(1)
-        self.visit_list(node.by)
-        self._block_ws(-1)
         if node.using is not None:
             self._write_keywords('USING')
             self._block_ws(1)
             self.visit_list(node.using, newlines=False)
             self._block_ws(-1)
+        self._write_keywords('BY')
+        self._block_ws(1)
+        self.visit_list(node.by)
+        self._block_ws(-1)
 
     def visit_ModuleAliasDecl(self, node: qlast.ModuleAliasDecl) -> None:
         if node.alias:

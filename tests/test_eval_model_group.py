@@ -221,8 +221,9 @@ class TestModelGroupests(unittest.TestCase):
         self.assert_test_query(
             """
             SELECT (
-              GROUP Card BY .element, nowners := count(.owners)
-              USING CUBE (element, nowners)
+              GROUP Card
+              USING nowners := count(.owners)
+              BY CUBE(.element, nowners)
             ) {
                 key: {element, nowners},
                 num := count(.elements),
