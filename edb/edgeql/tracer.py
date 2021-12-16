@@ -21,7 +21,7 @@ from __future__ import annotations
 
 # Import specific things to avoid name clashes
 from typing import (Dict, FrozenSet, Generator, List, Mapping, Optional,
-                    Union, Set, Tuple, Iterable, Generic, TypeVar)
+                    Union, Set, Tuple, Iterable, Generic, TypeVar, Sequence)
 
 import functools
 
@@ -331,7 +331,8 @@ class TracerContext:
 @contextmanager
 def alias_context(
     ctx: TracerContext,
-    aliases: Optional[List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]]],
+    aliases: Optional[
+        Sequence[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]]],
 ) -> Generator[TracerContext, None, None]:
     module = None
     modaliases: Dict[Optional[str], str] = {}
@@ -871,6 +872,59 @@ def trace_Select(
                 trace(node.offset, ctx=nctx)
             if node.limit is not None:
                 trace(node.limit, ctx=nctx)
+
+        return tip
+
+
+def trace_GroupingAtom(
+        node: qlast.GroupingAtom, *, ctx: TracerContext) -> None:
+    if isinstance(node, qlast.ObjectRef):
+        trace(qlast.Path(steps=[node]), ctx=ctx)
+    elif isinstance(node, qlast.Path):
+        trace(node, ctx=ctx)
+    else:
+        for el in node.elements:
+            trace_GroupingAtom(el, ctx=ctx)
+
+
+@trace.register
+def trace_GroupingSimple(
+        node: qlast.GroupingSimple, *, ctx: TracerContext) -> None:
+    trace_GroupingAtom(node.element, ctx=ctx)
+
+
+@trace.register
+def trace_GroupingSets(
+        node: qlast.GroupingSets, *, ctx: TracerContext) -> None:
+    for s in node.sets:
+        trace(s, ctx=ctx)
+
+
+@trace.register
+def trace_GroupingOperation(
+        node: qlast.GroupingOperation, *, ctx: TracerContext) -> None:
+    for s in node.elements:
+        trace(s, ctx=ctx)
+
+
+@trace.register
+def trace_Group(
+    node: qlast.GroupQuery,
+    *,
+    ctx: TracerContext
+) -> Optional[ObjectLike]:
+    with alias_context(ctx, node.aliases) as ctx:
+        tip = trace(node.subject, ctx=ctx)
+        if tip is not None:
+            tip_name = tip.get_name(ctx.schema)
+            assert isinstance(tip_name, sn.QualName)
+            ctx.path_prefix = tip_name
+
+        # potentially GROUP uses an alias for the main result
+        with result_alias_context(ctx, node, tip) as nctx:
+            with alias_context(nctx, node.using) as byctx:
+                for by_el in node.by:
+                    trace(by_el, ctx=byctx)
 
         return tip
 
