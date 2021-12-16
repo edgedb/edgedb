@@ -901,6 +901,7 @@ pub fn is_keyword(s: &str) -> bool {
         | "analyze"
         | "anyarray"
         | "begin"
+        | "by"
         | "case"
         | "check"
         | "deallocate"
