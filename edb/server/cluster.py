@@ -344,6 +344,12 @@ class BaseCluster:
             }
         ''')
 
+    def has_create_database(self) -> bool:
+        return True
+
+    def has_create_role(self) -> bool:
+        return True
+
 
 class Cluster(BaseCluster):
     def __init__(
@@ -477,6 +483,12 @@ class RunningCluster(BaseCluster):
     def destroy(self) -> None:
         pass
 
+    def has_create_database(self) -> bool:
+        return os.environ.get('EDGEDB_TEST_CASES_SET_UP') != 'inplace'
+
+    def has_create_role(self) -> bool:
+        return os.environ.get('EDGEDB_TEST_HAS_CREATE_ROLE') == 'True'
+
 
 class TempClusterWithRemotePg(BaseCluster):
     def __init__(
@@ -511,3 +523,15 @@ class TempClusterWithRemotePg(BaseCluster):
 
     async def _new_pg_cluster(self) -> pgcluster.BaseCluster:
         return await pgcluster.get_remote_pg_cluster(self._backend_dsn)
+
+    def has_create_database(self) -> bool:
+        if self._pg_cluster:
+            return self._pg_cluster.get_runtime_params().has_create_database
+        else:
+            return super().has_create_database()
+
+    def has_create_role(self) -> bool:
+        if self._pg_cluster:
+            return self._pg_cluster.get_runtime_params().has_create_role
+        else:
+            return super().has_create_role()

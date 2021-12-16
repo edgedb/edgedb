@@ -28,6 +28,9 @@ class TestServerAuth(tb.ConnectedTestCase):
     TRANSACTION_ISOLATION = False
 
     async def test_server_auth_01(self):
+        if not self.has_create_role:
+            self.skipTest('create role is not supported by the backend')
+
         await self.con.query('''
             CREATE SUPERUSER ROLE foo {
                 SET password := 'foo-pass';
@@ -159,6 +162,9 @@ class TestServerAuth(tb.ConnectedTestCase):
             await self.con.query("DROP ROLE bar")
 
     async def test_server_auth_02(self):
+        if not self.has_create_role:
+            self.skipTest('create role is not supported by the backend')
+
         try:
             await self.con.query('''
                 CREATE SUPERUSER ROLE foo {

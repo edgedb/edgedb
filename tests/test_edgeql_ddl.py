@@ -6930,6 +6930,9 @@ type default::Foo {
             """)
 
     async def test_edgeql_ddl_role_01(self):
+        if not self.has_create_role:
+            self.skipTest("create role is not supported by the backend")
+
         await self.con.execute(r"""
             CREATE ROLE foo_01;
         """)
@@ -6950,6 +6953,9 @@ type default::Foo {
         )
 
     async def test_edgeql_ddl_role_02(self):
+        if not self.has_create_role:
+            self.skipTest("create role is not supported by the backend")
+
         await self.con.execute(r"""
             CREATE SUPERUSER ROLE foo2 {
                 SET password := 'secret';
@@ -6990,6 +6996,9 @@ type default::Foo {
         self.assertIsNone(role.password)
 
     async def test_edgeql_ddl_role_03(self):
+        if not self.has_create_role:
+            self.skipTest("create role is not supported by the backend")
+
         await self.con.execute(r"""
             CREATE SUPERUSER ROLE foo3 {
                 SET password := 'secret';
@@ -7062,6 +7071,9 @@ type default::Foo {
         )
 
     async def test_edgeql_ddl_role_04(self):
+        if not self.has_create_role:
+            self.skipTest("create role is not supported by the backend")
+
         await self.con.execute(r"""
             CREATE SUPERUSER ROLE foo5 IF NOT EXISTS {
                 SET password := 'secret';
@@ -7099,6 +7111,9 @@ type default::Foo {
         )
 
     async def test_edgeql_ddl_describe_roles(self):
+        if not self.has_create_role:
+            self.skipTest("create role is not supported by the backend")
+
         await self.con.execute("""
             CREATE SUPERUSER ROLE base1;
             CREATE SUPERUSER ROLE `base 2`;

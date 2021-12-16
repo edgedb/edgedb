@@ -1918,6 +1918,9 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
     @unittest.skipUnless(devmode.is_in_dev_mode(),
                          'the test requires devmode')
     async def test_server_proto_ddlprop_01(self):
+        if not self.has_create_role:
+            self.skipTest('create role is not supported by the backend')
+
         conargs = self.get_connect_args()
 
         await self.con.execute('''
@@ -2029,6 +2032,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
 
     async def test_server_proto_create_db_01(self):
+        if not self.has_create_database:
+            self.skipTest('create database is not supported by the backend')
+
         db = 'test_server_proto_create_db_01'
 
         con1 = self.con
@@ -2874,6 +2880,9 @@ class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
 
     async def test_server_proto_concurrent_global_ddl(self):
+        if not self.has_create_role:
+            self.skipTest('create role is not supported by the backend')
+
         ntasks = 5
 
         async with tg.TaskGroup() as g:

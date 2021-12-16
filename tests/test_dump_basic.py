@@ -50,6 +50,9 @@ class TestDumpBasics(tb.DatabaseTestCase, tb.CLITestCaseMixin):
         return buf
 
     async def test_dump_fuzz_01(self):
+        if not self.has_create_database:
+            self.skipTest('create database is not supported by the backend')
+
         # This test creates a simple `DBSIZE` DB filled with semi-random
         # byte strings. While the DB is populated a hash of all byte
         # strings is computed. The DB is then dumped and restored.
