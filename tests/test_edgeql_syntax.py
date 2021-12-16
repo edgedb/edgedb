@@ -2626,10 +2626,7 @@ aa';
     def test_edgeql_syntax_group_01(self):
         """
         GROUP User
-        USING _ :=  User.name
-        BY _
-        INTO User
-        UNION count(User.tasks);
+        BY .name;
         """
 
     def test_edgeql_syntax_group_02(self):
@@ -2639,36 +2636,20 @@ aa';
             _1 := User
         GROUP _2 := _1
         USING _ :=  _2.name
-        BY _
-        INTO U
-        UNION _3 := (
-            num_tasks := count(DISTINCT (_2.tasks))
-        )
-        ORDER BY _3.num_tasks ASC;
+        BY _;
         """
 
     def test_edgeql_syntax_group_03(self):
         """
         GROUP User := User
         USING G :=  User.name
-        BY G
-        INTO User
-        UNION (
-            name := G,
-            num_tasks := count(User.tasks)
-        );
+        BY G;
         """
 
     def test_edgeql_syntax_group_04(self):
         """
         GROUP F := User.friends
-        USING G :=  F.name
-        BY G
-        INTO F
-        UNION (
-            name := G,
-            num_tasks := count(F.tasks)
-        );
+        BY .name;
         """
 
     def test_edgeql_syntax_group_05(self):
@@ -2680,13 +2661,70 @@ aa';
             G2 := User.age,
             G3 := User.rank,
             G4 := User.status
+        BY G1, G2, G3, G4;
+        """
+
+    def test_edgeql_syntax_group_06(self):
+        """
+        GROUP
+            User
         BY
-            G1, G2, G3, G4
-        INTO U
-        UNION (
-            name := G1,
-            num_tasks := count(U.tasks)
-        );
+            .name,
+            .age,
+            .rank,
+            .status;
+        """
+
+    def test_edgeql_syntax_group_07(self):
+        """
+        GROUP
+            User
+        USING
+            letter := (.name)[0],
+        BY
+            letter,
+            .age,
+            .rank,
+            .status;
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY
+            letter,
+            .age,
+            .rank,
+            .status;
+        """
+
+    def test_edgeql_syntax_group_08(self):
+        """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status)};
+        """
+
+    def test_edgeql_syntax_group_09(self):
+        """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status);
+        """
+
+    def test_edgeql_syntax_group_10(self):
+        """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status)}};
         """
 
     def test_edgeql_syntax_set_01(self):

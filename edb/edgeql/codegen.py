@@ -196,7 +196,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.limit)
             self._block_ws(-1, newlines)
 
-    def visit_AliasedExpr(self, node: qlast.AliasedExpr) -> None:
+    def visit_OptionallyAliasedExpr(
+            self, node: qlast.OptionallyAliasedExpr) -> None:
         if node.alias:
             self.write(ident_to_str(node.alias))
             self.write(' := ')
@@ -206,6 +207,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         if node.alias:
             self._block_ws(-1)
+
+    def visit_AliasedExpr(self, node: qlast.AliasedExpr) -> None:
+        self.visit_OptionallyAliasedExpr(node)
 
     def visit_InsertQuery(self, node: qlast.InsertQuery) -> None:
         # need to parenthesise when INSERT appears as an expression
@@ -330,6 +334,25 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         if parenthesise:
             self.write(')')
 
+    def visit_GroupingIdentList(self, atom: qlast.GroupingIdentList) -> None:
+        self.write('(')
+        self.visit_list(atom.elements, newlines=False)
+        self.write(')')
+
+    def visit_GroupingSimple(self, node: qlast.GroupingSimple) -> None:
+        self.visit(node.element)
+
+    def visit_GroupingSets(self, node: qlast.GroupingSets) -> None:
+        self.write('{')
+        self.visit_list(node.sets, newlines=False)
+        self.write('}')
+
+    def visit_GroupingOperation(self, node: qlast.GroupingOperation) -> None:
+        self._write_keywords(node.oper)
+        self.write(' (')
+        self.visit_list(node.elements, newlines=False)
+        self.write(')')
+
     def visit_GroupQuery(self, node: qlast.GroupQuery) -> None:
         # need to parenthesise when GROUP appears as an expression
         parenthesise = self._needs_parentheses(node)
@@ -345,31 +368,15 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self.write(any_ident_to_str(node.subject_alias), ' := ')
         self.visit(node.subject)
         self._block_ws(-1)
-        self._write_keywords('USING')
-        self._block_ws(1)
-        self.visit_list(node.using)
-        self._block_ws(-1)
+        if node.using is not None:
+            self._write_keywords('USING')
+            self._block_ws(1)
+            self.visit_list(node.using, newlines=False)
+            self._block_ws(-1)
         self._write_keywords('BY')
         self._block_ws(1)
-        self.visit_list(node.by, newlines=False)
+        self.visit_list(node.by)
         self._block_ws(-1)
-        self._write_keywords('INTO')
-        self.write(any_ident_to_str(node.into))
-
-        # guarantee an newline here
-        self._write_keywords('UNION ')
-        if node.result_alias:
-            self.write(any_ident_to_str(node.result_alias), ' := ')
-        self._block_ws(1)
-        self.visit(node.result)
-        self.indentation -= 1
-
-        self._visit_filter(node)
-        self._visit_order(node)
-        self._visit_offset_limit(node)
-
-        if parenthesise:
-            self.write(')')
 
     def visit_ModuleAliasDecl(self, node: qlast.ModuleAliasDecl) -> None:
         if node.alias:

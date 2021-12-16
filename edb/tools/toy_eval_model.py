@@ -74,6 +74,7 @@ import json
 import operator
 import pprint
 import random
+import statistics
 import traceback
 import uuid
 
@@ -84,6 +85,8 @@ T = TypeVar('T')
 def bsid(n: int) -> uuid.UUID:
     return uuid.UUID(f'ffffffff-ffff-ffff-ffff-{n:012x}')
 
+
+FREE_ID = bsid(0x01)
 
 # ############# Data model
 
@@ -173,6 +176,7 @@ BASIS = {
     'UNION': [SET_OF, SET_OF],
     '?=': [OPTIONAL, OPTIONAL],
     '?!=': [OPTIONAL, OPTIONAL],
+    'math::mean': [SET_OF],
 }
 
 
@@ -195,8 +199,8 @@ class ITypeIntersection(NamedTuple):
 
 class IPtr(NamedTuple):
     name: str
-    direction: Optional[str]
-    is_link_property: bool
+    direction: Optional[str] = None
+    is_link_property: bool = False
 
 
 IPathElement = Union[IPartial, IExpr, IORef, ITypeIntersection, IPtr]
@@ -342,6 +346,7 @@ _BASIS_FUNC_IMPLS: Any = {
     'all': lift_set_of(all),
     'any': lift_set_of(any),
     'len': lift(len),
+    'math::mean': lift_set_of(statistics.mean),
     'array_agg': array_agg,
     'array_unpack': array_unpack,
     'random': lift(random.random),
@@ -395,10 +400,20 @@ def graft(
 
 
 def update_path(
-    prefix: Optional[qlast.Path], query: Optional[qlast.Expr]
+    prefix: Optional[qlast.Path], query: Optional[qlast.Expr],
+    subject: bool=False,
 ) -> Optional[qlast.Path]:
     if query is None:
         return None
+    elif subject and isinstance(query, qlast.SubjectMixin):
+        if (
+            isinstance(query, qlast.GroupQuery)
+            and query.subject_alias is not None
+        ):
+            return qlast.Path(
+                steps=[qlast.ObjectRef(name=query.subject_alias)])
+        else:
+            query = query.subject
     elif isinstance(query, qlast.ReturningMixin):
         if (
             isinstance(query, qlast.SelectQuery)
@@ -555,6 +570,152 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> Result:
     return [row[-1] for row in out]
 
 
+# From the itertools docs
+def powerset(iterable: Iterable[T]) -> Iterable[Tuple[T, ...]]:
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return itertools.chain.from_iterable(
+        itertools.combinations(s, r) for r in range(len(s) + 1))
+
+
+def simplify_grouping_sets(
+        gset: qlast.GroupingElement) -> List[qlast.GroupingAtom]:
+    if isinstance(gset, qlast.GroupingSimple):
+        return [gset.element]
+    elif isinstance(gset, qlast.GroupingSets):
+        return [x for s in gset.sets for x in simplify_grouping_sets(s)]
+    elif isinstance(gset, qlast.GroupingOperation):
+        if gset.oper == 'cube':
+            return [
+                qlast.GroupingIdentList(elements=x)
+                for x in powerset(gset.elements)
+            ]
+        elif gset.oper == 'rollup':
+            return [
+                qlast.GroupingIdentList(elements=tuple(gset.elements[:i]))
+                for i in range(len(gset.elements) + 1)
+            ]
+
+    raise ValueError
+
+
+ByElement = Union[IORef, IPtr]
+
+
+def get_by_element(atom: Union[qlast.ObjectRef, qlast.Path]) -> ByElement:
+    if isinstance(atom, qlast.ObjectRef):
+        return IORef(atom.name)
+    else:
+        assert isinstance(atom.steps[0], qlast.Ptr)
+        return IPtr(atom.steps[0].ptr.name)
+
+
+def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[ByElement, ...]:
+    if isinstance(atom, (qlast.ObjectRef, qlast.Path)):
+        return (get_by_element(atom),)
+    else:
+        return tuple(
+            x for g in atom.elements
+            for x in flatten_grouping_atom(g)
+        )
+
+
+def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[ByElement, ...]]:
+    toplevel_gsets = []
+    for col in node.by:
+        gsets = simplify_grouping_sets(col)
+        simp_gsets = [flatten_grouping_atom(x) for x in gsets]
+        toplevel_gsets.append(simp_gsets)
+
+    return [
+        tuple(x for y in g for x in y)
+        for g in itertools.product(*toplevel_gsets)
+    ]
+
+
+@_eval.register
+def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
+    ctx = eval_aliases(node, ctx)
+
+    # Actually evaluate the subject
+    subject_vals = subquery(node.subject, ctx=ctx)
+
+    subq_path = update_path(ctx.cur_path, node, subject=True)
+    new_qil = ctx.query_input_list + [
+        simplify_path(subq_path) if subq_path else (IPartial(),)]
+
+    # Collect all the grouping sets from the node
+    grouping_sets = get_grouping_sets(node)
+    all_keys = tuple(dedup([x for g in grouping_sets for x in g]))
+
+    # For every subject value, evaluate all of the expressions in the
+    # USING clause and all the path prefixes used in BY and record them.
+    vals_and_keys = []
+    for val in subject_vals:
+        subctx = replace(ctx, query_input_list=new_qil,
+                         cur_path=subq_path,
+                         input_tuple=ctx.input_tuple + (val,),
+                         aliases=ctx.aliases.copy())
+
+        keys: Dict[ByElement, Data] = {}
+        # Collect all the USING bindings
+        for using in (node.using or ()):
+            using_val = eval(using.expr, ctx=subctx)
+            assert len(using_val) <= 1
+            subctx.aliases[using.alias] = using_val
+            keys[IORef(using.alias)] = using_val
+        # And collect all the partial path references
+        for key_el in all_keys:
+            if isinstance(key_el, IPtr):
+                key_val = eval_ptr(val, key_el, ctx=subctx)
+                assert len(key_val) <= 1
+                keys[key_el] = key_val
+
+        vals_and_keys.append((val, keys))
+
+    # With the keys computed, run through every grouping set and
+    # produce our groups.
+    groups: Dict[
+        Tuple[Tuple[ByElement, ...], Tuple[Data, ...]],
+        Tuple[Dict[ByElement, Data], List[Data]]
+    ] = {}
+    # Rebuild the set tuple from all_keys to both deduplicate
+    # and ensure a canonical order.
+    grouping_sets = dedup([
+        tuple(k for k in all_keys if k in grouping_set)
+        for grouping_set in grouping_sets
+    ])
+    for grouping_set in grouping_sets:
+        for val, keys in vals_and_keys:
+            # Prune the keys down to just this grouping set
+            keys = {k: v if k in grouping_set else [] for k, v in keys.items()}
+            key = tuple(
+                None if not keys[k] else keys[k][0]
+                for k in grouping_set)
+            groups.setdefault(
+                (grouping_set, key), (keys, []))[1].append(val)
+
+    # We need to always output a group for the empty grouping set, if
+    # it exists.
+    if () in grouping_sets and ((), ()) not in groups:
+        groups[(), ()] = ({k: [] for k in all_keys}, [])
+
+    # Now we can produce our output.
+    out = []
+    for (grouping, _), (bindings, elements) in groups.items():
+        key_dict = {k.name: v for k, v in bindings.items()}
+        key_obj = Obj(FREE_ID, key_dict, key_dict)
+        group_dict = {
+            'key': [key_obj],
+            'elements': elements,
+            'grouping': [[g.name for g in grouping]],
+        }
+        group_obj = Obj(FREE_ID, group_dict, group_dict)
+        out.append(group_obj)
+
+    return out
+
+
 @_eval.register
 def eval_ShapeElement(el: qlast.ShapeElement, ctx: EvalContext) -> Result:
     if el.compexpr:
@@ -668,8 +829,10 @@ def eval_UnaryOp(node: qlast.UnaryOp, ctx: EvalContext) -> Result:
 
 @_eval.register
 def eval_Call(node: qlast.FunctionCall, ctx: EvalContext) -> Result:
-    assert isinstance(node.func, str)
-    return eval_func_or_op(node.func, node.args or [], 'func', ctx)
+    func = node.func
+    if isinstance(func, tuple):
+        func = '::'.join(func)  # sure, for now.
+    return eval_func_or_op(func, node.args or [], 'func', ctx)
 
 
 @_eval.register
@@ -963,9 +1126,10 @@ class PathFinder(NodeVisitor):
 
     @contextlib.contextmanager
     def update_path(
-            self, query: Optional[qlast.Expr]) -> Iterator[None]:
+        self, query: Optional[qlast.Expr], subject: bool=False,
+    ) -> Iterator[None]:
         yield from self._update(
-            current_path=update_path(self.current_path, query))
+            current_path=update_path(self.current_path, query, subject))
 
     def visit_Path(self, path: qlast.Path, always_partial: bool=False) -> None:
         self.paths.append((
@@ -976,6 +1140,8 @@ class PathFinder(NodeVisitor):
         self.generic_visit(path)
 
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
+        # TODO: WITH bindings?
+
         with self.subquery():
             if query.result_alias:
                 with self.subquery():
@@ -990,6 +1156,18 @@ class PathFinder(NodeVisitor):
             with self.update_path(None):
                 self.visit(query.limit)
                 self.visit(query.offset)
+
+    def visit_GroupQuery(self, query: qlast.GroupQuery) -> None:
+        with self.subquery():
+            if query.subject_alias:
+                with self.subquery():
+                    self.visit(query.subject)
+            else:
+                self.visit(query.subject)
+
+            with self.update_path(query, subject=True):
+                # deal with shadowing?
+                self.visit(query.using)
 
     def visit_Shape(self, shape: qlast.Shape) -> None:
         self.visit(shape.expr)
@@ -1036,8 +1214,10 @@ class PathFinder(NodeVisitor):
 
     def visit_FunctionCall(self, query: qlast.FunctionCall) -> None:
         assert not query.kwargs
-        assert isinstance(query.func, str)
-        self.visit_func_or_op(query.func, query.args)
+        func = query.func
+        if isinstance(func, tuple):
+            func = '::'.join(func)  # sure, for now.
+        self.visit_func_or_op(func, query.args)
         assert not query.window  # done last or we get dced.
 
     def visit_IfElse(self, query: qlast.IfElse) -> None:
@@ -1073,7 +1253,7 @@ def longest_common_prefix(p1: IPath, p2: IPath) -> IPath:
     return tuple(common)
 
 
-def dedup(old: List[T]) -> List[T]:
+def dedup(old: Collection[T]) -> List[T]:
     new: List[T] = []
     for x in old:
         if x not in new:
@@ -1553,7 +1733,7 @@ SCHEMA_COMPUTABLES = {
 
 DB1 = mk_db([
     # FreeObject
-    {"id": bsid(0x01), "__type__": "FreeObject"},
+    {"id": FREE_ID, "__type__": "FreeObject"},
 
     # Person
     {"id": bsid(0x10), "__type__": PersonT,
