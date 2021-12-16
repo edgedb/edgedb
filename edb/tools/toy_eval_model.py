@@ -194,7 +194,7 @@ class ITypeIntersection(NamedTuple):
 
 
 class IPtr(NamedTuple):
-    ptr: str
+    name: str
     direction: Optional[str]
     is_link_property: bool
 
@@ -829,23 +829,23 @@ def eval_computed(
 
 def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
     if isinstance(base, tuple):
-        return [base[int(ptr.ptr)]]
+        return [base[int(ptr.name)]]
     elif isinstance(base, Obj):
-        name = '@' + ptr.ptr if ptr.is_link_property else ptr.ptr
+        name = '@' + ptr.name if ptr.is_link_property else ptr.name
         data = base.get(name, ctx.db)
         # could be computed
         if data is None and (computed := lookup_computed(base, name, ctx)):
             data = eval_computed(base, name, *computed, ctx=ctx)
         return fix_links(data)
     else:
-        return [base[ptr.ptr]]
+        return [base[ptr.name]]
 
 
 def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
     # XXX: This is slow even by the standards of this terribly slow model
     res = []
     for obj in ctx.db.data.values():
-        for tgt in fix_links(obj.get(ptr.ptr)):
+        for tgt in fix_links(obj.get(ptr.name)):
             if base == tgt:
                 # Extract any lprops and put them on the backlink
                 data = {k: v for k, v in tgt.data.items() if k[0] == '@'}
