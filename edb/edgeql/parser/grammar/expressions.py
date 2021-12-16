@@ -180,13 +180,13 @@ class SimpleSelect(Nonterm):
             )
 
 
-class UsingClause(Nonterm):
-    def reduce_USING_GroupingElementList(self, *kids):
+class GroupingsClause(Nonterm):
+    def reduce_GROUPINGS_GroupingElementList(self, *kids):
         self.val = kids[1].val
 
 
-class OptUsingClause(Nonterm):
-    def reduce_UsingClause(self, *kids):
+class OptGroupingsClause(Nonterm):
+    def reduce_GroupingsClause(self, *kids):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
@@ -220,12 +220,12 @@ class SimpleGroup(Nonterm):
     def reduce_Group(self, *kids):
         r"%reduce GROUP OptionallyAliasedExpr \
                   BY ByClauseList \
-                  OptUsingClause"
+                  OptGroupingsClause"
         self.val = qlast.GroupQuery(
             subject=kids[1].val.expr,
             subject_alias=kids[1].val.alias,
             by=kids[3].val,
-            using=kids[4].val,
+            groupings=kids[4].val,
         )
 
 

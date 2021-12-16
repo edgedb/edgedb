@@ -222,7 +222,7 @@ class TestModelGroupests(unittest.TestCase):
             """
             SELECT (
               GROUP Card BY .element, nowners := count(.owners)
-              USING CUBE (element, nowners)
+              GROUPINGS CUBE(element, nowners)
             ) {
                 key: {element, nowners},
                 num := count(.elements),
