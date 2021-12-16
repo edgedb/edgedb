@@ -168,6 +168,13 @@ class BaseCluster:
             ),
         )
 
+    def overwrite_capabilities(
+        self, capabilities: pgparams.BackendCapabilities
+    ):
+        self._instance_params = self._instance_params._replace(
+            capabilities=capabilities
+        )
+
     def get_connection_addr(self) -> Optional[Tuple[str, int]]:
         return self._get_connection_addr()
 
