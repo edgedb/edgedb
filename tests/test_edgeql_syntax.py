@@ -2706,7 +2706,7 @@ aa';
             User
         USING
             letter := (.name)[0]
-        BY {letter, age, ROLLUP(rank, status)};
+        BY {letter, .age, ROLLUP(.rank, .status)};
         """
 
     def test_edgeql_syntax_group_09(self):
@@ -2715,7 +2715,16 @@ aa';
             User
         USING
             letter := (.name)[0]
-        BY CUBE(letter, age, rank, staus);
+        BY CUBE(letter, .age, .rank, .status);
+        """
+
+    def test_edgeql_syntax_group_10(self):
+        """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status)}};
         """
 
     def test_edgeql_syntax_set_01(self):
