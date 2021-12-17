@@ -2327,7 +2327,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             return object_desc
         else:
             if object is None:
-                object = getattr(self, 'scls', _dummy_object)
+                object = cast(
+                    so.Object_T,
+                    getattr(self, 'scls', cast(so.Object_T, _dummy_object)),
+                )
 
             if object is _dummy_object or schema is None:
                 if not isinstance(parent_op, ObjectCommand):

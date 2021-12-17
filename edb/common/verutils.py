@@ -67,7 +67,7 @@ def parse_version(ver: str) -> Version:
     v = VERSION_PATTERN.match(ver)
     if v is None:
         raise ValueError(f'cannot parse version: {ver}')
-    local = []
+    local: list[str] = []
     if v.group('pre'):
         pre_l = v.group('pre_l')
         if pre_l in {'a', 'alpha'}:
@@ -85,7 +85,6 @@ def parse_version(ver: str) -> Version:
     else:
         stage = VersionStage.FINAL
         stage_no = 0
-
     if v.group('local'):
         local.extend(v.group('local').split('.'))
 

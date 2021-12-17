@@ -90,7 +90,7 @@ TEST_DEPS = [
     'MarkupSafe~=1.1',
     'PyYAML~=5.4',
 
-    'mypy==0.910',
+    'mypy==0.920',
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
     'types-click~=7.1',

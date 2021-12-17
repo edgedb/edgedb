@@ -38,10 +38,10 @@ from . import name as sn
 from . import schema as s_schema
 
 
-SCHEMA_ROOT = pathlib.Path(schema.__path__[0])  # type: ignore
-LIB_ROOT = pathlib.Path(stdlib.__path__[0])  # type: ignore
-QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])  # type: ignore
-QL_PARSER_ROOT = pathlib.Path(qlparser.__path__[0])  # type: ignore
+SCHEMA_ROOT = pathlib.Path(schema.__path__[0])
+LIB_ROOT = pathlib.Path(stdlib.__path__[0])
+QL_COMPILER_ROOT = pathlib.Path(qlcompiler.__path__[0])
+QL_PARSER_ROOT = pathlib.Path(qlparser.__path__[0])
 
 CACHE_SRC_DIRS = (
     (SCHEMA_ROOT, '.py'),

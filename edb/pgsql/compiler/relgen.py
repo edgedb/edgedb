@@ -1194,17 +1194,16 @@ def process_set_as_subquery(
         if inner_id != outer_id:
             pathctx.put_path_id_map(ctx.rel, outer_id, inner_id)
 
-        if (isinstance(ir_set.expr, irast.MutatingStmt)
-                and ir_set.expr in ctx.dml_stmts):
+        if isinstance(expr, irast.MutatingStmt) and expr in ctx.dml_stmts:
             # The DML table-routing logic may result in the same
             # DML subquery to be visited twice, such as in the case
             # of a nested INSERT declaring link properties, so guard
             # against generating a duplicate DML CTE.
             with newctx.substmt() as subrelctx:
-                dml_cte = ctx.dml_stmts[ir_set.expr]
-                dml.wrap_dml_cte(ir_set.expr, dml_cte, ctx=subrelctx)
+                dml_cte = ctx.dml_stmts[expr]
+                dml.wrap_dml_cte(expr, dml_cte, ctx=subrelctx)
         else:
-            dispatch.visit(ir_set.expr, ctx=newctx)
+            dispatch.visit(expr, ctx=newctx)
 
         if semi_join:
             set_rvar = relctx.new_root_rvar(ir_set, ctx=newctx)
@@ -1864,7 +1863,7 @@ def process_set_as_type_cast(
 
             subctx.env.output_format = orig_output_format
         else:
-            set_expr = dispatch.compile(ir_set.expr, ctx=ctx)
+            set_expr = dispatch.compile(expr, ctx=ctx)
 
             # A proper path var mapping way would be to wrap
             # the inner expression in a subquery, but that
@@ -1943,6 +1942,7 @@ def process_set_as_expr(
         ctx: context.CompilerContextLevel) -> SetRVars:
     with ctx.new() as newctx:
         newctx.expr_exposed = False
+        assert ir_set.expr is not None
         set_expr = dispatch.compile(ir_set.expr, ctx=newctx)
 
     pathctx.put_path_value_var_if_not_exists(
@@ -2966,6 +2966,7 @@ def process_set_as_agg_expr_inner(
 
     if expr.func_initial_value is not None:
         iv_ir = expr.func_initial_value.expr
+        assert iv_ir is not None
 
         if serialization_safe and aspect == 'serialized':
             # Serialization has changed the output type.

@@ -214,23 +214,12 @@ def _is_singleton_type(typeref: irast.TypeRef) -> bool:
 
 @functools.singledispatch
 def _infer_cardinality(
-    ir: irast.Expr,
+    ir: irast.Base,
     *,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
     raise ValueError(f'infer_cardinality: cannot handle {ir!r}')
-
-
-@_infer_cardinality.register
-def __infer_none(
-    ir: None,
-    *,
-    scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Cardinality:
-    # Here for debugging purposes.
-    raise ValueError('invalid infer_cardinality(None, schema) call')
 
 
 @_infer_cardinality.register

@@ -107,7 +107,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
     def visit(
         self,
-        node: Union[qlast.Base, Sequence[qlast.Base]],
+        node: Union[qlast.Base, List[qlast.Base]],
         **kwargs: Any
     ) -> None:
         if isinstance(node, list):

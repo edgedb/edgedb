@@ -2279,9 +2279,7 @@ class ObjectCollection(
         attrs: Dict[str, Any],
     ) -> ObjectCollection[Object_T]:
         if typeargs is None or cls.is_anon_parametrized():
-            # mypy complains about multiple values for
-            # keyword argument "_private_init"
-            obj = cls(_ids=ids, **attrs, _private_init=True)  # type: ignore
+            obj = cls(_ids=ids, **attrs, _private_init=True)
         else:
             obj = cls[typeargs](  # type: ignore
                 _ids=ids, **attrs, _private_init=True)
@@ -2310,9 +2308,7 @@ class ObjectCollection(
             for v in data:
                 ids.append(cls._validate_value(schema, v))
         container: Collection[uuid.UUID] = cls._container(ids)
-        # mypy complains about multiple values for
-        # keyword argument "_private_init"
-        return cls(container, **kwargs, _private_init=True)  # type: ignore
+        return cls(container, **kwargs, _private_init=True)
 
     @classmethod
     def create_empty(cls) -> ObjectCollection[Object_T]:

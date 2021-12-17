@@ -226,7 +226,7 @@ def _evaluate_union(
 
 @functools.singledispatch
 def const_to_python(
-        ir: irast.ConstExpr,
+        ir: irast.ConstExpr | irast.TypeCast,
         schema: s_schema.Schema) -> Any:
     raise UnsupportedExpressionError(
         f'cannot convert {ir!r} to Python value')

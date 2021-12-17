@@ -421,7 +421,7 @@ def result_alias_context(
 
 @functools.singledispatch
 def trace(
-    node: qlast.Base,
+    node: Optional[qlast.Base],
     *,
     ctx: TracerContext,
 ) -> Optional[ObjectLike]:
@@ -429,7 +429,7 @@ def trace(
 
 
 @trace.register
-def trace_none(node: Union[None], *, ctx: TracerContext) -> None:
+def trace_none(node: None, *, ctx: TracerContext) -> None:
     pass
 
 
