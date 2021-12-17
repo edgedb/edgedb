@@ -697,7 +697,7 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
 
         # We need to always output a group for the empty grouping set, if
         # it exists.
-        if () in grouping_sets and () not in groups:
+        if grouping_set == () and () not in groups:
             groups[()] = ({k: [] for k in all_keys}, [])
 
         all_groups.extend([(grouping_set, v) for v in groups.values()])
