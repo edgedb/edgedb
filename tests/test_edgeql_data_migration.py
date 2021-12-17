@@ -10326,6 +10326,106 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
         await self.migrate('')
 
+    async def test_edgeql_migration_inheritance_to_empty_02(self):
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+        ''')
+
+        await self.migrate('')
+
+    async def test_edgeql_migration_drop_constraint_01(self):
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+        ''')
+
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str;
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+        ''')
+
+    async def test_edgeql_migration_drop_constraint_02(self):
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+            type SpecialCard2 extending Card;
+            type VerySpecialCard extending SpecialCard, SpecialCard2;
+        ''')
+
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str;
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+            type SpecialCard2 extending Card;
+            type VerySpecialCard extending SpecialCard, SpecialCard2;
+        ''')
+
 
 class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False

@@ -130,12 +130,13 @@ def reconstruct_tree(
     # a tuple of indexes where each index represents relative
     # position within the tree rank.
     offsets: Dict[sd.Command, Tuple[int, ...]] = {}
-    # Object commands indexed by command type and object name,
-    # where each entry represents the latest seen command of the type
-    # for a particular object.  Implicit commands are not included in
-    # this mapping.
+    # Object commands indexed by command type and object name and
+    # implicitness, where each entry represents the latest seen
+    # command of the type for a particular object.  Implicit commands
+    # are included, but can only be attached to by other implicit
+    # commands.
     opindex: Dict[
-        Tuple[Type[sd.ObjectCommand[so.Object]], sn.Name],
+        Tuple[Type[sd.ObjectCommand[so.Object]], sn.Name, bool],
         sd.ObjectCommand[so.Object]
     ] = {}
 
@@ -194,8 +195,8 @@ def reconstruct_tree(
 
         for i in range(slice_start, len(opbranch)):
             op = opbranch[i]
-            if isinstance(op, sd.ObjectCommand) and not as_implicit:
-                ancestor_key = (type(op), op.classname)
+            if isinstance(op, sd.ObjectCommand):
+                ancestor_key = (type(op), op.classname, as_implicit)
                 opindex[ancestor_key] = op
 
             if op in offsets:
@@ -234,7 +235,7 @@ def reconstruct_tree(
             # ALTER isn't even defined for this object class, bail.
             return False
 
-        alter_key = ((alter_cmd_cls), op.classname)
+        alter_key = ((alter_cmd_cls), op.classname, False)
         alter_op = opindex.get(alter_key)
         if alter_op is None:
             # No preceding ALTER, bail.
@@ -262,7 +263,7 @@ def reconstruct_tree(
         attached_root = parents[alter_op]
         attached_root.replace(alter_op, op)
         opindex[alter_key] = op
-        opindex[type(op), op.classname] = op
+        opindex[type(op), op.classname, False] = op
         offsets[op] = offsets[alter_op]
         parents[op] = attached_root
 
@@ -296,7 +297,12 @@ def reconstruct_tree(
 
         for candidate in parent_candidates:
             for op_type in allowed_op_types:
-                parent_op = opindex.get((op_type, candidate))
+                parent_op = opindex.get((op_type, candidate, False))
+                # implicit ops are allowed to attach to other implicit
+                # ops. (Since we want them to chain properly in
+                # inheritance order.)
+                if parent_op is None and as_implicit:
+                    parent_op = opindex.get((op_type, candidate, True))
 
                 if (
                     parent_op is not None
