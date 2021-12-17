@@ -36,6 +36,8 @@ Cardinality inference is one of the big open design questions that I have:
 is there a reasonable way that we could implement it as a mostly-dynamic
 analysis, without needing a full separate cardinality checker?
 
+We don't really understand name shadowing at all.
+
 There is no type or error checking.
 
 Run this as a script for a bad REPL that can be noodled around
@@ -1140,9 +1142,10 @@ class PathFinder(NodeVisitor):
         self.generic_visit(path)
 
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
-        # TODO: WITH bindings?
-
         with self.subquery():
+            # XXX: shadowing?
+            self.visit(query.aliases)
+
             if query.result_alias:
                 with self.subquery():
                     self.visit(query.result)
@@ -1159,6 +1162,8 @@ class PathFinder(NodeVisitor):
 
     def visit_GroupQuery(self, query: qlast.GroupQuery) -> None:
         with self.subquery():
+            self.visit(query.aliases)
+
             if query.subject_alias:
                 with self.subquery():
                     self.visit(query.subject)
