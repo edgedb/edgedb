@@ -2727,6 +2727,30 @@ aa';
         BY {letter, {.age, CUBE(.rank, .status)}};
         """
 
+    def test_edgeql_syntax_group_11(self):
+        """
+        GROUP
+            User
+        BY
+            (.name, .age);
+        """
+
+    def test_edgeql_syntax_group_12(self):
+        """
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status)};
+        """
+
+    def test_edgeql_syntax_group_13(self):
+        """
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status));
+        """
+
     def test_edgeql_syntax_set_01(self):
         """
         SELECT (1 UNION 2);
