@@ -20,6 +20,7 @@
 import unittest
 
 from edb.tools import toy_eval_model as model
+from edb.tools import test
 
 
 class TestModelSmokeTests(unittest.TestCase):
@@ -571,4 +572,30 @@ class TestModelSmokeTests(unittest.TestCase):
             ]}],
             singleton_cheating=True,
             sort=False,
+        )
+
+    def test_model_alias_correlation_01(self):
+        self.assert_test_query(
+            r"""
+            SELECT (Note.name, EXISTS (WITH W := Note.note SELECT W))
+            """,
+            [('boxing', False), ('unboxing', True), ('dynamic', True)]
+        )
+
+    @test.xfail('The model has a lot of trouble with shadowing.')
+    def test_model_alias_shadowing_01(self):
+        self.assert_test_query(
+            r"""
+            SELECT (User.name, (WITH User := {1,2} SELECT User))
+            """,
+            [
+                ["Alice", 1],
+                ["Alice", 2],
+                ["Bob", 1],
+                ["Bob", 2],
+                ["Carol", 1],
+                ["Carol", 2],
+                ["Dave", 1],
+                ["Dave", 2],
+            ]
         )
