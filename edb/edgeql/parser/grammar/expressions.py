@@ -129,7 +129,7 @@ class GroupingAtomList(ListNonterm, element=GroupingAtom,
 
 
 class GroupingElement(Nonterm):
-    def reduce_GroupingIdent(self, *kids):
+    def reduce_GroupingAtom(self, *kids):
         self.val = qlast.GroupingSimple(element=kids[0].val)
 
     def reduce_LBRACE_GroupingElementList_RBRACE(self, *kids):
