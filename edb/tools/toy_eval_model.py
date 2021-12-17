@@ -679,12 +679,12 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
         Tuple[Tuple[ByElement, ...], Tuple[Data, ...]],
         Tuple[Dict[ByElement, Data], List[Data]]
     ] = {}
-    # Rebuild the set tuple from all_keys to both deduplicate
+    # Rebuild the set tuples from all_keys to both deduplicate
     # and ensure a canonical order.
-    grouping_sets = dedup([
+    grouping_sets = [
         tuple(k for k in all_keys if k in grouping_set)
         for grouping_set in grouping_sets
-    ])
+    ]
     for grouping_set in grouping_sets:
         for val, keys in vals_and_keys:
             # Prune the keys down to just this grouping set
