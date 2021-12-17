@@ -577,7 +577,7 @@ JSON values support indexing operators. The resulting value is a ``json``.
 .. code-block:: edgeql-repl
 
   db> select to_json('{"a": 2, "b": 5}')['a'];
-  {1}
+  {2}
   db> select to_json('["a", "b", "c"]')[2];
   {'"c"'}
 
