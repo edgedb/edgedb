@@ -945,10 +945,11 @@ def extract_exclusive_filters(
     filter_set: irast.Set,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
-) -> Iterator[Tuple[Tuple[s_pointers.Pointer, irast.Set], ...]]:
+) -> List[Tuple[Tuple[s_pointers.Pointer, irast.Set], ...]]:
 
     filtered_ptrs = extract_filters(result_set, filter_set, scope_tree, ctx)
 
+    results: List[Tuple[Tuple[s_pointers.Pointer, irast.Set], ...]] = []
     if filtered_ptrs:
         filtered_ptrs_map = dict(filtered_ptrs)
         schema = ctx.env.schema
@@ -958,17 +959,25 @@ def extract_exclusive_filters(
         for ptr, expr in filtered_ptrs:
             ptr = ptr.get_nearest_non_derived_parent(schema)
             ptr_set.add(ptr)
-            if ptr.is_exclusive(schema):
+            for constr in ptr.get_exclusive_constraints(schema):
                 # Bingo, got an equality filter on a pointer with a
                 # unique constraint
-                yield ((ptr, expr),)
+                results.append(((ptr, expr),))
+                # We need to track all schema refs, since an expression
+                # in the schema needs to depend on any constraint
+                # that affects its cardinality.
+                ctx.env.add_schema_ref(constr, None)
 
         # Then look at all the object exclusive constraints
         result_stype = ctx.env.set_types[result_set]
         obj_exclusives = get_object_exclusive_constraints(
             result_stype, ptr_set, ctx.env)
-        for _, obj_exc_ptrs in obj_exclusives.items():
-            yield tuple((ptr, filtered_ptrs_map[ptr]) for ptr in obj_exc_ptrs)
+        for constr, obj_exc_ptrs in obj_exclusives.items():
+            results.append(
+                tuple((ptr, filtered_ptrs_map[ptr]) for ptr in obj_exc_ptrs))
+            ctx.env.add_schema_ref(constr, None)
+
+    return results
 
 
 def get_object_exclusive_constraints(
@@ -1016,10 +1025,7 @@ def _analyse_filter_clause(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    exc_filters = extract_exclusive_filters(
-        result_set, filter_clause, scope_tree, ctx)
-
-    for _ in exc_filters:
+    if extract_exclusive_filters(result_set, filter_clause, scope_tree, ctx):
         return AT_MOST_ONE
     else:
         return result_card
