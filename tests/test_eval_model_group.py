@@ -232,3 +232,11 @@ class TestModelGroupests(unittest.TestCase):
             """,
             res,
         )
+
+    def test_model_group_05(self):
+        self.assert_test_query(
+            """
+            SELECT count((GROUP Card {name, element} BY {.element, .element}))
+            """,
+            [8],
+        )

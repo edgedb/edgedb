@@ -677,34 +677,36 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
 
     # With the keys computed, run through every grouping set and
     # produce our groups.
-    groups: Dict[
-        Tuple[Tuple[ByElement, ...], Tuple[Data, ...]],
-        Tuple[Dict[ByElement, Data], List[Data]]
-    ] = {}
-    # Rebuild the set tuple from all_keys to both deduplicate
+    all_groups = []
+    # Rebuild the set tuples from all_keys to both deduplicate
     # and ensure a canonical order.
-    grouping_sets = dedup([
+    grouping_sets = [
         tuple(k for k in all_keys if k in grouping_set)
         for grouping_set in grouping_sets
-    ])
+    ]
     for grouping_set in grouping_sets:
+        groups: Dict[
+            Tuple[Data, ...],
+            Tuple[Dict[ByElement, Data], List[Data]]
+        ] = {}
         for val, keys in vals_and_keys:
             # Prune the keys down to just this grouping set
             keys = {k: v if k in grouping_set else [] for k, v in keys.items()}
             key = tuple(
                 None if not keys[k] else keys[k][0]
                 for k in grouping_set)
-            groups.setdefault(
-                (grouping_set, key), (keys, []))[1].append(val)
+            groups.setdefault(key, (keys, []))[1].append(val)
 
-    # We need to always output a group for the empty grouping set, if
-    # it exists.
-    if () in grouping_sets and ((), ()) not in groups:
-        groups[(), ()] = ({k: [] for k in all_keys}, [])
+        # We need to always output a group for the empty grouping set, if
+        # it exists.
+        if grouping_set == () and () not in groups:
+            groups[()] = ({k: [] for k in all_keys}, [])
+
+        all_groups.extend([(grouping_set, v) for v in groups.values()])
 
     # Now we can produce our output.
     out = []
-    for (grouping, _), (bindings, elements) in groups.items():
+    for grouping, (bindings, elements) in all_groups:
         key_dict = {k.name: v for k, v in bindings.items()}
         key_obj = Obj(FREE_ID, key_dict, key_dict)
         group_dict = {
