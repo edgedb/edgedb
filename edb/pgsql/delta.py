@@ -2562,7 +2562,9 @@ class CompositeMetaCommand(MetaCommand):
                 self.alter_inhview(schema, context, new_base)
 
         for old_base in orig_bases - bases:
-            if has_table(old_base, schema):
+            if has_table(old_base, schema) and not context.is_deleting(
+                old_base
+            ):
                 self.alter_inhview(
                     schema, context, old_base,
                     exclude_children=frozenset((obj,)))
