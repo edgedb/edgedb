@@ -27,6 +27,7 @@ from edb.common import ordered
 from edb.common import topological
 
 from . import delta as sd
+from . import expraliases as s_expraliases
 from . import functions as s_func
 from . import inheriting
 from . import name as sn
@@ -693,6 +694,11 @@ def _trace_op(
                 # Otherwise, things must be deleted _after_ their referrers
                 # have been deleted or altered.
                 deps.add(('delete', ref_name_str))
+                # (except for aliases, which in the collection case
+                # specifically need the old target deleted before the
+                # new one is created)
+                if not isinstance(ref, s_expraliases.Alias):
+                    deps.add(('alter', ref_name_str))
                 if type(ref) == type(obj):
                     deps.add(('rebase', ref_name_str))
 

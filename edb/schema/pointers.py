@@ -664,7 +664,8 @@ class Pointer(referencing.ReferencedInheritingObject,
     def get_referrer(self, schema: s_schema.Schema) -> Optional[so.Object]:
         return self.get_source(schema)
 
-    def is_exclusive(self, schema: s_schema.Schema) -> bool:
+    def get_exclusive_constraints(
+            self, schema: s_schema.Schema) -> Sequence[constraints.Constraint]:
         if self.generic(schema):
             raise ValueError(f'{self!r} is generic')
 
@@ -672,13 +673,17 @@ class Pointer(referencing.ReferencedInheritingObject,
 
         ptr = self.get_nearest_non_derived_parent(schema)
 
+        constrs = []
         for constr in ptr.get_constraints(schema).objects(schema):
             if (constr.issubclass(schema, exclusive) and
                     not constr.get_subjectexpr(schema)):
 
-                return True
+                constrs.append(constr)
 
-        return False
+        return constrs
+
+    def is_exclusive(self, schema: s_schema.Schema) -> bool:
+        return bool(self.get_exclusive_constraints(schema))
 
     def singular(
         self,

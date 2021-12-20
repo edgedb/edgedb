@@ -10426,6 +10426,82 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             type VerySpecialCard extending SpecialCard, SpecialCard2;
         ''')
 
+    async def test_edgeql_migration_drop_constraint_03(self):
+        await self.migrate(r'''
+            type C {
+                required property val -> str {
+                    constraint exclusive;
+                }
+            }
+
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+        ''')
+
+        await self.migrate('')
+
+    async def test_edgeql_migration_drop_constraint_04(self):
+        await self.migrate(r'''
+            type C {
+                required property val -> str {
+                    constraint exclusive;
+                }
+            }
+
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+        ''')
+
+        await self.migrate(r'''
+            type C {
+                required property val -> str;
+            }
+
+            type Foo {
+                required multi link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+        ''')
+
+    async def test_edgeql_migration_drop_constraint_05(self):
+        await self.migrate(r'''
+            type C {
+                required property val -> str {
+                    constraint exclusive;
+                }
+                required property val2 -> str {
+                    constraint exclusive;
+                }
+            }
+
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+        ''')
+
+        await self.migrate(r'''
+            type C {
+                required property val2 -> str {
+                    constraint exclusive;
+                }
+            }
+
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val2 = 'D00');
+                }
+            }
+        ''')
+
 
 class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
