@@ -2811,16 +2811,6 @@ def process_set_as_agg_expr_inner(
         agg_filter = None
         agg_sort = []
 
-        if ctx.group_by_rels:
-            for (path_id, s_path_id), group_rel in ctx.group_by_rels.items():
-                group_rvar = relctx.rvar_for_rel(group_rel, ctx=ctx)
-                relctx.include_rvar(stmt, group_rvar, path_id=path_id, ctx=ctx)
-                ref = pathctx.get_path_identity_var(stmt, path_id, env=ctx.env)
-                if stmt.group_clause is None:
-                    stmt.group_clause = []
-                stmt.group_clause.append(ref)
-                newctx.path_scope[s_path_id] = stmt
-
         with newctx.new() as argctx:
             # We want array_agg() (and similar) to do the right
             # thing with respect to output format, so, barring
