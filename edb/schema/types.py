@@ -48,7 +48,7 @@ if typing.TYPE_CHECKING:
     # We cannot use `from typing import *` in this file due to name conflict
     # with local Tuple and Type classes.
     from typing import Any, Dict, Iterable, Iterator, List, Mapping, Optional
-    from typing import AbstractSet, Sequence, Union
+    from typing import AbstractSet, Sequence, Union, Callable
     from edb.common import parsing
 
 
@@ -211,21 +211,6 @@ class Type(
     def is_anytuple(self, schema: s_schema.Schema) -> bool:
         return False
 
-    def find_any(self, schema: s_schema.Schema) -> Optional[Type]:
-        if self.is_any(schema):
-            return self
-        else:
-            return None
-
-    def contains_any(self, schema: s_schema.Schema) -> bool:
-        return self.is_any(schema)
-
-    def contains_object(self, schema: s_schema.Schema) -> bool:
-        return self.is_object_type()
-
-    def contains_json(self, schema: s_schema.Schema) -> bool:
-        return False
-
     def is_scalar(self) -> bool:
         return False
 
@@ -233,6 +218,9 @@ class Type(
         return False
 
     def is_array(self) -> bool:
+        return False
+
+    def is_json(self, schema: s_schema.Schema) -> bool:
         return False
 
     def is_tuple(self, schema: s_schema.Schema) -> bool:
@@ -243,6 +231,42 @@ class Type(
 
     def is_sequence(self, schema: s_schema.Schema) -> bool:
         return False
+
+    def is_array_of_tuples(self, schema: s_schema.Schema) -> bool:
+        return False
+
+    def find_predicate(
+        self,
+        pred: Callable[[Type], bool],
+        schema: s_schema.Schema,
+    ) -> Optional[Type]:
+        if pred(self):
+            return self
+        else:
+            return None
+
+    def contains_predicate(
+        self,
+        pred: Callable[[Type], bool],
+        schema: s_schema.Schema,
+    ) -> bool:
+        return bool(self.find_predicate(pred, schema))
+
+    def find_any(self, schema: s_schema.Schema) -> Optional[Type]:
+        return self.find_predicate(lambda x: x.is_any(schema), schema)
+
+    def contains_any(self, schema: s_schema.Schema) -> bool:
+        return self.contains_predicate(lambda x: x.is_any(schema), schema)
+
+    def contains_object(self, schema: s_schema.Schema) -> bool:
+        return self.contains_predicate(lambda x: x.is_object_type(), schema)
+
+    def contains_json(self, schema: s_schema.Schema) -> bool:
+        return self.contains_predicate(lambda x: x.is_json(schema), schema)
+
+    def contains_array_of_tuples(self, schema: s_schema.Schema) -> bool:
+        return self.contains_predicate(
+            lambda x: x.is_array_of_tuples(schema), schema)
 
     def test_polymorphic(self, schema: s_schema.Schema, poly: Type) -> bool:
         """Check if this type can be matched by a polymorphic type.
@@ -847,29 +871,19 @@ class Collection(Type, s_abc.Collection):
         return any(st.is_polymorphic(schema)
                    for st in self.get_subtypes(schema))
 
-    def find_any(self, schema: s_schema.Schema) -> Optional[Type]:
+    def find_predicate(
+        self,
+        pred: Callable[[Type], bool],
+        schema: s_schema.Schema,
+    ) -> Optional[Type]:
+        if pred(self):
+            return self
         for st in self.get_subtypes(schema):
-            any_t = st.find_any(schema)
-            if any_t is not None:
-                return any_t
+            res = st.find_predicate(pred, schema)
+            if res is not None:
+                return res
 
         return None
-
-    def contains_any(self, schema: s_schema.Schema) -> bool:
-        return any(st.contains_any(schema) for st in self.get_subtypes(schema))
-
-    def contains_json(self, schema: s_schema.Schema) -> bool:
-        return any(
-            st.contains_json(schema) for st in self.get_subtypes(schema))
-
-    def contains_object(self, schema: s_schema.Schema) -> bool:
-        return any(
-            st.contains_object(schema)
-            for st in self.get_subtypes(schema)
-        )
-
-    def contains_array_of_tuples(self, schema: s_schema.Schema) -> bool:
-        raise NotImplementedError
 
     def is_collection(self) -> bool:
         return True
@@ -1132,7 +1146,7 @@ class Array(
             self.get_element_type(schema).get_name(schema),
         )
 
-    def contains_array_of_tuples(self, schema: s_schema.Schema) -> bool:
+    def is_array_of_tuples(self, schema: s_schema.Schema) -> bool:
         return self.get_element_type(schema).is_tuple(schema)
 
     def get_displayname(self, schema: s_schema.Schema) -> str:
@@ -1834,13 +1848,6 @@ class Tuple(
 
     def get_typemods(self, schema: s_schema.Schema) -> Dict[str, bool]:
         return {'named': self.is_named(schema)}
-
-    def contains_array_of_tuples(self, schema: s_schema.Schema) -> bool:
-        return any(
-            st.contains_array_of_tuples(schema)
-            if isinstance(st, Collection) else False
-            for st in self.get_subtypes(schema)
-        )
 
     def _resolve_polymorphic(
         self,

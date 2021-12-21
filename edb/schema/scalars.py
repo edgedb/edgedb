@@ -76,7 +76,7 @@ class ScalarType(
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return self.get_abstract(schema)
 
-    def contains_json(self, schema: s_schema.Schema) -> bool:
+    def is_json(self, schema: s_schema.Schema) -> bool:
         return self.issubclass(
             schema,
             schema.get(s_name.QualName('std', 'json'), type=ScalarType),
