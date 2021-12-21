@@ -207,10 +207,13 @@ async def _ensure_edgedb_role(
     return objid
 
 
-async def _is_pristine_cluster_regular(ctx: BootstrapContext) -> bool:
-    tenant_id = ctx.cluster.get_runtime_params().tenant_id
-    is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
+async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
+    backend_params = ctx.cluster.get_runtime_params()
+    tenant_id = backend_params.tenant_id
 
+    # First, check the existence of EDGEDB_SUPERGROUP - the role which is
+    # usually created at the beginning of bootstrap.
+    is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
     if is_default_tenant:
         result = await ctx.conn.fetch('''
             SELECT
@@ -230,24 +233,17 @@ async def _is_pristine_cluster_regular(ctx: BootstrapContext) -> bool:
                 r.rolname = $1
         ''', ctx.cluster.get_role_name(edbdef.EDGEDB_SUPERGROUP))
 
-    if not result:
-        return True
-    elif is_default_tenant and ctx.args.ignore_other_tenants:
+    if result:
+        if not is_default_tenant or not ctx.args.ignore_other_tenants:
+            return False
+
         for row in result:
             rolname = row['rolname']
             other_tenant_id = rolname[: -(len(edbdef.EDGEDB_SUPERGROUP) + 1)]
             if other_tenant_id == tenant_id:
                 return False
-        return True
-    else:
-        return False
 
-
-async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
-    # First, check if the current database was bootstrapped in single-database
-    # mode. If yes, we will run under single-database mode regardless of
-    # `CREATE DATABASE` backend capability.
-    backend_params = ctx.cluster.get_runtime_params()
+    # Then, check if the current database was bootstrapped in single-db mode.
     has_instdata = await ctx.conn.fetch('''
         SELECT
             tablename
@@ -258,55 +254,32 @@ async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
             AND tablename = 'instdata'
     ''')
     if has_instdata:
-        # Just in case the user specified the EdgeDB Template DB in the DSN of
-        # a non-single-db backend, we need more evidence for single-db mode
-        key = f'{edbdef.EDGEDB_TEMPLATE_DB}metadata'
-        is_single_database = await ctx.conn.fetch(f'''
-            SELECT key FROM edgedbinstdata.instdata
-            WHERE key = {ql(key)}
-        ''')
-        if is_single_database:
-            # assumes single-role mode too
-            logger.info("Enforcing single-database mode in which the backend "
-                        "was bootstrapped.")
-            capabilities = backend_params.instance_params.capabilities
-            capabilities &= ~params.BackendCapabilities.CREATE_ROLE
-            capabilities &= ~params.BackendCapabilities.CREATE_DATABASE
-            ctx.cluster.overwrite_capabilities(capabilities)
-            return False
+        if backend_params.has_create_database:
+            raise _single_mode_error('Single Database', 'CREATE DATABASE')
+        if backend_params.has_create_role:
+            raise _single_mode_error('Single Database', 'CREATE ROLE')
+        return False
 
-    # Second, find the EdgeDB Template DB with the assumption that we are not
-    # running in single-db mode. If not found, fall back to the regular check
-    tpl_db = await _find_non_single_db(ctx, edbdef.EDGEDB_TEMPLATE_DB)
-    if not tpl_db:
-        return await _is_pristine_cluster_regular(ctx)
-
-    # At last, try to look into the Template DB to see if the backend was
-    # bootstrapped in the single-role mode.
-    try:
-        conn = await ctx.cluster.connect(database=tpl_db)
-    except Exception:
-        # Permission issue? This is not our Template DB, use the regular check
-        return await _is_pristine_cluster_regular(ctx)
+    # At last, check for single-role-bootstrapped instance by trying to find
+    # the EdgeDB System DB with the assumption that we are not running in
+    # single-db mode. If not found, this is a pristine backend cluster.
+    sys_db = await _find_system_db(ctx)
+    if sys_db:
+        if backend_params.has_create_role:
+            raise _single_mode_error('Single Role', 'CREATE ROLE')
+        return False
     else:
-        try:
-            is_single_role = await conn.fetch(f'''
-                SELECT key FROM edgedbinstdata.instdata
-                WHERE key = 'single_role_metadata'
-            ''')
-        except Exception:
-            return await _is_pristine_cluster_regular(ctx)
-        finally:
-            await conn.close()
-        if is_single_role:
-            logger.info("Enforcing single-role mode in which the backend "
-                        "was bootstrapped.")
-            capabilities = backend_params.instance_params.capabilities
-            capabilities &= ~params.BackendCapabilities.CREATE_ROLE
-            ctx.cluster.overwrite_capabilities(capabilities)
-            return False
-        else:
-            return await _is_pristine_cluster_regular(ctx)
+        return True
+
+
+def _single_mode_error(mode, permission):
+    from .server import StartupError
+
+    return StartupError(
+        f"The backend is already bootstrapped in {mode} mode, but the current "
+        f"backend user has {permission} permission. It's likely a wrong "
+        f"backend user."
+    )
 
 
 async def _create_edgedb_template_database(
@@ -1352,25 +1325,6 @@ async def _get_instance_data(conn: Any) -> Dict[str, Any]:
 
 
 async def _find_system_db(ctx: BootstrapContext) -> Optional[str]:
-    backend_params = ctx.cluster.get_runtime_params()
-
-    if not backend_params.has_create_database:
-        sys_db = await ctx.conn.fetchval(f'''
-            SELECT current_database()
-            FROM edgedbinstdata.instdata
-            WHERE key = '{edbdef.EDGEDB_TEMPLATE_DB}metadata'
-            AND json->>'tenant_id' = '{backend_params.tenant_id}'
-        ''')
-    else:
-        sys_db = await _find_non_single_db(ctx, edbdef.EDGEDB_SYSTEM_DB)
-
-    return sys_db
-
-
-async def _find_non_single_db(
-    ctx: BootstrapContext,
-    name: str,
-) -> Optional[str]:
     tenant_id = ctx.cluster.get_runtime_params().tenant_id
     is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
 
@@ -1383,13 +1337,13 @@ async def _find_non_single_db(
                 datname = $1,
                 datname DESC
             LIMIT 1
-        ''', name)
+        ''', edbdef.EDGEDB_SYSTEM_DB)
     else:
         sys_db = await ctx.conn.fetchval(f'''
             SELECT datname
             FROM pg_database
             WHERE datname = $1
-        ''', ctx.cluster.get_db_name(name))
+        ''', ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB))
 
     return sys_db
 
@@ -1397,7 +1351,18 @@ async def _find_non_single_db(
 async def _check_catalog_compatibility(
     ctx: BootstrapContext,
 ) -> asyncpg_con.Connection:
-    sys_db = await _find_system_db(ctx)
+    backend_params = ctx.cluster.get_runtime_params()
+
+    if backend_params.has_create_database:
+        sys_db = await _find_system_db(ctx)
+    else:
+        sys_db = await ctx.conn.fetchval(f'''
+            SELECT current_database()
+            FROM edgedbinstdata.instdata
+            WHERE key = '{edbdef.EDGEDB_TEMPLATE_DB}metadata'
+            AND json->>'tenant_id' = '{backend_params.tenant_id}'
+        ''')
+
     if not sys_db:
         raise errors.ConfigurationError(
             'database instance is corrupt',

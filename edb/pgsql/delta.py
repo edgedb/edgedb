@@ -5364,7 +5364,8 @@ class DatabaseMixin:
                     SELECT
                         edgedb.raise(
                             NULL::uuid,
-                            msg => 'operation is not supported by the backend'
+                            msg => 'operation is not supported by the backend',
+                            exc => 'feature_not_supported'
                         )
                     INTO _dummy_text
                     '''
@@ -5431,7 +5432,8 @@ class RoleMixin:
                     SELECT
                         edgedb.raise(
                             NULL::uuid,
-                            msg => 'operation is not supported by the backend'
+                            msg => 'operation is not supported by the backend',
+                            exc => 'feature_not_supported'
                         )
                     INTO _dummy_text
                     '''
