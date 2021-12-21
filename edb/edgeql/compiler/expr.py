@@ -455,8 +455,7 @@ def compile_TypeCast(
             )
 
         if (
-            isinstance(pt, s_types.Collection)
-            and pt.contains_array_of_tuples(ctx.env.schema)
+            pt.contains_array_of_tuples(ctx.env.schema)
             and not ctx.env.options.func_params
         ):
             raise errors.QueryError(

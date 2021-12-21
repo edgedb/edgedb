@@ -800,7 +800,7 @@ class GQLCoreSchema:
                 fields[name] = GraphQLInputField(intype)
 
             elif (
-                isinstance(edb_target, s_types.Collection) and
+                edb_target and
                 edb_target.contains_array_of_tuples(self.edb_schema)
             ):
                 # Can't insert array<tuple<...>>
@@ -898,7 +898,7 @@ class GQLCoreSchema:
                 fields[name] = GraphQLInputField(intype)
 
             elif (
-                isinstance(edb_target, s_types.Collection) and
+                edb_target and
                 edb_target.contains_array_of_tuples(self.edb_schema)
             ):
                 # Can't update array<tuple<...>>
