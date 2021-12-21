@@ -891,6 +891,11 @@ class CaseExpr(ImmutableBaseExpr):
     defresult: typing.Optional[BaseExpr] = None
 
 
+class GroupingOperation(Base):
+    operation: typing.Optional[str] = None
+    args: typing.List[Base]
+
+
 SortAsc = qlast.SortAsc
 SortDesc = qlast.SortDesc
 SortDefault = qlast.SortDefault

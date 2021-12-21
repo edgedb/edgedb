@@ -530,6 +530,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(' ')
             self.visit(node.typename)
 
+    def visit_GroupingOperation(self, node):
+        if node.operation:
+            self.write(node.operation)
+            self.write(' ')
+        self.write('(')
+        self.visit_list(node.args, newlines=False)
+        self.write(')')
+
     def visit_JoinExpr(self, node):
         self.visit(node.larg)
         if node.rarg is not None:
