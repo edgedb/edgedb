@@ -133,11 +133,6 @@ class CompilerContextLevel(compiler.ContextLevel):
     # a bogus volatility ref to it...
     current_insert_path_id: Optional[irast.PathId]
 
-    group_by_rels: Dict[
-        Tuple[irast.PathId, irast.PathId],
-        Union[pgast.BaseRelation, pgast.CommonTableExpr]
-    ]
-
     #: Paths, for which semi-join is banned in this context.
     disable_semi_join: Set[irast.PathId]
 
@@ -232,7 +227,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.expr_exposed = None
             self.volatility_ref = ()
             self.current_insert_path_id = None
-            self.group_by_rels = {}
 
             self.disable_semi_join = set()
             self.force_optional = set()
@@ -269,7 +263,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.expr_exposed = prevlevel.expr_exposed
             self.volatility_ref = prevlevel.volatility_ref
             self.current_insert_path_id = prevlevel.current_insert_path_id
-            self.group_by_rels = prevlevel.group_by_rels
 
             self.disable_semi_join = prevlevel.disable_semi_join.copy()
             self.force_optional = prevlevel.force_optional.copy()
