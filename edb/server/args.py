@@ -34,6 +34,7 @@ from edb import buildmeta
 from edb.common import devmode
 from edb.common import enum
 from edb.schema import defines as schema_defines
+from edb.pgsql import params as pgsql_params
 
 from . import defines
 
@@ -132,6 +133,11 @@ class ServerConfig(NamedTuple):
 
     instance_name: Optional[str]
 
+    backend_capability_bound: Tuple[
+        List[pgsql_params.BackendCapabilities],
+        List[pgsql_params.BackendCapabilities],
+    ]
+
 
 class PathPath(click.Path):
     name = 'path'
@@ -158,6 +164,45 @@ class PortType(click.ParamType):
             )
         except ValueError:
             self.fail(f"{value!r} is not a valid integer", param, ctx)
+
+
+class CapabilityBoundingSet(click.ParamType):
+    name = 'capability'
+
+    def __init__(self):
+        self.choices = {
+            cap.name: cap
+            for cap in pgsql_params.BackendCapabilities
+            if cap.name != 'NONE'
+        }
+
+    def get_metavar(self, param):
+        return " ".join(f'[[~]{cap}]' for cap in self.choices)
+
+    def convert(self, value, param, ctx):
+        requires = []
+        disables = []
+        visited = set()
+        for cap_str in value.split():
+            try:
+                if cap_str.startswith("~"):
+                    cap = self.choices[cap_str[1:].upper()]
+                    disables.append(cap)
+                else:
+                    cap = self.choices[cap_str.upper()]
+                    requires.append(cap)
+                if cap in visited:
+                    self.fail(f"duplicate capability: {cap_str}", param, ctx)
+                else:
+                    visited.add(cap)
+            except KeyError:
+                self.fail(
+                    f"invalid capability: {cap_str}. "
+                    f"(choose from {', '.join(self.choices)})",
+                    param,
+                    ctx,
+                )
+        return requires, disables
 
 
 def _get_runstate_dir_default() -> str:
@@ -509,6 +554,17 @@ _server_options = [
         envvar="EDGEDB_SERVER_INSTANCE_NAME",
         type=str, default=None, hidden=True,
         help='Server instance name.'),
+    click.option(
+        '--backend-capability-bound',
+        envvar="EDGEDB_SERVER_BACKEND_CAPABILITY_BOUND",
+        type=CapabilityBoundingSet(),
+        default="",
+        help="A space-separated bounding set of backend capabilities. The "
+             "server will only start if the actual backend capabilities match "
+             "the specified bounding set. If the backend is not bootstrapped, "
+             "the capability with a leading ~ from the bounding set will be "
+             "*explicitly disabled* as if the backend never had it."
+    ),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
