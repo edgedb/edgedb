@@ -92,24 +92,13 @@ def _common_multiplicity(
 
 @functools.singledispatch
 def _infer_multiplicity(
-    ir: irast.Expr,
+    ir: irast.Base,
     *,
     scope_tree: irast.ScopeTreeNode,
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
     # return MANY
     raise ValueError(f'infer_multiplicity: cannot handle {ir!r}')
-
-
-@_infer_multiplicity.register
-def __infer_none(
-    ir: None,
-    *,
-    scope_tree: irast.ScopeTreeNode,
-    ctx: inf_ctx.InfCtx,
-) -> inf_ctx.MultiplicityInfo:
-    # Here for debugging purposes.
-    raise ValueError('invalid infer_multiplicity(None, schema) call')
 
 
 @_infer_multiplicity.register

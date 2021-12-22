@@ -76,7 +76,7 @@ class PathId:
             uuid.UUID,
             s_name.Name,
             Tuple[
-                str, s_pointers.PointerDirection, bool
+                s_name.QualName, s_pointers.PointerDirection, bool
             ],
         ],
         ...

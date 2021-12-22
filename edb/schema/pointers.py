@@ -786,6 +786,7 @@ class Pointer(referencing.ReferencedInheritingObject,
             return None
 
         tgt = ptr.get_target(schema)
+        assert tgt is not None
 
         if f_default is so.DEFAULT_CONSTRUCTOR:
             if (

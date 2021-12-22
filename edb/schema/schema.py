@@ -544,7 +544,7 @@ class FlatSchema(Schema):
 
         new._generation = self._generation + 1
 
-        return new  # type: ignore
+        return new
 
     def _update_obj_name(
         self,

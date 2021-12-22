@@ -532,9 +532,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
                       context: sd.CommandContext
                       ) -> Type[qlast.DDLOperation]:
         subject_ctx = self.get_referrer_context(context)
-        ref_astnode: Type[qlast.DDLOperation] = getattr(self,
-                                                        'referenced_astnode',
-                                                        None)
+        ref_astnode: Optional[Type[qlast.DDLOperation]] = (
+            getattr(self, 'referenced_astnode', None))
         if subject_ctx is not None and ref_astnode is not None:
             return ref_astnode
         else:
@@ -710,10 +709,10 @@ class ReferencedInheritingObjectCommand(
         fq_name: sn.QualName,
     ) -> List[ReferencedInheritingObjectT]:
 
+        ref_field_type = type(referrer).get_field(referrer_field).type
         assert isinstance(referrer, so.QualifiedObject)
         child_referrer_bases = referrer.get_bases(schema).objects(schema)
         implicit_bases = []
-        ref_field_type = type(referrer).get_field(referrer_field).type
 
         for ref_base in child_referrer_bases:
             fq_name_in_child = self._classname_from_name(
