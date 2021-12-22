@@ -635,8 +635,10 @@ def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[ByElement, ...]]:
     ]
 
 
-@_eval.register
-def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
+def get_groups(node: qlast.GroupQuery, ctx: EvalContext) -> List[Tuple[
+    Tuple[Data, ...],
+    Tuple[Dict[ByElement, Data], List[Data]]
+]]:
     ctx = eval_aliases(node, ctx)
 
     # Actually evaluate the subject
@@ -703,6 +705,13 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
             groups[()] = ({k: [] for k in all_keys}, [])
 
         all_groups.extend([(grouping_set, v) for v in groups.values()])
+
+    return all_groups
+
+
+@_eval.register
+def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
+    all_groups = get_groups(node, ctx)
 
     # Now we can produce our output.
     out = []
