@@ -85,12 +85,31 @@ class BaseCluster:
             self._instance_params = instance_params
 
     def get_db_name(self, db_name: str) -> str:
+        if (
+            not self._instance_params.capabilities
+            & pgparams.BackendCapabilities.CREATE_DATABASE
+        ):
+            assert (
+                db_name == defines.EDGEDB_SUPERUSER_DB
+            ), f"db_name={db_name} is not allowed"
+            rv = self.get_connection_params().database
+            assert rv is not None
+            return rv
         return get_database_backend_name(
             db_name,
             tenant_id=self._instance_params.tenant_id,
         )
 
     def get_role_name(self, role_name: str) -> str:
+        if (
+            not self._instance_params.capabilities
+            & pgparams.BackendCapabilities.CREATE_ROLE
+        ):
+            assert (
+                role_name == defines.EDGEDB_SUPERUSER
+            ), f"role_name={role_name} is not allowed"
+            return self.get_connection_params().user
+
         return get_database_backend_name(
             role_name,
             tenant_id=self._instance_params.tenant_id,
@@ -348,10 +367,7 @@ class Cluster(BaseCluster):
             logger.info(
                 'Initializing database cluster in %s', self._data_dir)
 
-            instance_params = self.get_runtime_params().instance_params
-            capabilities = instance_params.capabilities
-            have_c_utf8 = (
-                capabilities & pgparams.BackendCapabilities.C_UTF8_LOCALE)
+            have_c_utf8 = self.get_runtime_params().has_c_utf8_locale
             await self.init(
                 username='postgres',
                 locale='C.UTF-8' if have_c_utf8 else 'en_US.UTF-8',
@@ -931,6 +947,16 @@ async def get_remote_pg_cluster(
         if coll is not None:
             caps |= pgparams.BackendCapabilities.C_UTF8_LOCALE
 
+        roles = await conn.fetchrow('''
+            SELECT rolcreaterole, rolcreatedb FROM pg_roles
+            WHERE rolname = (SELECT current_user);
+        ''')
+
+        if roles['rolcreaterole']:
+            caps |= pgparams.BackendCapabilities.CREATE_ROLE
+        if roles['rolcreatedb']:
+            caps |= pgparams.BackendCapabilities.CREATE_DATABASE
+
         return caps
 
     async def _get_pg_settings(
@@ -957,10 +983,29 @@ async def get_remote_pg_cluster(
 
     conn = await rcluster.connect()
     try:
+        user, dbname = await conn.fetchrow(
+            "SELECT current_user, current_database()"
+        )
         cluster_type, superuser_name = await _get_cluster_type(conn)
         max_connections = await _get_pg_settings(conn, 'max_connections')
+        capabilities = await _detect_capabilities(conn)
+        if t_id != buildmeta.get_default_tenant_id():
+            # GOTCHA: This tenant_id check cannot protect us from running
+            # multiple EdgeDB servers using the default tenant_id with
+            # different catalog versions on the same backend. However, that
+            # would fail during bootstrap in single-role/database mode.
+            if not capabilities & pgparams.BackendCapabilities.CREATE_ROLE:
+                raise ClusterError(
+                    "The remote backend doesn't support CREATE ROLE; "
+                    "multi-tenancy is disabled."
+                )
+            if not capabilities & pgparams.BackendCapabilities.CREATE_DATABASE:
+                raise ClusterError(
+                    "The remote backend doesn't support CREATE DATABASE; "
+                    "multi-tenancy is disabled."
+                )
         instance_params = pgparams.BackendInstanceParams(
-            capabilities=await _detect_capabilities(conn),
+            capabilities=capabilities,
             base_superuser=superuser_name,
             max_connections=int(max_connections),
             reserved_connections=await _get_reserved_connections(conn),
@@ -969,6 +1014,8 @@ async def get_remote_pg_cluster(
     finally:
         await conn.close()
 
+    params.user = user
+    params.database = dbname
     return cluster_type(
         addrs[0],
         params,

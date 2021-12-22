@@ -234,6 +234,10 @@ class TestDump02(tb.StableDumpTestCase, DumpTestCaseMixin):
     SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
                          'dump02_setup.edgeql')
 
+    TEARDOWN = '''
+        CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;
+    '''
+
     @classmethod
     def get_setup_script(cls):
         script = (
@@ -252,4 +256,11 @@ class TestDump02Compat(
     dump_subdir='dump02',
     check_method=DumpTestCaseMixin.ensure_schema_data_integrity,
 ):
-    pass
+    @classmethod
+    def tearDownClass(cls):
+        try:
+            cls.loop.run_until_complete(cls.con.execute('''
+                CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;
+            '''))
+        finally:
+            super().tearDownClass()

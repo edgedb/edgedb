@@ -20,6 +20,7 @@
 from __future__ import annotations
 from typing import *
 
+import json
 import textwrap
 
 from ..common import quote_ident as qi
@@ -58,6 +59,20 @@ class Role(base.DBObject):
 
     def get_id(self):
         return qi(self.name)
+
+
+class SingleRole(Role):
+    def __init__(
+        self,
+        *,
+        password: Union[None, str, base.NotSpecifiedT] = base.NotSpecified,
+        metadata: Optional[Mapping[str, Any]] = None,
+    ) -> None:
+        super().__init__('current_user', password=password)
+        self.single_role_metadata = metadata
+
+    def get_id(self):
+        return self.name
 
 
 class RoleExists(base.Condition):
@@ -124,6 +139,19 @@ class AlterRole(ddl.AlterObject, RoleCommand):
 
     def code(self, block: base.PLBlock) -> str:
         return f'ALTER {self._render()}'
+
+    def generate_extra(self, block: base.PLBlock) -> None:
+        super().generate_extra(block)
+        if getattr(self.object, 'single_role_metadata', None):
+            value = json.dumps(self.object.single_role_metadata)
+            query = base.Query(
+                f'''
+                UPDATE edgedbinstdata.instdata
+                SET json = {ql(value)}::jsonb
+                WHERE key = 'single_role_metadata'
+                '''
+            )
+            block.add_command(query.code(block))
 
 
 class DropRole(ddl.SchemaObjectOperation):

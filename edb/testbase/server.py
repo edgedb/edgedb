@@ -563,7 +563,22 @@ class ClusterTestCase(TestCase):
             http_endpoint_security=(
                 edgedb_args.ServerEndpointSecurityMode.Optional),
         )
+        cls.has_create_database = cls.cluster.has_create_database()
+        cls.has_create_role = cls.cluster.has_create_role()
         cls.backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+
+    @classmethod
+    async def tearDownSingleDB(cls):
+        await cls.con.execute(
+            'START MIGRATION TO {};\n'
+            'POPULATE MIGRATION;\n'
+            'COMMIT MIGRATION;'
+        )
+        while m := await cls.con.query_single(
+            "SELECT schema::Migration { name } "
+            "FILTER NOT EXISTS .<parents LIMIT 1"
+        ):
+            await cls.con.execute(f"DROP MIGRATION {m.name}")
 
     @classmethod
     def fetch_metrics(cls) -> str:
@@ -1061,13 +1076,16 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         cls.admin_conn = None
         cls.con = None
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
 
         # Only open an extra admin connection if necessary.
-        if not class_set_up:
+        if class_set_up == 'run':
             script = f'CREATE DATABASE {dbname};'
             cls.admin_conn = cls.loop.run_until_complete(cls.connect())
             cls.loop.run_until_complete(cls.admin_conn.execute(script))
+
+        elif class_set_up == 'inplace':
+            dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
 
         elif cls.uses_database_copies():
             cls.admin_conn = cls.loop.run_until_complete(cls.connect())
@@ -1118,7 +1136,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
         cls.con = cls.loop.run_until_complete(cls.connect(database=dbname))
 
-        if not class_set_up:
+        if class_set_up != 'skip':
             script = cls.get_setup_script()
             if script:
                 cls.loop.run_until_complete(cls.con.execute(script))
@@ -1127,20 +1145,25 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     def tearDownClass(cls):
         script = ''
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
 
-        if cls.TEARDOWN and not class_set_up:
+        if cls.TEARDOWN and class_set_up != 'skip':
             script = cls.TEARDOWN.strip()
 
         try:
             if script:
                 cls.loop.run_until_complete(
                     cls.con.execute(script))
+            if class_set_up == 'inplace':
+                cls.loop.run_until_complete(cls.tearDownSingleDB())
         finally:
             try:
                 cls.loop.run_until_complete(cls.con.aclose())
 
-                if not class_set_up or cls.uses_database_copies():
+                if class_set_up == 'inplace':
+                    pass
+
+                elif class_set_up == 'run' or cls.uses_database_copies():
                     dbname = qlquote.quote_ident(cls.get_database_name())
 
                     # The retry loop below masks connection abort races.
@@ -1177,6 +1200,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
     @classmethod
     def get_database_name(cls):
+        if not getattr(cls, 'has_create_database', True):
+            return edgedb_defines.EDGEDB_SUPERUSER_DB
+
         if cls.__name__.startswith('TestEdgeQL'):
             dbname = cls.__name__[len('TestEdgeQL'):]
         elif cls.__name__.startswith('Test'):
@@ -1324,7 +1350,19 @@ class DumpCompatTestCaseMeta(TestCaseMeta):
         mod = sys.modules[ns['__module__']]
         dumps_dir = pathlib.Path(mod.__file__).parent / 'dumps' / dump_subdir
 
+        async def check_dump_restore_compat_single_db(self, *, dumpfn):
+            dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
+            self.run_cli('-d', dbname, 'restore', str(dumpfn))
+            try:
+                await check_method(self)
+            finally:
+                await self.tearDownSingleDB()
+
         async def check_dump_restore_compat(self, *, dumpfn: pathlib.Path):
+            if not self.has_create_database:
+                return await check_dump_restore_compat_single_db(
+                    self, dumpfn=dumpfn
+                )
 
             dbname = f"{type(self).__name__}_{dumpfn.stem}"
             qdbname = qlquote.quote_ident(dbname)
@@ -1374,7 +1412,18 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
     STABLE_DUMP = True
     TRANSACTION_ISOLATION = False
 
+    async def check_dump_restore_single_db(self, check_method):
+        with tempfile.NamedTemporaryFile() as f:
+            dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
+            self.run_cli('-d', dbname, 'dump', f.name)
+            await self.tearDownSingleDB()
+            self.run_cli('-d', dbname, 'restore', f.name)
+        await check_method(self)
+
     async def check_dump_restore(self, check_method):
+        if not self.has_create_database:
+            return await self.check_dump_restore_single_db(check_method)
+
         src_dbname = self.get_database_name()
         tgt_dbname = f'{src_dbname}_restored'
         q_tgt_dbname = qlquote.quote_ident(tgt_dbname)

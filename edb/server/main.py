@@ -456,16 +456,19 @@ async def run_server(
                 f'bytes: {runstate_dir_str!r} ({runstate_dir_str_len} bytes)'
             )
 
-        if args.data_dir:
-            cluster, args = await _get_local_pgcluster(
-                args, runstate_dir, tenant_id)
-        elif args.backend_dsn:
-            cluster, args = await _get_remote_pgcluster(args, tenant_id)
-        else:
-            # This should have been checked by main() already,
-            # but be extra careful.
-            abort('neither the data directory nor the remote Postgres DSN '
-                  'have been specified')
+        try:
+            if args.data_dir:
+                cluster, args = await _get_local_pgcluster(
+                    args, runstate_dir, tenant_id)
+            elif args.backend_dsn:
+                cluster, args = await _get_remote_pgcluster(args, tenant_id)
+            else:
+                # This should have been checked by main() already,
+                # but be extra careful.
+                abort('neither the data directory nor the remote Postgres DSN '
+                      'have been specified')
+        except pgcluster.ClusterError as e:
+            abort(str(e))
 
         try:
             pg_cluster_init_by_us = await cluster.ensure_initialized()

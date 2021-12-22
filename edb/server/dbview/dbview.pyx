@@ -653,12 +653,18 @@ cdef class DatabaseIndex:
             include_source=False,
         )
         block = dbops.PLTopBlock()
-        dbops.UpdateMetadata(
-            dbops.Database(
-                name=self._server.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
-            ),
-            {'sysconfig': json.loads(data)},
-        ).generate(block)
+        metadata = {'sysconfig': json.loads(data)}
+        if self._server.get_backend_runtime_params().has_create_database:
+            dbops.UpdateMetadata(
+                dbops.Database(
+                    name=self._server.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
+                ),
+                metadata,
+            ).generate(block)
+        else:
+            dbops.UpdateSingleDBMetadata(
+                defines.EDGEDB_SYSTEM_DB, metadata
+            ).generate(block)
         await conn.simple_query(block.to_string().encode(), True)
 
     async def apply_system_config_op(self, conn, op):

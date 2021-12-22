@@ -2532,6 +2532,9 @@ class MigrationStmt(Nonterm):
     def reduce_CommitMigrationStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_DropMigrationStmt(self, *kids):
+        self.val = kids[0].val
+
 
 class MigrationBody(typing.NamedTuple):
 

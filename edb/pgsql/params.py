@@ -33,12 +33,18 @@ class BackendCapabilities(enum.IntFlag):
     CONFIGFILE_ACCESS = 1 << 1
     #: Whether the PostgreSQL server supports the C.UTF-8 locale
     C_UTF8_LOCALE = 1 << 2
+    #: Whether CREATE ROLE is allowed
+    CREATE_ROLE = 1 << 3
+    #: Whether CREATE DATABASE is allowed
+    CREATE_DATABASE = 1 << 4
 
 
 ALL_BACKEND_CAPABILITIES = (
     BackendCapabilities.SUPERUSER_ACCESS
     | BackendCapabilities.CONFIGFILE_ACCESS
     | BackendCapabilities.C_UTF8_LOCALE
+    | BackendCapabilities.CREATE_ROLE
+    | BackendCapabilities.CREATE_DATABASE
 )
 
 
@@ -55,6 +61,45 @@ class BackendRuntimeParams(NamedTuple):
 
     instance_params: BackendInstanceParams
     session_authorization_role: Optional[str] = None
+
+    @property
+    def tenant_id(self) -> str:
+        return self.instance_params.tenant_id
+
+    @property
+    def has_superuser_access(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.SUPERUSER_ACCESS
+        )
+
+    @property
+    def has_configfile_access(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.CONFIGFILE_ACCESS
+        )
+
+    @property
+    def has_c_utf8_locale(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.C_UTF8_LOCALE
+        )
+
+    @property
+    def has_create_role(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.CREATE_ROLE
+        )
+
+    @property
+    def has_create_database(self) -> bool:
+        return bool(
+            self.instance_params.capabilities
+            & BackendCapabilities.CREATE_DATABASE
+        )
 
 
 @functools.lru_cache

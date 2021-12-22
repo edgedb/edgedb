@@ -28,7 +28,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        postgres-version: [ 12, 13, 14 ]
+        postgres-version: [ 13 ]
+        single-mode:
+         - ''
+         - 'NOCREATEDB NOCREATEROLE'
+         - 'CREATEDB NOCREATEROLE'
+        include:
+          - postgres-version: 12
+            single-mode: ''
+          - postgres-version: 14
+            single-mode: ''
     services:
       postgres:
         image: postgres:${{ matrix.postgres-version }}-alpine
@@ -47,10 +56,39 @@ jobs:
 
     # Run the test
 
+    - name: Setup single mode role and database
+      if: ${{ matrix.single-mode }}
+      shell: python
+      run: |
+        import asyncio, asyncpg
+        async def main():
+            conn = await asyncpg.connect("postgres://postgres:postgres@localhost/postgres")
+            await conn.execute("""\
+                CREATE ROLE singles;
+                ALTER ROLE singles WITH LOGIN PASSWORD 'test' NOSUPERUSER ${{ matrix.single-mode }};
+            """)
+            await conn.execute(""" \
+                CREATE DATABASE singles OWNER singles;
+            """)
+            await conn.execute(""" \
+                REVOKE ALL ON DATABASE singles FROM PUBLIC;
+                GRANT CONNECT ON DATABASE singles TO singles;
+                GRANT ALL ON DATABASE singles TO singles;
+            """)
+        asyncio.run(main())
+
     - name: Test
       env:
-        EDGEDB_TEST_BACKEND_DSN: postgres://postgres:postgres@localhost/postgres
         EDGEDB_TEST_POSTGRES_VERSION: ${{ matrix.postgres-version }}
       run: |
+        if [[ "${{ matrix.single-mode }}" ]]; then
+          export EDGEDB_TEST_BACKEND_DSN=postgres://singles:test@localhost/singles
+        else
+          export EDGEDB_TEST_BACKEND_DSN=postgres://postgres:postgres@localhost/postgres
+        fi
         edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
-        edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        if [[ "${{ matrix.single-mode }}" == *"NOCREATEDB"* ]]; then
+          edb test -j1 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        else
+          edb test -j2 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+        fi

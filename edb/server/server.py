@@ -18,6 +18,8 @@
 
 
 from __future__ import annotations
+
+import functools
 from typing import *
 
 import asyncio
@@ -315,11 +317,17 @@ class Server(ha_base.ClusterProtocol):
 
     async def _pg_connect(self, dbname):
         ha_serial = self._ha_master_serial
-        pg_dbname = self.get_pg_dbname(dbname)
+        if self.get_backend_runtime_params().has_create_database:
+            pg_dbname = self.get_pg_dbname(dbname)
+        else:
+            pg_dbname = self.get_pg_dbname(defines.EDGEDB_SUPERUSER_DB)
         started_at = time.monotonic()
         try:
             rv = await pgcon.connect(
-                self._get_pgaddr(), pg_dbname, self._tenant_id)
+                self._get_pgaddr(),
+                pg_dbname,
+                self.get_backend_runtime_params(),
+            )
         except Exception:
             metrics.backend_connection_establishment_errors.inc()
             raise
@@ -1601,6 +1609,7 @@ class Server(ha_base.ClusterProtocol):
     def get_instance_data(self, key):
         return self._instance_data[key]
 
+    @functools.lru_cache
     def get_backend_runtime_params(self) -> Any:
         return self._cluster.get_runtime_params()
 

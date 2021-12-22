@@ -715,7 +715,16 @@ class GetBackendTenantIDFunction(dbops.Function):
 class GetDatabaseBackendNameFunction(dbops.Function):
 
     text = f'''
-        SELECT edgedb.get_backend_tenant_id() || '_' || "db_name"
+    SELECT
+        CASE
+        WHEN
+            (edgedb.get_backend_capabilities()
+             & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+        THEN
+            edgedb.get_backend_tenant_id() || '_' || "db_name"
+        ELSE
+            current_database()::text
+        END
     '''
 
     def __init__(self) -> None:
@@ -732,7 +741,16 @@ class GetDatabaseBackendNameFunction(dbops.Function):
 class GetRoleBackendNameFunction(dbops.Function):
 
     text = f'''
-        SELECT edgedb.get_backend_tenant_id() || '_' || "role_name"
+    SELECT
+        CASE
+        WHEN
+            (edgedb.get_backend_capabilities()
+             & {int(params.BackendCapabilities.CREATE_ROLE)}) != 0
+        THEN
+            edgedb.get_backend_tenant_id() || '_' || "role_name"
+        ELSE
+            current_user::text
+        END
     '''
 
     def __init__(self) -> None:
@@ -881,18 +899,36 @@ class GetSharedObjectMetadata(dbops.Function):
 
 class GetDatabaseMetadataFunction(dbops.Function):
     """Return EdgeDB metadata associated with a given database."""
-    text = '''
+    text = f'''
         SELECT
-            edgedb.shobj_metadata(
-                (SELECT
-                    oid
-                 FROM
-                    pg_database
-                 WHERE
-                    datname = edgedb.get_database_backend_name("dbname")
-                ),
-                'pg_database'
-            )
+            CASE
+            WHEN
+                "dbname" = {ql(defines.EDGEDB_SUPERUSER_DB)}
+                OR (edgedb.get_backend_capabilities()
+                    & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+            THEN
+                edgedb.shobj_metadata(
+                    (SELECT
+                        oid
+                     FROM
+                        pg_database
+                     WHERE
+                        datname = edgedb.get_database_backend_name("dbname")
+                    ),
+                    'pg_database'
+                )
+            ELSE
+                COALESCE(
+                    (SELECT
+                        json
+                     FROM
+                        edgedbinstdata.instdata
+                     WHERE
+                        key = "dbname" || 'metadata'
+                    ),
+                    '{{}}'::jsonb
+                )
+            END
     '''
 
     def __init__(self) -> None:
@@ -909,10 +945,18 @@ class GetCurrentDatabaseFunction(dbops.Function):
 
     text = f'''
         SELECT
-            substr(
-                current_database(),
-                char_length(edgedb.get_backend_tenant_id()) + 2
-            )
+            CASE
+            WHEN
+                (edgedb.get_backend_capabilities()
+                 & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+            THEN
+                substr(
+                    current_database(),
+                    char_length(edgedb.get_backend_tenant_id()) + 2
+                )
+            ELSE
+                {ql(defines.EDGEDB_SUPERUSER_DB)}
+            END
     '''
 
     def __init__(self) -> None:
@@ -3914,12 +3958,18 @@ def _generate_database_views(schema: s_schema.Schema) -> List[dbops.View]:
             (SELECT id FROM edgedb."_SchemaObjectType"
                  WHERE name = 'sys::Database')
                 AS {qi(ptr_col_name(schema, Database, '__type__'))},
-            (datname IN (
-                edgedb.get_database_backend_name(
-                    {ql(defines.EDGEDB_TEMPLATE_DB)}),
-                edgedb.get_database_backend_name(
-                    {ql(defines.EDGEDB_SYSTEM_DB)})
-            ))
+            (CASE WHEN
+                (edgedb.get_backend_capabilities()
+                 & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+             THEN
+                datname IN (
+                    edgedb.get_database_backend_name(
+                        {ql(defines.EDGEDB_TEMPLATE_DB)}),
+                    edgedb.get_database_backend_name(
+                        {ql(defines.EDGEDB_SYSTEM_DB)})
+                )
+             ELSE False END
+            )
                 AS {qi(ptr_col_name(schema, Database, 'internal'))},
             (d.description)->>'name'
                 AS {qi(ptr_col_name(schema, Database, 'name'))},
@@ -4317,6 +4367,141 @@ def _generate_role_views(schema: s_schema.Schema) -> List[dbops.View]:
     return views
 
 
+def _generate_single_role_views(schema: s_schema.Schema) -> List[dbops.View]:
+    Role = schema.get('sys::Role', type=s_objtypes.ObjectType)
+    member_of = Role.getptr(
+        schema, s_name.UnqualName('member_of'), type=s_links.Link)
+    bases = Role.getptr(
+        schema, s_name.UnqualName('bases'), type=s_links.Link)
+    ancestors = Role.getptr(
+        schema, s_name.UnqualName('ancestors'), type=s_links.Link)
+    annos = Role.getptr(
+        schema, s_name.UnqualName('annotations'), type=s_links.Link)
+    int_annos = Role.getptr(
+        schema, s_name.UnqualName('annotations__internal'), type=s_links.Link)
+
+    view_query = f'''
+        SELECT
+            (json->>'id')::uuid
+                AS {qi(ptr_col_name(schema, Role, 'id'))},
+            (SELECT id FROM edgedb."_SchemaObjectType"
+                 WHERE name = 'sys::Role')
+                AS {qi(ptr_col_name(schema, Role, '__type__'))},
+            json->>'name'
+                AS {qi(ptr_col_name(schema, Role, 'name'))},
+            json->>'name'
+                AS {qi(ptr_col_name(schema, Role, 'name__internal'))},
+            True
+                AS {qi(ptr_col_name(schema, Role, 'superuser'))},
+            False
+                AS {qi(ptr_col_name(schema, Role, 'abstract'))},
+            False
+                AS {qi(ptr_col_name(schema, Role, 'is_derived'))},
+            ARRAY[]::text[]
+                AS {qi(ptr_col_name(schema, Role, 'inherited_fields'))},
+            ARRAY[]::text[]
+                AS {qi(ptr_col_name(schema, Role, 'computed_fields'))},
+            True
+                AS {qi(ptr_col_name(schema, Role, 'builtin'))},
+            False
+                AS {qi(ptr_col_name(schema, Role, 'internal'))},
+            json->>'password_hash'
+                AS {qi(ptr_col_name(schema, Role, 'password'))}
+        FROM
+            edgedbinstdata.instdata
+        WHERE
+            key = 'single_role_metadata'
+            AND json->>'tenant_id' = edgedb.get_backend_tenant_id()
+    '''
+
+    member_of_link_query = f'''
+        SELECT
+            '00000000-0000-0000-0000-000000000000'::uuid
+                AS {qi(ptr_col_name(schema, member_of, 'source'))},
+            '00000000-0000-0000-0000-000000000000'::uuid
+                AS {qi(ptr_col_name(schema, member_of, 'target'))}
+        LIMIT 0
+    '''
+
+    bases_link_query = f'''
+        SELECT
+            '00000000-0000-0000-0000-000000000000'::uuid
+                AS {qi(ptr_col_name(schema, bases, 'source'))},
+            '00000000-0000-0000-0000-000000000000'::uuid
+                AS {qi(ptr_col_name(schema, bases, 'target'))},
+            0 AS {qi(ptr_col_name(schema, bases, 'index'))}
+        LIMIT 0
+    '''
+
+    ancestors_link_query = f'''
+        SELECT
+            '00000000-0000-0000-0000-000000000000'::uuid
+                AS {qi(ptr_col_name(schema, ancestors, 'source'))},
+            '00000000-0000-0000-0000-000000000000'::uuid
+                AS {qi(ptr_col_name(schema, ancestors, 'target'))},
+            0 AS {qi(ptr_col_name(schema, ancestors, 'index'))}
+        LIMIT 0
+    '''
+
+    annos_link_query = f'''
+        SELECT
+            (json->>'id')::uuid
+                AS {qi(ptr_col_name(schema, annos, 'source'))},
+            (annotations->>'id')::uuid
+                AS {qi(ptr_col_name(schema, annos, 'target'))},
+            (annotations->>'value')::text
+                AS {qi(ptr_col_name(schema, annos, 'value'))},
+            (annotations->>'owned')::bool
+                AS {qi(ptr_col_name(schema, annos, 'owned'))}
+        FROM
+            edgedbinstdata.instdata
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements(json->'annotations')
+                ) AS annotations
+        WHERE
+            key = 'single_role_metadata'
+            AND json->>'tenant_id' = edgedb.get_backend_tenant_id()
+    '''
+
+    int_annos_link_query = f'''
+        SELECT
+            (json->>'id')::uuid
+                AS {qi(ptr_col_name(schema, int_annos, 'source'))},
+            (annotations->>'id')::uuid
+                AS {qi(ptr_col_name(schema, int_annos, 'target'))},
+            (annotations->>'owned')::bool
+                AS {qi(ptr_col_name(schema, int_annos, 'owned'))}
+        FROM
+            edgedbinstdata.instdata
+            CROSS JOIN LATERAL
+                ROWS FROM (
+                    jsonb_array_elements(json->'annotations__internal')
+                ) AS annotations
+        WHERE
+            key = 'single_role_metadata'
+            AND json->>'tenant_id' = edgedb.get_backend_tenant_id()
+    '''
+
+    objects = {
+        Role: view_query,
+        member_of: member_of_link_query,
+        bases: bases_link_query,
+        ancestors: ancestors_link_query,
+        annos: annos_link_query,
+        int_annos: int_annos_link_query,
+    }
+
+    views = []
+    for obj, query in objects.items():
+        tabview = dbops.View(name=tabname(schema, obj), query=query)
+        inhview = dbops.View(name=inhviewname(schema, obj), query=query)
+        views.append(tabview)
+        views.append(inhview)
+
+    return views
+
+
 def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
     Ver = schema.get(
         'sys::GlobalSchemaVersion',
@@ -4469,6 +4654,7 @@ def _generate_schema_alias_view(
 async def generate_support_views(
     conn: asyncpg.Connection,
     schema: s_schema.Schema,
+    backend_params: params.BackendRuntimeParams,
 ) -> None:
     commands = dbops.CommandGroup()
 
@@ -4533,7 +4719,11 @@ async def generate_support_views(
     for extview in _generate_extension_views(schema):
         commands.add_command(dbops.CreateView(extview, or_replace=True))
 
-    for roleview in _generate_role_views(schema):
+    if backend_params.has_create_role:
+        role_views = _generate_role_views(schema)
+    else:
+        role_views = _generate_single_role_views(schema)
+    for roleview in role_views:
         commands.add_command(dbops.CreateView(roleview, or_replace=True))
 
     for verview in _generate_schema_ver_views(schema):

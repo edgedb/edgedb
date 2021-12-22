@@ -838,17 +838,30 @@ class ParallelTextTestRunner:
 
                     conn = cluster.get_connect_args()
 
-                    return await tb.setup_test_cases(
-                        cases,
-                        conn,
-                        self.num_workers,
-                        verbose=self.verbosity > 1,
-                    )
+                    if cluster.has_create_database():
+                        return await tb.setup_test_cases(
+                            cases,
+                            conn,
+                            self.num_workers,
+                            verbose=self.verbosity > 1,
+                        )
+                    else:
+                        return []
 
                 setup_stats = asyncio.run(_setup())
 
+                if cluster.has_create_database():
+                    os.environ.update({
+                        'EDGEDB_TEST_CASES_SET_UP': "skip"
+                    })
+                else:
+                    os.environ.update({
+                        'EDGEDB_TEST_CASES_SET_UP': "inplace"
+                    })
                 os.environ.update({
-                    'EDGEDB_TEST_CASES_SET_UP': "1"
+                    'EDGEDB_TEST_HAS_CREATE_ROLE': str(
+                        cluster.has_create_role()
+                    )
                 })
 
                 bootstrap_time_taken = time.monotonic() - session_start

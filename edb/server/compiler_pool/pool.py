@@ -555,14 +555,14 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
                 system_config,
             )
 
-            units, state = await worker.call(
+            units, state_ = await worker.call(
                 'compile',
                 *preargs,
                 *compile_args,
                 sync_state=sync_state
             )
-            worker._last_pickled_state = state
-            return units, state
+            worker._last_pickled_state = state_
+            return units, state_
 
         finally:
             self._release_worker(worker)
