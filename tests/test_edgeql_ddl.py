@@ -17,6 +17,7 @@
 #
 
 import decimal
+import os
 import re
 import textwrap
 import uuid
@@ -306,6 +307,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             }]
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_ddl_rename_type_and_add_01(self):
         await self.con.execute("""
 
@@ -354,6 +359,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         """)
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_ddl_rename_type_and_add_02(self):
         await self.con.execute("""
 

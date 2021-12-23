@@ -21,6 +21,7 @@ import json
 import os.path
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 import edgedb
 
@@ -527,6 +528,10 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             ['no', 'no', 'no', 'no', 'no', 'no', 'no', 'no', 'yes'],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_aliases_if_else_02(self):
         await self.assert_query_result(
             r"""

@@ -76,6 +76,10 @@ class TestIntrospection(tb.QueryTestCase):
             ]
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_introspection_objtype_02(self):
         await self.assert_query_result(
             r"""
@@ -104,6 +108,10 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_introspection_objtype_03(self):
         await self.assert_query_result(
             r"""
@@ -130,6 +138,10 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_introspection_objtype_04(self):
         await self.assert_query_result(
             r"""
@@ -183,6 +195,10 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_introspection_objtype_06(self):
         await self.assert_query_result(
             r"""
@@ -1087,6 +1103,10 @@ class TestIntrospection(tb.QueryTestCase):
             [True] * res
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_introspection_meta_14(self):
         await self.assert_query_result(
             r"""
@@ -1213,6 +1233,10 @@ class TestIntrospection(tb.QueryTestCase):
             ],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_introspection_meta_default_03(self):
         await self.assert_query_result(
             r'''
@@ -1256,6 +1280,10 @@ class TestIntrospection(tb.QueryTestCase):
             ],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_introspection_meta_default_04(self):
         await self.assert_query_result(
             r'''

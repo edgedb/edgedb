@@ -17,13 +17,19 @@
 #
 
 
+import os
 import unittest  # NOQA
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLTutorial(tb.QueryTestCase):
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_tutorial(self):
         await self.con.execute(r'''
             START MIGRATION TO {

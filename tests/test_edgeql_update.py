@@ -3054,6 +3054,10 @@ class TestUpdate(tb.QueryTestCase):
             }]
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_update_add_dupes_01b(self):
         await self.con.execute("""
             INSERT UpdateTestSubSubType {

@@ -1201,9 +1201,9 @@ class DumpTestCaseMixin:
             r'''
             WITH w := {'Lorem', 'ipsum', 'dolor', 'sit', 'amet'}
             SELECT w
-            ORDER BY w;
+            ORDER BY str_lower(w);
             ''',
-            ['Lorem', 'amet', 'dolor', 'ipsum', 'sit'],
+            ['amet', 'dolor', 'ipsum', 'Lorem', 'sit'],
         )
 
         await self.assert_query_result(
