@@ -1423,13 +1423,13 @@ async def _check_catalog_compatibility(
 
 def _check_capabilities(ctx: BootstrapContext) -> None:
     caps = ctx.cluster.get_runtime_params().instance_params.capabilities
-    for cap in ctx.args.backend_capability_bound[0]:
+    for cap in ctx.args.backend_capability_sets.must_be_present:
         if not caps & cap:
             raise errors.ConfigurationError(
                 f"the backend doesn't have necessary capability: "
                 f"{cap.name}"
             )
-    for cap in ctx.args.backend_capability_bound[1]:
+    for cap in ctx.args.backend_capability_sets.must_be_absent:
         if caps & cap:
             raise errors.ConfigurationError(
                 f"the backend was already bootstrapped with capability: "
@@ -1483,10 +1483,10 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
     args = ctx.args
     cluster = ctx.cluster
 
-    if args.backend_capability_bound[1]:
+    if args.backend_capability_sets.must_be_absent:
         caps = cluster.get_runtime_params().instance_params.capabilities
         disabled = []
-        for cap in args.backend_capability_bound[1]:
+        for cap in args.backend_capability_sets.must_be_absent:
             if caps & cap:
                 caps &= ~cap
                 disabled.append(cap)

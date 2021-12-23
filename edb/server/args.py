@@ -89,6 +89,11 @@ class ServerAuthMethod(enum.StrEnum):
     Scram = "SCRAM"
 
 
+class BackendCapabilitySets(NamedTuple):
+    must_be_present: List[pgsql_params.BackendCapabilities]
+    must_be_absent: List[pgsql_params.BackendCapabilities]
+
+
 class ServerConfig(NamedTuple):
 
     data_dir: pathlib.Path
@@ -133,10 +138,7 @@ class ServerConfig(NamedTuple):
 
     instance_name: Optional[str]
 
-    backend_capability_bound: Tuple[
-        List[pgsql_params.BackendCapabilities],
-        List[pgsql_params.BackendCapabilities],
-    ]
+    backend_capability_sets: BackendCapabilitySets
 
 
 class PathPath(click.Path):
@@ -166,7 +168,7 @@ class PortType(click.ParamType):
             self.fail(f"{value!r} is not a valid integer", param, ctx)
 
 
-class CapabilityBoundingSet(click.ParamType):
+class BackendCapabilitySet(click.ParamType):
     name = 'capability'
 
     def __init__(self):
@@ -180,17 +182,17 @@ class CapabilityBoundingSet(click.ParamType):
         return " ".join(f'[[~]{cap}]' for cap in self.choices)
 
     def convert(self, value, param, ctx):
-        requires = []
-        disables = []
+        must_be_present = []
+        must_be_absent = []
         visited = set()
         for cap_str in value.split():
             try:
                 if cap_str.startswith("~"):
                     cap = self.choices[cap_str[1:].upper()]
-                    disables.append(cap)
+                    must_be_absent.append(cap)
                 else:
                     cap = self.choices[cap_str.upper()]
-                    requires.append(cap)
+                    must_be_present.append(cap)
                 if cap in visited:
                     self.fail(f"duplicate capability: {cap_str}", param, ctx)
                 else:
@@ -202,7 +204,10 @@ class CapabilityBoundingSet(click.ParamType):
                     param,
                     ctx,
                 )
-        return requires, disables
+        return BackendCapabilitySets(
+            must_be_present=must_be_present,
+            must_be_absent=must_be_absent,
+        )
 
 
 def _get_runstate_dir_default() -> str:
@@ -555,15 +560,15 @@ _server_options = [
         type=str, default=None, hidden=True,
         help='Server instance name.'),
     click.option(
-        '--backend-capability-bound',
-        envvar="EDGEDB_SERVER_BACKEND_CAPABILITY_BOUND",
-        type=CapabilityBoundingSet(),
-        default="",
-        help="A space-separated bounding set of backend capabilities. The "
-             "server will only start if the actual backend capabilities match "
-             "the specified bounding set. If the backend is not bootstrapped, "
-             "the capability with a leading ~ from the bounding set will be "
-             "*explicitly disabled* as if the backend never had it."
+        '--backend-capabilities',
+        envvar="EDGEDB_SERVER_BACKEND_CAPABILITIES",
+        type=BackendCapabilitySet(),
+        help="A space-separated set of backend capabilities, which are "
+             "required to be present, or absent if prefixed with ~. EdgeDB "
+             "will only start if the actual backend capabilities match the "
+             "specified set. However if the backend was never bootstrapped, "
+             "the capabilities prefixed with ~ will be *disabled permanently* "
+             "in EdgeDB as if the backend never had them."
     ),
     click.option(
         '--version', is_flag=True,
@@ -861,6 +866,10 @@ def parse_args(**kwargs: Any):
                 status_sink = _status_sink_file(status_sink_addr)
 
             status_sinks.append(status_sink)
+
+    kwargs['backend_capability_sets'] = (
+        kwargs.pop('backend_capabilities') or BackendCapabilitySets([], [])
+    )
 
     return ServerConfig(
         startup_script=startup_script,
