@@ -22,6 +22,7 @@ from __future__ import annotations
 import textwrap
 from typing import *
 
+import enum
 import json
 import logging
 import os
@@ -77,11 +78,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger('edb.server')
 
 
+class ClusterMode(enum.IntEnum):
+    pristine = 0
+    regular = 1
+    single_role = 2
+    single_database = 3
+
+
 class BootstrapContext(NamedTuple):
 
     cluster: pgcluster.BaseCluster
     conn: asyncpg_con.Connection
     args: edbargs.ServerConfig
+    mode: Optional[ClusterMode] = None
 
 
 async def _execute(conn, query):
@@ -207,7 +216,7 @@ async def _ensure_edgedb_role(
     return objid
 
 
-async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
+async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
     backend_params = ctx.cluster.get_runtime_params()
     tenant_id = backend_params.tenant_id
 
@@ -235,13 +244,13 @@ async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
 
     if result:
         if not is_default_tenant or not ctx.args.ignore_other_tenants:
-            return False
+            return ClusterMode.regular
 
         for row in result:
             rolname = row['rolname']
             other_tenant_id = rolname[: -(len(edbdef.EDGEDB_SUPERGROUP) + 1)]
             if other_tenant_id == tenant_id:
-                return False
+                return ClusterMode.regular
 
     # Then, check if the current database was bootstrapped in single-db mode.
     has_instdata = await ctx.conn.fetch('''
@@ -254,32 +263,16 @@ async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
             AND tablename = 'instdata'
     ''')
     if has_instdata:
-        if backend_params.has_create_database:
-            raise _single_mode_error('Single Database', 'CREATE DATABASE')
-        if backend_params.has_create_role:
-            raise _single_mode_error('Single Database', 'CREATE ROLE')
-        return False
+        return ClusterMode.single_database
 
     # At last, check for single-role-bootstrapped instance by trying to find
     # the EdgeDB System DB with the assumption that we are not running in
     # single-db mode. If not found, this is a pristine backend cluster.
     sys_db = await _find_system_db(ctx)
     if sys_db:
-        if backend_params.has_create_role:
-            raise _single_mode_error('Single Role', 'CREATE ROLE')
-        return False
+        return ClusterMode.single_role
     else:
-        return True
-
-
-def _single_mode_error(mode, permission):
-    from .server import StartupError
-
-    return StartupError(
-        f"The backend is already bootstrapped in {mode} mode, but the current "
-        f"backend user has {permission} permission. It's likely a wrong "
-        f"backend user."
-    )
+        return ClusterMode.pristine
 
 
 async def _create_edgedb_template_database(
@@ -1351,17 +1344,16 @@ async def _find_system_db(ctx: BootstrapContext) -> Optional[str]:
 async def _check_catalog_compatibility(
     ctx: BootstrapContext,
 ) -> asyncpg_con.Connection:
-    backend_params = ctx.cluster.get_runtime_params()
-
-    if backend_params.has_create_database:
-        sys_db = await _find_system_db(ctx)
-    else:
+    if ctx.mode == ClusterMode.single_database:
+        tenant_id = ctx.cluster.get_runtime_params().tenant_id
         sys_db = await ctx.conn.fetchval(f'''
             SELECT current_database()
             FROM edgedbinstdata.instdata
             WHERE key = '{edbdef.EDGEDB_TEMPLATE_DB}metadata'
-            AND json->>'tenant_id' = '{backend_params.tenant_id}'
+            AND json->>'tenant_id' = '{tenant_id}'
         ''')
+    else:
+        sys_db = await _find_system_db(ctx)
 
     if not sys_db:
         raise errors.ConfigurationError(
@@ -1429,10 +1421,30 @@ async def _check_catalog_compatibility(
     return conn
 
 
+def _check_capabilities(ctx: BootstrapContext) -> None:
+    caps = ctx.cluster.get_runtime_params().instance_params.capabilities
+    for cap in ctx.args.backend_capability_sets.must_be_present:
+        if not caps & cap:
+            raise errors.ConfigurationError(
+                f"the backend doesn't have necessary capability: "
+                f"{cap.name}"
+            )
+    for cap in ctx.args.backend_capability_sets.must_be_absent:
+        if caps & cap:
+            raise errors.ConfigurationError(
+                f"the backend was already bootstrapped with capability: "
+                f"{cap.name}"
+            )
+
+
 async def _start(ctx: BootstrapContext) -> None:
     conn = await _check_catalog_compatibility(ctx)
 
     try:
+        caps = await conn.fetchval("SELECT edgedb.get_backend_capabilities()")
+        ctx.cluster.overwrite_capabilities(caps)
+        _check_capabilities(ctx)
+
         compiler = edbcompiler.Compiler()
         await compiler.initialize_from_pg(conn)
         std_schema = compiler.get_std_schema()
@@ -1470,6 +1482,19 @@ async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
 async def _bootstrap(ctx: BootstrapContext) -> None:
     args = ctx.args
     cluster = ctx.cluster
+
+    if args.backend_capability_sets.must_be_absent:
+        caps = cluster.get_runtime_params().instance_params.capabilities
+        disabled = []
+        for cap in args.backend_capability_sets.must_be_absent:
+            if caps & cap:
+                caps &= ~cap
+                disabled.append(cap)
+        if disabled:
+            logger.info(f"the following backend capabilities are disabled: "
+                        f"{', '.join(str(cap.name) for cap in disabled)}")
+            cluster.overwrite_capabilities(caps)
+    _check_capabilities(ctx)
     backend_params = cluster.get_runtime_params()
 
     if backend_params.has_create_role:
@@ -1606,7 +1631,9 @@ async def ensure_bootstrapped(
     ctx = BootstrapContext(cluster=cluster, conn=pgconn, args=args)
 
     try:
-        if await _is_pristine_cluster(ctx):
+        mode = await _get_cluster_mode(ctx)
+        ctx = ctx._replace(mode=mode)
+        if mode == ClusterMode.pristine:
             await _bootstrap(ctx)
             return True
         else:

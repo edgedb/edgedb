@@ -351,6 +351,12 @@ def _static_interpret_cardinality_violation(_code, err_details):
     return errors.InternalServerError(err_details.message)
 
 
+@static_interpret_by_code.register(
+    pgerrors.ERROR_FEATURE_NOT_SUPPORTED)
+def _static_interpret_feature_not_supported(_code, err_details):
+    return errors.UnsupportedBackendFeatureError(err_details.message)
+
+
 #########################################################################
 # Errors interpretation that requires a schema
 #########################################################################

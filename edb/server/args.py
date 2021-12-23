@@ -34,6 +34,7 @@ from edb import buildmeta
 from edb.common import devmode
 from edb.common import enum
 from edb.schema import defines as schema_defines
+from edb.pgsql import params as pgsql_params
 
 from . import defines
 
@@ -88,6 +89,11 @@ class ServerAuthMethod(enum.StrEnum):
     Scram = "SCRAM"
 
 
+class BackendCapabilitySets(NamedTuple):
+    must_be_present: List[pgsql_params.BackendCapabilities]
+    must_be_absent: List[pgsql_params.BackendCapabilities]
+
+
 class ServerConfig(NamedTuple):
 
     data_dir: pathlib.Path
@@ -132,6 +138,8 @@ class ServerConfig(NamedTuple):
 
     instance_name: Optional[str]
 
+    backend_capability_sets: BackendCapabilitySets
+
 
 class PathPath(click.Path):
     name = 'path'
@@ -158,6 +166,48 @@ class PortType(click.ParamType):
             )
         except ValueError:
             self.fail(f"{value!r} is not a valid integer", param, ctx)
+
+
+class BackendCapabilitySet(click.ParamType):
+    name = 'capability'
+
+    def __init__(self):
+        self.choices = {
+            cap.name: cap
+            for cap in pgsql_params.BackendCapabilities
+            if cap.name != 'NONE'
+        }
+
+    def get_metavar(self, param):
+        return " ".join(f'[[~]{cap}]' for cap in self.choices)
+
+    def convert(self, value, param, ctx):
+        must_be_present = []
+        must_be_absent = []
+        visited = set()
+        for cap_str in value.split():
+            try:
+                if cap_str.startswith("~"):
+                    cap = self.choices[cap_str[1:].upper()]
+                    must_be_absent.append(cap)
+                else:
+                    cap = self.choices[cap_str.upper()]
+                    must_be_present.append(cap)
+                if cap in visited:
+                    self.fail(f"duplicate capability: {cap_str}", param, ctx)
+                else:
+                    visited.add(cap)
+            except KeyError:
+                self.fail(
+                    f"invalid capability: {cap_str}. "
+                    f"(choose from {', '.join(self.choices)})",
+                    param,
+                    ctx,
+                )
+        return BackendCapabilitySets(
+            must_be_present=must_be_present,
+            must_be_absent=must_be_absent,
+        )
 
 
 def _get_runstate_dir_default() -> str:
@@ -510,6 +560,17 @@ _server_options = [
         type=str, default=None, hidden=True,
         help='Server instance name.'),
     click.option(
+        '--backend-capabilities',
+        envvar="EDGEDB_SERVER_BACKEND_CAPABILITIES",
+        type=BackendCapabilitySet(),
+        help="A space-separated set of backend capabilities, which are "
+             "required to be present, or absent if prefixed with ~. EdgeDB "
+             "will only start if the actual backend capabilities match the "
+             "specified set. However if the backend was never bootstrapped, "
+             "the capabilities prefixed with ~ will be *disabled permanently* "
+             "in EdgeDB as if the backend never had them."
+    ),
+    click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
 ]
@@ -805,6 +866,10 @@ def parse_args(**kwargs: Any):
                 status_sink = _status_sink_file(status_sink_addr)
 
             status_sinks.append(status_sink)
+
+    kwargs['backend_capability_sets'] = (
+        kwargs.pop('backend_capabilities') or BackendCapabilitySets([], [])
+    )
 
     return ServerConfig(
         startup_script=startup_script,
