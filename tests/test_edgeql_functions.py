@@ -24,6 +24,7 @@ import os.path
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLFunctions(tb.QueryTestCase):
@@ -729,6 +730,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [2],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_functions_re_match_01(self):
         await self.assert_query_result(
             r'''SELECT re_match('ab', 'AbabaB');''',
@@ -794,6 +799,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [['schema', 'Link'], ['schema', 'Property']],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_functions_re_match_all_01(self):
         await self.assert_query_result(
             r'''SELECT re_match_all('ab', 'AbabaB');''',
@@ -2706,6 +2715,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {1, 2},
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_functions_min_01(self):
         await self.assert_query_result(
             r'''SELECT min(<int64>{});''',

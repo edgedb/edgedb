@@ -1509,6 +1509,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_select_polymorphic_09(self):
         # Test simultaneous type intersection on source and target
         # of a shape element.
@@ -6347,6 +6351,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ["Elvis", "Yury"],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_select_expr_objects_04(self):
         await self.assert_query_result(
             r'''
