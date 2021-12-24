@@ -453,7 +453,8 @@ async def run_server(
             abort(
                 f'the length of the specified path for server run state '
                 f'exceeds the maximum of {defines.MAX_RUNSTATE_DIR_PATH} '
-                f'bytes: {runstate_dir_str!r} ({runstate_dir_str_len} bytes)'
+                f'bytes: {runstate_dir_str!r} ({runstate_dir_str_len} bytes)',
+                exit_code=11,
             )
 
         try:
@@ -584,7 +585,7 @@ def server_main(**kwargs):
 
     try:
         server_args = srvargs.parse_args(**kwargs)
-    except srvargs.FatalConfigurationError as e:
+    except srvargs.InvalidUsageError as e:
         abort(e.args[0], exit_code=e.args[1])
 
     if kwargs['background']:

@@ -48,14 +48,14 @@ TLS_KEY_FILE_NAME = "edbprivkey.pem"
 logger = logging.getLogger('edb.server')
 
 
-class FatalConfigurationError(Exception):
+class InvalidUsageError(Exception):
 
-    def __init__(self, msg: str, exit_code: int = 1) -> None:
+    def __init__(self, msg: str, exit_code: int = 2) -> None:
         super().__init__(msg, exit_code)
 
 
-def abort(msg: str, *, exit_code: int = 1) -> NoReturn:
-    raise FatalConfigurationError(msg, exit_code)
+def abort(msg: str, *, exit_code: int = 2) -> NoReturn:
+    raise InvalidUsageError(msg, exit_code)
 
 
 class StartupScript(NamedTuple):
