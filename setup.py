@@ -39,25 +39,31 @@ try:
 except ImportError:
     setuptools_rust = None
 
+from typing import List
+
+
+CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
+
+# Dependencies needed both at build- and run-time
+COMMON_DEPS = [
+    'edgedb==0.18.1',
+    'parsing~=2.0',
+]
 
 RUNTIME_DEPS = [
-    'edgedb>=0.18.0a2',
-
-    'asyncpg~=0.24.0',
+    'asyncpg~=0.25.0',
     'httptools>=0.3.0',
     'immutables>=0.16',
     'uvloop~=0.16.0',
 
     'click~=7.1',
-    'cryptography~=3.4',
+    'cryptography~=35.0',
     'graphql-core~=3.1.5',
-    'parsing~=2.0',
     'psutil~=5.8',
     'setproctitle~=1.2',
     'wcwidth~=0.2',
-]
+] + COMMON_DEPS
 
-CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
 
 DOCS_DEPS = [
     'docutils~=0.17.0',
@@ -84,7 +90,7 @@ TEST_DEPS = [
     'MarkupSafe~=1.1',
     'PyYAML~=5.4',
 
-    'mypy==0.910',
+    'mypy==0.920',
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
     'types-click~=7.1',
@@ -94,6 +100,8 @@ TEST_DEPS = [
     'types-pkg-resources~=0.1.3',
     'types-typed-ast~=1.4.2',
     'types-requests~=2.25.6',
+
+    'prometheus_client~=0.11.0',
 ] + DOCS_DEPS
 
 BUILD_DEPS = [
@@ -101,7 +109,7 @@ BUILD_DEPS = [
     'packaging>=21.0',
     'setuptools-rust~=0.12.1',
     'wheel',  # needed by PyYAML and immutables, refs pypa/pip#5865
-]
+] + COMMON_DEPS
 
 RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst
 
@@ -114,7 +122,7 @@ EXTRA_DEPS = {
 }
 
 EXT_CFLAGS = ['-O2']
-EXT_LDFLAGS = []
+EXT_LDFLAGS: List[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
 
@@ -144,7 +152,7 @@ def _compile_parsers(build_lib, inplace=False):
             shutil.copy2(cache, ROOT_PATH / pickle_path)
 
 
-def _compile_build_meta(build_lib, version, pg_config, runstatedir,
+def _compile_build_meta(build_lib, version, pg_config, runstate_dir,
                         shared_dir, version_suffix):
     from edb.common import verutils
 
@@ -154,6 +162,27 @@ def _compile_build_meta(build_lib, version, pg_config, runstatedir,
     if version_suffix:
         vertuple[4] = tuple(version_suffix.split('.'))
     vertuple = tuple(vertuple)
+
+    pg_config_path = pathlib.Path(pg_config)
+    if not pg_config_path.is_absolute():
+        pg_config_path = f"_ROOT / {str(pg_config_path)!r}"
+    else:
+        pg_config_path = repr(str(pg_config_path))
+
+    if runstate_dir:
+        runstate_dir_path = pathlib.Path(runstate_dir)
+        if not runstate_dir_path.is_absolute():
+            runstate_dir_path = f"_ROOT / {str(runstate_dir_path)!r}"
+        else:
+            runstate_dir_path = repr(str(runstate_dir_path))
+    else:
+        runstate_dir_path = "None  # default to <data-dir>"
+
+    shared_dir_path = pathlib.Path(shared_dir)
+    if not shared_dir_path.is_absolute():
+        shared_dir_path = f"_ROOT / {str(shared_dir_path)!r}"
+    else:
+        shared_dir_path = repr(str(shared_dir_path))
 
     content = textwrap.dedent('''\
         #
@@ -166,15 +195,19 @@ def _compile_build_meta(build_lib, version, pg_config, runstatedir,
         # THIS FILE HAS BEEN AUTOMATICALLY GENERATED.
         #
 
-        PG_CONFIG_PATH = {pg_config!r}
-        RUNSTATE_DIR = {runstatedir!r}
-        SHARED_DATA_DIR = {shared_dir!r}
+        import pathlib
+
+        _ROOT = pathlib.Path(__file__).parent
+
+        PG_CONFIG_PATH = {pg_config_path}
+        RUNSTATE_DIR = {runstate_dir_path}
+        SHARED_DATA_DIR = {shared_dir_path}
         VERSION = {version!r}
     ''').format(
         version=vertuple,
-        pg_config=pg_config,
-        runstatedir=runstatedir,
-        shared_dir=shared_dir,
+        pg_config_path=pg_config_path,
+        runstate_dir_path=runstate_dir_path,
+        shared_dir_path=shared_dir_path,
     )
 
     directory = build_lib / 'edb'
@@ -443,10 +476,10 @@ class develop(setuptools_develop.develop):
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = []
         for s in scripts:
-            if 'rustcli' not in s:
-                s = f'{s}_dev'
+            s = f'{s}_dev'
             patched_scripts.append(s)
         patched_scripts.append('edb = edb.tools.edb:edbcommands')
+        patched_scripts.append('edgedb = edb.cli:rustcli')
         self.distribution.entry_points['console_scripts'] = patched_scripts
 
         super().run(*args, **kwargs)
@@ -660,7 +693,7 @@ class build_ext(setuptools_build_ext.build_ext):
 class build_cli(setuptools.Command):
 
     description = "build the EdgeDB CLI"
-    user_options = []
+    user_options: List[str] = []
 
     def initialize_options(self):
         pass
@@ -775,7 +808,7 @@ def _version():
 
 setuptools.setup(
     version=_version(),
-    setup_requires=RUNTIME_DEPS + BUILD_DEPS,
+    setup_requires=BUILD_DEPS,
     python_requires='>=3.9.0',
     name='edgedb-server',
     description='EdgeDB Server',
@@ -787,7 +820,6 @@ setuptools.setup(
     entry_points={
         'console_scripts': [
             'edgedb-server = edb.server.main:main',
-            'edgedb = edb.cli:rustcli',
         ],
     },
     ext_modules=[

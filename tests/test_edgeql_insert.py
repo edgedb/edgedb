@@ -54,6 +54,20 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
+    async def test_edgeql_insert_fail_3(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"modification of computed property"
+            r" 'name' of object type 'default::Person2b' is prohibited",
+        ):
+            await self.con.execute('''
+                INSERT Person2b {
+                    first := "foo",
+                    last := "bar",
+                    name := "something else",
+                };
+            ''')
+
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
             INSERT InsertTest {
@@ -642,7 +656,7 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    I := (INSERT _ := InsertTest {
+                    I := (INSERT InsertTest {
                         name := 'IT returning 4',
                         l2 := 9999,
                     })
@@ -656,7 +670,7 @@ class TestInsert(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 WITH
-                    I := (INSERT _ := InsertTest {
+                    I := (INSERT InsertTest {
                         name := 'IT returning 4',
                         l2 := 9,
                     })
@@ -856,7 +870,7 @@ class TestInsert(tb.QueryTestCase):
             ''',
             [{
                 'name': 'test',
-                'subject': {'id': {}},
+                'subject': {'id': str},
             }],
         )
 
@@ -985,8 +999,8 @@ class TestInsert(tb.QueryTestCase):
                 l2 := x,
             });
 
-            FOR Q IN {(SELECT InsertTest{foo := 'foo' ++ <str> InsertTest.l2}
-                       FILTER .name = 'insert for 1')}
+            FOR Q IN (SELECT InsertTest{foo := 'foo' ++ <str> InsertTest.l2}
+                      FILTER .name = 'insert for 1')
             UNION (INSERT InsertTest {
                 name := 'insert for 1',
                 l2 := 35 % Q.l2,
@@ -1372,7 +1386,7 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_19(self):
         await self.con.execute(r"""
-            FOR t IN { array_unpack(<array<InsertTest>>[]) }
+            FOR t IN array_unpack(<array<InsertTest>>[])
             UNION (
                 INSERT InsertTest {
                     name := t.name, l2 := t.l2,
@@ -1391,7 +1405,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.con.execute(r"""
-            FOR t IN { array_unpack([InsertTest]) }
+            FOR t IN array_unpack([InsertTest])
             UNION (
                 INSERT InsertTest {
                     name := t.name ++ "!", l2 := t.l2 + 1,
@@ -1409,7 +1423,7 @@ class TestInsert(tb.QueryTestCase):
 
     async def test_edgeql_insert_for_21(self):
         await self.con.execute(r"""
-            FOR t IN { array_unpack(<array<tuple<InsertTest>>>[]) }
+            FOR t IN array_unpack(<array<tuple<InsertTest>>>[])
             UNION (
                 INSERT InsertTest {
                     name := t.0.name, l2 := t.0.l2,
@@ -1428,7 +1442,7 @@ class TestInsert(tb.QueryTestCase):
         """)
 
         await self.con.execute(r"""
-            FOR t IN { array_unpack([(InsertTest,)]) }
+            FOR t IN array_unpack([(InsertTest,)])
             UNION (
                 INSERT InsertTest {
                     name := t.0.name ++ "!", l2 := t.0.l2 + 1,
@@ -1451,7 +1465,7 @@ class TestInsert(tb.QueryTestCase):
         ):
             await self.con.execute("""
                 SELECT (Person,
-                        (FOR x in {Person} UNION (
+                        (FOR x in Person UNION (
                              INSERT Note {name := x.name})));
             """)
 
@@ -1462,7 +1476,7 @@ class TestInsert(tb.QueryTestCase):
         ):
             await self.con.execute("""
                 SELECT (Person,
-                        (FOR x in {Person} UNION (
+                        (FOR x in Person UNION (
                              SELECT (INSERT Note {name := x.name}))));
             """)
 
@@ -1472,7 +1486,7 @@ class TestInsert(tb.QueryTestCase):
             "cannot reference correlated set",
         ):
             await self.con.execute("""
-                SELECT ((FOR x in {Person} UNION (
+                SELECT ((FOR x in Person UNION (
                              INSERT Note {name := x.name})),
                         Person);
             """)
@@ -1484,7 +1498,7 @@ class TestInsert(tb.QueryTestCase):
         ):
             await self.con.execute("""
                 SELECT (Person,
-                        (FOR x in {Person} UNION (
+                        (FOR x in Person UNION (
                              SELECT (
                                  20,
                                  (FOR y in {"hello", "world"} UNION (
@@ -1879,7 +1893,7 @@ class TestInsert(tb.QueryTestCase):
             """,
             [{
                 'l2': 99,
-                'subordinates': {},
+                'subordinates': [],
             }],
         )
 
@@ -1915,6 +1929,16 @@ class TestInsert(tb.QueryTestCase):
                 _position=23):
             await self.con.execute("""\
                 INSERT Foo;
+            """)
+
+    async def test_edgeql_insert_free_obj(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"free objects cannot be inserted",
+            _position=23,
+        ):
+            await self.con.execute("""\
+                INSERT std::FreeObject;
             """)
 
     async def test_edgeql_insert_selfref_01(self):
@@ -3886,7 +3910,7 @@ class TestInsert(tb.QueryTestCase):
                 }
                 UNLESS CONFLICT ON .name ELSE (SELECT Obj);
             ''',
-            [{"id": {}}]
+            [{"id": str}]
         )
 
         await self.assert_query_result(
@@ -4816,4 +4840,38 @@ class TestInsert(tb.QueryTestCase):
             [
                 [0, {}, {}],
             ]
+        )
+
+    async def test_edgeql_insert_nested_and_with_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    New := (
+                        INSERT Person {
+                            name := "test",
+                            notes := (INSERT Note { name := "test" })
+                         }
+                    ),
+                SELECT (
+                    INSERT Person2a {
+                        first := New.name, last := "!", bff := New,
+                    }
+                ) {
+                    first,
+                    bff: {
+                        name,
+                        notes: { name }
+                    }
+                };
+            """,
+            [
+                {
+                    "first": "test",
+                    "bff": {
+                        "name": "test",
+                        "notes": [{"name": "test"}]
+                    },
+                }
+            ]
+
         )

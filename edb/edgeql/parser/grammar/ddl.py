@@ -1608,6 +1608,7 @@ commands_block(
     AlterAnnotationValueStmt,
     CreateConcreteConstraintStmt,
     CreateConcretePropertyStmt,
+    CreateIndexStmt,
     commondl.OnTargetDeleteStmt,
 )
 
@@ -1688,6 +1689,9 @@ commands_block(
     CreateConcretePropertyStmt,
     AlterConcretePropertyStmt,
     DropConcretePropertyStmt,
+    CreateIndexStmt,
+    AlterIndexStmt,
+    DropIndexStmt,
     commondl.OnTargetDeleteStmt,
     opt=False
 )
@@ -1708,6 +1712,7 @@ commands_block(
     'DropConcreteLink',
     DropConcreteConstraintStmt,
     DropConcretePropertyStmt,
+    DropIndexStmt,
 )
 
 
@@ -2525,6 +2530,9 @@ class MigrationStmt(Nonterm):
         self.val = kids[0].val
 
     def reduce_CommitMigrationStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropMigrationStmt(self, *kids):
         self.val = kids[0].val
 
 

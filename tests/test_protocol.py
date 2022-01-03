@@ -21,9 +21,11 @@ import asyncio
 import contextlib
 import edgedb
 
+from edb.server import args as srv_args
 from edb.server import compiler
 from edb import protocol
 from edb.testbase import server as tb
+from edb.testbase import connection as tconn
 from edb.testbase.protocol.test import ProtocolTestCase
 
 
@@ -188,8 +190,8 @@ class TestServerCancellation(tb.TestCase):
         async with tb.start_edgedb_server(max_allowed_connections=4) as sd:
             conn_args = sd.get_connect_args()
             try:
-                con1 = await protocol.protocol.new_connection(**conn_args)
-                con2 = await edgedb.async_connect(**conn_args)
+                con1 = await sd.connect_test_protocol()
+                con2 = await sd.connect()
                 await con2.execute(
                     'CREATE TYPE tclcq { CREATE PROPERTY p -> str }'
                 )
@@ -202,9 +204,6 @@ class TestServerCancellation(tb.TestCase):
 
     async def test_proto_connection_lost_cancel_query(self):
         async with self._fixture() as (con1, con2, conn_args):
-            # Ready the nested connection
-            await con1.connect()
-
             # Use an implicit transaction in the nested connection: lock
             # the row with an UPDATE, and then hold the transaction for 10
             # seconds, which is long enough for the upcoming cancellation
@@ -221,7 +220,7 @@ class TestServerCancellation(tb.TestCase):
             # Take up all free backend connections
             other_conns = []
             for _ in range(2):
-                con = await edgedb.async_connect(**conn_args)
+                con = await tconn.async_connect_test_client(**conn_args)
                 other_conns.append(con)
                 self.loop.create_task(
                     con.execute("SELECT sys::_sleep(60)")
@@ -236,10 +235,10 @@ class TestServerCancellation(tb.TestCase):
                 # In the outer connection, let's wait until the lock is
                 # released by either an expected cancellation, or an unexpected
                 # commit after 10 seconds.
-                tx = con2.raw_transaction()
+                tx = con2.transaction()
                 await asyncio.wait_for(tx.start(), 2)
                 try:
-                    await tx.execute("UPDATE tclcq SET { p := 'lock' }")
+                    await con2.execute("UPDATE tclcq SET { p := 'lock' }")
                 except edgedb.TransactionSerializationError:
                     # In case the nested transaction succeeded, we'll meet an
                     # concurrent update error here, which can be safely ignored
@@ -256,3 +255,38 @@ class TestServerCancellation(tb.TestCase):
                     con.terminate()
                 for con in other_conns:
                     await con.aclose()
+
+    async def test_proto_gh3170_connection_lost_error(self):
+        async with tb.start_edgedb_server(
+            security=srv_args.ServerSecurityMode.InsecureDevMode,
+        ) as sd:
+            self.assertNotIn(
+                'edgedb_server_background_errors_total'
+                '{source="release_pgcon"}',
+                sd.fetch_metrics(),
+            )
+            con = await sd.connect_test_protocol()
+            try:
+                await con.send(
+                    protocol.ExecuteScript(
+                        headers=[],
+                        script='START TRANSACTION'
+                    )
+                )
+                await con.recv_match(
+                    protocol.CommandComplete,
+                    status='START TRANSACTION'
+                )
+                await con.recv_match(
+                    protocol.ReadyForCommand,
+                    transaction_state=protocol.TransactionState.IN_TRANSACTION,
+                )
+                await con.aclose()
+                self.assertNotIn(
+                    'edgedb_server_background_errors_total'
+                    '{source="release_pgcon"}',
+                    sd.fetch_metrics(),
+                )
+            except Exception:
+                await con.aclose()
+                raise

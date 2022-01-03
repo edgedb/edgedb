@@ -41,7 +41,6 @@ from edb.common import verutils
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
-from edb.edgeql import quote as qlquote
 
 from . import expr as s_expr
 from . import name as sn
@@ -100,36 +99,47 @@ def delta_objects(
     if context.guidance is not None:
         guidance = context.guidance
 
-        def can_create(name: sn.Name) -> bool:
-            return (sclass, name) not in guidance.banned_creations
+        # In these functions, we need to look at the actual object to
+        # figure out the type instead of just using sclass because
+        # sclass might be an abstract parent like Pointer.
+        def can_create(obj: so.Object_T, name: sn.Name) -> bool:
+            return (type(obj), name) not in guidance.banned_creations
 
-        def can_alter(old_name: sn.Name, new_name: sn.Name) -> bool:
-            return (sclass, (old_name, new_name)) not in guidance.banned_alters
+        def can_alter(
+            obj: so.Object_T, old_name: sn.Name, new_name: sn.Name
+        ) -> bool:
+            return (
+                (type(obj), (old_name, new_name))
+                not in guidance.banned_alters)
 
-        def can_delete(name: sn.Name) -> bool:
-            return (sclass, name) not in guidance.banned_deletions
+        def can_delete(obj: so.Object_T, name: sn.Name) -> bool:
+            return (type(obj), name) not in guidance.banned_deletions
     else:
-        def can_create(name: sn.Name) -> bool:
+        def can_create(obj: so.Object_T, name: sn.Name) -> bool:
             return True
 
-        def can_alter(old_name: sn.Name, new_name: sn.Name) -> bool:
+        def can_alter(
+            obj: so.Object_T, old_name: sn.Name, new_name: sn.Name
+        ) -> bool:
             return True
 
-        def can_delete(name: sn.Name) -> bool:
+        def can_delete(obj: so.Object_T, name: sn.Name) -> bool:
             return True
 
     for x, y in pairs:
         x_name = x.get_name(new_schema)
         y_name = y.get_name(old_schema)
 
-        if can_alter(y_name, x_name):
-            similarity = y.compare(
-                x,
-                our_schema=old_schema,
-                their_schema=new_schema,
-                context=context,
-            )
-        else:
+        similarity = y.compare(
+            x,
+            our_schema=old_schema,
+            their_schema=new_schema,
+            context=context,
+        )
+        # If similarity for an alter is 1.0, that means there is no
+        # actual change. We keep that, since otherwise we will generate
+        # extra drop/create pairs when we are already done.
+        if similarity < 1.0 and not can_alter(y, y_name, x_name):
             similarity = 0.0
 
         full_matrix.append((x, y, similarity))
@@ -167,7 +177,7 @@ def delta_objects(
             full_matrix_y[y] = (similarity, x)
 
         if (
-            can_alter(y.get_name(old_schema), x.get_name(new_schema))
+            can_alter(y, y.get_name(old_schema), x.get_name(new_schema))
             and full_matrix_x[x][0] != 1.0
             and full_matrix_y[y][0] != 1.0
         ):
@@ -175,6 +185,7 @@ def delta_objects(
             y_alter_variants[y] += 1
 
     alters = []
+    alter_pairs = []
 
     if comparison_map:
         if issubclass(sclass, so.InheritingObject):
@@ -192,30 +203,20 @@ def delta_objects(
             order_x = comparison_map
 
         for x in order_x:
-            s, y = comparison_map[x]
+            confidence, y = comparison_map[x]
             x_name = x.get_name(new_schema)
             y_name = y.get_name(old_schema)
 
             already_has = x_name == y_name and x_name not in renames_x
             if (
-                0.6 < s < 1.0
+                (0.6 < confidence < 1.0 and can_alter(y, y_name, x_name))
                 or (
-                    (not can_create(x_name) or not can_delete(y_name))
-                    and can_alter(y_name, x_name)
+                    (not can_create(x, x_name) or not can_delete(y, y_name))
+                    and can_alter(y, y_name, x_name)
                 )
                 or x_name in renames_x
             ):
-                if (
-                    (x_alter_variants[x] > 1 or (
-                        not already_has and can_create(x_name)))
-                    and parent_confidence != 1.0
-                ):
-                    confidence = s
-                else:
-                    # TODO: investigate how parent confidence should be
-                    # correlated with child confidence in cases of explicit
-                    # nested ALTER.
-                    confidence = 1.0
+                alter_pairs.append((x, y))
 
                 alter = y.as_alter_delta(
                     other=x,
@@ -225,14 +226,31 @@ def delta_objects(
                     confidence=confidence,
                 )
 
+                # If we are basically certain about this alter,
+                # make the confidence 1.0, unless child steps
+                # are not confident.
+                if not (
+                    (x_alter_variants[x] > 1 or (
+                        not already_has and can_create(x, x_name)))
+                    and parent_confidence != 1.0
+                ):
+                    cons = [
+                        sub.get_annotation('confidence')
+                        for sub in alter.get_subcommands(type=ObjectCommand)
+                    ]
+                    confidence = min(
+                        [1.0, *[c for c in cons if c is not None]])
+
                 alter.set_annotation('confidence', confidence)
                 alters.append(alter)
+            elif confidence == 1.0:
+                alter_pairs.append((x, y))
 
-    created = new - {x for x, (s, _) in comparison_map.items() if s > 0.6}
+    created = new - {x for x, _ in alter_pairs}
 
     for x in created:
         x_name = x.get_name(new_schema)
-        if can_create(x_name) and x_name not in renames_x:
+        if can_create(x, x_name) and x_name not in renames_x:
             create = x.as_create_delta(schema=new_schema, context=context)
             if x_alter_variants[x] > 0 and parent_confidence != 1.0:
                 confidence = full_matrix_x[x][0]
@@ -244,7 +262,7 @@ def delta_objects(
     delta.update(alters)
 
     deleted_order: Iterable[so.Object_T]
-    deleted = old - {y for _, (s, y) in comparison_map.items() if s > 0.6}
+    deleted = old - {y for _, y in alter_pairs}
 
     if issubclass(sclass, so.InheritingObject):
         deleted_order = _sort_by_inheritance(  # type: ignore
@@ -256,7 +274,7 @@ def delta_objects(
 
     for y in deleted_order:
         y_name = y.get_name(old_schema)
-        if can_delete(y_name) and y_name not in renames_y:
+        if can_delete(y, y_name) and y_name not in renames_y:
             delete = y.as_delete_delta(schema=old_schema, context=context)
             if y_alter_variants[y] > 0 and parent_confidence != 1.0:
                 confidence = full_matrix_y[y][0]
@@ -425,6 +443,9 @@ class Command(
         self.qlast: qlast.DDLOperation
         self._attrs = {}
         self._special_attrs = {}
+
+    def dump(self) -> None:
+        markup.dump(self)
 
     def copy(self: Command_T) -> Command_T:
         result = super().copy()
@@ -811,6 +832,10 @@ class Command(
 
     def get_nonattr_subcommand_count(self) -> int:
         attr_cmds = (AlterObjectProperty, AlterSpecialObjectField)
+        return len(self.get_subcommands(exclude=attr_cmds))
+
+    def get_nonattr_special_subcommand_count(self) -> int:
+        attr_cmds = (AlterObjectProperty,)
         return len(self.get_subcommands(exclude=attr_cmds))
 
     def prepend_prerequisite(self, command: Command) -> None:
@@ -1746,7 +1771,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         self,
         *,
         parent_op: Optional[Command] = None,
-    ) -> Tuple[str, str]:
+    ) -> Tuple[CommandKey, str]:
         """Return a human-friendly prompt describing this operation."""
 
         # The prompt is determined by the *innermost* subcommand as
@@ -1781,7 +1806,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         desc = self.get_friendly_description(parent_op=parent_op)
         prompt_text = f'did you {desc}?'
-        prompt_id = get_object_command_id(self)
+        prompt_id = get_object_command_key(self)
         assert prompt_id is not None
         return prompt_id, prompt_text
 
@@ -2302,7 +2327,10 @@ class ObjectCommand(Command, Generic[so.Object_T]):
             return object_desc
         else:
             if object is None:
-                object = getattr(self, 'scls', _dummy_object)
+                object = cast(
+                    so.Object_T,
+                    getattr(self, 'scls', cast(so.Object_T, _dummy_object)),
+                )
 
             if object is _dummy_object or schema is None:
                 if not isinstance(parent_op, ObjectCommand):
@@ -2323,6 +2351,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.Object_T, so.NoDefaultT] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> so.Object_T:
         ...
 
@@ -2334,6 +2363,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[so.Object_T]:
         ...
 
@@ -2344,6 +2374,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.Object_T, so.NoDefaultT, None] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[so.Object_T]:
         metaclass = self.get_schema_metaclass()
         if name is None:
@@ -2675,6 +2706,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         *,
         name: Optional[sn.Name] = None,
         default: Union[so.QualifiedObject_T, so.NoDefaultT] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> so.QualifiedObject_T:
         ...
 
@@ -2686,6 +2718,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[so.QualifiedObject_T]:
         ...
 
@@ -2697,6 +2730,7 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
         name: Optional[sn.Name] = None,
         default: Union[
             so.QualifiedObject_T, so.NoDefaultT, None] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[so.QualifiedObject_T]:
         if name is None:
             name = self.classname
@@ -2704,11 +2738,10 @@ class QualifiedObjectCommand(ObjectCommand[so.QualifiedObject_T]):
             if rename is not None:
                 name = rename
         metaclass = self.get_schema_metaclass()
-        return cast(
-            Optional[so.QualifiedObject_T],
-            schema.get(name, type=metaclass, default=default,
-                       sourcectx=self.source_context),
-        )
+        if sourcectx is None:
+            sourcectx = self.source_context
+        return schema.get(
+            name, type=metaclass, default=default, sourcectx=sourcectx)
 
 
 class GlobalObjectCommand(ObjectCommand[so.GlobalObject_T]):
@@ -2795,8 +2828,7 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
             funcs = schema.get_functions(fn, tuple())
             if funcs:
                 raise errors.SchemaError(
-                    f'{funcs[0].get_verbosename(schema)} is already present '
-                    f'in the schema {schema!r}')
+                    f'{funcs[0].get_verbosename(schema)} already exists')
 
     def _create_begin(
         self,
@@ -4195,23 +4227,28 @@ def get_object_delta_command(
     )
 
 
-def get_object_command_id(delta: ObjectCommand[Any]) -> str:
-    quoted_name: str
+CommandKey = Tuple[str, Type[so.Object], sn.Name, Optional[sn.Name]]
 
-    if isinstance(delta.classname, sn.QualName):
-        quoted_module = qlquote.quote_ident(delta.classname.module)
-        quoted_nqname = qlquote.quote_ident(delta.classname.name)
-        quoted_name = f'{quoted_module}::{quoted_nqname}'
-    else:
-        quoted_name = qlquote.quote_ident(str(delta.classname))
 
+def get_object_command_key(delta: ObjectCommand[Any]) -> CommandKey:
     if delta.orig_cmd_type is not None:
         cmdtype = delta.orig_cmd_type
     else:
         cmdtype = type(delta)
 
-    qlcls = delta.get_schema_metaclass().get_ql_class_or_die()
-    return f'{cmdtype.__name__} {qlcls} {quoted_name}'
+    new_name = (
+        getattr(delta, 'new_name', None)
+        or delta.get_annotation('new_name')
+    )
+    mcls = delta.get_schema_metaclass()
+    return cmdtype.__name__, mcls, delta.classname, new_name
+
+
+def get_object_command_id(key: CommandKey) -> str:
+    cmdclass_name, mcls, name, new_name = key
+    qlcls = mcls.get_ql_class_or_die()
+    extra = ' TO ' + str(new_name) if new_name else ''
+    return f'{cmdclass_name} {qlcls} {name}{extra}'
 
 
 def apply(

@@ -1,116 +1,177 @@
 .. _ref_eql_types:
 
 
-Types Syntax
-============
-
-Most types are just referred to by their name, however, EdgeQL has a
-special syntax for referring to :eql:type:`array`,
-:eql:type:`tuple`, and :eql:type:`enum` types. This syntax is used in
-:ref:`property <ref_eql_sdl_props>`, :ref:`scalar
-<ref_eql_sdl_scalars>`, or :ref:`function <ref_eql_sdl_functions>`
-declarations as well as in type expressions involving :eql:op:`IS`
-or a :eql:op:`cast <CAST>`.
+=====
+Types
+=====
 
 
-.. _ref_eql_types_array:
-
-Array
------
-
-An array type can be explicitly defined in an expression or schema
-declaration using the following syntax:
-
-.. eql:synopsis::
-
-    array "<" <element_type> ">"
-
-With the exception of other array types, any :ref:`scalar
-<ref_datamodel_scalar_types>` or :ref:`collection
-<ref_datamodel_collection_types>` type can be used as an array element
-type.
-
-Here's an example of using this syntax in a schema definition:
-
-.. code-block:: sdl
-
-    type User {
-        required property name -> str;
-        property favorites -> array<str>;
-    }
-
-Here's a few examples of using array types in EdgeQL queries:
-
-.. code-block:: edgeql-repl
-
-    db> SELECT <array<int64>>['1', '2', '3'];
-    {[1, 2, 3]}
-    db> SELECT [1, 2, 3] IS (array<int64>);
-    {true}
-    db> SELECT [(1, 'a')] IS (array<tuple<int64, str>>);
-    {true}
+The foundation of EdgeQL is EdgeDB's rigorous typesystem. There is a set of
+EdgeQL operators and functions for changing, introspecting, and filtering by
+types.
 
 
-.. _ref_eql_types_tuple:
+.. _ref_eql_types_names:
 
-Tuple
------
+Type expressions
+----------------
 
-A tuple type can be explicitly declared in an expression or schema
-declaration using the following syntax:
+Type expressions are exactly what they sound like: EdgeQL expressions that
+refer to a type. Most commonly, these are simply the *names* of established
+types: ``str``, ``int64``, ``BlogPost``, etc. Arrays and tuples have a
+dedicated type syntax.
 
-.. eql:synopsis::
+.. list-table::
 
-    tuple "<" <element-type>, [<element-type>, ...] ">"
+  * - **Type**
+    - **Syntax**
+  * - Array
+    - ``array<x>``
+  * - Tuple (unnamed)
+    - ``tuple<x, y, z>``
+  * - Tuple (named)
+    - ``tuple<foo: x, bar: y>``
 
-A named tuple:
+For additional details on type syntax, see :ref:`Schema > Primitive Types
+<ref_datamodel_primitives>`.
 
-.. eql:synopsis::
+.. _ref_eql_types_typecast:
 
-    tuple "<" <element-name> : <element-type> [, ... ] ">"
+Type casting
+------------
 
-Any type can be used as a tuple element type.
-
-Here's an example of using this syntax in a schema definition:
-
-.. code-block:: sdl
-
-    type GameElement {
-        required property name -> str;
-        required property position -> tuple<x: int64, y: int64>;
-    }
-
-Here's a few examples of using tuple types in EdgeQL queries:
+Type casting is used to convert primitive values into another type. Casts are
+indicated with angle brackets containing a type expression.
 
 .. code-block:: edgeql-repl
 
-    db> SELECT <tuple<int64, str>>('1', 3);
-    {(1, '3')}
-    db> SELECT <tuple<x: int64, y: int64>>(1, 2);
-    {(x := 1, y := 2)}
-    db> SELECT (1, '3') IS (tuple<int64, str>);
-    {true}
-    db> SELECT ([1, 2], 'a') IS (tuple<array<int64>, str>);
-    {true}
+    db> select <str>10;
+    {"10"}
+    db> select <bigint>10;
+    {10n}
+    db> select <array<str>>[1, 2, 3];
+    {['1', '2', '3']}
+    db> select <tuple<str, float64, bigint>>(1, 2, 3);
+    {('1', 2, 3n)}
 
 
-.. _ref_eql_types_enum:
 
-Enum
-----
+Type casts are useful for declaring literals for types like ``datetime``,
+``uuid``, and  ``int16`` that don't have a dedicated syntax.
 
-An enumerated type can be declared in a schema declaration using
-the following syntax:
+.. code-block:: edgeql-repl
 
-.. eql:synopsis::
+    db> select <datetime>'1999-03-31T15:17:00Z';
+    {<datetime>'1999-03-31T15:17:00Z'}
+    db> select <int16>42;
+    {42}
+    db> select <uuid>'89381587-705d-458f-b837-860822e1b219';
+    {89381587-705d-458f-b837-860822e1b219}
 
-    enum "<" <enum-values> ">"
 
-Where :eql:synopsis:`<enum-values>` is a comma-separated list of
-quoted string constants comprising the enum type.  Currently, the
-only valid application of the enum declaration is to define an
-enumerated scalar type:
+There are limits to what values can be cast to a certain type. In some cases
+two types are entirely incompatible, like ``bool`` and ``int64``; in other
+cases, the source data must be in a particular format, like casting ``str`` to
+``datetime``.
 
-.. code-block:: sdl
+.. code-block:: edgeql-repl
 
-    scalar type Color extending enum<Red, Green, Blue>;
+  db> select <BlogPost>10;
+  QueryError: cannot cast 'std::int64' to 'default::BlogPost'
+  db> select <int64>'asdf';
+  InvalidValueError: invalid input syntax for type std::int64: "asdf"
+  db> select <int16>100000000000000n;
+  NumericOutOfRangeError: std::int16 out of range
+
+For a comprehensive table of castability, see :ref:`Standard Library > Casts
+<ref_eql_casts_table>`.
+
+
+.. _ref_eql_types_intersection:
+
+Type intersections
+------------------
+
+Type casts can only be used on primitive expressions, not object type
+expressions. Every object stored in the database is strongly and immutably
+typed; you can't simply convert an object to an object of a different type.
+
+All elements of a given set have the same type; however, in the context of
+*sets of objects*, this may be misleading. A set of ``Animal`` objects may
+contain instances of multiple subtypes, like ``Cat`` and ``Dog``.
+
+.. code-block:: edgeql-repl
+
+  db> select Animal;
+  {
+    default::Dog {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
+    default::Dog {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
+    default::Cat {id: b0e0dd0c-35e8-11ec-acc3-abf1752973be},
+  }
+
+We can use the *type intersection* operator to restrict the elements of a set
+by subtype.
+
+.. code-block:: edgeql-repl
+
+  db> select Animal[is Dog];
+  {
+    default::Dog {id: 9d2ce01c-35e8-11ec-acc3-83b1377efea0},
+    default::Dog {id: 3bfe4900-3743-11ec-90ee-cb73d2740820},
+  }
+
+Logically, this computes the intersection of the ``Animal`` and ``Dog`` sets;
+since only ``Dog`` objects occur in both sets, this can be conceptualized as a
+"filter" that removes all elements that aren't of type ``Dog``.
+
+.. Type unions
+.. -----------
+
+.. You can create a type union with the pipe operator: :eql:op:`type | type
+.. <TYPEOR>`. This is mostly commonly used for object types.
+
+.. .. code-block:: edgeql-repl
+
+..   db> select 5 is int32 | int64;
+..   {true}
+..   db> select Animal is Dog | Cat;
+..   {true, true, true}
+
+
+Type checking
+-------------
+
+The ``[is foo]`` "type intersection" syntax should not be confused with the
+*type checking* operator :eql:op:`is <IS>`.
+
+.. code-block:: edgeql-repl
+
+  db> select 5 is int64;
+  {true}
+  db> select {3.14, 2.718} is not int64;
+  {true, true}
+  db> select Animal is Dog;
+  {true, true, false}
+
+
+
+The ``typeof`` operator
+-----------------------
+
+The type of any expression can be extracted with the :eql:op:`typeof <TYPEOF>`
+operator. This can be used in any expression that expects a type.
+
+.. code-block:: edgeql-repl
+
+  db> select <typeof 5>'100';
+  {100}
+  db> select "tuna" is typeof "trout";
+  {true}
+
+Introspection
+-------------
+
+The entire typesystem of EdgeDB is *stored inside EdgeDB*. All types are
+introspectable as instances of the ``schema::Type`` type. For a set of
+introspection examples, see :ref:`Guides > Introspection
+<ref_eql_introspection>`.

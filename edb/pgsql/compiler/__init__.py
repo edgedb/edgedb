@@ -30,11 +30,13 @@ from edb.ir import ast as irast
 
 from edb.pgsql import ast as pgast
 from edb.pgsql import codegen as pgcodegen
+from edb.pgsql import params as pgparams
 
 from . import config as _config_compiler  # NOQA
 from . import expr as _expr_compiler  # NOQA
 from . import stmt as _stmt_compiler  # NOQA
 
+from . import clauses
 from . import context
 from . import dispatch
 
@@ -53,16 +55,19 @@ def compile_ir_to_sql_tree(
     external_rvars: Optional[
         Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     ] = None,
+    backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
 ) -> pgast.Base:
     try:
         # Transform to sql tree
         query_params = []
         type_rewrites = {}
 
+        singletons = []
         if isinstance(ir_expr, irast.Statement):
             scope_tree = ir_expr.scope_tree
             query_params = list(ir_expr.params)
             type_rewrites = ir_expr.type_rewrites
+            singletons = ir_expr.singletons
             ir_expr = ir_expr.expr
         elif isinstance(ir_expr, irast.ConfigCommand):
             assert ir_expr.scope_tree
@@ -75,6 +80,9 @@ def compile_ir_to_sql_tree(
             if node.unique_id is not None
         }
 
+        if backend_runtime_params is None:
+            backend_runtime_params = pgparams.get_default_runtime_params()
+
         env = context.Environment(
             output_format=output_format,
             expected_cardinality_one=expected_cardinality_one,
@@ -86,6 +94,7 @@ def compile_ir_to_sql_tree(
             singleton_mode=singleton_mode,
             scope_tree_nodes=scope_tree_nodes,
             external_rvars=external_rvars,
+            backend_runtime_params=backend_runtime_params,
         )
 
         ctx = context.CompilerContextLevel(
@@ -94,11 +103,23 @@ def compile_ir_to_sql_tree(
             env=env,
             scope_tree=scope_tree,
         )
+        ctx.rel = pgast.SelectStmt()
 
         _ = context.CompilerContext(initial=ctx)
+
         ctx.singleton_mode = singleton_mode
         ctx.expr_exposed = True
+        for sing in singletons:
+            ctx.path_scope[sing] = ctx.rel
         qtree = dispatch.compile(ir_expr, ctx=ctx)
+        if isinstance(ir_expr, irast.Set) and not singleton_mode:
+            assert isinstance(qtree, pgast.Query)
+            clauses.fini_toplevel(qtree, ctx)
+
+    except errors.EdgeDBError:
+        # Don't wrap propertly typed EdgeDB errors into
+        # InternalServerError; raise them as is.
+        raise
 
     except Exception as e:  # pragma: no cover
         try:
@@ -117,7 +138,8 @@ def compile_ir_to_sql(
     explicit_top_cast: Optional[irast.TypeRef]=None,
     use_named_params: bool=False,
     expected_cardinality_one: bool=False,
-    pretty: bool=True
+    pretty: bool=True,
+    backend_runtime_params: Optional[pgparams.BackendRuntimeParams]=None,
 ) -> Tuple[str, Dict[str, pgast.Param]]:
 
     qtree = compile_ir_to_sql_tree(
@@ -126,7 +148,9 @@ def compile_ir_to_sql(
         ignore_shapes=ignore_shapes,
         explicit_top_cast=explicit_top_cast,
         use_named_params=use_named_params,
-        expected_cardinality_one=expected_cardinality_one)
+        expected_cardinality_one=expected_cardinality_one,
+        backend_runtime_params=backend_runtime_params,
+    )
 
     if (  # pragma: no cover
         debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_ast

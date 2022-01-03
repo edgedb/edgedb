@@ -24,6 +24,7 @@ import asyncio
 import http.client
 import json
 import os.path
+import pathlib
 import random
 import subprocess
 import ssl
@@ -38,7 +39,8 @@ from edb import protocol
 from edb.common import devmode
 from edb.common import taskgroup
 from edb.protocol import protocol as edb_protocol  # type: ignore
-from edb.server import pgcluster, pgconnparams
+from edb.server import args, pgcluster, pgconnparams
+from edb.server import cluster as edbcluster
 from edb.testbase import server as tb
 
 
@@ -81,11 +83,7 @@ class TestServerOps(tb.TestCase):
                 # the cluster was started with an "--auto-shutdown-after=0"
                 # option, we expect this connection to be rejected
                 # and the cluster to be shutdown soon.
-                await edgedb.async_connect(
-                    user='edgedb',
-                    host=sd.host,
-                    port=sd.port,
-                    tls_ca_file=sd.tls_cert_file,
+                await sd.connect(
                     wait_until_available=0,
                 )
 
@@ -105,7 +103,7 @@ class TestServerOps(tb.TestCase):
             '--bootstrap-only',
             '--log-level=error',
             '--max-backend-connections', '10',
-            '--generate-self-signed-cert',
+            '--tls-cert-mode=generate_self_signed',
         ]
 
         # Note: for debug comment "stderr=subprocess.PIPE".
@@ -136,7 +134,6 @@ class TestServerOps(tb.TestCase):
         # * "--bootstrap-command"
 
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
             bootstrap_command='CREATE SUPERUSER ROLE test_bootstrap2 '
                               '{ SET password := "tbs2" };'
         ) as sd:
@@ -152,6 +149,9 @@ class TestServerOps(tb.TestCase):
         status_fd, status_file = tempfile.mkstemp()
         os.close(status_fd)
 
+        status_fd, status_file_2 = tempfile.mkstemp()
+        os.close(status_fd)
+
         cmd = [
             sys.executable, '-m', 'edb.server.main',
             '--port', 'auto',
@@ -160,13 +160,14 @@ class TestServerOps(tb.TestCase):
             '--log-level=debug',
             '--max-backend-connections', '10',
             '--emit-server-status', status_file,
-            '--generate-self-signed-cert',
+            '--emit-server-status', status_file_2,
+            '--tls-cert-mode=generate_self_signed',
         ]
 
         proc: Optional[asyncio.Process] = None
 
-        def _read():
-            with open(status_file, 'r') as f:
+        def _read(filename: str) -> str:
+            with open(filename, 'r') as f:
                 while True:
                     result = f.readline()
                     if not result:
@@ -176,8 +177,13 @@ class TestServerOps(tb.TestCase):
 
         async def _waiter() -> Tuple[str, Mapping[str, Any]]:
             loop = asyncio.get_running_loop()
-            line = await loop.run_in_executor(None, _read)
-            status, _, dataline = line.partition('=')
+            lines = await asyncio.gather(
+                loop.run_in_executor(None, _read, status_file),
+                loop.run_in_executor(None, _read, status_file_2),
+            )
+            self.assertEqual(len(lines), 2)
+            self.assertEqual(lines[0], lines[1])
+            status, _, dataline = lines[0].partition('=')
             return status, json.loads(dataline)
 
         try:
@@ -199,10 +205,102 @@ class TestServerOps(tb.TestCase):
             await self.kill_process(proc)
             os.unlink(status_file)
 
+    async def test_server_ops_generates_cert_to_specified_file(self):
+        cert_fd, cert_file = tempfile.mkstemp()
+        os.close(cert_fd)
+        os.unlink(cert_file)
+
+        key_fd, key_file = tempfile.mkstemp()
+        os.close(key_fd)
+        os.unlink(key_file)
+
+        try:
+            async with tb.start_edgedb_server(
+                tls_cert_file=cert_file,
+                tls_key_file=key_file,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
+            key_file_path = pathlib.Path(key_file)
+            cert_file_path = pathlib.Path(cert_file)
+
+            self.assertTrue(key_file_path.exists())
+            self.assertTrue(cert_file_path.exists())
+
+            self.assertGreater(key_file_path.stat().st_size, 0)
+            self.assertGreater(cert_file_path.stat().st_size, 0)
+
+            # Check that the server works with the generated cert/key
+            async with tb.start_edgedb_server(
+                tls_cert_file=cert_file,
+                tls_key_file=key_file,
+                tls_cert_mode=args.ServerTlsCertMode.RequireFile,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
+        finally:
+            os.unlink(key_file)
+            os.unlink(cert_file)
+
+    async def test_server_ops_generates_cert_to_default_location(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            async with tb.start_edgedb_server(
+                data_dir=temp_dir,
+                default_auth_method=args.ServerAuthMethod.Trust,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
+            # Check that the server works with the generated cert/key
+            async with tb.start_edgedb_server(
+                data_dir=temp_dir,
+                tls_cert_mode=args.ServerTlsCertMode.RequireFile,
+                default_auth_method=args.ServerAuthMethod.Trust,
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
+    async def test_server_ops_bogus_bind_addr_in_mix(self):
+        async with tb.start_edgedb_server(
+            bind_addrs=('host.invalid', '127.0.0.1',),
+        ) as sd:
+            con = await sd.connect()
+            try:
+                await con.query_single("SELECT 1")
+            finally:
+                await con.aclose()
+
+    async def test_server_ops_bogus_bind_addr_only(self):
+        with self.assertRaisesRegex(
+            edbcluster.ClusterError,
+            "could not create any listen sockets",
+        ):
+            async with tb.start_edgedb_server(
+                bind_addrs=('host.invalid',),
+            ) as sd:
+                con = await sd.connect()
+                try:
+                    await con.query_single("SELECT 1")
+                finally:
+                    await con.aclose()
+
     async def test_server_ops_set_pg_max_connections(self):
         actual = random.randint(50, 100)
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
             max_allowed_connections=actual,
         ) as sd:
             con = await sd.connect()
@@ -219,7 +317,6 @@ class TestServerOps(tb.TestCase):
 
         async def test(pgdata_path):
             async with tb.start_edgedb_server(
-                auto_shutdown=True,
                 max_allowed_connections=None,
                 backend_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
                 reset_auth=True,
@@ -256,7 +353,6 @@ class TestServerOps(tb.TestCase):
     async def test_server_ops_postgres_multitenant(self):
         async def test(pgdata_path, tenant):
             async with tb.start_edgedb_server(
-                auto_shutdown=True,
                 tenant_id=tenant,
                 reset_auth=True,
                 backend_dsn=f'postgres:///?user=postgres&host={pgdata_path}',
@@ -342,8 +438,6 @@ class TestServerOps(tb.TestCase):
                 await cluster.stop()
 
     async def _test_connection(self, con):
-        await con.connect()
-
         await con.send(
             protocol.ExecuteScript(
                 headers=[],
@@ -361,15 +455,11 @@ class TestServerOps(tb.TestCase):
 
     async def test_server_ops_downgrade_to_cleartext(self):
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
-            allow_insecure_binary_clients=True,
+            binary_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
-            con = await edb_protocol.new_connection(
+            con = await sd.connect_test_protocol(
                 user='edgedb',
-                password=sd.password,
-                host=sd.host,
-                port=sd.port,
-                use_tls=False,
+                tls_security='insecure',
             )
             try:
                 await self._test_connection(con)
@@ -378,9 +468,8 @@ class TestServerOps(tb.TestCase):
 
     async def test_server_ops_no_cleartext(self):
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
-            allow_insecure_binary_clients=False,
-            allow_insecure_http_clients=False,
+            binary_endpoint_security=args.ServerEndpointSecurityMode.Tls,
+            http_endpoint_security=args.ServerEndpointSecurityMode.Tls,
         ) as sd:
             con = http.client.HTTPConnection(sd.host, sd.port)
             con.connect()
@@ -405,20 +494,22 @@ class TestServerOps(tb.TestCase):
             finally:
                 con.close()
 
-            con = await edb_protocol.new_connection(
-                user='edgedb',
-                password=sd.password,
-                host=sd.host,
-                port=sd.port,
-                use_tls=False,
-            )
-            try:
-                with self.assertRaisesRegex(
-                    errors.BinaryProtocolError, "TLS Required"
-                ):
-                    await con.connect()
-            finally:
-                await con.aclose()
+            # TODO: Implement TLS-less connection in testbase/connection.py.
+            # con = await edb_protocol.new_connection(
+            #     user='edgedb',
+            #     password=sd.password,
+            #     host=sd.host,
+            #     port=sd.port,
+            #     tls_ca_file=None,
+            #     tls_security='no_host_verification',
+            # )
+            # try:
+            #     with self.assertRaisesRegex(
+            #         errors.BinaryProtocolError, "TLS Required"
+            #     ):
+            #         await con.connect()
+            # finally:
+            #     await con.aclose()
 
             con = await edb_protocol.new_connection(
                 user='edgedb',
@@ -428,14 +519,14 @@ class TestServerOps(tb.TestCase):
                 tls_ca_file=sd.tls_cert_file,
             )
             try:
+                await con.connect()
                 await self._test_connection(con)
             finally:
                 await con.aclose()
 
     async def test_server_ops_cleartext_http_allowed(self):
         async with tb.start_edgedb_server(
-            auto_shutdown=True,
-            allow_insecure_http_clients=True,
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
         ) as sd:
 
             con = http.client.HTTPConnection(sd.host, sd.port)
@@ -480,13 +571,7 @@ class TestServerOps(tb.TestCase):
             # Connect to let it autoshutdown; also test that
             # --allow-insecure-http-clients doesn't break binary
             # connections.
-            con = await edb_protocol.new_connection(
-                user='edgedb',
-                password=sd.password,
-                host=sd.host,
-                port=sd.port,
-                tls_ca_file=sd.tls_cert_file,
-            )
+            con = await sd.connect_test_protocol()
             try:
                 await self._test_connection(con)
             finally:

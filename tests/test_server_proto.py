@@ -290,15 +290,13 @@ class TestServerProto(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'cannot be executed with query_single\(\).*'
-                r'not return'):
-            await self.con.query_single('START TRANSACTION')
+                r'it does not return any data'):
+            await self.con.query_required_single('START TRANSACTION')
 
         with self.assertRaisesRegex(
                 edgedb.InterfaceError,
-                r'cannot be executed with query_single_json\(\).*'
-                r'not return'):
-            await self.con.query_single_json('START TRANSACTION')
+                r'it does not return any data'):
+            await self.con.query_required_single_json('START TRANSACTION')
 
     async def test_server_proto_fetch_single_command_04(self):
         with self.assertRaisesRegex(edgedb.ProtocolError,
@@ -504,11 +502,13 @@ class TestServerProto(tb.QueryTestCase):
                     r'query_single\(\) as it returns a multiset'):
                 await self.con.query_single('SELECT {1, 2}')
 
+            await self.con.query_single('SELECT <int64>{}')
+
             with self.assertRaisesRegex(
                 edgedb.NoDataError,
-                r'\bquery_single\(',
+                r'returned no data',
             ):
-                await self.con.query_single('SELECT <int64>{}')
+                await self.con.query_required_single('SELECT <int64>{}')
 
     async def test_server_proto_basic_datatypes_02(self):
         self.assertEqual(
@@ -571,7 +571,7 @@ class TestServerProto(tb.QueryTestCase):
                 [])
 
             with self.assertRaises(edgedb.NoDataError):
-                await self.con.query_single_json('SELECT <int64>{}')
+                await self.con.query_required_single_json('SELECT <int64>{}')
 
         self.assertEqual(self.con._get_last_status(), 'SELECT')
 
@@ -1263,6 +1263,34 @@ class TestServerProto(tb.QueryTestCase):
         finally:
             await con.query('ROLLBACK')
 
+    async def test_server_proto_tx_savepoint_12(self):
+        con = self.con
+
+        await con.query('START TRANSACTION')
+        await con.query('DECLARE SAVEPOINT p1')
+        await con.query('DECLARE SAVEPOINT p2')
+        await con.query('ROLLBACK TO SAVEPOINT p1')
+
+        try:
+            with self.assertRaises(edgedb.TransactionError):
+                await con.query('ROLLBACK TO SAVEPOINT p2')
+        finally:
+            await con.query('ROLLBACK')
+
+    async def test_server_proto_tx_savepoint_13(self):
+        con = self.con
+
+        await con.query('START TRANSACTION')
+        await con.query('DECLARE SAVEPOINT p1')
+        await con.query('DECLARE SAVEPOINT p2')
+        await con.query('RELEASE SAVEPOINT p1')
+
+        try:
+            with self.assertRaises(edgedb.TransactionError):
+                await con.query('ROLLBACK TO SAVEPOINT p2')
+        finally:
+            await con.query('ROLLBACK')
+
     async def test_server_proto_tx_01(self):
         await self.con.query('START TRANSACTION')
 
@@ -1740,8 +1768,8 @@ class TestServerProto(tb.QueryTestCase):
         con1 = self.con
         con2 = await self.connect(database=con1.dbname)
 
-        tx1 = con1.transaction(isolation='serializable')
-        tx2 = con2.transaction(isolation='serializable')
+        tx1 = con1.transaction()
+        tx2 = con2.transaction()
         await tx1.start()
         await tx2.start()
 
@@ -1890,6 +1918,9 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
     @unittest.skipUnless(devmode.is_in_dev_mode(),
                          'the test requires devmode')
     async def test_server_proto_ddlprop_01(self):
+        if not self.has_create_role:
+            self.skipTest('create role is not supported by the backend')
+
         conargs = self.get_connect_args()
 
         await self.con.execute('''
@@ -1905,9 +1936,12 @@ class TestServerProtoDdlPropagation(tb.QueryTestCase):
             123
         )
 
-        async with tb.start_edgedb_server(
-            adjacent_to=self.con, backend_dsn=self.backend_dsn
-        ) as sd:
+        server_args = {}
+        if self.backend_dsn:
+            server_args['backend_dsn'] = self.backend_dsn
+        else:
+            server_args['adjacent_to'] = self.con
+        async with tb.start_edgedb_server(**server_args) as sd:
 
             con2 = await sd.connect(
                 user=conargs.get('user'),
@@ -1998,6 +2032,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
 
     async def test_server_proto_create_db_01(self):
+        if not self.has_create_database:
+            self.skipTest('create database is not supported by the backend')
+
         db = 'test_server_proto_create_db_01'
 
         con1 = self.con
@@ -2843,6 +2880,9 @@ class TestServerProtoConcurrentGlobalDDL(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
 
     async def test_server_proto_concurrent_global_ddl(self):
+        if not self.has_create_role:
+            self.skipTest('create role is not supported by the backend')
+
         ntasks = 5
 
         async with tg.TaskGroup() as g:

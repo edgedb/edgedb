@@ -27,6 +27,9 @@ class TestDatabase(tb.ConnectedTestCase):
     TRANSACTION_ISOLATION = False
 
     async def test_database_create_01(self):
+        if not self.has_create_database:
+            self.skipTest("create database is not supported by the backend")
+
         await self.con.execute('CREATE DATABASE mytestdb;')
 
         try:

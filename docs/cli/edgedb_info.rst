@@ -5,15 +5,28 @@
 edgedb info
 ===========
 
-Show information about the EdgeDB installation.
+Display information about the EdgeDB installation. Currently this command
+displays the filesystem paths used by EdgeDB.
 
 .. cli:synopsis::
 
-    edgedb info
+	edgedb info
 
 
-Description
-===========
+.. _ref_cli_edgedb_paths:
 
-``edgedb info`` is a terminal command that shows the paths where the
-various important parts of EdgeDB are installed.
+Paths
+-----
+
+EdgeDB uses several directories, each storing different kinds of information.
+The exact path to these directories is determined by your operating system.
+Throughout the documentation, these paths are referred to as "EdgeDB config
+directory", "EdgeDB data directory", etc.
+
+- **Config**: contains auto-generated credentials for all local instances and
+  project metadata.
+- **Data**: contains the *contents* of all local EdgeDB instances.
+- **CLI Binary**: contains the CLI binary, if insatlled.
+- **Service**: the home for running processes/daemons.
+- **Cache**: a catchall for logs and various caches.
+

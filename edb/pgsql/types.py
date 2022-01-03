@@ -58,6 +58,8 @@ base_type_name_map = {
     s_obj.get_known_type_id('cal::local_time'): ('time',),
     s_obj.get_known_type_id('cal::relative_duration'):
         ('edgedb', 'relative_duration_t'),
+
+    s_obj.get_known_type_id('cfg::memory'): ('edgedb', 'memory_t'),
 }
 
 base_type_name_map_r = {
@@ -97,6 +99,9 @@ base_type_name_map_r = {
     'edgedb.date_t': sn.QualName('cal', 'local_date'),
     'time': sn.QualName('cal', 'local_time'),
     'edgedb.relative_duration_t': sn.QualName('cal', 'relative_duration'),
+
+    'edgedb.memory_t': sn.QualName('cfg', 'memory'),
+    'memory_t': sn.QualName('cfg', 'memory'),
 }
 
 
@@ -462,11 +467,6 @@ def _get_ptrref_storage_info(
 
     target = ptrref.out_target
 
-    if is_lprop and str(ptrref.std_parent_name) == 'std::target':
-        # Normalize link@target to link
-        ptrref = source
-        is_lprop = False
-
     if isinstance(ptrref, irast.TupleIndirectionPointerRef):
         table = None
         table_type = 'ObjectType'
@@ -476,8 +476,8 @@ def _get_ptrref_storage_info(
         table = common.get_pointer_backend_name(
             source.id, source.name.module, catenate=False)
         table_type = 'link'
-        if ptrref.shortname.name == 'source':
-            col_name = 'source'
+        if ptrref.shortname.name in ('source', 'target'):
+            col_name = ptrref.shortname.name
         else:
             col_name = str(ptrref.id)
     else:

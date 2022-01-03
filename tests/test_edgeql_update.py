@@ -487,6 +487,16 @@ class TestUpdate(tb.QueryTestCase):
             ]
         )
 
+    async def test_edgeql_update_bad_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'free objects cannot be updated',
+        ):
+            await self.con.execute('''\
+                WITH foo := {bar := 1}
+                UPDATE foo SET { bar := 2 };
+            ''')
+
     async def test_edgeql_update_filter_01(self):
         await self.assert_query_result(
             r"""
@@ -1871,7 +1881,7 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 SELECT UpdateTest.comment;
             """,
-            {},
+            [],
         )
 
     async def test_edgeql_update_empty_02(self):
@@ -1914,7 +1924,7 @@ class TestUpdate(tb.QueryTestCase):
             r"""
                 SELECT UpdateTest.status;
             """,
-            {},
+            [],
         )
 
     async def test_edgeql_update_empty_05(self):
@@ -3044,6 +3054,10 @@ class TestUpdate(tb.QueryTestCase):
             }]
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_update_add_dupes_01b(self):
         await self.con.execute("""
             INSERT UpdateTestSubSubType {

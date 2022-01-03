@@ -35,6 +35,8 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-debian-stretch
@@ -54,6 +56,8 @@ jobs:
         PKG_PLATFORM_VERSION: "buster"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
+
+
 
     - uses: actions/upload-artifact@v2
       with:
@@ -75,6 +79,8 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-debian-bullseye
@@ -94,6 +100,8 @@ jobs:
         PKG_PLATFORM_VERSION: "xenial"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
+
+
 
     - uses: actions/upload-artifact@v2
       with:
@@ -115,6 +123,8 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-ubuntu-bionic
@@ -134,6 +144,8 @@ jobs:
         PKG_PLATFORM_VERSION: "focal"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
+
+
 
     - uses: actions/upload-artifact@v2
       with:
@@ -155,6 +167,8 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-centos-7
@@ -175,10 +189,36 @@ jobs:
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
 
+
+
     - uses: actions/upload-artifact@v2
       with:
         name: builds-centos-8
         path: artifacts/centos-8
+
+  build-linux-x86_64:
+    runs-on: ubuntu-latest
+    needs: prep
+
+    steps:
+    - name: Build
+      uses: edgedb/edgedb-pkg/integration/linux/build/linux-x86_64@master
+      env:
+        SRC_REF: "${{ needs.prep.outputs.branch }}"
+        PKG_REVISION: "<current-date>"
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        EXTRA_OPTIMIZATIONS: "true"
+        BUILD_IS_RELEASE: "true"
+
+        BUILD_GENERIC: true
+
+
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
 
 
   build-macos-x86_64:
@@ -192,42 +232,15 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/cache@v2
-      id: sdk1010cache
-      with:
-        path: ~/.cache/MacOSX10.10.sdk/
-        key: MacOSX10.10.sdk
-
-    - name: Install Xcode
-      if: steps.sdk1010cache.outputs.cache-hit != 'true'
-      env:
-        XCODE_INSTALL_USER: github-ci@edgedb.com
-        XCODE_INSTALL_PASSWORD: ${{ secrets.BOT_APPLE_ID_PASSWORD }}
-        SPACESHIP_SKIP_2FA_UPGRADE: 1
-      run: |
-        xcversion install 6.4
-
-    - name: Cache 10.10 SDK
-      if: steps.sdk1010cache.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/.cache
-        cp -a \
-          /Applications/Xcode-6.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk/ \
-          ~/.cache/MacOSX10.10.sdk/
-
-    - name: Select macOS SDK
-      run: |
-        sudo cp -a \
-          ~/.cache/MacOSX10.10.sdk/ \
-          /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
-        sudo xcode-select -s /Library/Developer/CommandLineTools
-
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
         default: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v1
 
     - name: Build
       env:
@@ -236,7 +249,9 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "macos"
         PKG_PLATFORM_VERSION: "x86_64"
-        SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
+
+        BUILD_GENERIC: true
+
       run: |
         edgedb-pkg/integration/macos/build.sh
 
@@ -406,6 +421,26 @@ jobs:
         PKG_TEST_JOBS: 1
 
 
+  test-linux-x86_64:
+    needs: [build-linux-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Test
+      uses: edgedb/edgedb-pkg/integration/linux/test/linux-x86_64@master
+      env:
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        # edb test with -j higher than 1 seems to result in workflow
+        # jobs getting killed arbitrarily by Github.
+        PKG_TEST_JOBS: 1
+
+
 
   test-macos-x86_64:
     needs: [build-macos-x86_64]
@@ -448,7 +483,7 @@ jobs:
         target: debian-stretch
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-stretch@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "stretch"
@@ -481,7 +516,7 @@ jobs:
         target: debian-buster
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-buster@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "buster"
@@ -529,7 +564,7 @@ jobs:
         target: debian-bullseye
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/debian-bullseye@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "debian"
         PKG_PLATFORM_VERSION: "bullseye"
@@ -562,7 +597,7 @@ jobs:
         target: ubuntu-xenial
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-xenial@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "xenial"
@@ -595,7 +630,7 @@ jobs:
         target: ubuntu-bionic
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-bionic@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "bionic"
@@ -628,7 +663,7 @@ jobs:
         target: ubuntu-focal
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/ubuntu-focal@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "ubuntu"
         PKG_PLATFORM_VERSION: "focal"
@@ -661,7 +696,7 @@ jobs:
         target: centos-7
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-7@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "7"
@@ -694,7 +729,7 @@ jobs:
         target: centos-8
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/centos-8@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
@@ -705,6 +740,39 @@ jobs:
       env:
         PKG_PLATFORM: "centos"
         PKG_PLATFORM_VERSION: "8"
+        PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
+        PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
+
+    
+
+  publish-linux-x86_64:
+    needs: [test-linux-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: builds-linux-x86_64
+        path: artifacts/linux-x86_64
+
+    - name: Describe
+      id: describe
+      uses: edgedb/edgedb-pkg/integration/actions/describe-artifact@master
+      with:
+        target: linux-x86_64
+
+    - name: Publish
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
+      env:
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
+        PACKAGE_UPLOAD_SSH_KEY: "${{ secrets.PACKAGE_UPLOAD_SSH_KEY }}"
+
+    - name: Test Published
+      uses: edgedb/edgedb-pkg/integration/linux/testpublished/linux-x86_64@master
+      env:
+        PKG_PLATFORM: "linux"
+        PKG_PLATFORM_VERSION: "x86_64"
         PKG_INSTALL_REF: "${{ steps.describe.outputs.install-ref }}"
         PKG_VERSION_SLOT: "${{ steps.describe.outputs.version-slot }}"
 

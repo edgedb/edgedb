@@ -865,3 +865,17 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         AT_LEAST_ONE
         """
+
+    def test_edgeql_ir_card_inference_99(self):
+        """
+        SELECT {1, 2} LIMIT 1
+% OK %
+        ONE
+        """
+
+    def test_edgeql_ir_card_inference_100(self):
+        """
+        SELECT assert_exists(User) LIMIT 1
+% OK %
+        ONE
+        """

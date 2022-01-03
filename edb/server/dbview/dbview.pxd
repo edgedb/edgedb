@@ -51,6 +51,8 @@ cdef class Database:
         readonly object backend_ids
         readonly object extensions
 
+    cdef schedule_config_update(self)
+
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)
     cdef _new_view(self, user, query_cache)
@@ -72,7 +74,10 @@ cdef class DatabaseConnectionView:
         object _user
 
         object _config
-        object _db_config
+
+        object _db_config_temp
+        object _db_config_dbver
+
         object _modaliases
         object _in_tx_modaliases
         tuple _session_state_cache
@@ -105,8 +110,8 @@ cdef class DatabaseConnectionView:
     cdef recover_aliases_and_config(self, modaliases, config)
     cdef abort_tx(self)
 
-    cdef in_tx(self)
-    cdef in_tx_error(self)
+    cpdef in_tx(self)
+    cpdef in_tx_error(self)
 
     cdef cache_compiled_query(self, object key, object query_unit)
     cdef lookup_compiled_query(self, object key)
@@ -117,9 +122,10 @@ cdef class DatabaseConnectionView:
     cdef on_error(self, query_unit)
     cdef on_success(self, query_unit, new_types)
 
-    cdef get_session_config(self)
+    cpdef get_session_config(self)
     cdef set_session_config(self, new_conf)
 
+    cdef update_database_config(self)
     cdef get_database_config(self)
     cdef set_database_config(self, new_conf)
 
@@ -127,6 +133,6 @@ cdef class DatabaseConnectionView:
     cdef get_compilation_system_config(self)
 
     cdef set_modaliases(self, new_aliases)
-    cdef get_modaliases(self)
+    cpdef get_modaliases(self)
 
     cdef bytes serialize_state(self)

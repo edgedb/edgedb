@@ -21,7 +21,7 @@ from __future__ import annotations
 
 # Import specific things to avoid name clashes
 from typing import (Dict, FrozenSet, Generator, List, Mapping, Optional,
-                    Union, Set, Tuple, Iterable, Generic, TypeVar)
+                    Union, Set, Tuple, Iterable, Generic, TypeVar, Sequence)
 
 import functools
 
@@ -310,20 +310,20 @@ class TracerContext:
         self, ref: qlast.ObjectRef
     ) -> Set[sn.QualName]:
         refs = set()
-        prefixes = []
+        prefixes = set()
 
         if ref.module:
             # replace the module alias with the real name
             module = self.modaliases.get(ref.module, ref.module)
-            prefixes.append(f'{module}::{ref.name}')
+            prefixes.add(f'{module}::{ref.name}')
         else:
-            prefixes.append(f'{self.module}::{ref.name}')
-            prefixes.append(f'std::{ref.name}')
+            prefixes.add(f'{self.module}::{ref.name}')
+            prefixes.add(f'std::{ref.name}')
 
         for objname in self.objects.keys():
-            for prefix in prefixes:
-                if str(objname).startswith(prefix):
-                    refs.add(objname)
+            short_name = str(objname).split('@@', 1)[0]
+            if short_name in prefixes:
+                refs.add(objname)
 
         return refs
 
@@ -331,7 +331,8 @@ class TracerContext:
 @contextmanager
 def alias_context(
     ctx: TracerContext,
-    aliases: Optional[List[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]]],
+    aliases: Optional[
+        Sequence[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]]],
 ) -> Generator[TracerContext, None, None]:
     module = None
     modaliases: Dict[Optional[str], str] = {}
@@ -388,9 +389,9 @@ def result_alias_context(
 ) -> Generator[TracerContext, None, None]:
 
     alias: Optional[str] = None
-    if isinstance(node, qlast.ReturningMixin):
+    if isinstance(node, qlast.SelectQuery):
         alias = node.result_alias
-    elif isinstance(node, qlast.SubjectMixin):
+    elif isinstance(node, qlast.GroupQuery):
         alias = node.subject_alias
 
     # potentially SELECT uses an alias for the main result
@@ -420,7 +421,7 @@ def result_alias_context(
 
 @functools.singledispatch
 def trace(
-    node: qlast.Base,
+    node: Optional[qlast.Base],
     *,
     ctx: TracerContext,
 ) -> Optional[ObjectLike]:
@@ -428,7 +429,7 @@ def trace(
 
 
 @trace.register
-def trace_none(node: Union[None], *, ctx: TracerContext) -> None:
+def trace_none(node: None, *, ctx: TracerContext) -> None:
     pass
 
 
@@ -574,6 +575,8 @@ def trace_Path(
                 # Abbreviated path.
                 if ctx.path_prefix in ctx.objects:
                     tip = ctx.objects[ctx.path_prefix]
+                    if isinstance(tip, Pointer):
+                        ptr = tip
                 else:
                     # We can't reason about this path.
                     return None
@@ -869,6 +872,59 @@ def trace_Select(
                 trace(node.offset, ctx=nctx)
             if node.limit is not None:
                 trace(node.limit, ctx=nctx)
+
+        return tip
+
+
+def trace_GroupingAtom(
+        node: qlast.GroupingAtom, *, ctx: TracerContext) -> None:
+    if isinstance(node, qlast.ObjectRef):
+        trace(qlast.Path(steps=[node]), ctx=ctx)
+    elif isinstance(node, qlast.Path):
+        trace(node, ctx=ctx)
+    else:
+        for el in node.elements:
+            trace_GroupingAtom(el, ctx=ctx)
+
+
+@trace.register
+def trace_GroupingSimple(
+        node: qlast.GroupingSimple, *, ctx: TracerContext) -> None:
+    trace_GroupingAtom(node.element, ctx=ctx)
+
+
+@trace.register
+def trace_GroupingSets(
+        node: qlast.GroupingSets, *, ctx: TracerContext) -> None:
+    for s in node.sets:
+        trace(s, ctx=ctx)
+
+
+@trace.register
+def trace_GroupingOperation(
+        node: qlast.GroupingOperation, *, ctx: TracerContext) -> None:
+    for s in node.elements:
+        trace(s, ctx=ctx)
+
+
+@trace.register
+def trace_Group(
+    node: qlast.GroupQuery,
+    *,
+    ctx: TracerContext
+) -> Optional[ObjectLike]:
+    with alias_context(ctx, node.aliases) as ctx:
+        tip = trace(node.subject, ctx=ctx)
+        if tip is not None:
+            tip_name = tip.get_name(ctx.schema)
+            assert isinstance(tip_name, sn.QualName)
+            ctx.path_prefix = tip_name
+
+        # potentially GROUP uses an alias for the main result
+        with result_alias_context(ctx, node, tip) as nctx:
+            with alias_context(nctx, node.using) as byctx:
+                for by_el in node.by:
+                    trace(by_el, ctx=byctx)
 
         return tip
 

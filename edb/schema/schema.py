@@ -544,7 +544,7 @@ class FlatSchema(Schema):
 
         new._generation = self._generation + 1
 
-        return new  # type: ignore
+        return new
 
     def _update_obj_name(
         self,
@@ -583,9 +583,11 @@ class FlatSchema(Schema):
             if is_global:
                 key = (sclass, new_name)
                 if key in globalname_to_id:
-                    vn = sclass.get_verbosename_static(new_name)
+                    other_obj = self.get_by_id(
+                        globalname_to_id[key], type=so.Object)
+                    vn = other_obj.get_verbosename(self, with_parent=True)
                     raise errors.SchemaError(
-                        f'{vn} is already present in the schema')
+                        f'{vn} already exists')
                 globalname_to_id = globalname_to_id.set(key, obj_id)
             else:
                 assert isinstance(new_name, sn.QualName)
@@ -597,8 +599,11 @@ class FlatSchema(Schema):
                         f'module {new_name.module!r} is not in this schema')
 
                 if new_name in name_to_id:
+                    other_obj = self.get_by_id(
+                        name_to_id[new_name], type=so.Object)
+                    vn = other_obj.get_verbosename(self, with_parent=True)
                     raise errors.SchemaError(
-                        f'name {new_name!r} is already in the schema')
+                        f'{vn} already exists')
                 name_to_id = name_to_id.set(new_name, obj_id)
 
             if has_sn_cache:
@@ -896,9 +901,10 @@ class FlatSchema(Schema):
         name = data[name_field.index]
 
         if name in self._name_to_id:
-            raise errors.SchemaError(
-                f'{sclass.__name__} {name!r} is already present '
-                f'in the schema {self!r}')
+            other_obj = self.get_by_id(
+                self._name_to_id[name], type=so.Object)
+            vn = other_obj.get_verbosename(self, with_parent=True)
+            raise errors.SchemaError(f'{vn} already exists')
 
         if id in self._id_to_data:
             raise errors.SchemaError(

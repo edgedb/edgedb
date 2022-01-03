@@ -1,12 +1,12 @@
 .. _ref_cheatsheet_update:
 
-Updating Data
+Updating data
 =============
 
 .. note::
 
     The types used in these queries are defined :ref:`here
-    <ref_cheatsheet_types>`.
+    <ref_cheatsheet_object_types>`.
 
 
 ----------
@@ -145,3 +145,11 @@ Update the ``list_order`` link property for a specific link:
             FILTER .full_name = 'Jason Momoa'
         )
     }
+
+
+.. list-table::
+  :class: seealso
+
+  * - **See also**
+  * - :ref:`EdgeQL > Update <ref_eql_update>`
+  * - :ref:`Reference > Commands > Update <ref_eql_statements_update>`

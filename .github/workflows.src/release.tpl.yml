@@ -34,6 +34,12 @@ jobs:
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
         EXTRA_OPTIMIZATIONS: "true"
         BUILD_IS_RELEASE: "true"
+<% if tgt.family == "generic" %>
+        BUILD_GENERIC: true
+<% endif %>
+<% if tgt.platform_libc %>
+        PKG_PLATFORM_LIBC: "<< tgt.platform_libc >>"
+<% endif %>
 
     - uses: actions/upload-artifact@v2
       with:
@@ -52,42 +58,15 @@ jobs:
         ref: master
         path: edgedb-pkg
 
-    - uses: actions/cache@v2
-      id: sdk1010cache
-      with:
-        path: ~/.cache/MacOSX10.10.sdk/
-        key: MacOSX10.10.sdk
-
-    - name: Install Xcode
-      if: steps.sdk1010cache.outputs.cache-hit != 'true'
-      env:
-        XCODE_INSTALL_USER: github-ci@edgedb.com
-        XCODE_INSTALL_PASSWORD: ${{ secrets.BOT_APPLE_ID_PASSWORD }}
-        SPACESHIP_SKIP_2FA_UPGRADE: 1
-      run: |
-        xcversion install 6.4
-
-    - name: Cache 10.10 SDK
-      if: steps.sdk1010cache.outputs.cache-hit != 'true'
-      run: |
-        mkdir -p ~/.cache
-        cp -a \
-          /Applications/Xcode-6.4.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.10.sdk/ \
-          ~/.cache/MacOSX10.10.sdk/
-
-    - name: Select macOS SDK
-      run: |
-        sudo cp -a \
-          ~/.cache/MacOSX10.10.sdk/ \
-          /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
-        sudo xcode-select -s /Library/Developer/CommandLineTools
-
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
         default: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v1
 
     - name: Build
       env:
@@ -96,7 +75,9 @@ jobs:
         PKG_REVISION: "<current-date>"
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"
-        SDKROOT: /Library/Developer/CommandLineTools/SDKs/MacOSX10.10.sdk/
+<% if tgt.family == "generic" %>
+        BUILD_GENERIC: true
+<% endif %>
       run: |
         edgedb-pkg/integration/macos/build.sh
 
@@ -168,7 +149,7 @@ jobs:
         target: << tgt.name >>
 
     - name: Publish
-      uses: edgedb/edgedb-pkg/integration/linux/upload/<< tgt.platform >><< "-{}".format(tgt.platform_version) if tgt.platform_version >>@master
+      uses: edgedb/edgedb-pkg/integration/linux/upload/linux-x86_64@master
       env:
         PKG_PLATFORM: "<< tgt.platform >>"
         PKG_PLATFORM_VERSION: "<< tgt.platform_version >>"

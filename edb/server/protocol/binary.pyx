@@ -65,6 +65,7 @@ from edb.server.compiler import enums
 from edb.server.compiler import sertypes
 from edb.server.pgcon cimport pgcon
 from edb.server.pgcon import errors as pgerror
+from edb.server import metrics
 
 from edb.schema import objects as s_obj
 
@@ -93,7 +94,7 @@ cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (0, 12)
+cdef tuple DUMP_VER_MAX = (0, 13)
 
 cdef tuple MIN_PROTOCOL = edbdef.MIN_PROTOCOL
 cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
@@ -210,7 +211,7 @@ cdef class EdgeConnection:
 
     def __init__(self, server, external_auth: bool = False):
         self._con_status = EDGECON_NEW
-        self._id = server.on_binary_client_connected()
+        self._id = server.on_binary_client_created()
         self.server = server
         self._external_auth = external_auth
 
@@ -223,7 +224,7 @@ cdef class EdgeConnection:
 
         self._cancelled = False
         self._stop_requested = False
-        self._pgcon_released = False
+        self._pgcon_released_in_connection_lost = False
 
         self._main_task = None
         self._msg_take_waiter = None
@@ -238,6 +239,8 @@ cdef class EdgeConnection:
                                         debug.flags.edgeql_compile)
 
         self.authed = False
+        self.idling = False
+        self.started_idling_at = 0.0
 
         self.protocol_version = CURRENT_PROTOCOL
         self.max_protocol = CURRENT_PROTOCOL
@@ -246,7 +249,11 @@ cdef class EdgeConnection:
         self._pinned_pgcon_in_tx = False
         self._get_pgcon_cc = 0
 
+        self._in_dump_restore = False
+
     def __del__(self):
+        # Should not ever happen, there's a strong ref to
+        # every client connection until it hits connection_lost().
         if self._pinned_pgcon is not None:
             # XXX/TODO: add test diagnostics for this and
             # fail all tests if this ever happens.
@@ -257,14 +264,21 @@ cdef class EdgeConnection:
             raise RuntimeError('Cannot access dbview while it is None')
         return self._dbview
 
+    def get_id(self):
+        return self._id
+
     async def get_pgcon(self) -> pgcon.PGConnection:
         cdef dbview.DatabaseConnectionView _dbview
+        if self._cancelled or self._pgcon_released_in_connection_lost:
+            raise RuntimeError(
+                'cannot acquire a pgconn; the connection is closed')
         self._get_pgcon_cc += 1
         try:
             if self._get_pgcon_cc > 1:
                 raise RuntimeError('nested get_pgcon() calls are prohibited')
             _dbview = self.get_dbview()
             if _dbview.in_tx():
+                #  In transaction. We must have a working pinned connection.
                 if not self._pinned_pgcon_in_tx or self._pinned_pgcon is None:
                     raise RuntimeError(
                         'get_pgcon(): in dbview transaction, '
@@ -272,9 +286,9 @@ cdef class EdgeConnection:
                 return self._pinned_pgcon
             if self._pinned_pgcon is not None:
                 raise RuntimeError('there is already a pinned pgcon')
-            conn = await self.server.acquire_pgcon(_dbview.dbname)
+            conn = await self.server.acquire_pgcon(self.dbname)
             self._pinned_pgcon = conn
-            self._pgcon_released = False
+            conn.pinned_by = self
             return conn
         except Exception:
             self._get_pgcon_cc -= 1
@@ -296,16 +310,30 @@ cdef class EdgeConnection:
                 # it's in a transaction. In which case we want to immediately
                 # return the connection to the pool (where it would be
                 # discarded and re-opened.)
+                conn.pinned_by = None
                 self._pinned_pgcon = None
-                if not self._pgcon_released:
-                    self.server.release_pgcon(_dbview.dbname, conn)
+                if not self._pgcon_released_in_connection_lost:
+                    self.server.release_pgcon(self.dbname, conn)
             else:
                 self._pinned_pgcon_in_tx = True
         else:
+            conn.pinned_by = None
             self._pinned_pgcon_in_tx = False
             self._pinned_pgcon = None
-            if not self._pgcon_released:
-                self.server.release_pgcon(_dbview.dbname, conn)
+            if not self._pgcon_released_in_connection_lost:
+                self.server.release_pgcon(self.dbname, conn)
+
+    def on_aborted_pgcon(self, pgcon.PGConnection conn):
+        try:
+            self._pinned_pgcon = None
+
+            if not self._pgcon_released_in_connection_lost:
+                self.server.release_pgcon(self.dbname, conn, discard=True)
+
+            if conn.aborted_with_error is not None:
+                self.write_error(conn.aborted_with_error)
+        finally:
+            self.close()  # will flush
 
     def debug_print(self, *args):
         if self._dbview is None:
@@ -338,12 +366,30 @@ cdef class EdgeConnection:
 
     cdef abort_pinned_pgcon(self):
         if self._pinned_pgcon is not None:
+            self._pinned_pgcon.pinned_by = None
             self._pinned_pgcon.abort()
             self.server.release_pgcon(
                 self.dbname, self._pinned_pgcon, discard=True)
             self._pinned_pgcon = None
 
-    cdef abort(self):
+    def is_idle(self, expiry_time: float):
+        # A connection is idle if it awaits for the next message for
+        # client for too long (even if it is in an open transaction!)
+        return (
+            self._con_status != EDGECON_BAD and
+            self.idling and
+            self.started_idling_at < expiry_time and
+            not self._in_dump_restore
+        )
+
+    def is_alive(self):
+        return (
+            self._con_status == EDGECON_STARTED and
+            self._transport is not None and
+            not self._cancelled
+        )
+
+    def abort(self):
         self.abort_pinned_pgcon()
         self.stop_connection()
 
@@ -351,7 +397,17 @@ cdef class EdgeConnection:
             self._transport.abort()
             self._transport = None
 
+    def close_for_idling(self):
+        try:
+            self.write_error(
+                errors.IdleSessionTimeoutError(
+                    'closing the connection due to idling')
+            )
+        finally:
+            self.close()  # will flush
+
     def close(self):
+        self.abort_pinned_pgcon()
         self.stop_connection()
 
         if self._transport is not None:
@@ -378,15 +434,25 @@ cdef class EdgeConnection:
             self._write_buf = None
             self._transport.write(memoryview(buf))
 
-    async def wait_for_message(self):
+    async def wait_for_message(self, *, bint report_idling):
         if self.buffer.take_message():
             return
         if self._transport is None:
             # could be if the connection is lost and a coroutine
             # method is finalizing.
             raise ConnectionAbortedError
+
         self._msg_take_waiter = self.loop.create_future()
-        await self._msg_take_waiter
+        if report_idling:
+            self.idling = True
+            self.started_idling_at = time.monotonic()
+
+        try:
+            await self._msg_take_waiter
+        finally:
+            self.idling = False
+
+        self.server.on_binary_client_after_idling(self)
 
     async def auth(self):
         cdef:
@@ -394,11 +460,11 @@ cdef class EdgeConnection:
             WriteBuffer msg_buf
             WriteBuffer buf
 
-        await self.wait_for_message()
+        await self.wait_for_message(report_idling=True)
         mtype = self.buffer.get_message_type()
         if mtype != b'V':
             raise errors.BinaryProtocolError(
-                f'unexpected initial message: {mtype}, expected "V"')
+                f'unexpected initial message: "{chr(mtype)}", expected "V"')
 
         params = await self.do_handshake()
 
@@ -480,6 +546,14 @@ cdef class EdgeConnection:
             b'suggested_pool_concurrency',
             str(self.server.get_suggested_client_pool_size()).encode()
         )
+
+        if self.protocol_version >= (0, 13):
+            # Protocol 0.12 and earlier assumes that Setting messages
+            # store UTF-8 data.
+            self.write_status(
+                b'system_config',
+                self.server.get_report_config_data()
+            )
 
         self.write(self.sync_status())
 
@@ -609,7 +683,7 @@ cdef class EdgeConnection:
 
         while not done:
             if not self.buffer.take_message():
-                await self.wait_for_message()
+                await self.wait_for_message(report_idling=True)
             mtype = self.buffer.get_message_type()
 
             if selected_mech is None:
@@ -779,7 +853,7 @@ cdef class EdgeConnection:
                 sname = sname.decode()
                 svalue = svalue.decode()
 
-                if stype == b'C':
+                if stype == b'C' or stype == b'B':
                     setting = config.get_settings()[sname]
                     pyval = config.value_from_json(setting, svalue)
                     conf = config.set_value(
@@ -819,40 +893,45 @@ cdef class EdgeConnection:
 
         compiler_pool = self.server.get_compiler_pool()
 
-        if _dbview.in_tx():
-            units, self.last_state = await compiler_pool.compile_in_tx(
-                _dbview.txid,
-                self.last_state,
-                query_req.source,
-                query_req.io_format,
-                query_req.expect_one,
-                query_req.implicit_limit,
-                query_req.inline_typeids,
-                query_req.inline_typenames,
-                'single',
-                self.protocol_version,
-                query_req.inline_objectids,
-            )
-        else:
-            units, self.last_state = await compiler_pool.compile(
-                _dbview.dbname,
-                _dbview.get_user_schema(),
-                _dbview.get_global_schema(),
-                _dbview.reflection_cache,
-                _dbview.get_database_config(),
-                _dbview.get_compilation_system_config(),
-                query_req.source,
-                _dbview.get_modaliases(),
-                _dbview.get_session_config(),
-                query_req.io_format,
-                query_req.expect_one,
-                query_req.implicit_limit,
-                query_req.inline_typeids,
-                query_req.inline_typenames,
-                'single',
-                self.protocol_version,
-                query_req.inline_objectids,
-            )
+        started_at = time.monotonic()
+        try:
+            if _dbview.in_tx():
+                units, self.last_state = await compiler_pool.compile_in_tx(
+                    _dbview.txid,
+                    self.last_state,
+                    query_req.source,
+                    query_req.io_format,
+                    query_req.expect_one,
+                    query_req.implicit_limit,
+                    query_req.inline_typeids,
+                    query_req.inline_typenames,
+                    'single',
+                    self.protocol_version,
+                    query_req.inline_objectids,
+                )
+            else:
+                units, self.last_state = await compiler_pool.compile(
+                    _dbview.dbname,
+                    _dbview.get_user_schema(),
+                    _dbview.get_global_schema(),
+                    _dbview.reflection_cache,
+                    _dbview.get_database_config(),
+                    _dbview.get_compilation_system_config(),
+                    query_req.source,
+                    _dbview.get_modaliases(),
+                    _dbview.get_session_config(),
+                    query_req.io_format,
+                    query_req.expect_one,
+                    query_req.implicit_limit,
+                    query_req.inline_typeids,
+                    query_req.inline_typenames,
+                    'single',
+                    self.protocol_version,
+                    query_req.inline_objectids,
+                )
+        finally:
+            metrics.edgeql_query_compilation_duration.observe(
+                time.monotonic() - started_at)
         return units
 
     async def _compile_script(
@@ -869,38 +948,43 @@ cdef class EdgeConnection:
 
         compiler_pool = self.server.get_compiler_pool()
 
-        if _dbview.in_tx():
-            units, self.last_state = await compiler_pool.compile_in_tx(
-                _dbview.txid,
-                self.last_state,
-                source,
-                FMT_SCRIPT,
-                False,
-                0,
-                False,
-                False,
-                stmt_mode,
-                self.protocol_version,
-            )
-        else:
-            units, self.last_state = await compiler_pool.compile(
-                _dbview.dbname,
-                _dbview.get_user_schema(),
-                _dbview.get_global_schema(),
-                _dbview.reflection_cache,
-                _dbview.get_database_config(),
-                _dbview.get_compilation_system_config(),
-                source,
-                _dbview.get_modaliases(),
-                _dbview.get_session_config(),
-                FMT_SCRIPT,
-                False,
-                0,
-                False,
-                False,
-                stmt_mode,
-                self.protocol_version,
-            )
+        started_at = time.monotonic()
+        try:
+            if _dbview.in_tx():
+                units, self.last_state = await compiler_pool.compile_in_tx(
+                    _dbview.txid,
+                    self.last_state,
+                    source,
+                    FMT_SCRIPT,
+                    False,
+                    0,
+                    False,
+                    False,
+                    stmt_mode,
+                    self.protocol_version,
+                )
+            else:
+                units, self.last_state = await compiler_pool.compile(
+                    _dbview.dbname,
+                    _dbview.get_user_schema(),
+                    _dbview.get_global_schema(),
+                    _dbview.reflection_cache,
+                    _dbview.get_database_config(),
+                    _dbview.get_compilation_system_config(),
+                    source,
+                    _dbview.get_modaliases(),
+                    _dbview.get_session_config(),
+                    FMT_SCRIPT,
+                    False,
+                    0,
+                    False,
+                    False,
+                    stmt_mode,
+                    self.protocol_version,
+                )
+        finally:
+            metrics.edgeql_query_compilation_duration.observe(
+                time.monotonic() - started_at)
         return units
 
     async def _compile_rollback(self, bytes eql):
@@ -1021,6 +1105,7 @@ cdef class EdgeConnection:
             dbview.DatabaseConnectionView _dbview
 
         units = await self._compile_script(eql, stmt_mode=stmt_mode)
+        metrics.edgeql_query_compilations.inc(1.0, 'compiler')
 
         if self._cancelled:
             raise ConnectionAbortedError
@@ -1115,12 +1200,14 @@ cdef class EdgeConnection:
                     'schema-changes',
                     dbname=self.get_dbview().dbname,
                 ),
+                interruptable=False,
             )
         if side_effects & dbview.SideEffects.GlobalSchemaChanges:
             self.server.create_task(
                 self.server._signal_sysevent(
                     'global-schema-changes',
                 ),
+                interruptable=False,
             )
         if side_effects & dbview.SideEffects.DatabaseConfigChanges:
             self.server.create_task(
@@ -1128,12 +1215,14 @@ cdef class EdgeConnection:
                     'database-config-changes',
                     dbname=self.get_dbview().dbname,
                 ),
+                interruptable=False,
             )
         if side_effects & dbview.SideEffects.InstanceConfigChanges:
             self.server.create_task(
                 self.server._signal_sysevent(
                     'system-config-changes',
                 ),
+                interruptable=False,
             )
 
     def _tokenize(self, eql: bytes) -> edgeql.Source:
@@ -1195,6 +1284,11 @@ cdef class EdgeConnection:
 
         if not cached and query_unit.cacheable:
             _dbview.cache_compiled_query(query_req, query_unit)
+
+        metrics.edgeql_query_compilations.inc(
+            1.0,
+            'cache' if cached else 'compiler'
+        )
 
         return CompiledQuery(
             query_unit=query_unit,
@@ -1679,6 +1773,7 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('OPTIMISTIC EXECUTE', query)
 
+        metrics.edgeql_query_compilations.inc(1.0, 'cache')
         await self._execute(
             compiled, bind_args, bool(query_unit.sql_hash))
 
@@ -1735,7 +1830,8 @@ cdef class EdgeConnection:
                     break
 
                 if not self.buffer.take_message():
-                    await self.wait_for_message()
+                    await self.wait_for_message(report_idling=True)
+
                 mtype = self.buffer.get_message_type()
 
                 flush_sync_on_error = False
@@ -1866,7 +1962,7 @@ cdef class EdgeConnection:
         while True:
 
             if not self.buffer.take_message():
-                await self.wait_for_message()
+                await self.wait_for_message(report_idling=True)
             mtype = self.buffer.get_message_type()
 
             if mtype == b'S':
@@ -2143,11 +2239,13 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 'invalid connection status while establishing the connection')
         self._transport = transport
-        self._main_task = self.server.create_task(self.main())
+        self._main_task = self.server.create_task(
+            self.main(), interruptable=False
+        )
+        self.server.on_binary_client_connected(self)
 
     def connection_lost(self, exc):
-        if self.authed:
-            self.server.on_binary_client_disconnected(self)
+        self.server.on_binary_client_disconnected(self)
 
         # Let's talk about cancellation.
         #
@@ -2213,11 +2311,12 @@ cdef class EdgeConnection:
                         self.server._cancel_and_discard_pgcon(
                             self._pinned_pgcon,
                             self.get_dbview().dbname,
-                        )
+                        ),
+                        interruptable=False,
                     )
                     # Prevent the main task from releasing the same connection
                     # twice. This flag is for now only used in this case.
-                    self._pgcon_released = True
+                    self._pgcon_released_in_connection_lost = True
 
                 # In all other cases, we can just wait until the `main()`
                 # coroutine notices that `self._cancelled` was set.
@@ -2271,6 +2370,7 @@ cdef class EdgeConnection:
 
         dbname = _dbview.dbname
         pgcon = await server.acquire_pgcon(dbname)
+        self._in_dump_restore = True
         try:
             # To avoid having races, we want to:
             #
@@ -2290,6 +2390,12 @@ cdef class EdgeConnection:
                         ISOLATION LEVEL SERIALIZABLE
                         READ ONLY
                         DEFERRABLE;
+
+                    -- Disable transaction or query execution timeout
+                    -- limits. Both clients and the server can be slow
+                    -- during the dump/restore process.
+                    SET idle_in_transaction_session_timeout = 0;
+                    SET statement_timeout = 0;
                 ''',
                 True
             )
@@ -2401,6 +2507,7 @@ cdef class EdgeConnection:
             )
 
         finally:
+            self._in_dump_restore = False
             server.release_pgcon(dbname, pgcon)
 
         msg_buf = WriteBuffer.new_message(b'C')
@@ -2506,10 +2613,22 @@ cdef class EdgeConnection:
         dbname = _dbview.dbname
         pgcon = await server.acquire_pgcon(dbname)
 
+        self._in_dump_restore = True
         try:
             await self._execute_utility_stmt(
                 'START TRANSACTION ISOLATION SERIALIZABLE',
                 pgcon,
+            )
+
+            await pgcon.simple_query(
+                b'''
+                    -- Disable transaction or query execution timeout
+                    -- limits. Both clients and the server can be slow
+                    -- during the dump/restore process.
+                    SET idle_in_transaction_session_timeout = 0;
+                    SET statement_timeout = 0;
+                ''',
+                True
             )
 
             schema_sql_units, restore_blocks, tables = \
@@ -2581,7 +2700,10 @@ cdef class EdgeConnection:
 
             while True:
                 if not self.buffer.take_message():
-                    await self.wait_for_message()
+                    # Don't report idling when restoring a dump.
+                    # This is an edge case and the client might be
+                    # legitimately slow.
+                    await self.wait_for_message(report_idling=False)
                 mtype = self.buffer.get_message_type()
 
                 if mtype == b'=':
@@ -2635,9 +2757,10 @@ cdef class EdgeConnection:
             await self._execute_utility_stmt('COMMIT', pgcon)
 
         finally:
+            self._in_dump_restore = False
             server.release_pgcon(dbname, pgcon)
 
-        await server.introspect_db(dbname, refresh=True)
+        await server.introspect_db(dbname)
 
         msg = WriteBuffer.new_message(b'C')
         msg.write_int16(0)  # no headers

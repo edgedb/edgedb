@@ -85,6 +85,7 @@ def _ql_typeexpr_to_type(
         with ctx.new() as subctx:
             # Use an empty scope tree, to avoid polluting things pointlessly
             subctx.path_scope = irast.ScopeTreeNode()
+            subctx.expr_exposed = context.Exposure.UNEXPOSED
             ir_set = dispatch.compile(ql_t.expr, ctx=subctx)
             stype = setgen.get_set_type(ir_set, ctx=subctx)
 
@@ -92,8 +93,27 @@ def _ql_typeexpr_to_type(
 
     elif isinstance(ql_t, qlast.TypeOp):
         if ql_t.op == '|':
-            return (_ql_typeexpr_to_type(ql_t.left, ctx=ctx) +
-                    _ql_typeexpr_to_type(ql_t.right, ctx=ctx))
+            # We need to validate that type ops are applied only to
+            # object types. So we check the base case here, when the
+            # left or right operand is a single type, because if it's
+            # a longer list, then we know that it was already composed
+            # of "|" or "&", or it is the result of inference by
+            # "typeof" and is a list of object types anyway.
+            left = _ql_typeexpr_to_type(ql_t.left, ctx=ctx)
+            right = _ql_typeexpr_to_type(ql_t.right, ctx=ctx)
+
+            if len(left) == 1 and not left[0].is_object_type():
+                raise errors.UnsupportedFeatureError(
+                    f'cannot use type operator {ql_t.op!r} with non-object '
+                    f'type {left[0].get_displayname(ctx.env.schema)}',
+                    context=ql_t.left.context)
+            if len(right) == 1 and not right[0].is_object_type():
+                raise errors.UnsupportedFeatureError(
+                    f'cannot use type operator {ql_t.op!r} with non-object '
+                    f'type {right[0].get_displayname(ctx.env.schema)}',
+                    context=ql_t.right.context)
+
+            return left + right
 
         raise errors.UnsupportedFeatureError(
             f'type operator {ql_t.op!r} is not implemented',

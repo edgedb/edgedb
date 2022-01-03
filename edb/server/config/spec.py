@@ -26,9 +26,13 @@ from typing import *
 
 from edb.edgeql import compiler as qlcompiler
 from edb.ir import staeval
+from edb.ir import statypes
 from edb.schema import name as sn
 
 from . import types
+
+
+SETTING_TYPES = {str, int, bool, statypes.Duration, statypes.ConfigMemory}
 
 
 @dataclasses.dataclass(frozen=True, eq=True)
@@ -42,10 +46,11 @@ class Setting:
     internal: bool = False
     requires_restart: bool = False
     backend_setting: Optional[str] = None
+    report: bool = False
     affects_compilation: bool = False
 
     def __post_init__(self):
-        if (self.type not in {str, int, bool} and
+        if (self.type not in SETTING_TYPES and
                 not issubclass(self.type, types.ConfigType)):
             raise ValueError(
                 f'invalid config setting {self.name!r}: '
@@ -72,11 +77,15 @@ class Setting:
                     f'should not have defaults')
 
         else:
-            if not isinstance(self.default, self.type):
+            if (not self.backend_setting and
+                    not isinstance(self.default, self.type)):
                 raise ValueError(
                     f'invalid config setting {self.name!r}: '
                     f'the default {self.default!r} '
                     f'is not instance of {self.type}')
+
+        if self.report and not self.system:
+            raise ValueError('only instance settings can be reported')
 
 
 class Spec(collections.abc.Mapping):
@@ -148,10 +157,12 @@ def load_spec_from_schema(schema):
             if set_of and not isinstance(deflt, frozenset):
                 deflt = frozenset((deflt,))
 
+        backend_setting = attributes.get(
+            sn.QualName('cfg', 'backend_setting'), None)
         if deflt is None:
             if set_of:
                 deflt = frozenset()
-            else:
+            elif backend_setting is None:
                 raise RuntimeError(f'cfg::Config.{pn} has no default')
 
         setting = Setting(
@@ -162,8 +173,9 @@ def load_spec_from_schema(schema):
             system=attributes.get(sn.QualName('cfg', 'system'), False),
             requires_restart=attributes.get(
                 sn.QualName('cfg', 'requires_restart'), False),
-            backend_setting=attributes.get(
-                sn.QualName('cfg', 'backend_setting'), None),
+            backend_setting=backend_setting,
+            report=attributes.get(
+                sn.QualName('cfg', 'report'), None),
             affects_compilation=attributes.get(
                 sn.QualName('cfg', 'affects_compilation'), False),
             default=deflt,

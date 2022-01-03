@@ -1,12 +1,12 @@
 .. _ref_cheatsheet_select:
 
-Selecting Data
+Selecting data
 ==============
 
 .. note::
 
     The types used in these queries are defined :ref:`here
-    <ref_cheatsheet_types>`.
+    <ref_cheatsheet_object_types>`.
 
 
 ----------
@@ -169,6 +169,59 @@ variable in the ORDER BY clause.
 
     SELECT numbers := {3, 1, 2} ORDER BY numbers;
 
-    # alternativly
+    # alternatively
     WITH numbers := {3, 1, 2}
     SELECT numbers ORDER BY numbers;
+
+
+----------
+
+
+.. _ref_datamodel_objects_free:
+
+Selecting free objects.
+
+It is also possible to package data into a *free object*.
+*Free objects* are meant to be transient and used either to more
+efficiently store some intermediate results in a query or for
+re-shaping the output. The advantage of using *free objects* over
+:eql:type:`tuples <tuple>` is that it is easier to package data that
+potentially contains empty sets as links or properties of the
+*free object*. The underlying type of a *free object* is
+``std::FreeObject``.
+
+Consider the following query:
+
+.. code-block:: edgeql
+
+    WITH U := (SELECT User FILTER .name LIKE '%user%')
+    SELECT {
+        matches := U {name},
+        total := count(U),
+        total_users := count(User),
+    };
+
+The ``matches`` are potentially ``{}``, yet the query will always
+return a single *free object* with ``results``, ``total``, and
+``total_users``. To achieve the same using a :eql:type:`named tuple
+<tuple>`, the query would have to be modified like this:
+
+.. code-block:: edgeql
+
+    WITH U := (SELECT User FILTER .name LIKE '%user%')
+    SELECT (
+        matches := array_agg(U {name}),
+        total := count(U),
+        total_users := count(User),
+    );
+
+Without the :eql:func:`array_agg` the above query would return ``{}``
+instead of the named tuple if no ``matches`` are found.
+
+
+.. list-table::
+  :class: seealso
+
+  * - **See also**
+  * - :ref:`EdgeQL > Select <ref_eql_select>`
+  * - :ref:`Reference > Commands > Select <ref_eql_statements_select>`

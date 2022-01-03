@@ -390,3 +390,19 @@ def strip_output_var(
         raise AssertionError(f'unexpected OutputVar subclass: {var!r}')
 
     return result
+
+
+def select_is_simple(stmt: pgast.SelectStmt) -> bool:
+    return (
+        not stmt.distinct_clause
+        and not stmt.where_clause
+        and not stmt.group_clause
+        and not stmt.having
+        and not stmt.window_clause
+        and not stmt.values
+        and not stmt.sort_clause
+        and not stmt.limit_offset
+        and not stmt.limit_count
+        and not stmt.locking_clause
+        and not stmt.op
+    )

@@ -275,9 +275,12 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type UniqueName_3 extending UniqueName, UniqueName_2;
         """
 
-    @tb.must_fail(errors.InvalidLinkTargetError,
-                  'invalid link target, expected object type, got scalar type',
-                  position=69)
+    @tb.must_fail(
+        errors.InvalidLinkTargetError,
+        "invalid link target type, expected object type, "
+        "got scalar type 'std::str'",
+        position=69,
+    )
     def test_schema_bad_link_01(self):
         """
             type Object {
@@ -285,13 +288,28 @@ class TestSchema(tb.BaseSchemaLoadTest):
             };
         """
 
-    @tb.must_fail(errors.InvalidLinkTargetError,
-                  'invalid link target, expected object type, got scalar type',
-                  position=69)
+    @tb.must_fail(
+        errors.InvalidLinkTargetError,
+        "invalid link target type, expected object type, "
+        "got scalar type 'std::int64'",
+        position=69,
+    )
     def test_schema_bad_link_02(self):
         """
             type Object {
                 link foo := 1 + 1
+            };
+        """
+
+    @tb.must_fail(
+        errors.InvalidLinkTargetError,
+        "object type 'std::FreeObject' is not a valid link target",
+        position=69,
+    )
+    def test_schema_bad_link_03(self):
+        """
+            type Object {
+                link foo -> FreeObject
             };
         """
 
@@ -444,6 +462,44 @@ class TestSchema(tb.BaseSchemaLoadTest):
             type Foo1 extending Foo2;
             type Foo2 extending Foo3;
             type Foo3 extending Foo0;
+        """
+
+    @tb.must_fail(errors.UnsupportedFeatureError,
+                  "unsupported type intersection in schema")
+    def test_schema_bad_type_11(self):
+        """
+            type Foo;
+            type Bar;
+            type Spam {
+                multi link foobar := Foo[IS Bar];
+            }
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "invalid type: pseudotype 'anytype' is a generic type")
+    def test_schema_bad_type_12(self):
+        """
+            type Foo {
+                property val -> anytype;
+            }
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "invalid type: pseudotype 'anytype' is a generic type")
+    def test_schema_bad_type_13(self):
+        """
+            type Foo {
+                link val -> anytype;
+            }
+        """
+
+    @tb.must_fail(errors.SchemaError,
+                  "invalid type: pseudotype 'anytuple' is a generic type")
+    def test_schema_bad_type_14(self):
+        """
+            type Foo {
+                property val -> anytuple;
+            }
         """
 
     def test_schema_computable_cardinality_inference_01(self):
@@ -1634,6 +1690,14 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 );
             ''')
 
+        # Make sure unrelated functions with similar prefix
+        # aren't matched erroneously (#3115)
+        schema = self.load_schema(r'''
+            function len_strings(words: str) -> int64 using (
+                len(words)
+            );
+        ''', modname='default')
+
     @test.xfail('''
         RecursionError: maximum recursion depth exceeded in comparison
 
@@ -1682,7 +1746,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
             self.run_ddl(schema, r'''
                 ALTER FUNCTION foo(v: int64) USING (
                     # This is very broken now
-                    1 + (SELECT Foo LIMIT 1).val
+                    assert_exists(1 + (SELECT Foo LIMIT 1).val)
                 );
             ''')
 
@@ -1692,7 +1756,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 property val := 1;
             }
 
-            function foo(v: int64) -> int64 using (
+            function foo(v: int64) -> optional int64 using (
                 1 + (SELECT Foo LIMIT 1).val
             );
         ''', modname='default')
@@ -1900,6 +1964,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                         {state}
                     }}
                 }};
+                DESCRIBE CURRENT MIGRATION AS JSON;
                 POPULATE MIGRATION;
                 COMMIT MIGRATION;
             '''
@@ -2526,7 +2591,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
     def test_schema_get_migration_35(self):
         schema = r'''
-            function bar() -> str using(SELECT <str>Object.id LIMIT 1);
+            function bar() -> optional str using(
+                SELECT <str>Object.id LIMIT 1);
         '''
 
         self._assert_migration_consistency(schema)
@@ -2642,7 +2708,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         with self.assertRaisesRegex(
                 errors.SchemaError,
-                r'Constraint .+ is already present in the schema'):
+                r'constraint .+ already exists'):
             self._assert_migration_consistency(schema)
 
     def test_schema_get_migration_42(self):
@@ -2714,8 +2780,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property comp := count((
                     # Use an alias in WITH block in a computable
                     WITH x := .val
-                    # Use an alias in UPDATE in a computable
-                    UPDATE y := Bar FILTER x = y.val
+                    UPDATE Bar FILTER x = Bar.val
                     SET {
                         val := 'foo'
                     }
@@ -2742,8 +2807,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property comp := count((
                     # Use an alias in WITH block in a computable
                     WITH x := .val
-                    # Use an alias in DELETE in a computable
-                    DELETE y := Bar FILTER x = y.val
+                    DELETE Bar FILTER x = Bar.val
                 ))
             }
 
@@ -2826,6 +2890,36 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # Derive a computable from alias.
         type Gen5 extending Gen4 {
             property derived_val := .aliased_val4 ++ '!';
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_51(self):
+        schema = r'''
+        abstract type Version {
+            required link entity -> Versioned;
+        }
+
+        abstract type Barks;
+        abstract type Versioned;
+
+        type DogVersion extending Version, Barks {
+            overloaded required link entity -> Dog;
+        }
+
+        type Dog extending Versioned {
+            multi link versions := (SELECT Dog.<entity[IS DogVersion]);
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_52(self):
+        schema = r'''
+        abstract link friendship {
+            property strength -> float64;
+            index on (@strength);
         }
         '''
 
@@ -4222,6 +4316,71 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         """, r"""
         """])
 
+    def test_schema_migrations_equivalence_52(self):
+        self._assert_migration_equivalence([r"""
+            scalar type Slug extending str;
+            type User {
+                required property name -> str;
+            };
+        """, r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User extending Named;
+        """])
+
+    def test_schema_migrations_equivalence_53(self):
+        self._assert_migration_equivalence([r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User {
+                required property name -> str;
+            };
+        """, r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User extending Named {
+                property foo -> str;
+            }
+        """])
+
+    def test_schema_migrations_equivalence_54(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                  required property name -> str;
+                  index on (__subject__.name);
+            };
+        """, r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+                index on (__subject__.name);
+            };
+            type User extending Named;
+        """])
+
+    def test_schema_migrations_equivalence_55(self):
+        self._assert_migration_equivalence([r"""
+            type User {
+                  required property name -> str;
+                  property asdf := .name ++ "!";
+            };
+        """, r"""
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+                index on (__subject__.name);
+            };
+            type User extending Named {
+                  property asdf := .name ++ "!";
+            }
+        """])
+
     def test_schema_migrations_equivalence_compound_01(self):
         # Check that union types can be referenced in computables
         # Bug #2002.
@@ -4270,10 +4429,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             function foo() -> str USING ('bar');
         """])
 
-    @test.xfail('''
-        cannot drop function 'default::hello06(a: std::int64)'
-        because other objects in the schema depend on it
-    ''')
     def test_schema_migrations_equivalence_function_06(self):
         self._assert_migration_equivalence([r"""
             function hello06(a: int64) -> str
@@ -4301,10 +4456,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        cannot drop function 'default::hello10(a: std::int64)'
-        because other objects in the schema depend on it
-    ''')
     def test_schema_migrations_equivalence_function_10(self):
         self._assert_migration_equivalence([r"""
             function hello10(a: int64) -> str
@@ -4423,7 +4574,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property bar -> array<int64>;
             };
 
-            function hello16() -> int64
+            function hello16() -> optional int64
                 using (
                     SELECT len((SELECT Foo LIMIT 1).bar)
                 )
@@ -4432,7 +4583,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 property bar -> array<float64>;
             };
 
-            function hello16() -> int64
+            function hello16() -> optional int64
                 using (
                     SELECT len((SELECT Foo LIMIT 1).bar)
                 )
@@ -4447,7 +4598,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Bar;
 
-            function hello17() -> Bar
+            function hello17() -> optional Bar
                 using (
                     SELECT Bar
                     OFFSET len((SELECT Foo.bar LIMIT 1)) ?? 0
@@ -4460,7 +4611,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Bar;
 
-            function hello17() -> Bar
+            function hello17() -> optional Bar
                 using (
                     SELECT Bar
                     OFFSET len((SELECT Foo.bar LIMIT 1)) ?? 0
@@ -4652,7 +4803,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     property val := 1;
                 }
 
-                function foo(v: int64) -> int64 using (
+                function foo(v: int64) -> optional int64 using (
                     1 + (SELECT Foo LIMIT 1).val
                 );
             """, r"""
@@ -4661,7 +4812,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                     property val := foo(1);
                 }
 
-                function foo(v: int64) -> int64 using (
+                function foo(v: int64) -> optional int64 using (
                     1 + (SELECT Foo LIMIT 1).val
                 );
             """])
@@ -4956,6 +5107,39 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
             type Derived extending Base;
         """, r"""
+        """])
+
+    def test_schema_migrations_equivalence_linkprops_14(self):
+        self._assert_migration_equivalence([r"""
+            abstract link link_with_value {
+                single property value -> int64;
+                index on (__subject__@value);
+            }
+            type Tgt;
+            type Foo {
+                link l1 extending link_with_value -> Tgt;
+                link l2 -> Tgt {
+                    property value -> int64;
+                    index on (__subject__@value);
+                    index on ((__subject__@target, __subject__@value));
+                };
+            };
+        """, r"""
+            abstract link link_with_value {
+                single property value -> int64;
+                index on (__subject__@value);
+                index on ((__subject__@target, __subject__@value));
+            }
+            type Tgt;
+            type Foo {
+                link l1 extending link_with_value -> Tgt;
+                link l2 -> Tgt {
+                    property value -> int64;
+                    index on (__subject__@value) {
+                        annotation title := "value!";
+                    }
+                };
+            };
         """])
 
     def test_schema_migrations_equivalence_annotation_01(self):
@@ -5355,22 +5539,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             type Bar extending Foo;
         """])
 
-    @test.xfail('''
-        AssertionError: unexpected difference in schema produced by
-        incremental migration on step 2:
-
-        <DeltaRoot canonical=True at 0x7fd924ff24f0> (
-            <AlterObjectType classname=default::Cell....> (
-                <AlterLink canonical=True,
-                           classname=default::__|left@default|Cell ...> (
-                    <AlterLinkUpperCardinality ...> (
-                        cardinality = <SchemaCardinality.Many: 'Many'> |
-                                      <SchemaCardinality.One: 'One'> # computed
-                    )
-                )
-            )
-        )
-    ''')
     def test_schema_migrations_equivalence_constraint_06(self):
         self._assert_migration_equivalence([r"""
             type Cell {
@@ -5389,11 +5557,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        SchemaDefinitionError: possibly more than one element returned
-        by an expression for the computed link 'left' of object type
-        'default::Cell' explicitly declared as 'single'
-    ''')
     def test_schema_migrations_equivalence_constraint_07(self):
         self._assert_migration_equivalence([r"""
             type Cell {
@@ -5412,10 +5575,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
-    @test.xfail('''
-        SchemaError: cannot automatically convert link 'left' of
-        object type 'default::Cell' to 'single' cardinality
-    ''')
     def test_schema_migrations_equivalence_constraint_08(self):
         self._assert_migration_equivalence([r"""
             type Cell {
@@ -5437,6 +5596,40 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                 }
                 # Now switch to a single link
                 single link left := .<right[IS Cell];
+            }
+        """])
+
+    def test_schema_migrations_equivalence_constraint_09(self):
+        self._assert_migration_equivalence([r"""
+            type Cell {
+                link right -> Cell {
+                    # Add the constraint to make it 1-1
+                    constraint exclusive;
+                }
+                # Explicitly single link
+                single link left := .<right[IS Cell];
+            }
+        """, r"""
+            type Cell {
+                link right -> Cell;
+                # Explicitly multi link
+                multi link left := .<right[IS Cell];
+            }
+        """])
+
+    def test_schema_migrations_equivalence_constraint_10(self):
+        self._assert_migration_equivalence([r"""
+            type Cell {
+                link right -> Cell {
+                    # Add the constraint to make it 1-1
+                    constraint exclusive;
+                }
+                link left := .<right[IS Cell];
+            }
+        """, r"""
+            type Cell {
+                link right -> Cell;
+                link left := .<right[IS Cell];
             }
         """])
 
@@ -6473,6 +6666,18 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             scalar type foo extending enum<Foo, Bar>;
         """, r"""
             scalar type foo extending enum<Foo, Bar, Baz>;
+        """])
+
+    def test_schema_to_empty_01(self):
+        self._assert_migration_equivalence([r"""
+            type A {
+                property name -> str;
+            }
+            type B {
+                property name -> str;
+            }
+            type C extending A, B {
+            }
         """])
 
     def test_schema_migrations_union_01(self):
@@ -7901,8 +8106,8 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             CREATE ABSTRACT LINK test::f {
                 CREATE PROPERTY p -> test::int_t {
-                    CREATE ANNOTATION test::anno := 'annotated link property';
                     CREATE CONSTRAINT std::max_value(10);
+                    CREATE ANNOTATION test::anno := 'annotated link property';
                 };
             };
             CREATE TYPE test::Foo;

@@ -258,10 +258,14 @@ class TestDocSnippets(unittest.TestCase):
                 before = []
                 after = []
                 for line in block.code.split('\n'):
-                    first = line[0]
+
+                    if line == "":
+                        continue
+
+                    first = line.strip()[0]
                     if first == '-':
                         before.append(line[1:])
-                    if first == '+':
+                    elif first == '+':
                         after.append(line[1:])
                     else:
                         before.append(line[1:])
@@ -317,8 +321,17 @@ class TestDocSnippets(unittest.TestCase):
                 elif lang == 'json':
                     json.loads(snippet)
                 elif lang in {
-                    'bash', 'powershell', 'c', 'javascript', 'python'
+                    'bash',
+                    'powershell',
+                    'shell',
+                    'c',
+                    'javascript',
+                    'python',
+                    'typescript',
+                    'go'
                 }:
+                    pass
+                elif lang[-5:] == '-diff':
                     pass
                 else:
                     raise LookupError(f'unknown code-lang {lang}')

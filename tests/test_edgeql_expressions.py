@@ -2685,7 +2685,7 @@ class TestExpressions(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError, "operator 'UNION' cannot be applied"):
             await self.con.execute(r'''
-                SELECT {1.0, <decimal>2.0};
+                SELECT 1.0 UNION <decimal>2.0;
             ''')
 
     async def test_edgeql_expr_introspect_01(self):
@@ -3081,7 +3081,7 @@ class TestExpressions(tb.QueryTestCase):
                 r"operator 'UNION' cannot be applied to operands.*anytype.*"):
 
             await self.con.execute("""
-                SELECT {[1, 2], []};
+                SELECT [1, 2] UNION [];
             """)
 
     async def test_edgeql_expr_array_22(self):
@@ -3684,7 +3684,7 @@ aa \
     async def test_edgeql_expr_tuple_indirection_06(self):
         await self.assert_query_result(
             r'''SELECT (1, ('a', 'b', (0.1, 0.2)), 2, 3).0;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -3705,7 +3705,7 @@ aa \
     async def test_edgeql_expr_tuple_indirection_07(self):
         await self.assert_query_result(
             r'''WITH A := (1, ('a', 'b', (0.1, 0.2)), 2, 3) SELECT A.0;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -4295,6 +4295,55 @@ aa \
             [[1, 2]],
         )
 
+    async def test_edgeql_expr_setop_14(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"^set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'$"):
+            await self.con.execute(r'''
+                SELECT {1.0, <decimal>2.0};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"^set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'$"):
+            await self.con.execute(r'''
+                SELECT {{1.0, 2.0}, {1.0, <decimal>2.0}};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"^set constructor has arguments of incompatible "
+                r"types 'std::float64' and 'std::decimal'$"):
+            await self.con.execute(r'''
+                SELECT {{1.0, <decimal>2.0}, {1.0, 2.0}};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"^set constructor has arguments of incompatible "
+                r"types 'std::decimal' and 'std::float64'$"):
+            await self.con.execute(r'''
+                SELECT {1.0, 2.0, 5.0, <decimal>2.0, 3.0, 4.0};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"operator 'UNION' cannot be applied to operands of type "
+                r"'std::int64' and 'std::str'$"):
+            await self.con.execute(r'''
+                SELECT {1, 2, 3, 4 UNION 'a', 5, 6, 7};
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidTypeError,
+                r"operator 'UNION' cannot be applied to operands of type "
+                r"'std::int64' and 'std::str'$"):
+            await self.con.execute(r'''
+                SELECT {1, 2, 3, {{1, 4} UNION 'a'}, 5, 6, 7};
+            ''')
+
     async def test_edgeql_expr_cardinality_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -4431,7 +4480,7 @@ aa \
     async def test_edgeql_expr_aggregate_01(self):
         await self.assert_query_result(
             r'''SELECT count(DISTINCT {1, 1, 1});''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -4805,11 +4854,74 @@ aa \
             [],
         )
 
-    async def test_edgeql_normalization_missmatch_01(self):
+    async def test_edgeql_normalization_mismatch_01(self):
         with self.assertRaisesRegex(
                 edgedb.EdgeQLSyntaxError, "Unexpected type expression"):
 
             await self.con.query('SELECT <tuple<"">>1;')
+
+    async def test_edgeql_typeop_01(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "type operator '&' is not implemented",
+        ):
+            await self.con.query('select <Named & Owned>{};')
+
+    async def test_edgeql_typeop_02(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query('select 1 is (int64 | float64);')
+
+    async def test_edgeql_typeop_03(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query('select 1 is (Object | float64);')
+
+    async def test_edgeql_typeop_04(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query(
+                'select [1] is (array<int64> | array<float64>);')
+
+    async def test_edgeql_typeop_05(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query(
+                'select (1,) is (tuple<int64> | tuple<float64>);')
+
+    async def test_edgeql_typeop_06(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query(
+                'select [1] is (typeof [2] | typeof [2.2]);')
+
+    async def test_edgeql_typeop_07(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                "cannot use type operator '|' with non-object type",
+        ):
+            await self.con.query(
+                'select (1,) is (typeof (2,) | typeof (2.2,));')
+
+    async def test_edgeql_typeop_08(self):
+        await self.assert_query_result(
+            'select {x := 1} is (typeof Issue.references | Object);',
+            {False}
+        )
+        await self.assert_query_result(
+            'select {x := 1} is (typeof Issue.references | BaseObject);',
+            {True}
+        )
 
     async def test_edgeql_assert_single_01(self):
         await self.con.execute("""
@@ -5139,3 +5251,31 @@ aa \
                 single foo := assert_distinct(.name)
             }
         """)
+
+    async def test_edgeql_introspect_without_shape(self):
+        await self.assert_query_result(
+            """
+                SELECT (INTROSPECT TYPEOF BaseObject)
+            """,
+            [
+                {"id": str}
+            ]
+        )
+        res = await self.con._fetchall("""
+            SELECT (INTROSPECT TYPEOF BaseObject)
+        """, __typenames__=True)
+        self.assertEqual(len(res), 1)
+        self.assertEqual(res[0].__tname__, "schema::ObjectType")
+
+    async def test_edgeql_object_injections(self):
+        await self.con._fetchall("""
+            SELECT <Object>{}
+        """, __typenames__=True)
+
+        await self.con._fetchall("""
+            WITH Z := (Object,), SELECT Z;
+        """, __typenames__=True)
+
+        await self.con._fetchall("""
+            FOR Z IN {(Object,)} UNION Z;
+        """, __typenames__=True)

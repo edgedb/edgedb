@@ -303,3 +303,190 @@ jobs:
           name: gcp-cloud-sql-tfstate
           path: .github/gcp-cloud-sql/terraform.tfstate
           retention-days: 1
+
+
+  setup-aws-aurora:
+    runs-on: ubuntu-latest
+    outputs:
+      pghost: ${{ steps.pghost.outputs.stdout }}
+    defaults:
+      run:
+        working-directory: .github/aws-aurora
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      << setup_aws_creds()|indent(2) >>
+
+      - name: Setup AWS RDS Aurora
+        env:
+          TF_VAR_sg_id: ${{ secrets.AWS_SECURITY_GROUP }}
+          TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
+          TF_VAR_vpc_id: ${{ secrets.AWS_VPC_ID }}
+        run: |
+          terraform apply -auto-approve
+
+      - name: Store Terraform state
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: aws-aurora-tfstate
+          path: .github/aws-aurora/terraform.tfstate
+          retention-days: 1
+
+      - name: Get RDS Aurora host
+        id: pghost
+        run: |
+          terraform output -raw rds_cluster_endpoint
+
+  test-aws-aurora:
+    runs-on: ubuntu-latest
+    needs: [setup-aws-aurora, build]
+    steps:
+    <<- restore_cache() >>
+
+    # Run the test
+
+    - name: Test
+      env:
+        EDGEDB_TEST_BACKEND_DSN: postgres://edbtest:${{ secrets.AWS_RDS_PASSWORD }}@${{ needs.setup-aws-aurora.outputs.pghost }}/postgres
+      run: |
+        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
+        edb test -j1 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+
+  teardown-aws-aurora:
+    runs-on: ubuntu-latest
+    needs: test-aws-aurora
+    if: ${{ always() }}
+    defaults:
+      run:
+        working-directory: .github/aws-aurora
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      << setup_aws_creds()|indent(2) >>
+
+      - name: Restore Terraform state
+        uses: actions/download-artifact@v2
+        with:
+          name: aws-aurora-tfstate
+          path: .github/aws-aurora
+
+      - name: Destroy AWS RDS Aurora
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_sg_id: ${{ secrets.AWS_SECURITY_GROUP }}
+          TF_VAR_password: ${{ secrets.AWS_RDS_PASSWORD }}
+          TF_VAR_vpc_id: ${{ secrets.AWS_VPC_ID }}
+
+      - name: Overwrite Terraform state
+        uses: actions/upload-artifact@v2
+        with:
+          name: aws-aurora-tfstate
+          path: .github/aws-aurora/terraform.tfstate
+          retention-days: 1
+
+
+  setup-heroku-postgres:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .github/heroku-postgres
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      - name: Setup Heroku Postgres
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+        run: |
+          terraform apply -auto-approve
+
+      - name: Store Terraform state
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: heroku-postgres-tfstate
+          path: .github/heroku-postgres/terraform.tfstate
+          retention-days: 1
+
+  test-heroku-postgres:
+    runs-on: ubuntu-latest
+    needs: [setup-heroku-postgres, build]
+    steps:
+    <<- restore_cache() >>
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v1
+
+    - name: Initialize Terraform
+      working-directory: .github/heroku-postgres
+      run: terraform init
+
+    - name: Restore Terraform state
+      uses: actions/download-artifact@v2
+      with:
+        name: heroku-postgres-tfstate
+        path: .github/heroku-postgres
+
+    - name: Get Heroku Postgres DSN
+      id: pgdsn
+      working-directory: .github/heroku-postgres
+      run: |
+        terraform output -raw heroku_postgres_dsn
+
+    # Run the test
+
+    - name: Change Heroku Postgres password
+      shell: python
+      id: passwd
+      run: |
+        import asyncio, asyncpg, urllib.parse
+        async def main():
+            dsn = "${{ steps.pgdsn.outputs.stdout }}"
+            p = urllib.parse.urlparse(dsn)
+            conn = await asyncpg.connect(dsn)
+            await conn.execute(f"""\
+                ALTER ROLE {p.username} PASSWORD 'test';
+            """)
+            p = p._replace(netloc=f'{p.username}:test@{p.hostname}')
+            print(f'::set-output name=pgdsn::{p.geturl()}')
+        asyncio.run(main())
+
+    - name: Test
+      env:
+        EDGEDB_TEST_BACKEND_VENDOR: heroku-postgres
+        EDGEDB_TEST_BACKEND_DSN: ${{ steps.passwd.outputs.pgdsn }}
+      run: |
+        edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
+        edb test -j1 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN
+
+  teardown-heroku-postgres:
+    runs-on: ubuntu-latest
+    needs: test-heroku-postgres
+    if: ${{ always() }}
+    defaults:
+      run:
+        working-directory: .github/heroku-postgres
+    steps:
+      << setup_terraform()|indent(2) >>
+
+      << setup_aws_creds()|indent(2) >>
+
+      - name: Restore Terraform state
+        uses: actions/download-artifact@v2
+        with:
+          name: heroku-postgres-tfstate
+          path: .github/heroku-postgres
+
+      - name: Destroy Heroku Postgres
+        run: terraform destroy -auto-approve
+        env:
+          HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+          HEROKU_EMAIL: ${{ secrets.HEROKU_EMAIL }}
+
+      - name: Overwrite Terraform state
+        uses: actions/upload-artifact@v2
+        with:
+          name: heroku-postgres-tfstate
+          path: .github/heroku-postgres/terraform.tfstate
+          retention-days: 1

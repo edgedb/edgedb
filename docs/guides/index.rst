@@ -1,5 +1,7 @@
 .. eql:section-intro-page:: guides
 
+.. _ref_guides:
+
 ======
 Guides
 ======
@@ -17,7 +19,11 @@ guide!
     :hidden:
 
     quickstart
-    cheatsheet/index
     installation
-    setup
-    configuration
+    projects
+    relations
+    link_properties
+    migrations/index
+    introspection/index
+    cheatsheet/index
+    deployment/index

@@ -32,9 +32,13 @@ targets:
           platform: centos
           platform_version: 8
           family: redhat
+        - name: linux-x86_64
+          platform: linux
+          platform_version: x86_64
+          family: generic
 
     macos:
         - name: macos-x86_64
           platform: macos
           platform_version: x86_64
-          family: macos
+          family: generic

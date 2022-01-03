@@ -34,12 +34,15 @@ from edb.common import markup
 
 from edb.graphql import extension as graphql_ext
 
+from edb.server import args as srvargs
 from edb.server.protocol cimport binary
 # Without an explicit cimport of `pgproto.debug`, we
 # can't cimport `protocol.binary` for some reason.
 from edb.server.pgproto.debug cimport PG_DEBUG
 
 from . import edgeql_ext
+from . import metrics
+from . import server_info
 from . import notebook_ext
 from . import system_api
 
@@ -63,10 +66,15 @@ cdef class HttpResponse:
 
 cdef class HttpProtocol:
 
-    def __init__(self, server, sslctx, *,
-                 external_auth: bool=False,
-                 allow_insecure_binary_clients: bool=False,
-                 allow_insecure_http_clients: bool=False):
+    def __init__(
+        self,
+        server,
+        sslctx,
+        *,
+        external_auth: bool=False,
+        binary_endpoint_security = None,
+        http_endpoint_security = None,
+    ):
         self.loop = server.get_loop()
         self.server = server
         self.transport = None
@@ -79,8 +87,8 @@ cdef class HttpProtocol:
         self.unprocessed = None
         self.first_data_call = True
 
-        self.allow_insecure_binary_clients = allow_insecure_binary_clients
-        self.allow_insecure_http_clients = allow_insecure_http_clients
+        self.binary_endpoint_security = binary_endpoint_security
+        self.http_endpoint_security = http_endpoint_security
         self.respond_hsts = False  # redirect non-TLS HTTP clients to TLS URL
 
         self.is_tls = False
@@ -123,8 +131,10 @@ cdef class HttpProtocol:
             if is_tls:
                 # Most clients should arrive here to continue with TLS
                 self.transport.pause_reading()
-                self.loop.create_task(self._forward_first_data(data))
-                self.loop.create_task(self._start_tls())
+                self.server.create_task(
+                    self._forward_first_data(data), interruptable=True
+                )
+                self.server.create_task(self._start_tls(), interruptable=True)
                 return
 
             # In case when we're talking to a non-TLS client, keep using the
@@ -134,7 +144,10 @@ cdef class HttpProtocol:
                 # as its first message kind is `V`.
                 #
                 # Switch protocols now (for compatibility).
-                if self.allow_insecure_binary_clients:
+                if (
+                    self.binary_endpoint_security
+                    is srvargs.ServerEndpointSecurityMode.Optional
+                ):
                     self._switch_to_binary_protocol(data)
                 else:
                     self._return_binary_error(
@@ -144,7 +157,10 @@ cdef class HttpProtocol:
             else:
                 # HTTP.
                 self._init_http_parser()
-                self.respond_hsts = not self.allow_insecure_http_clients
+                self.respond_hsts = (
+                    self.http_endpoint_security
+                    is srvargs.ServerEndpointSecurityMode.Tls
+                )
 
         try:
             self.parser.feed_data(data)
@@ -160,6 +176,11 @@ cdef class HttpProtocol:
             self.current_request.content_type = value
         elif name == b'host':
             self.current_request.host = value
+        elif name == b'accept':
+            if self.current_request.accept:
+                self.current_request.accept += b',' + value
+            else:
+                self.current_request.accept = value
 
     def on_body(self, body: bytes):
         self.current_request.body = body
@@ -181,7 +202,9 @@ cdef class HttpProtocol:
             self.unprocessed.append(req)
         else:
             self.in_response = True
-            self.server.create_task(self._handle_request(req))
+            self.server.create_task(
+                self._handle_request(req), interruptable=False
+            )
 
         self.server._http_last_minute_requests += 1
 
@@ -210,7 +233,9 @@ cdef class HttpProtocol:
 
         if self.unprocessed:
             req = self.unprocessed.popleft()
-            self.server.create_task(self._handle_request(req))
+            self.server.create_task(
+                self._handle_request(req), interruptable=False
+            )
         else:
             self.transport.resume_reading()
 
@@ -335,12 +360,23 @@ cdef class HttpProtocol:
             return
 
         if self.is_tls:
-            if self.allow_insecure_http_clients:
+            if (
+                self.http_endpoint_security
+                is srvargs.ServerEndpointSecurityMode.Optional
+            ):
                 response.custom_headers['Strict-Transport-Security'] = \
                     'max-age=0'
-            else:
+            elif (
+                self.http_endpoint_security
+                is srvargs.ServerEndpointSecurityMode.Tls
+            ):
                 response.custom_headers['Strict-Transport-Security'] = \
                     'max-age=31536000'
+            else:
+                raise AssertionError(
+                    f"unexpected http_endpoint_security "
+                    f"value: {self.http_endpoint_security}"
+                )
 
         try:
             await self.handle_request(request, response)
@@ -385,15 +421,37 @@ cdef class HttpProtocol:
                     )
                     return
 
-        elif path_parts and path_parts[0] == 'server':
-            # System API request
-            await system_api.handle_request(
-                request,
-                response,
-                path_parts[1:],
-                self.server,
-            )
-            return
+        elif path_parts:
+            if path_parts[0] == 'server':
+                # System API request
+                await system_api.handle_request(
+                    request,
+                    response,
+                    path_parts[1:],
+                    self.server,
+                )
+                return
+            if path_parts == ['metrics'] and request.method == b'GET':
+                # Quoting the Open Metrics spec:
+                #    Implementers MUST expose metrics in the OpenMetrics
+                #    text format in response to a simple HTTP GET request
+                #    to a documented URL for a given process or device.
+                #    This endpoint SHOULD be called "/metrics".
+                await metrics.handle_request(
+                    request,
+                    response,
+                )
+                return
+            if (path_parts == ['server-info'] and
+                request.method == b'GET' and
+                (self.server.in_dev_mode() or self.server.in_test_mode())
+            ):
+                await server_info.handle_request(
+                    request,
+                    response,
+                    self.server,
+                )
+                return
 
         response.body = b'Unknown path'
         response.status = http.HTTPStatus.NOT_FOUND

@@ -238,7 +238,7 @@ def compile_TypeCast(
         )
 
     else:
-        raise RuntimeError('cast not supported')
+        raise errors.UnsupportedFeatureError('cast not supported')
 
     if expr.cardinality_mod is qlast.CardinalityModifier.Required:
         res = pgast.FuncCall(
@@ -315,6 +315,24 @@ def compile_SliceIndirection(
     return result
 
 
+def _compile_call_args(
+    expr: irast.Call, *,
+    ctx: context.CompilerContextLevel
+) -> List[pgast.BaseExpr]:
+    args = [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
+    for ref, ir_arg, typemod in zip(args, expr.args, expr.params_typemods):
+        if (
+            not expr.impl_is_strict
+            and ir_arg.cardinality.can_be_zero()
+            and ref.nullable
+            and typemod == ql_ft.TypeModifier.SingletonType
+        ):
+            raise errors.UnsupportedFeatureError(
+                'operations on potentially empty arguments not supported in '
+                'simple expressions')
+    return args
+
+
 @dispatch.compile.register(irast.OperatorCall)
 def compile_OperatorCall(
         expr: irast.OperatorCall, *,
@@ -342,11 +360,11 @@ def compile_OperatorCall(
             ],
         )
     elif expr.typemod is ql_ft.TypeModifier.SetOfType:
-        raise RuntimeError(
+        raise errors.UnsupportedFeatureError(
             f'set returning operator {expr.func_shortname!r} is not supported '
             f'in simple expressions')
 
-    args = [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
+    args = _compile_call_args(expr, ctx=ctx)
     return compile_operator(expr, args, ctx=ctx)
 
 
@@ -576,10 +594,10 @@ def compile_FunctionCall(
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
 
     if expr.typemod is ql_ft.TypeModifier.SetOfType:
-        raise RuntimeError(
+        raise errors.UnsupportedFeatureError(
             'set returning functions are not supported in simple expressions')
 
-    args = [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
+    args = _compile_call_args(expr, ctx=ctx)
 
     if expr.has_empty_variadic and expr.variadic_param_type is not None:
         var = pgast.TypeCast(
@@ -707,19 +725,15 @@ def _compile_set_in_singleton_mode(
                 return set_expr
 
             if ptrref.source_ptr is None and source.rptr is not None:
-                raise RuntimeError(
+                raise errors.UnsupportedFeatureError(
                     'unexpectedly long path in simple expr')
 
             ptr_stor_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=False)
 
-            colref = pgast.ColumnRef(name=[ptr_stor_info.column_name])
-        elif irtyputils.is_scalar(node.typeref):
             colref = pgast.ColumnRef(
-                name=[
-                    common.edgedb_name_to_pg_name(str(node.typeref.id))
-                ]
-            )
+                name=[ptr_stor_info.column_name],
+                nullable=node.rptr.dir_cardinality.can_be_zero())
         else:
             colref = pgast.ColumnRef(
                 name=[

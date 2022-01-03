@@ -88,7 +88,7 @@ def compile_shape(
             card = rptr.dir_cardinality
             is_singleton = (
                 card.is_single() and (
-                    op != qlast.ShapeOp.MATERIALIZE or not card.can_be_zero()
+                    not ctx.materializing or not card.can_be_zero()
                 )
             )
             value: pgast.BaseExpr

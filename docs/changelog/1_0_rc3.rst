@@ -1,0 +1,151 @@
+.. _ref_changelog_rc3:
+
+========
+1.0 RC 3
+========
+
+This changelog summarizes changes and bugfixes in EdgeDB 1.0 Release
+Candidate 3 "Cygni". This release is focusing on fixing existing
+issues rather than introducing new features.
+
+
+Packaging
+=========
+
+The biggest change in this release is in how EdgeDB is packaged. We
+now have a "portable build" that runs on any non-legacy Linux or macOS
+system. The purpose is to avoid restrictions that supporting native
+packaging systems imposes. Because of this we recommend a more
+explicit ``dump``/``restore`` upgrade workflow to get your instances
+to RC3.
+
+Before you start you may want to backup the instance credentials
+(which you can find in the "Config" directory indicated by
+:ref:`ref_cli_edgedb_info`). The first step in the upgrade process
+will be backing up all the instance data and that will include the
+login credentials that the instance expects. After restoring the
+database dump, you may need to restore old credentials file as
+well.
+
+Project upgrade
+---------------
+
+If you have an EdgeDB project, you can upgrade it to RC3 using the
+following steps from the project directory:
+
+.. code-block:: bash
+
+    $ edgedb dump --all --format=dir ./upgrade_backup
+    $ edgedb project unlink -D
+    $ edgedb project upgrade --to-latest
+    $ edgedb project init --no-migrations
+    $ edgedb restore --admin --all ./upgrade_backup
+
+Now that the project has been re-initialized and data dump is
+restored, we need to restore the login credentials. Which presents a
+couple of options. If there's no code outside the project directory
+that actually requires access to the database, the recommended option
+is to reset the password:
+
+.. code-block:: bash
+
+    $ edgedb instance reset-password my_instance
+
+Alternatively we can restore the old credentials:
+
+.. code-block:: bash
+
+    $ edgedb instance reset-password my_instance --password
+
+
+Instance upgrade
+----------------
+
+If you have an EdgeDB instance that's not part of a project, you can
+upgrade it to RC3 using the following steps:
+
+.. code-block:: bash
+
+    $ edgedb dump -I my_instance --all --format=dir ./my_instance_backup
+    $ edgedb instance destroy my_instance
+    $ edgedb instance create my_instance
+    $ edgedb restore -I my_instance --admin --all ./my_instance_backup
+
+Now that the instance has been re-initialized and data dump is
+restored, we need to restore the login credentials. Which presents a
+couple of options. If there's no code that uses the login credentials
+explicitly, but rather relies on the instance name only to access to
+the database, the recommended approach is to reset the password:
+
+.. code-block:: bash
+
+    $ edgedb instance reset-password my_instance
+
+Alternatively we can restore the old credentials:
+
+.. code-block:: bash
+
+    $ edgedb instance reset-password my_instance --password
+
+
+EdgeQL
+======
+
+* Support path prefix in link constraints (:eql:gh:`#3206`).
+
+  It is now possible to use shorthand path expression referring to
+  link properties in constraint expressions:
+
+  .. code-block:: sdl
+
+    type Foo {
+        link bar -> Object {
+            property linkprop -> str;
+            constraint expression on (@linkprop != "lol");
+        }
+    }
+
+* Support path prefix in link indexes (:eql:gh:`#3202`).
+
+  It is now possible to use shorthand path expression referring to
+  link properties in index expressions:
+
+  .. code-block:: sdl
+
+    abstract link friendship {
+        property strength -> float64;
+        index on (@strength);
+    }
+
+* Implement index and slicing of JSON strings (:eql:gh:`#3203`).
+
+  We already implement :eql:op:`++ <JSONPLUS>` for JSON strings, but
+  indexing operations were left out until now. This change fixes this
+  oversight:
+
+  .. code-block:: edgeql-repl
+
+    db> select to_json('"hello"')[0];
+    {"\"h\""}
+    db> select to_json('"hello"')[1:3];
+    {"\"el\""}
+
+* Fix some corner cases of functions without ``OPTIONAL`` or ``SET
+  OF`` arguments being called on empty input (:eql:gh:`#3195`).
+
+* Fix some corner cases of changing link type (:eql:gh:`#3183`).
+
+
+Bindings
+========
+
+We are in the process of dropping old deprecated APIs before rolling
+out production-ready EdgeDB.
+
+* Clean up the API for `edgedb-python
+  <https://github.com/edgedb/edgedb-python>`_ and release v0.19.0
+  driver.
+* Clean up the API for `edgedb-js
+  <https://github.com/edgedb/edgedb-js>`_ and release v0.17.0 driver.
+* Clean up the API for `edgedb-go
+  <https://github.com/edgedb/edgedb-go>`_ and release v0.9.0 driver.

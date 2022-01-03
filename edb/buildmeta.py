@@ -20,6 +20,8 @@
 from __future__ import annotations
 from typing import *
 
+import base64
+import datetime
 import hashlib
 import importlib.util
 import json
@@ -27,8 +29,10 @@ import logging
 import os
 import pathlib
 import pickle
+import platform
 import re
 import subprocess
+import sys
 import tempfile
 
 
@@ -38,11 +42,19 @@ from edb.common import verutils
 
 
 # Increment this whenever the database layout or stdlib changes.
-EDGEDB_CATALOG_VERSION = 2021_10_11_00_00
+EDGEDB_CATALOG_VERSION = 2021_12_02_00_00
 
 
 class MetadataError(Exception):
     pass
+
+
+class VersionMetadata(TypedDict):
+    build_date: datetime.datetime | None
+    build_hash: str | None
+    scm_revision: str | None
+    source_date: datetime.datetime | None
+    target: str | None
 
 
 def get_build_metadata_value(prop: str) -> str:
@@ -90,7 +102,11 @@ def get_runstate_path(data_dir: pathlib.Path) -> pathlib.Path:
     if devmode.is_in_dev_mode():
         return data_dir
     else:
-        return pathlib.Path(get_build_metadata_value('RUNSTATE_DIR'))
+        runstate_dir = get_build_metadata_value('RUNSTATE_DIR')
+        if runstate_dir is not None:
+            return pathlib.Path(runstate_dir)
+        else:
+            return data_dir
 
 
 def get_shared_data_dir_path() -> pathlib.Path:
@@ -202,6 +218,32 @@ def get_version() -> verutils.Version:
 _version_dict: Optional[Mapping[str, Any]] = None
 
 
+def get_version_build_id(
+    v: verutils.Version,
+    short: bool = True,
+) -> tuple[str, ...]:
+    parts = []
+    if v.local:
+        if short:
+            build_hash = None
+            build_kind = None
+            for segment in v.local:
+                if segment[0] == "s":
+                    build_hash = segment[1:]
+                elif segment[0] == "b":
+                    build_kind = segment[1:]
+
+            if build_kind == "official":
+                if build_hash:
+                    parts.append(build_hash)
+            elif build_kind:
+                parts.append(build_kind)
+        else:
+            parts.extend(v.local)
+
+    return tuple(parts)
+
+
 def get_version_dict() -> Mapping[str, Any]:
     global _version_dict
 
@@ -212,7 +254,7 @@ def get_version_dict() -> Mapping[str, Any]:
             'minor': ver.minor,
             'stage': ver.stage.name.lower(),
             'stage_no': ver.stage_no,
-            'local': tuple(ver.local) if ver.local else (),
+            'local': get_version_build_id(ver),
         }
 
     return _version_dict
@@ -226,6 +268,58 @@ def get_version_json() -> str:
     if _version_json is None:
         _version_json = json.dumps(get_version_dict())
     return _version_json
+
+
+def get_version_string(short: bool = True) -> str:
+    v = get_version()
+    string = f'{v.major}.{v.minor}'
+    if v.stage is not verutils.VersionStage.FINAL:
+        string += f'-{v.stage.name.lower()}.{v.stage_no}'
+    build_id = get_version_build_id(v, short=short)
+    if build_id:
+        string += "+" + ".".join(build_id)
+    return string
+
+
+def get_version_metadata() -> VersionMetadata:
+    v = get_version()
+    pfx_map = {
+        "b": "build_type",
+        "r": "build_date",
+        "s": "build_hash",
+        "g": "scm_revision",
+        "d": "source_date",
+        "t": "target",
+    }
+
+    result = {}
+
+    for segment in v.local:
+        key = pfx_map.get(segment[0])
+        if key:
+            raw_val = segment[1:]
+            val: str | datetime.datetime
+            if key == "target":
+                val = _decode_build_target(raw_val)
+            elif key in {"build_date", "source_date"}:
+                val = _decode_build_date(raw_val)
+            else:
+                val = raw_val
+
+            result[key] = val
+
+    return cast(VersionMetadata, result)
+
+
+def _decode_build_target(val: str) -> str:
+    return (
+        base64.b32decode(val + "=" * (-len(val) % 4), casefold=True).decode()
+    )
+
+
+def _decode_build_date(val: str) -> datetime.datetime:
+    return datetime.datetime.strptime(val, r"%Y%m%d%H%M").replace(
+        tzinfo=datetime.timezone.utc)
 
 
 def get_version_from_scm(root: pathlib.Path) -> str:
@@ -299,13 +393,13 @@ def get_version_from_scm(root: pathlib.Path) -> str:
     else:
         # Dev/nightly build.
         if prekind and preval:
-            preval = str(int(preval) + 1)
+            pass
         elif micro:
             micro = str(int(micro) + 1)
         else:
             minor = str(int(minor) + 1)
 
-        incremented_ver = f'{major}.{minor}{microkind}{micro}{prekind}{preval}'
+        incremented_ver = f'{major}.{minor}{microkind}{micro}'
 
         proc = subprocess.run(
             ['git', 'rev-list', '--count', 'HEAD'],
@@ -340,7 +434,49 @@ def get_version_from_scm(root: pathlib.Path) -> str:
     rev_date = proc.stdout.strip()
 
     catver = EDGEDB_CATALOG_VERSION
-    return f'{ver}+d{rev_date}.g{commitish[:9]}.cv{catver}'
+
+    full_version = f'{ver}+d{rev_date}.g{commitish[:9]}.cv{catver}'
+
+    build_target = os.environ.get("EDGEDB_BUILD_TARGET")
+    if build_target:
+        # Check that build target is encoded correctly
+        _decode_build_target(build_target)
+    else:
+        plat = sys.platform
+        if plat == "win32":
+            plat = "windows"
+        ident = [
+            platform.machine(),
+            "pc" if plat == "windows" else
+            "apple" if plat == "darwin" else
+            "unknown",
+            plat,
+        ]
+        if hasattr(platform, "libc_ver"):
+            libc, _ = platform.libc_ver()
+            if libc == "glibc":
+                ident.append("gnu")
+            elif libc == "musl":
+                ident.append("musl")
+        build_target = base64.b32encode(
+            "-".join(ident).encode()).decode().rstrip("=").lower()
+    build_date = os.environ.get("EDGEDB_BUILD_DATE")
+    if build_date:
+        # Validate
+        _decode_build_date(build_date)
+    else:
+        now = datetime.datetime.now(tz=datetime.timezone.utc)
+        build_date = now.strftime(r"%Y%m%d%H%M")
+    version_line = f'{full_version}.r{build_date}.t{build_target}'
+    if not os.environ.get("EDGEDB_BUILD_OFFICIAL"):
+        build_type = "local"
+    else:
+        build_type = "official"
+    version_line += f'.b{build_type}'
+    version_hash = hashlib.sha256(version_line.encode("utf-8")).hexdigest()
+    full_version = f"{version_line}.s{version_hash[:7]}"
+
+    return full_version
 
 
 def get_cache_src_dirs():

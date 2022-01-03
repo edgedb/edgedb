@@ -1,29 +1,29 @@
 .. _ref_std_datetime:
 
 
-=============
-Date and Time
-=============
+========
+Temporal
+========
 
-:edb-alt-title: Date/Time Functions and Operators
+:edb-alt-title: Temporal Types, Functions, and Operators
 
 .. list-table::
     :class: funcoptable
 
     * - :eql:type:`datetime`
-      - TZ-aware point in time
+      - Timezone-aware point in time
+
+    * - :eql:type:`duration`
+      - Absolute time span
 
     * - :eql:type:`cal::local_datetime`
-      - Date and time w/o TZ
+      - Date and time w/o timezone
 
     * - :eql:type:`cal::local_date`
       - Date type
 
     * - :eql:type:`cal::local_time`
       - Time type
-
-    * - :eql:type:`duration`
-      - Absolute time span
 
     * - :eql:type:`cal::relative_duration`
       - Relative time span
@@ -34,8 +34,10 @@ Date and Time
     * - :eql:op:`dt - dt <DTMINUS>`
       - :eql:op-desc:`DTMINUS`
 
-    * - :eql:op:`dt = dt <EQ>`, :eql:op:`dt \< dt <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`to_str`
       - Render a date/time value to a string.
@@ -82,6 +84,7 @@ Date and Time
     * - :eql:func:`datetime_of_statement`
       - :eql:func-desc:`datetime_of_statement`
 
+.. _ref_std_datetime_intro:
 
 EdgeDB has two classes of date/time types:
 
@@ -104,13 +107,27 @@ date/time values.
 
 EdgeDB stores and outputs timezone-aware values in UTC.
 
+.. note::
+
+    All the date/time types are restricted to years between 1 and
+    9999, including the end points.
+
+    Although many systems support ISO 8601 date formatting in theory,
+    in practice the formatting before year 1 and after 9999 tends to
+    be inconsistent. As such dates outside that range are not reliably
+    portable.
+
 
 ----------
 
 
 .. eql:type:: std::datetime
 
-    A timezone-aware type representing date and time.
+
+    A timezone-aware type representing a moment in time.
+
+    All dates must correspond to dates that exist in the proleptic Gregorian
+    calendar.
 
     :eql:op:`Casting <CAST>` is a simple way to obtain a
     :eql:type:`datetime` value in an expression:
@@ -137,9 +154,13 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         Hint: Please use ISO8601 format. Alternatively "to_datetime"
         function provides custom formatting options.
 
+    All ``datetime`` values are restricted to the range from year 1 to 9999.
+
     See functions :eql:func:`datetime_get`, :eql:func:`to_datetime`,
     and :eql:func:`to_str` for more ways of working with
     :eql:type:`datetime`.
+
+
 
 
 ----------
@@ -175,6 +196,8 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         Hint: Please use ISO8601 format. Alternatively
         "cal::to_local_datetime" function provides custom formatting
         options.
+
+    All ``datetime`` values are restricted to the range from year 1 to 9999.
 
     See functions :eql:func:`datetime_get`, :eql:func:`cal::to_local_datetime`,
     and :eql:func:`to_str` for more ways of working with
@@ -228,6 +251,9 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 ----------
 
+
+
+.. _ref_datetime_duration:
 
 .. eql:type:: std::duration
 
@@ -307,14 +333,14 @@ EdgeDB stores and outputs timezone-aware values in UTC.
     - ``'years'``
     - ``'decades'``
     - ``'centuries'``
-    - ``'millennium'``
+    - ``'millennia'``
 
     .. code-block:: edgeql
 
         SELECT <cal::relative_duration>'45.6 seconds';
         SELECT <cal::relative_duration>'15 milliseconds';
         SELECT <cal::relative_duration>'3 weeks 45 minutes';
-        SELECT <cal::relative_duration>'-7 millennium';
+        SELECT <cal::relative_duration>'-7 millennia';
 
     All date/time types support the ``+`` and ``-`` arithmetic operations
     with relative_durations:
@@ -324,8 +350,109 @@ EdgeDB stores and outputs timezone-aware values in UTC.
         db> select <datetime>'2019-01-01T00:00:00Z' -
         ...        <cal::relative_duration>'3 years';
         {<datetime>'2016-01-01T00:00:00+00:00'}
-        db> select <cal::local_time>'22:00' + <cal::relative_duration>'1 hour';
+        db> select <cal::local_time>'22:00' +
+        ...        <cal::relative_duration>'1 hour';
         {<cal::local_time>'23:00:00'}
+
+    If an arithmetic operation results in a day that doesn't exist in the given
+    month, the last day of the month is used instead.
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_datetime>"2021-01-31T15:00:00" +
+      ...        <cal::relative_duration>"1 month";
+      {<cal::local_datetime>'2021-02-28T15:00:00'}
+
+
+    During arithmetic operations involving a ``relative_duration`` consisting
+    of multiple components (units), higher-order components are applied first,
+    followed by lower-order elements.
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_datetime>"2021-04-30T15:00:00" +
+      ...        <cal::relative_duration>"1 month 1 day";
+      {<cal::local_datetime>'2021-05-31T15:00:00'}
+
+    Compare this to adding up the same duration components separately
+    with higher-order units first and then lower-order, which produces
+    the same result as above:
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_datetime>"2021-04-30T15:00:00" +
+      ...        <cal::relative_duration>"1 month" +
+      ...        <cal::relative_duration>"1 day";
+      {<cal::local_datetime>'2021-05-31T15:00:00'}
+
+    When the order is reversed the result may actually be different
+    for some corner cases:
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_datetime>"2021-04-30T15:00:00" +
+      ...        <cal::relative_duration>"1 day" +
+      ...        <cal::relative_duration>"1 month";
+      {<cal::local_datetime>'2021-06-01T15:00:00'}
+
+    **Gotchas**
+
+    Due to the implementation of ``relative_duration`` logic, arithmetic
+    operations may behave counterintuitively.
+
+    Non-associative
+
+    .. code-block:: edgeql-repl
+
+      db> select <cal::local_datetime>'2021-01-31T00:00:00' +
+      ...        <cal::relative_duration>'1 month' +
+      ...        <cal::relative_duration>'1 month';
+      {<cal::local_datetime>'2021-03-28T00:00:00'}
+      db> select <cal::local_datetime>'2021-01-31T00:00:00' +
+      ...       (<cal::relative_duration>'1 month' +
+      ...        <cal::relative_duration>'1 month');
+      {<cal::local_datetime>'2021-03-31T00:00:00'}
+      db> select <cal::local_date>'2021-01-31' +
+      ...        <cal::relative_duration>'12 hours' +
+      ...        <cal::relative_duration>'12 hours';
+      {<cal::local_date>'2021-01-31'}
+      db> select <cal::local_date>'2021-01-31' +
+      ...       (<cal::relative_duration>'12 hours' +
+      ...        <cal::relative_duration>'12 hours');
+      {<cal::local_date>'2021-02-01'}
+
+    Lossy
+
+    .. code-block:: edgeql-repl
+
+      db> with m := <cal::relative_duration>'1 month'
+      ... select <cal::local_date>'2021-01-31' + m
+      ...        =
+      ...        <cal::local_date>'2021-01-30' + m;
+      {true}
+
+    Asymmetric
+
+    .. code-block:: edgeql-repl
+
+      db> with m := <cal::relative_duration>'1 month'
+      ... select <cal::local_date>'2021-01-31' + m - m;
+      {<cal::local_date>'2021-01-28'}
+
+    Non-monotonic
+
+    .. code-block:: edgeql-repl
+
+      db> with m := <cal::relative_duration>'1 month'
+      ... select <cal::local_datetime>'2021-01-31T01:00:00' + m
+      ...        <
+      ...        <cal::local_datetime>'2021-01-30T23:00:00' + m;
+      {true}
+      db> with m := <cal::relative_duration>'2 month'
+      ... select <cal::local_datetime>'2021-01-31T01:00:00' + m
+      ...        <
+      ...        <cal::local_datetime>'2021-01-30T23:00:00' + m;
+      {false}
 
     See functions :eql:func:`cal::to_relative_duration`, and :eql:func:`to_str`
     and date/time :eql:op:`operators <DTMINUS>` for more ways of working with

@@ -1,8 +1,8 @@
 .. _ref_cli_edgedb_network:
 
-===================================
-Network Usage by Command-Line Tools
-===================================
+=============
+Network usage
+=============
 
 Generally command-line tools connect only to the database host. But
 there are two exceptions:

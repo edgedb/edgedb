@@ -623,6 +623,13 @@ class ParameterStatus(ServerMessage):
     value = Bytes('Parameter value.')
 
 
+class ParameterStatus_SystemConfig(Struct):
+
+    typedesc = ArrayOf(UInt32, UInt8(), 'Type descriptor prefixed with '
+                                        'type descriptor uuid.')
+    data = FixedArrayOf(1, DataElement, 'Configuration settings data.')
+
+
 class PrepareComplete(ServerMessage):
 
     mtype = MessageType('1')

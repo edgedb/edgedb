@@ -86,6 +86,9 @@ cdef class Database:
             for ext in user_schema.get_objects(type=s_ext.Extension)
         }
 
+    cdef schedule_config_update(self):
+        self._index._server._on_local_database_config_change(self.name)
+
     cdef _set_and_signal_new_user_schema(
         self,
         new_schema,
@@ -137,6 +140,12 @@ cdef class Database:
     cdef _remove_view(self, view):
         self._views.remove(view)
 
+    def iter_views(self):
+        yield from self._views
+
+    def get_query_cache_size(self):
+        return len(self._eql_to_compiled)
+
 
 cdef class DatabaseConnectionView:
 
@@ -151,8 +160,10 @@ cdef class DatabaseConnectionView:
 
         self._modaliases = DEFAULT_MODALIASES
         self._config = DEFAULT_CONFIG
-        self._db_config = db.db_config
         self._session_state_cache = None
+
+        self._db_config_temp = None
+        self._db_config_dbver = None
 
         # Whenever we are in a transaction that had executed a
         # DDL command, we use this cache for compiled queries.
@@ -202,7 +213,7 @@ cdef class DatabaseConnectionView:
             raise errors.InternalServerError('abort_tx(): not in transaction')
         self._reset_tx_state()
 
-    cdef get_session_config(self):
+    cpdef get_session_config(self):
         if self._in_tx:
             return self._in_tx_config
         else:
@@ -218,13 +229,41 @@ cdef class DatabaseConnectionView:
         if self._in_tx:
             return self._in_tx_db_config
         else:
-            return self._db_config
+            if self._db_config_temp is not None:
+                # See `set_database_config()` for an explanation on
+                # *why* we do this.
+                if self._db_config_dbver is self._db.dbver:
+                    assert self._db_config_dbver is not None
+                    return self._db_config_temp
+                else:
+                    self._db_config_temp = None
+                    self._db_config_dbver = None
+
+            return self._db.db_config
+
+    cdef update_database_config(self):
+        # Unfortunately it's unsafe to just synchronously
+        # update `self._db.db_config` to a new config. What if two
+        # connections are updating different DB config settings
+        # concurrently?
+        # The only way to avoid a race here is to always schedule
+        # a full DB state sync every time there's a DB config change.
+        self._db.schedule_config_update()
 
     cdef set_database_config(self, new_conf):
         if self._in_tx:
             self._in_tx_db_config = new_conf
         else:
-            self._db_config = new_conf
+            # The idea here is to save the new DB conf in a temporary
+            # storage until the DB state is refreshed by a call to
+            # `update_database_config()` from `on_success()`. This is to
+            # make it possible to immediately use the updated DB config in
+            # this session. This is still racy, but the probability of
+            # a race is very low so we go for it (and races like this aren't
+            # critical and resolve in time.)
+            # Check out `get_database_config()` to see how this is used.
+            self._db_config_temp = new_conf
+            self._db_config_dbver = self._db.dbver
 
     cdef get_system_config(self):
         return self._db._index.get_sys_config()
@@ -238,7 +277,7 @@ cdef class DatabaseConnectionView:
         else:
             self._modaliases = new_aliases
 
-    cdef get_modaliases(self):
+    cpdef get_modaliases(self):
         if self._in_tx:
             return self._in_tx_modaliases
         else:
@@ -314,12 +353,9 @@ cdef class DatabaseConnectionView:
             settings = config.get_settings()
             for sval in self._config.values():
                 setting = settings[sval.name]
-                if setting.backend_setting:
-                    # We don't store PostgreSQL config settings in
-                    # the _edgecon_state temp table.
-                    continue
+                kind = 'B' if setting.backend_setting else 'C'
                 jval = config.value_to_json_value(setting, sval.value)
-                state.append({"name": sval.name, "value": jval, "type": "C"})
+                state.append({"name": sval.name, "value": jval, "type": kind})
 
         spec = json.dumps(state).encode('utf-8')
         self._session_state_cache = (self._config, self._modaliases, spec)
@@ -347,10 +383,10 @@ cdef class DatabaseConnectionView:
                 return self._in_tx_dbver
             return self._db.dbver
 
-    cdef in_tx(self):
+    cpdef in_tx(self):
         return self._in_tx
 
-    cdef in_tx_error(self):
+    cpdef in_tx_error(self):
         return self._tx_error
 
     cdef cache_compiled_query(self, object key, object query_unit):
@@ -393,7 +429,7 @@ cdef class DatabaseConnectionView:
             self._in_tx = True
             self._txid = query_unit.tx_id
             self._in_tx_config = self._config
-            self._in_tx_db_config = self._db_config
+            self._in_tx_db_config = self._db.db_config
             self._in_tx_modaliases = self._modaliases
             self._in_tx_user_schema = self._db.user_schema
             self._in_tx_global_schema = self._db._index._global_schema
@@ -445,6 +481,7 @@ cdef class DatabaseConnectionView:
             if query_unit.system_config:
                 side_effects |= SideEffects.InstanceConfigChanges
             if query_unit.database_config:
+                self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
                 side_effects |= SideEffects.GlobalSchemaChanges
@@ -467,7 +504,6 @@ cdef class DatabaseConnectionView:
                 raise errors.InternalServerError(
                     '"commit" outside of a transaction')
             self._config = self._in_tx_config
-            self._db_config = self._in_tx_db_config
             self._modaliases = self._in_tx_modaliases
 
             if self._in_tx_new_types:
@@ -483,6 +519,7 @@ cdef class DatabaseConnectionView:
             if self._in_tx_with_sysconfig:
                 side_effects |= SideEffects.InstanceConfigChanges
             if self._in_tx_with_dbconfig:
+                self.update_database_config()
                 side_effects |= SideEffects.DatabaseConfigChanges
             if query_unit.global_schema is not None:
                 side_effects |= SideEffects.GlobalSchemaChanges
@@ -508,8 +545,6 @@ cdef class DatabaseConnectionView:
 
         for op in ops:
             setting = settings[op.setting_name]
-            if setting.backend_setting:
-                continue
 
             if op.scope is config.ConfigScope.INSTANCE:
                 await self._db._index.apply_system_config_op(conn, op)
@@ -534,10 +569,9 @@ cdef class DatabaseIndex:
     def __init__(self, server, *, std_schema, global_schema, sys_config):
         self._dbs = {}
         self._server = server
-        self._sys_config = sys_config
-        self._comp_sys_config = config.get_compilation_config(sys_config)
         self._std_schema = std_schema
         self._global_schema = global_schema
+        self.update_sys_config(sys_config)
 
     def count_connections(self, dbname: str):
         try:
@@ -557,12 +591,13 @@ cdef class DatabaseIndex:
         self._sys_config = sys_config
         self._comp_sys_config = config.get_compilation_config(sys_config)
 
+    def has_db(self, dbname):
+        return dbname in self._dbs
+
     def get_db(self, dbname):
         try:
             return self._dbs[dbname]
         except KeyError:
-            import traceback
-            traceback.print_stack()
             raise errors.UnknownDatabaseError(
                 f'database {dbname!r} does not exist')
 
@@ -592,7 +627,7 @@ cdef class DatabaseIndex:
                 raise RuntimeError(
                     f'cannot register DB {dbname!r}: it is already registered')
             db._set_and_signal_new_user_schema(
-                user_schema, reflection_cache, backend_ids)
+                user_schema, reflection_cache, backend_ids, db_config)
         else:
             db = Database(
                 self,
@@ -618,12 +653,18 @@ cdef class DatabaseIndex:
             include_source=False,
         )
         block = dbops.PLTopBlock()
-        dbops.UpdateMetadata(
-            dbops.Database(
-                name=self._server.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
-            ),
-            {'sysconfig': json.loads(data)},
-        ).generate(block)
+        metadata = {'sysconfig': json.loads(data)}
+        if self._server.get_backend_runtime_params().has_create_database:
+            dbops.UpdateMetadata(
+                dbops.Database(
+                    name=self._server.get_pg_dbname(defines.EDGEDB_SYSTEM_DB),
+                ),
+                metadata,
+            ).generate(block)
+        else:
+            dbops.UpdateSingleDBMetadata(
+                defines.EDGEDB_SYSTEM_DB, metadata
+            ).generate(block)
         await conn.simple_query(block.to_string().encode(), True)
 
     async def apply_system_config_op(self, conn, op):
@@ -638,7 +679,10 @@ cdef class DatabaseIndex:
         # _save_system_overrides *must* happen before
         # the callbacks below, because certain config changes
         # may cause the backend connection to drop.
-        self._sys_config = op.apply(config.get_settings(), self._sys_config)
+        self.update_sys_config(
+            op.apply(config.get_settings(), self._sys_config)
+        )
+
         await self._save_system_overrides(conn)
 
         if op.opcode is config.OpCode.CONFIG_ADD:

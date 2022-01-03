@@ -51,7 +51,7 @@ def server(version=False, **kwargs):
 
     os.environ['EDGEDB_DEBUG_SERVER'] = '1'
     debug.init_debug_flags()
-    kwargs['insecure_dev_mode'] = True
+    kwargs['security'] = srv_args.ServerSecurityMode.InsecureDevMode
     srv_main.server_main(**kwargs)
 
 

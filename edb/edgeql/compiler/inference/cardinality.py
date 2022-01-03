@@ -95,11 +95,16 @@ CB_ONE = CardinalityBound.ONE
 CB_MANY = CardinalityBound.MANY
 
 
+class CardinalityBounds(NamedTuple):
+    lower: CardinalityBound
+    upper: CardinalityBound
+
+
 def _card_to_bounds(
     card: qltypes.Cardinality
-) -> Tuple[CardinalityBound, CardinalityBound]:
+) -> CardinalityBounds:
     lower, upper = card.to_schema_value()
-    return (
+    return CardinalityBounds(
         CardinalityBound.from_required(lower),
         CardinalityBound.from_schema_value(upper),
     )
@@ -160,20 +165,6 @@ def _union_cardinality(
         return AT_MOST_ONE
 
 
-def _coalesce_cardinality(
-    args: Iterable[qltypes.Cardinality],
-) -> qltypes.Cardinality:
-    '''Cardinality of ?? of multiple args.'''
-
-    card = list(zip(*(_card_to_bounds(a) for a in args)))
-    if card:
-        lower, upper = card
-        return _bounds_to_card(max(lower), max(upper))
-    else:
-        # no args is indicative of a empty set
-        return AT_MOST_ONE
-
-
 VOLATILE = qltypes.Volatility.Volatile
 
 
@@ -223,23 +214,12 @@ def _is_singleton_type(typeref: irast.TypeRef) -> bool:
 
 @functools.singledispatch
 def _infer_cardinality(
-    ir: irast.Expr,
+    ir: irast.Base,
     *,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
     raise ValueError(f'infer_cardinality: cannot handle {ir!r}')
-
-
-@_infer_cardinality.register
-def __infer_none(
-    ir: None,
-    *,
-    scope_tree: irast.ScopeTreeNode,
-    ctx: inference_context.InfCtx,
-) -> qltypes.Cardinality:
-    # Here for debugging purposes.
-    raise ValueError('invalid infer_cardinality(None, schema) call')
 
 
 @_infer_cardinality.register
@@ -644,7 +624,7 @@ def _infer_set_inner(
         card = MANY
 
     if force_single:
-        card = _bounds_to_card(_card_to_bounds(card)[0], CB_ONE)
+        card = _bounds_to_card(_card_to_bounds(card).lower, CB_ONE)
 
     return card
 
@@ -681,8 +661,7 @@ def __infer_func_call(
         arg_lower, arg_upper = arg_card
         lower = (
             min(arg_lower) if ir.preserves_optionality else
-            CardinalityBound.ONE if (
-                ir.func_shortname == sn.QualName('std', 'assert_exists'))
+            CB_ONE if ir.func_shortname == sn.QualName('std', 'assert_exists')
             else ret_lower_bound
         )
         upper = (max(arg_upper) if ir.preserves_upper_cardinality
@@ -730,7 +709,7 @@ def __infer_func_call(
             result = cartesian_cardinality(singleton_arg_cards + [return_card])
             if not all_singletons:
                 result = _bounds_to_card(
-                    ret_lower_bound, _card_to_bounds(result)[1])
+                    ret_lower_bound, _card_to_bounds(result).upper)
             return result
 
 
@@ -752,7 +731,7 @@ def __infer_oper_call(
         return _union_cardinality(cards)
     elif str(ir.func_shortname) == 'std::??':
         # Coalescing takes the maximum of both lower and upper bounds.
-        return _coalesce_cardinality(cards)
+        return max_cardinality(cards)
     else:
         args: List[irast.Base] = []
         all_optional = False
@@ -778,8 +757,7 @@ def __infer_oper_call(
                 # doesn't return a SET OF returns at least ONE result
                 # (we currently don't have operators that return
                 # OPTIONAL). So we upgrade the lower bound.
-                _, upper = _card_to_bounds(card)
-                card = _bounds_to_card(CB_ONE, upper)
+                card = _bounds_to_card(CB_ONE, _card_to_bounds(card).upper)
 
             return card
         else:
@@ -956,10 +934,11 @@ def extract_exclusive_filters(
     filter_set: irast.Set,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
-) -> Iterator[Tuple[Tuple[s_pointers.Pointer, irast.Set], ...]]:
+) -> List[Tuple[Tuple[s_pointers.Pointer, irast.Set], ...]]:
 
     filtered_ptrs = extract_filters(result_set, filter_set, scope_tree, ctx)
 
+    results: List[Tuple[Tuple[s_pointers.Pointer, irast.Set], ...]] = []
     if filtered_ptrs:
         filtered_ptrs_map = dict(filtered_ptrs)
         schema = ctx.env.schema
@@ -969,17 +948,25 @@ def extract_exclusive_filters(
         for ptr, expr in filtered_ptrs:
             ptr = ptr.get_nearest_non_derived_parent(schema)
             ptr_set.add(ptr)
-            if ptr.is_exclusive(schema):
+            for constr in ptr.get_exclusive_constraints(schema):
                 # Bingo, got an equality filter on a pointer with a
                 # unique constraint
-                yield ((ptr, expr),)
+                results.append(((ptr, expr),))
+                # We need to track all schema refs, since an expression
+                # in the schema needs to depend on any constraint
+                # that affects its cardinality.
+                ctx.env.add_schema_ref(constr, None)
 
         # Then look at all the object exclusive constraints
         result_stype = ctx.env.set_types[result_set]
         obj_exclusives = get_object_exclusive_constraints(
             result_stype, ptr_set, ctx.env)
-        for _, obj_exc_ptrs in obj_exclusives.items():
-            yield tuple((ptr, filtered_ptrs_map[ptr]) for ptr in obj_exc_ptrs)
+        for constr, obj_exc_ptrs in obj_exclusives.items():
+            results.append(
+                tuple((ptr, filtered_ptrs_map[ptr]) for ptr in obj_exc_ptrs))
+            ctx.env.add_schema_ref(constr, None)
+
+    return results
 
 
 def get_object_exclusive_constraints(
@@ -1027,10 +1014,7 @@ def _analyse_filter_clause(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    exc_filters = extract_exclusive_filters(
-        result_set, filter_clause, scope_tree, ctx)
-
-    for _ in exc_filters:
+    if extract_exclusive_filters(result_set, filter_clause, scope_tree, ctx):
         return AT_MOST_ONE
     else:
         return result_card
@@ -1116,7 +1100,7 @@ def __infer_select_stmt(
             isinstance(ir.limit.expr, irast.IntegerConstant) and
             ir.limit.expr.value == '1'):
         # Explicit LIMIT 1 clause.
-        stmt_card = AT_MOST_ONE
+        stmt_card = _bounds_to_card(_card_to_bounds(stmt_card).lower, CB_ONE)
 
     if ir.iterator_stmt:
         stmt_card = cartesian_cardinality((stmt_card, iter_card))

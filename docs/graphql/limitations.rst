@@ -1,7 +1,7 @@
 .. _ref_graphql_limitations:
 
 =================
-Known Limitations
+Known limitations
 =================
 
 - Due to the differences between EdgeQL and GraphQL syntax
@@ -9,8 +9,10 @@ Known Limitations
   represented as GraphQL identifiers (e.g. ```N/A``` or ```NOT
   APPLICABLE```) cannot be properly reflected into GraphQL enums.
 
-- EdgeDB :eql:type:`tuples <std::tuple>` are not supported in GraphQL
-  reflection currently.
+- EdgeDB :eql:type:`tuples <std::tuple>` are reflected as either
+  ``List`` or ``Object`` depending on whether they are unnamed or
+  named, respectively. However, inserting or updating tuples is
+  not yet supported.
 
 - Every non-abstract EdgeDB object type is simultaneously an interface
   and an object in terms of the GraphQL type system, which means that for

@@ -1,69 +1,84 @@
 .. _ref_datamodel_aliases:
 
-==================
-Expression Aliases
-==================
+=======
+Aliases
+=======
 
-An *alias* is a named set of values produced by an expression.
+.. important::
 
-Aliases can be referred to like regular types in other expressions.
-Aliases over queries that return objects essentially define a dynamic
-*subtype* of the original object type, which may have additional
-properties and links as may be specified by a *shape* in the alias
-expression.
+  This section assumes a basic understanding of EdgeQL. If you aren't familiar
+  with it, feel free to skip this page for now.
 
-Consider the following:
+
+An **alias** is a *pointer* to a set of values. This set is defined with an
+arbitrary EdgeQL expression.
+
+Like computed properties, this expression is evaluated on the fly whenever the
+alias is referenced in a query. Unlike computed properties, aliases are defined
+independent of an object type; they are standalone expressions.
+
+**Scalar alias**
 
 .. code-block:: sdl
 
-    type User {
-        required property name -> str;
-        multi link friends -> User;
-    }
+  alias digits := {0,1,2,3,4,5,6,7,8,9};
 
-    alias UserAlias := User {
-        # declare a computed link
-        friend_of := User.<friends[IS User]
-    };
+**Object type alias**
 
-One benefit that the ``UserAlias`` provides is making EdgeQL queries
-more legible:
+The name of a given object type (e.g. ``User``) is itself a pointer to the *set
+of all User objects*. After declaring the alias below, you can use ``User`` and
+``UserAlias`` interchangably.
 
-.. code-block:: edgeql
+.. code-block:: sdl
 
-    SELECT
-        User.<friends[IS User].name
-    FILTER
-        .name = 'Alice';
+  alias UserAlias := User;
 
-    # vs
+**Object type alias with computeds**
 
-    SELECT
-        UserAlias.friend_of.name
-    FILTER
-        .name = 'Alice';
+Object type aliases can include a *shape* that declare additional computed
+properties or links.
 
-Another benefit is that this ``UserAlias`` can now be exposed via
-:ref:`GraphQL <ref_graphql_index>` providing access to the computed
-link ``friend_of``, that would otherwise be inexpressible in GraphQL:
+.. code-block:: sdl
 
-.. code-block:: graphql
+  type Post {
+    required property title -> str;
+  }
 
-    {
-        UserAlias(
-            filter: {name: {eq: "Alice"}}
-        ) {
-            friend_of {
-                name
-            }
-        }
-    }
+  alias PostAlias := Post {
+    trimmed_title := str_trim(.title)
+  }
+
+In effect, this creates a *virtual subtype* of the base type, which can be
+referenced in queries just like any other type.
+
+**Query alias**
+
+Aliases can correspond to an arbitrary EdgeQL expression, including entire
+queries.
+
+.. code-block:: sdl
+
+  type BlogPost {
+    required property title -> str;
+    required property is_published -> bool;
+  }
+
+  alias PublishedPosts := (
+    select BlogPost
+    filter .is_published = true
+  );
+
+.. note::
+
+  All aliases are reflected in the database's built-in :ref:`GraphQL schema
+  <ref_graphql_index>`.
 
 
 
-See Also
---------
+.. list-table::
+  :class: seealso
 
-Alias
-:ref:`SDL <ref_eql_sdl_aliases>`,
-and :ref:`DDL <ref_eql_ddl_aliases>`.
+  * - **See also**
+  * - :ref:`SDL > Aliases <ref_eql_sdl_aliases>`
+  * - :ref:`DDL > Aliases <ref_eql_ddl_aliases>`
+  * - :ref:`Cheatsheets > Aliases <ref_cheatsheet_aliases>`

@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -63,6 +65,14 @@ class ConfigOp(Nonterm):
 
 
 class ConfigStmt(Nonterm):
+
+    def reduce_CONFIGURE_DATABASE_ConfigOp(self, *kids):
+        raise errors.EdgeQLSyntaxError(
+            f"'{kids[0].val} {kids[1].val}' is invalid syntax. Did you mean "
+            f"'{kids[0].val} "
+            f"{'current' if kids[1].val[0] == 'd' else 'CURRENT'} "
+            f"{kids[1].val}'?",
+            context=kids[1].context)
 
     def reduce_CONFIGURE_ConfigScope_ConfigOp(self, *kids):
         self.val = kids[2].val

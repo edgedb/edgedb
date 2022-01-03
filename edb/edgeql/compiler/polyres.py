@@ -48,6 +48,7 @@ class BoundArg(NamedTuple):
     val: irast.Set
     valtype: s_types.Type
     cast_distance: int
+    is_default: bool = False
 
 
 class MissingArg(NamedTuple):
@@ -428,6 +429,7 @@ def try_bind_call_args(
                         default,
                         param_type,
                         0,
+                        True,
                     )
                 )
 

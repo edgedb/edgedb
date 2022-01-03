@@ -30,6 +30,7 @@ import uuid
 
 from edb import errors
 from edb.edgeql import qltypes
+from edb.common.typeutils import not_none
 
 from edb.common import checked
 from edb.common import markup
@@ -1422,6 +1423,13 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
                 their_name = theirs.get_name(their_schema)
                 if our_name != their_name:
                     similarity /= 1.2
+                else:
+                    # If the new and old versions share a reference to
+                    # an object that is being deleted, then we must
+                    # delete this object as well.
+                    if (type(ours), our_name) in context.deletions:
+                        return 0.0
+
         elif ours is not None or theirs is not None:
             # one is None but not both
             similarity /= 1.2
@@ -2271,9 +2279,7 @@ class ObjectCollection(
         attrs: Dict[str, Any],
     ) -> ObjectCollection[Object_T]:
         if typeargs is None or cls.is_anon_parametrized():
-            # mypy complains about multiple values for
-            # keyword argument "_private_init"
-            obj = cls(_ids=ids, **attrs, _private_init=True)  # type: ignore
+            obj = cls(_ids=ids, **attrs, _private_init=True)
         else:
             obj = cls[typeargs](  # type: ignore
                 _ids=ids, **attrs, _private_init=True)
@@ -2302,9 +2308,7 @@ class ObjectCollection(
             for v in data:
                 ids.append(cls._validate_value(schema, v))
         container: Collection[uuid.UUID] = cls._container(ids)
-        # mypy complains about multiple values for
-        # keyword argument "_private_init"
-        return cls(container, **kwargs, _private_init=True)  # type: ignore
+        return cls(container, **kwargs, _private_init=True)
 
     @classmethod
     def create_empty(cls) -> ObjectCollection[Object_T]:
@@ -2341,6 +2345,13 @@ class ObjectCollection(
             schema.get_by_id(iid) for iid in self._ids  # type: ignore
         )
 
+    def _object_keys(self, schema: s_schema.Schema) -> Set[
+            Tuple[Type[Object], sn.Name]]:
+        return {
+            (type(x), x.get_name(schema))
+            for x in (self.objects(schema))
+        }
+
     @classmethod
     def compare_values(
         cls,
@@ -2352,6 +2363,13 @@ class ObjectCollection(
         context: ComparisonContext,
         compcoef: float,
     ) -> float:
+        # If the new and old versions share a reference to an object
+        # that is being deleted, then we must delete this object as well.
+        our_keys = set(ours._object_keys(our_schema) if ours else {})
+        their_keys = set(theirs._object_keys(their_schema) if theirs else {})
+        if (our_keys & their_keys) & context.deletions.keys():
+            return 0.0
+
         if ours is not None:
             our_names = cls._container(
                 context.get_obj_name(our_schema, obj)
@@ -2389,6 +2407,9 @@ class ObjectCollectionShell(Shell, Generic[Object_T]):
     ) -> None:
         self.items = items
         self.collection_type = collection_type
+
+    def __iter__(self) -> Iterator[ObjectShell[Object_T]]:
+        return iter(self.items)
 
     def resolve(self, schema: s_schema.Schema) -> ObjectCollection[Object_T]:
         return self.collection_type.create(
@@ -2656,6 +2677,26 @@ class ObjectDict(
             ObjectDict[Key_T, Object_T],
             super().create(schema, data.values(), _keys=tuple(data.keys())),
         )
+
+    @classmethod
+    def compare_values(
+        cls,
+        ours: ObjectCollection[Object_T],
+        theirs: ObjectCollection[Object_T],
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: ComparisonContext,
+        compcoef: float,
+    ) -> float:
+        assert isinstance(ours, ObjectDict)
+        assert isinstance(theirs, ObjectDict)
+        if ours.keys(our_schema) != theirs.keys(their_schema):
+            return compcoef
+        return super().compare_values(
+            ours, theirs,
+            our_schema=our_schema, their_schema=their_schema,
+            context=context, compcoef=compcoef)
 
     def __init__(
         self,
@@ -3043,6 +3084,10 @@ class InheritingObject(SubclassableObject):
                 'ancestors',
                 other.get_ancestors(other_schema).as_shell(other_schema),
             )
+            # Trim these from the base alter since they are redundant
+            # and clog up debug output.
+            delta.discard(not_none(delta._get_attribute_set_cmd('bases')))
+            delta.discard(not_none(delta._get_attribute_set_cmd('ancestors')))
 
             delta.add(rebase_cmd)
 

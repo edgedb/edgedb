@@ -1,12 +1,12 @@
 .. _ref_cheatsheet_insert:
 
-Inserting Data
+Inserting data
 ==============
 
 .. note::
 
     The types used in these queries are defined :ref:`here
-    <ref_cheatsheet_types>`.
+    <ref_cheatsheet_object_types>`.
 
 
 ----------
@@ -198,3 +198,11 @@ inserting nested structures:
             ELSE User
         )
     }
+
+
+.. list-table::
+  :class: seealso
+
+  * - **See also**
+  * - :ref:`EdgeQL > Insert <ref_eql_insert>`
+  * - :ref:`Reference > Commands > Insert <ref_eql_statements_insert>`

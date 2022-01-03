@@ -2,6 +2,8 @@
 name: High Availability Tests
 
 on:
+  workflow_dispatch:
+    inputs: {}
   workflow_run:
     workflows: ["Tests"]
     types:
@@ -10,7 +12,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
 
     steps:
     <%- call build() -%>

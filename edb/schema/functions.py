@@ -312,6 +312,17 @@ class ParameterDesc(ParameterLike):
         return cmd
 
 
+def _params_are_all_required_singletons(
+    params: Sequence[ParameterLike], schema: s_schema.Schema,
+) -> bool:
+    return all(
+        param.get_kind(schema) is not ft.ParameterKind.VariadicParam
+        and param.get_typemod(schema) is ft.TypeModifier.SingletonType
+        and param.get_default(schema) is None
+        for param in params
+    )
+
+
 class Parameter(
     so.ObjectFragment,
     ParameterLike,
@@ -612,9 +623,12 @@ class FuncParameterList(so.ObjectList[Parameter], ParameterLikeList):
         return any(p.get_type(schema).is_polymorphic(schema)
                    for p in self.objects(schema))
 
+    def has_type_mod(
+            self, schema: s_schema.Schema, mod: ft.TypeModifier) -> bool:
+        return any(p.get_typemod(schema) is mod for p in self.objects(schema))
+
     def has_set_of(self, schema: s_schema.Schema) -> bool:
-        return any(p.get_typemod(schema) is ft.TypeModifier.SetOfType
-                   for p in self.objects(schema))
+        return self.has_type_mod(schema, ft.TypeModifier.SetOfType)
 
     def has_objects(self, schema: s_schema.Schema) -> bool:
         return any(p.get_type(schema).is_object_type()
@@ -740,6 +754,9 @@ class CallableObject(
     abstract = so.SchemaField(
         bool, default=False, inheritable=False, compcoef=0.909)
 
+    impl_is_strict = so.SchemaField(
+        bool, default=True, compcoef=0.4)
+
     def as_create_delta(
         self: CallableObjectT,
         schema: s_schema.Schema,
@@ -859,7 +876,7 @@ class CallableObject(
         schema: s_schema.Schema,
         reference: so.Object,
     ) -> bool:
-        # Paramters cannot be deleted via DDL syntax,
+        # Parameters cannot be deleted via DDL syntax,
         # so the only possible scenario is the deletion of
         # the host function.
         return not isinstance(reference, Parameter)
@@ -1621,13 +1638,21 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 backend_name = uuidgen.uuid1mc()
             self.set_attribute_value('backend_name', backend_name)
 
+            if (
+                self.has_attribute_value("code")
+                or self.has_attribute_value("nativecode")
+            ):
+                self.set_attribute_value(
+                    'impl_is_strict',
+                    _params_are_all_required_singletons(cp, schema),
+                )
+
         # Check if other schema objects with the same name (ignoring
         # signature, of course) exist.
         if other := schema.get(
                 sn.QualName(fullname.module, shortname.name), None):
             raise errors.SchemaError(
-                f'{other.get_verbosename(schema)} is already present '
-                f'in the schema {schema!r}')
+                f'{other.get_verbosename(schema)} already exists')
 
         schema = super()._create_begin(schema, context)
 
@@ -2254,6 +2279,16 @@ def compile_function(
             f'a singleton',
             details=(
                 f'Function may return a set with more than one element.'
+            ),
+            context=body.qlast.context,
+        )
+    elif (return_typemod is ft.TypeModifier.SingletonType
+            and ir.cardinality.can_be_zero()):
+        raise errors.InvalidFunctionDefinitionError(
+            f'return cardinality mismatch in function declared to return '
+            f'exactly one value',
+            details=(
+                f'Function may return an empty set.'
             ),
             context=body.qlast.context,
         )

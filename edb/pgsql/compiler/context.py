@@ -31,6 +31,7 @@ import uuid
 from edb.common import compiler
 
 from edb.pgsql import ast as pgast
+from edb.pgsql import params as pgparams
 
 from . import aliases
 
@@ -132,11 +133,6 @@ class CompilerContextLevel(compiler.ContextLevel):
     # a bogus volatility ref to it...
     current_insert_path_id: Optional[irast.PathId]
 
-    group_by_rels: Dict[
-        Tuple[irast.PathId, irast.PathId],
-        Union[pgast.BaseRelation, pgast.CommonTableExpr]
-    ]
-
     #: Paths, for which semi-join is banned in this context.
     disable_semi_join: Set[irast.PathId]
 
@@ -231,7 +227,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.expr_exposed = None
             self.volatility_ref = ()
             self.current_insert_path_id = None
-            self.group_by_rels = {}
 
             self.disable_semi_join = set()
             self.force_optional = set()
@@ -268,7 +263,6 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.expr_exposed = prevlevel.expr_exposed
             self.volatility_ref = prevlevel.volatility_ref
             self.current_insert_path_id = prevlevel.current_insert_path_id
-            self.group_by_rels = prevlevel.group_by_rels
 
             self.disable_semi_join = prevlevel.disable_semi_join.copy()
             self.force_optional = prevlevel.force_optional.copy()
@@ -376,6 +370,7 @@ class Environment:
     scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     materialized_views: Dict[uuid.UUID, irast.Set]
+    backend_runtime_params: pgparams.BackendRuntimeParams
 
     #: A list of CTEs that implement constraint validation at the
     #: query level.
@@ -396,6 +391,7 @@ class Environment:
         external_rvars: Optional[
             Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
         ] = None,
+        backend_runtime_params: pgparams.BackendRuntimeParams,
     ) -> None:
         self.aliases = aliases.AliasGenerator()
         self.output_format = output_format
@@ -411,6 +407,7 @@ class Environment:
         self.external_rvars = external_rvars or {}
         self.materialized_views = {}
         self.check_ctes = []
+        self.backend_runtime_params = backend_runtime_params
 
 
 # XXX: this context hack is necessary until pathctx is converted

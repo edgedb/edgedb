@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_boolean:
 
-Boolean Expressions
-===================
+Working with booleans
+=====================
 
 Boolean expressions can be tricky sometimes, so here are a handful of
 tips and gotchas.
@@ -157,7 +157,7 @@ including it, the query can be refactored like this:
 
 When using :eql:op:`?=<COALEQ>`, :eql:op:`?=<COALNEQ>`, or
 :eql:op:`??<COALESCE>` it is important to keep in mind how they
-interact with :ref:`path expressions <ref_eql_expr_paths>` that
+interact with :ref:`path expressions <ref_eql_paths>` that
 can sometimes be ``{}``. Basically, these operators don't actually
 affect the path expression, they only act on the *results* of the
 path expression. Consider the following two queries:
@@ -188,7 +188,7 @@ accounts with some concrete number of ``steps``, then the expression
 only*. The :eql:op:`??<COALESCE>` won't change that result because the
 result is already non-empty and so no coalescing will take place.
 
-Computables in shapes get evaluated *for each object*, whereas path
+Computeds in shapes get evaluated *for each object*, whereas path
 expressions only produce as many values as are *reachable* by the
 path. So when all objects must be considered, computed links and
 properties in shapes are a good way to handle complex expressions or

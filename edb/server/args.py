@@ -21,10 +21,10 @@ from __future__ import annotations
 from typing import *
 
 import logging
+import os
 import pathlib
 import re
 import warnings
-import sys
 import tempfile
 
 import click
@@ -32,7 +32,9 @@ import psutil
 
 from edb import buildmeta
 from edb.common import devmode
+from edb.common import enum
 from edb.schema import defines as schema_defines
+from edb.pgsql import params as pgsql_params
 
 from . import defines
 
@@ -46,9 +48,14 @@ TLS_KEY_FILE_NAME = "edbprivkey.pem"
 logger = logging.getLogger('edb.server')
 
 
-def abort(msg, *args) -> NoReturn:
-    logger.critical(msg, *args)
-    sys.exit(1)
+class InvalidUsageError(Exception):
+
+    def __init__(self, msg: str, exit_code: int = 2) -> None:
+        super().__init__(msg, exit_code)
+
+
+def abort(msg: str, *, exit_code: int = 2) -> NoReturn:
+    raise InvalidUsageError(msg, exit_code)
 
 
 class StartupScript(NamedTuple):
@@ -56,6 +63,35 @@ class StartupScript(NamedTuple):
     text: str
     database: str
     user: str
+
+
+class ServerSecurityMode(enum.StrEnum):
+
+    Strict = "strict"
+    InsecureDevMode = "insecure_dev_mode"
+
+
+class ServerEndpointSecurityMode(enum.StrEnum):
+
+    Tls = "tls"
+    Optional = "optional"
+
+
+class ServerTlsCertMode(enum.StrEnum):
+
+    RequireFile = "require_file"
+    SelfSigned = "generate_self_signed"
+
+
+class ServerAuthMethod(enum.StrEnum):
+
+    Trust = "Trust"
+    Scram = "SCRAM"
+
+
+class BackendCapabilitySets(NamedTuple):
+    must_be_present: List[pgsql_params.BackendCapabilities]
+    must_be_absent: List[pgsql_params.BackendCapabilities]
 
 
 class ServerConfig(NamedTuple):
@@ -89,18 +125,20 @@ class ServerConfig(NamedTuple):
     auto_shutdown_after: float
 
     startup_script: Optional[StartupScript]
-    status_sink: Optional[Callable[[str], None]]
+    status_sinks: List[Callable[[str], None]]
 
     tls_cert_file: Optional[pathlib.Path]
     tls_key_file: Optional[pathlib.Path]
-    generate_self_signed_cert: bool
+    tls_cert_mode: ServerTlsCertMode
 
-    default_auth_method: str
-    allow_insecure_binary_clients: bool
-    allow_insecure_http_clients: bool
-    insecure_dev_mode: bool
+    default_auth_method: ServerAuthMethod
+    security: ServerSecurityMode
+    binary_endpoint_security: ServerEndpointSecurityMode
+    http_endpoint_security: ServerEndpointSecurityMode
 
     instance_name: Optional[str]
+
+    backend_capability_sets: BackendCapabilitySets
 
 
 class PathPath(click.Path):
@@ -130,11 +168,60 @@ class PortType(click.ParamType):
             self.fail(f"{value!r} is not a valid integer", param, ctx)
 
 
+class BackendCapabilitySet(click.ParamType):
+    name = 'capability'
+
+    def __init__(self):
+        self.choices = {
+            cap.name: cap
+            for cap in pgsql_params.BackendCapabilities
+            if cap.name != 'NONE'
+        }
+
+    def get_metavar(self, param):
+        return " ".join(f'[[~]{cap}]' for cap in self.choices)
+
+    def convert(self, value, param, ctx):
+        must_be_present = []
+        must_be_absent = []
+        visited = set()
+        for cap_str in value.split():
+            try:
+                if cap_str.startswith("~"):
+                    cap = self.choices[cap_str[1:].upper()]
+                    must_be_absent.append(cap)
+                else:
+                    cap = self.choices[cap_str.upper()]
+                    must_be_present.append(cap)
+                if cap in visited:
+                    self.fail(f"duplicate capability: {cap_str}", param, ctx)
+                else:
+                    visited.add(cap)
+            except KeyError:
+                self.fail(
+                    f"invalid capability: {cap_str}. "
+                    f"(choose from {', '.join(self.choices)})",
+                    param,
+                    ctx,
+                )
+        return BackendCapabilitySets(
+            must_be_present=must_be_present,
+            must_be_absent=must_be_absent,
+        )
+
+
 def _get_runstate_dir_default() -> str:
+    runstate_dir: Optional[str]
+
     try:
-        return buildmeta.get_build_metadata_value("RUNSTATE_DIR")
+        runstate_dir = buildmeta.get_build_metadata_value("RUNSTATE_DIR")
     except buildmeta.MetadataError:
-        return '<data-dir>'
+        runstate_dir = None
+
+    if runstate_dir is None:
+        runstate_dir = '<data-dir>'
+
+    return runstate_dir
 
 
 def _validate_max_backend_connections(ctx, param, value):
@@ -353,7 +440,8 @@ _server_options = [
              'echo runtime info to stdout; the format is JSON, prefixed by '
              '"EDGEDB_SERVER_DATA:", ended with a new line'),
     click.option(
-        '--emit-server-status', type=str, default=None, metavar='DEST',
+        '--emit-server-status',
+        type=str, default=None, metavar='DEST', multiple=True,
         help='Instruct the server to emit changes in status to DEST, '
              'where DEST is a URI specifying a file (file://<path>), '
              'or a file descriptor (fd://<fileno>).  If the URI scheme '
@@ -373,52 +461,92 @@ _server_options = [
     click.option(
         '--tls-cert-file',
         type=PathPath(),
-        help='Specify a path to a single file in PEM format containing the '
-             'TLS certificate to run the server, as well as any number of CA '
-             'certificates needed to establish the certificate’s '
-             'authenticity. If not present, the server will try to find '
-             f'`{TLS_CERT_FILE_NAME}` in the --data-dir if set.'),
+        envvar="EDGEDB_SERVER_TLS_CERT_FILE",
+        help='Specifies a path to a file containing a server TLS certificate '
+             'in PEM format, as well as possibly any number of CA '
+             'certificates needed to establish the certificate '
+             'authenticity.  If the file does not exist and the '
+             '--tls-cert-mode option is set to "generate_self_signed", a '
+             'self-signed certificate will be automatically created in '
+             'the specified path.'),
     click.option(
-        '--tls-key-file', type=PathPath(),
-        help='Specify a path to a file containing the private key. If not '
-             f'present, the server will try to find `{TLS_KEY_FILE_NAME}` in '
-             'the --data dir if set. If not found, the private key will be '
-             'taken from --tls-cert-file as well. If the private key is '
-             'protected by a password, specify it with the environment '
-             'variable: EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD.'),
+        '--tls-key-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_TLS_KEY_FILE",
+        help='Specifies a path to a file containing the private key in PEM '
+             'format.  If the file does not exist and the --tls-cert-mode '
+             'option is set to "generate_self_signed", the private key will '
+             'be automatically created in the specified path.'),
+    click.option(
+        '--tls-cert-mode',
+        envvar="EDGEDB_SERVER_TLS_CERT_MODE",
+        type=click.Choice(
+            ['default'] + list(ServerTlsCertMode.__members__.values()),
+            case_sensitive=True,
+        ),
+        default='default',
+        help='Specifies what to do when the TLS certificate and key are '
+             'either not specified or are missing.  When set to '
+             '"require_file", the TLS certificate and key must be specified '
+             'in the --tls-cert-file and --tls-key-file options and both must '
+             'exist.  When set to "generate_self_signed" a new self-signed '
+             'certificate and private key will be generated and placed in the '
+             'path specified by --tls-cert-file/--tls-key-file, if those are '
+             'set, otherwise the generated certificate and key are stored as '
+             f'`{TLS_CERT_FILE_NAME}` and `{TLS_KEY_FILE_NAME}` in the data '
+             'directory, or, if the server is running with --backend-dsn, '
+             'in a subdirectory of --runstate-dir.\n\nThe default is '
+             '"require_file" when the --security option is set to "strict", '
+             'and "generate_self_signed" when the --security option is set to '
+             '"insecure_dev_mode"'),
     click.option(
         '--generate-self-signed-cert', type=bool, default=False, is_flag=True,
-        help='When set, a new self-signed certificate will be generated '
-             'together with its private key if no cert is found in the data '
-             'dir. The generated files will be stored in the data dir, or a '
-             'temporary dir (deleted once the server is stopped) if there is '
-             'no data dir. This option conflicts with --tls-cert-file and '
-             '--tls-key-file, and defaults to True in dev mode.'),
+        help='DEPRECATED.\n\n'
+             'Use --tls-cert-mode=generate_self_signed instead.'),
     click.option(
-        '--allow-insecure-binary-clients',
-        envvar='EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS',
-        type=bool, is_flag=True, hidden=True,
-        help='Allow non-TLS client binary connections.'),
+        '--binary-endpoint-security',
+        envvar="EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY",
+        type=click.Choice(
+            ['default', 'tls', 'optional'],
+            case_sensitive=True,
+        ),
+        default='default',
+        help='Specifies the security mode of server binary endpoint. '
+             'When set to `optional`, non-TLS connections are allowed. '
+             'The default is `tls`.',
+    ),
     click.option(
-        '--allow-insecure-http-clients',
-        envvar="EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS",
-        type=bool, is_flag=True, hidden=True,
-        help='Allow non-TLS client HTTP connections.'),
+        '--http-endpoint-security',
+        envvar="EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY",
+        type=click.Choice(
+            ['default', 'tls', 'optional'],
+            case_sensitive=True,
+        ),
+        default='default',
+        help='Specifies the security mode of server HTTP endpoint. '
+             'When set to `optional`, non-TLS connections are allowed. '
+             'The default is `tls`.',
+    ),
     click.option(
-        '--insecure-dev-mode',
-        envvar="EDGEDB_SERVER_INSECURE_DEV_MODE",
-        type=bool, is_flag=True, hidden=True,
+        '--security',
+        envvar="EDGEDB_SERVER_SECURITY",
+        type=click.Choice(
+            ['default', 'strict', 'insecure_dev_mode'],
+            case_sensitive=True,
+        ),
+        default='default',
         help=(
-            'Set default authentication method to `Trust` '
-            'and enable non-TLS client HTTP connections. '
-            'Also implies `--generate-self-signed-cert`.'
+            'When set to `insecure_dev_mode`, sets the default '
+            'authentication method to `Trust`, enables non-TLS '
+            'client HTTP connections, and implies '
+            '`--tls-cert-mode=generate_self_signed`.  The default is `strict`.'
         ),
     ),
     click.option(
         "--default-auth-method",
         envvar="EDGEDB_SERVER_DEFAULT_AUTH_METHOD",
         type=click.Choice(
-            ['SCRAM', 'Trust'],
+            list(ServerAuthMethod.__members__.values()),
             case_sensitive=True,
         ),
         help=(
@@ -431,6 +559,17 @@ _server_options = [
         envvar="EDGEDB_SERVER_INSTANCE_NAME",
         type=str, default=None, hidden=True,
         help='Server instance name.'),
+    click.option(
+        '--backend-capabilities',
+        envvar="EDGEDB_SERVER_BACKEND_CAPABILITIES",
+        type=BackendCapabilitySet(),
+        help="A space-separated set of backend capabilities, which are "
+             "required to be present, or absent if prefixed with ~. EdgeDB "
+             "will only start if the actual backend capabilities match the "
+             "specified set. However if the backend was never bootstrapped, "
+             "the capabilities prefixed with ~ will be *disabled permanently* "
+             "in EdgeDB as if the backend never had them."
+    ),
     click.option(
         '--version', is_flag=True,
         help='Show the version and exit.')
@@ -514,14 +653,84 @@ def parse_args(**kwargs: Any):
 
     del kwargs['postgres_dsn']
 
-    if kwargs['insecure_dev_mode']:
-        kwargs['allow_insecure_http_clients'] = True
+    if kwargs['generate_self_signed_cert']:
+        warnings.warn(
+            "The `--generate-self-signed-cert` option is deprecated, use "
+            "`--tls-cert-mode=generate_self_signed` instead.",
+            DeprecationWarning,
+        )
+        if kwargs['tls_cert_mode'] == 'default':
+            kwargs['tls_cert_mode'] = 'generate_self_signed'
+
+    del kwargs['generate_self_signed_cert']
+
+    if os.environ.get('EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS') == "1":
+        if kwargs['binary_endpoint_security'] == "tls":
+            abort(
+                "The value of deprecated "
+                "EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS environment "
+                "variable disagrees with --binary-endpoint-security"
+            )
+        else:
+            if kwargs['binary_endpoint_security'] == "default":
+                warnings.warn(
+                    "EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS is "
+                    "deprecated. Use EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY "
+                    "instead.",
+                    DeprecationWarning,
+                )
+            kwargs['binary_endpoint_security'] = 'optional'
+
+    if os.environ.get('EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS') == "1":
+        if kwargs['http_endpoint_security'] == "tls":
+            abort(
+                "The value of deprecated "
+                "EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS environment "
+                "variable disagrees with --http-endpoint-security"
+            )
+        else:
+            if kwargs['http_endpoint_security'] == "default":
+                warnings.warn(
+                    "EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS is "
+                    "deprecated. Use EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY "
+                    "instead.",
+                    DeprecationWarning,
+                )
+            kwargs['http_endpoint_security'] = 'optional'
+
+    if kwargs['security'] == 'default':
+        if devmode.is_in_dev_mode():
+            kwargs['security'] = 'insecure_dev_mode'
+        else:
+            kwargs['security'] = 'strict'
+
+    if kwargs['security'] == 'insecure_dev_mode':
+        if kwargs['http_endpoint_security'] == 'default':
+            kwargs['http_endpoint_security'] = 'optional'
         if not kwargs['default_auth_method']:
             kwargs['default_auth_method'] = 'Trust'
-        if not (kwargs['tls_cert_file'] or kwargs['tls_key_file']):
-            kwargs['generate_self_signed_cert'] = True
+        if kwargs['tls_cert_mode'] == 'default':
+            kwargs['tls_cert_mode'] = 'generate_self_signed'
     elif not kwargs['default_auth_method']:
         kwargs['default_auth_method'] = 'SCRAM'
+
+    if kwargs['binary_endpoint_security'] == 'default':
+        kwargs['binary_endpoint_security'] = 'tls'
+
+    if kwargs['http_endpoint_security'] == 'default':
+        kwargs['http_endpoint_security'] = 'tls'
+
+    if kwargs['tls_cert_mode'] == 'default':
+        kwargs['tls_cert_mode'] = 'require_file'
+
+    kwargs['security'] = ServerSecurityMode(kwargs['security'])
+    kwargs['binary_endpoint_security'] = ServerEndpointSecurityMode(
+        kwargs['binary_endpoint_security'])
+    kwargs['http_endpoint_security'] = ServerEndpointSecurityMode(
+        kwargs['http_endpoint_security'])
+    kwargs['tls_cert_mode'] = ServerTlsCertMode(kwargs['tls_cert_mode'])
+    kwargs['default_auth_method'] = ServerAuthMethod(
+        kwargs['default_auth_method'])
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
@@ -549,49 +758,58 @@ def parse_args(**kwargs: Any):
         elif kwargs['backend_dsn']:
             abort('The -D and --backend-dsn options are mutually exclusive.')
 
-    if kwargs['tls_cert_file'] or kwargs['tls_key_file']:
-        if tls_cert_file := kwargs['tls_cert_file']:
-            if kwargs['generate_self_signed_cert']:
-                abort("--tls-cert-file and --generate-self-signed-cert are "
-                      "mutually exclusive.")
-            tls_cert_file = tls_cert_file.resolve()
-            if not tls_cert_file.exists():
-                abort(f"File doesn't exist: --tls-cert-file={tls_cert_file}")
-            kwargs['tls_cert_file'] = tls_cert_file
-        elif kwargs['data_dir'] and (
-            tls_cert_file := kwargs['data_dir'] / TLS_CERT_FILE_NAME
-        ).exists():
-            kwargs['tls_cert_file'] = tls_cert_file
-        else:
-            abort("Cannot find --tls-cert-file, but --tls-key-file is set")
+    if kwargs['tls_key_file'] and not kwargs['tls_cert_file']:
+        abort('When --tls-key-file is set, --tls-cert-file must also be set.')
 
-        if tls_key_file := kwargs['tls_key_file']:
-            if kwargs['generate_self_signed_cert']:
-                abort("--tls-key-file and --generate-self-signed-cert are "
-                      "mutually exclusive.")
-            tls_key_file = tls_key_file.resolve()
-            if not tls_key_file.exists():
-                abort(f"File doesn't exist: --tls-key-file={tls_key_file}")
-            kwargs['tls_key_file'] = tls_key_file
-        elif kwargs['data_dir'] and (
-            tls_key_file := kwargs['data_dir'] / TLS_KEY_FILE_NAME
-        ).exists():
-            kwargs['tls_key_file'] = tls_key_file
-    else:
-        if devmode.is_in_dev_mode():
-            kwargs['generate_self_signed_cert'] = True
-        if data_dir := kwargs['data_dir']:
-            if (tls_cert_file := data_dir / TLS_CERT_FILE_NAME).exists():
-                kwargs['tls_cert_file'] = tls_cert_file
-                kwargs['generate_self_signed_cert'] = False
-                if (tls_key_file := data_dir / TLS_KEY_FILE_NAME).exists():
-                    kwargs['tls_key_file'] = tls_key_file
+    if kwargs['tls_cert_file'] and not kwargs['tls_key_file']:
+        abort('When --tls-cert-file is set, --tls-key-file must also be set.')
+
+    self_signing = kwargs['tls_cert_mode'] is ServerTlsCertMode.SelfSigned
+
+    if not kwargs['tls_cert_file']:
+        if kwargs['data_dir']:
+            tls_cert_file = kwargs['data_dir'] / TLS_CERT_FILE_NAME
+            tls_key_file = kwargs['data_dir'] / TLS_KEY_FILE_NAME
+        elif self_signing:
+            tls_cert_file = pathlib.Path('<runstate>') / TLS_CERT_FILE_NAME
+            tls_key_file = pathlib.Path('<runstate>') / TLS_KEY_FILE_NAME
+        else:
+            abort(
+                "no TLS certificate specified and certificate auto-generation"
+                " has not been requested; see help for --tls-cert-mode",
+                exit_code=10,
+            )
+        kwargs['tls_cert_file'] = tls_cert_file
+        kwargs['tls_key_file'] = tls_key_file
+
+    if not kwargs['bootstrap_only'] and not self_signing:
+        if not kwargs['tls_cert_file'].exists():
+            abort(
+                f"TLS certificate file \"{kwargs['tls_cert_file']}\""
+                " does not exist and certificate auto-generation has not been"
+                " requested; see help for --tls-cert-mode",
+                exit_code=10,
+            )
+
     if (
-        not kwargs['generate_self_signed_cert']
-        and not kwargs['tls_cert_file']
-        and not kwargs['bootstrap_only']
+        kwargs['tls_cert_file']
+        and kwargs['tls_cert_file'].exists()
+        and not kwargs['tls_cert_file'].is_file()
     ):
-        abort('Please specify a TLS certificate with --tls-cert-file.')
+        abort(
+            f"TLS certificate file \"{kwargs['tls_cert_file']}\""
+            " is not a regular file"
+        )
+
+    if (
+        kwargs['tls_key_file']
+        and kwargs['tls_key_file'].exists()
+        and not kwargs['tls_key_file'].is_file()
+    ):
+        abort(
+            f"TLS private key file \"{kwargs['tls_key_file']}\""
+            " is not a regular file"
+        )
 
     if kwargs['log_level']:
         kwargs['log_level'] = kwargs['log_level'].lower()[0]
@@ -620,32 +838,41 @@ def parse_args(**kwargs: Any):
             ),
         )
 
-    status_sink = None
+    status_sinks = []
 
-    if status_sink_addr := kwargs['emit_server_status']:
-        if status_sink_addr.startswith('file://'):
-            status_sink = _status_sink_file(status_sink_addr[len('file://'):])
-        elif status_sink_addr.startswith('fd://'):
-            try:
-                fileno = int(status_sink_addr[len('fd://'):])
-            except ValueError:
+    if status_sink_addrs := kwargs['emit_server_status']:
+        for status_sink_addr in status_sink_addrs:
+            if status_sink_addr.startswith('file://'):
+                status_sink = _status_sink_file(
+                    status_sink_addr[len('file://'):])
+            elif status_sink_addr.startswith('fd://'):
+                fileno_str = status_sink_addr[len('fd://'):]
+                try:
+                    fileno = int(fileno_str)
+                except ValueError:
+                    abort(
+                        f'invalid file descriptor number in '
+                        f'--emit-server-status: {fileno_str!r}'
+                    )
+
+                status_sink = _status_sink_fd(fileno)
+            elif m := re.match(r'^(\w+)://', status_sink_addr):
                 abort(
-                    f'invalid file descriptor number in --emit-server-status: '
-                    f'{status_sink_addr[len("fd://")]!r}'
+                    f'unsupported destination scheme in --emit-server-status: '
+                    f'{m.group(1)}'
                 )
+            else:
+                # Assume it's a file.
+                status_sink = _status_sink_file(status_sink_addr)
 
-            status_sink = _status_sink_fd(fileno)
-        elif m := re.match(r'(^\w+)://', status_sink_addr):
-            abort(
-                f'unsupported destination scheme in --emit-server-status: '
-                f'{m.group(1)}'
-            )
-        else:
-            # Assume it's a file.
-            status_sink = _status_sink_file(status_sink_addr)
+            status_sinks.append(status_sink)
+
+    kwargs['backend_capability_sets'] = (
+        kwargs.pop('backend_capabilities') or BackendCapabilitySets([], [])
+    )
 
     return ServerConfig(
         startup_script=startup_script,
-        status_sink=status_sink,
+        status_sinks=status_sinks,
         **kwargs,
     )

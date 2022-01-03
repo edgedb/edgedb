@@ -52,7 +52,7 @@ def init_toplevel_query(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel) -> None:
 
-    ctx.toplevel_stmt = ctx.stmt = ctx.rel = pgast.SelectStmt()
+    ctx.toplevel_stmt = ctx.stmt = ctx.rel
     update_scope(ir_set, ctx.rel, ctx=ctx)
     ctx.pending_query = ctx.rel
 
@@ -804,12 +804,17 @@ def unpack_rvar(
         stmt: pgast.SelectStmt, path_id: irast.PathId, *,
         packed_rvar: pgast.PathRangeVar,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-
-    qry = pgast.SelectStmt()
-
-    ref: pgast.BaseExpr
     ref = pathctx.get_rvar_path_var(
         packed_rvar, path_id, aspect='value', flavor='packed', env=ctx.env)
+    return unpack_var(stmt, path_id, ref=ref, ctx=ctx)
+
+
+def unpack_var(
+        stmt: pgast.SelectStmt, path_id: irast.PathId, *,
+        ref: pgast.OutputVar,
+        ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
+
+    qry = pgast.SelectStmt()
 
     view_tvars: List[Tuple[irast.PathId, pgast.TupleVarBase, bool]] = []
     els = []
@@ -1038,9 +1043,6 @@ def unpack_rvar(
     # serialized shape.
     # We also need to rewrite tuples that contain such shapes!
     # What a pain!
-    # Note, though, that the cases here are:
-    # 1) Any shapes are "implicit" ones, just containing id, __tname, etc
-    # 2) We are still materializing
     #
     # We *also* need to rewrite tuple values, so that we don't consider
     # serialized materialized objects as part of the value of the tuple
@@ -1049,10 +1051,25 @@ def unpack_rvar(
             continue
 
         rewrite_aspects = []
-        if ctx.expr_exposed:
+        if ctx.expr_exposed and not is_tuple:
             rewrite_aspects.append('serialized')
         if is_tuple:
             rewrite_aspects.append('value')
+
+        # Reserialize links if we are producing final output
+        if (
+            ctx.expr_exposed and not ctx.materializing and not is_tuple
+        ):
+            for tel in view_tvar.elements:
+                el = [x for x in els if x.path_id == tel.path_id][0]
+                if not el.packed:
+                    continue
+                reqry = reserialize_object(el, tel, ctx=ctx)
+                pathctx.put_path_var(
+                    qry, tel.path_id, reqry, aspect='serialized',
+                    env=ctx.env, force=True
+                )
+
         for aspect in rewrite_aspects:
             tv = pathctx.fix_tuple(qry, view_tvar, aspect=aspect, env=ctx.env)
             sval = (
@@ -1068,6 +1085,26 @@ def unpack_rvar(
             )
 
     return rvar
+
+
+def reserialize_object(
+        el: UnpackElement, tel: pgast.TupleElementBase,
+        *,
+        ctx: context.CompilerContextLevel) -> pgast.Query:
+    tref = pgast.ColumnRef(name=[el.colname], is_packed_multi=el.multi)
+
+    with ctx.subrel() as subctx:
+        sub_rvar = unpack_var(subctx.rel, tel.path_id, ref=tref, ctx=ctx)
+    reqry = sub_rvar.query
+    assert isinstance(reqry, pgast.Query)
+    rptr = tel.path_id.rptr()
+    pathctx.get_path_serialized_output(reqry, tel.path_id, env=ctx.env)
+    assert rptr
+    if rptr.out_cardinality.is_multi():
+        with ctx.subrel() as subctx:
+            reqry = set_to_array(
+                path_id=tel.path_id, query=reqry, ctx=subctx)
+    return reqry
 
 
 def get_scope_stmt(
@@ -1265,21 +1302,10 @@ def range_for_typeref(
     for_mutation: bool=False,
     include_descendants: bool=True,
     dml_source: Optional[irast.MutatingStmt]=None,
-    common_parent: bool=False,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
-    if typeref.common_parent is not None and common_parent:
-        rvar = range_for_material_objtype(
-            typeref.common_parent,
-            path_id,
-            include_descendants=include_descendants,
-            for_mutation=for_mutation,
-            dml_source=dml_source,
-            ctx=ctx,
-        )
-
-    elif typeref.union:
+    if typeref.union:
         # Union object types are represented as a UNION of selects
         # from their children, which is, for most purposes, equivalent
         # to SELECTing from a parent table.
@@ -1769,13 +1795,16 @@ def _add_ptr_rel_overlay(
         path_id: irast.PathId,
         ctx: context.CompilerContextLevel) -> None:
 
+    entry = (op, rel, path_id)
     if dml_stmts:
         for dml_stmt in dml_stmts:
             overlays = ctx.ptr_rel_overlays[dml_stmt][typeid, ptrref_name]
-            overlays.append((op, rel, path_id))
+            if entry not in overlays:
+                overlays.append(entry)
     else:
         overlays = ctx.ptr_rel_overlays[None][typeid, ptrref_name]
-        overlays.append((op, rel, path_id))
+        if entry not in overlays:
+            overlays.append(entry)
 
 
 def add_ptr_rel_overlay(

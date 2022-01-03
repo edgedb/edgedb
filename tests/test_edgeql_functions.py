@@ -24,6 +24,7 @@ import os.path
 import edgedb
 
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLFunctions(tb.QueryTestCase):
@@ -100,7 +101,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_array_agg_02(self):
         await self.assert_query_result(
             r'''SELECT array_agg({1, 2, 3})[0];''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -729,6 +730,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [2],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_functions_re_match_01(self):
         await self.assert_query_result(
             r'''SELECT re_match('ab', 'AbabaB');''',
@@ -794,6 +799,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [['schema', 'Link'], ['schema', 'Property']],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_functions_re_match_all_01(self):
         await self.assert_query_result(
             r'''SELECT re_match_all('ab', 'AbabaB');''',
@@ -1814,15 +1823,6 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
                         cal::to_local_datetime('00:00:00 0715');
                 ''')
 
-    async def test_edgeql_functions_to_local_time_05(self):
-        async with self.assertRaisesRegexTx(
-            edgedb.InvalidValueError,
-            'value out of range',
-        ):
-            await self.con.query(r'''
-                SELECT cal::to_local_datetime(10000, 1, 1, 1, 1, 1);
-            ''')
-
     async def test_edgeql_functions_to_duration_01(self):
         await self.assert_query_result(
             r'''SELECT <str>to_duration(hours:=20);''',
@@ -2715,6 +2715,10 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {1, 2},
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_functions_min_01(self):
         await self.assert_query_result(
             r'''SELECT min(<int64>{});''',
@@ -2845,7 +2849,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             r'''
                 SELECT min(<int64>Issue.number);
             ''',
-            [{}],
+            [1],
         )
 
     async def test_edgeql_functions_min_03(self):
@@ -3444,17 +3448,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_contains_03(self):
         await self.assert_query_result(
             r'''SELECT contains(<str>{}, <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT contains(<str>{}, 'a');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT contains('qwerty', <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -3495,17 +3499,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_contains_04(self):
         await self.assert_query_result(
             r'''SELECT contains(<bytes>{}, <bytes>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT contains(<bytes>{}, b'a');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT contains(b'qwerty', <bytes>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -3526,17 +3530,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_find_01(self):
         await self.assert_query_result(
             r'''SELECT find(<str>{}, <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT find(<str>{}, 'a');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT find('qwerty', <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -3577,7 +3581,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_find_02(self):
         await self.assert_query_result(
             r'''SELECT find(<bytes>{}, <bytes>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -3598,17 +3602,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
     async def test_edgeql_functions_find_03(self):
         await self.assert_query_result(
             r'''SELECT find(<array<str>>{}, <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT find(<array<str>>{}, 'the');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT find(['the', 'quick', 'brown', 'fox'], <str>{});''',
-            {},
+            [],
         )
 
         await self.assert_query_result(

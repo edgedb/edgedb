@@ -1,0 +1,316 @@
+.. _ref_changelog_rc2:
+
+========
+1.0 RC 2
+========
+
+This changelog summarizes new features and breaking changes in
+EdgeDB 1.0 Release Candidate 2 "Lacaille".
+
+Migrations
+==========
+
+We continue fixing bugs that affect schema definitions and migrations.
+The most notable changes involve static cardinality inference, so that
+computed links and properties can be defined to mimic their regular
+counterparts:
+
+* Fix creation of required computed links (:eql:gh:`#2985`).
+
+  This allows having ``required`` links in the schema even if they are
+  computed:
+
+  .. code-block:: sdl
+
+    type User {
+        required link profile -> Profile;
+    }
+
+    type Profile {
+        required link user := assert_exists(.<profile[IS User]);
+    }
+
+* Fix issues when migrating between regular and computed links and
+  properties (:eql:gh:`#2411`).
+
+* Fix issues when changing cardinality of computed links and
+  properties (:eql:gh:`#3003`).
+
+* Fix how ``ALTER`` suggestions are rejected when processing
+  migrations, making sure that they don't repeat (:eql:gh:`#3111`).
+
+
+EdgeQL
+======
+
+* Make static analysis correctly handle the cardinality of things
+  wrapped in :eql:func:`enumerate` (:eql:gh:`#3014`).
+
+  This means that if you wrap a single property into
+  :eql:func:`enumerate` it still is correctly inferred to produce no
+  more than one result:
+
+  .. code-block:: edgeql-repl
+
+    db> SELECT User {comp := enumerate(.name)};
+    {default::User {comp: (0, 'alice')}}
+
+* Fix some issues with :eql:func:`enumerate` applied to the results of
+  another function (:eql:gh:`#3025`).
+
+* Fix :eql:func:`assert_distinct` on tuples (:eql:gh:`#2990`).
+
+* Fix a case where :eql:stmt:`FOR` over an empty set erroneously
+  produced a non-empty result (:eql:gh:`#3012`).
+
+* Fix :eql:constraint:`exclusive` constraint issue when conflicting
+  entries are inserted at the same time (:eql:gh:`#3022`).
+
+* Fix issues with how tuple elements are correlated (:eql:gh:`#3001`).
+
+* Fix how functions or operators with ``optional`` parameters such as
+  :eql:op:`??<COALESCE>` interact with shape subqueries
+  (:eql:gh:`#3008`).
+
+  This makes it possible to have a shape as one element of a tuple to
+  be correlated with the expression in the other tuple element:
+
+  .. code-block:: edgeql-repl
+
+    db> SELECT (
+    ...   User {name, friends: {name}},
+    ...   User.friends.name ?? 'n/a'
+    ... );
+    {
+      (
+        default::User {
+          name: 'Alice',
+          friends: {default::User {name: 'Billie'}},
+        },
+        'Billie',
+      ),
+      (
+        default::User {
+          name: 'Alice',
+          friends: {default::User {name: 'Cameron'}},
+        },
+        'Cameron',
+      ),
+      (
+        default::User {
+          name: 'Alice',
+          friends: {default::Bot {name: 'Dana'}},
+        },
+        'Dana',
+      ),
+      (default::User {name: 'Billie', friends: {}}, 'n/a'),
+      (default::User {name: 'Cameron', friends: {}}, 'n/a'),
+      (
+        default::Bot {
+          name: 'Dana',
+          friends: {default::User {name: 'Billie'}},
+        },
+        'Billie',
+      ),
+    }
+
+* Fix issues with arrays of objects of related types (:eql:gh:`#2256`).
+
+  Trying to build an array where elements are not of the same object
+  type, but of related types no longer produces an error:
+
+  .. code-block:: edgeql-repl
+
+    db> SELECT [(SELECT User FILTER .name = 'alice'), (SELECT SystemUser)];
+    {
+      [
+        default::User {id: 8f69777e-3129-11ec-ba91-0f55d65fd8d7},
+        default::SystemUser {id: 89c0e596-3129-11ec-ba91-2f631728aea3},
+      ],
+    }
+
+  Conceptually, there's no difference between first creating a set via
+  :eql:op:`UNION` and using :eql:func:`array_agg` on it or using an
+  array constructor directly and supply the individual elements as
+  subqueries.
+
+* Fix many bugs with objects inside arrays and tuples (:eql:gh:`#2992`).
+
+  Packing and unpacking objects into arrays and tuples now works more
+  reliably. You can make use of the different way of selecting the
+  data, aggregate it using :eql:func:`array_agg` or by some other
+  means and still be able to access the elements to get their nested
+  contents in queries:
+
+  .. code-block:: edgeql-repl
+
+    db> SELECT [(User,)][0];
+    {
+      (default::User {id: 8f69777e-3129-11ec-ba91-0f55d65fd8d7}),
+    }
+    db> SELECT ([User],).0;
+    {
+      [default::User {id: 8f69777e-3129-11ec-ba91-0f55d65fd8d7}],
+    }
+
+* Fix some issues with ad-hoc computed links or properties inside
+  arrays (:eql:gh:`#2979`).
+
+* Fix :eql:op:`AND` to consistently apply to properties and produce
+  an ``{}`` even for the case of ``False AND {}`` (:eql:gh:`#3121`).
+
+* Restrict :eql:op:`TYPEOR` operator to object types only (:eql:gh:`#3116`).
+
+* Reserve ``never`` as a keyword for future use (:eql:gh:`#3102`).
+
+
+GraphQL
+=======
+
+* Make ``and`` and ``or`` in GraphQL use "short-circuiting" logic.
+
+  In EdgeQL :eql:op:`AND` and :eql:op:`OR` produce ``{}`` if any of
+  the operands are ``{}``. There are different ways of handling the
+  ``{}`` by using :eql:op:`COALESCE` or :eql:op:`IF..ELSE` operator.
+  However, within the restricted context of operations reflected to
+  GraphQL ``filter`` it makes sense to use "short-circuiting" versions
+  of the operators and enforce that if any of the operands to ``or``
+  are ``true``, so is the result and similarly if any of the operands
+  to ``and`` are ``false`` so is the result.
+
+* Hide ``id`` as well as computed links and properties from mutation
+  (:eql:gh:`#3109`).
+
+
+Configuration
+=============
+
+A lot of the :ref:`configuration <ref_std_cfg>` settings used to be
+strings that simply mapped to Postgres settings. We now use more
+appropriate types for expressing configuration values:
+:eql:type:`bool`, :eql:type:`int64`, :eql:type:`duration`, in addition
+to :eql:type:`str`.
+
+We also introduce a new scalar :eql:type:`cfg::memory` to represent
+size of various memory storage in a clear and unambiguous way.
+
+
+Bindings
+========
+
+We now have the *client* abstraction superceding the *connection* and
+*pool* abstractions. There's no conceptual difference between a pool
+of size 1 and a single connection, so we decided that the API should
+reflect that. So we introduce a single concept of *client* to send
+queries to the database and let this *client* encapsulate the handling
+of concurrent connections.
+
+We're making our binding more robust by adding "retry options" to our
+interface. What it means is that read-only queries and all
+transactions can be automatically retried in case of certain kinds of
+errors (such as network errors) without the need for any extra code on
+the part of the developers. This also means that we no longer have
+"raw" and "retrying" transactions in the APIs, but all transactions
+are retrying. To get the same behavior as for "raw" transactions the
+maximum number of attempts can be explicitly specified as ``1``.
+
+We're also in the process of cleaning up our APIs and removing the
+deprecated functions.
+
+* Support connection pooling by default and retry features for
+  `edgedb-python <https://github.com/edgedb/edgedb-python>`_ and
+  release v0.18.0a2 driver.
+* Support connection pooling by default and retry features for
+  `edgedb-js <https://github.com/edgedb/edgedb-js>`_ and release
+  v0.15.3 driver.
+* Support connection pooling by default and retry features for
+  `edgedb-go <https://github.com/edgedb/edgedb-go>`_ and release
+  v0.8.3 driver.
+
+Environment variable renames
+============================
+
+For clarity and simplicity, several environment variables have been renamed
+and the set of supported values has been modified. The old variables have been
+deprecated and will be removed in a future release.
+
+.. list-table::
+
+  * - **Old name**
+    - **New name**
+  * - ``EDGEDB_TLS_VERIFY_HOSTNAME``
+    - ``EDGEDB_CLIENT_TLS_SECURITY``
+  * - ``EDGEDB_NO_VERSION_CHECK``
+    - ``EDGEDB_RUN_VERSION_CHECK``
+  * - ``EDGEDB_SKIP_DOCKER_CHECK``
+    - ``EDGEDB_INSTALL_IN_DOCKER``
+  * - ``EDGEDB_SERVER_ALLOW_INSECURE_BINARY_CLIENTS``
+    - ``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY``
+  * - ``EDGEDB_SERVER_ALLOW_INSECURE_HTTP_CLIENTS``
+    - ``EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY``
+  * - ``EDGEDB_SERVER_INSECURE_DEV_MODE``
+    - ``EDGEDB_SERVER_SECURITY``
+  * - ``EDGEDB_SERVER_SKIP_MIGRATIONS``
+    - ``EDGEDB_DOCKER_APPLY_MIGRATIONS``
+  * - ``EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT``
+    - ``EDGEDB_SERVER_TLS_CERT_MODE``
+  * - ``EDGEDB_HIDE_GENERATED_CERT``
+    - ``EDGEDB_DOCKER_SHOW_GENERATED_CERT``
+
+
+Client configuration
+--------------------
+
+``EDGEDB_CLIENT_TLS_SECURITY``
+    - ``insecure``
+    - ``no_host_verification``
+    - ``strict``
+    - ``default``: ``no_host_verification`` if custom certificate is supplied,
+      otherwise ``strict``
+
+**New**: ``EDGEDB_CLIENT_SECURITY``
+    - ``default``
+    - ``insecure_dev_mode``: for now, equivalent to setting
+      ``EDGEDB_CLIENT_TLS_SECURITY=insecure`` though this mode may
+      encapsulate other behavior later
+
+``EDGEDB_RUN_VERSION_CHECK``
+    - ``cached == default`` — run occasionally
+    - ``never`` — skips the check
+
+``EDGEDB_INSTALL_IN_DOCKER`` (CLI only)
+  - ``forbid == default``
+  - ``allow`` — skips the check
+
+Server configuration
+--------------------
+
+``EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY``
+    - ``tls == default``
+    - ``optional`` — allow no TLS
+
+``EDGEDB_SERVER_HTTP_ENDPOINT_SECURITY``
+    - ``tls == default``
+    - ``optional`` — allow no TLS
+
+``EDGEDB_SERVER_SECURITY``
+    - ``strict == default``
+    - ``insecure_dev_mode`` — disable password-based authentication and allow
+      unencrypted HTTP traffic
+
+``EDGEDB_DOCKER_APPLY_MIGRATIONS`` (Docker only)
+    - ``always == default``
+    - ``never``
+
+``EDGEDB_SERVER_TLS_CERT_MODE``
+    - ``require_file`` — requires a valid TLS certificate and key to be
+      specified
+    - ``generate_self_signed`` generate self-signed certificate and private
+      key on bootstrap if certificate or key are not specified or missing
+    - ``default`` (equals to ``require_file`` if ``EDGEDB_SERVER_SECURITY``
+      is set to ``strict``, equals to ``generate_self_signed`` if
+      ``EDGEDB_SERVER_SECURITY`` is set to ``insecure_dev_mode``)
+
+``EDGEDB_DOCKER_SHOW_GENERATED_CERT``
+    - ``always == default``
+    - ``never``

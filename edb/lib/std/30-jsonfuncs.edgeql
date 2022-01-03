@@ -184,6 +184,35 @@ std::`[]` (l: std::json, r: std::str) -> std::json {
     USING SQL EXPRESSION;
 };
 
+CREATE INFIX OPERATOR
+std::`++` (l: std::json, r: std::json) -> std::json {
+    CREATE ANNOTATION std::identifier := 'concatenate';
+    CREATE ANNOTATION std::description := 'Concatenate two JSON values into a new JSON value.';
+    SET volatility := 'Stable';
+    USING SQL $$
+    SELECT (
+        CASE WHEN jsonb_typeof("l") = 'array' AND jsonb_typeof("r") = 'array' THEN
+            "l" || "r"
+        WHEN jsonb_typeof("l") = 'object' AND jsonb_typeof("r") = 'object' THEN
+            "l" || "r"
+        WHEN jsonb_typeof("l") = 'string' AND jsonb_typeof("r") = 'string' THEN
+            to_jsonb(("l"#>>'{}') || ("r"#>>'{}'))
+        ELSE
+            edgedb.raise(
+                NULL::jsonb,
+                'invalid_parameter_value',
+                msg => (
+                    'invalid JSON values for ++ operator'
+                ),
+                detail => (
+                    '{"hint":"Supported JSON types for concatenation: '
+                    || 'array ++ array, object ++ object, string ++ string."}'
+                )
+            )
+        END
+    )
+    $$;
+};
 
 ## CASTS
 
@@ -229,6 +258,14 @@ CREATE CAST FROM std::json TO array<anytype> {
 CREATE CAST FROM std::bool TO std::json {
     SET volatility := 'Stable';
     USING SQL FUNCTION 'to_jsonb';
+};
+
+
+CREATE CAST FROM std::bytes TO std::json {
+    SET volatility := 'Stable';
+    USING SQL $$
+    SELECT to_jsonb(encode(val, 'base64'));
+    $$;
 };
 
 
@@ -304,6 +341,14 @@ CREATE CAST FROM std::json TO std::uuid {
     SET volatility := 'Stable';
     USING SQL $$
     SELECT edgedb.jsonb_extract_scalar(val, 'string')::uuid;
+    $$;
+};
+
+
+CREATE CAST FROM std::json TO std::bytes {
+    SET volatility := 'Stable';
+    USING SQL $$
+    SELECT decode(edgedb.jsonb_extract_scalar(val, 'string'), 'base64')::bytea;
     $$;
 };
 

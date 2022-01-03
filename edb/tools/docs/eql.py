@@ -227,6 +227,7 @@ from sphinx import transforms as s_transforms
 from sphinx.directives import code as s_code
 from sphinx.util import docfields as s_docfields
 from sphinx.util import nodes as s_nodes_utils
+from sphinx.ext.intersphinx import InventoryAdapter
 
 from . import shared
 
@@ -715,7 +716,7 @@ class EQLFunctionDirective(BaseEQLDirective):
         parser = edgeql_parser.EdgeQLBlockParser()
         try:
             astnode = parser.parse(
-                f'CREATE FUNCTION {sig} USING SQL FUNCTION "xxx";')[0]
+                f'create function {sig} using SQL function "xxx";')[0]
         except Exception as ex:
             raise self.error(
                 f'could not parse function signature {sig!r}') from ex
@@ -730,12 +731,12 @@ class EQLFunctionDirective(BaseEQLDirective):
             raise self.error(
                 f'EdgeQL function declaration is missing namespace')
 
-        func_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode)
+        func_repr = ql_gen.generate_source(astnode)
         m = re.match(r'''(?xs)
             ^
-            CREATE\sFUNCTION\s
+            create\sfunction\s
             (?P<f>.*?)
-            \sUSING\sSQL\sFUNCTION
+            \susing\ssql\sfunction
             .*$
         ''', func_repr)
         if not m or not m.group('f'):
@@ -751,11 +752,11 @@ class EQLFunctionDirective(BaseEQLDirective):
         signode += d_nodes.Text(' ')
         signode += s_nodes.desc_name(fullname, fullname)
 
-        ret_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode.returning)
+        ret_repr = ql_gen.generate_source(astnode.returning)
         if astnode.returning_typemod is qltypes.TypeModifier.SetOfType:
-            ret_repr = f'SET OF {ret_repr}'
+            ret_repr = f'set of {ret_repr}'
         elif astnode.returning_typemod is qltypes.TypeModifier.OptionalType:
-            ret_repr = f'OPTIONAL {ret_repr}'
+            ret_repr = f'optional {ret_repr}'
         signode += s_nodes.desc_returns(ret_repr, ret_repr)
 
         return fullname
@@ -788,7 +789,7 @@ class EQLConstraintDirective(BaseEQLDirective):
         parser = edgeql_parser.EdgeQLBlockParser()
         try:
             astnode = parser.parse(
-                f'CREATE ABSTRACT CONSTRAINT {sig};')[0]
+                f'create abstract constraint {sig};')[0]
         except Exception as ex:
             raise self.error(
                 f'could not parse constraint signature {sig!r}') from ex
@@ -803,12 +804,12 @@ class EQLConstraintDirective(BaseEQLDirective):
             raise self.error(
                 f'Missing module in EdgeQL constraint declaration')
 
-        constr_repr = ql_gen.EdgeQLSourceGenerator.to_source(astnode)
+        constr_repr = ql_gen.generate_source(astnode)
 
         m = re.match(r'''(?xs)
             ^
-            CREATE\sABSTRACT\sCONSTRAINT\s
-            (?P<f>.*?)(?:\s*ON(?P<subj>.*))?
+            create\sabstract\sconstraint\s
+            (?P<f>.*?)(?:\s*on(?P<subj>.*))?
             $
         ''', constr_repr)
         if not m or not m.group('f'):
@@ -824,7 +825,7 @@ class EQLConstraintDirective(BaseEQLDirective):
         if subject:
             subject = subject.strip()[1:-1]
             signode['eql-subjexpr'] = subject
-            signode['eql-signature'] += f' ON ({subject})'
+            signode['eql-signature'] += f' on ({subject})'
 
         signode += s_nodes.desc_annotation('constraint', 'constraint')
         signode += d_nodes.Text(' ')
@@ -1033,6 +1034,43 @@ class EdgeQLDomain(s_domains.Domain):
 
         if docname is None:
             if not node.get('eql-auto-link'):
+                # if ref was not found, the :eql: xref may be being used
+                # outside of the docs, so try resolving ref from intersphinx
+                # inventories
+                inventories = InventoryAdapter(env)
+
+                for target in targets:
+                    obj_type, name = target.split('::', 1)
+                    if ':' not in name:
+                        continue
+                    docset_name, name = name.split(':', 1)
+
+                    docset = inventories.named_inventory.get(docset_name)
+                    if docset is None:
+                        continue
+                    refs = docset.get('eql:' + obj_type)
+                    if refs is None:
+                        continue
+                    ref = refs.get(obj_type + '::' + name)
+                    if ref is None:
+                        continue
+
+                    newnode = d_nodes.reference(
+                        '', '',
+                        internal=False, refuri=ref[2],
+                    )
+                    if node.get('refexplicit'):
+                        newnode.append(d_nodes.Text(contnode.astext()))
+                    else:
+                        title = contnode.astext()
+                        newnode.append(
+                            contnode.__class__(
+                                title[len(docset_name) + 1:],
+                                title[len(docset_name) + 1:]
+                            )
+                        )
+                    return newnode
+
                 raise shared.DomainError(
                     f'cannot resolve :eql:{type}: targeting {target!r}')
             else:
@@ -1052,6 +1090,12 @@ class EdgeQLDomain(s_domains.Domain):
             node['eql-type'] = obj_type
 
         return node
+
+    def resolve_any_xref(self, env, fromdocname, builder,
+                         target, node, contnode):
+        # 'myst-parser' resolves all markdown links as :any: xrefs, so return
+        # empty list to prevent sphinx trying to resolve these as :eql: refs
+        return []
 
     def clear_doc(self, docname):
         for fullname, (fn, _l, _d) in list(self.data['objects'].items()):
@@ -1167,3 +1211,7 @@ def setup_domain(app):
     app.add_domain(EdgeQLDomain)
 
     app.add_transform(StatementTransform)
+
+
+def setup(app):
+    setup_domain(app)

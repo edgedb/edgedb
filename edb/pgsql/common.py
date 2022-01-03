@@ -258,6 +258,7 @@ def get_pointer_backend_name(id, module_name, *, catenate=False, aspect=None):
 
 _operator_map = {
     s_name.name_from_string('std::AND'): 'AND',
+    s_name.name_from_string('std::OR'): 'OR',
     s_name.name_from_string('std::NOT'): 'NOT',
     s_name.name_from_string('std::?='): 'IS NOT DISTINCT FROM',
     s_name.name_from_string('std::?!='): 'IS DISTINCT FROM',
@@ -287,6 +288,8 @@ def get_operator_backend_name(name, catenate=False, *, aspect=None):
             # table.
             if oper_name == 'OR':
                 oper_name = '|||'
+            elif oper_name == 'AND':
+                oper_name = '&&&'
             else:
                 raise ValueError(
                     f'cannot represent operator {oper_name} in Postgres')

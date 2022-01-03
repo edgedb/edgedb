@@ -29,6 +29,8 @@ from edb import errors
 from edb.common import enum
 from edb.common import typeutils
 
+from edb.ir import statypes
+
 from edb.edgeql import codegen as qlcodegen
 from edb.edgeql import qltypes
 
@@ -100,6 +102,12 @@ class Operation(NamedTuple):
         else:
             if isinstance(self.value, setting.type):
                 return self.value
+            elif (isinstance(self.value, str) and
+                    issubclass(setting.type, statypes.Duration)):
+                return statypes.Duration(self.value)
+            elif (isinstance(self.value, (str, int)) and
+                    issubclass(setting.type, statypes.ConfigMemory)):
+                return statypes.ConfigMemory(self.value)
             elif self.value is None and allow_missing:
                 return None
             else:
@@ -232,6 +240,10 @@ def spec_to_json(spec: spec.Spec):
             typeid = s_obj.get_known_type_id('std::int64')
         elif issubclass(setting.type, types.ConfigType):
             typeid = setting.type.get_edgeql_typeid()
+        elif issubclass(setting.type, statypes.Duration):
+            typeid = s_obj.get_known_type_id('std::duration')
+        elif issubclass(setting.type, statypes.ConfigMemory):
+            typeid = s_obj.get_known_type_id('cfg::memory')
         else:
             raise RuntimeError(
                 f'cannot serialize type for config setting {setting.name}')
@@ -247,6 +259,7 @@ def spec_to_json(spec: spec.Spec):
             'typeid': str(typeid),
             'typemod': str(typemod),
             'backend_setting': setting.backend_setting,
+            'report': setting.report,
         }
 
     return json.dumps(dct)
@@ -261,6 +274,11 @@ def value_to_json_value(setting: spec.Setting, value: Any):
     else:
         if issubclass(setting.type, types.ConfigType):
             return value.to_json_value()
+        elif issubclass(setting.type, statypes.Duration) and value is not None:
+            return value.to_iso8601()
+        elif (issubclass(setting.type, statypes.ConfigMemory) and
+                value is not None):
+            return value.to_str()
         else:
             return value
 
@@ -274,6 +292,10 @@ def value_from_json_value(setting: spec.Setting, value: Any):
     else:
         if issubclass(setting.type, types.ConfigType):
             return setting.type.from_json_value(value)
+        elif issubclass(setting.type, statypes.Duration):
+            return statypes.Duration.from_iso8601(value)
+        elif issubclass(setting.type, statypes.ConfigMemory):
+            return statypes.ConfigMemory(value)
         else:
             return value
 

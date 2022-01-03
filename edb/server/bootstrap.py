@@ -18,8 +18,11 @@
 
 
 from __future__ import annotations
+
+import textwrap
 from typing import *
 
+import enum
 import json
 import logging
 import os
@@ -32,6 +35,7 @@ from edb import errors
 
 from edb import edgeql
 from edb import _edgeql_rust
+from edb.ir import statypes
 from edb.edgeql import ast as qlast
 
 from edb.common import context as parser_context
@@ -59,6 +63,7 @@ from edb.pgsql import common as pg_common
 from edb.pgsql import dbops
 from edb.pgsql import delta as delta_cmds
 from edb.pgsql import metaschema
+from edb.pgsql import params
 from edb.pgsql.common import quote_ident as qi
 from edb.pgsql.common import quote_literal as ql
 
@@ -73,11 +78,19 @@ if TYPE_CHECKING:
 logger = logging.getLogger('edb.server')
 
 
+class ClusterMode(enum.IntEnum):
+    pristine = 0
+    regular = 1
+    single_role = 2
+    single_database = 3
+
+
 class BootstrapContext(NamedTuple):
 
     cluster: pgcluster.BaseCluster
     conn: asyncpg_con.Connection
     args: edbargs.ServerConfig
+    mode: Optional[ClusterMode] = None
 
 
 async def _execute(conn, query):
@@ -120,8 +133,8 @@ async def _ensure_edgedb_supergroup(
     members: Iterable[str] = (),
 ) -> None:
     member_of = set(member_of)
-    instance_params = ctx.cluster.get_runtime_params().instance_params
-    superuser_role = instance_params.base_superuser
+    backend_params = ctx.cluster.get_runtime_params()
+    superuser_role = backend_params.instance_params.base_superuser
     if superuser_role:
         # If the cluster is exposing an explicit superuser role,
         # become a member of that instead of creating a superuser
@@ -132,10 +145,7 @@ async def _ensure_edgedb_supergroup(
 
     role = dbops.Role(
         name=pg_role_name,
-        superuser=bool(
-            instance_params.capabilities
-            & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
-        ),
+        superuser=backend_params.has_superuser_access,
         allow_login=False,
         allow_createdb=True,
         allow_createrole=True,
@@ -175,17 +185,11 @@ async def _ensure_edgedb_role(
     if login_role != sup_role:
         members.add(login_role)
 
-    instance_params = ctx.cluster.get_runtime_params().instance_params
+    backend_params = ctx.cluster.get_runtime_params()
     pg_role_name = ctx.cluster.get_role_name(role_name)
     role = dbops.Role(
         name=pg_role_name,
-        superuser=(
-            superuser
-            and bool(
-                instance_params.capabilities
-                & pgcluster.BackendCapabilities.SUPERUSER_ACCESS
-            )
-        ),
+        superuser=superuser and backend_params.has_superuser_access,
         allow_login=True,
         allow_createdb=True,
         allow_createrole=True,
@@ -194,7 +198,7 @@ async def _ensure_edgedb_role(
         metadata=dict(
             id=str(objid),
             name=role_name,
-            tenant_id=instance_params.tenant_id,
+            tenant_id=backend_params.tenant_id,
             builtin=builtin,
         ),
     )
@@ -212,10 +216,13 @@ async def _ensure_edgedb_role(
     return objid
 
 
-async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
-    tenant_id = ctx.cluster.get_runtime_params().instance_params.tenant_id
-    is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
+async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
+    backend_params = ctx.cluster.get_runtime_params()
+    tenant_id = backend_params.tenant_id
 
+    # First, check the existence of EDGEDB_SUPERGROUP - the role which is
+    # usually created at the beginning of bootstrap.
+    is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
     if is_default_tenant:
         result = await ctx.conn.fetch('''
             SELECT
@@ -235,26 +242,44 @@ async def _is_pristine_cluster(ctx: BootstrapContext) -> bool:
                 r.rolname = $1
         ''', ctx.cluster.get_role_name(edbdef.EDGEDB_SUPERGROUP))
 
-    if not result:
-        return True
-    elif is_default_tenant and ctx.args.ignore_other_tenants:
+    if result:
+        if not is_default_tenant or not ctx.args.ignore_other_tenants:
+            return ClusterMode.regular
+
         for row in result:
             rolname = row['rolname']
             other_tenant_id = rolname[: -(len(edbdef.EDGEDB_SUPERGROUP) + 1)]
             if other_tenant_id == tenant_id:
-                return False
-        return True
+                return ClusterMode.regular
+
+    # Then, check if the current database was bootstrapped in single-db mode.
+    has_instdata = await ctx.conn.fetch('''
+        SELECT
+            tablename
+        FROM
+            pg_catalog.pg_tables
+        WHERE
+            schemaname = 'edgedbinstdata'
+            AND tablename = 'instdata'
+    ''')
+    if has_instdata:
+        return ClusterMode.single_database
+
+    # At last, check for single-role-bootstrapped instance by trying to find
+    # the EdgeDB System DB with the assumption that we are not running in
+    # single-db mode. If not found, this is a pristine backend cluster.
+    sys_db = await _find_system_db(ctx)
+    if sys_db:
+        return ClusterMode.single_role
     else:
-        return False
+        return ClusterMode.pristine
 
 
 async def _create_edgedb_template_database(
     ctx: BootstrapContext,
 ) -> uuid.UUID:
-    instance_params = ctx.cluster.get_runtime_params().instance_params
-    capabilities = instance_params.capabilities
-    have_c_utf8 = (
-        capabilities & pgcluster.BackendCapabilities.C_UTF8_LOCALE)
+    backend_params = ctx.cluster.get_runtime_params()
+    have_c_utf8 = backend_params.has_c_utf8_locale
 
     logger.info('Creating template database...')
     block = dbops.SQLBlock()
@@ -268,7 +293,7 @@ async def _create_edgedb_template_database(
         encoding='UTF8',
         metadata=dict(
             id=str(dbid),
-            tenant_id=instance_params.tenant_id,
+            tenant_id=backend_params.tenant_id,
             name=edbdef.EDGEDB_TEMPLATE_DB,
             builtin=True,
         ),
@@ -625,7 +650,7 @@ async def _init_stdlib(
     ctx: BootstrapContext,
     testmode: bool,
     global_ids: Mapping[str, uuid.UUID],
-) -> Tuple[StdlibBits, edbcompiler.Compiler]:
+) -> Tuple[StdlibBits, config.Spec, edbcompiler.Compiler]:
     in_dev_mode = devmode.is_in_dev_mode()
     conn = ctx.conn
     cluster = ctx.cluster
@@ -655,9 +680,12 @@ async def _init_stdlib(
     logger.info('Creating the necessary PostgreSQL extensions...')
     await metaschema.create_pg_extensions(conn)
 
+    config_spec = config.load_spec_from_schema(stdlib.stdschema)
+    config.set_settings(config_spec)
+
     if tpldbdump is None:
         logger.info('Populating internal SQL structures...')
-        await metaschema.bootstrap(conn)
+        await metaschema.bootstrap(conn, config_spec)
         logger.info('Executing the standard library...')
         await _execute_ddl(conn, stdlib.sqltext)
 
@@ -686,19 +714,34 @@ async def _init_stdlib(
             global_metadata = await conn.fetchval(
                 f'SELECT edgedb.get_database_metadata({ql(tpl_db_name)})',
             )
+            global_metadata = json.loads(global_metadata)
 
             pl_block = dbops.PLTopBlock()
 
-            dbops.SetMetadata(
+            set_metadata_text = dbops.SetMetadata(
                 dbops.Database(name='__dummy_placeholder_database__'),
-                json.loads(global_metadata),
-            ).generate(pl_block)
-
-            text = pl_block.to_string()
-            text = text.replace(
+                global_metadata,
+            ).code(pl_block)
+            set_metadata_text = set_metadata_text.replace(
                 '__dummy_placeholder_database__',
                 f"' || quote_ident({tpl_pg_db_name_dyn}) || '",
             )
+
+            set_single_db_metadata_text = dbops.SetSingleDBMetadata(
+                edbdef.EDGEDB_TEMPLATE_DB, global_metadata
+            ).code(pl_block)
+
+            pl_block.add_command(textwrap.dedent(f"""\
+                IF (edgedb.get_backend_capabilities()
+                    & {int(params.BackendCapabilities.CREATE_DATABASE)}) != 0
+                THEN
+                {textwrap.indent(set_metadata_text, '    ')}
+                ELSE
+                {textwrap.indent(set_single_db_metadata_text, '    ')}
+                END IF
+                """))
+
+            text = pl_block.to_string()
 
             tpldbdump += b'\n' + text.encode('utf-8')
 
@@ -719,6 +762,9 @@ async def _init_stdlib(
     else:
         logger.info('Initializing the standard library...')
         await metaschema._execute_sql_script(conn, tpldbdump.decode('utf-8'))
+        # Restore the search_path as the dump might have altered it.
+        await conn.execute(
+            "SELECT pg_catalog.set_config('search_path', 'edgedb', false)")
 
     if not in_dev_mode and testmode:
         # Running tests on a production build.
@@ -728,6 +774,10 @@ async def _init_stdlib(
             stdlib,
         )
         await conn.execute(testmode_sql)
+        # _testmode includes extra config settings, so make sure
+        # those are picked up.
+        config_spec = config.load_spec_from_schema(stdlib.stdschema)
+        config.set_settings(config_spec)
 
     # Make sure that schema backend_id properties are in sync with
     # the database.
@@ -794,7 +844,9 @@ async def _init_stdlib(
         stdlib.global_intro_query,
     )
 
-    await metaschema.generate_support_views(conn, stdlib.reflschema)
+    await metaschema.generate_support_views(
+        conn, stdlib.reflschema, cluster.get_runtime_params()
+    )
     await metaschema.generate_support_functions(conn, stdlib.reflschema)
 
     compiler = edbcompiler.new_compiler(
@@ -863,7 +915,13 @@ async def _init_stdlib(
         )
         await conn.execute(sql)
 
-    return stdlib, compiler
+    await _store_static_json_cache(
+        ctx,
+        'configspec',
+        config.spec_to_json(config_spec),
+    )
+
+    return stdlib, config_spec, compiler
 
 
 async def _execute_ddl(conn, sql_text):
@@ -934,26 +992,59 @@ async def _populate_data(schema, compiler, conn):
 
 async def _configure(
     ctx: BootstrapContext,
+    config_spec: config.Spec,
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
 ) -> None:
-    config_spec = config.get_settings()
     settings: Mapping[str, config.SettingValue] = {}
 
     config_json = config.to_json(config_spec, settings, include_source=False)
     block = dbops.PLTopBlock()
-    dbops.UpdateMetadata(
-        dbops.Database(name=ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB)),
-        {'sysconfig': json.loads(config_json)},
-    ).generate(block)
+    metadata = {'sysconfig': json.loads(config_json)}
+    if ctx.cluster.get_runtime_params().has_create_database:
+        dbops.UpdateMetadata(
+            dbops.Database(
+                name=ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB)
+            ),
+            metadata,
+        ).generate(block)
+    else:
+        dbops.UpdateSingleDBMetadata(
+            edbdef.EDGEDB_SYSTEM_DB, metadata,
+        ).generate(block)
 
     await _execute_block(ctx.conn, block)
+
+    backend_params = ctx.cluster.get_runtime_params()
+    for setname in config_spec:
+        setting = config_spec[setname]
+        if (
+            setting.backend_setting
+            and setting.default is not None
+            and (
+                # Do not attempt to run CONFIGURE INSTANCE on
+                # backends that don't support it.
+                # TODO: this should be replaced by instance-wide
+                #       emulation at backend connection time.
+                backend_params.has_configfile_access
+            )
+        ):
+            if isinstance(setting.default, statypes.Duration):
+                val = f'<std::duration>"{setting.default.to_iso8601()}"'
+            else:
+                val = repr(setting.default)
+            script = f'''
+                CONFIGURE INSTANCE SET {setting.name} := {val};
+            '''
+            schema, sql = compile_bootstrap_script(compiler, schema, script)
+            await _execute_ddl(ctx.conn, sql)
 
 
 async def _compile_sys_queries(
     ctx: BootstrapContext,
     schema: s_schema.Schema,
     compiler: edbcompiler.Compiler,
+    config_spec: config.Spec,
 ) -> None:
     queries = {}
 
@@ -1029,10 +1120,43 @@ async def _compile_sys_queries(
 
     queries['backend_tids'] = sql
 
+    report_settings: list[str] = []
+    for setname in config_spec:
+        setting = config_spec[setname]
+        if setting.report:
+            report_settings.append(setname)
+
+    report_configs_query = f'''
+        SELECT assert_single(cfg::Config {{
+            {', '.join(report_settings)}
+        }});
+    '''
+
+    units = compiler._compile(
+        ctx=edbcompiler.new_compiler_context(
+            user_schema=schema,
+            single_statement=True,
+            expected_cardinality_one=True,
+            json_parameters=False,
+            output_format=edbcompiler.IoFormat.BINARY,
+            bootstrap_mode=True,
+        ),
+        source=edgeql.Source.from_string(report_configs_query))
+    assert len(units) == 1 and len(units[0].sql) == 1
+
+    report_configs_typedesc = units[0].out_type_id + units[0].out_type_data
+    queries['report_configs'] = units[0].sql[0].decode()
+
     await _store_static_json_cache(
         ctx,
         'sysqueries',
         json.dumps(queries),
+    )
+
+    await _store_static_bin_cache(
+        ctx,
+        'report_configs_typedesc',
+        report_configs_typedesc,
     )
 
 
@@ -1089,13 +1213,38 @@ async def _populate_misc_instance_data(
         json.dumps(json_instance_data),
     )
 
-    instance_params = ctx.cluster.get_runtime_params().instance_params
+    backend_params = ctx.cluster.get_runtime_params()
+    instance_params = backend_params.instance_params
     await _store_static_json_cache(
         ctx,
         'backend_instance_params',
         json.dumps(instance_params._asdict()),
     )
 
+    if not backend_params.has_create_role:
+        json_single_role_metadata = {
+            'id': str(uuidgen.uuid1mc()),
+            'name': edbdef.EDGEDB_SUPERUSER,
+            'tenant_id': backend_params.tenant_id,
+            'builtin': False,
+        }
+        await _store_static_json_cache(
+            ctx,
+            'single_role_metadata',
+            json.dumps(json_single_role_metadata),
+        )
+
+    if not backend_params.has_create_database:
+        await _store_static_json_cache(
+            ctx,
+            f'{edbdef.EDGEDB_TEMPLATE_DB}metadata',
+            json.dumps({}),
+        )
+        await _store_static_json_cache(
+            ctx,
+            f'{edbdef.EDGEDB_SYSTEM_DB}metadata',
+            json.dumps({}),
+        )
     return json_instance_data
 
 
@@ -1128,18 +1277,27 @@ async def _create_edgedb_database(
     return objid
 
 
-async def _bootstrap_config_spec(
+async def _set_edgedb_database_metadata(
     ctx: BootstrapContext,
-    schema: s_schema.Schema,
-) -> None:
-    config_spec = config.load_spec_from_schema(schema)
-    config.set_settings(config_spec)
-
-    await _store_static_json_cache(
-        ctx,
-        'configspec',
-        config.spec_to_json(config_spec),
+    database: str,
+    *,
+    objid: Optional[uuid.UUID] = None,
+) -> uuid.UUID:
+    logger.info(f'Configuring database: {database}')
+    block = dbops.SQLBlock()
+    if objid is None:
+        objid = uuidgen.uuid1mc()
+    instance_params = ctx.cluster.get_runtime_params().instance_params
+    db = dbops.Database(ctx.cluster.get_db_name(database))
+    metadata = dict(
+        id=str(objid),
+        tenant_id=instance_params.tenant_id,
+        name=database,
+        builtin=False,
     )
+    dbops.SetMetadata(db, metadata).generate(block)
+    await _execute_block(ctx.conn, block)
+    return objid
 
 
 def _pg_log_listener(conn, msg):
@@ -1159,10 +1317,8 @@ async def _get_instance_data(conn: Any) -> Dict[str, Any]:
     return json.loads(data)
 
 
-async def _check_catalog_compatibility(
-    ctx: BootstrapContext,
-) -> asyncpg_con.Connection:
-    tenant_id = ctx.cluster.get_runtime_params().instance_params.tenant_id
+async def _find_system_db(ctx: BootstrapContext) -> Optional[str]:
+    tenant_id = ctx.cluster.get_runtime_params().tenant_id
     is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
 
     if is_default_tenant:
@@ -1181,6 +1337,23 @@ async def _check_catalog_compatibility(
             FROM pg_database
             WHERE datname = $1
         ''', ctx.cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB))
+
+    return sys_db
+
+
+async def _check_catalog_compatibility(
+    ctx: BootstrapContext,
+) -> asyncpg_con.Connection:
+    if ctx.mode == ClusterMode.single_database:
+        tenant_id = ctx.cluster.get_runtime_params().tenant_id
+        sys_db = await ctx.conn.fetchval(f'''
+            SELECT current_database()
+            FROM edgedbinstdata.instdata
+            WHERE key = '{edbdef.EDGEDB_TEMPLATE_DB}metadata'
+            AND json->>'tenant_id' = '{tenant_id}'
+        ''')
+    else:
+        sys_db = await _find_system_db(ctx)
 
     if not sys_db:
         raise errors.ConfigurationError(
@@ -1209,8 +1382,8 @@ async def _check_catalog_compatibility(
         )
 
         if datadir_major != expected_ver.major:
-            if ctx.args.status_sink is not None:
-                ctx.args.status_sink(f'INCOMPATIBLE={json.dumps(status)}')
+            for status_sink in ctx.args.status_sinks:
+                status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
                 'database instance incompatible with this version of EdgeDB',
                 details=(
@@ -1226,8 +1399,8 @@ async def _check_catalog_compatibility(
             )
 
         if datadir_catver != expected_catver:
-            if ctx.args.status_sink is not None:
-                ctx.args.status_sink(f'INCOMPATIBLE={json.dumps(status)}')
+            for status_sink in ctx.args.status_sinks:
+                status_sink(f'INCOMPATIBLE={json.dumps(status)}')
             raise errors.ConfigurationError(
                 'database instance incompatible with this version of EdgeDB',
                 details=(
@@ -1248,10 +1421,30 @@ async def _check_catalog_compatibility(
     return conn
 
 
+def _check_capabilities(ctx: BootstrapContext) -> None:
+    caps = ctx.cluster.get_runtime_params().instance_params.capabilities
+    for cap in ctx.args.backend_capability_sets.must_be_present:
+        if not caps & cap:
+            raise errors.ConfigurationError(
+                f"the backend doesn't have necessary capability: "
+                f"{cap.name}"
+            )
+    for cap in ctx.args.backend_capability_sets.must_be_absent:
+        if caps & cap:
+            raise errors.ConfigurationError(
+                f"the backend was already bootstrapped with capability: "
+                f"{cap.name}"
+            )
+
+
 async def _start(ctx: BootstrapContext) -> None:
     conn = await _check_catalog_compatibility(ctx)
 
     try:
+        caps = await conn.fetchval("SELECT edgedb.get_backend_capabilities()")
+        ctx.cluster.overwrite_capabilities(caps)
+        _check_capabilities(ctx)
+
         compiler = edbcompiler.Compiler()
         await compiler.initialize_from_pg(conn)
         std_schema = compiler.get_std_schema()
@@ -1264,10 +1457,8 @@ async def _start(ctx: BootstrapContext) -> None:
         await conn.close()
 
 
-async def _bootstrap(
-    ctx: BootstrapContext,
-) -> None:
-    args = ctx.args
+async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
+    cluster = ctx.cluster
 
     await _ensure_edgedb_supergroup(
         ctx,
@@ -1283,9 +1474,33 @@ async def _bootstrap(
 
     superuser = ctx.cluster.get_role_name(edbdef.EDGEDB_SUPERUSER)
 
-    cluster = ctx.cluster
     await _execute(ctx.conn, f'SET ROLE {qi(superuser)}')
     cluster.set_default_session_authorization(superuser)
+    return superuser_uid
+
+
+async def _bootstrap(ctx: BootstrapContext) -> None:
+    args = ctx.args
+    cluster = ctx.cluster
+
+    if args.backend_capability_sets.must_be_absent:
+        caps = cluster.get_runtime_params().instance_params.capabilities
+        disabled = []
+        for cap in args.backend_capability_sets.must_be_absent:
+            if caps & cap:
+                caps &= ~cap
+                disabled.append(cap)
+        if disabled:
+            logger.info(f"the following backend capabilities are disabled: "
+                        f"{', '.join(str(cap.name) for cap in disabled)}")
+            cluster.overwrite_capabilities(caps)
+    _check_capabilities(ctx)
+    backend_params = cluster.get_runtime_params()
+
+    if backend_params.has_create_role:
+        superuser_uid = await _bootstrap_edgedb_super_roles(ctx)
+    else:
+        superuser_uid = uuidgen.uuid1mc()
 
     in_dev_mode = devmode.is_in_dev_mode()
     # Protect against multiple EdgeDB tenants from trying to bootstrap
@@ -1295,18 +1510,23 @@ async def _bootstrap(
         bootstrap_lock = 0xEDB00001
         await ctx.conn.execute('SELECT pg_advisory_lock($1)', bootstrap_lock)
 
-    new_template_db_id = await _create_edgedb_template_database(ctx)
-
-    tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
-    conn = await cluster.connect(database=tpl_db)
+    if backend_params.has_create_database:
+        new_template_db_id = await _create_edgedb_template_database(ctx)
+        tpl_db = cluster.get_db_name(edbdef.EDGEDB_TEMPLATE_DB)
+        conn = await cluster.connect(database=tpl_db)
+    else:
+        new_template_db_id = uuidgen.uuid1mc()
 
     try:
-        tpl_ctx = ctx._replace(conn=conn)
-        conn.add_log_listener(_pg_log_listener)
+        if backend_params.has_create_database:
+            tpl_ctx = ctx._replace(conn=conn)
+            conn.add_log_listener(_pg_log_listener)
+        else:
+            tpl_ctx = ctx
 
         await _populate_misc_instance_data(tpl_ctx)
 
-        stdlib, compiler = await _init_stdlib(
+        stdlib, config_spec, compiler = await _init_stdlib(
             tpl_ctx,
             testmode=args.testmode,
             global_ids={
@@ -1314,12 +1534,16 @@ async def _bootstrap(
                 edbdef.EDGEDB_TEMPLATE_DB: new_template_db_id,
             }
         )
-        await _bootstrap_config_spec(tpl_ctx, stdlib.stdschema)
-        await _compile_sys_queries(tpl_ctx, stdlib.reflschema, compiler)
+        await _compile_sys_queries(
+            tpl_ctx,
+            stdlib.reflschema,
+            compiler,
+            config_spec,
+        )
 
         schema = s_schema.FlatSchema()
-        schema = await _init_defaults(schema, compiler, conn)
-        schema = await _populate_data(schema, compiler, conn)
+        schema = await _init_defaults(schema, compiler, tpl_ctx.conn)
+        schema = await _populate_data(schema, compiler, tpl_ctx.conn)
     finally:
         if in_dev_mode:
             await ctx.conn.execute(
@@ -1327,36 +1551,53 @@ async def _bootstrap(
                 bootstrap_lock,
             )
 
-        await conn.close()
+        if backend_params.has_create_database:
+            await conn.close()
 
-    await _create_edgedb_database(
-        ctx,
-        edbdef.EDGEDB_SYSTEM_DB,
-        edbdef.EDGEDB_SUPERUSER,
-        builtin=True,
-    )
+    if backend_params.has_create_database:
+        await _create_edgedb_database(
+            ctx,
+            edbdef.EDGEDB_SYSTEM_DB,
+            edbdef.EDGEDB_SUPERUSER,
+            builtin=True,
+        )
 
-    conn = await cluster.connect(
-        database=cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB))
+        conn = await cluster.connect(
+            database=cluster.get_db_name(edbdef.EDGEDB_SYSTEM_DB))
 
-    try:
-        conn.add_log_listener(_pg_log_listener)
+        try:
+            conn.add_log_listener(_pg_log_listener)
+            await _configure(
+                ctx._replace(conn=conn),
+                config_spec=config_spec,
+                schema=schema,
+                compiler=compiler,
+            )
+        finally:
+            await conn.close()
+    else:
         await _configure(
-            ctx._replace(conn=conn),
+            ctx,
+            config_spec=config_spec,
             schema=schema,
             compiler=compiler,
         )
-    finally:
-        await conn.close()
 
-    await _create_edgedb_database(
-        ctx,
-        edbdef.EDGEDB_SUPERUSER_DB,
-        edbdef.EDGEDB_SUPERUSER,
-    )
+    if backend_params.has_create_database:
+        await _create_edgedb_database(
+            ctx,
+            edbdef.EDGEDB_SUPERUSER_DB,
+            edbdef.EDGEDB_SUPERUSER,
+        )
+    else:
+        await _set_edgedb_database_metadata(
+            ctx,
+            edbdef.EDGEDB_SUPERUSER_DB,
+        )
 
     if (
-        args.default_database_user
+        backend_params.has_create_role
+        and args.default_database_user
         and args.default_database_user != edbdef.EDGEDB_SUPERUSER
     ):
         await _ensure_edgedb_role(
@@ -1369,7 +1610,8 @@ async def _bootstrap(
         await _execute(ctx.conn, f"SET ROLE {qi(def_role)}")
 
     if (
-        args.default_database
+        backend_params.has_create_database
+        and args.default_database
         and args.default_database != edbdef.EDGEDB_SUPERUSER_DB
     ):
         await _create_edgedb_database(
@@ -1389,7 +1631,9 @@ async def ensure_bootstrapped(
     ctx = BootstrapContext(cluster=cluster, conn=pgconn, args=args)
 
     try:
-        if await _is_pristine_cluster(ctx):
+        mode = await _get_cluster_mode(ctx)
+        ctx = ctx._replace(mode=mode)
+        if mode == ClusterMode.pristine:
             await _bootstrap(ctx)
             return True
         else:

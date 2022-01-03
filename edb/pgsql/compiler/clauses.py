@@ -37,56 +37,6 @@ from . import relctx
 from . import relgen
 
 
-def init_stmt(
-        stmt: irast.Stmt, ctx: context.CompilerContextLevel,
-        parent_ctx: context.CompilerContextLevel) -> None:
-    if ctx.toplevel_stmt is context.NO_STMT:
-        parent_ctx.toplevel_stmt = ctx.toplevel_stmt = ctx.stmt
-
-
-def fini_stmt(
-        stmt: pgast.Query, ctx: context.CompilerContextLevel,
-        parent_ctx: context.CompilerContextLevel) -> None:
-
-    if stmt is ctx.toplevel_stmt:
-        scan_check_ctes(ctx.env.check_ctes, ctx=ctx)
-
-        # Type rewrites go first.
-        if stmt.ctes is None:
-            stmt.ctes = []
-        stmt.ctes[:0] = list(ctx.type_ctes.values())
-
-        stmt.argnames = argmap = ctx.argmap
-
-        if not ctx.env.use_named_params:
-            # Adding unused parameters into a CTE
-            targets = []
-            for param in ctx.env.query_params:
-                if param.name in argmap:
-                    continue
-                if param.name.isdecimal():
-                    idx = int(param.name) + 1
-                else:
-                    idx = len(argmap) + 1
-                argmap[param.name] = pgast.Param(
-                    index=idx,
-                    required=param.required,
-                )
-                targets.append(pgast.ResTarget(val=pgast.TypeCast(
-                    arg=pgast.ParamRef(number=idx),
-                    type_name=pgast.TypeName(
-                        name=pg_types.pg_type_from_ir_typeref(param.ir_type)
-                    )
-                )))
-            if targets:
-                ctx.toplevel_stmt.append_cte(
-                    pgast.CommonTableExpr(
-                        name="__unused_vars",
-                        query=pgast.SelectStmt(target_list=targets)
-                    )
-                )
-
-
 def get_volatility_ref(
         path_id: irast.PathId, *,
         ctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
@@ -275,10 +225,7 @@ def compile_filter_clause(
     with ctx.new() as ctx1:
         ctx1.expr_exposed = False
 
-        if (
-            cardinality is qltypes.Cardinality.ONE
-            or cardinality is qltypes.Cardinality.AT_MOST_ONE
-        ):
+        if cardinality.is_single():
             where_clause = dispatch.compile(ir_set, ctx=ctx)
         else:
             # In WHERE we compile ir.Set as a boolean disjunction:
@@ -297,6 +244,70 @@ def compile_filter_clause(
     return where_clause
 
 
+def _get_target_from_range(
+    target: pgast.BaseExpr, rvar: pgast.BaseRangeVar
+) -> Optional[pgast.BaseExpr]:
+    """Try to read a target out of a very simple rvar.
+
+    The goal here is to allow collapsing trivial pass-through subqueries.
+    In particular, given a target `foo.bar` and an rvar
+    `(SELECT <expr> as "bar") AS "foo"`, we produce <expr>.
+
+    We can also recursively handle the nested case.
+    """
+    if (
+        not isinstance(rvar, pgast.RangeSubselect)
+
+        # Check that the relation name matches the rvar
+        or not isinstance(target, pgast.ColumnRef)
+        or not target.name
+        or target.name[0] != rvar.alias.aliasname
+
+        # And that the rvar is a simple subquery with one target
+        # and at most one from clause
+        or not (subq := rvar.subquery)
+        or len(subq.target_list) != 1
+        or not isinstance(subq, pgast.SelectStmt)
+        or not astutils.select_is_simple(subq)
+        or len(subq.from_clause) > 1
+
+        # And that the one target matches
+        or not (inner_tgt := rvar.subquery.target_list[0])
+        or inner_tgt.name != target.name[1]
+    ):
+        return None
+
+    if subq.from_clause:
+        return _get_target_from_range(inner_tgt.val, subq.from_clause[0])
+    else:
+        return inner_tgt.val
+
+
+def collapse_query(query: pgast.Query) -> pgast.BaseExpr:
+    """Try to collapse trivial queries into simple expressions.
+
+    In particular, we want to transform
+    `(SELECT foo.bar FROM LATERAL (SELECT <expr> as "bar") AS "foo")`
+    into simply `<expr>`.
+    """
+    if not isinstance(query, pgast.SelectStmt):
+        return query
+
+    if (
+        not isinstance(query, pgast.SelectStmt)
+        or len(query.target_list) != 1
+        or len(query.from_clause) != 1
+    ):
+        return query
+
+    val = _get_target_from_range(
+        query.target_list[0].val, query.from_clause[0])
+    if val:
+        return val
+    else:
+        return query
+
+
 def compile_orderby_clause(
         ir_exprs: Sequence[irast.SortExpr], *,
         ctx: context.CompilerContextLevel) -> List[pgast.SortBy]:
@@ -307,10 +318,14 @@ def compile_orderby_clause(
         with ctx.new() as orderctx:
             orderctx.expr_exposed = False
 
-            # In OPDER BY we compile ir.Set as a subquery:
+            # In ORDER BY we compile ir.Set as a subquery:
             #    SELECT SetRel.value FROM SetRel)
-            value = relgen.set_as_subquery(
+            subq = relgen.set_as_subquery(
                 expr.expr, as_value=True, ctx=orderctx)
+            # pg apparently can't use indexes for ordering if the body
+            # of an ORDER BY is a subquery, so try to collapse the query
+            # into a simple expression.
+            value = collapse_query(subq)
 
             sortexpr = pgast.SortBy(
                 node=value,
@@ -338,6 +353,7 @@ def compile_limit_offset_clause(
 
 
 def scan_check_ctes(
+    stmt: pgast.Query,
     check_ctes: List[pgast.CommonTableExpr],
     *,
     ctx: context.CompilerContextLevel,
@@ -388,7 +404,48 @@ def scan_check_ctes(
             rexpr=val,
         )
     )
-    ctx.toplevel_stmt.append_cte(pgast.CommonTableExpr(
+    stmt.append_cte(pgast.CommonTableExpr(
         query=update_query,
         name=ctx.env.aliases.get(hint='check_scan')
     ))
+
+
+def fini_toplevel(
+        stmt: pgast.Query, ctx: context.CompilerContextLevel) -> None:
+
+    scan_check_ctes(stmt, ctx.env.check_ctes, ctx=ctx)
+
+    # Type rewrites go first.
+    if stmt.ctes is None:
+        stmt.ctes = []
+    stmt.ctes[:0] = list(ctx.type_ctes.values())
+
+    stmt.argnames = argmap = ctx.argmap
+
+    if not ctx.env.use_named_params:
+        # Adding unused parameters into a CTE
+        targets = []
+        for param in ctx.env.query_params:
+            if param.name in argmap:
+                continue
+            if param.name.isdecimal():
+                idx = int(param.name) + 1
+            else:
+                idx = len(argmap) + 1
+            argmap[param.name] = pgast.Param(
+                index=idx,
+                required=param.required,
+            )
+            targets.append(pgast.ResTarget(val=pgast.TypeCast(
+                arg=pgast.ParamRef(number=idx),
+                type_name=pgast.TypeName(
+                    name=pg_types.pg_type_from_ir_typeref(param.ir_type)
+                )
+            )))
+        if targets:
+            stmt.append_cte(
+                pgast.CommonTableExpr(
+                    name="__unused_vars",
+                    query=pgast.SelectStmt(target_list=targets)
+                )
+            )

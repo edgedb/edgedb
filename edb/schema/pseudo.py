@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 from edb import errors
+from edb.common import parsing
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
@@ -150,8 +151,14 @@ class PseudoType(
 
 class PseudoTypeShell(s_types.TypeShell[PseudoType]):
 
-    def __init__(self, *, name: sn.Name) -> None:
-        super().__init__(name=name, schemaclass=PseudoType)
+    def __init__(
+        self,
+        *,
+        name: sn.Name,
+        sourcectx: Optional[parsing.ParserContext] = None,
+    ) -> None:
+        super().__init__(
+            name=name, schemaclass=PseudoType, sourcectx=sourcectx)
 
     def is_polymorphic(self, schema: s_schema.Schema) -> bool:
         return True

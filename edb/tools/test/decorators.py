@@ -25,10 +25,13 @@ import unittest
 skip = unittest.skip
 
 
-def xfail(reason):
+def xfail(reason, *, unless=False):
     def decorator(test_item):
-        test_item.__et_xfail_reason__ = reason
-        return unittest.expectedFailure(test_item)
+        if unless:
+            return test_item
+        else:
+            test_item.__et_xfail_reason__ = reason
+            return unittest.expectedFailure(test_item)
 
     return decorator
 

@@ -37,6 +37,7 @@ from edb import buildmeta
 from edb.common import devmode
 from edb.edgeql import quote
 
+from edb.server import args as edgedb_args
 from edb.server import defines as edgedb_defines
 
 from . import pgcluster
@@ -55,19 +56,37 @@ class BaseCluster:
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        security: Optional[
+            edgedb_args.ServerSecurityMode
+        ] = None,
+        http_endpoint_security: Optional[
+            edgedb_args.ServerEndpointSecurityMode
+        ] = None
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
+
+        self._edgedb_cmd.append('--tls-cert-mode=generate_self_signed')
 
         if log_level:
             self._edgedb_cmd.extend(['--log-level', log_level])
 
         if devmode.is_in_dev_mode():
             self._edgedb_cmd.append('--devmode')
-        else:
-            self._edgedb_cmd.append('--generate-self-signed-cert')
 
         if testmode:
             self._edgedb_cmd.append('--testmode')
+
+        if security:
+            self._edgedb_cmd.extend((
+                '--security',
+                str(security),
+            ))
+
+        if http_endpoint_security:
+            self._edgedb_cmd.extend((
+                '--http-endpoint-security',
+                str(http_endpoint_security),
+            ))
 
         self._log_level = log_level
         self._runstate_dir = runstate_dir
@@ -124,12 +143,6 @@ class BaseCluster:
             'port': self._effective_port,
             'tls_ca_file': self._tls_cert_file,
         }
-
-    async def async_connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
-        connect_args = self.get_connect_args().copy()
-        connect_args.update(kwargs)
-
-        return await edgedb.async_connect(**connect_args)
 
     def connect(self, **kwargs: Any) -> edgedb.BlockingIOConnection:
         connect_args = self.get_connect_args().copy()
@@ -310,6 +323,13 @@ class BaseCluster:
             stderr=subprocess.STDOUT,
         )
 
+    async def set_test_config(self) -> None:
+        self._admin_query(f'''
+            # Set session_idle_transaction_timeout to 5 minutes.
+            CONFIGURE INSTANCE SET session_idle_transaction_timeout :=
+                <duration>'5 minutes';
+        ''')
+
     async def set_superuser_password(self, password: str) -> None:
         self._admin_query(f'''
             ALTER ROLE {edgedb_defines.EDGEDB_SUPERUSER}
@@ -324,6 +344,12 @@ class BaseCluster:
             }
         ''')
 
+    def has_create_database(self) -> bool:
+        return True
+
+    def has_create_role(self) -> bool:
+        return True
+
 
 class Cluster(BaseCluster):
     def __init__(
@@ -336,6 +362,12 @@ class Cluster(BaseCluster):
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        security: Optional[
+            edgedb_args.ServerSecurityMode
+        ] = None,
+        http_endpoint_security: Optional[
+            edgedb_args.ServerEndpointSecurityMode
+        ] = None
     ) -> None:
         self._data_dir = data_dir
         if runstate_dir is None:
@@ -346,6 +378,8 @@ class Cluster(BaseCluster):
             env=env,
             testmode=testmode,
             log_level=log_level,
+            security=security,
+            http_endpoint_security=http_endpoint_security,
         )
         self._edgedb_cmd.extend(['-D', str(self._data_dir)])
         self._pg_connect_args['user'] = pg_superuser
@@ -386,6 +420,12 @@ class TempCluster(Cluster):
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        security: Optional[
+            edgedb_args.ServerSecurityMode
+        ] = None,
+        http_endpoint_security: Optional[
+            edgedb_args.ServerEndpointSecurityMode
+        ] = None
     ) -> None:
         tempdir = pathlib.Path(
             tempfile.mkdtemp(
@@ -400,6 +440,8 @@ class TempCluster(Cluster):
             env=env,
             testmode=testmode,
             log_level=log_level,
+            security=security,
+            http_endpoint_security=http_endpoint_security,
         )
 
 
@@ -441,6 +483,12 @@ class RunningCluster(BaseCluster):
     def destroy(self) -> None:
         pass
 
+    def has_create_database(self) -> bool:
+        return os.environ.get('EDGEDB_TEST_CASES_SET_UP') != 'inplace'
+
+    def has_create_role(self) -> bool:
+        return os.environ.get('EDGEDB_TEST_HAS_CREATE_ROLE') == 'True'
+
 
 class TempClusterWithRemotePg(BaseCluster):
     def __init__(
@@ -453,6 +501,12 @@ class TempClusterWithRemotePg(BaseCluster):
         env: Optional[Mapping[str, str]] = None,
         testmode: bool = False,
         log_level: Optional[str] = None,
+        security: Optional[
+            edgedb_args.ServerSecurityMode
+        ] = None,
+        http_endpoint_security: Optional[
+            edgedb_args.ServerEndpointSecurityMode
+        ] = None,
     ) -> None:
         runstate_dir = pathlib.Path(
             tempfile.mkdtemp(
@@ -463,8 +517,21 @@ class TempClusterWithRemotePg(BaseCluster):
         )
         self._backend_dsn = backend_dsn
         super().__init__(
-            runstate_dir, env=env, testmode=testmode, log_level=log_level)
+            runstate_dir, env=env, testmode=testmode, log_level=log_level,
+            security=security, http_endpoint_security=http_endpoint_security)
         self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
 
     async def _new_pg_cluster(self) -> pgcluster.BaseCluster:
         return await pgcluster.get_remote_pg_cluster(self._backend_dsn)
+
+    def has_create_database(self) -> bool:
+        if self._pg_cluster:
+            return self._pg_cluster.get_runtime_params().has_create_database
+        else:
+            return super().has_create_database()
+
+    def has_create_role(self) -> bool:
+        if self._pg_cluster:
+            return self._pg_cluster.get_runtime_params().has_create_role
+        else:
+            return super().has_create_role()

@@ -2654,7 +2654,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 SELECT (U.cards.a.name, U.cards.a.id, U.cards) LIMIT 1;
             """,
             [
-                [{}, {}, {"id": {}}],
+                [str, str, {"id": str}],
             ],
         )
 
@@ -2847,6 +2847,18 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_scope_link_narrow_computable_01(self):
+        await self.assert_query_result(
+            """
+                SELECT Card {
+                    owners[IS Bot]: {name}
+                } FILTER .name = 'Sprite'
+            """,
+            [
+                {"owners": [{"name": "Dave"}]},
+            ],
+        )
+
     async def test_edgeql_scope_branch_01(self):
         await self.assert_query_result(
             """
@@ -2950,6 +2962,56 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     ]
                 }
             ],
+        )
+
+    async def test_edgeql_scope_3x_nested_materialized_01(self):
+        # Having a doubly nested thing needing materialization
+        # caused trouble previously.
+        await self.assert_query_result(
+            """
+                SELECT User {
+                    name,
+                    avatar: {
+                        name,
+                        awards: {
+                            name,
+                            nonce := random(),
+                        },
+                    }
+                }
+                FILTER EXISTS User.avatar.awards AND User.name = 'Alice';
+            """,
+            [
+                {
+                    "avatar": {"awards": [{"name": "1st"}], "name": "Dragon"},
+                    "name": "Alice"
+                }
+            ]
+        )
+
+    async def test_edgeql_scope_3x_nested_materialized_02(self):
+        # Having a doubly nested thing needing materialization
+        # caused trouble previously.
+        await self.assert_query_result(
+            """
+                SELECT User {
+                    name,
+                    avatar: {
+                        name,
+                        awd := (SELECT .awards {
+                            name,
+                            nonce := random(),
+                        } FILTER .name = '1st'),
+                    }
+                }
+                FILTER EXISTS User.avatar.awd AND User.name = 'Alice';
+            """,
+            [
+                {
+                    "avatar": {"awd": {"name": "1st"}, "name": "Dragon"},
+                    "name": "Alice"
+                }
+            ]
         )
 
     async def test_edgeql_scope_source_rebind_01(self):
@@ -3174,7 +3236,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
                     multi tag := User.name ++ " - " ++ .name,
                 }
             }),
-            FOR x IN {A} UNION (x.cards.tag);
+            FOR x IN A UNION (x.cards.tag);
         ''')
         self.assertEqual(len(baseline), 22)
 
@@ -3316,5 +3378,116 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 [{"friends": [{"name": "Dave"}]}, "Dave"],
                 [{"friends": []}, "n/a"],
                 [{"friends": []}, "n/a"],
+            ]
+        )
+
+    async def test_edgeql_select_outer_rebind_01(self):
+        await self.assert_query_result(
+            r'''
+            select User {
+              deck := (
+                with
+                  U := (
+                    select User.deck {
+                      el := User.deck.element
+                    }
+                  )
+                select U {
+                  name,
+                  el2 := U.el
+                } order by .name
+              )
+            } filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "deck": [
+                        {"el2": "Water", "name": "Bog monster"},
+                        {"el2": "Fire", "name": "Dragon"},
+                        {"el2": "Water", "name": "Giant turtle"},
+                        {"el2": "Fire", "name": "Imp"}
+                    ]
+                }
+            ]
+        )
+
+    @test.xfail("still breaks with a computed link")
+    async def test_edgeql_select_outer_rebind_02(self):
+        await self.assert_query_result(
+            r'''
+            select Card {
+              owners := (
+                with
+                  U := (
+                    select Card.owners {
+                      n := Card.owners.name
+                    }
+                  )
+                select U {
+                  n
+                } order by .name
+              )
+            } FILTER .name = 'Djinn';
+            ''',
+            [{"name": "Djinn", "owners": [{"n": "Carol"}, {"n": "Dave"}]}]
+        )
+
+    async def test_edgeql_select_outer_rebind_03(self):
+        await self.assert_query_result(
+            r'''
+            select User {
+              deck := (
+                with
+                  U := (
+                    select User.deck {
+                      cnt := User.deck@count
+                    }
+                  )
+                select U {
+                  name,
+                  cnt2 := U.cnt
+                } order by .name
+              )
+            } filter .name = 'Alice';
+            ''',
+            [
+                {
+                    "deck": [
+                        {"cnt2": 3, "name": "Bog monster"},
+                        {"cnt2": 2, "name": "Dragon"},
+                        {"cnt2": 3, "name": "Giant turtle"},
+                        {"cnt2": 2, "name": "Imp"}
+                    ]
+                }
+            ]
+        )
+
+    async def test_edgeql_select_outer_rebind_04(self):
+        await self.assert_query_result(
+            r'''
+            select User {
+              avatar := (
+                with
+                  U := (
+                    select User.avatar {
+                      t := User.avatar@text,
+                      retag := User.avatar@tag,
+                    }
+                  )
+                select U {
+                  name,
+                  t2 := U.t,
+                  retag,
+                }
+              )
+            } order by .name
+            ''',
+            [
+                {"avatar": {
+                    "name": "Dragon", "retag": "Dragon-Best", "t2": "Best"}},
+                {"avatar": None},
+                {"avatar": None},
+                {"avatar": {
+                    "name": "Djinn", "retag": "Djinn-Wow", "t2": "Wow"}}
             ]
         )

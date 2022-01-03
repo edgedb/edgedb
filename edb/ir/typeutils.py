@@ -32,6 +32,7 @@ from edb.schema import pseudo as s_pseudo
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
 from edb.schema import objtypes as s_objtypes
+from edb.schema import objects as s_obj
 from edb.schema import utils as s_utils
 
 from . import ast as irast
@@ -102,6 +103,16 @@ def is_generic(typeref: irast.TypeRef) -> bool:
 def is_abstract(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes an abstract type."""
     return typeref.is_abstract
+
+
+def is_json(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes the json type."""
+    return typeref.real_base_type.id == s_obj.get_known_type_id('std::json')
+
+
+def is_bytes(typeref: irast.TypeRef) -> bool:
+    """Return True if *typeref* describes the bytes type."""
+    return typeref.real_base_type.id == s_obj.get_known_type_id('std::bytes')
 
 
 def is_persistent_tuple(typeref: irast.TypeRef) -> bool:
@@ -240,17 +251,6 @@ def type_to_typeref(
         else:
             name = tname
 
-        common_parent_ref: Optional[irast.TypeRef]
-        if union_of:
-            common_parent = s_utils.get_class_nearest_common_ancestor(
-                schema, union_of.objects(schema))
-            assert isinstance(common_parent, s_types.Type)
-            common_parent_ref = type_to_typeref(
-                schema, common_parent, cache=cache
-            )
-        else:
-            common_parent_ref = None
-
         descendants: Optional[FrozenSet[irast.TypeRef]]
 
         if material_typeref is None and include_descendants:
@@ -293,7 +293,6 @@ def type_to_typeref(
             union=union,
             union_is_concrete=union_is_concrete,
             intersection=intersection,
-            common_parent=common_parent_ref,
             element_name=_name,
             is_scalar=t.is_scalar(),
             is_abstract=t.get_abstract(schema),

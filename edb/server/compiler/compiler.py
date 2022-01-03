@@ -67,13 +67,13 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
+from edb.pgsql import common as pg_common
 from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
-from edb.pgsql import common as pg_common
+from edb.pgsql import params as pg_params
 from edb.pgsql import types as pg_types
 
 from edb.server import config
-from edb.server import pgcluster
 
 from . import dbstate
 from . import enums
@@ -108,8 +108,8 @@ class CompileContext:
     inline_objectids: bool = True
     schema_object_ids: Optional[Mapping[s_name.Name, uuid.UUID]] = None
     source: Optional[edgeql.Source] = None
-    backend_runtime_params: Any = (
-        pgcluster.get_default_runtime_params())
+    backend_runtime_params: pg_params.BackendRuntimeParams = (
+        pg_params.get_default_runtime_params())
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
@@ -253,8 +253,8 @@ class Compiler:
     def __init__(
         self,
         *,
-        backend_runtime_params: pgcluster.BackendRuntimeParams=
-            pgcluster.get_default_runtime_params(),
+        backend_runtime_params: pg_params.BackendRuntimeParams=
+            pg_params.get_default_runtime_params(),
     ):
         self._dbname = None
         self._cached_db = None
@@ -582,6 +582,7 @@ class Compiler:
                 json_parameters=ctx.json_parameters,
                 implicit_limit=ctx.implicit_limit,
                 allow_writing_protected_pointers=ctx.schema_reflection_mode,
+                bootstrap_mode=ctx.bootstrap_mode,
                 apply_query_rewrites=(
                     not ctx.bootstrap_mode
                     and not ctx.schema_reflection_mode
@@ -607,6 +608,7 @@ class Compiler:
             ),
             expected_cardinality_one=ctx.expected_cardinality_one,
             output_format=_convert_format(ctx.output_format),
+            backend_runtime_params=ctx.backend_runtime_params,
         )
 
         if (
@@ -758,7 +760,11 @@ class Compiler:
             and ctx.log_ddl_as_migrations
             and not isinstance(
                 stmt,
-                (qlast.CreateMigration, qlast.GlobalObjectCommand),
+                (
+                    qlast.CreateMigration,
+                    qlast.GlobalObjectCommand,
+                    qlast.DropMigration,
+                ),
             )
         ):
             cm = qlast.CreateMigration(
@@ -1023,7 +1029,10 @@ class Compiler:
             if ql.language is qltypes.DescribeLanguage.DDL:
                 text = []
                 for stmt in mstate.accepted_cmds:
-                    text.append(qlcodegen.generate_source(stmt, pretty=True))
+                    # Generate uppercase DDL commands for backwards
+                    # compatibility with older migration text.
+                    text.append(qlcodegen.generate_source(
+                        stmt, pretty=True, uppercase=True))
 
                 if text:
                     description = ';\n'.join(text) + ';'
@@ -1047,7 +1056,12 @@ class Compiler:
                         # Add a terminating semicolon to match
                         # "proposed", which is created by
                         # s_ddl.statements_from_delta.
-                        qlcodegen.generate_source(stmt, pretty=True) + ';',
+                        #
+                        # Also generate uppercase DDL commands for
+                        # backwards compatibility with older migration
+                        # text.
+                        qlcodegen.generate_source(
+                            stmt, pretty=True, uppercase=True) + ';',
                     )
 
                 if not mstate.last_proposed:
@@ -1057,11 +1071,16 @@ class Compiler:
                         generate_prompts=True,
                         guidance=mstate.guidance,
                     )
+                    if debug.flags.delta_plan:
+                        debug.header(
+                            'DESCRIBE CURRENT MIGRATION AS JSON delta')
+                        debug.dump(guided_diff)
 
                     proposed_ddl = s_ddl.statements_from_delta(
                         schema,
                         mstate.target_schema,
                         guided_diff,
+                        uppercase=True
                     )
                     proposed_steps = []
 
@@ -1082,12 +1101,15 @@ class Compiler:
                                 schema=schema,
                                 modaliases=current_tx.get_modaliases(),
                             )
-                            _, prompt_text = top_op2.get_user_prompt()
+                            prompt_key2, prompt_text = (
+                                top_op2.get_user_prompt())
 
                             # The prompt_id still needs to come from
                             # the original op, though, since
                             # orig_cmd_class is lost in ddl.
-                            prompt_id, _ = top_op.get_user_prompt()
+                            prompt_key, _ = top_op.get_user_prompt()
+                            prompt_id = s_delta.get_object_command_id(
+                                prompt_key)
                             confidence = top_op.get_annotation('confidence')
                             assert confidence is not None
 
@@ -1100,6 +1122,7 @@ class Compiler:
                                 required_user_input=tuple(
                                     top_op.get_required_user_input().items(),
                                 ),
+                                operation_key=prompt_key2,
                             )
                             proposed_steps.append(step)
 
@@ -1145,53 +1168,33 @@ class Compiler:
 
         elif isinstance(ql, qlast.AlterCurrentMigrationRejectProposed):
             mstate = self._assert_in_migration_block(ctx, ql)
-
-            diff = s_ddl.delta_schemas(
-                schema,
-                mstate.target_schema,
-                generate_prompts=True,
-                guidance=mstate.guidance,
-            )
-
-            try:
-                top_command = next(iter(diff.get_subcommands()))
-            except StopIteration:
+            if not mstate.last_proposed:
+                # XXX: Or should we compute what the proposal would be?
                 new_guidance = mstate.guidance
             else:
-                if (orig_cmdclass :=
-                        top_command.get_annotation('orig_cmdclass')):
-                    top_cmdclass = orig_cmdclass
-                else:
-                    top_cmdclass = type(top_command)
 
-                if issubclass(top_cmdclass, s_delta.AlterObject):
+                last = mstate.last_proposed[0]
+                cmdclass_name, mcls, classname, new_name = last.operation_key
+                if new_name is None:
+                    new_name = classname
+
+                if cmdclass_name.startswith('Create'):
                     new_guidance = mstate.guidance._replace(
-                        banned_alters=mstate.guidance.banned_alters | {(
-                            top_command.get_schema_metaclass(),
-                            (
-                                top_command.classname,
-                                top_command.get_annotation('new_name'),
-                            ),
-                        )}
+                        banned_creations=mstate.guidance.banned_creations | {
+                            (mcls, classname),
+                        }
                     )
-                elif issubclass(top_cmdclass, s_delta.CreateObject):
+                elif cmdclass_name.startswith('Delete'):
                     new_guidance = mstate.guidance._replace(
-                        banned_creations=mstate.guidance.banned_creations | {(
-                            top_command.get_schema_metaclass(),
-                            top_command.classname,
-                        )}
-                    )
-                elif issubclass(top_cmdclass, s_delta.DeleteObject):
-                    new_guidance = mstate.guidance._replace(
-                        banned_deletions=mstate.guidance.banned_deletions | {(
-                            top_command.get_schema_metaclass(),
-                            top_command.classname,
-                        )}
+                        banned_deletions=mstate.guidance.banned_deletions | {
+                            (mcls, classname),
+                        }
                     )
                 else:
-                    raise AssertionError(
-                        f'unexpected top-level command in '
-                        f'delta diff: {top_cmdclass!r}',
+                    new_guidance = mstate.guidance._replace(
+                        banned_alters=mstate.guidance.banned_alters | {
+                            (mcls, (classname, new_name)),
+                        }
                     )
 
             mstate = mstate._replace(
@@ -1286,6 +1289,11 @@ class Compiler:
 
             current_tx.update_migration_state(None)
             query = self._compile_ql_transaction(ctx, tx_cmd)
+
+        elif isinstance(ql, qlast.DropMigration):
+            self._assert_not_in_migration_block(ctx, ql)
+
+            query = self._compile_and_apply_ddl_stmt(ctx, ql)
 
         else:
             raise AssertionError(f'unexpected migration command: {ql}')
@@ -1516,6 +1524,7 @@ class Compiler:
             ir,
             pretty=(debug.flags.edgeql_compile
                     or debug.flags.edgeql_compile_sql_text),
+            backend_runtime_params=ctx.backend_runtime_params,
         )
 
         sql = (sql_text.encode(),)
@@ -2344,6 +2353,21 @@ class Compiler:
         else:
             dump_server_ver = None
 
+        if (
+            (dump_server_ver.major, dump_server_ver.minor) == (1, 0)
+            and dump_server_ver.stage is verutils.VersionStage.DEV
+        ):
+            # Pre-1.0 releases post RC3 have DEV in their stage,
+            # but for compatibility comparisons below we need to revert
+            # to the pre-1.0-rc3 layout
+            dump_server_ver = dump_server_ver._replace(
+                stage=verutils.VersionStage.RC,
+                stage_no=3,
+                local=(
+                    ('dev', dump_server_ver.stage_no) + dump_server_ver.local
+                ),
+            )
+
         state = dbstate.CompilerConnectionState(
             user_schema=user_schema,
             global_schema=global_schema,
@@ -2368,15 +2392,21 @@ class Compiler:
         ctx.state.start_tx()
 
         dump_with_extraneous_computables = (
-            dump_server_ver is None
-            or dump_server_ver < (1, 0, verutils.VersionStage.ALPHA, 8)
+            (
+                dump_server_ver is None
+                or dump_server_ver < (1, 0, verutils.VersionStage.ALPHA, 8)
+            )
+            and dump_server_ver.stage is not verutils.VersionStage.DEV
         )
 
         dump_with_ptr_item_id = dump_with_extraneous_computables
 
         allow_dml_in_functions = (
-            dump_server_ver is None
-            or dump_server_ver < (1, 0, verutils.VersionStage.BETA, 1)
+            (
+                dump_server_ver is None
+                or dump_server_ver < (1, 0, verutils.VersionStage.BETA, 1)
+            )
+            and dump_server_ver.stage is not verutils.VersionStage.DEV
         )
 
         schema_ddl_text = schema_ddl.decode('utf-8')

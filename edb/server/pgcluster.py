@@ -20,9 +20,6 @@ from __future__ import annotations
 from typing import *
 
 import asyncio
-import enum
-import functools
-import locale
 import logging
 import os
 import os.path
@@ -43,6 +40,7 @@ from edb.common import uuidgen
 from edb.server import defines
 from edb.server.ha import base as ha_base
 from edb.pgsql import common as pgcommon
+from edb.pgsql import params as pgparams
 
 from . import pgconnparams
 
@@ -58,18 +56,6 @@ get_database_backend_name = pgcommon.get_database_backend_name
 get_role_backend_name = pgcommon.get_role_backend_name
 
 
-def _is_c_utf8_locale_present() -> bool:
-    try:
-        locale.setlocale(locale.LC_CTYPE, 'C.UTF-8')
-    except Exception:
-        return False
-    else:
-        # We specifically don't use locale.getlocale(), because
-        # it can lie and return a non-existent locale due to PEP 538.
-        locale.setlocale(locale.LC_CTYPE, '')
-        return True
-
-
 class ClusterError(Exception):
     pass
 
@@ -78,63 +64,12 @@ class PostgresPidFileNotReadyError(Exception):
     """Raised on an attempt to read non-existent or bad Postgres PID file"""
 
 
-class BackendCapabilities(enum.IntFlag):
-
-    NONE = 0
-    #: Whether CREATE ROLE .. SUPERUSER is allowed
-    SUPERUSER_ACCESS = 1 << 0
-    #: Whether reading PostgreSQL configuration files
-    #: via pg_file_settings is allowed
-    CONFIGFILE_ACCESS = 1 << 1
-    #: Whether the PostgreSQL server supports the C.UTF-8 locale
-    C_UTF8_LOCALE = 1 << 2
-
-
-ALL_BACKEND_CAPABILITIES = (
-    BackendCapabilities.SUPERUSER_ACCESS
-    | BackendCapabilities.CONFIGFILE_ACCESS
-    | BackendCapabilities.C_UTF8_LOCALE
-)
-
-
-class BackendInstanceParams(NamedTuple):
-
-    capabilities: BackendCapabilities
-    tenant_id: str
-    base_superuser: Optional[str] = None
-    max_connections: int = 500
-    reserved_connections: int = 0
-
-
-class BackendRuntimeParams(NamedTuple):
-
-    instance_params: BackendInstanceParams
-    session_authorization_role: Optional[str] = None
-
-
-@functools.lru_cache
-def get_default_runtime_params(**instance_params: Any) -> BackendRuntimeParams:
-    capabilities = ALL_BACKEND_CAPABILITIES
-    if not _is_c_utf8_locale_present():
-        capabilities &= ~BackendCapabilities.C_UTF8_LOCALE
-    instance_params.setdefault('capabilities', capabilities)
-    if 'tenant_id' not in instance_params:
-        instance_params = dict(
-            tenant_id=buildmeta.get_default_tenant_id(),
-            **instance_params,
-        )
-
-    return BackendRuntimeParams(
-        instance_params=BackendInstanceParams(**instance_params),
-    )
-
-
 class BaseCluster:
 
     def __init__(
         self,
         *,
-        instance_params: Optional[BackendInstanceParams] = None,
+        instance_params: Optional[pgparams.BackendInstanceParams] = None,
     ) -> None:
         self._connection_addr: Optional[Tuple[str, int]] = None
         self._connection_params: Optional[
@@ -145,17 +80,36 @@ class BaseCluster:
         self._pg_bin_dir: Optional[pathlib.Path] = None
         if instance_params is None:
             self._instance_params = (
-                get_default_runtime_params().instance_params)
+                pgparams.get_default_runtime_params().instance_params)
         else:
             self._instance_params = instance_params
 
     def get_db_name(self, db_name: str) -> str:
+        if (
+            not self._instance_params.capabilities
+            & pgparams.BackendCapabilities.CREATE_DATABASE
+        ):
+            assert (
+                db_name == defines.EDGEDB_SUPERUSER_DB
+            ), f"db_name={db_name} is not allowed"
+            rv = self.get_connection_params().database
+            assert rv is not None
+            return rv
         return get_database_backend_name(
             db_name,
             tenant_id=self._instance_params.tenant_id,
         )
 
     def get_role_name(self, role_name: str) -> str:
+        if (
+            not self._instance_params.capabilities
+            & pgparams.BackendCapabilities.CREATE_ROLE
+        ):
+            assert (
+                role_name == defines.EDGEDB_SUPERUSER
+            ), f"role_name={role_name} is not allowed"
+            return self.get_connection_params().user
+
         return get_database_backend_name(
             role_name,
             tenant_id=self._instance_params.tenant_id,
@@ -203,15 +157,22 @@ class BaseCluster:
     def stop_watching(self) -> None:
         pass
 
-    def get_runtime_params(self) -> BackendRuntimeParams:
+    def get_runtime_params(self) -> pgparams.BackendRuntimeParams:
         params = self.get_connection_params()
         login_role: Optional[str] = params.user
         sup_role = self.get_role_name(defines.EDGEDB_SUPERUSER)
-        return BackendRuntimeParams(
+        return pgparams.BackendRuntimeParams(
             instance_params=self._instance_params,
             session_authorization_role=(
                 None if login_role == sup_role else login_role
             ),
+        )
+
+    def overwrite_capabilities(
+        self, caps: pgparams.BackendCapabilities
+    ) -> None:
+        self._instance_params = self._instance_params._replace(
+            capabilities=caps
         )
 
     def get_connection_addr(self) -> Optional[Tuple[str, int]]:
@@ -354,7 +315,7 @@ class Cluster(BaseCluster):
         data_dir: pathlib.Path,
         *,
         runstate_dir: Optional[pathlib.Path] = None,
-        instance_params: Optional[BackendInstanceParams] = None,
+        instance_params: Optional[pgparams.BackendInstanceParams] = None,
         log_level: str = 'i',
     ):
         super().__init__(instance_params=instance_params)
@@ -413,10 +374,7 @@ class Cluster(BaseCluster):
             logger.info(
                 'Initializing database cluster in %s', self._data_dir)
 
-            instance_params = self.get_runtime_params().instance_params
-            capabilities = instance_params.capabilities
-            have_c_utf8 = (
-                capabilities & BackendCapabilities.C_UTF8_LOCALE)
+            have_c_utf8 = self.get_runtime_params().has_c_utf8_locale
             await self.init(
                 username='postgres',
                 locale='C.UTF-8' if have_c_utf8 else 'en_US.UTF-8',
@@ -678,8 +636,10 @@ class Cluster(BaseCluster):
                 sockdir = os.path.normpath(
                     os.path.join(self._data_dir, sockdir))
             host_str = sockdir
-        else:
+        elif hostaddr:
             host_str = hostaddr
+        else:
+            raise PostgresPidFileNotReadyError
 
         if host_str == '*':
             host_str = 'localhost'
@@ -745,7 +705,7 @@ class RemoteCluster(BaseCluster):
         addr: Tuple[str, int],
         params: pgconnparams.ConnectionParameters,
         *,
-        instance_params: Optional[BackendInstanceParams] = None,
+        instance_params: Optional[pgparams.BackendInstanceParams] = None,
         ha_backend: Optional[ha_base.HABackend] = None,
     ):
         super().__init__(instance_params=instance_params)
@@ -849,7 +809,7 @@ async def get_local_pg_cluster(
         tenant_id = buildmeta.get_default_tenant_id()
     instance_params = None
     if max_connections is not None:
-        instance_params = get_default_runtime_params(
+        instance_params = pgparams.get_default_runtime_params(
             max_connections=max_connections,
             tenant_id=tenant_id,
         ).instance_params
@@ -897,6 +857,7 @@ async def get_remote_pg_cluster(
         managed_clouds = {
             'rds_superuser': RemoteCluster,    # Amazon RDS
             'cloudsqlsuperuser': RemoteCluster,    # GCP Cloud SQL
+            'azure_pg_admin': RemoteCluster,    # Azure Postgres
         }
 
         managed_cloud_super = await conn.fetchval(
@@ -920,20 +881,54 @@ async def get_remote_pg_cluster(
 
     async def _detect_capabilities(
         conn: asyncpg.Connection,
-    ) -> BackendCapabilities:
-        caps = BackendCapabilities.NONE
+    ) -> pgparams.BackendCapabilities:
+        caps = pgparams.BackendCapabilities.NONE
 
         try:
-            await conn.execute(f'ALTER SYSTEM SET foo = 10')
+            cur_cluster_name = await conn.fetchval(f'''
+                SELECT
+                    setting
+                FROM
+                    pg_file_settings
+                WHERE
+                    setting = 'cluster_name'
+                    AND sourcefile = ((
+                        SELECT setting
+                        FROM pg_settings WHERE name = 'data_directory'
+                    ) || '/postgresql.auto.conf')
+            ''')
         except asyncpg.InsufficientPrivilegeError:
             configfile_access = False
-        except asyncpg.UndefinedObjectError:
-            configfile_access = True
         else:
-            configfile_access = True
+            try:
+                await conn.execute(f"""
+                    ALTER SYSTEM SET cluster_name = 'edgedb-test'
+                """)
+            except asyncpg.InsufficientPrivilegeError:
+                configfile_access = False
+            except asyncpg.InternalServerError as e:
+                # Stolon keeper symlinks postgresql.auto.conf to /dev/null
+                # making ALTER SYSTEM fail with InternalServerError,
+                # see https://github.com/sorintlab/stolon/pull/343
+                if 'could not fsync file "postgresql.auto.conf"' in e.args[0]:
+                    configfile_access = False
+                else:
+                    raise
+            else:
+                configfile_access = True
+
+                if cur_cluster_name:
+                    await conn.execute(f"""
+                        ALTER SYSTEM SET cluster_name =
+                            '{pgcommon.quote_literal(cur_cluster_name)}'
+                    """)
+                else:
+                    await conn.execute(f"""
+                        ALTER SYSTEM SET cluster_name = DEFAULT
+                    """)
 
         if configfile_access:
-            caps |= BackendCapabilities.CONFIGFILE_ACCESS
+            caps |= pgparams.BackendCapabilities.CONFIGFILE_ACCESS
 
         tx = conn.transaction()
         await tx.start()
@@ -949,7 +944,7 @@ async def get_remote_pg_cluster(
             await tx.rollback()
 
         if can_make_superusers:
-            caps |= BackendCapabilities.SUPERUSER_ACCESS
+            caps |= pgparams.BackendCapabilities.SUPERUSER_ACCESS
 
         coll = await conn.fetchval('''
             SELECT collname FROM pg_collation
@@ -957,7 +952,17 @@ async def get_remote_pg_cluster(
         ''')
 
         if coll is not None:
-            caps |= BackendCapabilities.C_UTF8_LOCALE
+            caps |= pgparams.BackendCapabilities.C_UTF8_LOCALE
+
+        roles = await conn.fetchrow('''
+            SELECT rolcreaterole, rolcreatedb FROM pg_roles
+            WHERE rolname = (SELECT current_user);
+        ''')
+
+        if roles['rolcreaterole']:
+            caps |= pgparams.BackendCapabilities.CREATE_ROLE
+        if roles['rolcreatedb']:
+            caps |= pgparams.BackendCapabilities.CREATE_DATABASE
 
         return caps
 
@@ -985,10 +990,29 @@ async def get_remote_pg_cluster(
 
     conn = await rcluster.connect()
     try:
+        user, dbname = await conn.fetchrow(
+            "SELECT current_user, current_database()"
+        )
         cluster_type, superuser_name = await _get_cluster_type(conn)
         max_connections = await _get_pg_settings(conn, 'max_connections')
-        instance_params = BackendInstanceParams(
-            capabilities=await _detect_capabilities(conn),
+        capabilities = await _detect_capabilities(conn)
+        if t_id != buildmeta.get_default_tenant_id():
+            # GOTCHA: This tenant_id check cannot protect us from running
+            # multiple EdgeDB servers using the default tenant_id with
+            # different catalog versions on the same backend. However, that
+            # would fail during bootstrap in single-role/database mode.
+            if not capabilities & pgparams.BackendCapabilities.CREATE_ROLE:
+                raise ClusterError(
+                    "The remote backend doesn't support CREATE ROLE; "
+                    "multi-tenancy is disabled."
+                )
+            if not capabilities & pgparams.BackendCapabilities.CREATE_DATABASE:
+                raise ClusterError(
+                    "The remote backend doesn't support CREATE DATABASE; "
+                    "multi-tenancy is disabled."
+                )
+        instance_params = pgparams.BackendInstanceParams(
+            capabilities=capabilities,
             base_superuser=superuser_name,
             max_connections=int(max_connections),
             reserved_connections=await _get_reserved_connections(conn),
@@ -997,6 +1021,8 @@ async def get_remote_pg_cluster(
     finally:
         await conn.close()
 
+    params.user = user
+    params.database = dbname
     return cluster_type(
         addrs[0],
         params,

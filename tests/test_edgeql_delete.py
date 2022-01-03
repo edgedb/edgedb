@@ -50,7 +50,24 @@ class TestDelete(tb.QueryTestCase):
             await self.con.execute('''\
                 DELETE 42;
             ''')
-        pass
+
+    async def test_edgeql_delete_bad_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'free objects cannot be deleted',
+        ):
+            await self.con.execute('''\
+                WITH foo := {bar := 1}
+                DELETE foo
+            ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            r'free objects cannot be deleted',
+        ):
+            await self.con.execute('''\
+                DELETE std::FreeObject
+            ''')
 
     async def test_edgeql_delete_simple_01(self):
         # ensure a clean slate, not part of functionality testing

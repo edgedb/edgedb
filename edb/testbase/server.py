@@ -28,6 +28,7 @@ import contextlib
 import decimal
 import functools
 import heapq
+import http.client
 import inspect
 import json
 import math
@@ -51,13 +52,17 @@ from datetime import timedelta
 import edgedb
 
 from edb.edgeql import quote as qlquote
+from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
 from edb.common import devmode
 from edb.common import taskgroup
 
+from edb.protocol import protocol as test_protocol
 from edb.testbase import serutils
+
+from edb.testbase import connection as tconn
 
 
 if TYPE_CHECKING:
@@ -226,7 +231,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         Example:
 
             async for tr in self.try_until_succeeds(
-                    ignore_errors=edgedb.AuthenticationError):
+                    ignore=edgedb.AuthenticationError):
                 async with tr:
                     await edgedb.connect(...)
 
@@ -249,7 +254,7 @@ class TestCase(unittest.TestCase, metaclass=TestCaseMeta):
         Example:
 
             async for tr in self.try_until_fails(
-                    ignore_errors=edgedb.AuthenticationError):
+                    wait_for=edgedb.AuthenticationError):
                 async with tr:
                     await edgedb.connect(...)
 
@@ -389,6 +394,8 @@ async def init_cluster(
     *,
     cleanup_atexit=True,
     init_settings=None,
+    security=edgedb_args.ServerSecurityMode.Strict,
+    http_endpoint_security=edgedb_args.ServerEndpointSecurityMode.Optional,
 ) -> edgedb_cluster.BaseCluster:
     if data_dir is not None and backend_dsn is not None:
         raise ValueError(
@@ -399,21 +406,28 @@ async def init_cluster(
     if backend_dsn:
         cluster = edgedb_cluster.TempClusterWithRemotePg(
             backend_dsn, testmode=True, log_level='s',
-            data_dir_prefix='edb-test-')
+            data_dir_prefix='edb-test-',
+            security=security,
+            http_endpoint_security=http_endpoint_security)
         destroy = True
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
-            testmode=True, log_level='s', data_dir_prefix='edb-test-')
+            testmode=True, log_level='s', data_dir_prefix='edb-test-',
+            security=security,
+            http_endpoint_security=http_endpoint_security)
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
-            data_dir=data_dir, log_level='s')
+            data_dir=data_dir, log_level='s',
+            security=security,
+            http_endpoint_security=http_endpoint_security)
         destroy = False
 
     if await cluster.get_status() == 'not-initialized':
         await cluster.init(server_settings=init_settings)
 
     await cluster.start(port=0)
+    await cluster.set_test_config()
     await cluster.set_superuser_password('test')
 
     if cleanup_atexit:
@@ -422,7 +436,12 @@ async def init_cluster(
     return cluster
 
 
-def _start_cluster(*, loop: asyncio.AbstractEventLoop, cleanup_atexit=True):
+def _start_cluster(
+    *,
+    loop: asyncio.AbstractEventLoop,
+    cleanup_atexit=True,
+    http_endpoint_security=None,
+):
     global _default_cluster
 
     if _default_cluster is None:
@@ -440,6 +459,7 @@ def _start_cluster(*, loop: asyncio.AbstractEventLoop, cleanup_atexit=True):
                     data_dir=data_dir,
                     backend_dsn=backend_dsn,
                     cleanup_atexit=cleanup_atexit,
+                    http_endpoint_security=http_endpoint_security,
                 )
             )
 
@@ -453,6 +473,54 @@ def _shutdown_cluster(cluster, *, destroy=True):
         cluster.stop()
         if destroy:
             cluster.destroy()
+
+
+def _fetch_metrics(host: str, port: int) -> str:
+    return _call_system_api(host, port, '/metrics', return_json=False)
+
+
+def _fetch_server_info(host: str, port: int) -> dict[str, Any]:
+    return _call_system_api(host, port, '/server-info')
+
+
+def _call_system_api(host: str, port: int, path: str, return_json=True):
+    con = http.client.HTTPConnection(host, port)
+    con.connect()
+    try:
+        con.request(
+            'GET',
+            f'http://{host}:{port}{path}'
+        )
+        resp = con.getresponse()
+        if resp.status != 200:
+            err = resp.read().decode()
+            raise AssertionError(
+                f'{path} returned non 200 HTTP status: {resp.status}\n\t{err}'
+            )
+        rv = resp.read().decode()
+        if return_json:
+            rv = json.loads(rv)
+        return rv
+    finally:
+        con.close()
+
+
+def _extract_background_errors(metrics: str) -> str | None:
+    non_zero = []
+
+    for line in metrics.splitlines():
+        if line.startswith('edgedb_server_background_errors_total'):
+            label, _, total = line.rpartition(' ')
+            total = float(total)
+            if total:
+                non_zero.append(
+                    f'non-zero {label!r} metric: {total}'
+                )
+
+    if non_zero:
+        return '\n'.join(non_zero)
+    else:
+        return None
 
 
 class ClusterTestCase(TestCase):
@@ -489,8 +557,35 @@ class ClusterTestCase(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.cluster = _start_cluster(loop=cls.loop, cleanup_atexit=True)
+        cls.cluster = _start_cluster(
+            loop=cls.loop,
+            cleanup_atexit=True,
+            http_endpoint_security=(
+                edgedb_args.ServerEndpointSecurityMode.Optional),
+        )
+        cls.has_create_database = cls.cluster.has_create_database()
+        cls.has_create_role = cls.cluster.has_create_role()
         cls.backend_dsn = os.environ.get('EDGEDB_TEST_BACKEND_DSN')
+
+    @classmethod
+    async def tearDownSingleDB(cls):
+        await cls.con.execute(
+            'START MIGRATION TO {};\n'
+            'POPULATE MIGRATION;\n'
+            'COMMIT MIGRATION;'
+        )
+        while m := await cls.con.query_single(
+            "SELECT schema::Migration { name } "
+            "FILTER NOT EXISTS .<parents LIMIT 1"
+        ):
+            await cls.con.execute(f"DROP MIGRATION {m.name}")
+
+    @classmethod
+    def fetch_metrics(cls) -> str:
+        assert cls.cluster is not None
+        conargs = cls.cluster.get_connect_args()
+        host, port = conargs['host'], conargs['port']
+        return _fetch_metrics(host, port)
 
     @classmethod
     def get_connect_args(cls, *,
@@ -523,6 +618,14 @@ class ClusterTestCase(TestCase):
             and cls.get_parallelism_granularity() == 'database'
         )
 
+    def ensure_no_background_server_errors(self):
+        metrics = self.fetch_metrics()
+        errors = _extract_background_errors(metrics)
+        if errors:
+            raise AssertionError(
+                f'{self._testMethodName!r}:\n\n{errors}'
+            )
+
     def setUp(self):
         if self.INTERNAL_TESTMODE:
             self.loop.run_until_complete(
@@ -541,6 +644,8 @@ class ClusterTestCase(TestCase):
 
     def tearDown(self):
         try:
+            self.ensure_no_background_server_errors()
+
             if self.TEARDOWN_METHOD:
                 self.loop.run_until_complete(
                     self.con.execute(self.TEARDOWN_METHOD))
@@ -610,7 +715,7 @@ class ConnectedTestCaseMixin:
                       password='test'):
         conargs = cls.get_connect_args(
             cluster=cluster, database=database, user=user, password=password)
-        return await edgedb.async_connect(**conargs)
+        return await tconn.async_connect_test_client(**conargs)
 
     def repl(self):
         """Open interactive EdgeQL REPL right in the test.
@@ -747,6 +852,13 @@ class ConnectedTestCaseMixin:
                         f'{_format_path(path)}')
 
         def _assert_dict_shape(path, data, shape):
+            if not isinstance(data, dict):
+                self.fail(
+                    f'{message}: expected dict '
+                    f'{_format_path(path)}')
+
+            # TODO: should we also check that there aren't *extra* keys
+            # (other than id, __tname__?)
             for sk, sv in shape.items():
                 if not data or sk not in data:
                     self.fail(
@@ -863,8 +975,8 @@ class ConnectedTestCaseMixin:
                     self.fail(
                         f'{message}: {data!r} != {shape!r} '
                         f'{_format_path(path)}')
-            elif isinstance(shape, (str, int, timedelta, decimal.Decimal,
-                                    edgedb.RelativeDuration)):
+            elif isinstance(shape, (str, int, bytes, timedelta,
+                                    decimal.Decimal, edgedb.RelativeDuration)):
                 if data != shape:
                     self.fail(
                         f'{message}: {data!r} != {shape!r} '
@@ -964,13 +1076,16 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         cls.admin_conn = None
         cls.con = None
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
 
         # Only open an extra admin connection if necessary.
-        if not class_set_up:
+        if class_set_up == 'run':
             script = f'CREATE DATABASE {dbname};'
             cls.admin_conn = cls.loop.run_until_complete(cls.connect())
             cls.loop.run_until_complete(cls.admin_conn.execute(script))
+
+        elif class_set_up == 'inplace':
+            dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
 
         elif cls.uses_database_copies():
             cls.admin_conn = cls.loop.run_until_complete(cls.connect())
@@ -1021,7 +1136,7 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
         cls.con = cls.loop.run_until_complete(cls.connect(database=dbname))
 
-        if not class_set_up:
+        if class_set_up != 'skip':
             script = cls.get_setup_script()
             if script:
                 cls.loop.run_until_complete(cls.con.execute(script))
@@ -1030,20 +1145,25 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
     def tearDownClass(cls):
         script = ''
 
-        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP')
+        class_set_up = os.environ.get('EDGEDB_TEST_CASES_SET_UP', 'run')
 
-        if cls.TEARDOWN and not class_set_up:
+        if cls.TEARDOWN and class_set_up != 'skip':
             script = cls.TEARDOWN.strip()
 
         try:
             if script:
                 cls.loop.run_until_complete(
                     cls.con.execute(script))
+            if class_set_up == 'inplace':
+                cls.loop.run_until_complete(cls.tearDownSingleDB())
         finally:
             try:
                 cls.loop.run_until_complete(cls.con.aclose())
 
-                if not class_set_up or cls.uses_database_copies():
+                if class_set_up == 'inplace':
+                    pass
+
+                elif class_set_up == 'run' or cls.uses_database_copies():
                     dbname = qlquote.quote_ident(cls.get_database_name())
 
                     # The retry loop below masks connection abort races.
@@ -1080,6 +1200,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
     @classmethod
     def get_database_name(cls):
+        if not getattr(cls, 'has_create_database', True):
+            return edgedb_defines.EDGEDB_SUPERUSER_DB
+
         if cls.__name__.startswith('TestEdgeQL'):
             dbname = cls.__name__[len('TestEdgeQL'):]
         elif cls.__name__.startswith('Test'):
@@ -1227,7 +1350,19 @@ class DumpCompatTestCaseMeta(TestCaseMeta):
         mod = sys.modules[ns['__module__']]
         dumps_dir = pathlib.Path(mod.__file__).parent / 'dumps' / dump_subdir
 
+        async def check_dump_restore_compat_single_db(self, *, dumpfn):
+            dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
+            self.run_cli('-d', dbname, 'restore', str(dumpfn))
+            try:
+                await check_method(self)
+            finally:
+                await self.tearDownSingleDB()
+
         async def check_dump_restore_compat(self, *, dumpfn: pathlib.Path):
+            if not self.has_create_database:
+                return await check_dump_restore_compat_single_db(
+                    self, dumpfn=dumpfn
+                )
 
             dbname = f"{type(self).__name__}_{dumpfn.stem}"
             qdbname = qlquote.quote_ident(dbname)
@@ -1277,7 +1412,18 @@ class StableDumpTestCase(QueryTestCase, CLITestCaseMixin):
     STABLE_DUMP = True
     TRANSACTION_ISOLATION = False
 
+    async def check_dump_restore_single_db(self, check_method):
+        with tempfile.NamedTemporaryFile() as f:
+            dbname = edgedb_defines.EDGEDB_SUPERUSER_DB
+            self.run_cli('-d', dbname, 'dump', f.name)
+            await self.tearDownSingleDB()
+            self.run_cli('-d', dbname, 'restore', f.name)
+        await check_method(self)
+
     async def check_dump_restore(self, check_method):
+        if not self.has_create_database:
+            return await self.check_dump_restore_single_db(check_method)
+
         src_dbname = self.get_database_name()
         tgt_dbname = f'{src_dbname}_restored'
         q_tgt_dbname = qlquote.quote_ident(tgt_dbname)
@@ -1361,8 +1507,9 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
     default_args.update(conn_args)
 
     try:
-        admin_conn = await edgedb.async_connect(
+        admin_conn = edgedb.create_async_client(
             database=edgedb_defines.EDGEDB_SUPERUSER_DB,
+            concurrency=1,
             **default_args)
     except Exception as ex:
         raise RuntimeError(
@@ -1385,8 +1532,9 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
 
     dbconn = await edgedb.async_connect(database=dbname, **default_args)
     try:
-        async with dbconn.transaction():
-            await dbconn.execute(setup_script)
+        async for tx in dbconn.transaction():
+            async with tx:
+                await dbconn.execute(setup_script)
     except Exception as ex:
         raise RuntimeError(
             f'exception during initialization of {dbname!r} test DB: '
@@ -1417,7 +1565,7 @@ class _EdgeDBServerData(NamedTuple):
     server_data: Any
     tls_cert_file: str
 
-    def get_connect_args(self, **kwargs):
+    def get_connect_args(self, **kwargs) -> dict[str, str | int]:
         conn_args = dict(
             user='edgedb',
             password=self.password,
@@ -1429,9 +1577,24 @@ class _EdgeDBServerData(NamedTuple):
         conn_args.update(kwargs)
         return conn_args
 
+    def fetch_metrics(self) -> str:
+        return _fetch_metrics(self.host, self.port)
+
+    def fetch_server_info(self) -> dict[str, Any]:
+        return _fetch_server_info(self.host, self.port)
+
+    def call_system_api(self, path: str):
+        return _call_system_api(self.host, self.port, path)
+
     async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
         conn_args = self.get_connect_args(**kwargs)
-        return await edgedb.async_connect(**conn_args)
+        return await tconn.async_connect_test_client(**conn_args)
+
+    async def connect_test_protocol(self, **kwargs):
+        conn_args = self.get_connect_args(**kwargs)
+        conn = await test_protocol.new_connection(**conn_args)
+        await conn.connect()
+        return conn
 
 
 class _EdgeDBServer:
@@ -1441,6 +1604,7 @@ class _EdgeDBServer:
     def __init__(
         self,
         *,
+        bind_addrs: Tuple[str, ...] = ('localhost',),
         bootstrap_command: Optional[str],
         auto_shutdown: bool,
         adjacent_to: Optional[edgedb.AsyncIOConnection],
@@ -1448,14 +1612,24 @@ class _EdgeDBServer:
         compiler_pool_size: int,
         debug: bool,
         backend_dsn: Optional[str] = None,
+        data_dir: Optional[str] = None,
         runstate_dir: Optional[str] = None,
         reset_auth: Optional[bool] = None,
         tenant_id: Optional[str] = None,
-        allow_insecure_binary_clients: bool = False,
-        allow_insecure_http_clients: bool = False,
+        security: Optional[edgedb_args.ServerSecurityMode] = None,
+        default_auth_method: Optional[edgedb_args.ServerAuthMethod] = None,
+        binary_endpoint_security: Optional[
+            edgedb_args.ServerEndpointSecurityMode] = None,
+        http_endpoint_security: Optional[
+            edgedb_args.ServerEndpointSecurityMode] = None,  # see __aexit__
         enable_backend_adaptive_ha: bool = False,
+        tls_cert_file: Optional[os.PathLike] = None,
+        tls_key_file: Optional[os.PathLike] = None,
+        tls_cert_mode: edgedb_args.ServerTlsCertMode = (
+            edgedb_args.ServerTlsCertMode.SelfSigned),
         env: Optional[Dict[str, str]] = None,
     ) -> None:
+        self.bind_addrs = bind_addrs
         self.auto_shutdown = auto_shutdown
         self.bootstrap_command = bootstrap_command
         self.adjacent_to = adjacent_to
@@ -1463,14 +1637,20 @@ class _EdgeDBServer:
         self.compiler_pool_size = compiler_pool_size
         self.debug = debug
         self.backend_dsn = backend_dsn
+        self.data_dir = data_dir
         self.runstate_dir = runstate_dir
         self.reset_auth = reset_auth
         self.tenant_id = tenant_id
         self.proc = None
         self.data = None
-        self.allow_insecure_binary_clients = allow_insecure_binary_clients
-        self.allow_insecure_http_clients = allow_insecure_http_clients
+        self.security = security
+        self.default_auth_method = default_auth_method
+        self.binary_endpoint_security = binary_endpoint_security
+        self.http_endpoint_security = http_endpoint_security
         self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
+        self.tls_cert_file = tls_cert_file
+        self.tls_key_file = tls_key_file
+        self.tls_cert_mode = tls_cert_mode
         self.env = env
 
     async def wait_for_server_readiness(self, stream: asyncio.StreamReader):
@@ -1524,8 +1704,11 @@ class _EdgeDBServer:
             '--testmode',
             '--emit-server-status', f'fd://{status_w.fileno()}',
             '--compiler-pool-size', str(self.compiler_pool_size),
-            '--generate-self-signed-cert',
+            '--tls-cert-mode', str(self.tls_cert_mode),
         ]
+
+        for addr in self.bind_addrs:
+            cmd.extend(('--bind-address', addr))
 
         reset_auth = self.reset_auth
 
@@ -1551,6 +1734,8 @@ class _EdgeDBServer:
             cmd += [
                 '--backend-dsn', pgdsn
             ]
+        elif self.data_dir:
+            cmd += ['--data-dir', self.data_dir]
         else:
             cmd += ['--temp-dir']
 
@@ -1583,14 +1768,28 @@ class _EdgeDBServer:
         if self.tenant_id:
             cmd += ['--tenant-id', self.tenant_id]
 
-        if self.allow_insecure_binary_clients:
-            cmd += ['--allow-insecure-binary-clients']
+        if self.security:
+            cmd += ['--security', str(self.security)]
 
-        if self.allow_insecure_http_clients:
-            cmd += ['--allow-insecure-http-clients']
+        if self.default_auth_method:
+            cmd += ['--default-auth-method', str(self.default_auth_method)]
+
+        if self.binary_endpoint_security:
+            cmd += ['--binary-endpoint-security',
+                    str(self.binary_endpoint_security)]
+
+        if self.http_endpoint_security:
+            cmd += ['--http-endpoint-security',
+                    str(self.http_endpoint_security)]
 
         if self.enable_backend_adaptive_ha:
             cmd += ['--enable-backend-adaptive-ha']
+
+        if self.tls_cert_file:
+            cmd += ['--tls-cert-file', self.tls_cert_file]
+
+        if self.tls_key_file:
+            cmd += ['--tls-key-file', self.tls_key_file]
 
         if self.debug:
             print(
@@ -1607,15 +1806,24 @@ class _EdgeDBServer:
         self.proc: asyncio.Process = await asyncio.create_subprocess_exec(
             *cmd,
             env=env,
-            stdout=None,
+            stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             pass_fds=(status_w.fileno(),),
         )
 
-        try:
-            self.data = data = await asyncio.wait_for(
+        status_task = asyncio.create_task(
+            asyncio.wait_for(
                 self.wait_for_server_readiness(stat_reader),
                 timeout=240,
+            ),
+        )
+        try:
+            _, pending = await asyncio.wait(
+                [
+                    status_task,
+                    asyncio.create_task(self.proc.wait()),
+                ],
+                return_when=asyncio.FIRST_COMPLETED,
             )
         except (Exception, asyncio.CancelledError):
             try:
@@ -1626,6 +1834,20 @@ class _EdgeDBServer:
             stat_writer.close()
             status_w.close()
 
+        if pending:
+            for task in pending:
+                if not task.done():
+                    task.cancel()
+
+            await asyncio.wait(pending, timeout=10)
+
+        if self.proc.returncode is not None:
+            output = (await self.proc.stdout.read()).decode().strip()
+            raise edgedb_cluster.ClusterError(output)
+        else:
+            assert status_task.done()
+            data = status_task.result()
+
         return _EdgeDBServerData(
             host='127.0.0.1',
             port=data['port'],
@@ -1635,11 +1857,35 @@ class _EdgeDBServer:
         )
 
     async def __aexit__(self, exc_type, exc, tb):
-        await self._shutdown(exc)
+        try:
+            if (
+                (
+                    self.http_endpoint_security
+                    is edgedb_args.ServerEndpointSecurityMode.Optional
+                )
+                and
+                self.data is not None
+                and not self.auto_shutdown
+            ):
+                # It's a good idea to test most of the ad-hoc test clusters
+                # for any errors in background tasks, as such tests usually
+                # test the functionality that involves notifications and
+                # other async events.
+                metrics = _fetch_metrics('127.0.0.1', self.data['port'])
+                errors = _extract_background_errors(metrics)
+                if errors:
+                    raise AssertionError(
+                        'server terminated with unexpected ' +
+                        'background errors\n\n' +
+                        errors
+                    )
+        finally:
+            await self._shutdown(exc)
 
 
 def start_edgedb_server(
     *,
+    bind_addrs: tuple[str, ...] = ('localhost',),
     auto_shutdown: bool=False,
     bootstrap_command: Optional[str]=None,
     max_allowed_connections: Optional[int]=10,
@@ -1648,11 +1894,20 @@ def start_edgedb_server(
     debug: bool=False,
     backend_dsn: Optional[str] = None,
     runstate_dir: Optional[str] = None,
+    data_dir: Optional[str] = None,
     reset_auth: Optional[bool] = None,
     tenant_id: Optional[str] = None,
-    allow_insecure_binary_clients: bool = False,
-    allow_insecure_http_clients: bool = False,
+    security: Optional[edgedb_args.ServerSecurityMode] = None,
+    default_auth_method: Optional[edgedb_args.ServerAuthMethod] = None,
+    binary_endpoint_security: Optional[
+        edgedb_args.ServerEndpointSecurityMode] = None,
+    http_endpoint_security: Optional[
+        edgedb_args.ServerEndpointSecurityMode] = None,
     enable_backend_adaptive_ha: bool = False,
+    tls_cert_file: Optional[os.PathLike] = None,
+    tls_key_file: Optional[os.PathLike] = None,
+    tls_cert_mode: edgedb_args.ServerTlsCertMode = (
+        edgedb_args.ServerTlsCertMode.SelfSigned),
     env: Optional[Dict[str, str]] = None,
 ):
     if not devmode.is_in_dev_mode() and not runstate_dir:
@@ -1662,7 +1917,21 @@ def start_edgedb_server(
                   'runstate_dir; the test is likely to fail or hang. '
                   'Consider specifying the runstate_dir parameter.')
 
+    if adjacent_to and data_dir:
+        raise RuntimeError(
+            'adjacent_to and data_dir options are mutually exclusive')
+    if backend_dsn and data_dir:
+        raise RuntimeError(
+            'backend_dsn and data_dir options are mutually exclusive')
+    if backend_dsn and adjacent_to:
+        raise RuntimeError(
+            'backend_dsn and adjacent_to options are mutually exclusive')
+
+    if not runstate_dir and data_dir:
+        runstate_dir = data_dir
+
     return _EdgeDBServer(
+        bind_addrs=bind_addrs,
         auto_shutdown=auto_shutdown,
         bootstrap_command=bootstrap_command,
         max_allowed_connections=max_allowed_connections,
@@ -1671,11 +1940,17 @@ def start_edgedb_server(
         debug=debug,
         backend_dsn=backend_dsn,
         tenant_id=tenant_id,
+        data_dir=data_dir,
         runstate_dir=runstate_dir,
         reset_auth=reset_auth,
-        allow_insecure_binary_clients=allow_insecure_binary_clients,
-        allow_insecure_http_clients=allow_insecure_http_clients,
+        security=security,
+        default_auth_method=default_auth_method,
+        binary_endpoint_security=binary_endpoint_security,
+        http_endpoint_security=http_endpoint_security,
         enable_backend_adaptive_ha=enable_backend_adaptive_ha,
+        tls_cert_file=tls_cert_file,
+        tls_key_file=tls_key_file,
+        tls_cert_mode=tls_cert_mode,
         env=env,
     )
 
@@ -1819,10 +2094,7 @@ def get_cases_by_shard(cases, selected_shard, total_shards, verbosity, stats):
     return cases
 
 
-def find_available_port():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
+def find_available_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("localhost", 0))
         return sock.getsockname()[1]
-    finally:
-        sock.close()

@@ -268,7 +268,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_04(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'json index 10 is out of bounds'):
+                r'JSON index 10 is out of bounds'):
             await self.con.query(r"""
                 SELECT (to_json('[1, "a", 3]'))[10];
             """)
@@ -276,7 +276,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_05(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'json index -10 is out of bounds'):
+                r'JSON index -10 is out of bounds'):
             await self.con.query(r"""
                 SELECT (to_json('[1, "a", 3]'))[-10];
             """)
@@ -284,7 +284,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_06(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json array by text'):
+                r'cannot index JSON array by text'):
             await self.con.query(r"""
                 SELECT (to_json('[1, "a", 3]'))['1'];
             """)
@@ -292,7 +292,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_07(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r"json index 'c' is out of bounds"):
+                r"JSON index 'c' is out of bounds"):
             await self.con.query(r"""
                 SELECT (to_json('{"a": 1, "b": null}'))["c"];
             """)
@@ -300,7 +300,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_08(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json object by bigint'):
+                r'cannot index JSON object by bigint'):
             await self.con.execute(r"""
                 SELECT (to_json('{"a": 1, "b": null}'))[0];
             """)
@@ -308,7 +308,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_09(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json null'):
+                r'cannot index JSON null'):
             await self.con.query(r"""
                 SELECT (to_json('null'))[0];
             """)
@@ -316,7 +316,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_10(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json boolean'):
+                r'cannot index JSON boolean'):
             await self.con.execute(r"""
                 SELECT (to_json('true'))[0];
             """)
@@ -324,17 +324,9 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_11(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json number'):
+                r'cannot index JSON number'):
             await self.con.execute(r"""
                 SELECT (to_json('123'))[0];
-            """)
-
-    async def test_edgeql_json_accessor_12(self):
-        async with self.assertRaisesRegexTx(
-                edgedb.InvalidValueError,
-                r'cannot index json string'):
-            await self.con.execute(r"""
-                SELECT (to_json('"qwerty"'))[0];
             """)
 
     async def test_edgeql_json_accessor_13(self):
@@ -360,7 +352,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_14(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'json index 10 is out of bounds'):
+                r'JSON index 10 is out of bounds'):
             await self.con.query(r"""
                 WITH
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -370,7 +362,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_15(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'json index -10 is out of bounds'):
+                r'JSON index -10 is out of bounds'):
             await self.con.query(r"""
                 WITH
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -380,7 +372,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_16(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json array by text'):
+                r'cannot index JSON array by text'):
             await self.con.query(r"""
                 WITH
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -390,7 +382,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_17(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r"json index 'c' is out of bounds"):
+                r"JSON index 'c' is out of bounds"):
             await self.con.execute(r"""
                 WITH
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -400,7 +392,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_18(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json object by bigint'):
+                r'cannot index JSON object by bigint'):
             await self.con.query(r"""
                 WITH
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -410,7 +402,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_19(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json null'):
+                r'cannot index JSON null'):
             await self.con.execute(r"""
                 WITH
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -420,7 +412,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_20(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json boolean'):
+                r'cannot index JSON boolean'):
             await self.con.execute(r"""
                 WITH
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -430,7 +422,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_21(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json number'):
+                r'cannot index JSON number'):
             await self.con.query(r"""
                 WITH
                     JT3 := (SELECT JSONTest FILTER .number = 3)
@@ -440,11 +432,55 @@ class TestEdgeQLJSON(tb.QueryTestCase):
     async def test_edgeql_json_accessor_22(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'cannot index json string'):
+                r'cannot index JSON string'):
             await self.con.execute(r"""
                 WITH
                     JT3 := (SELECT JSONTest FILTER .number = 3)
                 SELECT JT3.data[2]['b']['bar'][2]['bingo'];
+            """)
+
+    async def test_edgeql_json_accessor_23(self):
+        await self.assert_query_result(
+            r'''select to_json('"hello"')[0] = <json>'h';''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''select to_json('"hello"')[-2] = <json>'l';''',
+            [True],
+        )
+
+    async def test_edgeql_json_accessor_24(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r'JSON index 10 is out of bounds'):
+            await self.con.query(r"""
+                select to_json('"hello"')[10];
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r'JSON index -10 is out of bounds'):
+            await self.con.query(r"""
+                select to_json('"hello"')[-10];
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r'JSON index 10 is out of bounds'):
+            await self.con.query(r"""
+                WITH
+                    JT3 := (SELECT JSONTest FILTER .number = 3)
+                SELECT JT3.data[4]['c'][10];
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r'JSON index -10 is out of bounds'):
+            await self.con.query(r"""
+                WITH
+                    JT3 := (SELECT JSONTest FILTER .number = 3)
+                SELECT JT3.data[4]['c'][-10];
             """)
 
     async def test_edgeql_json_null_01(self):
@@ -824,7 +860,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '100');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -832,7 +868,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, 'foo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -840,7 +876,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '0', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -848,7 +884,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '1', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -856,7 +892,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '2', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -864,7 +900,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '3', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -883,7 +919,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             WITH JT3 := (SELECT JSONTest FILTER .number = 3)
             SELECT json_get(JT3.data, '4', 'b', 'foo', '2', 'bingo');
             ''',
-            {}
+            []
         )
 
     async def test_edgeql_json_get_02(self):
@@ -904,40 +940,40 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''SELECT json_get(JSONTest.data, '100');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''SELECT json_get(JSONTest.data, 'foo');''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT json_get(JSONTest.data, '0', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT json_get(JSONTest.data, '1', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT json_get(JSONTest.data, '2', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT json_get(JSONTest.data, '3', 'b', 'bar', '2', 'bingo');
             ''',
-            {},
+            [],
         )
 
         await self.assert_query_result(
@@ -952,7 +988,7 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             r'''
                 SELECT json_get(JSONTest.data, '4', 'b', 'foo', '2', 'bingo');
             ''',
-            {}
+            []
         )
 
     async def test_edgeql_json_get_03(self):
@@ -1314,6 +1350,18 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ['[]'],
         )
 
+        await self.assert_query_result(
+            r'''SELECT to_json('[1, "a", 3, null]')[100:];''',
+            [[]],
+            ['[]'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('[1, "a", 3, null]')[:-100];''',
+            [[]],
+            ['[]'],
+        )
+
     async def test_edgeql_json_slice_02(self):
 
         await self.assert_query_result(
@@ -1372,19 +1420,201 @@ class TestEdgeQLJSON(tb.QueryTestCase):
 
     async def test_edgeql_json_slice_03(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r'cannot slice json array by.*str'):
+                edgedb.QueryError, r'cannot slice JSON array by.*str'):
 
             await self.con.execute(r"""
                 SELECT to_json('[1, "a", 3, null]')[:'1'];
             """)
 
-    async def test_edgeql_json_bytes_cast_01(self):
+    async def test_edgeql_json_slice_04(self):
+        await self.assert_query_result(
+            r'''SELECT to_json('"hello"')[:1];''',
+            ['h'],
+            ['"h"'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('"hello"')[:-1];''',
+            ['hell'],
+            ['"hell"'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('"hello"')[1:-1];''',
+            ['ell'],
+            ['"ell"'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('"hello"')[-1:1];''',
+            [''],
+            ['""'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('"hello"')[-100:100];''',
+            ['hello'],
+            ['"hello"'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('"hello"')[100:-100];''',
+            [''],
+            ['""'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('"hello"')[:-100];''',
+            [''],
+            ['""'],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_json('"hello"')[100:];''',
+            [''],
+            ['""'],
+        )
+
+    async def test_edgeql_json_slice_05(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r'cannot cast.*bytes.*to.*json.*'):
+                edgedb.InvalidValueError, r'cannot slice JSON number'):
 
             await self.con.execute(r"""
-                SELECT <json>b'foo';
+                select to_json('123')[0:1];
             """)
+
+    async def test_edgeql_json_slice_06(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError, r'cannot slice JSON object'):
+
+            await self.con.execute(r"""
+                select to_json('{"a":123}')[0:1];
+            """)
+
+    async def test_edgeql_json_slice_07(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError, r'cannot slice JSON boolean'):
+
+            await self.con.execute(r"""
+                select to_json('true')[0:1];
+            """)
+
+    async def test_edgeql_json_slice_08(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError, r'cannot slice JSON null'):
+
+            await self.con.execute(r"""
+                select to_json('null')[0:1];
+            """)
+
+    async def test_edgeql_json_bytes_cast_01(self):
+        await self.assert_query_result(
+            r"""SELECT <json>b'foo';""",
+            ['Zm9v'],
+            ['"Zm9v"'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>(foo := b'hello', bar := [b'world']);""",
+            [{'bar': ['d29ybGQ='], 'foo': 'aGVsbG8='}],
+            ['{"bar": ["d29ybGQ="], "foo": "aGVsbG8="}'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>{ x := b'hello' };""",
+            [{'x': 'aGVsbG8='}],
+            ['{"x": "aGVsbG8="}'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>[b'foo'];""",
+            [['Zm9v']],
+            ['["Zm9v"]'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>(b'foo',)""",
+            [['Zm9v']],
+            ['["Zm9v"]'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>[(b'foo',)][0]""",
+            [['Zm9v']],
+            ['["Zm9v"]'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>(a := b'foo')""",
+            [{"a": "Zm9v"}],
+            ['{"a": "Zm9v"}'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT <json>[(a := b'foo')][0]""",
+            [{"a": "Zm9v"}],
+            ['{"a": "Zm9v"}'],
+        )
+
+    async def test_edgeql_json_bytes_output_01(self):
+        await self.assert_query_result(
+            r"""SELECT b'foo';""",
+            ['Zm9v'],
+            [b'foo'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT { x := b'hello' };""",
+            [{'x': 'aGVsbG8='}],
+            [{'x': b'hello'}],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT (b'foo',)""",
+            [['Zm9v']],
+            [[b'foo']],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT [(b'foo',)][0]""",
+            [['Zm9v']],
+            [[b'foo']],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT (a := b'foo')""",
+            [{"a": "Zm9v"}],
+            [{"a": b'foo'}],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT [(a := b'foo')][0]""",
+            [{"a": "Zm9v"}],
+            [{"a": b'foo'}],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT [b'foo'];""",
+            [['Zm9v']],
+            [[b'foo']],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT (foo := b'hello', bar := [b'world']);""",
+            [{'bar': ['d29ybGQ='], 'foo': 'aGVsbG8='}],
+            [{'bar': [b'world'], 'foo': b'hello'}],
+        )
+
+    async def test_edgeql_json_bytes_output_02(self):
+        await self.con.execute(r'''
+            CREATE SCALAR TYPE bytes2 EXTENDING bytes;
+        ''')
+
+        await self.assert_query_result(
+            r"""SELECT [<bytes2>b'foo'];""",
+            [['Zm9v']],
+            [[b'foo']],
+        )
 
     async def test_edgeql_json_alias_01(self):
         await self.assert_query_result(
@@ -1659,3 +1889,32 @@ class TestEdgeQLJSON(tb.QueryTestCase):
             ''',
             {f'{{{", ".join(result)}}}'},
         )
+
+    async def test_edgeql_json_concatenate_01(self):
+        await self.assert_query_result(
+            r'''SELECT to_str(to_json('[1, 2]') ++ to_json('[3]'));''',
+            {'[1, 2, 3]'}
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_str(to_json('{"a": 1}') ++ to_json('{"b": 2}'));''',
+            {'{"a": 1, "b": 2}'}
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_str(to_json('{"a": 1}') ++ to_json('{"a": 2}'));''',
+            {'{"a": 2}'}
+        )
+
+        await self.assert_query_result(
+            r'''SELECT to_str(to_json('"123"') ++ to_json('"456"'));''',
+            {'"123456"'}
+        )
+
+    async def test_edgeql_json_concatenate_02(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r"invalid JSON values for \+\+ operator"):
+            await self.con.query_json(
+                r'''SELECT to_str(to_json('"123"') ++ to_json('42'));'''
+            )

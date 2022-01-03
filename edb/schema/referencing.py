@@ -532,9 +532,8 @@ class ReferencedObjectCommand(ReferencedObjectCommandBase[ReferencedT]):
                       context: sd.CommandContext
                       ) -> Type[qlast.DDLOperation]:
         subject_ctx = self.get_referrer_context(context)
-        ref_astnode: Type[qlast.DDLOperation] = getattr(self,
-                                                        'referenced_astnode',
-                                                        None)
+        ref_astnode: Optional[Type[qlast.DDLOperation]] = (
+            getattr(self, 'referenced_astnode', None))
         if subject_ctx is not None and ref_astnode is not None:
             return ref_astnode
         else:
@@ -610,12 +609,13 @@ class CreateReferencedObject(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         astnode: qlast.ObjectDDL,
-        bases: Any,
+        bases: List[ReferencedT],
         referrer: so.Object,
     ) -> sd.ObjectCommand[ReferencedT]:
         cmd = cls(classname=cls._classname_from_ast(schema, astnode, context))
         cmd.set_attribute_value('name', cmd.classname)
-        cmd.set_attribute_value('bases', so.ObjectList.create(schema, bases))
+        cmd.set_attribute_value(
+            'bases', so.ObjectList.create(schema, bases).as_shell(schema))
         return cmd
 
     @classmethod
@@ -709,10 +709,10 @@ class ReferencedInheritingObjectCommand(
         fq_name: sn.QualName,
     ) -> List[ReferencedInheritingObjectT]:
 
+        ref_field_type = type(referrer).get_field(referrer_field).type
         assert isinstance(referrer, so.QualifiedObject)
         child_referrer_bases = referrer.get_bases(schema).objects(schema)
         implicit_bases = []
-        ref_field_type = type(referrer).get_field(referrer_field).type
 
         for ref_base in child_referrer_bases:
             fq_name_in_child = self._classname_from_name(
@@ -1079,7 +1079,7 @@ class CreateReferencedInheritingObject(
                             implicit_bases,
                         )
 
-                    self.set_attribute_value('bases', bases)
+                    self.set_attribute_value('bases', bases.as_shell(schema))
 
                 if referrer.get_is_derived(schema):
                     self.set_attribute_value('is_derived', True)

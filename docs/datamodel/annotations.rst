@@ -9,8 +9,7 @@ are designed to hold arbitrary schema-level metadata represented as a
 :eql:type:`str`.
 
 
-
-Standard Annotations
+Standard annotations
 --------------------
 
 There is a number of annotations defined in the standard library.
@@ -33,45 +32,33 @@ For example, consider the following declaration:
         }
     }
 
-The above annotations can be extracted via schema introspection queries
-and used to create a descriptive UI for an admin tool:
-
-.. code-block:: edgeql-repl
-
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
-    ...     name,
-    ...     annotations: {
-    ...         name,
-    ...         @value
-    ...     }
-    ... }
-    ... FILTER .name = 'default::Status';
-    {
-        Object {
-            name: 'default::Status',
-            annotations: {
-                Object {
-                    name: 'std::description',
-                    @value: 'All possible user activities'
-                },
-                Object {
-                    name: 'std::title',
-                    @value: 'Activity status'
-                }
-            }
-        }
-    }
-
 The ``deprecated`` annotation is used to mark deprecated items (e.g.
 :eql:func:`str_rpad`) and to provide some information such as what
 should be used instead.
 
 
-See Also
---------
+User-defined annotations
+------------------------
 
-Annotation
-:ref:`SDL <ref_eql_sdl_annotations>`,
-:ref:`DDL <ref_eql_ddl_annotations>`,
-and :ref:`introspection <ref_eql_introspection>`.
+To declare a custom constraint type beyond the three built-ins, add an abstract
+annotation type to your schema. A custom annotation could be used to attach
+arbitrary JSON-encoded data to your schema—potentially useful for introspection
+and code generation.
+
+.. code-block:: sdl
+
+  abstract annotation admin_note;
+
+  type Status {
+    annotation admin_note := 'system-critical';
+  }
+
+
+.. list-table::
+  :class: seealso
+
+  * - **See also**
+  * - :ref:`SDL > Annotations <ref_eql_sdl_annotations>`
+  * - :ref:`DDL > Annotations <ref_eql_ddl_annotations>`
+  * - :ref:`Cheatsheets > Annotations <ref_cheatsheet_annotations>`
+  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`

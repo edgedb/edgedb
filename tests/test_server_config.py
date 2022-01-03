@@ -19,8 +19,11 @@
 
 import asyncio
 import dataclasses
+import datetime
 import json
 import platform
+import random
+import tempfile
 import textwrap
 import typing
 import unittest
@@ -36,6 +39,7 @@ from edb.edgeql import qltypes
 from edb.testbase import server as tb
 from edb.schema import objects as s_obj
 
+from edb.server import args
 from edb.server import config
 from edb.server.config import ops
 from edb.server.config import spec
@@ -357,6 +361,7 @@ class TestServerConfigUtils(unittest.TestCase):
                 'default': True,
                 'internal': False,
                 'system': False,
+                'report': False,
                 'typemod': 'SingletonType',
                 'typeid': str(s_obj.get_known_type_id('std::bool')),
             }
@@ -368,10 +373,42 @@ class TestServerConfig(tb.QueryTestCase):
     PARALLELISM_GRANULARITY = 'system'
     TRANSACTION_ISOLATION = False
 
+    async def test_server_proto_config_objects(self):
+        await self.assert_query_result(
+            """SELECT cfg::InstanceConfig IS cfg::AbstractConfig""",
+            [True],
+        )
+
+        await self.assert_query_result(
+            """SELECT cfg::InstanceConfig IS cfg::DatabaseConfig""",
+            [False],
+        )
+
+        await self.assert_query_result(
+            """SELECT cfg::InstanceConfig IS cfg::InstanceConfig""",
+            [True],
+        )
+
+        await self.assert_query_result(
+            """
+            SELECT cfg::AbstractConfig {
+                tname := .__type__.name
+            }
+            ORDER BY .__type__.name
+            """,
+            [{
+                "tname": "cfg::Config",
+            }, {
+                "tname": "cfg::DatabaseConfig",
+            }, {
+                "tname": "cfg::InstanceConfig",
+            }]
+        )
+
     async def test_server_proto_configure_01(self):
         with self.assertRaisesRegex(
                 edgedb.ConfigurationError,
-                'invalid value type'):
+                'invalid setting value type'):
             await self.con.execute('''
                 CONFIGURE SESSION SET __internal_no_const_folding := 1;
             ''')
@@ -498,9 +535,9 @@ class TestServerConfig(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
             edgedb.InterfaceError,
-            r'\bquery_single\(',
+            r'it does not return any data',
         ):
-            await self.con.query_single('''
+            await self.con.query_required_single('''
                 CONFIGURE INSTANCE INSERT cfg::TestInstanceConfig {
                     name := 'test_03_0122222222'
                 };
@@ -855,7 +892,7 @@ class TestServerConfig(tb.QueryTestCase):
     async def test_server_proto_configure_07(self):
         try:
             await self.con.execute('''
-                CONFIGURE SESSION SET multiprop := {};
+                CONFIGURE SESSION SET multiprop := <str>{};
             ''')
 
             await self.assert_query_result(
@@ -932,10 +969,14 @@ class TestServerConfig(tb.QueryTestCase):
             conf3 = "CONFIGURE SESSION SET singleprop := '42';"
             await self.con.execute(conf3)
 
+            conf4 = "CONFIGURE INSTANCE SET memprop := <cfg::memory>'100MiB';"
+            await self.con.execute(conf4)
+
             res = await self.con.query_single('DESCRIBE INSTANCE CONFIG;')
             self.assertIn(conf1, res)
             self.assertIn(conf2, res)
             self.assertNotIn(conf3, res)
+            self.assertIn(conf4, res)
 
         finally:
             await self.con.execute('''
@@ -944,6 +985,9 @@ class TestServerConfig(tb.QueryTestCase):
             ''')
             await self.con.execute('''
                 CONFIGURE INSTANCE RESET singleprop;
+            ''')
+            await self.con.execute('''
+                CONFIGURE INSTANCE RESET memprop;
             ''')
 
     async def test_server_proto_configure_describe_database_config(self):
@@ -980,6 +1024,25 @@ class TestServerConfig(tb.QueryTestCase):
             (srv_ver.major, srv_ver.minor, str(srv_ver.stage),
              srv_ver.stage_no,)
         )
+
+    async def test_server_proto_configure_invalid_duration(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                "invalid input syntax for type std::duration: "
+                "unable to parse '12mse'"):
+            await self.con.execute('''
+                configure session set
+                    durprop := <duration>'12mse'
+            ''')
+
+        with self.assertRaisesRegex(
+                edgedb.ConfigurationError,
+                r"invalid setting value type for durprop: "
+                r"'std::str' \(expecting 'std::duration"):
+            await self.con.execute('''
+                configure instance set
+                    durprop := '12 seconds'
+            ''')
 
     async def test_server_proto_configure_compilation(self):
         try:
@@ -1048,6 +1111,9 @@ class TestServerConfig(tb.QueryTestCase):
                 DROP TYPE Foo;
             ''')
 
+
+class TestSeparateCluster(tb.TestCase):
+
     @unittest.skipIf(
         platform.system() == "Darwin",
         "loopback aliases aren't set up on macOS by default"
@@ -1055,7 +1121,7 @@ class TestServerConfig(tb.QueryTestCase):
     async def test_server_proto_configure_listen_addresses(self):
         con1 = con2 = con3 = con4 = con5 = None
 
-        async with tb.start_edgedb_server(auto_shutdown=True) as sd:
+        async with tb.start_edgedb_server() as sd:
             try:
                 with self.assertRaises(
                     edgedb.ClientConnectionFailedTemporarilyError
@@ -1091,7 +1157,7 @@ class TestServerConfig(tb.QueryTestCase):
                     self.assertEqual(await con.query_single(f"SELECT {i}"), i)
 
                 await con1.execute("""
-                    CONFIGURE INSTANCE SET listen_addresses := {};
+                    CONFIGURE INSTANCE SET listen_addresses := <str>{};
                 """)
                 await con1.execute("""
                     CONFIGURE INSTANCE SET listen_addresses := {
@@ -1110,3 +1176,374 @@ class TestServerConfig(tb.QueryTestCase):
                     if con is not None:
                         closings.append(con.aclose())
                 await asyncio.gather(*closings)
+
+    async def test_server_config_idle_connection_01(self):
+        async with tb.start_edgedb_server(
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
+        ) as sd:
+            active_cons = []
+            idle_cons = []
+            for i in range(20):
+                if i % 2:
+                    active_cons.append(await sd.connect())
+                else:
+                    idle_cons.append(await sd.connect())
+
+            # Set the timeout to 5 seconds.
+            await idle_cons[0].execute('''
+                configure system set session_idle_timeout := <duration>'5s'
+            ''')
+
+            for _ in range(5):
+                random.shuffle(active_cons)
+                await asyncio.gather(
+                    *(con.query('SELECT 1') for con in active_cons)
+                )
+                await asyncio.sleep(3)
+
+            metrics = sd.fetch_metrics()
+
+            await asyncio.gather(
+                *(con.aclose() for con in active_cons)
+            )
+
+        self.assertIn(
+            f'\nedgedb_server_client_connections_idle_total ' +
+            f'{float(len(idle_cons))}\n',
+            metrics
+        )
+
+    async def test_server_config_idle_connection_02(self):
+        from edb import protocol
+
+        async with tb.start_edgedb_server(
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
+        ) as sd:
+            conn = await sd.connect_test_protocol()
+
+            await conn.simple_query('''
+                configure system set session_idle_timeout := <duration>'10ms'
+            ''')
+
+            await asyncio.sleep(1)
+
+            await conn.recv_match(
+                protocol.ErrorResponse,
+                message='closing the connection due to idling'
+            )
+
+    async def test_server_config_db_config(self):
+        async with tb.start_edgedb_server(
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
+        ) as sd:
+            con1 = await sd.connect()
+            con2 = await sd.connect()
+
+            await con1.execute('''
+                configure current database set __internal_sess_testvalue := 0;
+            ''')
+
+            await con2.execute('''
+                configure current database set __internal_sess_testvalue := 5;
+            ''')
+
+            # Check that the DB (Backend) was updated.
+            conf = await con2.query_single('''
+                SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+            ''')
+            self.assertEqual(conf, 5)
+            # The changes should be immediately visible at EdgeQL level
+            # in concurrent transactions.
+            conf = await con1.query_single('''
+                SELECT assert_single(cfg::Config.__internal_sess_testvalue)
+            ''')
+            self.assertEqual(conf, 5)
+
+            # Use `try_until_succeeds` because it might take the server a few
+            # seconds on slow CI to reload the DB config in the server process.
+            async for tr in self.try_until_succeeds(
+                    ignore=AssertionError):
+                async with tr:
+                    info = sd.fetch_server_info()
+                    dbconf = info['databases']['edgedb']['config']
+                    self.assertEqual(
+                        dbconf.get('__internal_sess_testvalue'), 5)
+
+            # Now check that the server state is updated when a configure
+            # command is in a transaction.
+
+            async for tx in con1.retrying_transaction():
+                async with tx:
+                    await tx.execute('''
+                        configure current database set
+                            __internal_sess_testvalue := 10;
+                    ''')
+
+            async for tr in self.try_until_succeeds(
+                    ignore=AssertionError):
+                async with tr:
+                    info = sd.fetch_server_info()
+                    dbconf = info['databases']['edgedb']['config']
+                    self.assertEqual(
+                        dbconf.get('__internal_sess_testvalue'), 10)
+
+    async def test_server_config_backend_levels(self):
+
+        async def assert_conf(con, name, expected_val):
+            val = await con.query_single(f'''
+                select assert_single(cfg::Config.{name})
+            ''')
+
+            if isinstance(val, datetime.timedelta):
+                val //= datetime.timedelta(milliseconds=1)
+
+            self.assertEqual(
+                val,
+                expected_val
+            )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            async with tb.start_edgedb_server(
+                data_dir=tmpdir,
+                security=args.ServerSecurityMode.InsecureDevMode,
+            ) as sd:
+                c1 = await sd.connect()
+                c2 = await sd.connect()
+
+                await c2.query('create database test')
+                t1 = await sd.connect(database='test')
+                t2 = await sd.connect(database='test')
+
+                # check that the default was set correctly
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 10000)
+
+                ####
+
+                await c1.query('''
+                    configure instance set
+                        session_idle_transaction_timeout :=
+                            <duration>'20s'
+                ''')
+
+                for c in {c1, c2, t1}:
+                    await assert_conf(
+                        c, 'session_idle_transaction_timeout', 20000)
+
+                ####
+
+                await t1.query('''
+                    configure current database set
+                        session_idle_transaction_timeout :=
+                            <duration>'30000ms'
+                ''')
+
+                for c in {c1, c2}:
+                    await assert_conf(
+                        c, 'session_idle_transaction_timeout', 20000)
+
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 30000)
+
+                ####
+
+                await c2.query('''
+                    configure session set
+                        session_idle_transaction_timeout :=
+                            <duration>'40000000us'
+                ''')
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 20000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 30000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 40000)
+
+                ####
+
+                await t1.query('''
+                    configure session set
+                        session_idle_transaction_timeout :=
+                            <duration>'50 seconds'
+                ''')
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 20000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 50000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 40000)
+
+                ####
+
+                await c1.query('''
+                    configure instance set
+                        session_idle_transaction_timeout :=
+                            <duration>'15000 milliseconds'
+                ''')
+
+                await c2.query('''
+                    configure session reset
+                        session_idle_transaction_timeout;
+                ''')
+
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 50000)
+                await assert_conf(
+                    t2, 'session_idle_transaction_timeout', 30000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 15000)
+
+                ####
+
+                await t1.query('''
+                    configure session reset
+                        session_idle_transaction_timeout;
+                ''')
+
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 30000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 15000)
+
+                ####
+
+                await t2.query('''
+                    configure current database reset
+                        session_idle_transaction_timeout;
+                ''')
+
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    t1, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    t2, 'session_idle_transaction_timeout', 15000)
+                await assert_conf(
+                    c2, 'session_idle_transaction_timeout', 15000)
+
+                ####
+
+                cur_shared = await c1.query('''
+                    select <str>cfg::Config.shared_buffers
+                ''')
+
+                # not a test, just need to make sure our random value
+                # does not happen to be the Postgres' default.
+                assert cur_shared != ['20002KiB']
+
+                await c1.query('''
+                    configure instance set
+                        shared_buffers := <cfg::memory>'20002KiB'
+                ''')
+
+                # shared_buffers requires a restart, so the value shouldn't
+                # change just yet
+                self.assertEqual(
+                    await c1.query_single(f'''
+                        select assert_single(<str>cfg::Config.shared_buffers)
+                    '''),
+                    cur_shared[0]
+                )
+
+                await c1.aclose()
+                await c2.aclose()
+                await t1.aclose()
+
+            async with tb.start_edgedb_server(
+                data_dir=tmpdir,
+                security=args.ServerSecurityMode.InsecureDevMode,
+            ) as sd:
+
+                c1 = await sd.connect()
+
+                # check that the default was set correctly
+                await assert_conf(
+                    c1, 'session_idle_transaction_timeout', 15000)
+
+                self.assertEqual(
+                    await c1.query_single(f'''
+                        select assert_single(<str>cfg::Config.shared_buffers)
+                    '''),
+                    '20002KiB'
+                )
+
+                await c1.aclose()
+
+    async def test_server_config_idle_transaction(self):
+        from edb import protocol
+
+        async with tb.start_edgedb_server(
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
+        ) as sd:
+            conn = await sd.connect_test_protocol()
+
+            await conn.simple_query('''
+                configure session set
+                    session_idle_transaction_timeout :=
+                        <duration>'1 second'
+            ''')
+
+            await conn.simple_query('''
+                start transaction
+            ''')
+
+            await conn.simple_query('''
+                select sys::_sleep(4)
+            ''')
+
+            await conn.recv_match(
+                protocol.ErrorResponse,
+                message='terminating connection due to '
+                        'idle-in-transaction timeout'
+            )
+
+            with self.assertRaises(edgedb.ClientConnectionClosedError):
+                await conn.simple_query('''
+                    select 1
+                ''')
+
+            data = sd.fetch_metrics()
+
+            # Postgres: ERROR_IDLE_IN_TRANSACTION_TIMEOUT=25P03
+            self.assertIn(
+                '\nedgedb_server_backend_connections_aborted_total' +
+                '{pgcode="25P03"} 1.0\n',
+                data
+            )
+
+    async def test_server_config_query_timeout(self):
+        async with tb.start_edgedb_server(
+            http_endpoint_security=args.ServerEndpointSecurityMode.Optional,
+        ) as sd:
+            conn = await sd.connect()
+
+            await conn.execute('''
+                configure session set
+                    query_execution_timeout :=
+                        <duration>'1 second'
+            ''')
+
+            for _ in range(2):
+                with self.assertRaisesRegex(
+                        edgedb.QueryError,
+                        'canceling statement due to statement timeout'):
+                    await conn.execute('''
+                        select sys::_sleep(4)
+                    ''')
+
+                self.assertEqual(
+                    await conn.query_single('select 42'),
+                    42
+                )
+
+            await conn.aclose()
+
+            data = sd.fetch_metrics()
+            self.assertNotIn(
+                '\nedgedb_server_backend_connections_aborted_total',
+                data
+            )

@@ -152,14 +152,18 @@ def compile_ForQuery(
         # we aren't willing to tackle.
         if contains_dml:
             sctx.path_scope.factoring_allowlist.update(ctx.iterator_path_ids)
-        iterator_view = stmtctx.declare_view(
-            iterator,
-            s_name.UnqualName(qlstmt.iterator_alias),
-            factoring_fence=contains_dml,
-            path_id_namespace=sctx.path_id_namespace,
-            binding_kind=irast.BindingKind.For,
-            ctx=sctx,
-        )
+
+        with sctx.new() as ectx:
+            if ectx.expr_exposed:
+                ectx.expr_exposed = context.Exposure.BINDING
+            iterator_view = stmtctx.declare_view(
+                iterator,
+                s_name.UnqualName(qlstmt.iterator_alias),
+                factoring_fence=contains_dml,
+                path_id_namespace=sctx.path_id_namespace,
+                binding_kind=irast.BindingKind.For,
+                ctx=ectx,
+            )
 
         iterator_stmt = setgen.new_set_from_set(
             iterator_view, preserve_scope_ns=True, ctx=sctx)
@@ -210,7 +214,6 @@ def compile_ForQuery(
                     astutils.ensure_qlstmt(qlstmt.result),
                     view_scls=ctx.view_scls,
                     view_rptr=ctx.view_rptr,
-                    result_alias=qlstmt.result_alias,
                     view_name=ctx.toplevel_result_view_name,
                     forward_rptr=True,
                     ctx=bctx,
@@ -259,7 +262,9 @@ def compile_InsertQuery(
         stmt = irast.InsertStmt(context=expr.context)
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        subject = dispatch.compile(expr.subject, ctx=ictx)
+        with ictx.new() as ectx:
+            ectx.expr_exposed = context.Exposure.UNEXPOSED
+            subject = dispatch.compile(expr.subject, ctx=ectx)
         assert isinstance(subject, irast.Set)
 
         subject_stype = setgen.get_set_type(subject, ctx=ictx)
@@ -267,6 +272,14 @@ def compile_InsertQuery(
             raise errors.QueryError(
                 f'cannot insert into abstract '
                 f'{subject_stype.get_verbosename(ctx.env.schema)}',
+                context=expr.subject.context)
+
+        if (
+            subject_stype.is_free_object_type(ctx.env.schema)
+            and not ctx.env.options.bootstrap_mode
+        ):
+            raise errors.QueryError(
+                f'free objects cannot be inserted',
                 context=expr.subject.context)
 
         if subject_stype.is_view(ctx.env.schema):
@@ -291,7 +304,6 @@ def compile_InsertQuery(
                 shape=expr.shape,
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
-                result_alias=expr.subject_alias,
                 is_insert=True,
                 ctx=bodyctx)
 
@@ -321,9 +333,6 @@ def compile_InsertQuery(
         )
 
         with ictx.new() as resultctx:
-            if ictx.stmt is ctx.toplevel_stmt:
-                resultctx.expr_exposed = True
-
             stmt.result = compile_query_subject(
                 result,
                 view_scls=ctx.view_scls,
@@ -346,7 +355,7 @@ def compile_InsertQuery(
             and ictx.stmt is ctx.toplevel_stmt
         ):
             with ictx.new() as resultctx:
-                resultctx.expr_exposed = True
+                resultctx.expr_exposed = context.Exposure.EXPOSED
                 result = compile_query_subject(
                     result,
                     view_name=ctx.toplevel_result_view_name,
@@ -387,7 +396,9 @@ def compile_UpdateQuery(
         )
         init_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
-        subject = dispatch.compile(expr.subject, ctx=ictx)
+        with ictx.new() as ectx:
+            ectx.expr_exposed = context.Exposure.UNEXPOSED
+            subject = dispatch.compile(expr.subject, ctx=ectx)
         assert isinstance(subject, irast.Set)
 
         subj_type = inference.infer_type(subject, ictx.env)
@@ -396,6 +407,11 @@ def compile_UpdateQuery(
                 f'cannot update non-ObjectType objects',
                 context=expr.subject.context
             )
+
+        if subj_type.is_free_object_type(ctx.env.schema):
+            raise errors.QueryError(
+                f'free objects cannot be updated',
+                context=expr.subject.context)
 
         ictx.partial_path_prefix = subject
 
@@ -414,7 +430,6 @@ def compile_UpdateQuery(
                 shape=expr.shape,
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
-                result_alias=expr.subject_alias,
                 is_update=True,
                 ctx=bodyctx)
 
@@ -430,9 +445,6 @@ def compile_UpdateQuery(
         )
 
         with ictx.new() as resultctx:
-            if ictx.stmt is ctx.toplevel_stmt:
-                resultctx.expr_exposed = True
-
             stmt.result = compile_query_subject(
                 result,
                 view_scls=ctx.view_scls,
@@ -471,7 +483,6 @@ def compile_DeleteQuery(
                 subjql = qlast.SelectQuery(
                     result=qlast.SelectQuery(
                         result=expr.subject,
-                        result_alias=expr.subject_alias,
                         where=expr.where,
                         orderby=expr.orderby,
                         context=expr.context,
@@ -484,7 +495,6 @@ def compile_DeleteQuery(
             else:
                 subjql = qlast.SelectQuery(
                     result=expr.subject,
-                    result_alias=expr.subject_alias,
                     where=expr.where,
                     orderby=expr.orderby,
                     offset=expr.offset,
@@ -503,6 +513,7 @@ def compile_DeleteQuery(
         # DELETE Expr is a delete(SET OF X), so we need a scope fence.
         with ictx.newscope(fenced=True) as scopectx:
             scopectx.implicit_limit = 0
+            scopectx.expr_exposed = context.Exposure.UNEXPOSED
             subject = setgen.scoped_set(
                 dispatch.compile(expr.subject, ctx=scopectx), ctx=scopectx)
 
@@ -512,6 +523,11 @@ def compile_DeleteQuery(
                 f'cannot delete non-ObjectType objects',
                 context=expr.subject.context
             )
+
+        if subj_type.is_free_object_type(ctx.env.schema):
+            raise errors.QueryError(
+                f'free objects cannot be deleted',
+                context=expr.subject.context)
 
         with ictx.new() as bodyctx:
             bodyctx.implicit_id_in_shapes = False
@@ -532,9 +548,6 @@ def compile_DeleteQuery(
         )
 
         with ictx.new() as resultctx:
-            if ictx.stmt is ctx.toplevel_stmt:
-                resultctx.expr_exposed = True
-
             stmt.result = compile_query_subject(
                 result,
                 view_scls=ctx.view_scls,
@@ -806,7 +819,7 @@ def compile_Shape(
         subctx.class_view_overrides = subctx.class_view_overrides.copy()
 
         with ctx.new() as exposed_ctx:
-            exposed_ctx.expr_exposed = False
+            exposed_ctx.expr_exposed = context.Exposure.UNEXPOSED
             expr = dispatch.compile(shape_expr, ctx=exposed_ctx)
 
         expr_stype = setgen.get_set_type(expr, ctx=ctx)
@@ -951,7 +964,8 @@ def process_with_block(
 
         elif isinstance(with_entry, qlast.AliasedExpr):
             with ctx.new() as scopectx:
-                scopectx.expr_exposed = False
+                if scopectx.expr_exposed:
+                    scopectx.expr_exposed = context.Exposure.BINDING
                 binding = stmtctx.declare_view(
                     with_entry.expr,
                     s_name.UnqualName(with_entry.alias),
@@ -992,9 +1006,6 @@ def compile_result_clause(
         forward_rptr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
     with ctx.new() as sctx:
-        if sctx.stmt is ctx.toplevel_stmt:
-            sctx.expr_exposed = True
-
         if forward_rptr:
             sctx.view_rptr = view_rptr
             # sctx.view_scls = view_scls
@@ -1053,7 +1064,7 @@ def compile_result_clause(
         else:
             with sctx.new() as ectx:
                 if shape is not None:
-                    ectx.expr_exposed = False
+                    ectx.expr_exposed = context.Exposure.UNEXPOSED
                 expr = dispatch.compile(result_expr, ctx=ectx)
 
         ctx.partial_path_prefix = expr
@@ -1063,6 +1074,7 @@ def compile_result_clause(
             forward_rptr=forward_rptr,
             result_alias=result_alias,
             view_scls=view_scls,
+            allow_select_shape_inject=False,
             compile_views=ctx.stmt is ctx.toplevel_stmt,
             ctx=sctx,
             parser_context=result.context)
@@ -1083,6 +1095,7 @@ def compile_query_subject(
         is_insert: bool=False,
         is_update: bool=False,
         is_delete: bool=False,
+        allow_select_shape_inject: bool=True,
         forward_rptr: bool=False,
         parser_context: Optional[pctx.ParserContext]=None,
         ctx: context.ContextLevel) -> irast.Set:
@@ -1127,26 +1140,21 @@ def compile_query_subject(
     if (
         (
             (
-                ctx.expr_exposed
+                ctx.expr_exposed >= context.Exposure.BINDING
                 and expr_stype.is_object_type()
+                and allow_select_shape_inject
 
                 and not forward_rptr
-                and (
-                    viewgen.has_implicit_type_computables(
-                        expr_stype,
-                        is_mutation=is_mutation,
-                        ctx=ctx,
-                    )
-                    or expr_stype in ctx.env.materialized_sets
+                and viewgen.has_implicit_type_computables(
+                    expr_stype,
+                    is_mutation=is_mutation,
+                    ctx=ctx,
                 )
+                and not expr_stype.is_view(ctx.env.schema)
             )
             or is_mutation
         )
         and shape is None
-        and (
-            expr_stype not in ctx.env.view_shapes
-            or expr_stype in ctx.env.materialized_sets
-        )
     ):
         # Force the subject to be compiled as a view in these cases:
         # a) a __tid__ insertion is anticipated (the actual
@@ -1155,15 +1163,15 @@ def compile_query_subject(
         #    we also skip doing this when forward_rptr is true, because
         #    generating an extra type in those cases can cause issues,
         #    and we can just do the insertion on whatever the inner thing is
+        #
+        #    Note that we do this when exposed or when potentially exposed
+        #    because we are in a binding. This is because types that
+        #    appear in bindings might get put into the output
+        #    and need a __tid__ injection without having a chance to have
+        #    a shape put on them.
         # b) this is a mutation without an explicit shape,
         #    such as a DELETE, because mutation subjects are
         #    always expected to be derived types.
-        # c) this is a use of a type we think we are materializing,
-        #    which hacks around issues like
-        #    test_edgeql_volatility_select_hard_objects_09 where we
-        #    can't rely on the serialization done at an inner location.
-        #    (This is a hack, because I don't think it can generalize
-        #     to tuples/arrays containing objects)
         shape = []
 
     if shape is not None and view_scls is None:
@@ -1203,6 +1211,31 @@ def compile_query_subject(
         ctx.class_view_overrides[expr.path_id.target.id] = expr_stype
 
     return expr
+
+
+def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
+    """Possibly wrap ir in a new view, if needed for tid/tname injection
+
+    This should be called by every ast leaf compilation that can originate
+    an object type.
+    """
+
+    # We call compile_query_subject in order to create a new view for
+    # injecting properties if needed. This will only happen if
+    # expr_exposed, so stmt code paths that don't want a new view
+    # created (because there is a shape already specified or because
+    # it wants to create its own new view in its compile_query_subject call)
+    # should make sure expr_exposed is false.
+    #
+    # The checks here are microoptimizations.
+    if (
+        ctx.expr_exposed >= context.Exposure.BINDING
+        and ir.path_id.is_objtype_path()
+    ):
+        return compile_query_subject(
+            ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx)
+    else:
+        return ir
 
 
 def compile_groupby_clause(

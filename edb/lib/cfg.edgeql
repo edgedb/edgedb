@@ -20,6 +20,7 @@
 CREATE MODULE cfg;
 
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::backend_setting;
+CREATE ABSTRACT INHERITABLE ANNOTATION cfg::report;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::internal;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::requires_restart;
 CREATE ABSTRACT INHERITABLE ANNOTATION cfg::system;
@@ -31,6 +32,7 @@ CREATE ABSTRACT TYPE cfg::AuthMethod EXTENDING cfg::ConfigObject;
 CREATE TYPE cfg::Trust EXTENDING cfg::AuthMethod;
 CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod;
 
+CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
 
 CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY priority -> std::int64 {
@@ -54,6 +56,22 @@ CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
 
 
 CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
+    CREATE REQUIRED PROPERTY session_idle_timeout -> std::duration {
+        CREATE ANNOTATION cfg::system := 'true';
+        CREATE ANNOTATION cfg::report := 'true';
+        SET default := <std::duration>'60 seconds';
+    };
+
+    CREATE REQUIRED PROPERTY session_idle_transaction_timeout -> std::duration {
+        CREATE ANNOTATION cfg::backend_setting :=
+            '"idle_in_transaction_session_timeout"';
+        SET default := <std::duration>'10 seconds';
+    };
+
+    CREATE REQUIRED PROPERTY query_execution_timeout -> std::duration {
+        CREATE ANNOTATION cfg::backend_setting := '"statement_timeout"';
+    };
+
     CREATE REQUIRED PROPERTY listen_port -> std::int16 {
         CREATE ANNOTATION cfg::system := 'true';
         SET default := 5656;
@@ -77,35 +95,30 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
     # When exposing a new setting, remember to modify
     # the _read_sys_config function to select the value
     # from pg_settings in the config_backend CTE.
-    CREATE PROPERTY shared_buffers -> std::str {
+    CREATE PROPERTY shared_buffers -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"shared_buffers"';
         CREATE ANNOTATION cfg::requires_restart := 'true';
-        SET default := '-1';
     };
 
-    CREATE PROPERTY query_work_mem -> std::str {
+    CREATE PROPERTY query_work_mem -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"work_mem"';
-        SET default := '-1';
     };
 
-    CREATE PROPERTY effective_cache_size -> std::str {
+    CREATE PROPERTY effective_cache_size -> cfg::memory {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_cache_size"';
-        SET default := '-1';
     };
 
-    CREATE PROPERTY effective_io_concurrency -> std::str {
+    CREATE PROPERTY effective_io_concurrency -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"effective_io_concurrency"';
-        SET default := '50';
     };
 
-    CREATE PROPERTY default_statistics_target -> std::str {
+    CREATE PROPERTY default_statistics_target -> std::int64 {
         CREATE ANNOTATION cfg::system := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"default_statistics_target"';
-        SET default := '100';
     };
 };
 
@@ -159,4 +172,132 @@ cfg::_describe_database_config_as_ddl() -> str
     SET volatility := 'Stable';
     SET internal := true;
     USING SQL FUNCTION 'edgedb._describe_database_config_as_ddl';
+};
+
+
+CREATE CAST FROM std::int64 TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM cfg::memory TO std::int64 {
+    SET volatility := 'Immutable';
+    USING SQL CAST;
+};
+
+
+CREATE CAST FROM std::str TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'edgedb.str_to_cfg_memory';
+};
+
+
+CREATE CAST FROM cfg::memory TO std::str {
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'edgedb.cfg_memory_to_str';
+};
+
+
+CREATE CAST FROM std::json TO cfg::memory {
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT edgedb.str_to_cfg_memory(
+            edgedb.jsonb_extract_scalar(val, 'string')
+        )
+    $$;
+};
+
+
+CREATE CAST FROM cfg::memory TO std::json {
+    SET volatility := 'Immutable';
+    USING SQL $$
+        SELECT to_jsonb(edgedb.cfg_memory_to_str(val))
+    $$;
+};
+
+
+CREATE INFIX OPERATOR
+std::`=` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'eq';
+    CREATE ANNOTATION std::description := 'Compare two values for equality.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::=';
+    SET negator := 'std::!=';
+    USING SQL OPERATOR r'=(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`?=` (l: OPTIONAL cfg::memory, r: OPTIONAL cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_eq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for equality.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE INFIX OPERATOR
+std::`!=` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'neq';
+    CREATE ANNOTATION std::description := 'Compare two values for inequality.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::!=';
+    SET negator := 'std::=';
+    USING SQL OPERATOR r'<>(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`?!=` (l: OPTIONAL cfg::memory, r: OPTIONAL cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'coal_neq';
+    CREATE ANNOTATION std::description :=
+        'Compare two (potentially empty) values for inequality.';
+    SET volatility := 'Immutable';
+    USING SQL EXPRESSION;
+};
+
+
+CREATE INFIX OPERATOR
+std::`>` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gt';
+    CREATE ANNOTATION std::description := 'Greater than.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::<';
+    SET negator := 'std::<=';
+    USING SQL OPERATOR r'>(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`>=` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'gte';
+    CREATE ANNOTATION std::description := 'Greater than or equal.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::<=';
+    SET negator := 'std::<';
+    USING SQL OPERATOR r'>=(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`<` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lt';
+    CREATE ANNOTATION std::description := 'Less than.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::>';
+    SET negator := 'std::>=';
+    USING SQL OPERATOR r'<(int8,int8)';
+};
+
+
+CREATE INFIX OPERATOR
+std::`<=` (l: cfg::memory, r: cfg::memory) -> std::bool {
+    CREATE ANNOTATION std::identifier := 'lte';
+    CREATE ANNOTATION std::description := 'Less than or equal.';
+    SET volatility := 'Immutable';
+    SET commutator := 'std::>=';
+    SET negator := 'std::>';
+    USING SQL OPERATOR r'<=(int8,int8)';
 };

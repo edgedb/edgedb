@@ -481,17 +481,13 @@ class ConstraintCommand(
                 return value
 
             elif field.name in {'subjectexpr', 'finalexpr'}:
-                anchors = {'__subject__': base}
-                path_prefix_anchor = (
-                    '__subject__' if isinstance(base, s_types.Type) else None
-                )
                 return s_expr.Expression.compiled(
                     value,
                     schema=schema,
                     options=qlcompiler.CompilerOptions(
                         modaliases=context.modaliases,
-                        anchors=anchors,
-                        path_prefix_anchor=path_prefix_anchor,
+                        anchors={qlast.Subject().name: base},
+                        path_prefix_anchor=qlast.Subject().name,
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
                         apply_query_rewrites=not context.stdmode,
@@ -650,6 +646,7 @@ class ConstraintCommand(
         from edb.ir import ast as ir_ast
         from edb.ir import utils as ir_utils
         from . import pointers as s_pointers
+        from . import links as s_links
 
         bases = self.get_resolved_attribute_value(
             'bases', schema=schema, context=context,
@@ -740,17 +737,12 @@ class ConstraintCommand(
         attrs['args'] = args
 
         assert subject is not None
-        path_prefix_anchor = (
-            qlast.Subject().name if isinstance(subject, s_types.Type)
-            else None
-        )
-
         final_expr = s_expr.Expression.compiled(
             s_expr.Expression.from_ast(expr_ql, schema, {}),
             schema=schema,
             options=qlcompiler.CompilerOptions(
                 anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=path_prefix_anchor,
+                path_prefix_anchor=qlast.Subject().name,
                 apply_query_rewrites=not context.stdmode,
             ),
         )
@@ -776,7 +768,7 @@ class ConstraintCommand(
                 schema=schema,
                 options=qlcompiler.CompilerOptions(
                     anchors={qlast.Subject().name: subject},
-                    path_prefix_anchor=path_prefix_anchor,
+                    path_prefix_anchor=qlast.Subject().name,
                     singletons=singletons,
                     apply_query_rewrites=not context.stdmode,
                 ),
@@ -794,11 +786,18 @@ class ConstraintCommand(
                                        ir_ast.TupleIndirectionPointerRef)
                             and rptr.ptrref.source_ptr is None
                             and rptr.source.rptr is not None):
-                        raise errors.InvalidConstraintDefinitionError(
-                            "constraints cannot contain paths with more "
-                            "than one hop",
-                            context=sourcectx
-                        )
+                        if isinstance(subject, s_links.Link):
+                            raise errors.InvalidConstraintDefinitionError(
+                                "link constraints may not access "
+                                "the link target",
+                                context=sourcectx
+                            )
+                        else:
+                            raise errors.InvalidConstraintDefinitionError(
+                                "constraints cannot contain paths with more "
+                                "than one hop",
+                                context=sourcectx
+                            )
 
                     ref = rptr.source
 
@@ -1021,7 +1020,7 @@ class CreateConstraint(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         astnode: qlast.ObjectDDL,
-        bases: Any,
+        bases: List[Constraint],
         referrer: so.Object,
     ) -> sd.ObjectCommand[Constraint]:
         cmd = super().as_inherited_ref_cmd(

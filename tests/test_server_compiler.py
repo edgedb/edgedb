@@ -24,10 +24,12 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 
 from edb import edgeql
 from edb.testbase import lang as tb
 from edb.testbase import server as tbs
+from edb.server import args as edbargs
 from edb.server import compiler as edbcompiler
 from edb.server.compiler_pool import amsg
 from edb.server.compiler_pool import pool
@@ -71,7 +73,7 @@ class ServerProtocol(amsg.ServerProtocol):
         self.disconnected = asyncio.Queue()
         self.pids = set()
 
-    def worker_connected(self, pid):
+    def worker_connected(self, pid, version):
         self.connected.put_nowait(pid)
         self.pids.add(pid)
 
@@ -94,6 +96,7 @@ class TestAmsg(tbs.TestCase):
                     sys.executable, "-m", pool.WORKER_MOD,
                     "--sockname", sock_name,
                     "--numproc", str(num_proc),
+                    "--version-serial", "1",
                     env=pool._ENV,
                     stdin=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL,
@@ -248,6 +251,118 @@ class TestAmsg(tbs.TestCase):
             for pid in pids:
                 with self.assertRaises(OSError):
                     os.kill(pid, 0)
+
+
+class TestServerCompilerPool(tbs.TestCase):
+    def _wait_pids(self, *pids, timeout=1):
+        remaining = list(pids)
+
+        start = time.monotonic()
+        while pids and time.monotonic() - start < timeout:
+            for pid in tuple(remaining):
+                try:
+                    os.kill(pid, 0)
+                except OSError:
+                    remaining.remove(pid)
+            if remaining:
+                time.sleep(0.1)
+        return remaining
+
+    def _kill_and_wait(self, *pids, sig=signal.SIGTERM, timeout=1):
+        for pid in pids:
+            os.kill(pid, sig)
+        remaining = self._wait_pids(*pids)
+        if remaining:
+            raise TimeoutError(
+                f"Failed to kill PID {remaining} with {sig} "
+                f"in {timeout} second(s)"
+            )
+
+    def _get_worker_pids(self, sd, least_num=2, timeout=1):
+        rv = []
+        start = time.monotonic()
+        while time.monotonic() - start < timeout and len(rv) < least_num:
+            pool_info = sd.fetch_server_info()['compiler_pool']
+            rv = pool_info['worker_pids']
+        if len(rv) < least_num:
+            raise TimeoutError(
+                f"Not enough workers found in {timeout} second(s)"
+            )
+        return rv
+
+    def _get_template_pid(self, sd):
+        return sd.fetch_server_info()['compiler_pool']['template_pid']
+
+    async def test_server_compiler_pool_with_server(self):
+        async with tbs.start_edgedb_server(
+            compiler_pool_size=2,
+            http_endpoint_security=(
+                edbargs.ServerEndpointSecurityMode.Optional),
+        ) as sd:
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
+            pid1, pid2 = self._get_worker_pids(sd)
+
+            # Terminate one worker, the server is still OK
+            self._kill_and_wait(pid1)
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
+
+            # Confirm that another worker is started
+            pids = set(self._get_worker_pids(sd))
+            self.assertIn(pid2, pids)
+            pids.remove(pid2)
+            self.assertEqual(len(pids), 1)
+            pid3 = pids.pop()
+
+            # Kill both workers, the server would need some time to recover
+            os.kill(pid2, signal.SIGKILL)
+            os.kill(pid3, signal.SIGKILL)
+            start = time.monotonic()
+            while time.monotonic() - start < 5:
+                try:
+                    self.assertEqual(
+                        sd.call_system_api('/server/status/ready'), 'OK'
+                    )
+                except AssertionError:
+                    time.sleep(0.1)
+                else:
+                    break
+            pids = set(self._get_worker_pids(sd))
+            self.assertNotIn(pid1, pids)
+            self.assertNotIn(pid2, pids)
+            self.assertNotIn(pid3, pids)
+
+            # Kill one worker with SIGINT, it's not restarted
+            self._kill_and_wait(pids.pop(), sig=signal.SIGINT)
+            time.sleep(1)
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
+            self.assertSetEqual(
+                set(self._get_worker_pids(sd, least_num=1)), pids
+            )
+            pid4 = pids.pop()
+
+            # Kill the template process, the server shouldn't be
+            # impacted immediately
+            tmpl_pid1 = self._get_template_pid(sd)
+            os.kill(tmpl_pid1, signal.SIGKILL)
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
+
+            # When the new template process is started, it will spawn 2 new
+            # workers, and the old pid4 will then be killed.
+            self._wait_pids(pid4)
+            tmpl_pid2 = self._get_template_pid(sd)
+            self.assertIsNotNone(tmpl_pid2)
+            self.assertNotEqual(tmpl_pid1, tmpl_pid2)
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
+
+            # Make sure everything works again
+            start = time.monotonic()
+            while time.monotonic() - start < 10:
+                pids = self._get_worker_pids(sd, timeout=10)
+                if pid4 not in pids:
+                    break
+            self.assertNotIn(pid4, pids)
+            self.assertEqual(len(pids), 2)
+            self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
 
 
 class TestCompilerPool(tbs.TestCase):

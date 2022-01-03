@@ -21,36 +21,22 @@
 ## --------------------------
 
 
-# Unlike SQL, EdgeQL does not have the three-valued boolean logic,
-# and boolean operators must obey the same rules as all other
-# operators: they must yield an empty set if any of the operands
-# is an empty set, while in SQL `(True OR NULL) IS True`.
-# To achieve this, we convert the boolean op into an equivalent
-# bitwise OR expression (the shortest and fastest equivalent):
-#
-#    a OR b --> (a::int | b::int)::bool
-#
-# This transformation may break bitmap index scan optimization
-# when inside a WHERE clause, so we must use the original
-# boolean expression in conjunction.
 CREATE INFIX OPERATOR
 std::`OR` (a: std::bool, b: std::bool) -> std::bool {
     CREATE ANNOTATION std::identifier := 'or';
     CREATE ANNOTATION std::description := 'Logical disjunction.';
     SET volatility := 'Immutable';
-    USING SQL $$
-    SELECT ("a" OR "b") AND ("a"::int | "b"::int)::bool
-    $$;
+    SET impl_is_strict := false;
+    USING SQL EXPRESSION;
 };
 
 
-# `USING SQL EXPRESSION` means that the operator is translated
-# by the compiler into some SQL expression.
 CREATE INFIX OPERATOR
 std::`AND` (a: std::bool, b: std::bool) -> std::bool {
     CREATE ANNOTATION std::identifier := 'and';
     CREATE ANNOTATION std::description := 'Logical conjunction.';
     SET volatility := 'Immutable';
+    SET impl_is_strict := false;
     USING SQL EXPRESSION;
 };
 

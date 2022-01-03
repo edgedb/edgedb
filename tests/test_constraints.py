@@ -1133,7 +1133,7 @@ class TestConstraintsDDL(tb.DDLTestCase):
 
         async with self.assertRaisesRegexTx(
             edgedb.InvalidConstraintDefinitionError,
-            "constraints cannot contain paths with more than one hop",
+            "link constraints may not access the link target",
         ):
             await self.con.execute("""
                 ALTER TYPE ObjCnstr2 {

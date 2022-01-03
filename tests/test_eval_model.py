@@ -20,6 +20,7 @@
 import unittest
 
 from edb.tools import toy_eval_model as model
+from edb.tools import test
 
 
 class TestModelSmokeTests(unittest.TestCase):
@@ -32,9 +33,11 @@ class TestModelSmokeTests(unittest.TestCase):
 
     DB1 = model.DB1
 
-    def assert_test_query(self, query, expected, *, db=DB1, sort=True):
+    def assert_test_query(
+        self, query, expected, *, db=DB1, sort=True, singleton_cheating=False
+    ):
         qltree = model.parse(query)
-        result = model.go(qltree, db)
+        result = model.go(qltree, db, singleton_cheating)
         if sort:
             result.sort()
             expected.sort()
@@ -162,6 +165,14 @@ class TestModelSmokeTests(unittest.TestCase):
             """,
             [(0, 'bar'), (1, 'baz'), (2, 'foo')],
             sort=False,
+        )
+
+    def test_model_set_union(self):
+        self.assert_test_query(
+            r"""
+            SELECT count({User, Card})
+            """,
+            [13],
         )
 
     def test_edgeql_coalesce_set_of_01(self):
@@ -518,4 +529,73 @@ class TestModelSmokeTests(unittest.TestCase):
             SELECT count((SELECT _ := User {name} FILTER User.name = 'Alice'));
             """,
             [4],
+        )
+
+    def test_model_singleton_cheat(self):
+        self.assert_test_query(
+            r"""
+            SELECT User { name } FILTER .name = 'Alice';
+            """,
+            [
+                {'name': 'Alice'}
+            ],
+            singleton_cheating=True,
+            sort=False,
+        )
+
+    def test_model_computed_01(self):
+        self.assert_test_query(
+            r"""
+            SELECT User { name, deck_cost } ORDER BY .name;
+            """,
+            [
+                {"name": "Alice", "deck_cost": 11},
+                {"name": "Bob", "deck_cost": 9},
+                {"name": "Carol", "deck_cost": 16},
+                {"name": "Dave", "deck_cost": 20},
+            ],
+            singleton_cheating=True,
+            sort=False,
+        )
+
+    def test_model_computed_02(self):
+        self.assert_test_query(
+            r"""
+            SELECT User { deck: {name, @total_cost} ORDER BY .name}
+            FILTER .name = 'Alice';
+            """,
+            [{"deck": [
+                {"name": "Bog monster", "@total_cost": 6},
+                {"name": "Dragon", "@total_cost": 10},
+                {"name": "Giant turtle", "@total_cost": 9},
+                {"name": "Imp", "@total_cost": 2},
+            ]}],
+            singleton_cheating=True,
+            sort=False,
+        )
+
+    def test_model_alias_correlation_01(self):
+        self.assert_test_query(
+            r"""
+            SELECT (Note.name, EXISTS (WITH W := Note.note SELECT W))
+            """,
+            [('boxing', False), ('unboxing', True), ('dynamic', True)]
+        )
+
+    @test.xfail('The model has a lot of trouble with shadowing.')
+    def test_model_alias_shadowing_01(self):
+        self.assert_test_query(
+            r"""
+            SELECT (User.name, (WITH User := {1,2} SELECT User))
+            """,
+            [
+                ["Alice", 1],
+                ["Alice", 2],
+                ["Bob", 1],
+                ["Bob", 2],
+                ["Carol", 1],
+                ["Carol", 2],
+                ["Dave", 1],
+                ["Dave", 2],
+            ]
         )

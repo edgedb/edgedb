@@ -38,6 +38,7 @@ from . import annos as s_anno
 from . import constraints
 from . import delta as sd
 from . import expr as s_expr
+from . import expraliases as s_expraliases
 from . import inheriting
 from . import name as sn
 from . import objects as so
@@ -663,7 +664,8 @@ class Pointer(referencing.ReferencedInheritingObject,
     def get_referrer(self, schema: s_schema.Schema) -> Optional[so.Object]:
         return self.get_source(schema)
 
-    def is_exclusive(self, schema: s_schema.Schema) -> bool:
+    def get_exclusive_constraints(
+            self, schema: s_schema.Schema) -> Sequence[constraints.Constraint]:
         if self.generic(schema):
             raise ValueError(f'{self!r} is generic')
 
@@ -671,13 +673,17 @@ class Pointer(referencing.ReferencedInheritingObject,
 
         ptr = self.get_nearest_non_derived_parent(schema)
 
+        constrs = []
         for constr in ptr.get_constraints(schema).objects(schema):
             if (constr.issubclass(schema, exclusive) and
                     not constr.get_subjectexpr(schema)):
 
-                return True
+                constrs.append(constr)
 
-        return False
+        return constrs
+
+    def is_exclusive(self, schema: s_schema.Schema) -> bool:
+        return bool(self.get_exclusive_constraints(schema))
 
     def singular(
         self,
@@ -780,6 +786,7 @@ class Pointer(referencing.ReferencedInheritingObject,
             return None
 
         tgt = ptr.get_target(schema)
+        assert tgt is not None
 
         if f_default is so.DEFAULT_CONSTRUCTOR:
             if (
@@ -1138,6 +1145,19 @@ class PointerCommandOrFragment(
         self.set_attribute_value('expr', expression)
         required, card = expression.irast.cardinality.to_schema_value()
 
+        # Disallow referring to aliases from computed pointers.
+        # We will support this eventually but it is pretty broken now
+        # and best to consistently give an understandable error.
+        for schema_ref in expression.irast.schema_refs:
+            if isinstance(schema_ref, s_expraliases.Alias):
+                srcctx = self.get_attribute_source_context('target')
+                an = schema_ref.get_verbosename(expression.irast.schema)
+                raise errors.UnsupportedFeatureError(
+                    f'referring to {an} from computed {ptr_name} '
+                    f'is unsupported',
+                    context=srcctx,
+                )
+
         spec_target: Optional[
             Union[
                 s_types.TypeShell[s_types.Type],
@@ -1234,8 +1254,6 @@ class PointerCommandOrFragment(
         expr_description: Optional[str] = None,
     ) -> s_expr.Expression:
         singletons: List[Union[s_types.Type, Pointer]] = []
-        path_prefix_anchor = None
-        anchors: Dict[str, Any] = {}
 
         parent_ctx = self.get_referrer_context_or_die(context)
         source = parent_ctx.op.get_object(schema, context)
@@ -1268,10 +1286,8 @@ class PointerCommandOrFragment(
                 transient=True,
             )
 
-        anchors[qlast.Source().name] = source
         assert isinstance(source, (s_types.Type, Pointer))
         singletons = [source]
-        path_prefix_anchor = qlast.Source().name
 
         if target_as_singleton:
             src = self.scls.get_source(schema)
@@ -1287,8 +1303,8 @@ class PointerCommandOrFragment(
             options=qlcompiler.CompilerOptions(
                 modaliases=context.modaliases,
                 schema_object_context=self.get_schema_metaclass(),
-                anchors=anchors,
-                path_prefix_anchor=path_prefix_anchor,
+                anchors={qlast.Source().name: source},
+                path_prefix_anchor=qlast.Source().name,
                 singletons=frozenset(singletons),
                 apply_query_rewrites=not context.stdmode,
                 track_schema_ref_exprs=track_schema_ref_exprs,
@@ -1742,7 +1758,7 @@ class CreatePointer(
         schema: s_schema.Schema,
         context: sd.CommandContext,
         astnode: qlast.ObjectDDL,
-        bases: Any,
+        bases: List[Pointer_T],
         referrer: so.Object,
     ) -> sd.ObjectCommand[Pointer_T]:
         cmd = super().as_inherited_ref_cmd(
@@ -1779,10 +1795,16 @@ class AlterPointer(
     ) -> s_schema.Schema:
         schema = super()._alter_begin(schema, context)
 
-        if self.get_attribute_value('expr') is not None:
+        if (
+            self.get_attribute_value('expr') is not None
+            or bool(self.get_subcommands(type=constraints.ConstraintCommand))
+        ):
             # If the expression gets changed, we need to propagate
             # this change to other expressions referring to this one,
             # in case there are any cycles caused by this change.
+            #
+            # Also, if constraints are modified, that can affect
+            # cardinality of other expressions using backlinks.
             schema = self._propagate_if_expr_refs(
                 schema,
                 context,
@@ -1969,8 +1991,8 @@ class SetPointerType(
             #    in the new schema; there is no way for us to infer
             #    castability and we assume a cast expression is needed.
             if isinstance(old_type_shell, s_types.CollectionTypeShell):
-                create = old_type_shell.as_create_delta(schema)
                 try:
+                    create = old_type_shell.as_create_delta(schema)
                     schema = sd.apply(create, schema=schema)
                 except errors.InvalidReferenceError:
                     # A removed type is part of the collection,
@@ -2379,6 +2401,10 @@ class AlterPointerUpperCardinality(
             and not ptr_op.maybe_get_object_aux_data('from_alias')
             and self.conv_expr is None
             and not (
+                ptr_op.get_attribute_value('expr')
+                or ptr_op.get_orig_attribute_value('expr')
+            )
+            and not (
                 ptr_op.get_attribute_value('declared_overloaded')
                 or isinstance(src_op, sd.CreateObject)
             )
@@ -2468,6 +2494,7 @@ class AlterPointerLowerCardinality(
 
         orig_required = scls.get_required(orig_schema)
         new_required = scls.get_required(schema)
+        new_card = scls.get_cardinality(schema)
         is_computed = 'required' in scls.get_computed_fields(schema)
 
         if orig_required == new_required or is_computed:
@@ -2483,7 +2510,7 @@ class AlterPointerLowerCardinality(
                     context=context,
                     expr=self.fill_expr,
                     target_as_singleton=True,
-                    singleton_result_expected=True,
+                    singleton_result_expected=new_card.is_single(),
                     expr_description=(
                         f'the USING clause for the alteration of {vn}'
                     ),

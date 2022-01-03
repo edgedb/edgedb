@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_annotations:
 
-Schema Annotations
-==================
+Declaring annotations
+=====================
 
 Use annotations to add descriptions to types and links:
 
@@ -80,3 +80,13 @@ command:
             constraint std::exclusive;
         };
     };
+
+
+.. list-table::
+  :class: seealso
+
+  * - **See also**
+  * - :ref:`Schema > Annotations <ref_datamodel_annotations>`
+  * - :ref:`SDL > Annotations <ref_eql_sdl_annotations>`
+  * - :ref:`DDL > Annotations <ref_eql_ddl_annotations>`
+  * - :ref:`Introspection > Object types <ref_eql_introspection_object_types>`

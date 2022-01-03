@@ -36,6 +36,8 @@ Cardinality inference is one of the big open design questions that I have:
 is there a reasonable way that we could implement it as a mostly-dynamic
 analysis, without needing a full separate cardinality checker?
 
+We don't really understand name shadowing at all.
+
 There is no type or error checking.
 
 Run this as a script for a bad REPL that can be noodled around
@@ -74,6 +76,7 @@ import json
 import operator
 import pprint
 import random
+import statistics
 import traceback
 import uuid
 
@@ -85,12 +88,20 @@ def bsid(n: int) -> uuid.UUID:
     return uuid.UUID(f'ffffffff-ffff-ffff-ffff-{n:012x}')
 
 
+FREE_ID = bsid(0x01)
+
 # ############# Data model
 
 Data = Any
 Result = List[Data]
 Row = Tuple[Data, ...]
-DB = Dict[uuid.UUID, Dict[str, Data]]
+
+
+class DB(NamedTuple):
+    data: Dict[uuid.UUID, Dict[str, Data]]
+    # We have a bad hacky mechanism for specifying schema computables,
+    # but it's good enough to let us have these things in test queries.
+    schema_computables: Dict[str, Dict[str, qlast.Expr]]
 
 
 class Obj:
@@ -112,9 +123,29 @@ class Obj:
     def __repr__(self) -> str:
         return f'Obj{self.shape!r}'
 
+    def get(self, name: str, db: DB) -> Optional[Data]:
+        if name in self.data:
+            return self.data[name]
+        else:
+            return db.data[self.id].get(name)
 
-def mk_db(data: Iterable[Dict[str, Data]]) -> DB:
-    return {x["id"]: x for x in data}
+    def get_required(self, name: str, db: DB) -> Data:
+        x = self.get(name, db)
+        assert x
+        return x
+
+
+def mk_db(
+    data: Iterable[Dict[str, Data]],
+    schema_computables: Dict[str, Dict[str, str]],
+) -> DB:
+    return DB(
+        {x["id"]: x for x in data},
+        {
+            typ: {ptr: parse_fragment(ql) for ptr, ql in d.items()}
+            for typ, d in schema_computables.items()
+        }
+    )
 
 
 def bslink(n: int, **kwargs: Data) -> Data:
@@ -147,6 +178,7 @@ BASIS = {
     'UNION': [SET_OF, SET_OF],
     '?=': [OPTIONAL, OPTIONAL],
     '?!=': [OPTIONAL, OPTIONAL],
+    'math::mean': [SET_OF],
 }
 
 
@@ -168,9 +200,9 @@ class ITypeIntersection(NamedTuple):
 
 
 class IPtr(NamedTuple):
-    ptr: str
-    direction: Optional[str]
-    is_link_property: bool
+    name: str
+    direction: Optional[str] = None
+    is_link_property: bool = False
 
 
 IPathElement = Union[IPartial, IExpr, IORef, ITypeIntersection, IPtr]
@@ -316,6 +348,7 @@ _BASIS_FUNC_IMPLS: Any = {
     'all': lift_set_of(all),
     'any': lift_set_of(any),
     'len': lift(len),
+    'math::mean': lift_set_of(statistics.mean),
     'array_agg': array_agg,
     'array_unpack': array_unpack,
     'random': lift(random.random),
@@ -369,12 +402,25 @@ def graft(
 
 
 def update_path(
-    prefix: Optional[qlast.Path], query: Optional[qlast.Expr]
+    prefix: Optional[qlast.Path], query: Optional[qlast.Expr],
+    subject: bool=False,
 ) -> Optional[qlast.Path]:
     if query is None:
         return None
+    elif subject and isinstance(query, qlast.SubjectMixin):
+        if (
+            isinstance(query, qlast.GroupQuery)
+            and query.subject_alias is not None
+        ):
+            return qlast.Path(
+                steps=[qlast.ObjectRef(name=query.subject_alias)])
+        else:
+            query = query.subject
     elif isinstance(query, qlast.ReturningMixin):
-        if query.result_alias is not None:
+        if (
+            isinstance(query, qlast.SelectQuery)
+            and query.result_alias is not None
+        ):
             return qlast.Path(steps=[
                 qlast.ObjectRef(name=query.result_alias)
             ])
@@ -396,6 +442,15 @@ def ptr_name(ptr: qlast.Ptr) -> str:
     if ptr.type == 'property':
         name = '@' + name
     return name
+
+
+def ensure_qlstmt(expr: qlast.Expr) -> qlast.Statement:
+    if not isinstance(expr, qlast.Statement):
+        expr = qlast.SelectQuery(
+            result=expr,
+            implicit=True,
+        )
+    return expr
 
 
 def eval_filter(
@@ -517,6 +572,163 @@ def eval_Select(node: qlast.SelectQuery, ctx: EvalContext) -> Result:
     return [row[-1] for row in out]
 
 
+# From the itertools docs
+def powerset(iterable: Iterable[T]) -> Iterable[Tuple[T, ...]]:
+    "powerset([1,2,3]) --> () (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3)"
+    s = list(iterable)
+    return itertools.chain.from_iterable(
+        itertools.combinations(s, r) for r in range(len(s) + 1))
+
+
+def simplify_grouping_sets(
+        gset: qlast.GroupingElement) -> List[qlast.GroupingAtom]:
+    if isinstance(gset, qlast.GroupingSimple):
+        return [gset.element]
+    elif isinstance(gset, qlast.GroupingSets):
+        return [x for s in gset.sets for x in simplify_grouping_sets(s)]
+    elif isinstance(gset, qlast.GroupingOperation):
+        if gset.oper == 'cube':
+            return [
+                qlast.GroupingIdentList(elements=x)
+                for x in powerset(gset.elements)
+            ]
+        elif gset.oper == 'rollup':
+            return [
+                qlast.GroupingIdentList(elements=tuple(gset.elements[:i]))
+                for i in range(len(gset.elements) + 1)
+            ]
+
+    raise ValueError
+
+
+ByElement = Union[IORef, IPtr]
+
+
+def get_by_element(atom: Union[qlast.ObjectRef, qlast.Path]) -> ByElement:
+    if isinstance(atom, qlast.ObjectRef):
+        return IORef(atom.name)
+    else:
+        assert isinstance(atom.steps[0], qlast.Ptr)
+        return IPtr(atom.steps[0].ptr.name)
+
+
+def flatten_grouping_atom(atom: qlast.GroupingAtom) -> Tuple[ByElement, ...]:
+    if isinstance(atom, (qlast.ObjectRef, qlast.Path)):
+        return (get_by_element(atom),)
+    else:
+        return tuple(
+            x for g in atom.elements
+            for x in flatten_grouping_atom(g)
+        )
+
+
+def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[ByElement, ...]]:
+    toplevel_gsets = []
+    for col in node.by:
+        gsets = simplify_grouping_sets(col)
+        simp_gsets = [flatten_grouping_atom(x) for x in gsets]
+        toplevel_gsets.append(simp_gsets)
+
+    return [
+        tuple(x for y in g for x in y)
+        for g in itertools.product(*toplevel_gsets)
+    ]
+
+
+def get_groups(node: qlast.GroupQuery, ctx: EvalContext) -> List[Tuple[
+    Tuple[Data, ...],
+    Tuple[Dict[ByElement, Data], List[Data]]
+]]:
+    ctx = eval_aliases(node, ctx)
+
+    # Actually evaluate the subject
+    subject_vals = subquery(node.subject, ctx=ctx)
+
+    subq_path = update_path(ctx.cur_path, node, subject=True)
+    new_qil = ctx.query_input_list + [
+        simplify_path(subq_path) if subq_path else (IPartial(),)]
+
+    # Collect all the grouping sets from the node
+    grouping_sets = get_grouping_sets(node)
+    all_keys = tuple(dedup([x for g in grouping_sets for x in g]))
+
+    # For every subject value, evaluate all of the expressions in the
+    # USING clause and all the path prefixes used in BY and record them.
+    vals_and_keys = []
+    for val in subject_vals:
+        subctx = replace(ctx, query_input_list=new_qil,
+                         cur_path=subq_path,
+                         input_tuple=ctx.input_tuple + (val,),
+                         aliases=ctx.aliases.copy())
+
+        keys: Dict[ByElement, Data] = {}
+        # Collect all the USING bindings
+        for using in (node.using or ()):
+            using_val = eval(using.expr, ctx=subctx)
+            assert len(using_val) <= 1
+            subctx.aliases[using.alias] = using_val
+            keys[IORef(using.alias)] = using_val
+        # And collect all the partial path references
+        for key_el in all_keys:
+            if isinstance(key_el, IPtr):
+                key_val = eval_ptr(val, key_el, ctx=subctx)
+                assert len(key_val) <= 1
+                keys[key_el] = key_val
+
+        vals_and_keys.append((val, keys))
+
+    # With the keys computed, run through every grouping set and
+    # produce our groups.
+    all_groups = []
+    # Rebuild the set tuples from all_keys to both deduplicate
+    # and ensure a canonical order.
+    grouping_sets = [
+        tuple(k for k in all_keys if k in grouping_set)
+        for grouping_set in grouping_sets
+    ]
+    for grouping_set in grouping_sets:
+        groups: Dict[
+            Tuple[Data, ...],
+            Tuple[Dict[ByElement, Data], List[Data]]
+        ] = {}
+        for val, keys in vals_and_keys:
+            # Prune the keys down to just this grouping set
+            keys = {k: v if k in grouping_set else [] for k, v in keys.items()}
+            key = tuple(
+                None if not keys[k] else keys[k][0]
+                for k in grouping_set)
+            groups.setdefault(key, (keys, []))[1].append(val)
+
+        # We need to always output a group for the empty grouping set, if
+        # it exists.
+        if grouping_set == () and () not in groups:
+            groups[()] = ({k: [] for k in all_keys}, [])
+
+        all_groups.extend([(grouping_set, v) for v in groups.values()])
+
+    return all_groups
+
+
+@_eval.register
+def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
+    all_groups = get_groups(node, ctx)
+
+    # Now we can produce our output.
+    out = []
+    for grouping, (bindings, elements) in all_groups:
+        key_dict = {k.name: v for k, v in bindings.items()}
+        key_obj = Obj(FREE_ID, key_dict, key_dict)
+        group_dict = {
+            'key': [key_obj],
+            'elements': elements,
+            'grouping': [[g.name for g in grouping]],
+        }
+        group_obj = Obj(FREE_ID, group_dict, group_dict)
+        out.append(group_obj)
+
+    return out
+
+
 @_eval.register
 def eval_ShapeElement(el: qlast.ShapeElement, ctx: EvalContext) -> Result:
     if el.compexpr:
@@ -630,8 +842,10 @@ def eval_UnaryOp(node: qlast.UnaryOp, ctx: EvalContext) -> Result:
 
 @_eval.register
 def eval_Call(node: qlast.FunctionCall, ctx: EvalContext) -> Result:
-    assert isinstance(node.func, str)
-    return eval_func_or_op(node.func, node.args or [], 'func', ctx)
+    func = node.func
+    if isinstance(func, tuple):
+        func = '::'.join(func)  # sure, for now.
+    return eval_func_or_op(func, node.args or [], 'func', ctx)
 
 
 @_eval.register
@@ -728,34 +942,86 @@ def eval(node: qlast.Base, ctx: EvalContext) -> Result:
 # Query setup
 
 
-def get_links(obj: Data, key: str) -> Result:
-    out = obj.get(key)
-    if out is None:
-        out = []
-    if not isinstance(out, list):
-        out = [out]
-    return out
+def fix_links(links: Optional[Data]) -> Result:
+    if links is None:
+        links = []
+    if not isinstance(links, list):
+        links = [links]
+    return links
+
+
+def lookup_computed(
+    obj: Obj, name: str, ctx: EvalContext
+) -> Optional[Tuple[qlast.Expr, str, Obj]]:
+    """Lookup a schema-computed property
+
+    Return (code, source type name, source object).
+    """
+    if not (typ := obj.get('__type__', ctx.db)):
+        return None
+
+    typ_computed = ctx.db.schema_computables.get(typ)
+    if name[0] != '@' and typ_computed and name in typ_computed:
+        return typ_computed[name], typ, obj
+
+    elif (
+        name[0] == '@'
+        and (src := obj.get('@source', ctx.db))
+        and (src_ptr := obj.get('@__source_link', ctx.db))
+        and (src_type := src.get('__type__', ctx.db))
+        and (src_computed := ctx.db.schema_computables.get(src_type))
+        and f'{src_ptr}{name}' in src_computed
+    ):
+        return src_computed[f'{src_ptr}{name}'], src_type, src
+    else:
+        return None
+
+
+def eval_computed(
+    obj: Obj, name: str, query: qlast.Expr, typ: str, src: Obj, *,
+    ctx: EvalContext,
+) -> Result:
+    paths = [qlast.Path(steps=[qlast.ObjectRef(name=typ)])]
+
+    if name[0] != '@':
+        input_tuple: Tuple[Data, ...] = (obj,)
+    else:
+        # For linkprops, we want both the source and the target in the
+        # query input.
+        paths.append(qlast.Path(
+            steps=paths[0].steps + [qlast.Ptr(ptr=qlast.ObjectRef(name=name))]
+        ))
+        input_tuple = (src, obj)
+
+    subctx = EvalContext(
+        query_input_list=[simplify_path(p) for p in paths],
+        input_tuple=input_tuple,
+        aliases={},
+        cur_path=paths[-1],
+        db=ctx.db,
+    )
+    return subquery(query, ctx=subctx)
 
 
 def eval_fwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
     if isinstance(base, tuple):
-        return [base[int(ptr.ptr)]]
+        return [base[int(ptr.name)]]
     elif isinstance(base, Obj):
-        name = '@' + ptr.ptr if ptr.is_link_property else ptr.ptr
-        if name in base.data:
-            obj = base.data
-        else:
-            obj = ctx.db[base.id]
-        return get_links(obj, name)
+        name = '@' + ptr.name if ptr.is_link_property else ptr.name
+        data = base.get(name, ctx.db)
+        # could be computed
+        if data is None and (computed := lookup_computed(base, name, ctx)):
+            data = eval_computed(base, name, *computed, ctx=ctx)
+        return fix_links(data)
     else:
-        return [base[ptr.ptr]]
+        return [base[ptr.name]]
 
 
 def eval_bwd_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
     # XXX: This is slow even by the standards of this terribly slow model
     res = []
-    for obj in ctx.db.values():
-        for tgt in get_links(obj, ptr.ptr):
+    for obj in ctx.db.data.values():
+        for tgt in fix_links(obj.get(ptr.name)):
             if base == tgt:
                 # Extract any lprops and put them on the backlink
                 data = {k: v for k, v in tgt.data.items() if k[0] == '@'}
@@ -773,7 +1039,7 @@ def eval_ptr(base: Data, ptr: IPtr, ctx: EvalContext) -> Result:
 def eval_intersect(
         base: Data, ptr: ITypeIntersection, ctx: EvalContext) -> Result:
     # TODO: we want actual types but for now we just match directly
-    typ = ctx.db[base.id]["__type__"]
+    typ = ctx.db.data[base.id]["__type__"]
     return [base] if typ == ptr.typ else []
 
 
@@ -783,7 +1049,7 @@ def eval_objref(name: str, ctx: EvalContext) -> Result:
         return ctx.aliases[name]
 
     return [
-        Obj(obj["id"]) for obj in ctx.db.values()
+        Obj(obj["id"]) for obj in ctx.db.data.values()
         if obj["__type__"] == name
     ]
 
@@ -873,9 +1139,10 @@ class PathFinder(NodeVisitor):
 
     @contextlib.contextmanager
     def update_path(
-            self, query: Optional[qlast.Expr]) -> Iterator[None]:
+        self, query: Optional[qlast.Expr], subject: bool=False,
+    ) -> Iterator[None]:
         yield from self._update(
-            current_path=update_path(self.current_path, query))
+            current_path=update_path(self.current_path, query, subject))
 
     def visit_Path(self, path: qlast.Path, always_partial: bool=False) -> None:
         self.paths.append((
@@ -887,6 +1154,9 @@ class PathFinder(NodeVisitor):
 
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
         with self.subquery():
+            # XXX: shadowing?
+            self.visit(query.aliases)
+
             if query.result_alias:
                 with self.subquery():
                     self.visit(query.result)
@@ -900,6 +1170,20 @@ class PathFinder(NodeVisitor):
             with self.update_path(None):
                 self.visit(query.limit)
                 self.visit(query.offset)
+
+    def visit_GroupQuery(self, query: qlast.GroupQuery) -> None:
+        with self.subquery():
+            self.visit(query.aliases)
+
+            if query.subject_alias:
+                with self.subquery():
+                    self.visit(query.subject)
+            else:
+                self.visit(query.subject)
+
+            with self.update_path(query, subject=True):
+                # deal with shadowing?
+                self.visit(query.using)
 
     def visit_Shape(self, shape: qlast.Shape) -> None:
         self.visit(shape.expr)
@@ -916,6 +1200,10 @@ class PathFinder(NodeVisitor):
     def visit_ForQuery(self, query: qlast.ForQuery) -> None:
         with self.subquery():
             self.generic_visit(query)
+
+    def visit_Set(self, expr: qlast.Set) -> None:
+        with self.subquery():
+            self.visit(expr.elements)
 
     def visit_func_or_op(self, op: str, args: List[qlast.Expr]) -> None:
         # Totally ignoring that polymorphic whatever is needed
@@ -942,8 +1230,10 @@ class PathFinder(NodeVisitor):
 
     def visit_FunctionCall(self, query: qlast.FunctionCall) -> None:
         assert not query.kwargs
-        assert isinstance(query.func, str)
-        self.visit_func_or_op(query.func, query.args)
+        func = query.func
+        if isinstance(func, tuple):
+            func = '::'.join(func)  # sure, for now.
+        self.visit_func_or_op(func, query.args)
         assert not query.window  # done last or we get dced.
 
     def visit_IfElse(self, query: qlast.IfElse) -> None:
@@ -979,7 +1269,7 @@ def longest_common_prefix(p1: IPath, p2: IPath) -> IPath:
     return tuple(common)
 
 
-def dedup(old: List[T]) -> List[T]:
+def dedup(old: Collection[T]) -> List[T]:
     new: List[T] = []
     for x in old:
         if x not in new:
@@ -1046,6 +1336,11 @@ def parse(querystr: str) -> qlast.Expr:
     assert len(statements) == 1
     assert isinstance(statements[0], qlast.Expr)
     return statements[0]
+
+
+def parse_fragment(querystr: str) -> qlast.Expr:
+    source = edgeql.Source.from_string(querystr)
+    return edgeql.parse_fragment(source)
 
 
 def analyze_paths(
@@ -1143,21 +1438,24 @@ def strip_shapes(x: Data) -> Data:
         return x
 
 
-def clean_data(x: Data) -> Data:
+def clean_data(x: Data, cheat: bool, *, is_el: bool=False) -> Data:
     if isinstance(x, Obj):
-        return clean_data(x.shape)
+        return clean_data(x.shape, cheat)
     elif isinstance(x, dict):
-        return {k: clean_data(v) for k, v in x.items()}
+        return {k: clean_data(v, cheat, is_el=True) for k, v in x.items()}
     elif isinstance(x, tuple):
-        return tuple(clean_data(v) for v in x)
+        return tuple(clean_data(v, cheat) for v in x)
     elif isinstance(x, list):
-        return [clean_data(v) for v in x]
+        res = [clean_data(v, cheat) for v in x]
+        if cheat and is_el and len(res) == 1:
+            return res[0]
+        return res
     else:
         return x
 
 
-def go(q: qlast.Expr, db: DB) -> Data:
-    return clean_data(toplevel_query(q, db))
+def go(q: qlast.Expr, db: DB, cheat: bool) -> Data:
+    return clean_data(toplevel_query(q, db), cheat)
 
 
 class EdbJSONEncoder(json.JSONEncoder):
@@ -1167,11 +1465,15 @@ class EdbJSONEncoder(json.JSONEncoder):
         return super().default(x)
 
 
-def run(db: DB, s: str, print_asts: bool, output_mode: str) -> None:
+def run(
+    db: DB,
+    s: str,
+    print_asts: bool, output_mode: str, singleton_cheating: bool,
+) -> None:
     q = parse(s)
     if print_asts:
         debug.dump(q)
-    res = go(q, db)
+    res = go(q, db, singleton_cheating)
     if output_mode == 'pprint':
         pprint.pprint(res)
     elif output_mode == 'json':
@@ -1180,7 +1482,12 @@ def run(db: DB, s: str, print_asts: bool, output_mode: str) -> None:
         debug.dump(res)
 
 
-def repl(db: DB, print_asts: bool=False, output_mode: str='debug') -> None:
+def repl(
+    db: DB,
+    print_asts: bool=False,
+    output_mode: str='debug',
+    singleton_cheating: bool=False,
+) -> None:
     # for now users should just invoke this script with rlwrap since I
     # don't want to fiddle with history or anything
     while True:
@@ -1191,7 +1498,7 @@ def repl(db: DB, print_asts: bool=False, output_mode: str='debug') -> None:
             if not s:
                 return
         try:
-            run(db, s, print_asts, output_mode)
+            run(db, s, print_asts, output_mode, singleton_cheating)
         except Exception:
             traceback.print_exception(*sys.exc_info())
 
@@ -1233,6 +1540,8 @@ def load_json_obj(obj: Any) -> Any:
         for v1 in vs:
             if isinstance(v1, dict):
                 lprops = {lk: lv for lk, lv in v1.items() if lk[0] == '@'}
+                lprops['@source'] = Obj(uuid.UUID(obj['id']))
+                lprops['@__source_link'] = k
                 v1 = Obj(uuid.UUID(v1['id']), data=lprops)
             nvs.append(v1)
         nv = nvs if isinstance(v, list) else nvs[0]
@@ -1424,9 +1733,23 @@ CARDS_DB = [
 PersonT = "Person"
 NoteT = "Note"
 FooT = "Foo"
+
+SCHEMA_COMPUTABLES = {
+    'Card': {
+        'owners': '.<deck[IS User]',
+        'elemental_cost': "<str>.cost ++ ' ' ++ .element",
+        'good_awards': "(SELECT .awards FILTER .name != '3rd')",
+    },
+    'User': {
+        'deck_cost': 'sum(.deck.cost)',
+        'deck@total_cost': '@count * .cost',
+        'avatar@tag': '.name ++ (("-" ++ @text) ?? "")',
+    },
+}
+
 DB1 = mk_db([
     # FreeObject
-    {"id": bsid(0x01), "__type__": "FreeObject"},
+    {"id": FREE_ID, "__type__": "FreeObject"},
 
     # Person
     {"id": bsid(0x10), "__type__": PersonT,
@@ -1457,7 +1780,7 @@ DB1 = mk_db([
      "tgt": [bslink(0x82), bslink(0x83)]},
     {"id": bsid(0x93), "__type__": "Obj", "n": 3,
      "tgt": [bslink(0x83), bslink(0x84)]},
-] + load_json_db(CARDS_DB))
+] + load_json_db(CARDS_DB), SCHEMA_COMPUTABLES)
 
 parser = argparse.ArgumentParser(description='Toy EdgeQL eval model')
 parser.add_argument('--debug', '-d', action='store_true',
@@ -1466,6 +1789,13 @@ parser.add_argument('--pprint', '-p', action='store_true',
                     help='Use pprint instead of debug.dump')
 parser.add_argument('--json', '-j', action='store_true',
                     help='Use json.dump instead of debug.dump')
+
+# The toy model currently doesn't understand cardinality inference,
+# but reading shape output where everything is a list is just awful.
+# So as a hacky workaround for now, add a flag to just print size one
+# sets as if they were singletons.
+parser.add_argument('--singleton-cheating', '-s', action='store_true',
+                    help='Print length one shape elements as singletons')
 
 parser.add_argument('commands', metavar='cmd', type=str, nargs='*',
                     help='commands to run')
@@ -1480,9 +1810,9 @@ def main() -> None:
 
     if args.commands:
         for arg in args.commands:
-            run(db, arg, args.debug, output_mode)
+            run(db, arg, args.debug, output_mode, args.singleton_cheating)
     else:
-        return repl(db, args.debug, output_mode)
+        return repl(db, args.debug, output_mode, args.singleton_cheating)
 
 
 if __name__ == '__main__':

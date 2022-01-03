@@ -4,88 +4,113 @@
 Indexes
 =======
 
-An :ref:`object type <ref_datamodel_object_types>` or an
-:ref:`abstract link <ref_datamodel_links>` may define *indexes*.
-An index is a special expression declaration which indicates to the
-database that, for a given set of objects or links, a particular expression
-must be *indexed* to allow for faster evaluation of queries which use
-that expression.
-
-The *subject* of an index is either the object or the abstract link on
-which the index is defined. It can be referred to in the index
-expression as ``__subject__``.
-
-The simplest form of an index is one which references one
-or more properties directly:
-
-.. code-block:: sdl
-
-    type User {
-        required property name -> str;
-        index on (__subject__.name);
-    }
-
-With the above, ``User`` lookups by the ``name`` property will be faster,
-as the database will not have to scan an entire set of objects sequentially
-to find the matching objects:
-
-.. code-block:: edgeql
-
-    SELECT User FILTER User.name = 'Alice';
-
-Typically the explicit ``__subject__`` can be omitted in favor of a
-short-form expression, since the index always appears nested inside
-its *subject*:
-
-.. code-block:: sdl
-
-    type User {
-        required property name -> str;
-        index on (.name);
-    }
-
-Indexes may be defined using an arbitrary expression that references
-multiple properties of the host object type:
-
-.. code-block:: sdl
-
-    type User {
-        required property firstname -> str;
-        required property lastname -> str;
-        index on (str_lower(
-            .firstname + ' ' + .lastname));
-    }
-
-Similarly indexes may refer to the link properties if the *subject* is a link:
-
-.. code-block:: sdl
-
-    abstract link friends_base {
-        property nickname -> str;
-        index on (__subject__@nickname);
-    }
-
-The index expression must not reference any variables other than the
-properties of the index *subject*.  All functions used in the
-expression must not be set-returning.
-
-There's no need to create an index on just the link itself, as indexes
-are already created for links implicitly. Also, as a special case,
-adding the :eql:constraint:`exclusive` constraint to a property
-implicitly creates an index for it as well.
+An index is a data structure used internally by a database to speed up
+filtering and sorting operations. Most commonly, indexes are declared within
+object type declarations and reference a particular property; this will speed
+up any query that references that property in a ``filter`` or ``order by``
+clause.
 
 .. note::
 
-    While being beneficial to the speed of queries, indexes increase
-    the database size and make insertion and updates slower, and creating
-    too many indexes may be detrimental.
+  While improving query performance, indexes also increase disk and memory
+  usage and slow down insertions and updates. Creating too many indexes may be
+  detrimental; only index properties you often filter or order by.
+
+Index on a property
+-------------------
+
+Below, we are referencing the ``User.name`` property with the :ref:`dot
+notation shorthand <ref_dot_notation>`: ``.name``.
+
+.. code-block:: sdl
+
+  type User {
+    required property name -> str;
+    index on (.name);
+  }
+
+By indexing on ``User.name``, queries that filter by the ``name`` property will
+be faster, as the database can lookup a name in the index instead of scanning
+through all Users sequentially.
+
+Index on an expression
+----------------------
+
+Indexes may be defined using an arbitrary *singleton* expression that
+references multiple properties of the enclosing object type.
+
+.. important::
+
+  A singleton expression is an expression that's guaranteed to return *at most
+  one* one element. As such, you can't index on a ``multi`` property.
+
+.. code-block:: sdl
+
+  type User {
+    required property first_name -> str;
+    required property last_name -> str;
+    index on (str_lower(.firstname + ' ' + .lastname));
+  }
+
+Index on multiple properties
+----------------------------
+
+A *composite index* is an index that references multiple properties. This will
+speed up queries that filter or sort on *both properties*. In EdgeDB, this is
+accomplished by indexing on a ``tuple`` of properties.
+
+.. code-block:: sdl
+
+  type User {
+    required property name -> str;
+    required property email -> str;
+    index on ((.name, .email));
+  }
+
+Index on a link property
+------------------------
+
+Link properties can also be indexed.
+
+.. code-block:: sdl
+
+  abstract link friendship {
+    property strength -> float64;
+    index on (__subject__@strength);
+  }
+
+  type User {
+    multi link friends extending friendship -> User;
+  }
+
+Annotate an index
+-----------------
+
+Indexes can be augmented with annotations.
+
+.. code-block:: sdl
+
+  type User {
+    property name -> str;
+    index on (.name) {
+      annotation description := 'Indexing all users by name.';
+    };
+  }
+
+.. important::
+
+  **Foreign and primary keys**
+
+  In SQL databases, indexes are commonly used to index *primary keys* and
+  *foreign keys*. In EdgeDB, these fields are automatically indexed; there's no
+  need to manually declare them. Moreover, any property with an
+  :eql:constraint:`exclusive` constraint is also automatically indexed.
 
 
+.. list-table::
+  :class: seealso
 
-See Also
---------
-
-Index
-:ref:`SDL <ref_eql_sdl_indexes>`,
-:ref:`DDL <ref_eql_ddl_indexes>`,
-and :ref:`introspection <ref_eql_introspection_indexes>`.
+  * - **See also**
+  * - :ref:`SDL > Indexes <ref_eql_sdl_indexes>`
+  * - :ref:`DDL > Indexes <ref_eql_ddl_indexes>`
+  * - :ref:`Introspection > Indexes <ref_eql_introspection_indexes>`

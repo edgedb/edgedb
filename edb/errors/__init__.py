@@ -61,7 +61,11 @@ __all__ = base.__all__ + (  # type: ignore
     'DuplicateFunctionDefinitionError',
     'DuplicateConstraintDefinitionError',
     'DuplicateCastDefinitionError',
+    'SessionTimeoutError',
+    'IdleSessionTimeoutError',
     'QueryTimeoutError',
+    'TransactionTimeoutError',
+    'IdleTransactionTimeoutError',
     'ExecutionError',
     'InvalidValueError',
     'DivisionByZeroError',
@@ -79,6 +83,8 @@ __all__ = base.__all__ + (  # type: ignore
     'AuthenticationError',
     'AvailabilityError',
     'BackendUnavailableError',
+    'BackendError',
+    'UnsupportedBackendFeatureError',
     'LogMessage',
     'WarningMessage',
 )
@@ -292,8 +298,24 @@ class DuplicateCastDefinitionError(DuplicateDefinitionError):
     _code = 0x_04_05_02_0A
 
 
-class QueryTimeoutError(QueryError):
+class SessionTimeoutError(QueryError):
     _code = 0x_04_06_00_00
+
+
+class IdleSessionTimeoutError(SessionTimeoutError):
+    _code = 0x_04_06_01_00
+
+
+class QueryTimeoutError(SessionTimeoutError):
+    _code = 0x_04_06_02_00
+
+
+class TransactionTimeoutError(SessionTimeoutError):
+    _code = 0x_04_06_0A_00
+
+
+class IdleTransactionTimeoutError(TransactionTimeoutError):
+    _code = 0x_04_06_0A_01
 
 
 class ExecutionError(EdgeDBError):
@@ -362,6 +384,14 @@ class AvailabilityError(EdgeDBError):
 
 class BackendUnavailableError(AvailabilityError):
     _code = 0x_08_00_00_01
+
+
+class BackendError(EdgeDBError):
+    _code = 0x_09_00_00_00
+
+
+class UnsupportedBackendFeatureError(BackendError):
+    _code = 0x_09_00_01_00
 
 
 class LogMessage(EdgeDBMessage):

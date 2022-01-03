@@ -116,7 +116,12 @@ cdef class EdgeConnection:
 
         bint _cancelled
         bint _stop_requested
-        bint _pgcon_released
+        bint _pgcon_released_in_connection_lost
+
+        bint idling
+        object started_idling_at
+
+        bint _in_dump_restore
 
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
@@ -129,7 +134,6 @@ cdef class EdgeConnection:
 
     cdef write(self, WriteBuffer buf)
     cdef flush(self)
-    cdef abort(self)
 
     cdef abort_pinned_pgcon(self)
 

@@ -6,7 +6,6 @@ Generic
 
 :edb-alt-title: Generic Functions and Operators
 
-
 .. list-table::
     :class: funcoptable
 
@@ -43,13 +42,6 @@ Generic
     * - :eql:func:`find`
       - :eql:func-desc:`find`
 
-    * - :eql:func:`round`
-      - :eql:func-desc:`round`
-
-    * - :eql:func:`random`
-      - :eql:func-desc:`random`
-
-
 -----------
 
 
@@ -61,12 +53,16 @@ Generic
 
         db> SELECT 3 = 3.0;
         {true}
+        db> SELECT 3 = 3.14;
+        {false}
         db> SELECT [1, 2] = [1, 2];
         {true}
-        db> SELECT (x := 1, y := 2) = (x := 1, y := 2);
+        db> SELECT (1, 2) = (x := 1, y := 2);
         {true}
-        db> SELECT 'hello' = 'hello';
+        db> SELECT (x := 1, y := 2) = (a := 1, b := 2);
         {true}
+        db> SELECT 'hello' = 'world';
+        {false}
 
 
 ----------
@@ -78,7 +74,18 @@ Generic
 
     .. code-block:: edgeql-repl
 
+
+        db> SELECT 3 != 3.0;
+        {false}
         db> SELECT 3 != 3.14;
+        {true}
+        db> SELECT [1, 2] != [2, 1];
+        {false}
+        db> SELECT (1, 2) != (x := 1, y := 2);
+        {false}
+        db> SELECT (x := 1, y := 2) != (a := 1, b := 2);
+        {false}
+        db> SELECT 'hello' != 'world';
         {true}
 
 
@@ -116,14 +123,8 @@ Generic
 
         db> SELECT {2} ?!= {2};
         {false}
-
-    .. code-block:: edgeql-repl
-
         db> SELECT {1} ?!= <int64>{};
         {true}
-
-    .. code-block:: edgeql-repl
-
         db> SELECT <bool>{} ?!= <bool>{};
         {false}
 
@@ -135,15 +136,20 @@ Generic
 
     Less than operator.
 
-    Return ``true`` if the value of the left expression is less
-    than the value of the right expression.
+    Return ``true`` if the value of the left expression is less than
+    the value of the right expression. In EdgeQL any values can be
+    compared to each other as long as they are of the same type:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 1 < 2;
+        db> select 1 < 2;
         {true}
-        db> SELECT 2 < 2;
+        db> select 2 < 2;
         {false}
+        db> select 'hello' < 'world';
+        {true}
+        db> select (1, 'hello') < (1, 'world');
+        {true}
 
 ----------
 
@@ -153,7 +159,8 @@ Generic
     Greater than operator.
 
     Return ``true`` if the value of the left expression is greater
-    than the value of the right expression.
+    than the value of the right expression. In EdgeQL any values can be
+    compared to each other as long as they are of the same type:
 
     .. code-block:: edgeql-repl
 
@@ -161,6 +168,10 @@ Generic
         {false}
         db> SELECT 3 > 2;
         {true}
+        db> select 'hello' > 'world';
+        {false}
+        db> select (1, 'hello') > (1, 'world');
+        {false}
 
 
 ----------
@@ -170,14 +181,22 @@ Generic
 
     Less or equal operator.
 
-    Return ``true`` if the value of the left expression is less
-    than or equal to the value of the right expression.
+    Return ``true`` if the value of the left expression is less than
+    or equal to the value of the right expression. In EdgeQL any
+    values can be compared to each other as long as they are of the
+    same type:
 
     .. code-block:: edgeql-repl
 
         db> SELECT 1 <= 2;
         {true}
-        db> SELECT 'aaa' <= 'bbb';
+        db> select 2 <= 2;
+        {true}
+        db> select 3 <= 2;
+        {false}
+        db> select 'hello' <= 'world';
+        {true}
+        db> select (1, 'hello') <= (1, 'world');
         {true}
 
 
@@ -189,11 +208,21 @@ Generic
     Greater or equal operator.
 
     Return ``true`` if the value of the left expression is greater
-    than or equal to the value of the right expression.
+    than or equal to the value of the right expression. In EdgeQL any
+    values can be compared to each other as long as they are of the
+    same type:
 
     .. code-block:: edgeql-repl
 
         db> SELECT 1 >= 2;
+        {false}
+        db> SELECT 2 >= 2;
+        {true}
+        db> SELECT 3 >= 2;
+        {true}
+        db> select 'hello' >= 'world';
+        {false}
+        db> select (1, 'hello') >= (1, 'world');
         {false}
 
 
@@ -294,76 +323,3 @@ Generic
         {3}
 
 
-----------
-
-
-.. eql:function:: std::round(value: int64) -> float64
-                  std::round(value: float64) -> float64
-                  std::round(value: bigint) -> bigint
-                  std::round(value: decimal) -> decimal
-                  std::round(value: decimal, d: int64) -> decimal
-
-    Round to the nearest value.
-
-    There's a difference in how ties (which way ``0.5`` is rounded)
-    are handled depending on the type of the input *value*.
-
-    :eql:type:`float64` tie is rounded to the nearest even number:
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT round(1.2);
-        {1}
-
-        db> SELECT round(1.5);
-        {2}
-
-        db> SELECT round(2.5);
-        {2}
-
-    :eql:type:`decimal` tie is rounded away from 0:
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT round(1.2n);
-        {1n}
-
-        db> SELECT round(1.5n);
-        {2n}
-
-        db> SELECT round(2.5n);
-        {3n}
-
-    Additionally, when rounding a :eql:type:`decimal` *value* an
-    optional argument *d* can be provided to specify to what decimal
-    point the *value* must to be rounded.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT round(163.278n, 2);
-        {163.28n}
-
-        db> SELECT round(163.278n, 1);
-        {163.3n}
-
-        db> SELECT round(163.278n, 0);
-        {163n}
-
-        db> SELECT round(163.278n, -1);
-        {160n}
-
-        db> SELECT round(163.278n, -2);
-        {200n}
-
-
-----------
-
-
-.. eql:function:: std::random() -> float64
-
-    Return a pseudo-random number in the range ``0.0 <= x < 1.0``.
-
-    .. code-block:: edgeql-repl
-
-        db> SELECT random();
-        {0.62649393780157}

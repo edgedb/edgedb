@@ -1,3 +1,5 @@
+.. _ref_cheatsheets:
+
 ===========
 Cheatsheets
 ===========
@@ -21,7 +23,7 @@ EdgeQL:
 
 Schema:
 
-* :ref:`Object Types <ref_cheatsheet_types>` -- Make your own object
+* :ref:`Object Types <ref_cheatsheet_object_types>` -- Make your own object
   and abstract types on top of existing system types.
 * :ref:`User Defined Functions <ref_cheatsheet_functions>` -- Write and
   overload your own strongly typed functions.
@@ -43,16 +45,16 @@ CLI/Admin:
     :maxdepth: 3
     :hidden:
 
-    repl
+
     select
     insert
     update
     delete
-    types
-    linkprop
-    functions
     boolean
+    objects
+    functions
     aliases
     annotations
     cli
+    repl
     admin

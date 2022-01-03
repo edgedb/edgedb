@@ -2154,6 +2154,120 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             }]
         })
 
+    def test_graphql_mutation_update_scalars_07(self):
+        # This tests array of JSON mutations. JSON can only be
+        # mutated via a variable.
+        data = {
+            'el0': {"foo": [1, None, "aardvark"]},
+            'el1': False,
+        }
+
+        self.assert_graphql_query_result(
+            r"""
+                mutation insert_ScalarTest($el0: JSON!, $el1: JSON!) {
+                    insert_ScalarTest(
+                        data: [{
+                            p_str: "Update ScalarTest07",
+                            p_array_json: [$el0, $el1],
+                        }]
+                    ) {
+                        p_str
+                        p_array_json
+                    }
+                }
+            """, {
+                "insert_ScalarTest": [{
+                    'p_str': 'Update ScalarTest07',
+                    'p_array_json': [data['el0'], data['el1']],
+                }]
+            },
+            variables=data,
+        )
+
+        self.assert_graphql_query_result(
+            r"""
+                mutation update_ScalarTest($el: JSON!) {
+                    update_ScalarTest(
+                        filter: {p_str: {eq: "Update ScalarTest07"}}
+                        data: {
+                            p_array_json: {prepend: [$el]},
+                        }
+                    ) {
+                        p_str
+                        p_array_json
+                    }
+                }
+            """, {
+                "update_ScalarTest": [{
+                    'p_str': 'Update ScalarTest07',
+                    'p_array_json': ["first", data['el0'], data['el1']],
+                }]
+            },
+            variables={"el": "first"}
+        )
+
+        self.assert_graphql_query_result(
+            r"""
+                mutation update_ScalarTest($el: JSON!) {
+                    update_ScalarTest(
+                        filter: {p_str: {eq: "Update ScalarTest07"}}
+                        data: {
+                            p_array_json: {append: [$el]},
+                        }
+                    ) {
+                        p_str
+                        p_array_json
+                    }
+                }
+            """, {
+                "update_ScalarTest": [{
+                    'p_str': 'Update ScalarTest07',
+                    'p_array_json': ["first", data['el0'], data['el1'], 9999],
+                }]
+            },
+            variables={"el": 9999}
+        )
+
+        self.assert_graphql_query_result(
+            r"""
+                mutation update_ScalarTest {
+                    update_ScalarTest(
+                        filter: {p_str: {eq: "Update ScalarTest07"}}
+                        data: {
+                            p_array_json: {slice: [1, 3]},
+                        }
+                    ) {
+                        p_str
+                        p_array_json
+                    }
+                }
+            """, {
+                "update_ScalarTest": [{
+                    'p_str': 'Update ScalarTest07',
+                    'p_array_json': [data['el0'], data['el1']],
+                }]
+            }
+        )
+
+        # clean up
+        self.assert_graphql_query_result(
+            r"""
+                mutation delete_ScalarTest {
+                    delete_ScalarTest(
+                        filter: {p_str: {eq: "Update ScalarTest07"}}
+                    ) {
+                        p_str
+                        p_array_json
+                    }
+                }
+            """, {
+                "delete_ScalarTest": [{
+                    'p_str': 'Update ScalarTest07',
+                    'p_array_json': [data['el0'], data['el1']],
+                }]
+            }
+        )
+
     def test_graphql_mutation_update_enum_01(self):
         # This tests enum values in updates.
 

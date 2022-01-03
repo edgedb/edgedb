@@ -1,12 +1,25 @@
 .. _ref_cli_edgedb_connopts:
 
-=========================
-Common Connection Options
-=========================
+================
+Connection flags
+================
 
-Various EdgeDB terminal tools such as :ref:`ref_cli_edgedb` repl,
-:ref:`ref_cli_edgedb_configure`, :ref:`ref_cli_edgedb_dump`,
-and :ref:`ref_cli_edgedb_restore` use the following connection options:
+The ``edgedb`` CLI supports a standard set of connection flags used to specify
+the *target* of a given command. The CLI always respects any connection
+parameters passed explicitly using flags.
+
+- If no flags are provided, then environment variables will be
+  used to determine the instance.
+- If no environment variables are present, the CLI will check if the working
+  directory is within an instance-linked project directory.
+- If none of the above are present, the command fails.
+
+For a detailed breakdown of how connection information is resolved, read the
+:ref:`Connection Parameter Resolution <ref_reference_connection>` docs.
+
+################
+Connection flags
+################
 
 :cli:synopsis:`-I <name>, --instance=<name>`
     Specifies the named instance to connect to. The actual connection
@@ -22,7 +35,7 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
 
     This option overrides all other options except password.
 
-:cli:synopsis:`--credentials-file <credentials_file>`
+:cli:synopsis:`--credentials-file /path/to/file`
     Path to JSON file containing credentials.
 
 :cli:synopsis:`-H <hostname>, --host=<hostname>`
@@ -58,29 +71,32 @@ and :ref:`ref_cli_edgedb_restore` use the following connection options:
 :cli:synopsis:`--password-from-stdin`
     Use the first line of standard input as the password.
 
-:cli:synopsis:`--tls-ca-file <tls_ca_file>`
+:cli:synopsis:`--tls-ca-file /path/to/cert`
     Certificate to match server against.
 
     This might either be full self-signed server certificate or
     certificate authority (CA) certificate that server certificate is
     signed with.
 
-:cli:synopsis:`--tls-verify-hostname`
-    Verify hostname of the server using provided certificate.
+:cli:synopsis:`--tls-security mode`
+    Set the TLS security mode.
 
-    It's useful when certificate authority (CA) is used for handling
-    certificate and usually not used for self-signed certificates.
+    ``default``
+        Resolves to ``strict`` if no custom certificate is supplied via
+        :cli:synopsis:`--tls-ca-file`, environment variable, etc. Otherwise,
+        resolves to ``no_host_verification``.
 
-    By default it's enabled when no specific certificate is present
-    (via :cli:synopsis:`--tls-ca-file` or in credentials JSON file).
+    ``strict``
+        Verify TLS certificate and hostname.
 
-:cli:synopsis:`--no-tls-verify-hostname`
-    Do not verify hostname of the server.
+    ``no_host_verification``
+        This allows using any certificate for any hostname. However,
+        certificate must be present and match the root certificate specified
+        with  :cli:synopsis:`--tls-ca-file`, credentials file, or system root
+        certificates.
 
-    This allows using any certificate for any hostname. However,
-    certificate must be present and match certificate specified with
-    :cli:synopsis:`--tls-ca-file` or credentials file or signed by one
-    of the root certificate authorities.
+    ``insecure``
+        Disable all TLS security measures.
 
 :cli:synopsis:`--wait-until-available=<wait_time>`
     In case EdgeDB connection can't be established, keep retrying up

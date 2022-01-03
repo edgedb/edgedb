@@ -139,21 +139,38 @@ class ParserContext(markup.MarkupExceptionContext):
         return me.lang.ExceptionContext(title=self.title, body=body)
 
     def _find_line(self, point, offset=0, *, line_offsets):
+        len_buffer = len(self.buffer)
         if point.line == 0:
             if offset < 0:
                 raise ValueError('not enough lines in buffer')
             else:
-                return 0, len(self.buffer)
+                return 0, len_buffer
 
         line_no = bisect.bisect_right(line_offsets, point.offset) - 1 + offset
         if line_no >= len(line_offsets):
             raise ValueError('not enough lines in buffer')
 
-        linestart = line_offsets[line_no]
+        # start and end cannot be less than 0 and greater than the
+        # buffer length
         try:
-            lineend = line_offsets[line_no + 1] - 1
+            linestart = min(len_buffer, max(0, line_offsets[line_no]))
         except IndexError:
-            lineend = len(self.buffer)
+            if line_no < 0:
+                # Can't be negative
+                linestart = 0
+            else:
+                # Can't be beyond the buffer's length
+                linestart = len_buffer
+
+        try:
+            lineend = min(len_buffer, max(0, line_offsets[line_no + 1] - 1))
+        except IndexError:
+            if line_no + 1 < 0:
+                # Can't be negative
+                lineend = 0
+            else:
+                # Can't be beyond the buffer's length
+                lineend = len_buffer
 
         return linestart, lineend
 

@@ -1,19 +1,25 @@
 .. _ref_cheatsheet_cli:
 
-Command Line
-============
+Using the CLI
+=============
 
-To create a new database instance ``my_project`` for a project run
-this in the project directory, then follow the prompts:
+To initialize a new project:
 
 .. code-block:: bash
 
-    $ edgedb project init my_instance
+    $ edgedb project init
 
-It will set up a new instance and associate that instance with the
-project directory so that ``edgedb`` commands that run from this
-directory will automatically connect to the project's instance.
+If an ``edgedb.toml`` file exists in the current directory, it will initialize
+a new project according to the settings defined in it.
 
+Otherwise, a new project will be initialized and an ``edgedb.toml`` file and
+``dbschema`` directory will be generated. For details on using projects, see
+the :ref:`dedicated guide <ref_guide_using_projects>`.
+
+Once initialized, you can run the CLI commands below without additional
+connection options. If you don't set up a project, you'll need to use
+:ref:`flags <ref_cli_edgedb_connopts>` to specify the target instance for each
+command.
 
 ----------
 

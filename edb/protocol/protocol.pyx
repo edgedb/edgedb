@@ -42,6 +42,9 @@ cdef class Connection:
     async def connect(self):
         await self._protocol.connect()
 
+    async def simple_query(self, query):
+        await self._protocol.simple_query(query, 0xFFFF_FFFF_FFFF_FFFF)
+
     async def sync(self):
         await self.send(messages.Sync())
         reply = await self.recv()
@@ -68,7 +71,7 @@ cdef class Connection:
         if not isinstance(message, msgcls):
             raise AssertionError(
                 f'expected for {msgcls.__name__} message, received '
-                f'{type(message).__name__}')
+                f'{type(message).__name__}: {message!r}')
         for fieldname, expected in fields.items():
             val = getattr(message, fieldname)
             if isinstance(expected, str):
@@ -104,31 +107,35 @@ async def new_connection(
     port: int = None,
     user: str = None,
     password: str = None,
-    admin: str = None,
     database: str = None,
-    tls_ca_file: str = None,
-    tls_verify_hostname: bool = None,
     timeout: float = 60,
-    use_tls: bool = True,
+    tls_security: str = 'default',
+    credentials_file: str = None,
+    **kwargs
 ):
-    addrs, params, config = con_utils.parse_connect_arguments(
+    connect_config, client_config = con_utils.parse_connect_arguments(
         dsn=dsn, host=host, port=port, user=user, password=password,
-        admin=admin, database=database,
-        tls_ca_file=tls_ca_file, tls_verify_hostname=tls_verify_hostname,
-        timeout=timeout, command_timeout=None, server_settings=None,
-        wait_until_available=timeout)
+        database=database,
+        timeout=timeout,
+        command_timeout=None,
+        server_settings=None,
+        tls_security=tls_security,
+        wait_until_available=timeout,
+        credentials_file=credentials_file,
+        **kwargs
+    )
 
     loop = asyncio.get_running_loop()
 
     last_error = None
     addr = None
-    for addr in addrs:
+    for addr in [connect_config.address]:
         before = time.monotonic()
         try:
             if timeout <= 0:
                 raise asyncio.TimeoutError
 
-            protocol_factory = lambda: Protocol(params, loop)
+            protocol_factory = lambda: Protocol(connect_config, loop)
 
             if isinstance(addr, str):
                 connector = loop.create_unix_connection(
@@ -136,7 +143,7 @@ async def new_connection(
             else:
                 connector = loop.create_connection(
                     protocol_factory, *addr,
-                    ssl=params.ssl_ctx if use_tls else None,
+                    ssl=connect_config.ssl_ctx if tls_security else None,
                 )
 
             before = time.monotonic()

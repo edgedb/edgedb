@@ -44,6 +44,10 @@ EDGEDB_MIN_RLIMIT_NOFILE = 2048
 BACKEND_CONNECTIONS_MIN = 4
 BACKEND_COMPILER_POOL_SIZE_MIN = 1
 
+# The time in seconds to wait before restarting the template compiler process
+# after it exits unexpectedly.
+BACKEND_COMPILER_TEMPLATE_PROC_RESTART_INTERVAL = 1
+
 _MAX_QUERIES_CACHE = 1000
 
 _QUERY_ROLLING_AVG_LEN = 10
@@ -51,6 +55,14 @@ _QUERIES_ROLLING_AVG_LEN = 300
 
 DEFAULT_MODULE_ALIAS = 'default'
 
+# The maximum length of a Unix socket relative to runstate dir.
+# 21 is the length of the longest socket we might use, which
+# is the admin socket (.s.EDGEDB.admin.xxxxx).
+MAX_UNIX_SOCKET_PATH_LENGTH = 21
+
+# 104 is the maximum Unix socket path length on BSD/Darwin, whereas
+# Linux is constrained to 108.
+MAX_RUNSTATE_DIR_PATH = 104 - MAX_UNIX_SOCKET_PATH_LENGTH - 1
 
 HTTP_PORT_QUERY_CACHE_SIZE = 1000
 HTTP_PORT_MAX_CONCURRENCY = 250  # XXX
@@ -60,7 +72,7 @@ HTTP_PORT_MAX_CONCURRENCY = 250  # XXX
 SYSTEM_DB_RECONNECT_INTERVAL = 1
 
 MIN_PROTOCOL = (0, 7)
-CURRENT_PROTOCOL = (0, 12)
+CURRENT_PROTOCOL = (0, 13)
 
 MIN_SUGGESTED_CLIENT_POOL_SIZE = 10
 MAX_SUGGESTED_CLIENT_POOL_SIZE = 100

@@ -104,7 +104,10 @@ CREATE ABSTRACT LINK schema::ordered {
 CREATE TYPE schema::Module EXTENDING schema::Object;
 
 
-CREATE ABSTRACT TYPE schema::CollectionType EXTENDING schema::Type;
+CREATE ABSTRACT TYPE schema::PrimitiveType EXTENDING schema::Type;
+
+
+CREATE ABSTRACT TYPE schema::CollectionType EXTENDING schema::PrimitiveType;
 
 
 CREATE TYPE schema::Array EXTENDING schema::CollectionType {
@@ -145,7 +148,7 @@ CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
     CREATE MULTI LINK annotations EXTENDING schema::reference
     -> schema::Annotation {
         CREATE PROPERTY value -> std::str;
-	ON TARGET DELETE ALLOW;
+        ON TARGET DELETE ALLOW;
     };
 };
 
@@ -212,13 +215,13 @@ CREATE ABSTRACT TYPE schema::ConsistencySubject EXTENDING schema::Object {
     CREATE MULTI LINK constraints EXTENDING schema::reference
     -> schema::Constraint {
         CREATE CONSTRAINT std::exclusive;
-	ON TARGET DELETE ALLOW;
+        ON TARGET DELETE ALLOW;
     };
 };
 
 
 ALTER TYPE schema::Constraint {
-    CREATE LINK subject := .<constraints[IS schema::ConsistencySubject];
+    CREATE LINK subject -> schema::ConsistencySubject;
 };
 
 
@@ -230,7 +233,7 @@ CREATE TYPE schema::Index EXTENDING schema::AnnotationSubject {
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
     CREATE MULTI LINK indexes -> schema::Index {
         CREATE CONSTRAINT std::exclusive;
-	ON TARGET DELETE ALLOW;
+        ON TARGET DELETE ALLOW;
     };
 };
 
@@ -251,7 +254,7 @@ CREATE ABSTRACT TYPE schema::Pointer
 ALTER TYPE schema::Source {
     CREATE MULTI LINK pointers EXTENDING schema::reference -> schema::Pointer {
         CREATE CONSTRAINT std::exclusive;
-	ON TARGET DELETE ALLOW;
+        ON TARGET DELETE ALLOW;
     };
 };
 
@@ -268,7 +271,7 @@ CREATE TYPE schema::Alias EXTENDING schema::AnnotationSubject
 CREATE TYPE schema::ScalarType
     EXTENDING
         schema::InheritingObject, schema::ConsistencySubject,
-        schema::AnnotationSubject, schema::Type
+        schema::AnnotationSubject, schema::PrimitiveType
 {
     CREATE PROPERTY default -> std::str;
     CREATE PROPERTY enum_values -> array<std::str>;
@@ -371,7 +374,10 @@ ALTER TYPE schema::Pointer {
 
 
 ALTER TYPE schema::Link {
-    CREATE MULTI LINK properties := .pointers;
+    ALTER LINK target
+        SET TYPE schema::ObjectType
+        USING (.target[IS schema::ObjectType]);
+    CREATE MULTI LINK properties := .pointers[IS schema::Property];
     CREATE PROPERTY on_target_delete -> schema::TargetDeleteAction;
 };
 

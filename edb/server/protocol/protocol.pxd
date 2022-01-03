@@ -28,6 +28,7 @@ cdef class HttpRequest:
         public bint should_keep_alive
         public bytes content_type
         public bytes method
+        public bytes accept
         public bytes body
         public bytes host
 
@@ -57,8 +58,8 @@ cdef class HttpProtocol:
         bint external_auth
         bint respond_hsts
         bint is_tls
-        bint allow_insecure_binary_clients
-        bint allow_insecure_http_clients
+        object binary_endpoint_security
+        object http_endpoint_security
 
         HttpRequest current_request
 

@@ -32,6 +32,7 @@ from edb import errors
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 
+from edb.schema import delta as s_delta
 from edb.schema import migrations as s_migrations
 from edb.schema import objects as s_obj
 from edb.schema import schema as s_schema
@@ -284,6 +285,9 @@ class ProposedMigrationStep(NamedTuple):
     prompt_id: str
     data_safe: bool
     required_user_input: Tuple[Tuple[str, str]]
+    # This isn't part of the output data, but is used to figure out
+    # what to prohibit when something is rejected.
+    operation_key: s_delta.CommandKey
 
     def to_json(self) -> Dict[str, Any]:
         user_input_list = []
@@ -400,26 +404,37 @@ class Transaction:
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        sp_ids_to_erase = []
         for sp in reversed(self._savepoints.values()):
             if sp.name == name:
                 self._current = sp
-                return sp
+                break
 
-        raise errors.TransactionError(f'there is no {name!r} savepoint')
+            sp_ids_to_erase.append(sp.id)
+        else:
+            raise errors.TransactionError(f'there is no {name!r} savepoint')
+
+        for sp_id in sp_ids_to_erase:
+            self._savepoints.pop(sp_id)
+
+        return sp
 
     def release_savepoint(self, name: str):
         if self.is_implicit():
             raise errors.TransactionError(
                 'savepoints can only be used in transaction blocks')
 
+        sp_ids_to_erase = []
         for sp in reversed(self._savepoints.values()):
+            sp_ids_to_erase.append(sp.id)
+
             if sp.name == name:
-                sp_id = sp.id
                 break
         else:
             raise errors.TransactionError(f'there is no {name!r} savepoint')
 
-        self._savepoints.pop(sp_id)
+        for sp_id in sp_ids_to_erase:
+            self._savepoints.pop(sp_id)
 
     def get_schema(self, std_schema: s_schema.FlatSchema) -> s_schema.Schema:
         assert isinstance(std_schema, s_schema.FlatSchema)

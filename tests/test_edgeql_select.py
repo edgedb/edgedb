@@ -741,7 +741,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT User {name, todo_ids := .todo.id} FILTER .name = 'Elvis';
             """,
             [
-                {'name': 'Elvis', 'todo_ids': [{}, {}]},
+                {'name': 'Elvis', 'todo_ids': [str, str]},
             ]
         )
 
@@ -752,7 +752,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT Z {name, asdf_id := .asdf.id} FILTER .name = 'Elvis';
             """,
             [
-                {'name': 'Elvis', 'asdf_id': {}},
+                {'name': 'Elvis', 'asdf_id': str},
             ]
         )
 
@@ -1509,6 +1509,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_select_polymorphic_09(self):
         # Test simultaneous type intersection on source and target
         # of a shape element.
@@ -1585,7 +1589,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     INSERT Publication {
                         title := 'Introduction to EdgeDB',
                         authors := (
-                            FOR v IN {enumerate({'Yury', 'Elvis'})}
+                            FOR v IN enumerate({'Yury', 'Elvis'})
                             UNION (
                                 SELECT User { @list_order := v.0 }
                                 FILTER .name = v.1
@@ -2787,8 +2791,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
     async def test_edgeql_select_func_06(self):
         await self.con.execute(r'''
-            CREATE FUNCTION concat2(VARIADIC s: std::str) -> std::str
+            CREATE FUNCTION concat2(VARIADIC s: std::str) -> std::str {
+                SET impl_is_strict := false;
                 USING SQL FUNCTION 'concat';
+            }
         ''')
 
         with self.assertRaisesRegex(
@@ -3408,6 +3414,111 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
+    async def test_edgeql_select_and_09(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := .val < 5 and .name like '%on'
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': False},
+                {'name': 'hexagon', 'val': 4, 'x': True},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': False},
+            ],
+        )
+
+    async def test_edgeql_select_and_10(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := not (.val < 5 and .name like '%on')
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': True},
+                {'name': 'hexagon', 'val': 4, 'x': False},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': True},
+            ],
+        )
+
+    async def test_edgeql_select_and_11(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (
+                    select _ := .tags = 'red' and .name like '%a%' order by _
+                )
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, False],
+            }, {
+                'name': 'hexagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [True],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, True],
+            }],
+        )
+
+    async def test_edgeql_select_and_12(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (
+                    select _ := not (.tags = 'red' and .name like '%a%')
+                    order by _
+                )
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [True, True],
+            }, {
+                'name': 'hexagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [False],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, True],
+            }],
+        )
+
     async def test_edgeql_select_or_01(self):
         issues_h = await self.con.query(r'''
             SELECT Issue{number}
@@ -3649,6 +3760,111 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '2'}, {'number': '3'}],
         )
 
+    async def test_edgeql_select_or_16(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := .val < 5 or .name like '%on'
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': True},
+                {'name': 'hexagon', 'val': 4, 'x': True},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': False},
+            ],
+        )
+
+    async def test_edgeql_select_or_17(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := not (.val < 5 or .name like '%on')
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': False},
+                {'name': 'hexagon', 'val': 4, 'x': False},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': True},
+            ],
+        )
+
+    async def test_edgeql_select_or_18(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (
+                    select _ := .tags = 'red' or .name like '%t%a%' order by _
+                )
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, True],
+            }, {
+                'name': 'hexagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [True],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [True, True],
+            }],
+        )
+
+    async def test_edgeql_select_or_19(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (
+                    select _ := not (.tags = 'red' or .name like '%t%a%')
+                    order by _
+                )
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, True],
+            }, {
+                'name': 'hexagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [False],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, False],
+            }],
+        )
+
     async def test_edgeql_select_not_01(self):
         await self.assert_query_result(
             r'''
@@ -3704,6 +3920,106 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # this is the result from or04
             #
             [{'number': '2'}, {'number': '3'}],
+        )
+
+    async def test_edgeql_select_not_04(self):
+        # testing double negation
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := not (.val < 5)
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': False},
+                {'name': 'hexagon', 'val': 4, 'x': False},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': True},
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := not not (.val < 5)
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': True},
+                {'name': 'hexagon', 'val': 4, 'x': True},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': False},
+            ],
+        )
+
+    async def test_edgeql_select_not_05(self):
+        # testing double negation
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (select _ := not (.tags = 'red') order by _)
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, True],
+            }, {
+                'name': 'hexagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [False],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, True],
+            }],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                tags,
+                x := (select _ := not not (.tags = 'red') order by _)
+            } order by .name;
+            ''',
+            [{
+                'name': 'circle',
+                'tags': {'red', 'black'},
+                'x': [False, True],
+            }, {
+                'name': 'hexagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'pentagon',
+                'tags': [],
+                'x': [],
+            }, {
+                'name': 'square',
+                'tags': {'red'},
+                'x': [True],
+            }, {
+                'name': 'triangle',
+                'tags': {'red', 'green'},
+                'x': [False, True],
+            }],
         )
 
     async def test_edgeql_select_empty_01(self):
@@ -3971,15 +4287,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 <str>Issue.time_estimate
             );
             """,
-            [{}],
+            [1],
         )
 
     async def test_edgeql_select_cross_13(self):
         await self.assert_query_result(
             r"""
-            SELECT count(count( Issue.watchers));
+            SELECT count(count(Issue.watchers));
             """,
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
@@ -4101,6 +4417,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
+    @test.xfail(
+        "Known issue in Postgres 14",
+        unless=int(os.getenv("EDGEDB_TEST_POSTGRES_VERSION", "13")) < 14
+    )
     async def test_edgeql_select_subqueries_07(self):
         await self.assert_query_result(
             r"""
@@ -5480,7 +5800,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT Issue {
                     asdf := (
-                        FOR z IN {.due_date} UNION (1)
+                        FOR z IN .due_date UNION (1)
                     )
                 }
                 FILTER .name = 'Release EdgeDB';
@@ -6031,6 +6351,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ["Elvis", "Yury"],
         )
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     async def test_edgeql_select_expr_objects_04(self):
         await self.assert_query_result(
             r'''
@@ -6183,17 +6507,12 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             self.assertEqual(row[0].__tname__, "default::User")
             self.assertEqual(row[1].__tname__, "default::Issue")
 
-    @test.xfail("""
-        SchemaDefinitionError: cannot alter object type 'std::Object':
-        module std is read-only
-    """)
     async def test_edgeql_select_array_common_type_02(self):
-        # Issue #2387
         res = await self.con._fetchall("""
             SELECT [Object];
         """, __typenames__=True)
         for row in res:
-            self.assertEqual(row[0].__tname__, "std::Object")
+            self.assertTrue(row[0].__tname__.startswith("default::"))
 
     async def test_edgeql_select_free_shape_01(self):
         res = await self.con.query_single('SELECT {test := 1}')
@@ -6410,28 +6729,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT <array<User>>{} UNION [User]
             ''',
-            [[{"id": {}}], [{"id": {}}]],
+            [[{"id": str}], [{"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <array<User>>{} ?? [User]
             ''',
-            [[{"id": {}}], [{"id": {}}]],
+            [[{"id": str}], [{"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <array<User>>{} IF false ELSE [User]
             ''',
-            [[{"id": {}}], [{"id": {}}]],
+            [[{"id": str}], [{"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT assert_exists([User])
             ''',
-            [[{"id": {}}], [{"id": {}}]],
+            [[{"id": str}], [{"id": str}]],
         )
 
     async def test_edgeql_collection_shape_02(self):
@@ -6439,28 +6758,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT <array<User>>{} UNION array_agg(User)
             ''',
-            [[{"id": {}}, {"id": {}}]],
+            [[{"id": str}, {"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <array<User>>{} ?? array_agg(User)
             ''',
-            [[{"id": {}}, {"id": {}}]],
+            [[{"id": str}, {"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <array<User>>{} IF false ELSE array_agg(User)
             ''',
-            [[{"id": {}}, {"id": {}}]],
+            [[{"id": str}, {"id": str}]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT assert_exists(array_agg(User))
             ''',
-            [[{"id": {}}, {"id": {}}]],
+            [[{"id": str}, {"id": str}]],
         )
 
     async def test_edgeql_collection_shape_03(self):
@@ -6468,28 +6787,28 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT <tuple<User, int64>>{} UNION (User, 2)
             ''',
-            [[{"id": {}}, 2], [{"id": {}}, 2]],
+            [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <tuple<User, int64>>{} ?? (User, 2)
             ''',
-            [[{"id": {}}, 2], [{"id": {}}, 2]],
+            [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT <tuple<User, int64>>{} IF false ELSE (User, 2)
             ''',
-            [[{"id": {}}, 2], [{"id": {}}, 2]],
+            [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
         await self.assert_query_result(
             r'''
                 SELECT assert_exists((User, 2))
             ''',
-            [[{"id": {}}, 2], [{"id": {}}, 2]],
+            [[{"id": str}, 2], [{"id": str}, 2]],
         )
 
     async def test_edgeql_collection_shape_04(self):
@@ -6497,7 +6816,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT [(User,)][0]
             ''',
-            [[{"id": {}}], [{"id": {}}]]
+            [[{"id": str}], [{"id": str}]]
         )
 
         await self.assert_query_result(
@@ -6512,7 +6831,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r'''
                 SELECT ([User],).0
             ''',
-            [[{"id": {}}], [{"id": {}}]]
+            [[{"id": str}], [{"id": str}]]
         )
 
         await self.assert_query_result(
@@ -6528,7 +6847,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT { z := ([User],).0 }
             ''',
             [
-                {"z": [[{"id": {}}], [{"id": {}}]]}
+                {"z": [[{"id": str}], [{"id": str}]]}
             ]
         )
 
@@ -6538,7 +6857,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH Z := (<array<User>>{} IF false ELSE [User]),
                 SELECT (Z, array_agg(array_unpack(Z))).1;
             ''',
-            [[{"id": {}}], [{"id": {}}]]
+            [[{"id": str}], [{"id": str}]]
         )
 
         await self.assert_query_result(
@@ -6546,5 +6865,127 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 WITH Z := (SELECT assert_exists([User]))
                 SELECT (Z, array_agg(array_unpack(Z))).1;
             ''',
-            [[{"id": {}}], [{"id": {}}]]
+            [[{"id": str}], [{"id": str}]]
         )
+
+    async def test_edgeql_assert_fail_object_computed_01(self):
+        # check that accessing a trivial computable on an object
+        # that will fail to evaluate still fails
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_exists violation",
+        ):
+            await self.con.query("""
+                SELECT assert_exists((SELECT User {m := 10} FILTER false)).m;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "array index 1000 is out of bounds",
+        ):
+            await self.con.query("""
+                SELECT array_agg((SELECT User {m := Issue}))[{1000}].m;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "array index 1000 is out of bounds",
+        ):
+            await self.con.query("""
+                SELECT array_agg((SELECT User {m := 10}))[{1000}].m;
+            """)
+
+    @test.xfail('''
+        Publication is empty, and so even if we join in User to the result
+        of the array dereference, that all gets optimized out on the pg
+        side. I'm not really sure what we can reasonably do about this.
+    ''')
+    async def test_edgeql_assert_fail_object_computed_02(self):
+        # Publication is empty, and so
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            "array index 1000 is out of bounds",
+        ):
+            await self.con.query("""
+                SELECT array_agg((SELECT User {m := Publication}))[{1000}].m;
+            """)
+
+    async def test_edgeql_select_call_null_01(self):
+        # testing calls with null args
+        await self.con.execute('''
+            create function foo(x: str, y: int64) -> str USING (x);
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := foo(.name, .val)
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': 'circle'},
+                {'name': 'hexagon', 'val': 4, 'x': 'hexagon'},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': 'triangle'},
+            ],
+        )
+
+    async def test_edgeql_select_call_null_02(self):
+        # testing calls with null args to a function that we can't mark
+        # as strict
+        await self.con.execute('''
+            create function foo(x: OPTIONAL str, y: int64) -> str USING (
+                x ?? "test"
+            );
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := foo(.name, .val)
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': 'circle'},
+                {'name': 'hexagon', 'val': 4, 'x': 'hexagon'},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': 'triangle'},
+            ],
+        )
+
+    async def test_edgeql_select_concat_null_01(self):
+        await self.assert_query_result(
+            r'''
+            select BooleanTest {
+                name,
+                val,
+                x := [.val] ++ [0]
+            } order by .name;
+            ''',
+            [
+                {'name': 'circle', 'val': 2, 'x': [2, 0]},
+                {'name': 'hexagon', 'val': 4, 'x': [4, 0]},
+                {'name': 'pentagon', 'val': None, 'x': None},
+                {'name': 'square', 'val': None, 'x': None},
+                {'name': 'triangle', 'val': 10, 'x': [10, 0]},
+            ],
+        )
+
+    async def test_edgeql_select_subshape_filter_01(self):
+        # TODO: produce a better error message with a hint here?
+        async with self.assertRaisesRegexTx(
+            edgedb.QueryError,
+            "possibly an empty set returned",
+        ):
+            await self.con.query(
+                r'''
+                SELECT Comment { owner: { name } FILTER false }
+                ''',
+            )

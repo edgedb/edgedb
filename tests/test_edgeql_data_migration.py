@@ -69,13 +69,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         self.cleanup_migration_exp_json(exp_result_json)
 
         try:
-            tx = self.con.transaction()
-            await tx.start()
-            try:
-                res = await self.con.query_single(
-                    'DESCRIBE CURRENT MIGRATION AS JSON;')
-            finally:
-                await tx.rollback()
+            res = await self.con.query_single(
+                'DESCRIBE CURRENT MIGRATION AS JSON;')
 
             res = json.loads(res)
             self.cleanup_migration_exp_json(res)
@@ -561,55 +556,43 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             'proposed': None,
         })
 
-    async def test_edgeql_migration_describe_rollback_01(self):
-        await self.con.execute('''
-            START MIGRATION TO {
-                module test {
-                    type Type1 {
-                        property field1 -> str;
-                    };
-                };
-            };
+    async def test_edgeql_migration_describe_reject_05(self):
+        await self.migrate('''
+            type User {
+                required property username -> str {
+                    constraint exclusive;
+                    constraint regexp(r'asdf');
+                }
+            }
         ''')
-        await self.con.query('DECLARE SAVEPOINT migration_01')
 
-        await self.assert_describe_migration(orig_expected := {
-            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
-            'confirmed': [],
-            'complete': False,
-            'proposed': {
-                'statements': [{
-                    'text': (
-                        'CREATE TYPE test::Type1 {\n'
-                        '    CREATE PROPERTY field1'
-                        ' -> std::str;\n'
-                        '};'
-                    )
-                }],
-                'prompt': "did you create object type 'test::Type1'?",
-            },
-        })
-
-        await self.con.execute('''
-            CREATE TYPE test::Type1 {
-                CREATE PROPERTY field1 -> std::str;
-            };
+        await self.start_migration('''
+            type User {
+                required property username -> str {
+                    constraint exclusive;
+                    constraint regexp(r'foo');
+                }
+            }
         ''')
 
         await self.assert_describe_migration({
-            'parent': 'm1a2l6lbzimqokzygdzbkyjrhbmjh3iljg7i2m6r2ias2z2de4x4cq',
-            'confirmed': [
-                'CREATE TYPE test::Type1 {\n'
-                '    CREATE PROPERTY field1 -> std::str;\n'
-                '};'
-            ],
-            'complete': True,
-            'proposed': None,
+            'proposed': {
+                'prompt': (
+                    "did you drop constraint 'std::regexp' "
+                    "of property 'username'?"
+                )
+            }
         })
 
-        await self.con.query('ROLLBACK TO SAVEPOINT migration_01;')
+        await self.con.execute('''
+            ALTER CURRENT MIGRATION REJECT PROPOSED;
+        ''')
 
-        await self.assert_describe_migration(orig_expected)
+        # ... nothing to do, we can't get it
+        await self.assert_describe_migration({
+            'complete': False,
+            'proposed': None,
+        })
 
     async def test_edgeql_migration_describe_module_01(self):
         # Migration that creates a new module.
@@ -3170,6 +3153,160 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
+    async def test_edgeql_migration_reject_prop_01(self):
+        await self.migrate('''
+            type User {
+                property foo -> str;
+            };
+        ''')
+
+        await self.start_migration('''
+            type User {
+                property bar -> str;
+            };
+        ''')
+
+        await self.interact([
+            ("did you rename property 'foo' of object type "
+             "'test::User' to 'bar'?", "n"),
+            # XXX: or should this be split up?
+            "did you alter object type 'test::User'?"
+        ])
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_reject_prop_02(self):
+        await self.migrate('''
+            type User {
+                required property foo -> str;
+            };
+        ''')
+
+        await self.start_migration('''
+            type User {
+                property bar -> str;
+            };
+        ''')
+
+        # Initial confidence should *not* be 1.0 here
+        res = json.loads(await self.con.query_single(
+            'DESCRIBE CURRENT MIGRATION AS JSON;'))
+        self.assertLess(res['proposed']['confidence'], 1.0)
+
+        await self.interact([
+            ("did you rename property 'foo' of object type 'test::User' to "
+             "'bar'?", "n"),
+            # XXX: or should this be split up?
+            "did you alter object type 'test::User'?"
+        ])
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_reject_prop_03(self):
+        await self.migrate('''
+            type User {
+                required property foo -> str;
+            };
+        ''')
+
+        await self.start_migration('''
+            type User {
+                required property bar -> int64;
+            };
+        ''')
+
+        await self.interact([
+            # Or should this be split into rename and reset optionality?
+            ("did you create property 'bar' of object type 'test::User'?",
+             "n"),
+            ("did you rename property 'foo' of object type 'test::User' to "
+             "'bar'?"),
+            ("did you alter the type of property 'bar' of object type "
+             "'test::User'?",
+             "y",
+             "<int64>.bar"),
+        ])
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_reject_prop_04(self):
+        await self.migrate('''
+            type Foo;
+            type Bar;
+        ''')
+
+        await self.start_migration('''
+            type Foo;
+            type Bar extending Foo;
+        ''')
+
+        await self.interact([
+            ("did you alter object type 'test::Bar'?", "n"),
+            "did you drop object type 'test::Bar'?",
+            "did you create object type 'test::Bar'?",
+        ])
+        await self.fast_forward_describe_migration()
+
+    @test.xfail('Fails to rebase because the type is mismatched')
+    async def test_edgeql_migration_reject_prop_05(self):
+        await self.migrate('''
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User {
+                required property name -> str;
+            };
+        ''')
+
+        await self.start_migration('''
+            scalar type Slug extending str;
+            abstract type Named {
+                required property name -> Slug;
+            };
+            type User extending Named;
+        ''')
+
+        await self.interact([
+            ("did you drop property 'name' of object type 'test::User'?", "n"),
+        ], check_complete=False)
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_force_delete_01(self):
+        await self.migrate('''
+            type Base;
+            type Foo;
+            type Bar { link foo -> Foo; };
+        ''')
+
+        await self.start_migration('''
+            type Base;
+            type Foo extending Base;
+            type Bar { link foo -> Foo; };
+        ''')
+
+        await self.interact([
+            ("did you alter object type 'test::Foo'?", "n"),
+            "did you drop link 'foo' of object type 'test::Bar'?"
+        ], check_complete=False)
+        await self.fast_forward_describe_migration()
+
+    async def test_edgeql_migration_force_delete_02(self):
+        await self.migrate('''
+            type Base;
+            type Foo;
+            type Bar extending Foo;
+        ''')
+
+        await self.start_migration('''
+            type Base;
+            type Foo extending Base;
+            type Bar extending Foo;
+        ''')
+
+        await self.interact([
+            ("did you alter object type 'test::Foo'?", "n"),
+            "did you drop object type 'test::Bar'?"
+        ], check_complete=False)
+        await self.fast_forward_describe_migration()
+
     async def test_edgeql_migration_eq_01(self):
         await self.migrate("""
             type Base;
@@ -3976,7 +4113,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             [{
                 'name': 'something',
             }, {
-                'name': None,
+                'name': 'something',
             }],
         )
 
@@ -5676,6 +5813,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             "did you create object type 'test::HasContent'?",
             "did you alter object type 'test::Post'?",
             "did you create object type 'test::Reply'?",
+            "did you alter property 'content' of object type 'test::Post'?",
         ])
 
     async def test_edgeql_migration_rebase_03(self):
@@ -5965,15 +6103,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         compatible one) of a default value without explicitly dropping
         the default first.
 
-        edgedb.errors.InternalServerError: cannot drop function
-        "edgedb_06261450-db74-11e9-9e9a-9520733a1c54".hello06(bigint)
-        because other objects depend on it
-
-        This is similar to the problem with renaming property used in
-        an expression.
-
-        See also `test_edgeql_migration_eq_function_10` and
-        `test_edgeql_migration_eq_index_01`.
+        Currently this kind of works... by proposing we delete the property
+        and recreate it.
     ''')
     async def test_edgeql_migration_eq_function_06(self):
         await self.migrate(r"""
@@ -6023,11 +6154,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {4, 2},
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop function
-        'test::hello07(a: std::int64)' because other objects in the
-        schema depend on it
-    ''')
     async def test_edgeql_migration_eq_function_07(self):
         await self.migrate(r"""
             function hello07(a: int64) -> str
@@ -6069,11 +6195,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {2},
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop function
-        'test::hello08(a: std::int64)' because other objects in the
-        schema depend on it
-    ''')
     async def test_edgeql_migration_eq_function_08(self):
         await self.migrate(r"""
             function hello08(a: int64) -> str
@@ -6109,11 +6230,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {2},
         )
 
-    @test.xfail('''
-        edgedb.errors.SchemaError: cannot drop function
-        'test::hello09(a: std::int64)' because other objects in the
-        schema depend on it
-    ''')
     async def test_edgeql_migration_eq_function_09(self):
         await self.migrate(r"""
             function hello09(a: int64) -> str
@@ -6163,18 +6279,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             {2},
         )
 
-    @test.xfail('''
-        edgedb.errors.InternalServerError: cannot drop function
-        "edgedb_bea19e4a-ec4b-11e9-9900-557227410171".hello10(bigint)
-        because other objects depend on it
-
-        This is similar to the problem with renaming property used in
-        an expression.
-
-        See also `test_schema_migrations_equivalence_function_10`,
-        `test_edgeql_migration_eq_function_06`,
-        `test_edgeql_migration_eq_index_01`.
-    ''')
     async def test_edgeql_migration_eq_function_10(self):
         await self.migrate(r"""
             function hello10(a: int64) -> str
@@ -7855,50 +7959,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }],
         )
 
-    @test.xfail('''
-        AssertionError: data shape differs: 'SELECT .name' != '.name'
-        PATH: [0]["indexes"][0]["expr"]
-
-        This may be using obsolete `orig_expr`, so perhaps the test is
-        no longer correct.
-    ''')
-    async def test_edgeql_migration_eq_index_05(self):
-        await self.migrate(r"""
-            type Base {
-                property name -> str;
-                # an index with a verbose definition (similar to
-                # DESCRIBE AS SDL)
-                index on (
-                    WITH MODULE test
-                    SELECT .name
-                ) {
-                    orig_expr := '.name';
-                }
-            }
-        """)
-        await self.con.execute("""
-            SET MODULE test;
-        """)
-
-        await self.assert_query_result(
-            r"""
-                WITH MODULE schema
-                SELECT ObjectType {
-                    name,
-                    indexes: {
-                        expr
-                    }
-                }
-                FILTER .name = 'test::Base';
-            """,
-            [{
-                'name': 'test::Base',
-                'indexes': [{
-                    'expr': '.name'
-                }]
-            }],
-        )
-
     async def test_edgeql_migration_eq_collections_01(self):
         await self.migrate(r"""
             type Base;
@@ -8819,6 +8879,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ALTER CURRENT MIGRATION REJECT PROPOSED;
         ''')
 
+        # We get the parts suggested to us granularly. We only bother
+        # to check the first one.
         await self.assert_describe_migration({
             'confirmed': [],
             'complete': False,
@@ -8827,10 +8889,6 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'text':
                         'ALTER TYPE test::Obj2 {\n'
                         '    DROP LINK o1;\n'
-                        '    DROP PROPERTY o;\n'
-                        '    RENAME TO test::NewObj2;\n'
-                        "    CREATE ANNOTATION std::title := 'Obj2';\n"
-                        '    CREATE PROPERTY name -> std::str;'
                         '\n'
                         '};'
                 }],
@@ -9065,6 +9123,44 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'text':
                         'ALTER TYPE test::Obj1 {\n    '
                         'CREATE PROPERTY x -> std::str;\n};'
+                }],
+                'confidence': 1.0,
+            },
+        })
+
+    async def test_edgeql_migration_confidence_04(self):
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1 {
+                        link link -> Object;
+                    }
+                };
+            };
+        ''')
+        await self.fast_forward_describe_migration()
+
+        await self.con.execute('''
+            START MIGRATION TO {
+                module test {
+                    type Obj1 {
+                        link link -> Object {
+                            property x -> str;
+                         }
+                    }
+                };
+            };
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text':
+                        'ALTER TYPE test::Obj1 {\n    '
+                        'ALTER LINK link {\n        '
+                        'CREATE PROPERTY x -> std::str;\n    };\n};'
                 }],
                 'confidence': 1.0,
             },
@@ -9812,6 +9908,10 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             ],
         )
 
+    @test.xfail('''
+       Referring to alias unsupported from computable
+       This is the only test that broke when we disallowed that!
+    ''')
     async def test_edgeql_migration_alias_02(self):
         await self.migrate(r'''
             type Foo {
@@ -10193,6 +10293,214 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 },
             ],
         )
+
+    async def test_edgeql_migration_tuple_01(self):
+        await self.migrate(r'''
+            type Bag {
+                property switching_tuple -> tuple<name: str, weight: int64>;
+            };
+        ''')
+
+        with self.assertRaisesRegex(
+            AssertionError,
+            r"Please specify a conversion expression to alter the type of "
+            r"property 'switching_tuple'"
+        ):
+            await self.migrate(r'''
+                type Bag {
+                    property switching_tuple -> tuple<name: str, age: int64>;
+                };
+            ''')
+
+    async def test_edgeql_migration_inheritance_to_empty_01(self):
+        await self.migrate(r'''
+            type A {
+                property name -> str;
+            }
+            type B {
+                property name -> str;
+            }
+            type C extending A, B {
+            }
+        ''')
+
+        await self.migrate('')
+
+    async def test_edgeql_migration_inheritance_to_empty_02(self):
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+        ''')
+
+        await self.migrate('')
+
+    async def test_edgeql_migration_drop_constraint_01(self):
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+        ''')
+
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str;
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+        ''')
+
+    async def test_edgeql_migration_drop_constraint_02(self):
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str {
+                    delegated constraint exclusive;
+                }
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+            type SpecialCard2 extending Card;
+            type VerySpecialCard extending SpecialCard, SpecialCard2;
+        ''')
+
+        await self.migrate(r'''
+            abstract type Named {
+                required property name -> str;
+            }
+
+            type User {
+                link avatar -> Card {
+                    property text -> str;
+                    property tag := .name ++ (("-" ++ @text) ?? "");
+                }
+            }
+
+            type Card extending Named;
+
+            type SpecialCard extending Card;
+            type SpecialCard2 extending Card;
+            type VerySpecialCard extending SpecialCard, SpecialCard2;
+        ''')
+
+    async def test_edgeql_migration_drop_constraint_03(self):
+        await self.migrate(r'''
+            type C {
+                required property val -> str {
+                    constraint exclusive;
+                }
+            }
+
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+        ''')
+
+        await self.migrate('')
+
+    async def test_edgeql_migration_drop_constraint_04(self):
+        await self.migrate(r'''
+            type C {
+                required property val -> str {
+                    constraint exclusive;
+                }
+            }
+
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+        ''')
+
+        await self.migrate(r'''
+            type C {
+                required property val -> str;
+            }
+
+            type Foo {
+                required multi link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+        ''')
+
+    async def test_edgeql_migration_drop_constraint_05(self):
+        await self.migrate(r'''
+            type C {
+                required property val -> str {
+                    constraint exclusive;
+                }
+                required property val2 -> str {
+                    constraint exclusive;
+                }
+            }
+
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val = 'D00');
+                }
+            }
+        ''')
+
+        await self.migrate(r'''
+            type C {
+                required property val2 -> str {
+                    constraint exclusive;
+                }
+            }
+
+            type Foo {
+                required link foo -> C {
+                    default := (SELECT C FILTER .val2 = 'D00');
+                }
+            }
+        ''')
 
 
 class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):

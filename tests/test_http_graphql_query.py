@@ -1365,6 +1365,98 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }]
         })
 
+    def test_graphql_functional_arguments_24(self):
+        # Test boolean AND handling {} like Postgres
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(
+                    filter: {
+                        not: {
+                            color: {eq: GREEN},
+                            after: {neq: "b"},
+                        },
+                    },
+                    order: {color: {dir: ASC}}
+                ) {
+                    select
+                    after
+                    color
+                }
+            }
+        """, {
+            "other__Foo": [{
+                "select": "a",
+                "after": None,
+                "color": "RED",
+            }, {
+                "select": None,
+                "after": "q",
+                "color": "BLUE",
+            }]
+        })
+
+    def test_graphql_functional_arguments_25(self):
+        # Test boolean AND handling {} like Postgres
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(
+                    filter: {
+                        not: {
+                          and: [
+                            {color: {eq: GREEN}},
+                            {after: {neq: "b"}},
+                          ]
+                        },
+                    },
+                    order: {color: {dir: ASC}}
+                ) {
+                    select
+                    after
+                    color
+                }
+            }
+        """, {
+            "other__Foo": [{
+                "select": "a",
+                "after": None,
+                "color": "RED",
+            }, {
+                "select": None,
+                "after": "q",
+                "color": "BLUE",
+            }]
+        })
+
+    def test_graphql_functional_arguments_26(self):
+        # Test boolean OR handling {} like Postgres
+        self.assert_graphql_query_result(r"""
+            query {
+                other__Foo(
+                    filter: {
+                      or: [
+                        {color: {neq: GREEN}},
+                        {after: {eq: "b"}},
+                      ]
+                    },
+                    order: {color: {dir: ASC}}
+                ) {
+                    select
+                    after
+                    color
+                }
+            }
+        """, {
+            "other__Foo": [{
+                "select": "a",
+                "after": None,
+                "color": "RED",
+            }, {
+                "select": None,
+                "after": "q",
+                "color": "BLUE",
+            }]
+        })
+
     def test_graphql_functional_enums_01(self):
         self.assert_graphql_query_result(r"""
             query {
@@ -1831,6 +1923,10 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         }, sort=lambda x: x['name'])
 
+    @test.xfail(
+        "Known collation issue on Heroku Postgres",
+        unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
+    )
     def test_graphql_functional_fragment_type_12(self):
         self.assert_graphql_query_result(r"""
             query {
@@ -2356,17 +2452,17 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             """)
 
     def test_graphql_functional_scalars_04(self):
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                r"Cannot query field 'p_array_json' on type 'ScalarTest'",
-                _line=4, _col=25):
-            self.graphql_query(r"""
-                query {
-                    ScalarTest {
-                        p_array_json
-                    }
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_array_json
                 }
-            """)
+            }
+        """, {
+            "ScalarTest": [{
+                'p_array_json': ["hello", "world"],
+            }]
+        })
 
     def test_graphql_functional_scalars_05(self):
         with self.assertRaisesRegex(
@@ -2404,6 +2500,32 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         """, {
             "ScalarTest": [{
                 'p_array_str': ['hello', 'world'],
+            }]
+        })
+
+    def test_graphql_functional_scalars_08(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_tuple
+                }
+            }
+        """, {
+            "ScalarTest": [{
+                'p_tuple': [123, "test"],
+            }]
+        })
+
+    def test_graphql_functional_scalars_09(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                ScalarTest {
+                    p_array_tuple
+                }
+            }
+        """, {
+            "ScalarTest": [{
+                'p_array_tuple': [["hello", True], ["world", False]],
             }]
         })
 
@@ -3010,7 +3132,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_33(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'expected json string'):
+                r'expected JSON string'):
 
             self.graphql_query(
                 r"""
@@ -3149,7 +3271,7 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
     def test_graphql_functional_variables_39(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
-                r'expected json number.+got json string'):
+                r'expected JSON number.+got JSON string'):
             self.graphql_query(
                 r"""
                     query($limit: Int!) {
@@ -3268,6 +3390,107 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             },
             # JSON can only be passed as a variable.
             variables={"val": {"foo": [1, None, "bar"]}},
+        )
+
+    def test_graphql_functional_variables_47(self):
+        # Test boolean AND handling {} like Postgres
+        self.assert_graphql_query_result(
+            r"""
+                query($color: other__ColorEnum!, $after: String!) {
+                    other__Foo(
+                        filter: {
+                            not: {
+                                color: {eq: $color},
+                                after: {neq: $after},
+                            },
+                        },
+                        order: {color: {dir: ASC}}
+                    ) {
+                        select
+                        after
+                        color
+                    }
+                }
+            """, {
+                "other__Foo": [{
+                    "select": "a",
+                    "after": None,
+                    "color": "RED",
+                }, {
+                    "select": None,
+                    "after": "q",
+                    "color": "BLUE",
+                }]
+            },
+            variables={'color': 'GREEN', 'after': 'b'},
+        )
+
+    def test_graphql_functional_variables_48(self):
+        # Test boolean AND handling {} like Postgres
+        self.assert_graphql_query_result(
+            r"""
+                query($color: other__ColorEnum!, $after: String!) {
+                    other__Foo(
+                        filter: {
+                            not: {
+                              and: [
+                                {color: {eq: $color}},
+                                {after: {neq: $after}},
+                              ]
+                            },
+                        },
+                        order: {color: {dir: ASC}}
+                    ) {
+                        select
+                        after
+                        color
+                    }
+                }
+            """, {
+                "other__Foo": [{
+                    "select": "a",
+                    "after": None,
+                    "color": "RED",
+                }, {
+                    "select": None,
+                    "after": "q",
+                    "color": "BLUE",
+                }]
+            },
+            variables={'color': 'GREEN', 'after': 'b'},
+        )
+
+    def test_graphql_functional_variables_49(self):
+        # Test boolean OR handling {} like Postgres
+        self.assert_graphql_query_result(
+            r"""
+                query($color: other__ColorEnum!, $after: String!) {
+                    other__Foo(
+                        filter: {
+                          or: [
+                            {color: {neq: $color}},
+                            {after: {eq: $after}},
+                          ]
+                        },
+                        order: {color: {dir: ASC}}
+                    ) {
+                        select
+                        after
+                        color
+                    }
+                }
+            """, {
+                "other__Foo": [{
+                    "select": "a",
+                    "after": None,
+                    "color": "RED",
+                }, {
+                    "select": None,
+                    "after": "q",
+                    "color": "BLUE",
+                }]
+            },
+            variables={'color': 'GREEN', 'after': 'b'},
         )
 
     def test_graphql_functional_inheritance_01(self):

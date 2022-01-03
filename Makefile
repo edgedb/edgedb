@@ -25,12 +25,12 @@ pygments:
 
 casts:
 	out=$$(edb gen-cast-table) && \
-		echo "$$out" > docs/std/casts.csv
+		echo "$$out" > docs/reference/edgeql/casts.csv
 
 
 build:
-	pip install --no-use-pep517 -Ue .[docs,test]
+	pip install -Ue .[docs,test]
 
 
 clean:
-	git clean -Xf -e "!/*.code-workspace" -e "!/*.vscode"
+	git clean -Xfd -e "!/*.code-workspace" -e "!/*.vscode"

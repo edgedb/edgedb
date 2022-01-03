@@ -45,8 +45,6 @@ def compile_SelectStmt(
     parent_ctx = ctx
     with parent_ctx.substmt() as ctx:
         # Common setup.
-        clauses.init_stmt(stmt, ctx=ctx, parent_ctx=parent_ctx)
-
         for binding in (stmt.bindings or ()):
             # If something we are WITH binding contains DML, we want to
             # compile it *now*, in the context of its initial appearance
@@ -136,8 +134,6 @@ def compile_SelectStmt(
         # The LIMIT clause
         query.limit_count = clauses.compile_limit_offset_clause(
             stmt.limit, ctx=ctx)
-
-        clauses.fini_stmt(query, ctx, parent_ctx)
 
     return query
 

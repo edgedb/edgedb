@@ -1,3 +1,5 @@
+.. _ref_changelog_rc1:
+
 ========
 1.0 RC 1
 ========
@@ -18,7 +20,7 @@ We continue fixing bugs that affect schema definitions and migrations:
 * Make properties non-distinct by default (:eql:gh:`#2853`).
 
   All values in EdgeQL are considered to be :ref:`multisets
-  <ref_eql_fundamentals_set>`, which are a generalization of the set
+  <ref_eql_everything_is_a_set>`, which are a generalization of the set
   concept that allows duplicate elements. For brevity we refer to
   multisets as just "sets", and use "proper set" or "distinct set"
   when referring to proper mathematical sets.
@@ -107,10 +109,10 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT assert_exists((SELECT User FILTER .name = "Administrator"))
+    db> SELECT assert_exists((SELECT User FILTER .name = "Administrator"));
     {default::User {id: ...}}
 
-    db> SELECT assert_exists((SELECT User FILTER .name = "Nonexistent"))
+    db> SELECT assert_exists((SELECT User FILTER .name = "Nonexistent"));
     ERROR: CardinalityViolationError: assert_exists violation: expression
            returned an empty set.
 
@@ -155,13 +157,13 @@ Bindings
 We've updated the binary protocol to version 0.12 which brings some
 performance and other improvements.
 
-* Support protocol 0.12 features features for `edgedb-python
+* Support protocol 0.12 features for `edgedb-python
   <https://github.com/edgedb/edgedb-python>`_ and release v0.18.0
   driver.
-* Support protocol 0.12 features features for `edgedb-js
+* Support protocol 0.12 features for `edgedb-js
   <https://github.com/edgedb/edgedb-js>`_ and release v0.15.2
   driver.
-* Support protocol 0.12 features features for `edgedb-go
+* Support protocol 0.12 features for `edgedb-go
   <https://github.com/edgedb/edgedb-go>`_ and release v0.8.2
   driver.
 

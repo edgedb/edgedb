@@ -446,7 +446,7 @@ def _compile_qlexpr(
         shape_expr_ctx.partial_path_prefix = source_set
 
         if is_mutation and ptrcls is not None:
-            shape_expr_ctx.expr_exposed = True
+            shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED
             shape_expr_ctx.empty_result_type_hint = \
                 ptrcls.get_target(ctx.env.schema)
 
@@ -645,6 +645,10 @@ def _normalize_view_ptr_expr(
 
         ptr_required = base_required
         ptr_cardinality = base_cardinality
+        if shape_el.where:
+            # If the shape has a filter on it, we need to force a reinference
+            # of the cardinality, to produce an error if needed.
+            ptr_cardinality = None
         if ptr_cardinality is None or not ptr_cardinality.is_known():
             # We do not know the parent's pointer cardinality yet.
             ctx.env.pointer_derivation_map[base_ptrcls].append(ptrcls)
@@ -680,6 +684,12 @@ def _normalize_view_ptr_expr(
             # If this is a mutation, the pointer must exist.
             ptrcls = setgen.resolve_ptr(
                 ptrsource, ptrname, track_ref=lexpr, ctx=ctx)
+            if ptrcls.is_pure_computable(ctx.env.schema):
+                ptr_vn = ptrcls.get_verbosename(ctx.env.schema,
+                                                with_parent=True)
+                raise errors.QueryError(
+                    f'modification of computed {ptr_vn} is prohibited',
+                    context=shape_el.context)
 
             base_ptrcls = ptrcls.get_bases(
                 ctx.env.schema).first(ctx.env.schema)
@@ -1201,6 +1211,10 @@ def _inline_type_computable(
     ctx: context.ContextLevel,
 ) -> None:
     assert isinstance(stype, s_objtypes.ObjectType)
+    # Injecting into non-view objects /almost/ works, but it fails if the
+    # object is in the std library, and is dodgy always.
+    # Prevent it in general to find bugs faster.
+    assert stype.is_view(ctx.env.schema)
 
     ptr: Optional[s_pointers.Pointer]
     try:

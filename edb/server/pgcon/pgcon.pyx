@@ -22,11 +22,13 @@ import decimal
 import codecs
 import hashlib
 import json
+import logging
 import os.path
 import socket
 import ssl as ssl_mod
 import struct
 import textwrap
+import time
 
 cimport cython
 cimport cpython
@@ -64,11 +66,14 @@ from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
 from edb.server import pgconnparams
+from edb.server import metrics
 from edb.server.protocol cimport binary as edgecon
 
 from edb.common import debug
 
 from . import errors as pgerror
+
+include "scram.pyx"
 
 DEF DATA_BUFFER_SIZE = 100_000
 DEF PREP_STMTS_CACHE = 100
@@ -80,13 +85,14 @@ DEF COPY_SIGNATURE = b"PGCOPY\n\377\r\n\0"
 
 
 cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
-cdef object POSTGRES_SHUTDOWN_ERR_CODES = {
+cdef dict POSTGRES_SHUTDOWN_ERR_CODES = {
     '57P01': 'admin_shutdown',
     '57P02': 'crash_shutdown',
 }
 
-
 cdef bytes INIT_CON_SCRIPT = None
+
+cdef object logger = logging.getLogger('edb.server')
 
 
 def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
@@ -103,13 +109,27 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     else:
         pg_is_in_recovery = ''
 
+    # The '_edgecon_state table' is used to store information about
+    # the current session. The `type` column is one character, with one
+    # of the following values:
+    #
+    # * 'C': a session-level config setting
+    #
+    # * 'B': a session-level config setting that's implemented by setting
+    #   a corresponding Postgres config setting.
+    #
+    # * 'A': a module alias.
+    #
+    # * 'R': a "variable=value" record.
+
     return textwrap.dedent(f'''
         {pg_is_in_recovery}
 
         CREATE TEMPORARY TABLE _edgecon_state (
             name text NOT NULL,
             value jsonb NOT NULL,
-            type text NOT NULL CHECK(type = 'C' OR type = 'A' OR type = 'R'),
+            type text NOT NULL CHECK(
+                type = 'C' OR type = 'A' OR type = 'R' OR type = 'B'),
             UNIQUE(name, type)
         );
 
@@ -127,11 +147,18 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
             INSERT INTO
                 _edgecon_state(name, value, type)
             SELECT
-                e->>'name' AS name,
+                (CASE
+                    WHEN e->'type' = '"B"'::jsonb
+                    THEN edgedb._apply_session_config(e->>'name', e->'value')
+                    ELSE e->>'name'
+                END) AS name,
                 e->'value' AS value,
                 e->>'type' AS type
             FROM
                 jsonb_array_elements($1::jsonb) AS e;
+
+        PREPARE _reset_session_config AS
+            SELECT edgedb._reset_session_config();
 
         INSERT INTO _edgecon_state
             (name, value, type)
@@ -273,7 +300,7 @@ async def _connect(connargs, dbname, ssl):
     return pgcon
 
 
-async def connect(connargs, dbname, tenant_id):
+async def connect(connargs, dbname, backend_params):
     global INIT_CON_SCRIPT
 
     # This is different than parsing DSN and use the default sslmode=prefer,
@@ -294,17 +321,19 @@ async def connect(connargs, dbname, tenant_id):
     else:
         pgcon = await _connect(connargs, dbname, ssl=ssl)
 
-    sup_role = pgcommon.get_role_backend_name(
-        defines.EDGEDB_SUPERUSER, tenant_id=tenant_id)
-    if connargs['user'] != sup_role:
-        # We used to use SET SESSION AUTHORIZATION here, there're some security
-        # differences over SET ROLE, but as we don't allow accessing Postgres
-        # directly through EdgeDB, SET ROLE is mostly fine here. (Also hosted
-        # backends like Postgres on DigitalOcean support only SET ROLE)
-        await pgcon.simple_query(
-            f'SET ROLE {pg_qi(sup_role)}'.encode(),
-            ignore_data=True,
-        )
+    if backend_params.has_create_role:
+        sup_role = pgcommon.get_role_backend_name(
+            defines.EDGEDB_SUPERUSER, tenant_id=backend_params.tenant_id)
+        if connargs['user'] != sup_role:
+            # We used to use SET SESSION AUTHORIZATION here, there're some
+            # security differences over SET ROLE, but as we don't allow
+            # accessing Postgres directly through EdgeDB, SET ROLE is mostly
+            # fine here. (Also hosted backends like Postgres on DigitalOcean
+            # support only SET ROLE)
+            await pgcon.simple_query(
+                f'SET ROLE {pg_qi(sup_role)}'.encode(),
+                ignore_data=True,
+            )
 
     if 'in_hot_standby' in pgcon.parameter_status:
         # in_hot_standby is always present in Postgres 14 and above
@@ -413,10 +442,16 @@ cdef class PGConnection:
         self.is_system_db = False
         self.close_requested = False
 
+        self.pinned_by = None
+
         self.idle = True
         self.cancel_fut = None
 
         self._is_ssl = False
+
+        # Set to the error the connection has been aborted with
+        # by the backend.
+        self.aborted_with_error = None
 
     @property
     def is_ssl(self):
@@ -478,12 +513,14 @@ cdef class PGConnection:
         self.server = server
 
     def mark_as_system_db(self):
-        assert defines.EDGEDB_SYSTEM_DB in self.dbname
+        if self.server.get_backend_runtime_params().has_create_database:
+            assert defines.EDGEDB_SYSTEM_DB in self.dbname
         self.is_system_db = True
 
     async def listen_for_sysevent(self):
         try:
-            assert defines.EDGEDB_SYSTEM_DB in self.dbname
+            if self.server.get_backend_runtime_params().has_create_database:
+                assert defines.EDGEDB_SYSTEM_DB in self.dbname
             await self.simple_query(
                 b'LISTEN __edgedb_sysevent__;',
                 ignore_data=True
@@ -495,7 +532,8 @@ cdef class PGConnection:
                 raise
 
     async def signal_sysevent(self, event, **kwargs):
-        assert defines.EDGEDB_SYSTEM_DB in self.dbname
+        if self.server.get_backend_runtime_params().has_create_database:
+            assert defines.EDGEDB_SYSTEM_DB in self.dbname
         event = json.dumps({
             'event': event,
             'server_id': self.server._server_id,
@@ -739,6 +777,7 @@ cdef class PGConnection:
         args,
     ):
         self.before_command()
+        started_at = time.monotonic()
         try:
             return await self._parse_execute_json(
                 sql,
@@ -748,6 +787,71 @@ cdef class PGConnection:
                 args,
             )
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            await self.after_command()
+
+    async def _parse_execute_extract_single_data_frame(
+        self,
+        sql,
+        sql_hash,
+        dbver,
+        use_prep_stmt,
+        args,
+    ):
+        cdef:
+            WriteBuffer out
+            Py_buffer pybuf
+
+        out = WriteBuffer.new()
+        await self._parse_execute_to_buf(
+            sql, sql_hash, dbver, use_prep_stmt, args, out)
+
+        cpython.PyObject_GetBuffer(out, &pybuf, cpython.PyBUF_SIMPLE)
+        try:
+            if pybuf.len == 0:
+                return None
+
+            if pybuf.len < 11 or (<char*>pybuf.buf)[0] != b'D':
+                data = cpython.PyBytes_FromStringAndSize(
+                    <char*>pybuf.buf, pybuf.len)
+                raise RuntimeError(
+                    f'invalid protocol-level result of a query '
+                    f'sql:{sql} buf-len:{pybuf.len} buf:{data}')
+
+            mlen = hton.unpack_int32(<char*>pybuf.buf + 1)
+
+            if pybuf.len > mlen + 1:
+                raise RuntimeError(
+                    f'received more than one DataRow '
+                    f'for a singleton-returning query {sql!r}')
+
+            ncol = hton.unpack_int16(<char*>pybuf.buf + 5)
+            if ncol != 1:
+                raise RuntimeError(
+                    f'received more than column in DataRow '
+                    f'for a singleton-returning query {sql!r}')
+
+            return cpython.PyBytes_FromStringAndSize(
+                <char*>pybuf.buf + 7, mlen - 2 - 4)
+
+        finally:
+            cpython.PyBuffer_Release(&pybuf)
+
+    async def parse_execute_extract_single_data_frame(
+        self,
+        sql,
+        sql_hash,
+        dbver,
+        use_prep_stmt,
+        args,
+    ):
+        self.before_command()
+        started_at = time.monotonic()
+        try:
+            return await self._parse_execute_extract_single_data_frame(
+                sql, sql_hash, dbver, use_prep_stmt, args)
+        finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     async def parse_execute_notebook(
@@ -760,6 +864,7 @@ cdef class PGConnection:
             Py_buffer pybuf
 
         self.before_command()
+        started_at = time.monotonic()
         try:
             out = WriteBuffer.new()
             await self._parse_execute_to_buf(sql, b'', dbver, False, (), out)
@@ -772,6 +877,7 @@ cdef class PGConnection:
                 cpython.PyBuffer_Release(&pybuf)
 
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     def _build_apply_state_req(self, bytes serstate, WriteBuffer out):
@@ -781,6 +887,19 @@ cdef class PGConnection:
         buf = WriteBuffer.new_message(b'B')
         buf.write_bytestring(b'')  # portal name
         buf.write_bytestring(b'_clear_state')  # statement name
+        buf.write_int16(0)  # number of format codes
+        buf.write_int16(0)  # number of parameters
+        buf.write_int16(0)  # number of result columns
+        out.write_buffer(buf.end_message())
+
+        buf = WriteBuffer.new_message(b'E')
+        buf.write_bytestring(b'')  # portal name
+        buf.write_int32(0)  # limit: 0 - return all rows
+        out.write_buffer(buf.end_message())
+
+        buf = WriteBuffer.new_message(b'B')
+        buf.write_bytestring(b'')  # portal name
+        buf.write_bytestring(b'_reset_session_config')  # statement name
         buf.write_int16(0)  # number of format codes
         buf.write_int16(0)  # number of parameters
         buf.write_int16(0)  # number of result columns
@@ -810,14 +929,20 @@ cdef class PGConnection:
             out.write_buffer(buf.end_message())
 
     async def _parse_apply_state_resp(self, bytes serstate):
-        cdef int num_completed = 0
+        cdef:
+            int num_completed = 0
+            int expected_completed = 2
+
+        if serstate is not None:
+            expected_completed += 1
+
         while True:
             if not self.buffer.take_message():
                 await self.wait_for_message()
             mtype = self.buffer.get_message_type()
 
-            if mtype == b'2':
-                # BindComplete
+            if mtype == b'2' or mtype == b'D':
+                # BindComplete or Data
                 self.buffer.discard_message()
 
             elif mtype == b'E':
@@ -827,10 +952,7 @@ cdef class PGConnection:
             elif mtype == b'C':
                 self.buffer.discard_message()
                 num_completed += 1
-                if (
-                    (serstate is not None and num_completed == 2) or
-                    (serstate is None and num_completed == 1)
-                ):
+                if num_completed == expected_completed:
                     return
             else:
                 self.fallthrough()
@@ -1016,6 +1138,7 @@ cdef class PGConnection:
         int dbver,
     ):
         self.before_command()
+        started_at = time.monotonic()
         try:
             return await self._parse_execute(
                 query,
@@ -1026,6 +1149,7 @@ cdef class PGConnection:
                 dbver
             )
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     async def _simple_query(self, bytes sql, bint ignore_data, bytes state):
@@ -1117,9 +1241,11 @@ cdef class PGConnection:
         bytes state=None
     ):
         self.before_command()
+        started_at = time.monotonic()
         try:
             return await self._simple_query(sql, ignore_data, state)
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     async def run_ddl(
@@ -1128,6 +1254,7 @@ cdef class PGConnection:
         bytes state=None
     ):
         self.before_command()
+        started_at = time.monotonic()
         try:
             sql = b';'.join(query_unit.sql)
             ignore_data = query_unit.ddl_stmt_id is None
@@ -1149,6 +1276,7 @@ cdef class PGConnection:
                     raise RuntimeError(
                         'missing the required data packet after a DDL command')
         finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
 
     async def _dump(self, block, output_queue, fragment_suggested_size):
@@ -1614,6 +1742,9 @@ cdef class PGConnection:
                         self.write(
                             self.make_auth_password_md5_message(md5_salt))
 
+                    elif status == PGAUTH_REQUIRED_SASL:
+                        await self._auth_sasl()
+
                     else:
                         raise RuntimeError(f'unsupported auth method: {status}')
 
@@ -1709,19 +1840,50 @@ cdef class PGConnection:
         cdef char mtype
 
         while self.buffer.take_message():
-            if not self.parse_notification():
-                mtype = self.buffer.get_message_type()
-                if mtype == b'E':  # ErrorResponse
-                    er_cls, fields = self.parse_error_message()
-                    msg = POSTGRES_SHUTDOWN_ERR_CODES.get(fields['C'])
-                    if msg:
-                        msg = fields.get('M', msg)
-                        if self.is_system_db:
-                            self.server.set_pg_unavailable_msg(msg)
-                            self.server._on_sys_pgcon_failover_signal()
-                        continue
+            if self.parse_notification():
+                continue
+
+            mtype = self.buffer.get_message_type()
+            if mtype != b'E':  # ErrorResponse
                 raise RuntimeError(
-                    f'unexpected message type {chr(mtype)!r} in IDLE state')
+                    f'unexpected message type {chr(mtype)!r} '
+                    f'in IDLE state')
+
+            # We have an error message sent to us by the backend.
+            # It is not safe to assume that the connection
+            # is alive. We assume that it's dead and should be
+            # marked as "closed".
+
+            try:
+                er_cls, fields = self.parse_error_message()
+                self.aborted_with_error = er_cls(fields=fields)
+
+                pgcode = fields['C']
+                metrics.backend_connection_aborted.inc(1.0, pgcode)
+
+                if pgcode in POSTGRES_SHUTDOWN_ERR_CODES:
+                    pgreason = POSTGRES_SHUTDOWN_ERR_CODES[pgcode]
+                    pgmsg = fields.get('M', pgreason)
+
+                    logger.debug(
+                        'backend connection aborted with a shutdown '
+                        'error code %r(%s): %s',
+                        pgcode, pgreason, pgmsg
+                    )
+
+                    if self.is_system_db:
+                        self.server.set_pg_unavailable_msg(pgmsg)
+                        self.server._on_sys_pgcon_failover_signal()
+
+                else:
+                    pgmsg = fields.get('M', '<empty message>')
+                    logger.debug(
+                        'backend connection aborted with an '
+                        'error code %r: %s',
+                        pgcode, pgmsg
+                    )
+            finally:
+                self.abort()
 
     cdef parse_notification(self):
         cdef:
@@ -1752,17 +1914,14 @@ cdef class PGConnection:
                 event = event_data.get('event')
 
                 server_id = event_data.get('server_id')
-
-                event_payload = event_data.get('args')
-                if (
-                    event in {
-                        'schema-changes',
-                        'global-schema-changes',
-                    }
-                    and server_id == self.server._server_id
-                ):
+                if server_id == self.server._server_id:
+                    # We should only react to notifications sent
+                    # by other edgedb servers. Reacting to events
+                    # generated by this server must be implemented
+                    # at a different layer.
                     return True
 
+                event_payload = event_data.get('args')
                 if event == 'schema-changes':
                     dbname = event_payload['dbname']
                     self.server._on_remote_ddl(dbname)
@@ -1871,6 +2030,98 @@ cdef class PGConnection:
         msg.write_bytestring(b'md5' + hash)
         return msg.end_message()
 
+    async def _auth_sasl(self):
+        methods = []
+        auth_method = self.buffer.read_null_str()
+        while auth_method:
+            methods.append(auth_method)
+            auth_method = self.buffer.read_null_str()
+        self.buffer.finish_message()
+
+        if not methods:
+            raise RuntimeError(
+                'the backend requested SASL authentication but did not '
+                'offer any methods')
+
+        for method in methods:
+            if method in SCRAMAuthentication.AUTHENTICATION_METHODS:
+                break
+        else:
+            raise RuntimeError(
+                f'the backend offered the following SASL authentication '
+                f'methods: {b", ".join(methods).decode()}, neither are '
+                f'supported.'
+            )
+
+        user = self.pgaddr.get('user') or ''
+        password = self.pgaddr.get('password') or ''
+        scram = SCRAMAuthentication(method)
+
+        msg = WriteBuffer.new_message(b'p')
+        msg.write_bytes(scram.create_client_first_message(user))
+        msg.end_message()
+        self.write(msg)
+
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            if mtype == b'E':
+                # ErrorResponse
+                er_cls, er_fields = self.parse_error_message()
+                raise er_cls(fields=er_fields)
+
+            elif mtype == b'R':
+                # Authentication...
+                break
+
+            else:
+                self.fallthrough()
+
+        status = self.buffer.read_int32()
+        if status != PGAUTH_SASL_CONTINUE:
+            raise RuntimeError(
+                f'expected SASLContinue from the server, received {status}')
+
+        server_response = self.buffer.consume_message()
+        scram.parse_server_first_message(server_response)
+        msg = WriteBuffer.new_message(b'p')
+        client_final_message = scram.create_client_final_message(password)
+        msg.write_bytes(client_final_message)
+        msg.end_message()
+
+        self.write(msg)
+
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            if mtype == b'E':
+                # ErrorResponse
+                er_cls, er_fields = self.parse_error_message()
+                raise er_cls(fields=er_fields)
+
+            elif mtype == b'R':
+                # Authentication...
+                break
+
+            else:
+                self.fallthrough()
+
+        status = self.buffer.read_int32()
+        if status != PGAUTH_SASL_FINAL:
+            raise RuntimeError(
+                f'expected SASLFinal from the server, received {status}')
+
+        server_response = self.buffer.consume_message()
+        if not scram.verify_server_final_message(server_response):
+            raise pgerror.BackendError(fields=dict(
+                M="server SCRAM proof does not match",
+                C=pgerror.ERROR_INVALID_PASSWORD,
+            ))
+
     async def wait_for_message(self):
         if self.buffer.take_message():
             return
@@ -1892,6 +2143,11 @@ cdef class PGConnection:
         self.connected = False
 
         self.transport = None
+
+        if self.pinned_by is not None:
+            pinned_by = self.pinned_by
+            self.pinned_by = None
+            pinned_by.on_aborted_pgcon(self)
 
         if self.is_system_db:
             self.server._on_sys_pgcon_connection_lost(exc)

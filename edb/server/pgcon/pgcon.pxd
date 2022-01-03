@@ -33,6 +33,8 @@ from edb.server.pgproto.debug cimport PG_DEBUG
 
 from edb.server.cache cimport stmt_cache
 
+include "scram.pxd"
+
 
 cdef enum PGTransactionStatus:
     PQTRANS_IDLE = 0                 # connection idle
@@ -68,7 +70,7 @@ cdef class PGConnection:
         object transport
         object msg_waiter
 
-        bint connected
+        readonly bint connected
         object connected_fut
 
         bint waiting_for_sync
@@ -77,6 +79,8 @@ cdef class PGConnection:
         readonly int32_t backend_pid
         readonly int32_t backend_secret
         readonly object parameter_status
+
+        readonly object aborted_with_error
 
         stmt_cache.StatementsCache prep_stmts
         list last_parse_prep_stmts
@@ -93,6 +97,8 @@ cdef class PGConnection:
         object cancel_fut
 
         bint _is_ssl
+
+        public object pinned_by
 
     cdef before_command(self)
 

@@ -285,9 +285,14 @@ GQL_TO_OPS_MAP = {
 
 
 HIDDEN_MODULES = set(s_schema.STD_MODULES) - {s_name.UnqualName('std')}
+# The following are placeholders.
 TOP_LEVEL_TYPES = {
     s_name.QualName(module='__graphql__', name='Query'),
     s_name.QualName(module='__graphql__', name='Mutation'),
+}
+# The following types should not be exposed as all.
+HIDDEN_TYPES = {
+    s_name.QualName(module='std', name='FreeObject'),
 }
 
 
@@ -432,14 +437,8 @@ class GQLCoreSchema:
     ) -> Optional[GraphQLOutputType]:
         target: Optional[GraphQLOutputType] = None
 
-        # only arrays can be validly wrapped, other containers don't
-        # produce a valid graphql type
         if isinstance(edb_target, s_types.Array):
             subtype = edb_target.get_subtypes(self.edb_schema)[0]
-            if str(subtype.get_name(self.edb_schema)) == 'std::json':
-                # cannot expose arrays of JSON
-                return None
-
             el_type = self._convert_edb_type(subtype)
             if el_type is None:
                 # we can't expose an array of unexposable type
@@ -468,9 +467,8 @@ class GQLCoreSchema:
                 target = self._gql_enums.get(name)
 
         elif edb_target.is_tuple(self.edb_schema):
-            edb_typename = edb_target.get_verbosename(self.edb_schema)
-            raise g_errors.GraphQLCoreError(
-                f"Could not convert {edb_typename} to a GraphQL type.")
+            # Represent tuples as JSON.
+            target = EDB_TO_GQL_SCALARS_MAP['std::json']
 
         elif isinstance(edb_target, s_types.InheritingType):
             base_target = edb_target.get_topmost_concrete_base(self.edb_schema)
@@ -777,14 +775,18 @@ class GQLCoreSchema:
         names = sorted(pointers.keys(self.edb_schema))
         for unqual_name in names:
             name = str(unqual_name)
-            if name == '__type__':
+            if name in {'__type__', 'id'}:
                 continue
 
             ptr = edb_type.getptr(self.edb_schema, unqual_name)
             edb_target = ptr.get_target(self.edb_schema)
-
             intype: GraphQLInputType
-            if isinstance(edb_target, s_objtypes.ObjectType):
+
+            if ptr.is_pure_computable(self.edb_schema):
+                # skip computed pointer
+                continue
+
+            elif isinstance(edb_target, s_objtypes.ObjectType):
                 typename = edb_target.get_name(self.edb_schema)
 
                 inobjtype = self._gql_inobjtypes.get(f'NestedInsert{typename}')
@@ -796,6 +798,13 @@ class GQLCoreSchema:
 
                 intype = self._wrap_input_type(ptr, intype)
                 fields[name] = GraphQLInputField(intype)
+
+            elif (
+                edb_target and
+                edb_target.contains_array_of_tuples(self.edb_schema)
+            ):
+                # Can't insert array<tuple<...>>
+                continue
 
             elif (
                 isinstance(edb_target, s_scalars.ScalarType)
@@ -857,7 +866,11 @@ class GQLCoreSchema:
             ptr = edb_type.getptr(self.edb_schema, unqual_name)
             edb_target = ptr.get_target(self.edb_schema)
 
-            if isinstance(edb_target, s_objtypes.ObjectType):
+            if ptr.is_pure_computable(self.edb_schema):
+                # skip computed pointer
+                continue
+
+            elif isinstance(edb_target, s_objtypes.ObjectType):
                 intype = self._gql_inobjtypes.get(
                     f'UpdateOp{typename}__{name}')
                 if intype is None:
@@ -883,6 +896,13 @@ class GQLCoreSchema:
                         ptr, name, edb_type, intype)
 
                 fields[name] = GraphQLInputField(intype)
+
+            elif (
+                edb_target and
+                edb_target.contains_array_of_tuples(self.edb_schema)
+            ):
+                # Can't update array<tuple<...>>
+                continue
 
             elif (
                 isinstance(edb_target, s_scalars.ScalarType)
@@ -1221,6 +1241,9 @@ class GQLCoreSchema:
             t_name = t.get_name(self.edb_schema)
             gql_name = self.get_gql_name(t_name)
 
+            if t_name in HIDDEN_TYPES:
+                continue
+
             if t.is_view(self.edb_schema):
                 # The aliased types actually only reflect as an object
                 # type, but the rest of the processing is identical to
@@ -1277,6 +1300,9 @@ class GQLCoreSchema:
             interfaces = []
             t_name = t.get_name(self.edb_schema)
             gql_name = self.get_gql_name(t_name)
+
+            if t_name in HIDDEN_TYPES:
+                continue
 
             if t.is_view(self.edb_schema):
                 # Just copy previously computed type.

@@ -303,12 +303,16 @@ def ast_to_type_shell(
     elif isinstance(node.maintype, qlast.AnyType):
         from . import pseudo as s_pseudo
         return s_pseudo.PseudoTypeShell(
-            name=sn.UnqualName('anytype'))  # type: ignore
+            name=sn.UnqualName('anytype'),
+            sourcectx=node.maintype.context,
+        )  # type: ignore
 
     elif isinstance(node.maintype, qlast.AnyTuple):
         from . import pseudo as s_pseudo
         return s_pseudo.PseudoTypeShell(
-            name=sn.UnqualName('anytuple'))  # type: ignore
+            name=sn.UnqualName('anytuple'),
+            sourcectx=node.maintype.context,
+        )  # type: ignore
 
     assert isinstance(node.maintype, qlast.ObjectRef)
 
@@ -639,18 +643,6 @@ def get_class_nearest_common_ancestors(
             nearests.append(anc)
 
     return nearests
-
-
-def get_class_nearest_common_ancestor(
-    schema: s_schema.Schema,
-    classes: Iterable[so.InheritingObjectT]
-) -> Optional[so.InheritingObjectT]:
-    common_list = get_class_nearest_common_ancestors(schema, classes)
-    # FIXME: This is arbitrary and probably not meaningful
-    if common_list:
-        return common_list[0]
-    else:
-        return None
 
 
 def minimize_class_set_by_most_generic(

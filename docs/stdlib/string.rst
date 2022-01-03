@@ -27,8 +27,10 @@ String
     * - :eql:op:`str ILIKE pattern <ILIKE>`
       - :eql:op-desc:`ILIKE`
 
-    * - :eql:op:`str = str <EQ>`, :eql:op:`str \< str <LT>`, ...
-      - Comparison operators.
+    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
+        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
+        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - Comparison operators
 
     * - :eql:func:`to_str`
       - :eql:func-desc:`to_str`
@@ -153,10 +155,23 @@ String
 
     String indexing.
 
+    Indexing starts at 0. Negative indexes are also valid and count from
+    the *end* of the string.
+
     .. code-block:: edgeql-repl
 
         db> SELECT 'some text'[1];
         {'o'}
+        db> SELECT 'some text'[-1];
+        {'t'}
+
+    It is an error to attempt to extract a character at an index
+    outside the bounds of the string:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 'some text'[10];
+        InvalidValueError: string index 10 is out of bounds
 
 
 ----------
@@ -166,12 +181,29 @@ String
 
     String slicing.
 
+    Indexing starts at 0. Negative indexes are also valid and count from
+    the *end* of the string.
+
     .. code-block:: edgeql-repl
 
         db> SELECT 'some text'[1:3];
         {'om'}
         db> SELECT 'some text'[-4:];
         {'text'}
+        db> SELECT 'some text'[:-5];
+        {'some'}
+        db> SELECT 'some text'[5:-2];
+        {'te'}
+
+    It is perfectly acceptable to use indexes outside the bounds of a
+    string in a *slice*:
+
+    .. code-block:: edgeql-repl
+
+        db> SELECT 'some text'[-4:100];
+        {'text'}
+        db> SELECT 'some text'[-100:-5];
+        {'some'}
 
 
 ----------

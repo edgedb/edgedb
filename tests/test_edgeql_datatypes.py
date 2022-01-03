@@ -21,6 +21,8 @@ from datetime import timedelta
 import edgedb
 import decimal
 
+from edb import errors
+from edb.ir import statypes
 from edb.testbase import server as tb
 from edb.tools import test
 
@@ -429,6 +431,77 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 """
             )
 
+    async def test_edgeql_dt_duration_10_datetime_range(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT <datetime>'9999-12-31T00:00:00Z' +
+                    <cal::relative_duration>'1 week'
+                """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT <datetime>'0001-01-01T00:00:00Z' -
+                    <cal::relative_duration>'1 week'
+                """
+            )
+
+    async def test_edgeql_dt_duration_11_local_datetime_range(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT <cal::local_datetime>'9999-12-31T00:00:00' +
+                    <cal::relative_duration>'1 week'
+                """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT <cal::local_datetime>'0001-01-01T00:00:00' -
+                    <cal::relative_duration>'1 week'
+                """
+            )
+
+    async def test_edgeql_dt_duration_12_local_date_range(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT
+                    <cal::local_date>'9999-12-31'
+                    + <cal::relative_duration>'30 hours'
+                """
+            )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidValueError,
+            'value out of range',
+        ):
+            await self.con.execute(
+                """
+                SELECT
+                    <cal::local_date>'0001-01-01'
+                    - <cal::relative_duration>'30 hours'
+                """
+            )
+
     async def test_edgeql_dt_local_datetime_01(self):
         await self.assert_query_result(
             r'''
@@ -480,6 +553,112 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['01:02:03.004005'],
         )
 
+    async def test_edgeql_dt_local_datetime_03(self):
+        # Corner case which interprets month in a fuzzy way.
+        await self.assert_query_result(
+            r'''
+            with dur := <cal::relative_duration>'1 month'
+            select <cal::local_datetime>'2021-01-31T00:00:00' + dur;
+            ''',
+            ['2021-02-28T00:00:00'],
+        )
+
+        # + not always associative
+        await self.assert_query_result(
+            r'''
+            with
+                dur := <cal::relative_duration>'1 month',
+                date := <cal::local_datetime>'2021-01-31T00:00:00',
+            select date + (dur + dur) = (date + dur) + dur;
+            ''',
+            [False],
+        )
+
+        # - not always inverse of plus
+        await self.assert_query_result(
+            r'''
+            with
+                dur := <cal::relative_duration>'1 month',
+                date := <cal::local_datetime>'2021-01-31T00:00:00',
+            select date + dur - dur = date;
+            ''',
+            [False],
+        )
+
+        # - not always inverse of plus
+        await self.assert_query_result(
+            r'''
+            with
+                m1 := <cal::relative_duration>'1 month',
+                m11 := <cal::relative_duration>'11 month',
+                y1 := <cal::relative_duration>'1 year',
+                date := <cal::local_datetime>'2021-01-31T00:00:00',
+            select (
+                # duration alone
+                y1 = m1 + m11,
+                # date + duration
+                date + y1 = date + m1 + m11,
+            );
+            ''',
+            [[True, False]],
+        )
+
+    async def test_edgeql_dt_local_datetime_04(self):
+        # Order in which different parts of relative_duration is applied.
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 hr' +
+                <cal::relative_duration>'1 month';''',
+            ['2021-06-01T00:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 month' +
+                <cal::relative_duration>'1 hr';''',
+            ['2021-05-31T00:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 hr 1 month';''',
+            ['2021-05-31T00:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 month 1 hr';''',
+            ['2021-05-31T00:59:59'],
+        )
+
+    async def test_edgeql_dt_local_datetime_05(self):
+        # Order in which different parts of relative_duration is applied.
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 day' +
+                <cal::relative_duration>'1 month';''',
+            ['2021-06-01T23:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 month' +
+                <cal::relative_duration>'1 day';''',
+            ['2021-05-31T23:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 day 1 month';''',
+            ['2021-05-31T23:59:59'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_datetime>'2021-04-30T23:59:59' +
+                <cal::relative_duration>'1 month 1 day';''',
+            ['2021-05-31T23:59:59'],
+        )
+
     async def test_edgeql_dt_local_date_01(self):
         await self.assert_query_result(
             r'''SELECT
@@ -514,6 +693,121 @@ class TestEdgeQLDT(tb.QueryTestCase):
             r'''SELECT <cal::local_date>'2018-10-10' -
                 <cal::local_date>'2017-10-10';''',
             ['8760:00:00'],
+        )
+
+    async def test_edgeql_dt_local_date_03(self):
+        # Corner case which interprets month in a fuzzy way.
+        await self.assert_query_result(
+            r'''
+            with dur := <cal::relative_duration>'1 month'
+            select <cal::local_date>'2021-01-31' + dur;
+            ''',
+            ['2021-02-28'],
+        )
+
+        # + not always associative
+        await self.assert_query_result(
+            r'''
+            with
+                dur := <cal::relative_duration>'1 month',
+                date := <cal::local_date>'2021-01-31',
+            select date + (dur + dur) = (date + dur) + dur;
+            ''',
+            [False],
+        )
+
+        # - not always inverse of plus
+        await self.assert_query_result(
+            r'''
+            with
+                dur := <cal::relative_duration>'1 month',
+                date := <cal::local_date>'2021-01-31',
+            select date + dur - dur = date;
+            ''',
+            [False],
+        )
+
+        # - not always inverse of plus
+        await self.assert_query_result(
+            r'''
+            with
+                m1 := <cal::relative_duration>'1 month',
+                m11 := <cal::relative_duration>'11 month',
+                y1 := <cal::relative_duration>'1 year',
+                date := <cal::local_date>'2021-01-31',
+            select (
+                # duration alone
+                y1 = m1 + m11,
+                # date + duration
+                date + y1 = date + m1 + m11,
+            );
+            ''',
+            [[True, False]],
+        )
+
+    async def test_edgeql_dt_local_date_04(self):
+        # Order in which different parts of relative_duration is applied.
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 hr' +
+                <cal::relative_duration>'1 month';''',
+            ['2021-05-30'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 month' +
+                <cal::relative_duration>'1 hr';''',
+            ['2021-05-30'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 hr 1 month';''',
+            ['2021-05-30'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 month 1 hr';''',
+            ['2021-05-30'],
+        )
+
+    async def test_edgeql_dt_local_date_05(self):
+        # Order in which different parts of relative_duration is applied.
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 day' +
+                <cal::relative_duration>'1 month';''',
+            ['2021-06-01'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 month' +
+                <cal::relative_duration>'1 day';''',
+            ['2021-05-31'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 day 1 month';''',
+            ['2021-05-31'],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'1 month 1 day';''',
+            ['2021-05-31'],
+        )
+
+    async def test_edgeql_dt_local_date_06(self):
+        # Fractional day values are ignored when doing local_date arithmetic.
+        await self.assert_query_result(
+            r'''select <cal::local_date>'2021-04-30' +
+                <cal::relative_duration>'20 hr' +
+                <cal::relative_duration>'20 hr';''',
+            ['2021-04-30'],
         )
 
     @test.not_implemented('local_time diff is cal::relative_duration')
@@ -715,3 +1009,211 @@ class TestEdgeQLDT(tb.QueryTestCase):
                     CREATE PROPERTY x -> tuple<a: int64, a: str>;
                 };
             """)
+
+    async def test_edgeql_memory_01(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                "invalid value for scalar type 'cfg::memory'"):
+            await self.con.execute("SELECT <cfg::memory>-1")
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <int64><cfg::memory>'1KiB'"),
+            1024)
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <int64><cfg::memory>1025"),
+            1025)
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <str><cfg::memory>1025"),
+            '1025B')
+
+        self.assertEqual(
+            await self.con.query_single(
+                "SELECT <str><cfg::memory>2272753910888172544"),
+            '2219486241101731KiB')
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <str><cfg::memory>0"),
+            '0B')
+
+        self.assertEqual(
+            await self.con.query_single("SELECT <str><cfg::memory>'0B'"),
+            '0B')
+
+    async def test_edgeql_staeval_duration_01(self):
+        valid = [
+            ' 100   ',
+            '123',
+            '-123',
+            '  20 mins 1hr ',
+            '  20 mins -1hr ',
+            '  20us  1h    20   ',
+            '  -20us  1h    20   ',
+            '  -20US  1H    20   ',
+            '1 hour 20 minutes 30 seconds 40 milliseconds 50 microseconds',
+            '1 hour 20 minutes +30seconds 40 milliseconds -50microseconds',
+            '1 houR  20 minutes 30SECOND 40 milliseconds 50 us',
+            '  20 us 1H 20 minutes ',
+            '-1h',
+            '100h',
+            '   12:12:12.2131   ',
+            '-12:12:12.21313',
+            '-12:12:12.213134',
+            '-12:12:12.2131341',
+            '-12:12:12.2131341111111',
+            '-12:12:12.2131315111111',
+            '-12:12:12.2131316111111',
+            '-12:12:12.2131314511111',
+            '-0:12:12.2131',
+            '12:12',
+            '-12:12',
+            '-12:1:1',
+            '+12:1:1',
+            '-12:1:1.1234',
+            '1211:59:59.9999',
+            '-12:',
+            '0',
+            '00:00:00',
+            '00:00:10.9',
+            '00:00:10.09',
+            '00:00:10.009',
+            '00:00:10.0009',
+        ]
+
+        invalid = [
+            'blah',
+            '!',
+            '-',
+            '  20 us 1H 20 30 minutes ',
+            '   12:12:121.2131   ',
+            '   12:60:21.2131   ',
+            '  20us 20   1h       ',
+            '  20us $ 20   1h       ',
+            '1 houR  20 minutes 30SECOND 40 milliseconds 50 uss',
+        ]
+
+        v = await self.con.query_single(
+            '''
+            SELECT <array<duration>><array<str>>$0
+            ''',
+            valid
+        )
+        vs = await self.con.query_single(
+            '''
+            SELECT <array<str>><array<duration>><array<str>>$0
+            ''',
+            valid
+        )
+
+        for text, value, svalue in zip(valid, v, vs):
+            ref_value = int(value / timedelta(microseconds=1))
+
+            try:
+                parsed = statypes.Duration(text)
+            except Exception:
+                raise AssertionError(
+                    f'could not parse a valid std::duration: {text!r}')
+
+            self.assertEqual(
+                ref_value,
+                parsed.to_microseconds(),
+                text)
+
+            self.assertEqual(
+                svalue,
+                parsed.to_iso8601(),
+                text)
+
+            self.assertEqual(
+                statypes.Duration.from_iso8601(svalue).to_microseconds(),
+                parsed.to_microseconds(),
+                text)
+
+            self.assertEqual(
+                statypes.Duration(svalue).to_microseconds(),
+                parsed.to_microseconds(),
+                text)
+
+        for text in invalid:
+            async with self.assertRaisesRegexTx(
+                    edgedb.InvalidValueError,
+                    r'(invalid input syntax)|(interval field value out)'):
+                await self.con.query_single(
+                    '''SELECT <duration><str>$0''',
+                    text
+                )
+
+            with self.assertRaises(
+                    (errors.InvalidValueError, errors.NumericOutOfRangeError)):
+                statypes.Duration(text)
+
+    async def test_edgeql_staeval_memory_01(self):
+        valid = [
+            '0',
+            '0B',
+            '123KiB',
+            '11MiB',
+            '0PiB',
+            '1PiB',
+            '111111GiB',
+            '123B',
+            '2219486241101731KiB',
+        ]
+
+        invalid = [
+            '12kB',
+            '22KB',
+            '-1B',
+            '-1',
+            '+1',
+            '+12TiB',
+            '123TIB',
+        ]
+
+        v = await self.con.query_single(
+            '''
+            SELECT  <array<int64>><array<cfg::memory>><array<str>>$0
+            ''',
+            valid
+        )
+        vs = await self.con.query_single(
+            '''
+            SELECT <array<str>><array<cfg::memory>><array<str>>$0
+            ''',
+            valid
+        )
+
+        for text, ref_value, svalue in zip(valid, v, vs):
+            try:
+                parsed = statypes.ConfigMemory(text)
+            except Exception:
+                raise AssertionError(
+                    f'could not parse a valid cfg::memory: {text!r}')
+
+            self.assertEqual(
+                ref_value,
+                parsed.to_nbytes(),
+                text)
+
+            self.assertEqual(
+                svalue,
+                parsed.to_str(),
+                text)
+
+            self.assertEqual(
+                statypes.ConfigMemory(svalue).to_nbytes(),
+                parsed.to_nbytes(),
+                text)
+
+        for text in invalid:
+            async with self.assertRaisesRegexTx(
+                    edgedb.InvalidValueError,
+                    r'(unsupported memory size)|(unable to parse memory)'):
+                await self.con.query_single(
+                    '''SELECT <int64><cfg::memory><str>$0''',
+                    text
+                )
+
+            with self.assertRaises(errors.InvalidValueError):
+                statypes.ConfigMemory(text)

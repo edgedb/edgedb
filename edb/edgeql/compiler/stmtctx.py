@@ -42,6 +42,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import parser as qlparser
 
 from edb.common.ast import visitor as ast_visitor
+from edb.common import ordered
 
 from . import astutils
 from . import context
@@ -100,6 +101,7 @@ def init_context(
     ctx.implicit_tid_in_shapes = options.implicit_tid_in_shapes
     ctx.implicit_tname_in_shapes = options.implicit_tname_in_shapes
     ctx.implicit_limit = options.implicit_limit
+    ctx.expr_exposed = context.Exposure.EXPOSED
 
     return ctx
 
@@ -139,6 +141,10 @@ def fini_expression(
     _rewrite_weak_namespaces(ir, ctx)
 
     ctx.path_scope.validate_unique_ids()
+
+    # Infer cardinalities of type rewrites
+    for rw in ctx.type_rewrites.values():
+        inference.infer_cardinality(rw, scope_tree=ctx.path_scope, ctx=inf_ctx)
 
     # ConfigSet and ConfigReset don't like being part of a Set
     if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
@@ -246,6 +252,7 @@ def fini_expression(
         ),
         type_rewrites={s.typeref.id: s for s in ctx.type_rewrites.values()},
         dml_exprs=ctx.env.dml_exprs,
+        singletons=ctx.env.singletons,
     )
     return result
 
@@ -259,7 +266,7 @@ def _fixup_materialized_sets(
     for nobe in ctx.source_map.values():
         if nobe.irexpr:
             children += ast_visitor.find_children(nobe.irexpr, flt)
-    for stmt in set(children):
+    for stmt in ordered.OrderedSet(children):
         if not stmt.materialized_sets:
             continue
         for key in list(stmt.materialized_sets):
@@ -281,13 +288,28 @@ def _fixup_materialized_sets(
                 if isinstance(x, irast.MaterializeVolatile):
                     good_reason = True
                 elif isinstance(x, irast.MaterializeVisible):
-                    # If any of the bindings that the set uses are *visible*
-                    # at the binding point, we need to materialize, to make
-                    # sure that things get correlated properly. If it's not
-                    # visible, then it's just being used internally and we
-                    # don't need any special work.
-                    if any(parent.is_visible(b) for b, _ in x.sets):
-                        good_reason = True
+                    # If any of the bindings that the set uses are
+                    # *visible* at the definition point and *not
+                    # visible* from all use points, we need to
+                    # materialize, to make sure that the use site sees
+                    # the same value for the binding as the definition
+                    # point. If it's not visible, then it's just being
+                    # used internally and we don't need any special
+                    # work.
+                    use_scopes = [
+                        ctx.env.scope_tree_nodes.get(x.path_scope_id)
+                        if x.path_scope_id is not None
+                        else None
+                        for x in mat_set.use_sets
+                    ]
+                    for b, _ in x.sets:
+                        if parent.is_visible(b) and not all(
+                            use_scope and use_scope.parent
+                            and use_scope.parent.is_visible(b)
+                            for use_scope in use_scopes
+                        ):
+                            good_reason = True
+                            break
 
             if not good_reason:
                 del stmt.materialized_sets[key]
@@ -579,7 +601,7 @@ def declare_view_from_schema(
         return vc
 
     with ctx.detached() as subctx:
-        subctx.expr_exposed = False
+        subctx.expr_exposed = context.Exposure.UNEXPOSED
         view_expr = viewcls.get_expr(ctx.env.schema)
         assert view_expr is not None
         view_ql = qlparser.parse(view_expr.text)

@@ -141,9 +141,6 @@ class TypeRef(ImmutableBase):
     # If this is an intersection type, this would be a set of
     # intersection elements.
     intersection: typing.Optional[typing.FrozenSet[TypeRef]] = None
-    # If this is a union type, this would be the nearest common
-    # ancestor of the union members.
-    common_parent: typing.Optional[TypeRef] = None
     # If this node is an element of a collection, and the
     # collection elements are named, this would be then
     # name of the element.
@@ -169,6 +166,10 @@ class TypeRef(ImmutableBase):
     @property
     def real_material_type(self) -> TypeRef:
         return self.material_type or self
+
+    @property
+    def real_base_type(self) -> TypeRef:
+        return self.base_type or self
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, self.__class__):
@@ -542,6 +543,7 @@ class Statement(Command):
     source_map: typing.Dict[s_pointers.Pointer, ComputableInfo]
     dml_exprs: typing.List[qlast.Base]
     type_rewrites: typing.Dict[uuid.UUID, Set]
+    singletons: typing.List[PathId]
 
 
 class TypeIntrospection(ImmutableExpr):
@@ -667,6 +669,7 @@ class CallArg(ImmutableBase):
     expr_type_path_id: typing.Optional[PathId] = None
     cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
     multiplicity: qltypes.Multiplicity = qltypes.Multiplicity.UNKNOWN
+    is_default: bool = False
 
 
 class Call(ImmutableExpr):
@@ -706,6 +709,11 @@ class Call(ImmutableExpr):
 
     # Volatility of the function or operator.
     volatility: qltypes.Volatility
+
+    # Whether the underlying implementation is strict in all its required
+    # arguments (NULL inputs lead to NULL results). If not, we need to
+    # filter at the call site.
+    impl_is_strict: bool = False
 
 
 class FunctionCall(Call):
@@ -906,7 +914,7 @@ class ConfigCommand(Command, Expr):
     scope: qltypes.ConfigScope
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
-    backend_setting: str
+    backend_setting: typing.Optional[str]
     scope_tree: typing.Optional[ScopeTreeNode] = None
 
 

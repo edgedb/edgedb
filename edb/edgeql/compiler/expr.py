@@ -26,6 +26,7 @@ from typing import *
 
 from edb import errors
 
+from edb.common import context as ctx_utils
 from edb.edgeql import qltypes as ft
 
 from edb.ir import ast as irast
@@ -47,6 +48,7 @@ from . import dispatch
 from . import inference
 from . import pathctx
 from . import setgen
+from . import stmt
 from . import typegen
 
 from . import func  # NOQA
@@ -66,9 +68,10 @@ def compile__Optional(
 @dispatch.compile.register(qlast.Path)
 def compile_Path(
         expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
-    return setgen.compile_path(expr, ctx=ctx)
+    return stmt.maybe_add_view(setgen.compile_path(expr, ctx=ctx), ctx=ctx)
 
 
+@dispatch.compile.register(qlast.SetConstructorOp)
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
@@ -144,18 +147,35 @@ def compile_Set(
                 ir_set = dispatch.compile(elements[0], ctx=scopectx)
                 return setgen.scoped_set(ir_set, ctx=scopectx)
         else:
-            # a set literal is just sugar for a UNION
-            op = 'UNION'
-
             # Turn it into a tree of UNIONs so we only blow up the nesting
             # depth logarithmically.
             # TODO: Introduce an N-ary operation that handles the whole thing?
             mid = len(elements) // 2
             ls, rs = elements[:mid], elements[mid:]
-            bigunion = qlast.BinOp(
-                left=qlast.Set(elements=ls) if len(ls) > 1 else ls[0],
-                right=qlast.Set(elements=rs) if len(rs) > 1 else rs[0],
-                op=op
+            ls_context = rs_context = None
+            if len(ls) > 1 and ls[0].context and ls[-1].context:
+                ls_context = ctx_utils.merge_context([
+                    ls[0].context, ls[-1].context])
+            if len(rs) > 1 and rs[0].context and rs[-1].context:
+                rs_context = ctx_utils.merge_context([
+                    rs[0].context, rs[-1].context])
+
+            bigunion = qlast.SetConstructorOp(
+                left=(
+                    qlast.Set(
+                        elements=ls,
+                        context=ls_context,
+                    )
+                    if len(ls) > 1 else ls[0]
+                ),
+                right=(
+                    qlast.Set(
+                        elements=rs,
+                        context=rs_context,
+                    )
+                    if len(rs) > 1 else rs[0]
+                ),
+                context=expr.context,
             )
             return dispatch.compile(bigunion, ctx=ctx)
     else:
@@ -435,8 +455,7 @@ def compile_TypeCast(
             )
 
         if (
-            isinstance(pt, s_types.Collection)
-            and pt.contains_array_of_tuples(ctx.env.schema)
+            pt.contains_array_of_tuples(ctx.env.schema)
             and not ctx.env.options.func_params
         ):
             raise errors.QueryError(
@@ -528,16 +547,17 @@ def compile_TypeCast(
         with ctx.new() as subctx:
             if target_stype.contains_json(subctx.env.schema):
                 # JSON wants type shapes and acts as an output sink.
-                subctx.expr_exposed = True
+                subctx.expr_exposed = context.Exposure.EXPOSED
                 subctx.inhibit_implicit_limit = True
                 subctx.implicit_id_in_shapes = False
                 subctx.implicit_tid_in_shapes = False
                 subctx.implicit_tname_in_shapes = False
             ir_expr = dispatch.compile(expr.expr, ctx=subctx)
 
-    return casts.compile_cast(
+    res = casts.compile_cast(
         ir_expr, target_stype, cardinality_mod=expr.cardinality_mod,
         ctx=ctx, srcctx=expr.expr.context)
+    return stmt.maybe_add_view(res, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Introspect)
@@ -569,7 +589,8 @@ def compile_Introspect(
             f'cannot introspect generic types',
             context=expr.type.context)
 
-    return setgen.ensure_set(irast.TypeIntrospection(typeref=typeref), ctx=ctx)
+    ir = setgen.ensure_set(irast.TypeIntrospection(typeref=typeref), ctx=ctx)
+    return stmt.maybe_add_view(ir, ctx=ctx)
 
 
 @dispatch.compile.register(qlast.Indirection)

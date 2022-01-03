@@ -111,10 +111,12 @@ def _infer_common_type(
             if common_type is None:
                 break
     else:
-        common_type = s_utils.get_class_nearest_common_ancestor(
+        common_types = s_utils.get_class_nearest_common_ancestors(
             env.schema,
             cast(Sequence[s_types.InheritingType], types),
         )
+        # We arbitrarily select the first nearest common ancestor
+        common_type = common_types[0] if common_types else None
 
     if common_type is None:
         return None
@@ -397,7 +399,7 @@ def __infer_slice(
     if node_type.issubclass(env.schema, str_t):
         base_name = 'string'
     elif node_type.issubclass(env.schema, json_t):
-        base_name = 'json array'
+        base_name = 'JSON array'
     elif node_type.issubclass(env.schema, bytes_t):
         base_name = 'bytes'
     elif isinstance(node_type, s_abc.Array):

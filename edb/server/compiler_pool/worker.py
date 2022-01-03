@@ -32,17 +32,18 @@ import immutables
 
 from edb import graphql
 
+from edb.common import debug
+from edb.common import devmode
+from edb.common import markup
+
 from edb.edgeql import parser as ql_parser
+
+from edb.pgsql import params as pgparams
 
 from edb.schema import schema as s_schema
 
 from edb.server import compiler
 from edb.server import config
-from edb.server import pgcluster
-
-from edb.common import debug
-from edb.common import devmode
-from edb.common import markup
 
 from . import amsg
 from . import state
@@ -50,8 +51,8 @@ from . import state
 
 INITED: bool = False
 DBS: state.DatabasesState = immutables.Map()
-BACKEND_RUNTIME_PARAMS: pgcluster.BackendRuntimeParams = \
-    pgcluster.get_default_runtime_params()
+BACKEND_RUNTIME_PARAMS: pgparams.BackendRuntimeParams = \
+    pgparams.get_default_runtime_params()
 COMPILER: compiler.Compiler
 LAST_STATE: Optional[compiler.dbstate.CompilerConnectionState] = None
 STD_SCHEMA: s_schema.FlatSchema
@@ -270,8 +271,8 @@ def compile_graphql(
     )
 
 
-def worker(sockname):
-    con = amsg.WorkerConnection(sockname)
+def worker(sockname, version_serial):
+    con = amsg.WorkerConnection(sockname, version_serial)
     try:
         for req_id, req in con.iter_request():
             try:
@@ -329,9 +330,9 @@ def worker(sockname):
         con.abort()
 
 
-def run_worker(sockname):
+def run_worker(sockname, version_serial):
     with devmode.CoverageConfig.enable_coverage_if_requested():
-        worker(sockname)
+        worker(sockname, version_serial)
 
 
 def prepare_exception(ex):
@@ -364,6 +365,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--sockname')
     parser.add_argument('--numproc')
+    parser.add_argument('--version-serial', type=int)
     args = parser.parse_args()
 
     numproc = int(args.numproc)
@@ -441,7 +443,7 @@ def main():
 
     # child process - clear the SIGTERM handler for potential Rust impl
     signal.signal(signal.SIGTERM, signal.SIG_DFL)
-    run_worker(args.sockname)
+    run_worker(args.sockname, args.version_serial)
 
 
 if __name__ == '__main__':

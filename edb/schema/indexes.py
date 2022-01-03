@@ -23,12 +23,12 @@ from typing import *
 from edb import edgeql
 from edb import errors
 from edb.common import ast
+from edb.common import parsing
 from edb.common import verutils
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
 
-from . import abc as s_abc
 from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
@@ -202,6 +202,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Index:
         ...
 
@@ -213,6 +214,7 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: None = None,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[Index]:
         ...
 
@@ -223,10 +225,12 @@ class IndexCommand(
         *,
         name: Optional[sn.Name] = None,
         default: Union[Index, so.NoDefaultT, None] = so.NoDefault,
+        sourcectx: Optional[parsing.ParserContext] = None,
     ) -> Optional[Index]:
         try:
             return super().get_object(
-                schema, context, name=name, default=default
+                schema, context, name=name,
+                default=default, sourcectx=sourcectx,
             )
         except errors.InvalidReferenceError:
             referrer_ctx = self.get_referrer_context_or_die(context)
@@ -246,14 +250,12 @@ class IndexCommand(
     ) -> sd.ObjectCommand[Index]:
         cmd = super()._cmd_from_ast(schema, astnode, context)
         if isinstance(astnode, qlast.IndexCommand):
-            orig_text = cls.get_orig_expr_text(schema, astnode, 'expr')
             cmd.set_ddl_identity(
                 'expr',
                 s_expr.Expression.from_ast(
                     astnode.expr,
                     schema,
                     context.modaliases,
-                    orig_text=orig_text,
                 ),
             )
         return cmd
@@ -276,8 +278,6 @@ class IndexCommand(
         value: s_expr.Expression,
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
-        from . import objtypes as s_objtypes
-
         singletons: List[s_types.Type]
         if field.name == 'expr':
             # type ignore below, for the class is used as mixin
@@ -289,14 +289,6 @@ class IndexCommand(
             assert isinstance(parent_ctx.op, sd.ObjectCommand)
             subject = parent_ctx.op.get_object(schema, context)
 
-            if isinstance(subject, s_abc.Pointer):
-                singletons = []
-                path_prefix_anchor = None
-            else:
-                assert isinstance(subject, s_objtypes.ObjectType)
-                singletons = [subject]
-                path_prefix_anchor = qlast.Subject().name
-
             expr = type(value).compiled(
                 value,
                 schema=schema,
@@ -304,8 +296,8 @@ class IndexCommand(
                     modaliases=context.modaliases,
                     schema_object_context=self.get_schema_metaclass(),
                     anchors={qlast.Subject().name: subject},
-                    path_prefix_anchor=path_prefix_anchor,
-                    singletons=frozenset(singletons),
+                    path_prefix_anchor=qlast.Subject().name,
+                    singletons=frozenset([subject]),
                     apply_query_rewrites=not context.stdmode,
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
@@ -380,7 +372,6 @@ class CreateIndex(
                 expr_ql,
                 schema,
                 context.modaliases,
-                orig_text=orig_text,
             ),
         )
 

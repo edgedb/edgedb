@@ -55,6 +55,9 @@ class GlobalCompilerOptions:
     #: Use material types for pointer targets in schema views.
     schema_view_mode: bool = False
 
+    #: True in compile_bootstrap_script().
+    bootstrap_mode: bool = False
+
     #: Whether to track which subexpressions reference each schema object.
     track_schema_ref_exprs: bool = False
 

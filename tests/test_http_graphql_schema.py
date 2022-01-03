@@ -767,6 +767,52 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                     },
                     {
                         "__typename": "__Field",
+                        "name": "owner_name",
+                        "description": None,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": None,
+                            "kind": "LIST",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": None,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "__typename": "__Type",
+                                    "name": "String",
+                                    "kind": "SCALAR",
+                                    "ofType": None
+                                }
+                            }
+                        },
+                        "isDeprecated": False,
+                        "deprecationReason": None
+                    },
+                    {
+                        "__typename": "__Field",
+                        "name": "owner_user",
+                        "description": None,
+                        "type": {
+                            "__typename": "__Type",
+                            "name": None,
+                            "kind": "LIST",
+                            "ofType": {
+                                "__typename": "__Type",
+                                "name": None,
+                                "kind": "NON_NULL",
+                                "ofType": {
+                                    "__typename": "__Type",
+                                    "name": "User",
+                                    "kind": "INTERFACE",
+                                    "ofType": None
+                                }
+                            }
+                        },
+                        "isDeprecated": False,
+                        "deprecationReason": None
+                    },
+                    {
+                        "__typename": "__Field",
                         "name": "tags",
                         "description": None,
                         "type": {
@@ -1124,6 +1170,40 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                             {
                                 "__typename": "__Field",
                                 "name": "odd",
+                                "description": None,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": None,
+                                    "kind": "LIST",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": None,
+                                        "kind": "NON_NULL"
+                                    }
+                                },
+                                "isDeprecated": False,
+                                "deprecationReason": None
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "owner_name",
+                                "description": None,
+                                "type": {
+                                    "__typename": "__Type",
+                                    "name": None,
+                                    "kind": "LIST",
+                                    "ofType": {
+                                        "__typename": "__Type",
+                                        "name": None,
+                                        "kind": "NON_NULL"
+                                    }
+                                },
+                                "isDeprecated": False,
+                                "deprecationReason": None
+                            },
+                            {
+                                "__typename": "__Field",
+                                "name": "owner_user",
                                 "description": None,
                                 "type": {
                                     "__typename": "__Type",
@@ -2414,3 +2494,71 @@ class TestGraphQLSchema(tb.GraphQLTestCase):
                 "specifiedByUrl": None,
             }
         })
+
+    def test_graphql_reflection_01(self):
+        # Make sure that FreeObject is not reflected.
+        result = self.graphql_query(r"""
+            query {
+                __type(name: "FeeObject") {
+                    name
+                }
+                __schema {
+                    queryType {
+                        fields {
+                            name
+                        }
+                    }
+                    mutationType {
+                        fields {
+                            name
+                        }
+                    }
+                }
+            }
+        """)
+
+        self.assertIsNone(result['__type'])
+        self.assertNotIn(
+            'FreeObject',
+            [t['name'] for t in result['__schema']['queryType']['fields']]
+        )
+        self.assertNotIn(
+            'delete_FreeObject',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertNotIn(
+            'update_FreeObject',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+        self.assertNotIn(
+            'insert_FreeObject',
+            [t['name'] for t in result['__schema']['mutationType']['fields']]
+        )
+
+    def test_graphql_reflection_02(self):
+        # Make sure that "id", as well as computed "owner_user" and
+        # "owner_name" are not reflected into insert or update
+        result = self.graphql_query(r"""
+            query {
+                in: __type(name: "InsertUser") {
+                    inputFields {
+                        name
+                    }
+                }
+                up: __type(name: "UpdateUser") {
+                    inputFields {
+                        name
+                    }
+                }
+            }
+        """)
+
+        for bad in ['id', 'owner_user', 'owner_name']:
+            self.assertNotIn(
+                bad,
+                [t['name'] for t in result['in']['inputFields']]
+            )
+            self.assertNotIn(
+                bad,
+                [t['name'] for t in result['up']['inputFields']]
+            )

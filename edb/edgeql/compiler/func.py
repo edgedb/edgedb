@@ -49,6 +49,7 @@ from . import pathctx
 from . import polyres
 from . import schemactx
 from . import setgen
+from . import stmt
 from . import typegen
 
 if TYPE_CHECKING:
@@ -268,9 +269,11 @@ def compile_FunctionCall(
         variadic_param_type=variadic_param_type,
         func_initial_value=func_initial_value,
         tuple_path_ids=tuple_path_ids,
+        impl_is_strict=func.get_impl_is_strict(env.schema),
     )
 
-    return setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
+    ir_set = setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
+    return stmt.maybe_add_view(ir_set, ctx=ctx)
 
 
 #: A dictionary of conditional callables and the indices
@@ -484,9 +487,18 @@ def compile_operator(
                 ):
                     hint = 'Consider using the "++" operator for concatenation'
 
-            raise errors.QueryError(
-                f'operator {str(op_name)!r} cannot be applied to '
-                f'operands of type {types}',
+            if isinstance(qlexpr, qlast.SetConstructorOp):
+                msg = (
+                    f'set constructor has arguments of incompatible types '
+                    f'{types}'
+                )
+            else:
+                msg = (
+                    f'operator {str(op_name)!r} cannot be applied to '
+                    f'operands of type {types}'
+                )
+            raise errors.InvalidTypeError(
+                msg,
                 hint=hint,
                 context=qlexpr.context)
         elif len(matched) > 1:
@@ -581,11 +593,14 @@ def compile_operator(
         typeref=typegen.type_to_typeref(rtype, env=env),
         typemod=oper.get_return_typemod(env.schema),
         tuple_path_ids=[],
+        impl_is_strict=oper.get_impl_is_strict(env.schema),
     )
 
     _check_free_shape_op(node, ctx=ctx)
 
-    return setgen.ensure_set(node, typehint=rtype, ctx=ctx)
+    return stmt.maybe_add_view(
+        setgen.ensure_set(node, typehint=rtype, ctx=ctx),
+        ctx=ctx)
 
 
 # These ops are all footguns when used with free shapes,
@@ -847,7 +862,8 @@ def finalize_args(
                 arg, paramtype, srcctx=None, ctx=ctx)
 
         args.append(
-            irast.CallArg(expr=arg, expr_type_path_id=arg_type_path_id))
+            irast.CallArg(expr=arg, expr_type_path_id=arg_type_path_id,
+                          is_default=barg.is_default))
 
         # If we have any logged paths left over and our enclosing
         # context is logging paths, propagate them up.

@@ -44,6 +44,7 @@ from edb.edgeql import ast as qlast
 
 from . import context
 from . import dispatch
+from . import inference
 from . import setgen
 
 
@@ -52,7 +53,7 @@ class SettingInfo(NamedTuple):
     param_type: s_types.Type
     cardinality: qltypes.SchemaCardinality
     requires_restart: bool
-    backend_setting: str
+    backend_setting: str | None
     affects_compilation: bool
 
 
@@ -65,6 +66,15 @@ def compile_ConfigSet(
     info = _validate_op(expr, ctx=ctx)
     param_val = setgen.ensure_set(
         dispatch.compile(expr.expr, ctx=ctx), ctx=ctx)
+
+    actual_param_type = inference.infer_type(param_val, ctx.env)
+    if not actual_param_type.assignment_castable_to(
+            info.param_type, ctx.env.schema):
+        raise errors.ConfigurationError(
+            f'invalid setting value type for {info.param_name}: '
+            f'{actual_param_type.get_displayname(ctx.env.schema)!r} '
+            f'(expecting {info.param_type.get_displayname(ctx.env.schema)!r})'
+        )
 
     try:
         ireval.evaluate(param_val, schema=ctx.env.schema)
@@ -170,7 +180,7 @@ def compile_ConfigInsert(
             _inject_tname(el.compexpr, ctx=ctx)
 
     with ctx.newscope(fenced=False) as subctx:
-        subctx.expr_exposed = True
+        subctx.expr_exposed = context.Exposure.EXPOSED
         subctx.modaliases = ctx.modaliases.copy()
         subctx.modaliases[None] = 'cfg'
         subctx.special_computables_in_mutation_shape |= {'_tname'}

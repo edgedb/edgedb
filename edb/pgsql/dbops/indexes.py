@@ -58,7 +58,7 @@ class TextSearchIndexColumn(IndexColumn):
 
 class Index(tables.InheritableTableObject):
     def __init__(
-            self, name, table_name, unique=True, expr=None, predicate=None,
+            self, name, table_name, unique=True, exprs=None, predicate=None,
             inherit=False, metadata=None, columns=None):
         super().__init__(inherit=inherit, metadata=metadata)
 
@@ -71,7 +71,7 @@ class Index(tables.InheritableTableObject):
             self.add_columns(columns)
         self.predicate = predicate
         self.unique = unique
-        self.expr = expr
+        self.exprs = exprs
 
         if self.name_in_catalog != self.name:
             self.add_metadata('fullname', self.name)
@@ -99,7 +99,7 @@ class Index(tables.InheritableTableObject):
             {desc_var}.is_unique := {self.unique};
             {desc_var}.predicate := {ql(self.predicate) if self.predicate
                                      else 'NULL'};
-            {desc_var}.expression := {ql(self.expr) if self.expr
+            {desc_var}.expression := {ql(', '.join(self.exprs)) if self.exprs
                                       else 'NULL'};
             {desc_var}.columns := ARRAY[{cols}]::text[];
             {desc_var}.metadata := {ql(json.dumps(self.metadata))};
@@ -147,10 +147,13 @@ class Index(tables.InheritableTableObject):
         ''')
 
     def creation_code(self, block: base.PLBlock) -> str:
-        if self.expr:
-            expr = self.expr
+        if self.exprs:
+            exprs = self.exprs
         else:
-            expr = ', '.join(qi(c) for c in self.columns)
+            exprs = [qi(c) for c in self.columns]
+
+        # TODO: Make NULLs behavior configurable
+        expr = ', '.join(f'{e} NULLS FIRST' for e in exprs)
 
         code = '''
             CREATE {unique} INDEX {name}

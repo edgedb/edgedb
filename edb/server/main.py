@@ -43,9 +43,9 @@ from . import logsetup
 logsetup.early_setup()
 
 from edb import buildmeta
+from edb.common import exceptions
 from edb.common import devmode
 from edb.common import signalctl
-from edb.common import exceptions
 
 from . import args as srvargs
 from . import daemon
@@ -68,9 +68,9 @@ logger = logging.getLogger('edb.server')
 _server_initialized = False
 
 
-def abort(msg, *args) -> NoReturn:
+def abort(msg, *args, exit_code=1) -> NoReturn:
     logger.critical(msg, *args)
-    sys.exit(1)
+    sys.exit(exit_code)
 
 
 @contextlib.contextmanager
@@ -154,10 +154,12 @@ def _sd_notify(message):
         notify_socket = '\0' + notify_socket[1:]
 
     sd_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-    sd_sock.connect(notify_socket)
 
     try:
+        sd_sock.connect(notify_socket)
         sd_sock.sendall(message.encode())
+    except Exception as e:
+        logger.info('Could not send systemd notification: %s', e)
     finally:
         sd_sock.close()
 
@@ -192,30 +194,35 @@ async def _run_server(
             netport=args.port,
             auto_shutdown_after=args.auto_shutdown_after,
             echo_runtime_info=args.echo_runtime_info,
-            status_sink=args.status_sink,
+            status_sinks=args.status_sinks,
             startup_script=args.startup_script,
-            allow_insecure_binary_clients=args.allow_insecure_binary_clients,
-            allow_insecure_http_clients=args.allow_insecure_http_clients,
+            binary_endpoint_security=args.binary_endpoint_security,
+            http_endpoint_security=args.http_endpoint_security,
             backend_adaptive_ha=args.backend_adaptive_ha,
             default_auth_method=args.default_auth_method,
+            testmode=args.testmode,
         )
         await sc.wait_for(ss.init())
 
-        if args.generate_self_signed_cert:
-            ss.init_tls(
-                *_generate_cert(
-                    args.data_dir or pathlib.Path(internal_runstate_dir),
+        tls_cert_newly_generated = False
+        if args.tls_cert_mode is srvargs.ServerTlsCertMode.SelfSigned:
+            assert args.tls_cert_file is not None
+            if not args.tls_cert_file.exists():
+                assert args.tls_key_file is not None
+                _generate_cert(
+                    args.tls_cert_file,
+                    args.tls_key_file,
                     ss.get_listen_hosts(),
                 )
-            )
+                tls_cert_newly_generated = True
+
+        ss.init_tls(
+            args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
         if args.bootstrap_only:
             if args.startup_script:
                 await sc.wait_for(ss.run_startup_script_and_exit())
             return
-
-        if not args.generate_self_signed_cert:
-            ss.init_tls(args.tls_cert_file, args.tls_key_file)
 
         try:
             await sc.wait_for(ss.start())
@@ -239,9 +246,11 @@ async def _run_server(
 
 
 def _generate_cert(
-    cert_dir: pathlib.Path, listen_hosts: Iterable[str]
-) -> Tuple[pathlib.Path, Optional[pathlib.Path]]:
-    logger.info("Generating self-signed TLS certificate.")
+    tls_cert_file: pathlib.Path,
+    tls_key_file: pathlib.Path,
+    listen_hosts: Iterable[str]
+) -> None:
+    logger.info(f'generating self-signed TLS certificate in "{tls_cert_file}"')
 
     from cryptography import x509
     from cryptography.hazmat import backends
@@ -271,8 +280,10 @@ def _generate_cert(
         )
         .add_extension(
             x509.SubjectAlternativeName(
-                [x509.DNSName(name) for name in listen_hosts
-                 if name != '0.0.0.0']
+                [
+                    x509.DNSName(name) for name in listen_hosts
+                    if name not in {'0.0.0.0', '::'}
+                ]
             ),
             critical=False,
         )
@@ -282,11 +293,10 @@ def _generate_cert(
             backend=backend,
         )
     )
-    cert_file = cert_dir / srvargs.TLS_CERT_FILE_NAME
-    key_file = cert_dir / srvargs.TLS_KEY_FILE_NAME
-    with cert_file.open("wb") as f:
+    with tls_cert_file.open("wb") as f:
         f.write(certificate.public_bytes(encoding=serialization.Encoding.PEM))
-    with key_file.open("wb") as f:
+    tls_cert_file.chmod(0o644)
+    with tls_key_file.open("wb") as f:
         f.write(
             private_key.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -294,7 +304,7 @@ def _generate_cert(
                 encryption_algorithm=serialization.NoEncryption(),
             )
         )
-    return cert_file, key_file
+    tls_key_file.chmod(0o600)
 
 
 async def _get_local_pgcluster(
@@ -368,15 +378,28 @@ async def run_server(
     global server
     server = server_mod
 
-    ver = buildmeta.get_version()
+    ver_meta = buildmeta.get_version_metadata()
+    extras = []
+    source = ""
+    if build_date := ver_meta["build_date"]:
+        nice_date = build_date.strftime("%Y-%m-%dT%H:%MZ")
+        source += f" on {nice_date}"
+    if ver_meta["scm_revision"]:
+        source += f" from revision {ver_meta['scm_revision']}"
+        if source_date := ver_meta["source_date"]:
+            nice_date = source_date.strftime("%Y-%m-%dT%H:%MZ")
+            source += f" ({nice_date})"
+    if source:
+        extras.append(f", built{source}")
+    if ver_meta["target"]:
+        extras.append(f"for {ver_meta['target']}")
 
-    info_details = f'version: {ver}'
+    ver_line = buildmeta.get_version_string() + " ".join(extras)
+    logger.info(f"starting EdgeDB server {ver_line}")
     if args.instance_name:
-        info_details = f'instance-name: {args.instance_name!r}, {info_details}'
+        logger.info(f'instance name: {args.instance_name!r}')
     if devmode.is_in_dev_mode():
-        logger.info(f'EdgeDB server ({info_details}) is starting in DEV mode.')
-    else:
-        logger.info(f'EdgeDB server ({info_details}) is starting.')
+        logger.info(f'development mode active')
 
     logger.debug(
         f"defaulting to the '{args.default_auth_method}' authentication method"
@@ -419,16 +442,34 @@ async def run_server(
     )
 
     with runstate_dir_mgr as runstate_dir:
-        if args.data_dir:
-            cluster, args = await _get_local_pgcluster(
-                args, runstate_dir, tenant_id)
-        elif args.backend_dsn:
-            cluster, args = await _get_remote_pgcluster(args, tenant_id)
-        else:
-            # This should have been checked by main() already,
-            # but be extra careful.
-            abort('neither the data directory nor the remote Postgres DSN '
-                  'have been specified')
+        runstate_dir_str = str(runstate_dir)
+        runstate_dir_str_len = len(
+            runstate_dir_str.encode(
+                sys.getfilesystemencoding(),
+                errors=sys.getfilesystemencodeerrors(),
+            ),
+        )
+        if runstate_dir_str_len > defines.MAX_RUNSTATE_DIR_PATH:
+            abort(
+                f'the length of the specified path for server run state '
+                f'exceeds the maximum of {defines.MAX_RUNSTATE_DIR_PATH} '
+                f'bytes: {runstate_dir_str!r} ({runstate_dir_str_len} bytes)',
+                exit_code=11,
+            )
+
+        try:
+            if args.data_dir:
+                cluster, args = await _get_local_pgcluster(
+                    args, runstate_dir, tenant_id)
+            elif args.backend_dsn:
+                cluster, args = await _get_remote_pgcluster(args, tenant_id)
+            else:
+                # This should have been checked by main() already,
+                # but be extra careful.
+                abort('neither the data directory nor the remote Postgres DSN '
+                      'have been specified')
+        except pgcluster.ClusterError as e:
+            abort(str(e))
 
         try:
             pg_cluster_init_by_us = await cluster.ensure_initialized()
@@ -452,7 +493,10 @@ async def run_server(
                 not args.bootstrap_only
                 or args.bootstrap_script
                 or args.bootstrap_command
-                or args.generate_self_signed_cert
+                or (
+                    args.tls_cert_mode
+                    is srvargs.ServerTlsCertMode.SelfSigned
+                )
             ):
                 if args.data_dir:
                     cluster.set_connection_params(
@@ -466,6 +510,21 @@ async def run_server(
                     )
 
                 with _internal_state_dir(runstate_dir) as int_runstate_dir:
+                    if (
+                        args.tls_cert_file
+                        and '<runstate>' in str(args.tls_cert_file)
+                    ):
+                        args = args._replace(
+                            tls_cert_file=pathlib.Path(
+                                str(args.tls_cert_file).replace(
+                                    '<runstate>', int_runstate_dir)
+                            ),
+                            tls_key_file=pathlib.Path(
+                                str(args.tls_key_file).replace(
+                                    '<runstate>', int_runstate_dir)
+                            )
+                        )
+
                     await _run_server(
                         cluster,
                         args,
@@ -524,7 +583,10 @@ def server_main(**kwargs):
     if kwargs['devmode'] is not None:
         devmode.enable_dev_mode(kwargs['devmode'])
 
-    server_args = srvargs.parse_args(**kwargs)
+    try:
+        server_args = srvargs.parse_args(**kwargs)
+    except srvargs.InvalidUsageError as e:
+        abort(e.args[0], exit_code=e.args[1])
 
     if kwargs['background']:
         daemon_opts = {'detach_process': True}

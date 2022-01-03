@@ -2626,10 +2626,7 @@ aa';
     def test_edgeql_syntax_group_01(self):
         """
         GROUP User
-        USING _ :=  User.name
-        BY _
-        INTO User
-        UNION count(User.tasks);
+        BY .name;
         """
 
     def test_edgeql_syntax_group_02(self):
@@ -2639,36 +2636,20 @@ aa';
             _1 := User
         GROUP _2 := _1
         USING _ :=  _2.name
-        BY _
-        INTO U
-        UNION _3 := (
-            num_tasks := count(DISTINCT (_2.tasks))
-        )
-        ORDER BY _3.num_tasks ASC;
+        BY _;
         """
 
     def test_edgeql_syntax_group_03(self):
         """
         GROUP User := User
         USING G :=  User.name
-        BY G
-        INTO User
-        UNION (
-            name := G,
-            num_tasks := count(User.tasks)
-        );
+        BY G;
         """
 
     def test_edgeql_syntax_group_04(self):
         """
         GROUP F := User.friends
-        USING G :=  F.name
-        BY G
-        INTO F
-        UNION (
-            name := G,
-            num_tasks := count(F.tasks)
-        );
+        BY .name;
         """
 
     def test_edgeql_syntax_group_05(self):
@@ -2680,13 +2661,94 @@ aa';
             G2 := User.age,
             G3 := User.rank,
             G4 := User.status
+        BY G1, G2, G3, G4;
+        """
+
+    def test_edgeql_syntax_group_06(self):
+        """
+        GROUP
+            User
         BY
-            G1, G2, G3, G4
-        INTO U
-        UNION (
-            name := G1,
-            num_tasks := count(U.tasks)
-        );
+            .name,
+            .age,
+            .rank,
+            .status;
+        """
+
+    def test_edgeql_syntax_group_07(self):
+        """
+        GROUP
+            User
+        USING
+            letter := (.name)[0],
+        BY
+            letter,
+            .age,
+            .rank,
+            .status;
+
+% OK %
+
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY
+            letter,
+            .age,
+            .rank,
+            .status;
+        """
+
+    def test_edgeql_syntax_group_08(self):
+        """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, .age, ROLLUP(.rank, .status)};
+        """
+
+    def test_edgeql_syntax_group_09(self):
+        """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY CUBE(letter, .age, .rank, .status);
+        """
+
+    def test_edgeql_syntax_group_10(self):
+        """
+        GROUP
+            User
+        USING
+            letter := (.name)[0]
+        BY {letter, {.age, CUBE(.rank, .status)}};
+        """
+
+    def test_edgeql_syntax_group_11(self):
+        """
+        GROUP
+            User
+        BY
+            (.name, .age);
+        """
+
+    def test_edgeql_syntax_group_12(self):
+        """
+        GROUP
+            User
+        BY
+            {(.name, .age), (.rank, .status)};
+        """
+
+    def test_edgeql_syntax_group_13(self):
+        """
+        GROUP
+            User
+        BY
+            ROLLUP((.name, .age), (.rank, .status));
         """
 
     def test_edgeql_syntax_set_01(self):
@@ -3031,17 +3093,11 @@ aa';
         );
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"missing '{' before.+array_unpack",
-                  line=2, col=26)
     def test_edgeql_syntax_selectfor_02(self):
         """
         SELECT (FOR s IN array_unpack([1, 2, 3]) UNION s);
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"missing '{' before.+array_unpack",
-                  line=3, col=22)
     def test_edgeql_syntax_selectfor_03(self):
         """
         WITH x := (
@@ -3060,10 +3116,106 @@ aa';
         SELECT x;
         """
 
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  r"Unexpected ':='", hint=None, line=3, col=17)
     def test_edgeql_syntax_selectfor_05(self):
         """
         FOR x IN {1, 2, 3}
         UNION y := (x + 2);
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_06(self):
+        """
+        FOR x in DETACHED foo UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_08(self):
+        """
+        FOR x in foo + bar UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_09(self):
+        """
+        FOR x in foo.bar + bar UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_10(self):
+        """
+        FOR x in foo { x } UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_11(self):
+        """
+        FOR x in SELECT 1 UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_12(self):
+        """
+        FOR x in Foo UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_13(self):
+        """
+        FOR x in Foo.bar UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_14(self):
+        """
+        FOR x in (SELECT 1) UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_15(self):
+        """
+        FOR x in [1,2,3] UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_16(self):
+        """
+        FOR x in (1,2,3) UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_17(self):
+        """
+        FOR x in .test UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_18(self):
+        """
+        FOR x in ({1,2} + {3,4}) UNION x;
+        """
+
+    def test_edgeql_syntax_selectfor_19(self):
+        """
+        FOR x in <datetime>'1999-03-31T15:17:00Z' UNION x;
+        """
+
+    @tb.must_fail(errors.EdgeQLSyntaxError,
+                  'Missing parentheses around complex expression in a '
+                  'FOR iterator clause',
+                  hint=None, line=2, col=18)
+    def test_edgeql_syntax_selectfor_20(self):
+        """
+        FOR x in <datetime>'1999-03-31T15:17:00Z'++'' UNION x;
         """
 
     def test_edgeql_syntax_deletefor_01(self):
@@ -3216,8 +3368,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_12(self):
         """
@@ -3226,8 +3378,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_13(self):
         """
@@ -3236,8 +3388,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_14(self):
         """
@@ -3246,8 +3398,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_15(self):
         """
@@ -3256,8 +3408,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_16(self):
         """
@@ -3266,8 +3418,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=22)
     def test_edgeql_syntax_function_17(self):
         """
@@ -3276,8 +3428,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=23)
     def test_edgeql_syntax_function_18(self):
         """
@@ -3286,8 +3438,8 @@ aa';
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
                   r'Unexpected token',
-                  hint=r"Statement used as an expression must be enclosed "
-                       r"in a set of parentheses",
+                  hint=r"Missing parentheses around statement used "
+                       r"as an expression",
                   line=2, col=26)
     def test_edgeql_syntax_function_19(self):
         """
@@ -5103,6 +5255,26 @@ aa';
         CONFIGURE INSTANCE RESET Foo FILTER (.bar = 2);
         CONFIGURE SESSION RESET Foo FILTER (.bar = 2);
         CONFIGURE CURRENT DATABASE RESET Foo FILTER (.bar = 2);
+        """
+
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError,
+        r"'CONFIGURE DATABASE' is invalid syntax. "
+        r"Did you mean 'CONFIGURE CURRENT DATABASE'?",
+        line=2, col=19)
+    def test_edgeql_syntax_configure_02(self):
+        """
+        CONFIGURE DATABASE SET foo := (SELECT User);
+        """
+
+    @tb.must_fail(
+        errors.EdgeQLSyntaxError,
+        r"'configure database' is invalid syntax. "
+        r"Did you mean 'configure current database'?",
+        line=2, col=19)
+    def test_edgeql_syntax_configure_03(self):
+        """
+        configure database set foo := (SELECT User);
         """
 
     def test_edgeql_syntax_ddl_alias_01(self):

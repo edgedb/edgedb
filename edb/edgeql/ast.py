@@ -176,8 +176,12 @@ class BaseAlias(Clause):
     alias: typing.Optional[str]
 
 
-class AliasedExpr(BaseAlias):
+class OptionallyAliasedExpr(BaseAlias):
     expr: Expr
+
+
+class AliasedExpr(OptionallyAliasedExpr):
+    # alias isn't optional
     alias: str
 
 
@@ -279,6 +283,10 @@ class BinOp(Expr):
     left: Expr
     op: str
     right: Expr
+
+
+class SetConstructorOp(BinOp):
+    op: str = 'UNION'
 
 
 class WindowSpec(Clause, OrderByMixin):
@@ -450,24 +458,6 @@ class Set(Expr):
     elements: typing.List[Expr]
 
 
-# Expressions used only in statements
-#
-
-class ByExprBase(Base):
-    '''Abstract parent of all grouping sets.'''
-    __abstract_node__ = True
-
-
-class ByExpr(ByExprBase):
-    each: bool
-    expr: Expr
-
-
-class GroupBuiltin(ByExprBase):
-    name: str
-    elements: typing.List[ByExpr]
-
-
 # Statements
 #
 
@@ -484,13 +474,11 @@ class Statement(Command, Expr):
 class SubjectMixin(Base):
     __abstract_node__ = True
     subject: Expr
-    subject_alias: typing.Optional[str] = None
 
 
 class ReturningMixin(Base):
     __abstract_node__ = True
     result: Expr
-    result_alias: typing.Optional[str] = None
 
 
 class SelectClauseMixin(OrderByMixin, OffsetLimitMixin, FilterMixin):
@@ -535,13 +523,37 @@ class Query(Statement):
 
 
 class SelectQuery(Query, ReturningMixin, SelectClauseMixin):
-    pass
+    result_alias: typing.Optional[str] = None
 
 
-class GroupQuery(SelectQuery, SubjectMixin):
-    using: typing.List[AliasedExpr]
-    by: typing.List[Expr]
-    into: str
+class GroupingIdentList(Base):
+    elements: typing.Tuple[GroupingAtom, ...]
+
+
+GroupingAtom = typing.Union[ObjectRef, Path, GroupingIdentList]
+
+
+class GroupingElement(Base):
+    __abstract_node__ = True
+
+
+class GroupingSimple(Base):
+    element: GroupingAtom
+
+
+class GroupingSets(Base):
+    sets: typing.List[GroupingElement]
+
+
+class GroupingOperation(Base):
+    oper: str
+    elements: typing.List[GroupingAtom]
+
+
+class GroupQuery(Query, SubjectMixin):
+    subject_alias: typing.Optional[str] = None
+    using: typing.Optional[typing.List[AliasedExpr]]
+    by: typing.List[GroupingElement]
 
 
 class InsertQuery(Query, SubjectMixin):
@@ -1224,7 +1236,6 @@ class ConfigOp(Expr):
     __abstract_node__ = True
     name: ObjectRef
     scope: qltypes.ConfigScope
-    backend_setting: str
 
 
 class ConfigSet(ConfigOp):

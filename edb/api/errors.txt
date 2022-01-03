@@ -94,8 +94,16 @@
 0x_04_05_02_09   DuplicateConstraintDefinitionError
 0x_04_05_02_0A   DuplicateCastDefinitionError
 
-0x_04_06_00_00   QueryTimeoutError
+####
 
+0x_04_06_00_00   SessionTimeoutError
+
+0x_04_06_01_00   IdleSessionTimeoutError
+
+0x_04_06_02_00   QueryTimeoutError
+
+0x_04_06_0A_00   TransactionTimeoutError
+0x_04_06_0A_01   IdleTransactionTimeoutError
 
 ####
 
@@ -137,6 +145,13 @@
 
 ####
 
+0x_09_00_00_00   BackendError
+
+0x_09_00_01_00   UnsupportedBackendFeatureError
+
+
+####
+
 0x_F0_00_00_00   LogMessage
 
 0x_F0_01_00_00   WarningMessage
@@ -159,3 +174,5 @@
 0x_FF_02_01_03   InvalidArgumentError
 
 0x_FF_03_00_00   NoDataError
+
+0x_FF_04_00_00   InternalClientError

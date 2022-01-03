@@ -81,9 +81,26 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
     async def test_edgeql_casts_bytes_04(self):
         async with self.assertRaisesRegexTx(
-                edgedb.QueryError, r'cannot cast'):
-            await self.con.execute("""
-                SELECT <bytes>to_json('1');
+                edgedb.InvalidValueError, r'expected JSON string or null'):
+            await self.con.query_single("""SELECT <bytes>to_json('1');"""),
+
+        self.assertEqual(
+            await self.con.query_single(r'''
+                SELECT <bytes>to_json('"aGVsbG8="');
+            '''),
+            b'hello',
+        )
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError, r'invalid symbol'):
+            await self.con.query_single("""
+                SELECT <bytes>to_json('"not base64!"');
+            """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError, r'invalid base64 end sequence'):
+            await self.con.query_single("""
+                SELECT <bytes>to_json('"a"');
             """)
 
     async def test_edgeql_casts_bytes_05(self):
@@ -1302,37 +1319,37 @@ class TestEdgeQLCasts(tb.QueryTestCase):
     async def test_edgeql_casts_numeric_06(self):
         await self.assert_query_result(
             r'''SELECT <int16>1;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT <int32>1;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT <int64>1;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT <float32>1;''',
-            [{}],
+            [1.0],
         )
 
         await self.assert_query_result(
             r'''SELECT <float64>1;''',
-            [{}],
+            [1.0],
         )
 
         await self.assert_query_result(
             r'''SELECT <bigint>1;''',
-            [{}],
+            [1],
         )
 
         await self.assert_query_result(
             r'''SELECT <decimal>1;''',
-            [{}],
+            [1],
         )
 
     async def test_edgeql_casts_numeric_07(self):
@@ -1344,7 +1361,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 f'''
                     SELECT <{t1}><{t2}>1;
                 ''',
-                [{}],
+                [1],
             )
 
     async def test_edgeql_casts_collections_01(self):
@@ -2155,13 +2172,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'expected json number or null; got json string'):
+                r'expected JSON number or null; got JSON string'):
             await self.con.query_single(
                 r"SELECT <array<int64>><json>['asdf']")
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'expected json number or null; got json string'):
+                r'expected JSON number or null; got JSON string'):
             await self.con.query_single(
                 r"SELECT <array<int64>>to_json('[1, 2, \"asdf\"]')")
 
@@ -2271,7 +2288,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
-                r'expected json number or null; got json string'):
+                r'expected JSON number or null; got JSON string'):
             await self.con.query(
                 r"""
                     SELECT <tuple<a: int64, b: int64>>

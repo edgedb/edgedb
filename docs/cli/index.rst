@@ -2,16 +2,15 @@
 
 .. _ref_cli_overview:
 
-============
-Command Line
-============
+===
+CLI
+===
 
-:edb-alt-title: 'edgedb' command
+:edb-alt-title: The EdgeDB CLI
 
-EdgeDB includes the all-encompassing ``edgedb`` command-line tool. It
-provides an idiomatic way to do just about everything: install EdgeDB,
-spin up a local instance, open a REPL, execute queries, manage auth
-roles, introspect a database schema, create migrations, and more.
+The ``edgedb`` command-line interface (CLI) provides an idiomatic way to
+install EdgeDB, spin up local instances, open a REPL, execute queries, manage
+auth roles, introspect schema, create migrations, and more.
 
 You can install it with one shell command.
 
@@ -119,13 +118,14 @@ The ``cli.toml`` has the following structure. All fields are optional:
     expand-strings = true         # Stop escaping newlines in quoted strings
     history-size = 10000          # Set number of entries retained in history
     implicit-properties = false   # Print implicit properties of objects
-    implicit-limit = 100          # Set implicit LIMIT
+    limit = 100                   # Set implicit LIMIT
                                   # Defaults to 100, specify 0 to disable
     input-mode = "emacs"          # Set input mode. One of: vi, emacs
     output-format = "default"     # Set output format.
                                   # One of: default, json, json-pretty,
                                   # json-lines
-    print-stats = false           # Print statistics on each query
+    print-stats = "off"           # Print statistics on each query.
+                                  # One of: off, query, detailed
     verbose-errors = false        # Print all errors with maximum verbosity
 
 
@@ -136,6 +136,8 @@ The ``cli.toml`` has the following structure. All fields are optional:
     :maxdepth: 3
     :hidden:
 
+    edgedb_connopts
+    network
     edgedb
     edgedb_dump
     edgedb_restore
@@ -151,5 +153,3 @@ The ``cli.toml`` has the following structure. All fields are optional:
     edgedb_instance/index
     edgedb_server/index
     edgedb_cli_upgrade
-    edgedb_connopts
-    network

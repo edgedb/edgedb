@@ -10,13 +10,14 @@ importantly, they can add new ways of interacting with the database.
 
 At the moment there are only two extensions available:
 
-- ``edgeql_http``: enables :ref:`EdgeQL over HTTP <ref_edgeql_index>`
+- ``edgeql_http``: enables :ref:`EdgeQL over HTTP <ref_edgeql_http>`
 - ``graphql``: enables :ref:`GraphQL <ref_graphql_index>`
 
 
-See Also
---------
+.. list-table::
+  :class: seealso
 
-:ref:`SDL <ref_eql_sdl_extensions>`,
-:eql:stmt:`CREATE EXTENSION`,
-:eql:stmt:`DROP EXTENSION`.
+  * - **See also**
+  * - :ref:`SDL > Extensions <ref_eql_sdl_extensions>`
+  * - :eql:stmt:`DDL > CREATE EXTENSION <CREATE EXTENSION>`
+  * - :eql:stmt:`DDL > DROP EXTENSION <DROP EXTENSION>`

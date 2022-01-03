@@ -1,7 +1,7 @@
 .. _ref_cheatsheet_admin:
 
-Administration
-==============
+Administering an instance
+=========================
 
 Create a database:
 

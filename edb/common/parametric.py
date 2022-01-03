@@ -122,7 +122,7 @@ class ParametricType:
         # TypeVar remapping and generally check for type sanity.
 
         ob = getattr(cls, '__orig_bases__', ())
-        generic_params = []
+        generic_params: list[type] = []
 
         for b in ob:
             if (

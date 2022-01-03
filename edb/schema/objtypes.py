@@ -99,6 +99,18 @@ class ObjectType(
     def is_object_type(self) -> bool:
         return True
 
+    def is_free_object_type(self, schema: s_schema.Schema) -> bool:
+        if self.get_name(schema) == sn.QualName('std', 'FreeObject'):
+            return True
+
+        FreeObject = schema.get(
+            'std::FreeObject', type=ObjectType, default=None)
+        if FreeObject is None:
+            # Possible in bootstrap before FreeObject is declared
+            return False
+        else:
+            return self.issubclass(schema, FreeObject)
+
     def is_union_type(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_union_of(schema))
 
@@ -197,9 +209,13 @@ class ObjectType(
         if not isinstance(other, ObjectType):
             return schema, None
 
-        nearest_common_ancestor = utils.get_class_nearest_common_ancestor(
+        nearest_common_ancestors = utils.get_class_nearest_common_ancestors(
             schema, [self, other]
         )
+        # We arbitrarily select the first nearest common ancestor
+        nearest_common_ancestor = (
+            nearest_common_ancestors[0] if nearest_common_ancestors else None)
+
         if nearest_common_ancestor is not None:
             assert isinstance(nearest_common_ancestor, ObjectType)
         return (
@@ -471,8 +487,10 @@ class RenameObjectType(
     pass
 
 
-class RebaseObjectType(ObjectTypeCommand,
-                       inheriting.RebaseInheritingObject[ObjectType]):
+class RebaseObjectType(
+    ObjectTypeCommand,
+    s_types.RebaseInheritingType[ObjectType],
+):
     pass
 
 

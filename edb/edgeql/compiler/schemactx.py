@@ -28,13 +28,13 @@ from edb import errors
 
 from edb.common import parsing
 
-from edb.schema import abc as s_abc
 from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
+from edb.schema import scalars as s_scalars
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
@@ -154,12 +154,34 @@ def resolve_schema_name(
         return sn.QualName(name=name, module=schema_module)
 
 
+def preserve_view_shape(
+    base: Union[s_types.Type, s_pointers.Pointer],
+    derived: Union[s_types.Type, s_pointers.Pointer],
+    *,
+    derived_name_base: Optional[sn.Name] = None,
+    ctx: context.ContextLevel,
+) -> None:
+    """Copy a view shape to a child type, updating the pointers"""
+    new = []
+    schema = ctx.env.schema
+    for ptr, op in ctx.env.view_shapes[base]:
+        target = ptr.get_target(ctx.env.schema)
+        assert target
+        schema, nptr = ptr.get_derived(
+            schema, cast(s_sources.Source, derived), target,
+            derived_name_base=derived_name_base)
+        new.append((nptr, op))
+    ctx.env.view_shapes[derived] = new
+    # All of the pointers should already exist, so nothing should have
+    # been created.
+    assert schema is ctx.env.schema
+
+
 def derive_view(
     stype: s_types.Type,
     *,
     derived_name: Optional[sn.QualName] = None,
     derived_name_quals: Optional[Sequence[str]] = (),
-    derived_name_base: Optional[str] = None,
     preserve_shape: bool = False,
     preserve_path_id: bool = False,
     is_insert: bool = False,
@@ -174,7 +196,7 @@ def derive_view(
         assert isinstance(stype, s_obj.DerivableObject)
         derived_name = derive_view_name(
             stype=stype, derived_name_quals=derived_name_quals,
-            derived_name_base=derived_name_base, ctx=ctx)
+            ctx=ctx)
 
     if is_insert:
         exprtype = s_types.ExprType.Insert
@@ -194,14 +216,14 @@ def derive_view(
 
     derived: s_types.Type
 
-    if isinstance(stype, s_abc.Collection):
+    if isinstance(stype, s_types.Collection):
         ctx.env.schema, derived = stype.derive_subtype(
             ctx.env.schema,
             name=derived_name,
             attrs=attrs,
         )
 
-    elif isinstance(stype, s_obj.DerivableInheritingObject):
+    elif isinstance(stype, (s_objtypes.ObjectType, s_scalars.ScalarType)):
         existing = ctx.env.schema.get(
             derived_name, default=None, type=type(stype))
         if existing is not None:
@@ -227,7 +249,8 @@ def derive_view(
             )
 
         if (not stype.generic(ctx.env.schema)
-                and isinstance(derived, s_sources.Source)):
+                and isinstance(derived, s_objtypes.ObjectType)):
+            assert isinstance(stype, s_objtypes.ObjectType)
             scls_pointers = stype.get_pointers(ctx.env.schema)
             derived_own_pointers = derived.get_pointers(ctx.env.schema)
 
@@ -235,7 +258,8 @@ def derive_view(
                 # This is a view of a view.  Make sure query-level
                 # computable expressions for pointers are carried over.
                 src_ptr = scls_pointers.get(ctx.env.schema, pn)
-                computable_data = ctx.source_map.get(src_ptr)
+                computable_data = (
+                    ctx.source_map.get(src_ptr) if src_ptr else None)
                 if computable_data is not None:
                     ctx.source_map[ptr] = computable_data
 
@@ -248,7 +272,7 @@ def derive_view(
     ctx.view_nodes[derived.get_name(ctx.env.schema)] = derived
 
     if preserve_shape and stype in ctx.env.view_shapes:
-        ctx.env.view_shapes[derived] = ctx.env.view_shapes[stype]
+        preserve_view_shape(stype, derived, ctx=ctx)
 
     ctx.env.created_schema_objects.add(derived)
 
@@ -262,7 +286,6 @@ def derive_ptr(
     *qualifiers: str,
     derived_name: Optional[sn.QualName] = None,
     derived_name_quals: Optional[Sequence[str]] = (),
-    derived_name_base: Optional[sn.Name] = None,
     preserve_shape: bool = False,
     preserve_path_id: bool = False,
     is_insert: bool = False,
@@ -274,8 +297,7 @@ def derive_ptr(
 
     if derived_name is None and ctx.derived_target_module:
         derived_name = derive_view_name(
-            stype=ptr, derived_name_quals=derived_name_quals,
-            derived_name_base=derived_name_base, ctx=ctx)
+            stype=ptr, derived_name_quals=derived_name_quals, ctx=ctx)
 
     if ptr.get_name(ctx.env.schema) == derived_name:
         qualifiers = qualifiers + (ctx.aliases.get('d'),)
@@ -311,7 +333,7 @@ def derive_ptr(
                     ctx.source_map[ptr] = computable_data
 
     if preserve_shape and ptr in ctx.env.view_shapes:
-        ctx.env.view_shapes[derived] = ctx.env.view_shapes[ptr]
+        preserve_view_shape(ptr, derived, ctx=ctx)
 
     ctx.env.created_schema_objects.add(derived)
 

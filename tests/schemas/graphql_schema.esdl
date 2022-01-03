@@ -37,6 +37,10 @@ type Profile extending NamedObject {
     required property value -> str;
     property tags -> array<str>;
     multi property odd -> array<int64>;
+
+    # computed link and property test
+    link owner_user := .<profile[IS User];
+    property owner_name := .<profile[IS User].name;
 }
 
 type User extending NamedObject {

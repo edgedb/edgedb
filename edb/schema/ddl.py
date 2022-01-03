@@ -271,13 +271,12 @@ def delta_schemas(
     ]
 
     assert not context.renames
-    # We retry performing the diff until we stop finding new
-    # renames. This allows us to be agnostic to the order that we
-    # process schemaclasses.
-    old_count = -1
-    while old_count != len(context.renames):
-        old_count = len(context.renames)
-        context.deletions.clear()
+    # We retry performing the diff until we stop finding new renames
+    # and deletions. This allows us to be agnostic to the order that
+    # we process schemaclasses.
+    old_count = -1, -1
+    while old_count != (len(context.renames), len(context.deletions)):
+        old_count = len(context.renames), len(context.deletions)
 
         objects = sd.DeltaRoot(canonical=True)
 
@@ -700,6 +699,8 @@ def statements_from_delta(
     *,
     sdlmode: bool = False,
     descriptive_mode: bool = False,
+    # Used for backwards compatibility with older migration text.
+    uppercase: bool = False,
     limit_ref_classes: Iterable[so.ObjectMeta] = tuple(),
 ) -> Tuple[Tuple[str, qlast.DDLOperation, sd.Command], ...]:
 
@@ -760,6 +761,7 @@ def statements_from_delta(
             sdlmode=sdlmode,
             descmode=descriptive_mode,
             limit_ref_classes=ql_classes,
+            uppercase=uppercase,
         )
         text.append((stmt_text + ';', stmt_ast, cmd))
 

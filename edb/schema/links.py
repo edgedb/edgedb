@@ -242,8 +242,15 @@ class LinkCommand(
         if not target.is_object_type():
             srcctx = self.get_attribute_source_context('target')
             raise errors.InvalidLinkTargetError(
-                f'invalid link target, expected object type, got '
-                f'{target.get_schema_class_displayname()}',
+                f'invalid link target type, expected object type, got '
+                f'{target.get_verbosename(schema)}',
+                context=srcctx,
+            )
+
+        if target.is_free_object_type(schema):
+            srcctx = self.get_attribute_source_context('target')
+            raise errors.InvalidLinkTargetError(
+                f'{target.get_verbosename(schema)} is not a valid link target',
                 context=srcctx,
             )
 
@@ -362,12 +369,38 @@ class CreateLink(
                         assert isinstance(t, (so.Object, so.ObjectShell))
                         node.target = utils.typeref_to_ast(schema, t)
             else:
+                old_type = pointers.merge_target(
+                    self.scls,
+                    list(self.scls.get_bases(schema).objects(schema)),
+                    'target',
+                    ignore_local=True,
+                    schema=schema,
+                )
                 assert isinstance(op.new_value, (so.Object, so.ObjectShell))
+                new_type = (
+                    op.new_value.resolve(schema)
+                    if isinstance(op.new_value, so.ObjectShell)
+                    else op.new_value)
+
+                new_type_ast = utils.typeref_to_ast(schema, op.new_value)
+                cast_expr = None
+                # If the type isn't assignment castable, generate a
+                # USING with a nonsense cast. It shouldn't matter,
+                # since there should be no data to cast, but the DDL side
+                # of things doesn't know that since the command is split up.
+                if old_type and not old_type.assignment_castable_to(
+                        new_type, schema):
+                    cast_expr = qlast.TypeCast(
+                        type=new_type_ast,
+                        expr=qlast.Set(elements=[]),
+                    )
                 node.commands.append(
                     qlast.SetPointerType(
-                        value=utils.typeref_to_ast(schema, op.new_value),
+                        value=new_type_ast,
+                        cast_expr=cast_expr,
                     )
                 )
+
         elif op.property == 'on_target_delete':
             node.commands.append(qlast.OnTargetDelete(cascade=op.new_value))
         else:

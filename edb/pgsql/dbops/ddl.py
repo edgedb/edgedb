@@ -138,6 +138,23 @@ class GetMetadata(base.Command):
                 ''')
 
 
+class GetSingleDBMetadata(base.Command):
+    def __init__(self, dbname, **kwargs):
+        super().__init__(**kwargs)
+        self.dbname = dbname
+
+    def code(self, block: base.PLBlock) -> str:
+        key = f'{self.dbname}metadata'
+        return textwrap.dedent(f'''\
+            SELECT
+                json
+            FROM
+                edgedbinstdata.instdata
+            WHERE
+                key = {ql(key)}
+        ''')
+
+
 class PutMetadata(DDLOperation):
     def __init__(self, object, metadata, **kwargs):
         super().__init__(**kwargs)
@@ -150,6 +167,25 @@ class PutMetadata(DDLOperation):
                 mod=self.__class__.__module__,
                 cls=self.__class__.__name__,
                 object=self.object,
+                metadata=self.metadata)
+
+
+class PutSingleDBMetadata(DDLOperation):
+    def __init__(self, dbname, metadata, **kwargs):
+        super().__init__(**kwargs)
+        self.dbname = dbname
+        self.metadata = metadata
+
+    @property
+    def key(self):
+        return f'{self.dbname}metadata'
+
+    def __repr__(self):
+        return \
+            '<{mod}.{cls} Database({dbname!r}) {metadata!r}>'.format(
+                mod=self.__class__.__module__,
+                cls=self.__class__.__name__,
+                dbname=self.dbname,
                 metadata=self.metadata)
 
 
@@ -170,6 +206,19 @@ class SetMetadata(PutMetadata):
         ''')
 
 
+class SetSingleDBMetadata(PutSingleDBMetadata):
+    def code(self, block: base.PLBlock) -> str:
+        metadata = ql(json.dumps(self.metadata))
+        return textwrap.dedent(f'''\
+            UPDATE
+                edgedbinstdata.instdata
+            SET
+                json = {metadata}
+            WHERE
+                key = {ql(self.key)};
+        ''')
+
+
 class UpdateMetadata(PutMetadata):
     def code(self, block: base.PLBlock) -> str:
         metadata_qry = GetMetadata(self.object).code(block)
@@ -180,46 +229,6 @@ class UpdateMetadata(PutMetadata):
         block.add_command(f'{json_v} := ({metadata_qry});')
         upd_metadata = ql(json.dumps(self.metadata))
         block.add_command(f'{meta_v} := {upd_metadata}::jsonb')
-
-        block.add_command(textwrap.dedent(f'''\
-            IF {json_v} IS NOT NULL THEN
-                {upd_v} := E{prefix} || ({json_v} || {upd_metadata})::text;
-            ELSE
-                {upd_v} := E{prefix} || {upd_metadata}::text;
-            END IF;
-        '''))
-
-        object_type = self.object.get_type()
-        object_id = self.object.get_id()
-
-        return textwrap.dedent(f'''\
-            IF {upd_v} IS NOT NULL THEN
-                EXECUTE 'COMMENT ON {object_type} {object_id} IS ' ||
-                    quote_literal({upd_v});
-            END IF;
-        ''')
-
-
-class UpdateMetadataSection(PutMetadata):
-    def __init__(self, object, metadata, *, section, **kwargs):
-        super().__init__(object, metadata, **kwargs)
-        self.section = section
-
-    def code(self, block: base.PLBlock) -> str:
-        metadata_qry = GetMetadata(self.object).code(block)
-        prefix = ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)
-        json_v = block.declare_var('jsonb')
-        upd_v = block.declare_var('text')
-        meta_v = block.declare_var('jsonb')
-        block.add_command(f'{json_v} := ({metadata_qry});')
-        upd_metadata = ql(json.dumps(self.metadata))
-        block.add_command(
-            f"{meta_v} := jsonb_strip_nulls(jsonb_build_object(\n"
-            f"    {ql(self.section)},\n"
-            f"    COALESCE({json_v} -> {ql(self.section)}, '{{}}')"
-            f" || {upd_metadata}::jsonb\n"
-            f"))"
-        )
 
         block.add_command(textwrap.dedent(f'''\
             IF {json_v} IS NOT NULL THEN
@@ -237,6 +246,94 @@ class UpdateMetadataSection(PutMetadata):
                 EXECUTE 'COMMENT ON {object_type} {object_id} IS ' ||
                     quote_literal({upd_v});
             END IF;
+        ''')
+
+
+class UpdateSingleDBMetadata(PutSingleDBMetadata):
+    def code(self, block: base.PLBlock) -> str:
+        metadata_qry = GetSingleDBMetadata(self.dbname).code(block)
+        json_v = block.declare_var('jsonb')
+        meta_v = block.declare_var('jsonb')
+        block.add_command(f'{json_v} := ({metadata_qry});')
+        upd_metadata = ql(json.dumps(self.metadata))
+        block.add_command(f'{meta_v} := {upd_metadata}::jsonb')
+
+        return textwrap.dedent(f'''\
+            UPDATE
+                edgedbinstdata.instdata
+            SET
+                json = {json_v} || {meta_v}
+            WHERE
+                key = {ql(self.key)}
+        ''')
+
+
+class UpdateMetadataSectionMixin:
+    def __init__(self, *args, section, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.section = section
+
+    def _metadata_query(self) -> base.Command:
+        raise NotImplementedError
+
+    def _merge(self, block):
+        metadata_qry = self._metadata_query().code(block)
+        json_v = block.declare_var('jsonb')
+        meta_v = block.declare_var('jsonb')
+        block.add_command(f'{json_v} := ({metadata_qry});')
+        upd_metadata = ql(json.dumps(self.metadata))
+        block.add_command(
+            f"{meta_v} := jsonb_strip_nulls(jsonb_build_object(\n"
+            f"    {ql(self.section)},\n"
+            f"    COALESCE({json_v} -> {ql(self.section)}, '{{}}')"
+            f" || {upd_metadata}::jsonb\n"
+            f"))"
+        )
+        return json_v, meta_v
+
+
+class UpdateMetadataSection(UpdateMetadataSectionMixin, PutMetadata):
+    def _metadata_query(self) -> base.Command:
+        return GetMetadata(self.object)
+
+    def code(self, block: base.PLBlock) -> str:
+        json_v, meta_v = self._merge(block)
+        upd_v = block.declare_var('text')
+        prefix = ql(defines.EDGEDB_VISIBLE_METADATA_PREFIX)
+        block.add_command(textwrap.dedent(f'''\
+            IF {json_v} IS NOT NULL THEN
+                {upd_v} := E{prefix} || ({json_v} || {meta_v})::text;
+            ELSE
+                {upd_v} := E{prefix} || {meta_v}::text;
+            END IF;
+        '''))
+
+        object_type = self.object.get_type()
+        object_id = self.object.get_id()
+
+        return textwrap.dedent(f'''\
+            IF {upd_v} IS NOT NULL THEN
+                EXECUTE 'COMMENT ON {object_type} {object_id} IS ' ||
+                    quote_literal({upd_v});
+            END IF;
+        ''')
+
+
+class UpdateSingleDBMetadataSection(
+    UpdateMetadataSectionMixin, PutSingleDBMetadata
+):
+    def _metadata_query(self) -> base.Command:
+        return GetSingleDBMetadata(self.dbname)
+
+    def code(self, block: base.PLBlock) -> str:
+        json_v, meta_v = self._merge(block)
+        return textwrap.dedent(f'''\
+            UPDATE
+                edgedbinstdata.instdata
+            SET
+                json = {json_v} || {meta_v}
+            WHERE
+                key = {ql(self.key)}
         ''')
 
 

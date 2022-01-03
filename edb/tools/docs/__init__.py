@@ -35,17 +35,20 @@ class ProhibitedNodeTransform(s_transforms.SphinxTransform):
     default_priority = 1  # before ReferencesResolver
 
     def apply(self):
-        bqs = list(self.document.traverse(d_nodes.block_quote))
-        if bqs:
-            raise shared.EdgeSphinxExtensionError(
-                f'blockquote found: {bqs[0].asdom().toxml()!r}')
+        for bq in list(self.document.traverse(d_nodes.block_quote)):
+            if not bq['classes'] or 'pull-quote' not in bq['classes']:
+                raise shared.EdgeSphinxExtensionError(
+                    f'blockquote found: {bq.asdom().toxml()!r} in {bq.source};'
+                    f' Try using the "pull-quote" directive')
+            else:
+                bq.get('classes').remove('pull-quote')
 
         trs = list(self.document.traverse(d_nodes.title_reference))
         if trs:
             raise shared.EdgeSphinxExtensionError(
                 f'title reference (single backticks quote) found: '
-                f'{trs[0].asdom().toxml()!r}; perhaps you wanted to use '
-                f'double backticks?')
+                f'{trs[0].asdom().toxml()!r} in {trs[0].source}; '
+                f'perhaps you wanted to use double backticks?')
 
 
 def setup(app):

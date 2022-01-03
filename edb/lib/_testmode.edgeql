@@ -98,10 +98,20 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := '';
     };
 
-    CREATE PROPERTY __pg_max_connections -> std::str {
+    CREATE PROPERTY memprop -> cfg::memory {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := <cfg::memory>'0';
+    };
+
+    CREATE PROPERTY durprop -> std::duration {
+        CREATE ANNOTATION cfg::internal := 'true';
+        SET default := <std::duration>'0 seconds';
+    };
+
+
+    CREATE PROPERTY __pg_max_connections -> std::int64 {
         CREATE ANNOTATION cfg::internal := 'true';
         CREATE ANNOTATION cfg::backend_setting := '"max_connections"';
-        SET default := '';
     };
 };
 
