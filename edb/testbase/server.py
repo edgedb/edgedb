@@ -25,16 +25,13 @@ from typing import *
 import asyncio
 import atexit
 import contextlib
-import decimal
 import functools
 import heapq
 import http.client
 import inspect
 import json
-import math
 import os
 import pathlib
-import pprint
 import random
 import re
 import secrets
@@ -45,9 +42,6 @@ import sys
 import tempfile
 import time
 import unittest
-import uuid
-
-from datetime import timedelta
 
 import edgedb
 
@@ -56,6 +50,7 @@ from edb.server import args as edgedb_args
 from edb.server import cluster as edgedb_cluster
 from edb.server import defines as edgedb_defines
 
+from edb.common import assert_data_shape
 from edb.common import devmode
 from edb.common import taskgroup
 
@@ -92,10 +87,7 @@ def get_test_cases(tests):
     return result
 
 
-# XXX: should this be elsewhere?
-class bag(list):
-    """Wrapper for list that tells assert_query_result ignore order"""
-    pass
+bag = assert_data_shape.bag
 
 
 class TestCaseMeta(type(unittest.TestCase)):
@@ -778,8 +770,9 @@ class ConnectedTestCaseMixin:
 
             res = json.loads(res)
             if sort is not None:
-                self._sort_results(res, sort)
-            self._assert_data_shape(res, exp_result_json, message=msg)
+                assert_data_shape.sort_results(res, sort)
+            assert_data_shape.assert_data_shape(
+                res, exp_result_json, self.fail, message=msg)
         except Exception:
             self.add_fail_notes(serialization='json')
             raise
@@ -802,242 +795,15 @@ class ConnectedTestCaseMixin:
             )
             res = serutils.serialize(res)
             if sort is not None:
-                self._sort_results(res, sort)
-            self._assert_data_shape(res, exp_result_binary, message=msg)
+                assert_data_shape.sort_results(res, sort)
+            assert_data_shape.assert_data_shape(
+                res, exp_result_binary, self.fail, message=msg)
         except Exception:
             self.add_fail_notes(
                 serialization='binary',
                 __typenames__=typenames,
                 __typeids__=typeids)
             raise
-
-    def _sort_results(self, results, sort):
-        if sort is True:
-            sort = lambda x: x
-        # don't bother sorting empty things
-        if results:
-            # sort can be either a key function or a dict
-            if isinstance(sort, dict):
-                # the keys in the dict indicate the fields that
-                # actually must be sorted
-                for key, val in sort.items():
-                    # '.' is a special key referring to the base object
-                    if key == '.':
-                        self._sort_results(results, val)
-                    else:
-                        if isinstance(results, list):
-                            for r in results:
-                                self._sort_results(r[key], val)
-                        else:
-                            self._sort_results(results[key], val)
-
-            else:
-                results.sort(key=sort)
-
-    def _assert_data_shape(self, data, shape, message=None):
-        _void = object()
-
-        def _format_path(path):
-            if path:
-                return 'PATH: ' + ''.join(str(p) for p in path)
-            else:
-                return 'PATH: <top-level>'
-
-        def _assert_type_shape(path, data, shape):
-            if shape in (int, float):
-                if not isinstance(data, shape):
-                    self.fail(
-                        f'{message}: expected {shape}, got {data!r} '
-                        f'{_format_path(path)}')
-            else:
-                try:
-                    shape(data)
-                except (ValueError, TypeError):
-                    self.fail(
-                        f'{message}: expected {shape}, got {data!r} '
-                        f'{_format_path(path)}')
-
-        def _assert_dict_shape(path, data, shape):
-            if not isinstance(data, dict):
-                self.fail(
-                    f'{message}: expected dict '
-                    f'{_format_path(path)}')
-
-            # TODO: should we also check that there aren't *extra* keys
-            # (other than id, __tname__?)
-            for sk, sv in shape.items():
-                if not data or sk not in data:
-                    self.fail(
-                        f'{message}: key {sk!r} '
-                        f'is missing\n{pprint.pformat(data)} '
-                        f'{_format_path(path)}')
-
-                _assert_generic_shape(path + (f'["{sk}"]',), data[sk], sv)
-
-        def _list_shape_iter(shape):
-            last_shape = _void
-
-            for item in shape:
-                if item is Ellipsis:
-                    if last_shape is _void:
-                        raise ValueError(
-                            'invalid shape spec: Ellipsis cannot be the'
-                            'first element')
-
-                    while True:
-                        yield last_shape
-
-                last_shape = item
-
-                yield item
-
-        def _assert_list_shape(path, data, shape):
-            if not isinstance(data, list):
-                self.fail(
-                    f'{message}: expected list '
-                    f'{_format_path(path)}')
-
-            if not data and shape:
-                self.fail(
-                    f'{message}: expected non-empty list '
-                    f'{_format_path(path)}')
-
-            shape_iter = _list_shape_iter(shape)
-
-            _data_count = 0
-            for _data_count, el in enumerate(data):
-                try:
-                    el_shape = next(shape_iter)
-                except StopIteration:
-                    self.fail(
-                        f'{message}: unexpected trailing elements in list '
-                        f'{_format_path(path)}')
-
-                _assert_generic_shape(
-                    path + (f'[{_data_count}]',),
-                    el,
-                    el_shape)
-
-            if len(shape) > _data_count + 1:
-                if shape[_data_count + 1] is not Ellipsis:
-                    self.fail(
-                        f'{message}: expecting more elements in list '
-                        f'{_format_path(path)}')
-
-        def _assert_set_shape(path, data, shape):
-            if not isinstance(data, (list, set)):
-                self.fail(
-                    f'{message}: expected list or set '
-                    f'{_format_path(path)}')
-
-            if not data and shape:
-                self.fail(
-                    f'{message}: expected non-empty set '
-                    f'{_format_path(path)}')
-
-            shape_iter = _list_shape_iter(sorted(shape))
-
-            _data_count = 0
-            for _data_count, el in enumerate(sorted(data)):
-                try:
-                    el_shape = next(shape_iter)
-                except StopIteration:
-                    self.fail(
-                        f'{message}: unexpected trailing elements in set '
-                        f'[path {_format_path(path)}]')
-
-                _assert_generic_shape(
-                    path + (f'{{{_data_count}}}',), el, el_shape)
-
-            if len(shape) > _data_count + 1:
-                if Ellipsis not in shape:
-                    self.fail(
-                        f'{message}: expecting more elements in set '
-                        f'{_format_path(path)}')
-
-        def _assert_bag_shape(path, data, shape):
-            # A bag is treated like a set except that we want it to work
-            # on objects, which can't be hashed or sorted.
-
-            if not isinstance(data, (list, set)):
-                self.fail(
-                    f'{message}: expected list or set '
-                    f'{_format_path(path)}')
-
-            if Ellipsis in shape:
-                raise ValueError(
-                    f"{message}: can't use ellipsis in set/bag shape")
-
-            data = list(data)
-
-            if len(data) > len(shape):
-                self.fail(
-                    f'{message}: too many elements in list '
-                    f'{_format_path(path)}')
-
-            # this is all very O(n^2) but n should be small
-            for el_shape in shape:
-                for data_count, el in enumerate(data):
-                    try:
-                        _assert_generic_shape(
-                            path + (f'[{data_count}]',),
-                            el,
-                            el_shape)
-                    except AssertionError:
-                        # oh well
-                        pass
-                    else:
-                        data.pop(data_count)
-                        break
-                else:
-                    self.fail(
-                        f'{message}: missing elements in list '
-                        f'{_format_path(path)}: {el_shape!r}')
-
-        def _assert_generic_shape(path, data, shape):
-            if isinstance(shape, nullable):
-                if data is None:
-                    return
-                else:
-                    shape = shape.value
-
-            if isinstance(shape, bag):
-                return _assert_bag_shape(path, data, shape)
-            elif isinstance(shape, (list, tuple)):
-                return _assert_list_shape(path, data, shape)
-            elif isinstance(shape, set):
-                return _assert_set_shape(path, data, shape)
-            elif isinstance(shape, dict):
-                return _assert_dict_shape(path, data, shape)
-            elif isinstance(shape, type):
-                return _assert_type_shape(path, data, shape)
-            elif isinstance(shape, float):
-                if not math.isclose(data, shape, rel_tol=1e-04, abs_tol=1e-15):
-                    self.fail(
-                        f'{message}: not isclose({data}, {shape}) '
-                        f'{_format_path(path)}')
-            elif isinstance(shape, uuid.UUID):
-                # since the data comes from JSON, it will only have a str
-                if data != str(shape):
-                    self.fail(
-                        f'{message}: {data!r} != {shape!r} '
-                        f'{_format_path(path)}')
-            elif isinstance(shape, (str, int, bytes, timedelta,
-                                    decimal.Decimal, edgedb.RelativeDuration)):
-                if data != shape:
-                    self.fail(
-                        f'{message}: {data!r} != {shape!r} '
-                        f'{_format_path(path)}')
-            elif shape is None:
-                if data is not None:
-                    self.fail(
-                        f'{message}: {data!r} is expected to be None '
-                        f'{_format_path(path)}')
-            else:
-                raise ValueError(f'unsupported shape type {shape}')
-
-        message = message or 'data shape differs'
-        return _assert_generic_shape((), data, shape)
 
 
 class CLITestCaseMixin:
@@ -1329,11 +1095,6 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 POPULATE MIGRATION;
                 COMMIT MIGRATION;
             """)
-
-
-class nullable:
-    def __init__(self, value):
-        self.value = value
 
 
 class Error:

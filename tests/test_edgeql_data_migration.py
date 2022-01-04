@@ -27,6 +27,8 @@ import uuid
 
 import edgedb
 
+from edb.common import assert_data_shape
+
 from edb.testbase import server as tb
 from edb.tools import test
 
@@ -74,7 +76,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
 
             res = json.loads(res)
             self.cleanup_migration_exp_json(res)
-            self._assert_data_shape(res, exp_result_json, message=msg)
+            assert_data_shape.assert_data_shape(
+                res, exp_result_json, self.fail, message=msg)
         except Exception:
             self.add_fail_notes(serialization='json')
             raise
@@ -109,8 +112,9 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                     'DESCRIBE CURRENT MIGRATION AS JSON;')
                 mig = json.loads(mig)
                 if mig['proposed'] is None:
-                    self._assert_data_shape(
+                    assert_data_shape.assert_data_shape(
                         mig, {'complete': True},
+                        self.fail,
                         message='No more "proposed", but not "completed" '
                                 'either.'
                     )
