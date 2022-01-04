@@ -92,6 +92,12 @@ def get_test_cases(tests):
     return result
 
 
+# XXX: should this be elsewhere?
+class bag(list):
+    """Wrapper for list that tells assert_query_result ignore order"""
+    pass
+
+
 class TestCaseMeta(type(unittest.TestCase)):
     _database_names = set()
 
@@ -949,6 +955,45 @@ class ConnectedTestCaseMixin:
                         f'{message}: expecting more elements in set '
                         f'{_format_path(path)}')
 
+        def _assert_bag_shape(path, data, shape):
+            # A bag is treated like a set except that we want it to work
+            # on objects, which can't be hashed or sorted.
+
+            if not isinstance(data, (list, set)):
+                self.fail(
+                    f'{message}: expected list or set '
+                    f'{_format_path(path)}')
+
+            if Ellipsis in shape:
+                raise ValueError(
+                    f"{message}: can't use ellipsis in set/bag shape")
+
+            data = list(data)
+
+            if len(data) > len(shape):
+                self.fail(
+                    f'{message}: too many elements in list '
+                    f'{_format_path(path)}')
+
+            # this is all very O(n^2) but n should be small
+            for el_shape in shape:
+                for data_count, el in enumerate(data):
+                    try:
+                        _assert_generic_shape(
+                            path + (f'[{data_count}]',),
+                            el,
+                            el_shape)
+                    except AssertionError:
+                        # oh well
+                        pass
+                    else:
+                        data.pop(data_count)
+                        break
+                else:
+                    self.fail(
+                        f'{message}: missing elements in list '
+                        f'{_format_path(path)}: {el_shape!r}')
+
         def _assert_generic_shape(path, data, shape):
             if isinstance(shape, nullable):
                 if data is None:
@@ -956,7 +1001,9 @@ class ConnectedTestCaseMixin:
                 else:
                     shape = shape.value
 
-            if isinstance(shape, (list, tuple)):
+            if isinstance(shape, bag):
+                return _assert_bag_shape(path, data, shape)
+            elif isinstance(shape, (list, tuple)):
                 return _assert_list_shape(path, data, shape)
             elif isinstance(shape, set):
                 return _assert_set_shape(path, data, shape)
