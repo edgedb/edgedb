@@ -1749,11 +1749,10 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             '''
                 SELECT (SELECT (SELECT Issue { watchers: {name} }).watchers);
             ''',
-            [
+            tb.bag([
                 {'name': 'Elvis'},
                 {'name': 'Yury'},
-            ],
-            sort=lambda x: x['name'],
+            ]),
         )
 
     async def test_edgeql_select_tvariant_01(self):
@@ -2142,7 +2141,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     body  # body should appear in the duck type
                 };
             """,
-            [
+            tb.bag([
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.',
                  'name': 'Regression.'},
@@ -2153,8 +2152,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {'body': 'We need to be able to render data '
                          'in tabular format.',
                  'name': 'Improve EdgeDB repl output rendering.'}
-            ],
-            sort=lambda x: x['body']
+            ]),
         )
 
     async def test_edgeql_select_setops_02(self):
@@ -2167,15 +2165,14 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 [IS Text].body
             };
             ''',
-            [
+            tb.bag([
                 {'body': 'EdgeDB needs to happen soon.'},
                 {'body': 'Fix regression introduced by lexer tweak.'},
                 {'body': 'Initial public release of EdgeDB.'},
                 {'body': 'Minor lexer tweaks.'},
                 {'body': 'We need to be able to render '
                          'data in tabular format.'}
-            ],
-            sort=lambda x: x['body']
+            ]),
         )
 
         await self.assert_query_result(
@@ -2530,8 +2527,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             # Named doesn't have a property number.
             SELECT Issue[IS Named].number;
             """,
-            ['1', '2', '3', '4'],
-            sort=True,
+            {'1', '2', '3', '4'},
         )
 
     async def test_edgeql_select_setops_17(self):
@@ -4473,8 +4469,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             r"""
             SELECT Issue.number ++ (SELECT Issue.number);
             """,
-            ['11', '22', '33', '44'],
-            sort=True
+            {'11', '22', '33', '44'},
         )
 
     async def test_edgeql_select_subqueries_10(self):
@@ -4485,9 +4480,8 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             SELECT
                 Issue.number ++ sub;
             """,
-            ['11', '12', '13', '14', '21', '22', '23', '24',
-             '31', '32', '33', '34', '41', '42', '43', '44'],
-            sort=True
+            {'11', '12', '13', '14', '21', '22', '23', '24',
+             '31', '32', '33', '34', '41', '42', '43', '44'},
         )
 
     async def test_edgeql_select_subqueries_11(self):
@@ -5778,7 +5772,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 LIMIT 2
             );
             ''',
-            [
+            tb.bag([
                 {
                     'name': 'Improve EdgeDB repl output rendering.',
                     'number': '2'
@@ -5791,8 +5785,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                     'name': 'Regression.',
                     'number': '4'
                 },
-            ],
-            sort=lambda x: x['number'],
+            ]),
         )
 
     async def test_edgeql_select_for_04(self):

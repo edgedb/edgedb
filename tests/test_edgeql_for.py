@@ -270,15 +270,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    'select_deck': [
+                    'select_deck': tb.bag([
                         {'name': 'Bog monster', '@letter': 'B'},
                         {'name': 'Imp', '@letter': 'I'},
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x['name'],
-            }
         )
 
     async def test_edgeql_for_in_computable_02(self):
@@ -586,10 +583,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 } FILTER .name = 'Alice';
             ''',
             [{"select_deck":
-              ["Bog monster", "Dragon", "Giant turtle", "Imp"]}],
-            sort={
-                'select_deck': lambda x: x,
-            }
+              tb.bag(["Bog monster", "Dragon", "Giant turtle", "Imp"])}],
         )
 
         # This one caused a totally nonsense type error.
@@ -605,10 +599,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
                 } FILTER .name = 'Alice';
             ''',
             [{"select_deck":
-              ["Bog monster", "Dragon", "Giant turtle", "Imp"]}],
-            sort={
-                'select_deck': lambda x: x,
-            }
+              tb.bag(["Bog monster", "Dragon", "Giant turtle", "Imp"])}],
         )
 
     async def test_edgeql_for_in_computable_06(self):
@@ -630,15 +621,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    "select_deck": [
+                    "select_deck": tb.bag([
                         {"letter": {"B!!", "B!?"}, "name": "Bog monster"},
                         {"letter": {"I!!", "I!?"}, "name": "Imp"},
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x["name"],
-            }
         )
 
     async def test_edgeql_for_in_computable_07(self):
@@ -661,15 +649,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    "select_deck": [
+                    "select_deck": tb.bag([
                         {"letter": ["B!!", "B!?"], "name": "Bog monster"},
                         {"letter": ["I!!", "I!?"], "name": "Imp"},
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x["name"],
-            }
         )
 
     async def test_edgeql_for_in_computable_08(self):
@@ -693,7 +678,7 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    "select_deck": [
+                    "select_deck": tb.bag([
                         {
                             "name": "Bog monster",
                             "letter": {"B!!", "B!?"},
@@ -708,12 +693,9 @@ class TestEdgeQLFor(tb.QueryTestCase):
                             "uncorrelated": {("!", "!"), ("!", "?"),
                                              ("?", "!"), ("?", "?")}
                         },
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x["name"],
-            }
         )
 
     @test.xfail("'letter' does not exist")
@@ -742,15 +724,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    'select_deck': [
+                    'select_deck': tb.bag([
                         {'name': 'Bog monster', '@letter': 'B'},
                         {'name': 'Imp', '@letter': 'I'},
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x['name'],
-            }
         )
 
     @test.xfail("""
@@ -785,15 +764,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    'select_deck': [
+                    'select_deck': tb.bag([
                         {'name': 'Bog monster', 'letter': 'B'},
                         {'name': 'Imp', 'letter': 'I'},
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x['name'],
-            }
         )
 
     async def test_edgeql_for_in_computable_11(self):
@@ -839,15 +815,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    'select_deck': [
+                    'select_deck': tb.bag([
                         [{'name': 'Bog monster', 'letter': 'B'}],
                         [{'name': 'Imp', 'letter': 'I'}],
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x[0]['name'],
-            }
         )
 
     async def test_edgeql_for_in_computable_13(self):
@@ -893,15 +866,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    'select_deck': [
+                    'select_deck': tb.bag([
                         {'name': 'Bog monster', 'letter': 'B'},
                         {'name': 'Imp', 'letter': 'I'},
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x['name'],
-            }
         )
 
     async def test_edgeql_for_in_computable_15(self):
@@ -922,15 +892,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    'select_deck': [
+                    'select_deck': tb.bag([
                         {'name': 'Bog monster', 'letter': 'B'},
                         {'name': 'Imp', 'letter': 'I'},
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x['name'],
-            }
         )
 
     async def test_edgeql_for_in_computable_16(self):
@@ -951,15 +918,12 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [
                 {
-                    'select_deck': [
+                    'select_deck': tb.bag([
                         {'name': 'Bog monster', 'letter': 'B'},
                         {'name': 'Imp', 'letter': 'I'},
-                    ]
+                    ])
                 }
             ],
-            sort={
-                'select_deck': lambda x: x['name'],
-            }
         )
 
     @test.xfail("""
