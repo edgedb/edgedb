@@ -1194,6 +1194,8 @@ cdef class EdgeConnection:
         return query_unit
 
     def signal_side_effects(self, side_effects):
+        if not self.server._accept_new_tasks:
+            return
         if side_effects & dbview.SideEffects.SchemaChanges:
             self.server.create_task(
                 self.server._signal_sysevent(
@@ -2239,10 +2241,14 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 'invalid connection status while establishing the connection')
         self._transport = transport
-        self._main_task = self.server.create_task(
-            self.main(), interruptable=False
-        )
-        self.server.on_binary_client_connected(self)
+
+        if self.server._accept_new_tasks:
+            self._main_task = self.server.create_task(
+                self.main(), interruptable=False
+            )
+            self.server.on_binary_client_connected(self)
+        else:
+            transport.abort()
 
     def connection_lost(self, exc):
         self.server.on_binary_client_disconnected(self)
@@ -2307,13 +2313,15 @@ cdef class EdgeConnection:
                     # reaches the backend, we'll be setting a trap for the
                     # _next_ query that is unlucky enough to pick up this
                     # Postgres backend from the connection pool.
-                    self.server.create_task(
-                        self.server._cancel_and_discard_pgcon(
-                            self._pinned_pgcon,
-                            self.get_dbview().dbname,
-                        ),
-                        interruptable=False,
-                    )
+                    # TODO(fantix): hold server shutdown to complete this task
+                    if self.server._accept_new_tasks:
+                        self.server.create_task(
+                            self.server._cancel_and_discard_pgcon(
+                                self._pinned_pgcon,
+                                self.get_dbview().dbname,
+                            ),
+                            interruptable=False,
+                        )
                     # Prevent the main task from releasing the same connection
                     # twice. This flag is for now only used in this case.
                     self._pgcon_released_in_connection_lost = True
