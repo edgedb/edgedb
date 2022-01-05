@@ -21,6 +21,10 @@ import unittest
 
 from edb.tools import toy_eval_model as model
 
+from edb.common import assert_data_shape
+
+bag = assert_data_shape.bag
+
 
 class TestModelGroupests(unittest.TestCase):
     """Tests for GROUP BY in the toy evaluator model."""
@@ -28,15 +32,61 @@ class TestModelGroupests(unittest.TestCase):
     DB1 = model.DB1
 
     def assert_test_query(
-        self, query, expected, *, db=DB1, sort=False, singleton_cheating=True
+        self, query, expected, *, db=DB1, sort=None, singleton_cheating=True
     ):
         qltree = model.parse(query)
         result = model.go(qltree, db, singleton_cheating)
         if sort:
-            result.sort()
-            expected.sort()
+            assert_data_shape.sort_results(result, sort)
 
-        self.assertEqual(expected, result)
+        assert_data_shape.assert_data_shape(result, expected, self.fail)
+
+    def test_model_group_00(self):
+        res = bag([
+            {
+                "el": "Air",
+                "cards": bag([
+                    {"name": "Djinn"},
+                    {"name": "Giant eagle"},
+                    {"name": "Sprite"},
+                ]),
+            },
+            {
+                "el": "Earth",
+                "cards": bag([{"name": "Dwarf"}, {"name": "Golem"}]),
+            },
+            {"el": "Fire", "cards": bag([
+                {"name": "Dragon"}, {"name": "Imp"}])},
+            {
+                "el": "Water",
+                "cards": bag([
+                    {"name": "Bog monster"},
+                    {"name": "Giant turtle"},
+                ]),
+            },
+        ])
+
+        # Two implementations of the same query
+        self.assert_test_query(
+            """
+            FOR g in (GROUP Card {name} BY .element)
+            UNION g {
+                el := .key.element,
+                cards := .elements {name}
+            }
+            """,
+            res,
+        )
+
+        self.assert_test_query(
+            """
+            SELECT (GROUP Card {name} BY .element) {
+                el := .key.element,
+                cards := (SELECT .elements {name} ORDER BY .name)
+            }
+            """,
+            res,
+        )
 
     def test_model_group_01(self):
         res = [

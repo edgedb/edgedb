@@ -30,6 +30,8 @@ import edgedb
 
 from edb.errors import base as base_errors
 
+from edb.common import assert_data_shape
+
 from . import server
 
 
@@ -42,6 +44,9 @@ class StubbornHttpConnection(http.client.HTTPSConnection):
 
     def true_close(self):
         http.client.HTTPConnection.close(self)
+
+
+bag = assert_data_shape.bag
 
 
 class BaseHttpTest:
@@ -183,9 +188,10 @@ class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
             # GQL will always have a single object returned. The data is
             # in the top-level fields, so that's what needs to be sorted.
             for r in res.values():
-                self._sort_results(r, sort)
+                assert_data_shape.sort_results(r, sort)
 
-        self._assert_data_shape(res, result, message=msg)
+        assert_data_shape.assert_data_shape(
+            res, result, self.fail, message=msg)
         return res
 
 
@@ -264,7 +270,8 @@ class GraphQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
             # GQL will always have a single object returned. The data is
             # in the top-level fields, so that's what needs to be sorted.
             for r in res.values():
-                self._sort_results(r, sort)
+                assert_data_shape.sort_results(r, sort)
 
-        self._assert_data_shape(res, result, message=msg)
+        assert_data_shape.assert_data_shape(
+            res, result, self.fail, message=msg)
         return res
