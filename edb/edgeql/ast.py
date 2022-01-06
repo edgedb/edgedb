@@ -607,6 +607,7 @@ class DeleteQuery(Query, SubjectMixin, SelectClauseMixin):
 
 
 class ForQuery(Query, ReturningMixin):
+    optional: bool = False
     iterator: Expr
     iterator_alias: str
 
