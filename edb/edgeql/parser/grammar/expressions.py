@@ -159,14 +159,23 @@ class GroupingElementList(
     pass
 
 
+class OptionalOptional(Nonterm):
+    def reduce_OPTIONAL(self, *kids):
+        self.val = True
+
+    def reduce_empty(self, *kids):
+        self.val = False
+
+
 class SimpleFor(Nonterm):
     def reduce_For(self, *kids):
-        r"%reduce FOR Identifier IN AtomicExpr \
+        r"%reduce FOR OptionalOptional Identifier IN AtomicExpr \
                   UNION Expr"
         self.val = qlast.ForQuery(
-            iterator_alias=kids[1].val,
-            iterator=kids[3].val,
-            result=kids[5].val,
+            optional=kids[1].val,
+            iterator_alias=kids[2].val,
+            iterator=kids[4].val,
+            result=kids[6].val,
         )
 
 

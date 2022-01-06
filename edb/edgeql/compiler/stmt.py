@@ -193,9 +193,31 @@ def compile_ForQuery(
 
         view_scope_info = sctx.env.path_scope_map[iterator_view]
 
+        if (
+            qlstmt.optional
+            and not qlstmt.from_desugaring
+            and not ctx.env.options.devmode
+        ):
+            raise errors.UnsupportedFeatureError(
+                "'FOR OPTIONAL' is an internal testing feature",
+                context=qlstmt.context,
+            )
+
+        if qlstmt.optional and iterator_stmt.path_id.is_objtype_path():
+            # FIXME: Object-type iterators are busted because the
+            # identity is NULL, which breaks volatility refs among
+            # other things. Probably to make it work we'll need to arrange
+            # to generate a fresh uuid for identity in the optional wrapper
+            # for these.
+            raise errors.UnsupportedFeatureError(
+                "'FOR OPTIONAL' doesn't work with object-type iterators yet",
+                context=qlstmt.context,
+            )
+
         pathctx.register_set_in_scope(
             iterator_stmt,
             path_scope=sctx.path_scope,
+            optional=qlstmt.optional,
             ctx=sctx,
         )
 

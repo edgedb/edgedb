@@ -91,8 +91,8 @@ impl<'s> Parser<'s> {
             },
 
             ParserRule::ForIterator => {
-                let span = if i >= 3 {
-                    let span_start = self.get_from_top(i - 3).unwrap();
+                let span = if i >= 4 {
+                    let span_start = self.get_from_top(i - 4).unwrap();
                     let span = super::get_span_of_nodes(&[span_start.value]).unwrap_or_default();
                     span.combine(token.span)
                 } else {
@@ -219,6 +219,7 @@ impl<'s> Parser<'s> {
                 && self.compare_stack(
                     &[
                         Cond::keyword("for"),
+                        Cond::Production("OptionalOptional"),
                         Cond::Production("Identifier"),
                         Cond::keyword("in"),
                     ],
@@ -226,7 +227,7 @@ impl<'s> Parser<'s> {
                     ctx,
                 )
             {
-                return Some((i + 2, ParserRule::ForIterator));
+                return Some((i + 3, ParserRule::ForIterator));
             }
 
             // Also keep track of the element right after current.
