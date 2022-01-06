@@ -91,6 +91,10 @@ class Base(ast.AST):
 
     # parent: typing.Optional[Base]
 
+    def dump_edgeql(self) -> None:
+        from edb.common.debug import dump_edgeql
+        dump_edgeql(self)
+
 
 class OffsetLimitMixin(Base):
     __abstract_node__ = True

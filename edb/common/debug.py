@@ -179,6 +179,11 @@ def dump_sql(sql, *args, **kwargs):
     dump_code(edb.pgsql.codegen.generate_source(sql), *args, **kwargs)
 
 
+def dump_edgeql(eql, *args, **kwargs):
+    import edb.edgeql.codegen
+    dump_code(edb.edgeql.codegen.generate_source(eql), *args, **kwargs)
+
+
 def set_trace(**kwargs):
     """Debugger hook that works inside worker processes.
 
