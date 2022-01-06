@@ -192,9 +192,16 @@ def compile_ForQuery(
 
         view_scope_info = sctx.env.path_scope_map[iterator_view]
 
+        if qlstmt.optional and not ctx.env.options.devmode:
+            raise errors.UnsupportedFeatureError(
+                "'FOR OPTIONAL' is an internal testing feature",
+                context=qlstmt.context,
+            )
+
         pathctx.register_set_in_scope(
             iterator_stmt,
             path_scope=sctx.path_scope,
+            optional=qlstmt.optional,
             ctx=sctx,
         )
 
