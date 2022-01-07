@@ -311,8 +311,7 @@ using a :ref:`for loop <ref_eql_for>` to insert the objects.
 
   db> with
   ...   raw_data := <json>$data,
-  ...   items := json_array_unpack(raw_data)
-  ... for item in { items } union (
+  ... for item in json_array_unpack(raw_data) union (
   ...   insert Hero { name := <str>item['name'] }
   ... );
   Parameter <json>$data: [{"name":"Sersi"},{"name":"Ikaris"},{"name":"Thena"}]

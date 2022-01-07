@@ -19,7 +19,7 @@ FOR
 
     UNION <output-expr> ;
 
-:eql:synopsis:`FOR <variable> IN "{" <iterator-set> [, ...]  "}"`
+:eql:synopsis:`FOR <variable> IN <iterator-expr>`
     The ``FOR`` clause has this general form:
 
     .. TODO: rewrite this
@@ -177,11 +177,13 @@ an intuitive manner.
         UPDATE User
         FILTER .name = x.name
         SET {
-            friends := (
-                FOR f in {array_unpack(x.friends)}
-                UNION (
-                    SELECT U2 {@nickname := f.1}
-                    FILTER U2.name = f.0
+            friends := assert_distinct(
+                (
+                    FOR f in array_unpack(x.friends)
+                    UNION (
+                        SELECT U2 {@nickname := f.1}
+                        FILTER U2.name = f.0
+                    )
                 )
             )
         }

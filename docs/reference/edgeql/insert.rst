@@ -177,7 +177,7 @@ clause.
         Elvis := (SELECT User FILTER .name = 'Elvis'),
         Open := (SELECT Status FILTER .name = 'Open')
 
-    FOR Q IN {(SELECT User FILTER .name ILIKE 'A%')}
+    FOR Q IN (SELECT User FILTER .name ILIKE 'A%')
 
     UNION (INSERT Issue {
         name := Q.name + ' access problem',

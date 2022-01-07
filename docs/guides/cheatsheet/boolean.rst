@@ -140,16 +140,11 @@ including it, the query can be refactored like this:
 
 .. code-block:: edgeql
 
-    WITH A := (
-        SELECT Account {
-            too_few_steps := (.steps <= 2) ?? true
-        } FILTER .too_few_steps
-    )
-    SELECT A {
+    SELECT Account {
         name,
         email,
         # whatever other relevant data is needed
-    };
+    } FILTER (.steps <= 2) ?? true;
 
 
 ----------
@@ -164,12 +159,9 @@ path expression. Consider the following two queries:
 
 .. code-block:: edgeql
 
-    WITH A := (
-        SELECT Account {
-            too_few_steps := (.steps <= 2) ?? true
-        } FILTER .too_few_steps
-    )
-    SELECT A.too_few_steps;
+    SELECT Account {
+        too_few_steps := (.steps <= 2) ?? true
+    }.too_few_steps;
 
     SELECT (Account.steps <= 2) ?? true;
 
@@ -201,36 +193,32 @@ expressions are a good compact way of handling this.
 
 There's also another way to evaluate something on a per-object basis
 and that's by using a :eql:stmt:`FOR` query. For example, let's
-rewrite *"get only the accounts that are less than half-way completed"*:
+rewrite the query that outputs ``true`` or ``false`` for every
+account, based on the number of completed steps:
 
 .. code-block:: edgeql
 
-    FOR A IN {Account}
-    UNION (
-        SELECT A
-        FILTER (.steps <= 2) ?? true
-    );
+    FOR A IN Account
+    UNION (A.steps <= 2) ?? true;
 
 
 ----------
 
 
-The gotchas in using a :eql:stmt:`FOR` query can arise from using path
-expressions combined with :eql:op:`?? <COALESCE>`, :eql:op:`?=
-<COALEQ>`, or :eql:op:`?!= <COALNEQ>`. For example, let's say that in
-addition to accounts and steps we also have different "projects" with
-a multi-link of ``accounts`` making progress in them. So keeping that
-in mind, let's try writing a :eql:stmt:`FOR` query to *"get all
-projects that have linked accounts which made little progress (less
-than 3 ``steps``)"*:
+Expressions specified in shapes, :eql:stmt:`FOR`, or ``FILTER``
+clauses are all evaluated on a per-item basis. The gotchas in these
+cases can arise from using longer path expressions combined with
+:eql:op:`?? <COALESCE>`, :eql:op:`?= <COALEQ>`, or :eql:op:`?!=
+<COALNEQ>`. For example, let's say that in addition to accounts
+and steps we also have different "projects" with a multi-link of
+``accounts`` marking progress in them. So keeping that in mind,
+let's try writing a query to *"get all projects that have linked
+accounts which made little progress (fewer than 3 ``steps``)"*:
 
 .. code-block:: edgeql
 
-    FOR P IN {Projects}
-    UNION (
-        SELECT P
-        FILTER .accounts.steps < 3
-    );
+    SELECT Project
+    FILTER .accounts.steps < 3;
 
 Well, that's not right. Projects that have accounts without any
 ``steps`` of progress are not reported by the above query. So maybe
@@ -238,11 +226,8 @@ adding a :eql:op:`??<COALESCE>` will help?
 
 .. code-block:: edgeql
 
-    FOR P IN {Projects}
-    UNION (
-        SELECT P
-        FILTER (.accounts.steps < 3) ?? true
-    );
+    SELECT Project
+    FILTER (.accounts.steps < 3) ?? true;
 
 This is better as the results now include projects where none of the
 accounts made any progress. However, any project that has a mix of
@@ -253,13 +238,10 @@ either use the trick we used before with shapes or we can add another
 
 .. code-block:: edgeql
 
-    FOR P IN {Projects}
-    UNION (
-        SELECT P
-        FILTER (
-            FOR A IN {P.accounts}
-            UNION (.steps < 3) ?? true
-        )
+    SELECT Project
+    FILTER (
+        FOR A IN .accounts
+        UNION (A.steps < 3) ?? true
     );
 
 
@@ -275,7 +257,5 @@ are semantically equivalent:
     SELECT User
     FILTER .friends.name = 'Alice';
 
-    SELECT User {
-        condition := any(.friends.name = 'Alice')
-    }
-    FILTER .condition;
+    SELECT User
+    FILTER any(.friends.name = 'Alice');
