@@ -767,6 +767,20 @@ class Compiler:
                 ),
             )
         ):
+            allow_bare_ddl = self.get_config_val(ctx, 'allow_bare_ddl')
+            if allow_bare_ddl != "AlwaysAllow":
+                raise errors.QueryError(
+                    "bare DDL statements are not allowed in this database",
+                    hint="Use the migration commands instead.",
+                    details=(
+                        f"The `allow_bare_ddl` configuration variable "
+                        f"is set to {str(allow_bare_ddl)!r}.  The "
+                        f"`edgedb migrate` command normally sets this "
+                        f"to avoid accidental schema changes outside of "
+                        f"the migration flow."
+                    ),
+                    context=stmt.context,
+                )
             cm = qlast.CreateMigration(
                 body=qlast.NestedQLBlock(
                     commands=[stmt],

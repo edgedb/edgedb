@@ -33,6 +33,7 @@ CREATE TYPE cfg::Trust EXTENDING cfg::AuthMethod;
 CREATE TYPE cfg::SCRAM EXTENDING cfg::AuthMethod;
 
 CREATE SCALAR TYPE cfg::memory EXTENDING std::anyscalar;
+CREATE SCALAR TYPE cfg::AllowBareDDL EXTENDING enum<AlwaysAllow, NeverAllow>;
 
 CREATE TYPE cfg::Auth EXTENDING cfg::ConfigObject {
     CREATE REQUIRED PROPERTY priority -> std::int64 {
@@ -89,6 +90,11 @@ CREATE ABSTRACT TYPE cfg::AbstractConfig extending cfg::ConfigObject {
         SET default := false;
         CREATE ANNOTATION cfg::affects_compilation := 'true';
         CREATE ANNOTATION cfg::internal := 'true';
+    };
+
+    CREATE PROPERTY allow_bare_ddl -> cfg::AllowBareDDL {
+        SET default := cfg::AllowBareDDL.AlwaysAllow;
+        CREATE ANNOTATION cfg::affects_compilation := 'true';
     };
 
     # Exposed backend settings follow.

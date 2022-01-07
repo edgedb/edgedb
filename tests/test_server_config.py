@@ -1120,6 +1120,20 @@ class TestServerConfig(tb.QueryTestCase):
                     CREATE FUNCTION foo() -> Foo USING (INSERT Foo);
                 ''')
 
+            async with self._run_and_rollback():
+                await self.con.execute('''
+                    CONFIGURE SESSION SET allow_bare_ddl :=
+                        cfg::AllowBareDDL.NeverAllow;
+                ''')
+
+                async with self.assertRaisesRegexTx(
+                    edgedb.QueryError,
+                    'bare DDL statements are not allowed in this database'
+                ):
+                    await self.con.execute('''
+                        CREATE FUNCTION intfunc() -> int64 USING (1);
+                    ''')
+
         finally:
             await self.con.execute('''
                 DROP TYPE Foo;
