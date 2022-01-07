@@ -27,6 +27,7 @@ std::array_agg(s: SET OF anytype) -> array<anytype>
         'Return the array made from all of the input set elements.';
     SET volatility := 'Immutable';
     SET initial_value := [];
+    SET impl_is_strict := false;
     USING SQL FUNCTION 'array_agg';
 };
 

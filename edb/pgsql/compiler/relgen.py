@@ -2275,9 +2275,17 @@ def process_set_as_enumerate(
     assert isinstance(expr, irast.FunctionCall)
 
     with ctx.subrel() as newctx:
-        ir_arg = expr.args[0].expr
+        ir_call_arg = expr.args[0]
+        ir_arg = ir_call_arg.expr
         arg_ref = dispatch.compile(ir_arg, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)
+
+        if arg_ref.nullable:
+            newctx.rel.where_clause = astutils.extend_binop(
+                newctx.rel.where_clause,
+                pgast.NullTest(arg=arg_ref, negated=True)
+            )
+
         rtype = expr.typeref
         named_tuple = any(st.element_name for st in rtype.subtypes)
 
@@ -2644,6 +2652,28 @@ def _compile_func_epilogue(
     return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
+def _compile_arg_null_check(
+    call_expr: irast.Call, ir_arg: irast.CallArg, arg_ref: pgast.BaseExpr,
+    typemod: qltypes.TypeModifier, *,
+    ctx: context.CompilerContextLevel
+) -> None:
+    if (
+        not call_expr.impl_is_strict
+        and not ir_arg.is_default
+        and arg_ref.nullable
+        and (
+            (
+                typemod == qltypes.TypeModifier.SingletonType
+                and ir_arg.cardinality.can_be_zero()
+            ) or typemod == qltypes.TypeModifier.SetOfType
+        )
+    ):
+        ctx.rel.where_clause = astutils.extend_binop(
+            ctx.rel.where_clause,
+            pgast.NullTest(arg=arg_ref, negated=True)
+        )
+
+
 def _compile_call_args(
         ir_set: irast.Set, *,
         ctx: context.CompilerContextLevel
@@ -2656,17 +2686,7 @@ def _compile_call_args(
     for ir_arg, typemod in zip(expr.args, expr.params_typemods):
         arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)
         args.append(output.output_as_value(arg_ref, env=ctx.env))
-        if (
-            not expr.impl_is_strict
-            and ir_arg.cardinality.can_be_zero()
-            and not ir_arg.is_default
-            and arg_ref.nullable
-            and typemod == qltypes.TypeModifier.SingletonType
-        ):
-            ctx.rel.where_clause = astutils.extend_binop(
-                ctx.rel.where_clause,
-                pgast.NullTest(arg=arg_ref, negated=True)
-            )
+        _compile_arg_null_check(expr, ir_arg, arg_ref, typemod, ctx=ctx)
 
         if (
             isinstance(expr, irast.FunctionCall)
@@ -2824,7 +2844,8 @@ def process_set_as_agg_expr_inner(
 
             args = []
 
-            for i, ir_call_arg in enumerate(expr.args):
+            for i, (ir_call_arg, typemod) in enumerate(
+                    zip(expr.args, expr.params_typemods)):
                 ir_arg = ir_call_arg.expr
                 dispatch.visit(ir_arg, ctx=argctx)
 
@@ -2843,6 +2864,9 @@ def process_set_as_agg_expr_inner(
                     if isinstance(arg_ref, pgast.TupleVar):
                         arg_ref = output.output_as_value(
                             arg_ref, env=argctx.env)
+
+                _compile_arg_null_check(
+                    expr, ir_call_arg, arg_ref, typemod, ctx=argctx)
 
                 path_scope = relctx.get_scope(ir_arg, ctx=argctx)
                 if path_scope is not None and path_scope.parent is not None:

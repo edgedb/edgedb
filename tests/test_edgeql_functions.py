@@ -379,6 +379,24 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [[[0, 1]]],
         )
 
+    async def test_edgeql_functions_array_agg_20(self):
+        await self.assert_query_result(
+            r'''
+                SELECT Issue { te := array_agg(.time_estimate) };
+            ''',
+            tb.bag([{"te": [3000]}, {"te": []}, {"te": []}, {"te": []}]),
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT Issue { te := array_agg(.time_estimate UNION 3000) };
+            ''',
+            tb.bag(
+                [{"te": [3000, 3000]}, {"te": [3000]},
+                 {"te": [3000]}, {"te": [3000]}],
+            )
+        )
+
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(
             r'''SELECT [1, 2];''',
@@ -593,6 +611,28 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             SELECT (Y.1.0, Y.1.1) ORDER BY Y.0;
             ''',
             [[0, 10], [1, 20]]
+        )
+
+    async def test_edgeql_functions_enumerate_08(self):
+        await self.assert_query_result(
+            r'''
+            SELECT Issue { te := enumerate(.time_estimate) };
+            ''',
+            tb.bag(
+                [{"te": [0, 3000]}, {"te": None}, {"te": None}, {"te": None}]
+            )
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT Issue { te := enumerate(.time_estimate UNION 3000) };
+            ''',
+            tb.bag([
+                {"te": [[0, 3000], [1, 3000]]},
+                {"te": [[0, 3000]]},
+                {"te": [[0, 3000]]},
+                {"te": [[0, 3000]]}
+            ])
         )
 
     async def test_edgeql_functions_array_get_01(self):
