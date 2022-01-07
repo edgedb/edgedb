@@ -804,8 +804,18 @@ def finalize_args(
             elif arg_scope is not None:
                 arg_scope.collapse()
 
+            # Object type arguments to functions may be overloaded, so
+            # we populate a path id field so that we can also pass the
+            # type as an argument on the pgsql side. If the param type
+            # is "anytype", though, then it can't be overloaded on
+            # that argument.
             arg_type = setgen.get_set_type(arg, ctx=ctx)
-            if isinstance(arg_type, s_objtypes.ObjectType):
+            if (
+                isinstance(arg_type, s_objtypes.ObjectType)
+                and barg.param
+                and not barg.param.get_type(ctx.env.schema).is_any(
+                    ctx.env.schema)
+            ):
                 arg_type_path_id = pathctx.extend_path_id(
                     arg.path_id,
                     ptrcls=arg_type.getptr(
