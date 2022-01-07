@@ -21,8 +21,6 @@ from __future__ import annotations
 
 from edb import errors
 from edb.ir import ast as irast
-from edb.ir import statypes
-from edb.schema import objects as s_obj
 
 from edb.edgeql import qltypes
 
@@ -436,26 +434,13 @@ def _compile_config_value(
     *,
     ctx: context.CompilerContextLevel,
 ) -> pgast.BaseExpr:
-    op_expr = op.expr.expr
-
-    if (op.backend_setting and
-            isinstance(op_expr, irast.TypeCast) and
-            isinstance(op_expr.expr.expr, irast.StringConstant) and
-            op_expr.from_type.id == s_obj.get_known_type_id('std::str')):
-
-        if op_expr.to_type.id == s_obj.get_known_type_id('std::duration'):
-            dur_value = statypes.Duration(op_expr.expr.expr.value)
-            return pgast.StringConstant(
-                val=f'{dur_value.to_microseconds()}us'
-            )
-
-        if op_expr.to_type.id == s_obj.get_known_type_id('cfg::memory'):
-            mem_value = statypes.ConfigMemory(op_expr.expr.expr.value)
-            return pgast.StringConstant(
-                val=mem_value.to_pg_memory()
-            )
-
     val: pgast.BaseExpr
+
+    if op.backend_setting:
+        assert op.backend_expr is not None
+        expr = op.backend_expr
+    else:
+        expr = op.expr
 
     with ctx.new() as subctx:
         if op.backend_setting:
@@ -464,7 +449,7 @@ def _compile_config_value(
             output_format = context.OutputFormat.JSONB
 
         with context.output_format(ctx, output_format):
-            if isinstance(op.expr, irast.EmptySet):
+            if isinstance(expr, irast.EmptySet):
                 # Special handling for empty sets, because we want a
                 # singleton representation of the value and not an empty rel
                 # in this context.
@@ -485,17 +470,17 @@ def _compile_config_value(
                         ),
                     )
             else:
-                val = dispatch.compile(op.expr, ctx=subctx)
+                val = dispatch.compile(expr, ctx=subctx)
                 assert isinstance(val, pgast.SelectStmt), "expected SelectStmt"
 
                 pathctx.get_path_serialized_output(
-                    val, op.expr.path_id, env=ctx.env)
+                    val, expr.path_id, env=ctx.env)
 
                 if op.cardinality is qltypes.SchemaCardinality.Many:
                     val = output.aggregate_json_output(
-                        val, op.expr, env=ctx.env)
+                        val, expr, env=ctx.env)
 
-    if op.backend_setting:
+    if op.backend_setting and op.scope is qltypes.ConfigScope.INSTANCE:
         assert isinstance(val, pgast.SelectStmt) and len(val.target_list) == 1
         val = val.target_list[0].val
         if isinstance(val, pgast.TypeCast):

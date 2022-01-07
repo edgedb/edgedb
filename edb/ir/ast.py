@@ -921,6 +921,7 @@ class ConfigCommand(Command, Expr):
 class ConfigSet(ConfigCommand):
 
     expr: Set
+    backend_expr: typing.Optional[Set] = None
 
 
 class ConfigReset(ConfigCommand):

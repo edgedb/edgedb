@@ -32,12 +32,13 @@ from edb.common import debug
 from edb.common import exceptions
 from edb.common import uuidgen
 
+from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
+from edb.edgeql import compiler as qlcompiler
 
 from edb.ir import statypes
 
-from edb.schema import casts as s_casts
 from edb.schema import constraints as s_constr
 from edb.schema import links as s_links
 from edb.schema import name as s_name
@@ -49,6 +50,7 @@ from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import sources as s_sources
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.server import defines
 from edb.server import compiler as edbcompiler
@@ -56,6 +58,7 @@ from edb.server import config as edbconfig
 from edb.server import bootstrap as edbbootstrap
 
 from . import common
+from . import compiler
 from . import dbops
 from . import delta
 from . import types
@@ -4551,36 +4554,29 @@ def _generate_schema_ver_views(schema: s_schema.Schema) -> List[dbops.View]:
 
 def _make_json_caster(
     schema: s_schema.Schema,
-    json_casts: Mapping[s_types.Type, s_casts.Cast],
     stype: s_types.Type,
     context: str,
-) -> Callable[[Any], str]:
-    cast = json_casts.get(stype)
+) -> Callable[[str], str]:
+    cast_expr = qlast.TypeCast(
+        expr=qlast.TypeCast(
+            expr=qlast.Parameter(name="__replaceme__", optional=False),
+            type=s_utils.typeref_to_ast(schema, schema.get('std::json')),
+        ),
+        type=s_utils.typeref_to_ast(schema, stype),
+    )
 
-    if cast is None:
-        raise RuntimeError(
-            f'there is no direct cast from std::json to '
-            f'the type of {context!r} '
-            f'({stype.get_displayname(schema)})'
-        )
+    cast_ir = qlcompiler.compile_ast_fragment_to_ir(
+        cast_expr,
+        schema,
+    )
 
-    if cast.get_from_cast(schema):
-        pgtype = types.pg_type_from_object(schema, stype)
+    cast_sql, _ = compiler.compile_ir_to_sql(
+        cast_ir,
+        use_named_params=True,
+        singleton_mode=True,
+    )
 
-        def _cast(val: Any) -> str:
-            return f'({val})::{q(*pgtype)}'
-    else:
-        if cast.get_code(schema):
-            cast_name = cast.get_name(schema)
-            func_name = common.get_cast_backend_name(
-                cast_name, aspect='function')
-        else:
-            func_name = cast.get_from_function(schema)
-
-        def _cast(val: Any) -> str:
-            return f'{q(*func_name)}({val})'
-
-    return _cast
+    return lambda val: cast_sql.replace('__replaceme__', val)
 
 
 def _generate_schema_alias_views(
@@ -4929,6 +4925,9 @@ def _render_config_value(
         schema.get('std::str', type=s_scalars.ScalarType),
     ):
         val = f'cfg::_quote({value_expr})'
+    elif valtype.is_enum(schema):
+        tn = valtype.get_name(schema)
+        val = f'"<{str(tn)}>" ++ cfg::_quote(<str>{value_expr})'
     else:
         raise AssertionError(
             f'unexpected configuration value type: '
@@ -5219,7 +5218,6 @@ def _generate_config_type_view(
     List[s_pointers.Pointer],
 ]:
     exc = schema.get('std::exclusive', type=s_constr.Constraint)
-    json_t = schema.get('std::json', type=s_scalars.ScalarType)
 
     if scope is not None:
         if scope is qltypes.ConfigScope.INSTANCE:
@@ -5238,10 +5236,6 @@ def _generate_config_type_view(
 
     tname = stype.get_name(schema)
     views = []
-    json_casts = {
-        c.get_to_type(schema): c
-        for c in schema.get_casts_from_type(json_t)
-    }
 
     sources = []
 
@@ -5348,8 +5342,7 @@ def _generate_config_type_view(
                 single_links.append(pp)
         else:
             pp_cast = _make_json_caster(
-                schema, json_casts, pp_type,
-                f'cfg::Config.{".".join(path_steps)}')
+                schema, pp_type, f'cfg::Config.{".".join(path_steps)}')
 
             if pp_multi:
                 multi_props.append((pp, pp_cast))

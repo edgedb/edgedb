@@ -51,6 +51,9 @@ CREATE TYPE cfg::TestInstanceConfig {
 };
 
 
+CREATE SCALAR TYPE cfg::TestEnum extending enum<One, Two, Three>;
+
+
 ALTER TYPE cfg::AbstractConfig {
     CREATE MULTI LINK sessobj -> cfg::TestSessionConfig {
         CREATE ANNOTATION cfg::internal := 'true';
@@ -108,6 +111,9 @@ ALTER TYPE cfg::AbstractConfig {
         SET default := <std::duration>'0 seconds';
     };
 
+    CREATE PROPERTY enumprop -> cfg::TestEnum {
+        SET default := cfg::TestEnum.One;
+    };
 
     CREATE PROPERTY __pg_max_connections -> std::int64 {
         CREATE ANNOTATION cfg::internal := 'true';
