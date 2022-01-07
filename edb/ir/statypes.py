@@ -25,7 +25,15 @@ import re
 from edb import errors
 
 
-class Duration:
+class ScalarType:
+    def __init__(self, val: str, /) -> None:
+        raise NotImplementedError
+
+    def to_backend_str(self) -> str:
+        raise NotImplementedError
+
+
+class Duration(ScalarType):
 
     _pg_simple_parser = re.compile(r'''
         ^
@@ -281,11 +289,14 @@ class Duration:
             ret.append('0S')
         return ''.join(ret)
 
+    def to_backend_str(self) -> str:
+        return f'{self.to_microseconds()}us'
+
     def __repr__(self) -> str:
         return f'<statypes.Duration {self.to_iso8601()!r}>'
 
 
-class ConfigMemory:
+class ConfigMemory(ScalarType):
 
     PiB = 1024 * 1024 * 1024 * 1024 * 1024
     TiB = 1024 * 1024 * 1024 * 1024
@@ -362,7 +373,7 @@ class ConfigMemory:
 
         return f'{self._value}B'
 
-    def to_pg_memory(self) -> str:
+    def to_backend_str(self) -> str:
         if self._value >= self.TiB and self._value % self.TiB == 0:
             return f'{self._value // self.TiB}TB'
 
