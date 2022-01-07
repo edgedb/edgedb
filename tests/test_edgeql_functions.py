@@ -3527,6 +3527,17 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             {False},
         )
 
+    async def test_edgeql_functions_contains_05(self):
+        await self.assert_query_result(
+            r'''
+                SELECT contains(
+                    array_agg(User),
+                    (SELECT User FILTER .name = 'Elvis')
+                )
+            ''',
+            [True],
+        )
+
     async def test_edgeql_functions_find_01(self):
         await self.assert_query_result(
             r'''SELECT find(<str>{}, <str>{});''',

@@ -758,6 +758,11 @@ def finalize_args(
     args: List[irast.CallArg] = []
     typemods = []
 
+    is_edgeql_func = (
+        isinstance(bound_call.func, s_func.Function)
+        and bound_call.func.get_language(
+            ctx.env.schema) == qlast.Language.EdgeQL)
+
     for i, barg in enumerate(bound_call.args):
         param = barg.param
         arg = barg.val
@@ -804,8 +809,11 @@ def finalize_args(
             elif arg_scope is not None:
                 arg_scope.collapse()
 
+            # Object type arguments to EdgeQL functions may be overloaded,
+            # so we populate a path id field so that we can also pass the type
+            # as an argument on the pgsql side.
             arg_type = setgen.get_set_type(arg, ctx=ctx)
-            if isinstance(arg_type, s_objtypes.ObjectType):
+            if is_edgeql_func and isinstance(arg_type, s_objtypes.ObjectType):
                 arg_type_path_id = pathctx.extend_path_id(
                     arg.path_id,
                     ptrcls=arg_type.getptr(
