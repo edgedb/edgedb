@@ -6982,3 +6982,40 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 SELECT Comment { owner: { name } FILTER false }
                 ''',
             )
+
+    async def test_edgeql_select_null_tuple_01(self):
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE PROPERTY y -> tuple<str, int64>;
+                CREATE PROPERTY z -> tuple<x: int64, y: str>;
+            };
+            insert Foo;
+        ''')
+
+        await self.assert_query_result(
+            r'''
+            select Foo { y, z }
+            ''',
+            [
+                {'y': None, 'z': None}
+            ],
+        )
+
+    async def test_edgeql_select_null_tuple_02(self):
+        await self.assert_query_result(
+            r'''
+            SELECT { lol := array_get([(1, '2')], 1) }
+            ''',
+            [
+                {'lol': None}
+            ],
+        )
+
+        await self.assert_query_result(
+            r'''
+            SELECT { lol := array_get([(a := 1, b := '2')], 1) }
+            ''',
+            [
+                {'lol': None}
+            ],
+        )
