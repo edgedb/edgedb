@@ -153,9 +153,9 @@ jobs:
       if: steps.cli-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/rust/cli
-        key: edb-cli-build-v3-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-build-v4-${{ env.EDGEDBCLI_GIT_REV }}
         restore-keys: |
-          edb-cli-build-v3-
+          edb-cli-build-v4-
 
     - name: Build EdgeDB CLI
       env:
