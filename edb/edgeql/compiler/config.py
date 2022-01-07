@@ -31,6 +31,7 @@ from edb.edgeql import qltypes
 
 from edb.ir import ast as irast
 from edb.ir import staeval as ireval
+from edb.ir import statypes as statypes
 from edb.ir import typeutils as irtyputils
 
 from edb.schema import links as s_links
@@ -42,6 +43,7 @@ from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 
+from . import casts
 from . import context
 from . import dispatch
 from . import inference
@@ -64,25 +66,37 @@ def compile_ConfigSet(
 ) -> irast.Set:
 
     info = _validate_op(expr, ctx=ctx)
-    param_val = setgen.ensure_set(
-        dispatch.compile(expr.expr, ctx=ctx), ctx=ctx)
-
-    actual_param_type = inference.infer_type(param_val, ctx.env)
-    if not actual_param_type.assignment_castable_to(
-            info.param_type, ctx.env.schema):
-        raise errors.ConfigurationError(
-            f'invalid setting value type for {info.param_name}: '
-            f'{actual_param_type.get_displayname(ctx.env.schema)!r} '
-            f'(expecting {info.param_type.get_displayname(ctx.env.schema)!r})'
-        )
+    param_val = dispatch.compile(expr.expr, ctx=ctx)
+    param_type = info.param_type
+    val_type = inference.infer_type(param_val, ctx.env)
+    compatible = s_types.is_type_compatible(
+        val_type, param_type, schema=ctx.env.schema)
+    if not compatible:
+        if not val_type.assignment_castable_to(param_type, ctx.env.schema):
+            raise errors.ConfigurationError(
+                f'invalid setting value type for {info.param_name}: '
+                f'{val_type.get_displayname(ctx.env.schema)!r} '
+                f'(expecting {param_type.get_displayname(ctx.env.schema)!r})'
+            )
+        else:
+            param_val = casts.compile_cast(
+                param_val, param_type, srcctx=None, ctx=ctx)
 
     try:
-        ireval.evaluate(param_val, schema=ctx.env.schema)
+        val = ireval.evaluate_to_python_val(param_val, schema=ctx.env.schema)
     except ireval.UnsupportedExpressionError as e:
         raise errors.QueryError(
             f'non-constant expression in CONFIGURE {expr.scope} SET',
             context=expr.expr.context
         ) from e
+    else:
+        if isinstance(val, statypes.ScalarType) and info.backend_setting:
+            backend_expr = dispatch.compile(
+                qlast.StringConstant.from_python(val.to_backend_str()),
+                ctx=ctx,
+            )
+        else:
+            backend_expr = None
 
     config_set = irast.ConfigSet(
         name=info.param_name,
@@ -92,6 +106,7 @@ def compile_ConfigSet(
         backend_setting=info.backend_setting,
         context=expr.context,
         expr=param_val,
+        backend_expr=backend_expr,
     )
     return setgen.ensure_set(config_set, ctx=ctx)
 

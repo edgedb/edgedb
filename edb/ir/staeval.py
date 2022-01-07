@@ -103,22 +103,11 @@ def evaluate_TypeCast(
     schema, from_type = irtyputils.ir_typeref_to_type(
         schema, ir_cast.from_type)
     schema, to_type = irtyputils.ir_typeref_to_type(
-        schema, ir_cast.to_type)
-
-    str_t = cast(s_scalars.ScalarType, schema.get('std::str'))
-    dur_t = cast(s_scalars.ScalarType, schema.get('std::duration'))
-    mem_t = cast(s_scalars.ScalarType, schema.get('cfg::memory'))
-
-    if (from_type.issubclass(schema, str_t) and
-            to_type.issubclass(schema, dur_t)):
-        return ir_cast
-
-    if (from_type.issubclass(schema, str_t) and
-            to_type.issubclass(schema, mem_t)):
-        return ir_cast
-
-    raise UnsupportedExpressionError(
-        f'no static IR evaluation handler for {ir_cast.__class__}')
+        schema, ir_cast.from_type)
+    schema_type_to_python_type(from_type, schema)
+    schema_type_to_python_type(to_type, schema)
+    evaluate(ir_cast.expr, schema)
+    return ir_cast
 
 
 @evaluate.register(irast.EmptySet)
@@ -319,39 +308,43 @@ def schema_type_to_python_type(
             f'{stype.get_displayname(schema)} is not representable in Python')
 
 
+typemap = {
+    'std::str': str,
+    'std::anyint': int,
+    'std::anyfloat': float,
+    'std::decimal': decimal.Decimal,
+    'std::bigint': decimal.Decimal,
+    'std::bool': bool,
+    'std::json': str,
+    'std::uuid': uuidgen.UUID,
+    'std::duration': statypes.Duration,
+    'cfg::memory': statypes.ConfigMemory,
+}
+
+
 def scalar_type_to_python_type(
-        stype: s_types.Type,
-        schema: s_schema.Schema) -> type:
-
-    typemap = {
-        'std::str': str,
-        'std::anyint': int,
-        'std::anyfloat': float,
-        'std::decimal': decimal.Decimal,
-        'std::bigint': decimal.Decimal,
-        'std::bool': bool,
-        'std::json': str,
-        'std::uuid': uuidgen.UUID,
-        'std::duration': statypes.Duration,
-        'cfg::memory': statypes.ConfigMemory,
-    }
-
-    for basetype_name, python_type in typemap.items():
+    stype: s_types.Type,
+    schema: s_schema.Schema,
+) -> type:
+    for basetype_name, pytype in typemap.items():
         basetype = schema.get(basetype_name, type=s_obj.InheritingObject)
         if stype.issubclass(schema, basetype):
-            return python_type
+            return pytype
+
+    if stype.is_enum(schema):
+        return str
 
     raise UnsupportedExpressionError(
         f'{stype.get_displayname(schema)} is not representable in Python')
 
 
 def object_type_to_python_type(
-        objtype: s_objtypes.ObjectType,
-        schema: s_schema.Schema, *,
-        base_class: Optional[type] = None,
-        _memo: Optional[Dict[s_types.Type, type]]=None
+    objtype: s_objtypes.ObjectType,
+    schema: s_schema.Schema,
+    *,
+    base_class: Optional[type] = None,
+    _memo: Optional[Dict[s_types.Type, type]] = None,
 ) -> type:
-
     if _memo is None:
         _memo = {}
     default: Any
