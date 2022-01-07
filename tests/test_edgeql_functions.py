@@ -397,6 +397,32 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             )
         )
 
+    async def test_edgeql_functions_array_agg_21(self):
+        await self.assert_query_result(
+            r'''
+            WITH X := array_agg((1, 2)),
+            SELECT X FILTER X[0].0 = 1;
+            ''',
+            [[[1, 2]]],
+        )
+
+    async def test_edgeql_functions_array_agg_22(self):
+        await self.assert_query_result(
+            r'''
+            WITH X := array_agg((foo := 1, bar := 2)),
+            SELECT X FILTER X[0].foo = 1;
+            ''',
+            [[{"bar": 2, "foo": 1}]],
+        )
+
+    async def test_edgeql_functions_array_agg_23(self):
+        await self.assert_query_result(
+            r'''
+            SELECT X := array_agg((foo := 1, bar := 2)) FILTER X[0].foo = 1;
+            ''',
+            [[{"bar": 2, "foo": 1}]],
+        )
+
     async def test_edgeql_functions_array_unpack_01(self):
         await self.assert_query_result(
             r'''SELECT [1, 2];''',

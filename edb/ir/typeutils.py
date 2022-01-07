@@ -133,6 +133,30 @@ def is_persistent_tuple(typeref: irast.TypeRef) -> bool:
         return False
 
 
+def contains_predicate(
+    typeref: irast.TypeRef,
+    pred: Callable[[irast.TypeRef], bool],
+) -> bool:
+    if pred(typeref):
+        return True
+
+    if typeref.intersection:
+        return any(
+            contains_predicate(sub, pred) for sub in typeref.intersection
+        )
+    if typeref.union:
+        return any(
+            contains_predicate(sub, pred) for sub in typeref.union
+        )
+    return any(
+        contains_predicate(sub, pred) for sub in typeref.subtypes
+    )
+
+
+def contains_object(typeref: irast.TypeRef) -> bool:
+    return contains_predicate(typeref, is_object)
+
+
 def type_to_typeref(
     schema: s_schema.Schema,
     t: s_types.Type,

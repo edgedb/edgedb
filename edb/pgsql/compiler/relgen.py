@@ -2950,7 +2950,8 @@ def process_set_as_agg_expr_inner(
             # the (unacceptable) hardcoding of function names,
             # check if the aggregate accepts a single argument
             # of "any" to determine serialized input safety.
-            serialization_safe = expr.func_polymorphic
+            serialization_safe = (
+                expr.func_polymorphic and aspect == 'serialized')
 
             if not serialization_safe:
                 argctx.expr_exposed = False
@@ -3108,6 +3109,12 @@ def process_set_as_agg_expr_inner(
 
     pathctx.put_path_var_if_not_exists(
         stmt, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
+    # Cheat a little bit: as discussed above, pretend the serialized
+    # value is also really a value. Eta-expansion should ensure this
+    # only happens when we don't really need the value again.
+    if aspect == 'serialized':
+        pathctx.put_path_var_if_not_exists(
+            stmt, ir_set.path_id, set_expr, aspect='value', env=ctx.env)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -3124,30 +3131,28 @@ def process_set_as_agg_expr(
     if expr.func_initial_value is not None:
         wrapper = stmt
 
-    # When in a serialization context, we need to compute both a value
-    # version and a serialized version of the aggregate function call,
-    # since we may need both (Consider `WITH X := array_agg(User), ...`).
+    # In a serialization context that produces something containing an object,
+    # we produce *only* a serialized value, and we claim it is the value too.
+    # For this to be correct, we need to only have serialized agg expr results
+    # in cases where value can't be used anymore. Our eta-expansion pass
+    # make sure this happens.
+    # (... the only such *function* currently is array_agg.)
+
+    # Though if the result type contains no objects, the value should be good
+    # enough, so don't generate a bunch of unnecessary code to produce
+    # a serialized value when we can use value.
+    serialized = (
+        output.in_serialization_ctx(ctx=ctx)
+        and irtyputils.contains_object(ir_set.typeref)
+    )
 
     cctx = ctx.subrel() if wrapper else ctx.new()
     with cctx as xctx:
-        xctx.expr_exposed = False
+        xctx.expr_exposed = serialized
+        aspect = 'serialized' if serialized else 'value'
         process_set_as_agg_expr_inner(
-            ir_set, xctx.rel, aspect='value', wrapper=wrapper,
+            ir_set, xctx.rel, aspect=aspect, wrapper=wrapper,
             ctx=xctx)
-
-    # Though if the result type is a scalar, the value should be good
-    # enough, so don't generate a bunch of unnessecary code to produce
-    # a serialized value when we can use value.
-    if (
-        output.in_serialization_ctx(ctx=ctx)
-        and not irtyputils.is_scalar(ir_set.typeref)
-    ):
-        cctx = ctx.subrel() if wrapper else ctx.new()
-        with cctx as xctx:
-            xctx.expr_exposed = True
-            process_set_as_agg_expr_inner(
-                ir_set, xctx.rel, aspect='serialized', wrapper=wrapper,
-                ctx=xctx)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
@@ -3222,7 +3227,10 @@ def process_set_as_array_expr(
 
     elements = []
     s_elements = []
-    serializing = output.in_serialization_ctx(ctx=ctx)
+    serializing = (
+        output.in_serialization_ctx(ctx=ctx)
+        and irtyputils.contains_object(ir_set.typeref)
+    )
 
     for ir_element in expr.elements:
         element = dispatch.compile(ir_element, ctx=ctx)
@@ -3245,24 +3253,24 @@ def process_set_as_array_expr(
 
             s_elements.append(s_var)
 
-    set_expr = build_array_expr(expr, elements, ctx=ctx)
-
-    pathctx.put_path_value_var_if_not_exists(
-        stmt, ir_set.path_id, set_expr, env=ctx.env)
-
     if serializing:
-        s_set_expr = astutils.safe_array_expr(
+        set_expr = astutils.safe_array_expr(
             s_elements, ser_safe=all(x.ser_safe for x in s_elements))
 
         if irutils.is_empty_array_expr(expr):
-            s_set_expr = pgast.TypeCast(
-                arg=s_set_expr,
+            set_expr = pgast.TypeCast(
+                arg=set_expr,
                 type_name=pgast.TypeName(
                     name=pg_types.pg_type_from_ir_typeref(expr.typeref)
                 )
             )
 
         pathctx.put_path_serialized_var(
-            stmt, ir_set.path_id, s_set_expr, env=ctx.env)
+            stmt, ir_set.path_id, set_expr, env=ctx.env)
+    else:
+        set_expr = build_array_expr(expr, elements, ctx=ctx)
+
+    pathctx.put_path_value_var_if_not_exists(
+        stmt, ir_set.path_id, set_expr, env=ctx.env)
 
     return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
