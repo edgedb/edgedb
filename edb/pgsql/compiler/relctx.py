@@ -412,6 +412,7 @@ def new_primitive_rvar(
     ir_set: irast.Set,
     *,
     path_id: irast.PathId,
+    lateral: bool,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
     if not ir_set.path_id.is_objtype_path():
@@ -420,7 +421,7 @@ def new_primitive_rvar(
     typeref = ir_set.typeref
     dml_source = irutils.get_nearest_dml_stmt(ir_set)
     set_rvar = range_for_typeref(
-        typeref, path_id, dml_source=dml_source, ctx=ctx)
+        typeref, path_id, lateral=lateral, dml_source=dml_source, ctx=ctx)
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
     rptr = ir_set.rptr
@@ -462,6 +463,7 @@ def new_primitive_rvar(
 def new_root_rvar(
     ir_set: irast.Set,
     *,
+    lateral: bool = False,
     path_id: Optional[irast.PathId] = None,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
@@ -471,9 +473,9 @@ def new_root_rvar(
 
     narrowing = ctx.intersection_narrowing.get(ir_set)
     if narrowing is not None:
-        return new_primitive_rvar(narrowing, path_id=path_id, ctx=ctx)
-    else:
-        return new_primitive_rvar(ir_set, path_id=path_id, ctx=ctx)
+        ir_set = narrowing
+    return new_primitive_rvar(
+        ir_set, lateral=lateral, path_id=path_id, ctx=ctx)
 
 
 def new_pointer_rvar(
@@ -566,6 +568,14 @@ def _new_mapped_pointer_rvar(
     return ptr_rvar
 
 
+def is_pointer_rvar(
+    rvar: pgast.PathRangeVar,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> bool:
+    return rvar.query.path_id is not None and rvar.query.path_id.is_ptr_path()
+
+
 def new_rel_rvar(
         ir_set: irast.Set, stmt: pgast.Query, *,
         lateral: bool=True,
@@ -585,7 +595,7 @@ def semi_join(
     assert rptr is not None
 
     # Target set range.
-    set_rvar = new_root_rvar(ir_set, ctx=ctx)
+    set_rvar = new_root_rvar(ir_set, lateral=True, ctx=ctx)
 
     ptrref = rptr.ptrref
     ptr_info = pg_types.get_ptrref_storage_info(
@@ -1120,8 +1130,40 @@ def get_scope_stmt(
 
 
 def rel_join(
-        query: pgast.SelectStmt, right_rvar: pgast.PathRangeVar, *,
-        ctx: context.CompilerContextLevel) -> None:
+    query: pgast.SelectStmt,
+    right_rvar: pgast.PathRangeVar,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
+
+    if (
+        isinstance(right_rvar, pgast.RangeSubselect)
+        and astutils.is_set_op_query(right_rvar.subquery)
+        and right_rvar.tag == "overlay-stack"
+        and all(astutils.for_each_query_in_set(
+            right_rvar.subquery, lambda q: isinstance(q, pgast.SelectStmt)))
+        and not is_pointer_rvar(right_rvar, ctx=ctx)
+    ):
+        # Unfortunately Postgres sometimes produces a very bad plan
+        # when we join a UNION which is not a trivial Append, most notably
+        # those produced by DML overlays.  To work around this we push
+        # the JOIN condition into the WHERE clause of each UNION component.
+        # While this is likely not harmful (and possibly beneficial) for
+        # all kinds of UNIONs, we restrict this optimization to overlay
+        # UNIONs only to limit the possibility of breakage as not all
+        # UNIONs are guaranteed to have correct path namespace and
+        # translation maps set up.
+        _lateral_union_join(query, right_rvar, ctx=ctx)
+    else:
+        _plain_join(query, right_rvar, ctx=ctx)
+
+
+def _plain_join(
+    query: pgast.SelectStmt,
+    right_rvar: pgast.PathRangeVar,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
     condition = None
 
     for path_id in right_rvar.query.path_scope:
@@ -1157,11 +1199,54 @@ def rel_join(
             type=join_type, larg=larg, rarg=rarg, quals=condition)
 
 
+def _lateral_union_join(
+    query: pgast.SelectStmt,
+    right_rvar: pgast.RangeSubselect,
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    def _inject_filter(component: pgast.Query) -> None:
+        condition = None
+
+        for path_id in right_rvar.query.path_scope:
+            lref = maybe_get_path_var(
+                query, path_id, aspect='identity', ctx=ctx)
+            if lref is None:
+                lref = maybe_get_path_var(
+                    query, path_id, aspect='value', ctx=ctx)
+            if lref is None:
+                continue
+
+            rref = pathctx.get_path_identity_var(
+                component, path_id, env=ctx.env)
+
+            assert isinstance(lref, pgast.ColumnRef)
+            assert isinstance(rref, pgast.ColumnRef)
+            path_cond = astutils.join_condition(lref, rref)
+            condition = astutils.extend_binop(condition, path_cond)
+
+        if condition is not None:
+            assert isinstance(component, pgast.SelectStmt)
+            component.where_clause = astutils.extend_binop(
+                component.where_clause, condition)
+
+    astutils.for_each_query_in_set(right_rvar.subquery, _inject_filter)
+    if not query.from_clause:
+        query.from_clause.append(right_rvar)
+    else:
+        larg = query.from_clause[0]
+        rarg = right_rvar
+
+        query.from_clause[0] = pgast.JoinExpr(
+            type='cross', larg=larg, rarg=rarg)
+
+
 def range_for_material_objtype(
     typeref: irast.TypeRef,
     path_id: irast.PathId,
     *,
     for_mutation: bool=False,
+    lateral: bool=False,
     include_overlays: bool=True,
     include_descendants: bool=True,
     dml_source: Optional[irast.MutatingStmt]=None,
@@ -1204,7 +1289,8 @@ def range_for_material_objtype(
                 sctx.rel, cte_rvar, rewrite.path_id, pull_namespace=False,
                 ctx=sctx,
             )
-            rvar = rvar_for_rel(sctx.rel, typeref=typeref, ctx=sctx)
+            rvar = rvar_for_rel(
+                sctx.rel, lateral=lateral, typeref=typeref, ctx=sctx)
     else:
         assert isinstance(typeref.name_hint, sn.QualName)
 
@@ -1290,7 +1376,13 @@ def range_for_material_objtype(
             set_ops.append((op, qry2))
 
         rvar = range_from_queryset(
-            set_ops, typeref.name_hint, path_id=path_id, ctx=ctx)
+            set_ops,
+            typeref.name_hint,
+            lateral=lateral,
+            path_id=path_id,
+            tag='overlay-stack',
+            ctx=ctx,
+        )
 
     return rvar
 
@@ -1299,6 +1391,7 @@ def range_for_typeref(
     typeref: irast.TypeRef,
     path_id: irast.PathId,
     *,
+    lateral: bool=False,
     for_mutation: bool=False,
     include_descendants: bool=True,
     dml_source: Optional[irast.MutatingStmt]=None,
@@ -1343,7 +1436,12 @@ def range_for_typeref(
             set_ops.append(('union', qry))
 
         rvar = range_from_queryset(
-            set_ops, typeref.name_hint, typeref=typeref, ctx=ctx)
+            set_ops,
+            typeref.name_hint,
+            lateral=lateral,
+            typeref=typeref,
+            ctx=ctx,
+        )
 
     elif typeref.intersection:
         wrapper = pgast.SelectStmt()
@@ -1351,6 +1449,7 @@ def range_for_typeref(
         for component in typeref.intersection:
             component_rvar = range_for_typeref(
                 component,
+                lateral=True,
                 path_id=path_id,
                 for_mutation=for_mutation,
                 dml_source=dml_source,
@@ -1367,12 +1466,13 @@ def range_for_typeref(
             )
 
         pathctx.put_path_bond(wrapper, path_id)
-        rvar = rvar_for_rel(wrapper, ctx=ctx)
+        rvar = rvar_for_rel(wrapper, lateral=lateral, ctx=ctx)
 
     else:
         rvar = range_for_material_objtype(
             typeref,
             path_id,
+            lateral=lateral,
             include_descendants=include_descendants,
             for_mutation=for_mutation,
             dml_source=dml_source,
@@ -1438,7 +1538,9 @@ def range_from_queryset(
     prep_filter: Callable[
         [pgast.SelectStmt, pgast.SelectStmt], None]=lambda a, b: None,
     path_id: Optional[irast.PathId]=None,
+    lateral: bool=False,
     typeref: Optional[irast.TypeRef]=None,
+    tag: Optional[str]=None,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
 
@@ -1463,6 +1565,8 @@ def range_from_queryset(
 
         rvar = pgast.RangeSubselect(
             subquery=qry,
+            lateral=lateral,
+            tag=tag,
             alias=pgast.Alias(
                 aliasname=ctx.env.aliases.get(objname.name),
             ),
