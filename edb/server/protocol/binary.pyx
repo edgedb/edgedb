@@ -1578,6 +1578,9 @@ cdef class EdgeConnection:
             bytes state = None
             dbview.DatabaseConnectionView _dbview
 
+        import time
+        start = after_ex = time.monotonic_ns()
+
         query_unit = compiled.query_unit
         _dbview = self.get_dbview()
         if _dbview.in_tx_error():
@@ -1612,6 +1615,7 @@ cdef class EdgeConnection:
         conn = await self.get_pgcon()
         try:
             _dbview.start(query_unit)
+            print("_execute prolog:", time.monotonic_ns() - start)
             if query_unit.create_db_template:
                 await self.server._on_before_create_db_from_template(
                     query_unit.create_db_template, _dbview.dbname
@@ -1637,6 +1641,8 @@ cdef class EdgeConnection:
                             state,              # =state
                             _dbview.dbver,      # =dbver
                         )
+                        after_ex = time.monotonic_ns()
+                        print("parse_execute:", after_ex - start)
 
                 if query_unit.create_db:
                     await self.server.introspect_db(
@@ -1672,6 +1678,7 @@ cdef class EdgeConnection:
             self.write(self.make_command_complete_msg(query_unit))
         finally:
             self.maybe_release_pgcon(conn)
+            print("_execute epilog:", time.monotonic_ns() - after_ex)
 
     async def execute(self):
         cdef:
@@ -1726,9 +1733,14 @@ cdef class EdgeConnection:
             bytes out_tid
             bytes bound_args
 
+        import time
+        start = time.monotonic_ns()
+
         self._last_anon_compiled = None
 
         query, query_req, _ = self.parse_prepare_query_part(False)
+        parsed = time.monotonic_ns()
+        print('PARSE QUERY:', parsed - start)
 
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
@@ -1776,6 +1788,7 @@ cdef class EdgeConnection:
             self.debug_print('OPTIMISTIC EXECUTE', query)
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
+        print('OPTIMISTIC EXECUTE OTHER PROLOG', time.monotonic_ns() - parsed)
         await self._execute(
             compiled, bind_args, bool(query_unit.sql_hash))
 

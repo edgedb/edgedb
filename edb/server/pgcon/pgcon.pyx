@@ -981,7 +981,7 @@ cdef class PGConnection:
 
         out = WriteBuffer.new()
 
-        if state is not None:
+        if state is not None and 0:
             self._build_apply_state_req(state, out)
 
         if use_prep_stmt:
@@ -1035,6 +1035,7 @@ cdef class PGConnection:
                 buf.write_int32(0)  # limit: 0 - return all rows
                 out.write_buffer(buf.end_message())
         else:
+            print('using prepared statement')
             buf = WriteBuffer.new_message(b'B')
             buf.write_bytestring(b'')  # portal name
             buf.write_bytestring(stmt_name)  # statement name
@@ -1050,8 +1051,11 @@ cdef class PGConnection:
         self.waiting_for_sync = True
         self.write(out)
 
+        import time
+        start = time.monotonic_ns()
+
         try:
-            if state is not None:
+            if state is not None and 0:
                 await self._parse_apply_state_resp(state)
 
             buf = None
@@ -1072,6 +1076,7 @@ cdef class PGConnection:
                         if buf is None:
                             buf = WriteBuffer.new()
 
+                        print("GOT DATA IN", time.monotonic_ns() - start)
                         self.buffer.redirect_messages(buf, b'D', 0)
                         if buf.len() >= DATA_BUFFER_SIZE:
                             edgecon.write(buf)
@@ -1126,6 +1131,7 @@ cdef class PGConnection:
                 finally:
                     self.buffer.finish_message()
         finally:
+            print("EX", time.monotonic_ns() - start)
             await self.wait_for_sync()
 
     async def parse_execute(
@@ -1704,6 +1710,9 @@ cdef class PGConnection:
 
         buf.write_bytestring(b'intervalstyle')
         buf.write_bytestring(b'iso_8601')
+
+        buf.write_bytestring(b'log_min_duration_statement')
+        buf.write_bytestring(b'0')
 
         buf.write_bytestring(b'jit')
         buf.write_bytestring(b'off')

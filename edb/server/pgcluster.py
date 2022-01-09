@@ -485,6 +485,7 @@ class Cluster(BaseCluster):
             capture_stderr=False,
             logger=postgres_logger,
             log_processor=postgres_log_processor,
+            limit=1024 * 1024,
         )
         self._daemon_pid = self._daemon_process.pid
 
@@ -1252,5 +1253,8 @@ def postgres_log_processor(msg: str) -> Tuple[str, int]:
         )
     else:
         level = logging.INFO
+
+    if len(msg) > 2 * 1024:
+        msg = msg[:2 * 1024] + "..."
 
     return msg, level
