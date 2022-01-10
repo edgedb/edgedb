@@ -620,8 +620,9 @@ class EQLIndexBoost(d_rst.Directive):
             boost = float(self.arguments[0])
             if boost > 2 or boost <= 0:
                 raise Exception()
-        except:
-            raise shared.DirectiveParseError(self, 'the index boost must be a float between 0 and 2')
+        except Exception:
+            raise shared.DirectiveParseError(
+                self, 'the index boost must be a float between 0 and 2')
 
         node = d_nodes.container()
         node['index-boost'] = self.arguments[0]
