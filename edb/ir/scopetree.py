@@ -24,11 +24,13 @@ from typing import *
 if TYPE_CHECKING:
     from typing_extensions import TypeGuard
 
+import sys
 import textwrap
 import weakref
 
 from edb import errors
 from edb.common import context as pctx
+from edb.common import term
 from . import pathid
 
 
@@ -1020,21 +1022,36 @@ class ScopeTreeNode:
         else:
             return ''
 
-    def pdebugformat(self, fuller: bool=False) -> str:
+    def pdebugformat(
+        self,
+        fuller: bool=False,
+        styles: Optional[Mapping[ScopeTreeNode, term.AbstractStyle]]=None,
+    ) -> str:
+        name = f'"{self.debugname(fuller=fuller)}"'
+        if styles and self in styles:
+            name = styles[self].apply(name)
+
         if self.children:
             child_formats = []
             for c in self.children:
-                cf = c.pdebugformat()
+                cf = c.pdebugformat(fuller=fuller, styles=styles)
                 if cf:
                     child_formats.append(cf)
 
             children = textwrap.indent(',\n'.join(child_formats), '    ')
-            return f'"{self.debugname(fuller=fuller)}": {{\n{children}\n}}'
+            return f'{name}: {{\n{children}\n}}'
         else:
-            return f'"{self.debugname(fuller=fuller)}"'
+            return name
 
     def dump(self) -> None:
         print(self.pdebugformat())
+
+    def dump_full(self) -> None:
+        """Do a debug dump of the root but hilight the current node."""
+        styles = {}
+        if term.supports_colors(sys.stdout.fileno()):
+            styles[self] = term.Style16(color='magenta', bold=True)
+        print(self.root.pdebugformat(styles=styles))
 
     def _set_parent(self, parent: Optional[ScopeTreeNode]) -> None:
         current_parent = self.parent
