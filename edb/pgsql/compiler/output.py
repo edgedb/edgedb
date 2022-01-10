@@ -272,7 +272,7 @@ def unnamed_tuple_as_json_object(
                 val, styperef=el_type, nested=True, env=env)
             vals.append(val)
 
-        return _build_json(
+        obj = _build_json(
             'build_array',
             args=vals,
             null_safe=True,
@@ -300,7 +300,7 @@ def unnamed_tuple_as_json_object(
 
             vals.append(val)
 
-        res = _build_json(
+        obj = _build_json(
             'build_array',
             args=vals,
             null_safe=True,
@@ -309,10 +309,10 @@ def unnamed_tuple_as_json_object(
             env=env,
         )
 
-        return pgast.SelectStmt(
+        obj = pgast.SelectStmt(
             target_list=[
                 pgast.ResTarget(
-                    val=res,
+                    val=obj,
                 ),
             ],
             from_clause=[
@@ -331,6 +331,13 @@ def unnamed_tuple_as_json_object(
                 )
             ] if styperef.subtypes else []
         )
+
+    if expr.nullable:
+        obj = pgast.SelectStmt(
+            target_list=[pgast.ResTarget(val=obj)],
+            where_clause=pgast.NullTest(arg=expr, negated=True)
+        )
+    return obj
 
 
 def named_tuple_as_json_object(
@@ -357,7 +364,7 @@ def named_tuple_as_json_object(
                 val, styperef=el_type, nested=True, env=env)
             keyvals.append(val)
 
-        return _build_json(
+        obj = _build_json(
             'build_object',
             args=keyvals,
             null_safe=True,
@@ -387,7 +394,7 @@ def named_tuple_as_json_object(
 
             keyvals.append(val)
 
-        res = _build_json(
+        obj = _build_json(
             'build_object',
             args=keyvals,
             null_safe=True,
@@ -396,10 +403,10 @@ def named_tuple_as_json_object(
             env=env,
         )
 
-        return pgast.SelectStmt(
+        obj = pgast.SelectStmt(
             target_list=[
                 pgast.ResTarget(
-                    val=res,
+                    val=obj,
                 ),
             ],
             from_clause=[
@@ -418,6 +425,13 @@ def named_tuple_as_json_object(
                 )
             ] if styperef.subtypes else []
         )
+
+    if expr.nullable:
+        obj = pgast.SelectStmt(
+            target_list=[pgast.ResTarget(val=obj)],
+            where_clause=pgast.NullTest(arg=expr, negated=True)
+        )
+    return obj
 
 
 def tuple_var_as_json_object(
