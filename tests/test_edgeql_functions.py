@@ -494,6 +494,13 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         )
 
+        await self.assert_query_result(
+            r"""
+            SELECT ("foo", 1) IN array_unpack([("foo", 1), ("bar", 2)]);
+            """,
+            [True],
+        )
+
     async def test_edgeql_functions_enumerate_01(self):
         await self.assert_query_result(
             r'''SELECT [10, 20];''',

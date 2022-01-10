@@ -406,3 +406,13 @@ def select_is_simple(stmt: pgast.SelectStmt) -> bool:
         and not stmt.locking_clause
         and not stmt.op
     )
+
+
+def is_row_expr(expr: pgast.BaseExpr) -> bool:
+    while True:
+        if isinstance(expr, (pgast.RowExpr, pgast.ImplicitRowExpr)):
+            return True
+        elif isinstance(expr, pgast.TypeCast):
+            expr = expr.arg
+        else:
+            return False

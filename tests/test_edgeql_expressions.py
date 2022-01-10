@@ -2169,6 +2169,9 @@ class TestExpressions(tb.QueryTestCase):
             [True]
         )
 
+    @test.xfail(
+        "Postgres crashes with 'could not identify a hash function for "
+        "type record'")
     async def test_edgeql_expr_valid_collection_15(self):
         await self.assert_query_result(
             r'''

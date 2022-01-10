@@ -44,7 +44,7 @@ std::`NOT IN` (e: anytype, s: SET OF anytype) -> std::bool
         'Test the membership of an element in a set.';
     USING SQL EXPRESSION;
     SET volatility := 'Immutable';
-    SET derivative_of := 'std::=';
+    SET derivative_of := 'std::!=';
 };
 
 
