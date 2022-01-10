@@ -1219,7 +1219,6 @@ def computable_ptr_set(
     ptrcls_to_shadow = None
 
     qlctx: Optional[context.ContextLevel]
-    inner_source_path_id: Optional[irast.PathId]
 
     try:
         comp_info = ctx.source_map[ptrcls]
@@ -1286,7 +1285,6 @@ def computable_ptr_set(
             )
         qlexpr = astutils.ensure_qlstmt(schema_qlexpr)
         qlctx = None
-        inner_source_path_id = None
         path_id_ns = None
 
     newctx: Callable[[], ContextManager[context.ContextLevel]]
@@ -1449,7 +1447,7 @@ def _get_computable_ctx(
     rptr: irast.Pointer,
     source: irast.Set,
     source_scls: s_types.Type,
-    inner_source_path_id: Optional[irast.PathId],
+    inner_source_path_id: irast.PathId,
     path_id_ns: Optional[irast.Namespace],
     same_scope: bool,
     qlctx: context.ContextLevel,
@@ -1495,15 +1493,9 @@ def _get_computable_ctx(
             # lines up.
             subns |= qlctx.path_id_namespace
 
-            if inner_source_path_id is not None:
-                inner_path_id = inner_source_path_id
-            else:
-                inner_path_id = pathctx.get_path_id(source_stype, ctx=subctx)
-
-            inner_path_id = inner_path_id.merge_namespace(subns)
-
             subctx.pending_stmt_full_path_id_namespace = frozenset(subns)
 
+            inner_path_id = inner_source_path_id.merge_namespace(subns)
             with subctx.new() as remapctx:
                 remapctx.path_id_namespace |= subns
                 # We need to run the inner_path_id through the same
