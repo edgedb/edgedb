@@ -178,7 +178,7 @@ class EdgeQLPathInfo(Base):
 class BaseRangeVar(ImmutableBaseExpr):
     """Range variable, used in FROM clauses."""
 
-    __ast_meta__ = {'schema_object_id'}
+    __ast_meta__ = {'schema_object_id', 'tag'}
 
     # This is a hack, since there is some code that relies on not
     # having an alias on a range var (to refer to a CTE directly, for
@@ -189,6 +189,9 @@ class BaseRangeVar(ImmutableBaseExpr):
 
     #: The id of the schema object this rvar represents
     schema_object_id: typing.Optional[uuid.UUID] = None
+
+    #: Optional identification piece to describe what's inside the rvar
+    tag: typing.Optional[str] = None
 
     def __repr__(self) -> str:
         return (

@@ -21,9 +21,9 @@
 
 
 from __future__ import annotations
+from typing import *
 
 import contextlib
-from typing import *
 
 from edb import errors
 
@@ -441,7 +441,7 @@ def ensure_source_rvar(
         scope_stmt = relctx.maybe_get_scope_stmt(ir_set.path_id, ctx=ctx)
         if scope_stmt is None:
             scope_stmt = ctx.rel
-        rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
+        rvar = relctx.new_root_rvar(ir_set, lateral=True, ctx=ctx)
         relctx.include_rvar(scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
         pathctx.put_path_rvar(
             stmt, ir_set.path_id, rvar, aspect='source', env=ctx.env)
@@ -827,6 +827,7 @@ def process_set_as_path_type_intersection(
         poly_rvar = relctx.range_for_typeref(
             target_typeref,
             path_id=ir_set.path_id,
+            lateral=True,
             ctx=ctx,
         )
 
@@ -1041,7 +1042,7 @@ def process_set_as_path(
 
         # Target set range.
         if irtyputils.is_object(ir_set.typeref):
-            target_rvar = relctx.new_root_rvar(ir_set, ctx=ctx)
+            target_rvar = relctx.new_root_rvar(ir_set, lateral=True, ctx=ctx)
 
             main_rvar = SetRVar(
                 target_rvar,
