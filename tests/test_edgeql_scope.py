@@ -3521,7 +3521,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             )
             select props {
               name,
-              namelen # <- adding this property causes cartesian product
+              namelen
             };
             ''',
             tb.bag([
