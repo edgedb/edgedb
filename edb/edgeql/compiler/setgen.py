@@ -1219,7 +1219,6 @@ def computable_ptr_set(
     ptrcls_to_shadow = None
 
     qlctx: Optional[context.ContextLevel]
-    inner_source_path_id: Optional[irast.PathId]
 
     try:
         comp_info = ctx.source_map[ptrcls]
@@ -1286,7 +1285,6 @@ def computable_ptr_set(
             )
         qlexpr = astutils.ensure_qlstmt(schema_qlexpr)
         qlctx = None
-        inner_source_path_id = None
         path_id_ns = None
 
     newctx: Callable[[], ContextManager[context.ContextLevel]]
@@ -1410,9 +1408,10 @@ def get_view_map_remapping(
     """
     key = path_id.strip_namespace(path_id.namespace)
     entries = ctx.view_map.get(key, ())
+    fixed_path_id = path_id.merge_namespace(ctx.path_id_namespace)
     for inner_path_id, mapped in entries:
         fixed_inner = inner_path_id.merge_namespace(ctx.path_id_namespace)
-        if fixed_inner == path_id:
+        if fixed_inner == fixed_path_id:
             return mapped
     return None
 
@@ -1448,7 +1447,7 @@ def _get_computable_ctx(
     rptr: irast.Pointer,
     source: irast.Set,
     source_scls: s_types.Type,
-    inner_source_path_id: Optional[irast.PathId],
+    inner_source_path_id: irast.PathId,
     path_id_ns: Optional[irast.Namespace],
     same_scope: bool,
     qlctx: context.ContextLevel,
@@ -1489,30 +1488,14 @@ def _get_computable_ctx(
             subns = set(pending_pid_ns)
             subns.add(ctx.aliases.get('ns'))
 
-            self_view = ctx.view_sets.get(source_stype)
-            if self_view:
-                subns.update(self_view.path_id.namespace)
-            else:
-                subns.update(source.path_id.namespace)
-
-            if inner_source_path_id is not None:
-                # The path id recorded in the source map may
-                # contain namespaces referring to a temporary
-                # scope subtree used by `process_view()`.
-                # Since we recompile the computable expression
-                # using the current path id namespace, the
-                # original source path id needs to be fixed.
-                inner_path_id = inner_source_path_id \
-                    .strip_namespace(qlctx.path_id_namespace) \
-                    .merge_namespace(subctx.path_id_namespace)
-            else:
-                inner_path_id = pathctx.get_path_id(
-                    source_stype, ctx=subctx)
-
-            inner_path_id = inner_path_id.merge_namespace(subns)
+            # Include the namespace from the source in the namespace
+            # we compile under. This helps make sure the remapping
+            # lines up.
+            subns |= qlctx.path_id_namespace
 
             subctx.pending_stmt_full_path_id_namespace = frozenset(subns)
 
+            inner_path_id = inner_source_path_id.merge_namespace(subns)
             with subctx.new() as remapctx:
                 remapctx.path_id_namespace |= subns
                 # We need to run the inner_path_id through the same

@@ -3063,7 +3063,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_scope_ref_outer_02(self):
+    async def test_edgeql_scope_ref_outer_02a(self):
         await self.assert_query_result(
             """
                 SELECT User {
@@ -3071,6 +3071,25 @@ class TestEdgeQLScope(tb.QueryTestCase):
                         multi tag := User.name,
                     })
                 } FILTER .name = 'Alice' AND EXISTS .cards;
+            """,
+            [{
+                "cards": [
+                    {"tag": ["Alice"]},
+                    {"tag": ["Alice"]},
+                    {"tag": ["Alice"]},
+                    {"tag": ["Alice"]}
+                ]
+            }],
+        )
+
+    async def test_edgeql_scope_ref_outer_02b(self):
+        await self.assert_query_result(
+            """
+                SELECT (for u IN User UNION u {
+                    cards := (SELECT _ := .deck {
+                        multi tag := u.name,
+                    })
+                }) FILTER .name = 'Alice' AND EXISTS .cards;
             """,
             [{
                 "cards": [
@@ -3490,4 +3509,46 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 {"avatar": {
                     "name": "Djinn", "retag": "Djinn-Wow", "t2": "Wow"}}
             ]
+        )
+
+    async def test_edgeql_scope_for_with_computable_01(self):
+        await self.assert_query_result(
+            r'''
+            with props := (
+              for h in User union (
+                select h {namelen := len(h.name)}
+              )
+            )
+            select props {
+              name,
+              namelen
+            };
+            ''',
+            tb.bag([
+                {"name": "Alice", "namelen": 5},
+                {"name": "Bob", "namelen": 3},
+                {"name": "Carol", "namelen": 5},
+                {"name": "Dave", "namelen": 4}
+            ])
+        )
+
+    async def test_edgeql_scope_for_with_computable_02(self):
+        await self.assert_query_result(
+            r'''
+            with props := (
+              for h in User union (
+                with g := h, select g {namelen := len(g.name)}
+              )
+            )
+            select props {
+              name,
+              namelen
+            };
+            ''',
+            tb.bag([
+                {"name": "Alice", "namelen": 5},
+                {"name": "Bob", "namelen": 3},
+                {"name": "Carol", "namelen": 5},
+                {"name": "Dave", "namelen": 4}
+            ])
         )
