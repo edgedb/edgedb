@@ -1236,22 +1236,3 @@ def maybe_add_view(ir: irast.Set, *, ctx: context.ContextLevel) -> irast.Set:
             ir, allow_select_shape_inject=True, compile_views=False, ctx=ctx)
     else:
         return ir
-
-
-def compile_groupby_clause(
-        groupexprs: Iterable[qlast.Base], *,
-        ctx: context.ContextLevel) -> List[irast.Set]:
-    result: List[irast.Set] = []
-    if not groupexprs:
-        return result
-
-    with ctx.new() as sctx:
-        ir_groupexprs = []
-        for groupexpr in groupexprs:
-            with sctx.newscope(fenced=True) as scopectx:
-                ir_groupexpr = setgen.scoped_set(
-                    dispatch.compile(groupexpr, ctx=scopectx), ctx=scopectx)
-                ir_groupexpr.context = groupexpr.context
-                ir_groupexprs.append(ir_groupexpr)
-
-    return ir_groupexprs
