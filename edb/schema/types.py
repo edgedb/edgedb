@@ -63,6 +63,15 @@ class ExprType(enum.IntEnum):
     Update = enum.auto()
     Delete = enum.auto()
 
+    def is_update(self) -> bool:
+        return self == ExprType.Update
+
+    def is_insert(self) -> bool:
+        return self == ExprType.Insert
+
+    def is_mutation(self) -> bool:
+        return self != ExprType.Select
+
 
 TypeT = typing.TypeVar('TypeT', bound='Type')
 TypeT_co = typing.TypeVar('TypeT_co', bound='Type', covariant=True)

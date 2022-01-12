@@ -80,8 +80,7 @@ class ViewRPtr:
         ptrcls_is_linkprop: bool = False,
         ptrcls_is_alias: bool = False,
         rptr: Optional[irast.Pointer] = None,
-        is_insert: bool = False,
-        is_update: bool = False,
+        exprtype: s_types.ExprType = s_types.ExprType.Select,
     ) -> None:
         self.source = source
         self.ptrcls = ptrcls
@@ -90,8 +89,7 @@ class ViewRPtr:
         self.ptrcls_is_linkprop = ptrcls_is_linkprop
         self.ptrcls_is_alias = ptrcls_is_alias
         self.rptr = rptr
-        self.is_insert = is_insert
-        self.is_update = is_update
+        self.exprtype = exprtype
 
 
 @dataclasses.dataclass
@@ -413,7 +411,7 @@ class ContextLevel(compiler.ContextLevel):
     shape_type_cache: Dict[
         Tuple[
             s_objtypes.ObjectType,
-            bool, bool, bool,
+            s_types.ExprType,
             Tuple[qlast.ShapeElement, ...],
         ],
         s_objtypes.ObjectType,

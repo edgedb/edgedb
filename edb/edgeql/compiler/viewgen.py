@@ -67,14 +67,12 @@ def process_view(
     elements: List[qlast.ShapeElement],
     view_rptr: Optional[context.ViewRPtr] = None,
     view_name: Optional[sn.QualName] = None,
-    is_insert: bool = False,
-    is_update: bool = False,
-    is_delete: bool = False,
+    exprtype: s_types.ExprType = s_types.ExprType.Select,
     parser_context: Optional[pctx.ParserContext],
     ctx: context.ContextLevel,
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
 
-    cache_key = (stype, is_insert, is_update, is_delete, tuple(elements))
+    cache_key = (stype, exprtype, tuple(elements))
     view_scls = ctx.shape_type_cache.get(cache_key)
     if view_scls is not None:
         return view_scls, ir_set
@@ -93,9 +91,7 @@ def process_view(
         elements=elements,
         view_rptr=view_rptr,
         view_name=view_name,
-        is_insert=is_insert,
-        is_update=is_update,
-        is_delete=is_delete,
+        exprtype=exprtype,
         parser_context=parser_context,
         ctx=ctx,
     )
@@ -113,9 +109,7 @@ def _process_view(
     elements: Optional[Sequence[qlast.ShapeElement]],
     view_rptr: Optional[context.ViewRPtr] = None,
     view_name: Optional[sn.QualName] = None,
-    is_insert: bool = False,
-    is_update: bool = False,
-    is_delete: bool = False,
+    exprtype: s_types.ExprType = s_types.ExprType.Select,
     parser_context: Optional[pctx.ParserContext],
     ctx: context.ContextLevel,
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
@@ -155,14 +149,12 @@ def _process_view(
 
     view_scls = schemactx.derive_view(
         stype,
-        is_insert=is_insert,
-        is_update=is_update,
-        is_delete=is_delete,
+        exprtype=exprtype,
         derived_name=view_name,
         ctx=ctx,
     )
     assert isinstance(view_scls, s_objtypes.ObjectType), view_scls
-    is_mutation = is_insert or is_update
+    is_mutation = exprtype.is_insert() or exprtype.is_update()
     is_defining_shape = ctx.expr_exposed or is_mutation
 
     ir_set = setgen.ensure_set(ir_set, type_override=view_scls, ctx=ctx)
@@ -181,7 +173,7 @@ def _process_view(
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set, shape_el, view_scls, path_id=path_id,
                 path_id_namespace=path_id_namespace,
-                is_insert=is_insert, is_update=is_update,
+                exprtype=exprtype,
                 view_rptr=view_rptr,
                 pending_pointers=pointers,
                 ctx=scopectx)
@@ -214,14 +206,14 @@ def _process_view(
             pointer, ptr_set = _normalize_view_ptr_expr(
                 ir_set, dummy_el, view_scls, path_id=path_id,
                 path_id_namespace=path_id_namespace,
-                is_insert=is_insert, is_update=is_update,
+                exprtype=exprtype,
                 view_rptr=view_rptr,
                 ctx=scopectx)
 
         pointers.append(pointer)
         pointer_entries.append((pointer, ptr_set))
 
-    if is_insert:
+    if exprtype.is_insert():
         explicit_ptrs = {
             ptrcls.get_local_name(ctx.env.schema)
             for ptrcls in pointers
@@ -281,8 +273,7 @@ def _process_view(
                         view_scls,
                         path_id=path_id,
                         path_id_namespace=path_id_namespace,
-                        is_insert=is_insert,
-                        is_update=is_update,
+                        exprtype=exprtype,
                         from_default=True,
                         view_rptr=view_rptr,
                         ctx=scopectx,
@@ -416,14 +407,11 @@ def _compile_qlexpr(
     ptrsource: s_sources.Source,
     path_id: irast.PathId,
     ptr_name: sn.QualName,
-    is_insert: bool,
-    is_update: bool,
+    exprtype: s_types.ExprType = s_types.ExprType.Select,
     is_linkprop: bool,
 
     ctx: context.ContextLevel,
 ) -> Tuple[irast.Set, context.ViewRPtr]:
-
-    is_mutation = is_insert or is_update
 
     with ctx.newscope(fenced=True) as shape_expr_ctx:
         # Put current pointer class in context, so
@@ -436,8 +424,7 @@ def _compile_qlexpr(
             ptrcls=ptrcls,
             ptrcls_name=ptr_name,
             ptrcls_is_linkprop=is_linkprop,
-            is_insert=is_insert,
-            is_update=is_update,
+            exprtype=exprtype,
         )
 
         shape_expr_ctx.defining_view = view_scls
@@ -445,7 +432,7 @@ def _compile_qlexpr(
         source_set = setgen.fixup_computable_source_set(ir_source, ctx=ctx)
         shape_expr_ctx.partial_path_prefix = source_set
 
-        if is_mutation and ptrcls is not None:
+        if exprtype.is_mutation() and ptrcls is not None:
             shape_expr_ctx.expr_exposed = context.Exposure.EXPOSED
             shape_expr_ctx.empty_result_type_hint = \
                 ptrcls.get_target(ctx.env.schema)
@@ -468,8 +455,7 @@ def _normalize_view_ptr_expr(
         view_scls: s_objtypes.ObjectType, *,
         path_id: irast.PathId,
         path_id_namespace: Optional[irast.Namespace]=None,
-        is_insert: bool=False,
-        is_update: bool=False,
+        exprtype: s_types.ExprType = s_types.ExprType.Select,
         from_default: bool=False,
         view_rptr: Optional[context.ViewRPtr]=None,
         pending_pointers: Collection[s_pointers.Pointer]=(),
@@ -478,7 +464,7 @@ def _normalize_view_ptr_expr(
     steps = shape_el.expr.steps
     is_linkprop = False
     is_polymorphic = False
-    is_mutation = is_insert or is_update
+    is_mutation = exprtype.is_insert() or exprtype.is_update()
     materialized = None
     # Pointers may be qualified by the explicit source
     # class, which is equivalent to Expr[IS Type].
@@ -535,7 +521,7 @@ def _normalize_view_ptr_expr(
     ptrname = lexpr.ptr.name
 
     compexpr: Optional[qlast.Expr] = shape_el.compexpr
-    if compexpr is None and (is_insert or is_update) and shape_el.elements:
+    if compexpr is None and is_mutation and shape_el.elements:
         # Short shape form in INSERT or UPDATE, e.g
         #     INSERT Foo { bar: Spam { name := 'name' }}
         # is prohibited.
@@ -549,10 +535,7 @@ def _normalize_view_ptr_expr(
             ptrsource, ptrname, track_ref=lexpr, ctx=ctx)
         if is_polymorphic:
             ptrcls = schemactx.derive_ptr(
-                ptrcls, view_scls,
-                is_insert=is_insert,
-                is_update=is_update,
-                ctx=ctx)
+                ptrcls, view_scls, ctx=ctx)
 
         base_ptrcls = ptrcls.get_bases(ctx.env.schema).first(ctx.env.schema)
         base_ptr_is_computable = base_ptrcls in ctx.source_map
@@ -668,7 +651,7 @@ def _normalize_view_ptr_expr(
                 ir_source, qlexpr, view_scls,
                 ptrcls=qlptrcls, ptrsource=qlptrsource,
                 path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
-                is_insert=is_insert, is_update=is_update, ctx=ctx)
+                exprtype=exprtype, ctx=ctx)
             materialized = setgen.should_materialize(
                 irexpr, ptrcls=ptrcls,
                 materialize_visible=True, skipped_bindings={path_id},
@@ -731,7 +714,7 @@ def _normalize_view_ptr_expr(
         irexpr, sub_view_rptr = _compile_qlexpr(
             ir_source, qlexpr, view_scls, ptrcls=ptrcls, ptrsource=ptrsource,
             path_id=path_id, ptr_name=ptr_name, is_linkprop=is_linkprop,
-            is_insert=is_insert, is_update=is_update, ctx=ctx)
+            exprtype=exprtype, ctx=ctx)
         materialized = setgen.should_materialize(
             irexpr, ptrcls=ptrcls,
             materialize_visible=True, skipped_bindings={path_id},
@@ -742,7 +725,7 @@ def _normalize_view_ptr_expr(
             shape_el.operation.op is qlast.ShapeOp.APPEND
             or shape_el.operation.op is qlast.ShapeOp.SUBTRACT
         ):
-            if not is_update:
+            if not exprtype.is_update():
                 op = (
                     '+=' if shape_el.operation.op is qlast.ShapeOp.APPEND
                     else '-='
@@ -911,8 +894,6 @@ def _normalize_view_ptr_expr(
         else:
             ptrcls = schemactx.derive_ptr(
                 derive_from, src_scls, ptr_target,
-                is_insert=is_insert,
-                is_update=is_update,
                 derived_name=derived_name,
                 ctx=ctx)
 
@@ -1065,7 +1046,7 @@ def _normalize_view_ptr_expr(
             msg = f'cannot assign to {ptrcls_sn.name}'
         raise errors.QueryError(msg, context=shape_el.context)
 
-    if is_update and ptrcls.get_readonly(ctx.env.schema):
+    if exprtype.is_update() and ptrcls.get_readonly(ctx.env.schema):
         raise errors.QueryError(
             f'cannot update {ptrcls.get_verbosename(ctx.env.schema)}: '
             f'it is declared as read-only',
@@ -1110,8 +1091,6 @@ def derive_ptrcls(
         view_rptr.ptrcls = schemactx.derive_ptr(
             view_rptr.base_ptrcls, view_rptr.source, target_scls,
             derived_name=derived_name,
-            is_insert=view_rptr.is_insert,
-            is_update=view_rptr.is_update,
             attrs=attrs,
             ctx=ctx
         )
@@ -1126,8 +1105,6 @@ def derive_ptrcls(
             derived_name_quals=(
                 str(view_rptr.source.get_name(ctx.env.schema)),
             ),
-            is_insert=view_rptr.is_insert,
-            is_update=view_rptr.is_update,
             attrs=attrs,
             ctx=ctx
         )
