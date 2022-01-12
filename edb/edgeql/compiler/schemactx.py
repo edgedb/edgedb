@@ -184,9 +184,7 @@ def derive_view(
     derived_name_quals: Optional[Sequence[str]] = (),
     preserve_shape: bool = False,
     preserve_path_id: bool = False,
-    is_insert: bool = False,
-    is_update: bool = False,
-    is_delete: bool = False,
+    exprtype: s_types.ExprType = s_types.ExprType.Select,
     inheritance_merge: bool = True,
     attrs: Optional[Dict[str, Any]] = None,
     ctx: context.ContextLevel,
@@ -197,15 +195,6 @@ def derive_view(
         derived_name = derive_view_name(
             stype=stype, derived_name_quals=derived_name_quals,
             ctx=ctx)
-
-    if is_insert:
-        exprtype = s_types.ExprType.Insert
-    elif is_update:
-        exprtype = s_types.ExprType.Update
-    elif is_delete:
-        exprtype = s_types.ExprType.Delete
-    else:
-        exprtype = s_types.ExprType.Select
 
     if attrs is None:
         attrs = {}
@@ -288,8 +277,6 @@ def derive_ptr(
     derived_name_quals: Optional[Sequence[str]] = (),
     preserve_shape: bool = False,
     preserve_path_id: bool = False,
-    is_insert: bool = False,
-    is_update: bool = False,
     inheritance_merge: bool = True,
     attrs: Optional[Dict[str, Any]] = None,
     ctx: context.ContextLevel,

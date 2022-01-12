@@ -304,7 +304,7 @@ def compile_InsertQuery(
                 shape=expr.shape,
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
-                is_insert=True,
+                exprtype=s_types.ExprType.Insert,
                 ctx=bodyctx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
@@ -430,7 +430,7 @@ def compile_UpdateQuery(
                 shape=expr.shape,
                 view_rptr=ctx.view_rptr,
                 compile_views=True,
-                is_update=True,
+                exprtype=s_types.ExprType.Update,
                 ctx=bodyctx)
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
@@ -536,7 +536,7 @@ def compile_DeleteQuery(
             stmt.subject = compile_query_subject(
                 subject,
                 shape=None,
-                is_delete=True,
+                exprtype=s_types.ExprType.Delete,
                 ctx=bodyctx,
             )
 
@@ -1092,9 +1092,7 @@ def compile_query_subject(
         result_alias: Optional[str]=None,
         view_scls: Optional[s_types.Type]=None,
         compile_views: bool=True,
-        is_insert: bool=False,
-        is_update: bool=False,
-        is_delete: bool=False,
+        exprtype: s_types.ExprType = s_types.ExprType.Select,
         allow_select_shape_inject: bool=True,
         forward_rptr: bool=False,
         parser_context: Optional[pctx.ParserContext]=None,
@@ -1135,8 +1133,6 @@ def compile_query_subject(
             view_rptr.base_ptrcls = base_ptrcls
             view_rptr.ptrcls_is_alias = True
 
-    is_mutation = is_insert or is_update or is_delete
-
     if (
         (
             (
@@ -1147,12 +1143,12 @@ def compile_query_subject(
                 and not forward_rptr
                 and viewgen.has_implicit_type_computables(
                     expr_stype,
-                    is_mutation=is_mutation,
+                    is_mutation=exprtype.is_mutation(),
                     ctx=ctx,
                 )
                 and not expr_stype.is_view(ctx.env.schema)
             )
-            or is_mutation
+            or exprtype.is_mutation()
         )
         and shape is None
     ):
@@ -1192,9 +1188,7 @@ def compile_query_subject(
             elements=shape,
             view_rptr=view_rptr,
             view_name=view_name,
-            is_insert=is_insert,
-            is_update=is_update,
-            is_delete=is_delete,
+            exprtype=exprtype,
             parser_context=expr.context,
             ctx=ctx,
         )
