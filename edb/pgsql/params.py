@@ -23,6 +23,9 @@ import locale
 from edb import buildmeta
 
 
+BackendVersion = buildmeta.BackendVersion
+
+
 class BackendCapabilities(enum.IntFlag):
 
     NONE = 0
@@ -46,16 +49,6 @@ ALL_BACKEND_CAPABILITIES = (
     | BackendCapabilities.CREATE_ROLE
     | BackendCapabilities.CREATE_DATABASE
 )
-
-
-class BackendVersion(NamedTuple):
-
-    major: int
-    minor: int
-    micro: int
-    releaselevel: str
-    serial: int
-    string: str
 
 
 class BackendInstanceParams(NamedTuple):
@@ -127,16 +120,8 @@ def get_default_runtime_params(
             **instance_params,
         )
     if 'version' not in instance_params:
-        parsed_ver, ver_string = buildmeta.get_pg_version()
         instance_params = dict(
-            version=BackendVersion(
-                major=parsed_ver.major,
-                minor=parsed_ver.minor,
-                micro=parsed_ver.micro,
-                releaselevel=parsed_ver.releaselevel,
-                serial=parsed_ver.serial,
-                string=ver_string,
-            ),
+            version=buildmeta.get_pg_version(),
             **instance_params,
         )
 
