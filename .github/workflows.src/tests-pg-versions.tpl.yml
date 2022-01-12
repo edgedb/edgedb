@@ -34,8 +34,6 @@ jobs:
          - 'NOCREATEDB NOCREATEROLE'
          - 'CREATEDB NOCREATEROLE'
         include:
-          - postgres-version: 12
-            single-mode: ''
           - postgres-version: 14
             single-mode: ''
     services:
