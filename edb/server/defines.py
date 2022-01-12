@@ -34,6 +34,7 @@ EDGEDB_VISIBLE_METADATA_PREFIX = r'EdgeDB metadata follows, do not modify.\n'
 EDGEDB_SPECIAL_DBS = {EDGEDB_TEMPLATE_DB, EDGEDB_SYSTEM_DB}
 
 EDGEDB_CATALOG_VERSION = buildmeta.EDGEDB_CATALOG_VERSION
+MIN_POSTGRES_VERSION = (13, 0)
 
 # Resource limit on open FDs for the server process.
 # By default, at least on macOS, the max number of open FDs
