@@ -1,0 +1,51 @@
+.. _ref_changelog_rc4:
+
+========
+1.0 RC 4
+========
+
+This changelog summarizes changes and bugfixes in EdgeDB 1.0 Release
+Candidate 4 "Procyon". This release is focusing on fixing existing
+issues rather than introducing new features.
+
+
+Migrations
+==========
+
+* Disallow cardinality mismatch in function return and body (:eql:gh:`#2137`).
+* Disallow :eql:type:`anytype` and :eql:type:`anytuple` in SDL
+  (:eql:gh:`#2137`).
+* Fix issues that prevented migrations to an empty clean module
+  (:eql:gh:`#3273`, :eql:gh:`#3280`).
+* Fix altering parent types in migrations (:eql:gh:`#3276`).
+* Fix migration issue when a constraint alters cardinality of an
+  expression (:eql:gh:`#3275`).
+
+
+EdgeQL
+======
+
+* :eql:stmt:`for <FOR>` loops no longer require wrapping everything
+  into ``{ }``. Simple expressions using a single path or a function
+  call can be used directly (:eql:gh:`#3243`):
+
+  .. code-block:: edgeql-repl
+
+    db> for x in array_unpack([1, 5]) union x * 10;
+    {10, 50}
+    db> for x in User.name union x[0];
+    {'a', 'b', 'c', 'd'}
+
+
+Bindings
+========
+
+While we are getting ready for a stable release of EdgeDB, we continue
+the cleanup of our bindings, with a handful of improvements. We now
+support non-file variants of ``tls_ca`` and ``credentials`` options.
+
+* Release `edgedb-python <https://github.com/edgedb/edgedb-python>`_
+  v0.20.1 driver. This version will now automatically retry on
+  ``TransactionConflictError``.
+* Release `edgedb-js <https://github.com/edgedb/edgedb-js>`_ v0.18.0 driver.
+* Release `edgedb-go <https://github.com/edgedb/edgedb-go>`_ v0.10.0 driver.
