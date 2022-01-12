@@ -553,7 +553,8 @@ async def run_server(
                 cluster.destroy()
 
             elif pg_cluster_started_by_us:
-                await cluster.stop()
+                if await cluster.get_status() == 'running':
+                    await cluster.stop()
 
 
 def bump_rlimit_nofile() -> None:

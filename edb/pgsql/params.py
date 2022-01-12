@@ -48,9 +48,20 @@ ALL_BACKEND_CAPABILITIES = (
 )
 
 
+class BackendVersion(NamedTuple):
+
+    major: int
+    minor: int
+    micro: int
+    releaselevel: str
+    serial: int
+    string: str
+
+
 class BackendInstanceParams(NamedTuple):
 
     capabilities: BackendCapabilities
+    version: BackendVersion
     tenant_id: str
     base_superuser: Optional[str] = None
     max_connections: int = 500
@@ -113,6 +124,19 @@ def get_default_runtime_params(
     if 'tenant_id' not in instance_params:
         instance_params = dict(
             tenant_id=buildmeta.get_default_tenant_id(),
+            **instance_params,
+        )
+    if 'version' not in instance_params:
+        parsed_ver, ver_string = buildmeta.get_pg_version()
+        instance_params = dict(
+            version=BackendVersion(
+                major=parsed_ver.major,
+                minor=parsed_ver.minor,
+                micro=parsed_ver.micro,
+                releaselevel=parsed_ver.releaselevel,
+                serial=parsed_ver.serial,
+                string=ver_string,
+            ),
             **instance_params,
         )
 

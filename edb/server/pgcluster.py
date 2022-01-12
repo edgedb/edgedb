@@ -1011,8 +1011,19 @@ async def get_remote_pg_cluster(
                     "The remote backend doesn't support CREATE DATABASE; "
                     "multi-tenancy is disabled."
                 )
+
+        parsed_ver = conn.get_server_version()
+        ver_string = conn.get_settings().server_version
         instance_params = pgparams.BackendInstanceParams(
             capabilities=capabilities,
+            version=pgparams.BackendVersion(
+                major=parsed_ver.major,
+                minor=parsed_ver.minor,
+                micro=parsed_ver.micro,
+                releaselevel=parsed_ver.releaselevel,
+                serial=parsed_ver.serial,
+                string=ver_string,
+            ),
             base_superuser=superuser_name,
             max_connections=int(max_connections),
             reserved_connections=await _get_reserved_connections(conn),

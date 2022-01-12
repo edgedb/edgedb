@@ -1482,9 +1482,21 @@ async def _bootstrap_edgedb_super_roles(ctx: BootstrapContext) -> uuid.UUID:
 async def _bootstrap(ctx: BootstrapContext) -> None:
     args = ctx.args
     cluster = ctx.cluster
+    backend_params = cluster.get_runtime_params()
+
+    if backend_params.instance_params.version < edbdef.MIN_POSTGRES_VERSION:
+        min_ver = '.'.join(str(v) for v in edbdef.MIN_POSTGRES_VERSION)
+        raise errors.ConfigurationError(
+            'unsupported backend',
+            details=(
+                f'EdgeDB requires PostgreSQL version {min_ver} or later, '
+                f'while the specified backend reports itself as '
+                f'{backend_params.instance_params.version.string}.'
+            )
+        )
 
     if args.backend_capability_sets.must_be_absent:
-        caps = cluster.get_runtime_params().instance_params.capabilities
+        caps = backend_params.instance_params.capabilities
         disabled = []
         for cap in args.backend_capability_sets.must_be_absent:
             if caps & cap:
@@ -1495,7 +1507,6 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
                         f"{', '.join(str(cap.name) for cap in disabled)}")
             cluster.overwrite_capabilities(caps)
     _check_capabilities(ctx)
-    backend_params = cluster.get_runtime_params()
 
     if backend_params.has_create_role:
         superuser_uid = await _bootstrap_edgedb_super_roles(ctx)
