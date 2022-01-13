@@ -20,6 +20,9 @@
 from __future__ import annotations
 from typing import *
 
+# DO NOT put any imports here other than from stdlib
+# or modules from edb.common that themselves have only stdlib imports.
+
 import base64
 import datetime
 import hashlib
@@ -35,8 +38,6 @@ import subprocess
 import sys
 import tempfile
 
-from asyncpg import serverversion
-
 from edb.common import debug
 from edb.common import devmode
 from edb.common import verutils
@@ -48,6 +49,15 @@ EDGEDB_CATALOG_VERSION = 2022_01_07_00_00
 
 class MetadataError(Exception):
     pass
+
+
+class BackendVersion(NamedTuple):
+    major: int
+    minor: int
+    micro: int
+    releaselevel: str
+    serial: int
+    string: str
 
 
 class VersionMetadata(TypedDict):
@@ -109,10 +119,12 @@ def get_pg_config_path() -> pathlib.Path:
 _bundled_pg_version = None
 
 
-def get_pg_version() -> Tuple[serverversion.ServerVersion, str]:
+def get_pg_version() -> BackendVersion:
     global _bundled_pg_version
     if _bundled_pg_version is not None:
         return _bundled_pg_version
+
+    from asyncpg import serverversion
 
     pg_config = subprocess.run(
         [get_pg_config_path()],
@@ -125,9 +137,14 @@ def get_pg_version() -> Tuple[serverversion.ServerVersion, str]:
         k, eq, v = line.partition('=')
         if eq and k.strip().lower() == 'version':
             v = v.strip()
-            _bundled_pg_version = (
-                serverversion.split_server_version_string(v),
-                v,
+            parsed_ver = serverversion.split_server_version_string(v)
+            _bundled_pg_version = BackendVersion(
+                major=parsed_ver.major,
+                minor=parsed_ver.minor,
+                micro=parsed_ver.micro,
+                releaselevel=parsed_ver.releaselevel,
+                serial=parsed_ver.serial,
+                string=v,
             )
             return _bundled_pg_version
     else:
