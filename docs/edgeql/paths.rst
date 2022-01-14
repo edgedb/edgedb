@@ -94,7 +94,7 @@ Consider the following addition to the schema:
 With the above schema, the path ``User.<author`` would return a mixed set of
 ``BlogPost`` and ``Comment`` objects. This may be desirable in some cases, but
 commonly you'll want to narrow the results to a particular type. To do so, use
-the :eql:op:`type intersection <ISINTERSECT>` operator: ``[is Foo]``:
+the :eql:op:`type intersection <isintersect>` operator: ``[is Foo]``:
 
 .. code-block:: edgeql
 

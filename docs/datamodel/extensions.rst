@@ -19,5 +19,5 @@ At the moment there are only two extensions available:
 
   * - **See also**
   * - :ref:`SDL > Extensions <ref_eql_sdl_extensions>`
-  * - :eql:stmt:`DDL > CREATE EXTENSION <CREATE EXTENSION>`
-  * - :eql:stmt:`DDL > DROP EXTENSION <DROP EXTENSION>`
+  * - :eql:stmt:`DDL > CREATE EXTENSION <create extension>`
+  * - :eql:stmt:`DDL > DROP EXTENSION <drop extension>`

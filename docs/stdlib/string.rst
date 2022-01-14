@@ -12,24 +12,24 @@ String
     * - :eql:type:`str`
       - String
 
-    * - :eql:op:`str[i] <STRIDX>`
-      - :eql:op-desc:`STRIDX`
+    * - :eql:op:`str[i] <stridx>`
+      - :eql:op-desc:`stridx`
 
-    * - :eql:op:`str[from:to] <STRSLICE>`
-      - :eql:op-desc:`STRSLICE`
+    * - :eql:op:`str[from:to] <strslice>`
+      - :eql:op-desc:`strslice`
 
-    * - :eql:op:`str ++ str <STRPLUS>`
-      - :eql:op-desc:`STRPLUS`
+    * - :eql:op:`str ++ str <strplus>`
+      - :eql:op-desc:`strplus`
 
-    * - :eql:op:`str LIKE pattern <LIKE>`
-      - :eql:op-desc:`LIKE`
+    * - :eql:op:`str like pattern <like>`
+      - :eql:op-desc:`like`
 
-    * - :eql:op:`str ILIKE pattern <ILIKE>`
-      - :eql:op-desc:`ILIKE`
+    * - :eql:op:`str ilike pattern <ilike>`
+      - :eql:op-desc:`ilike`
 
-    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    * - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+        :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+        :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
       - Comparison operators
 
     * - :eql:func:`to_str`
@@ -97,15 +97,15 @@ String
     A unicode string of text.
 
     Any other type (except :eql:type:`bytes`) can be
-    :eql:op:`cast <CAST>` to and from a string:
+    :eql:op:`cast <cast>` to and from a string:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <str>42;
+        db> select <str>42;
         {'42'}
-        db> SELECT <bool>'true';
+        db> select <bool>'true';
         {true}
-        db> SELECT "I ❤️ EdgeDB";
+        db> select "I ❤️ EdgeDB";
         {'I ❤️ EdgeDB'}
 
     Note that when a :eql:type:`str` is cast into a :eql:type:`json`,
@@ -115,7 +115,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <json>'Hello, world';
+        db> select <json>'Hello, world';
         {'"Hello, world"'}
 
     There are two kinds of string literals in EdgeQL: regular and *raw*.
@@ -127,11 +127,11 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT r'a raw \\\ string';
+        db> select r'a raw \\\ string';
         {'a raw \\\ string'}
-        db> SELECT $$something$$;
+        db> select $$something$$;
         {'something'}
-        db> SELECT $marker$something $$
+        db> select $marker$something $$
         ... nested \!$$$marker$;
         {'something $$
         nested \!$$'}
@@ -143,7 +143,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'Hello, \
+        db> select 'Hello, \
         ...         world';
         {'"Hello, world"'}
 
@@ -151,7 +151,7 @@ String
 ----------
 
 
-.. eql:operator:: STRIDX: str [ int64 ] -> str
+.. eql:operator:: stridx: str [ int64 ] -> str
 
     String indexing.
 
@@ -160,9 +160,9 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'some text'[1];
+        db> select 'some text'[1];
         {'o'}
-        db> SELECT 'some text'[-1];
+        db> select 'some text'[-1];
         {'t'}
 
     It is an error to attempt to extract a character at an index
@@ -170,14 +170,14 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'some text'[10];
+        db> select 'some text'[10];
         InvalidValueError: string index 10 is out of bounds
 
 
 ----------
 
 
-.. eql:operator:: STRSLICE: str [ int64 : int64 ] -> str
+.. eql:operator:: strslice: str [ int64 : int64 ] -> str
 
     String slicing.
 
@@ -186,13 +186,13 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'some text'[1:3];
+        db> select 'some text'[1:3];
         {'om'}
-        db> SELECT 'some text'[-4:];
+        db> select 'some text'[-4:];
         {'text'}
-        db> SELECT 'some text'[:-5];
+        db> select 'some text'[:-5];
         {'some'}
-        db> SELECT 'some text'[5:-2];
+        db> select 'some text'[5:-2];
         {'te'}
 
     It is perfectly acceptable to use indexes outside the bounds of a
@@ -200,36 +200,36 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'some text'[-4:100];
+        db> select 'some text'[-4:100];
         {'text'}
-        db> SELECT 'some text'[-100:-5];
+        db> select 'some text'[-100:-5];
         {'some'}
 
 
 ----------
 
 
-.. eql:operator:: STRPLUS: str ++ str -> str
+.. eql:operator:: strplus: str ++ str -> str
 
     String concatenation.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'some' ++ ' text';
+        db> select 'some' ++ ' text';
         {'some text'}
 
 
 ----------
 
 
-.. eql:operator:: LIKE: str LIKE str -> bool
-                        str NOT LIKE str -> bool
+.. eql:operator:: like: str like str -> bool
+                        str not like str -> bool
 
     Case-sensitive simple string matching.
 
     Returns ``true`` if the *value* ``V`` matches the *pattern* ``P``
-    and ``false`` otherwise.  The operator :eql:op:`NOT LIKE<LIKE>` is
-    the negation of :eql:op:`LIKE`.
+    and ``false`` otherwise.  The operator ``not like`` is
+    the negation of ``like``.
 
     The pattern matching rules are as follows:
 
@@ -251,39 +251,39 @@ String
           - matches itself
 
     In particular, this means that if there are no special symbols in
-    the *pattern*, the operators :eql:op:`LIKE` and :eql:op:`NOT
-    LIKE<LIKE>` work identical to :eql:op:`= <EQ>` and :eql:op:`\!= <NEQ>`,
+    the *pattern*, the operators ``like`` and ``not
+    like`` work identical to :eql:op:`= <eq>` and :eql:op:`\!= <neq>`,
     respectively.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'abc' LIKE 'abc';
+        db> select 'abc' like 'abc';
         {true}
-        db> SELECT 'abc' LIKE 'a%';
+        db> select 'abc' like 'a%';
         {true}
-        db> SELECT 'abc' LIKE '_b_';
+        db> select 'abc' like '_b_';
         {true}
-        db> SELECT 'abc' LIKE 'c';
+        db> select 'abc' like 'c';
         {false}
-        db> SELECT 'a%%c' NOT LIKE r'a\%c';
+        db> select 'a%%c' not like r'a\%c';
         {true}
 
 
 ----------
 
 
-.. eql:operator:: ILIKE: str ILIKE str -> bool
-                         str NOT ILIKE str -> bool
+.. eql:operator:: ilike: str ilike str -> bool
+                         str not ilike str -> bool
 
     Case-insensitive simple string matching.
 
-    The operators :eql:op:`ILIKE` and :eql:op:`NOT ILIKE<ILIKE>` work
-    the same way as :eql:op:`LIKE` and :eql:op:`NOT LIKE<LIKE>`,
+    The operators ``ilike`` and ``not ilike`` work
+    the same way as :eql:op:`like` and :eql:op:`not like<like>`,
     except that the *pattern* is matched in a case-insensitive manner.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'Abc' ILIKE 'a%';
+        db> select 'Abc' ilike 'a%';
         {true}
 
 
@@ -296,7 +296,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_lower('Some Fancy Title');
+        db> select str_lower('Some Fancy Title');
         {'some fancy title'}
 
 
@@ -309,7 +309,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_upper('Some Fancy Title');
+        db> select str_upper('Some Fancy Title');
         {'SOME FANCY TITLE'}
 
 
@@ -325,7 +325,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_title('sOmE fAnCy TiTlE');
+        db> select str_title('sOmE fAnCy TiTlE');
         {'Some Fancy Title'}
 
 
@@ -344,11 +344,11 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_pad_start('short', 10);
+        db> select str_pad_start('short', 10);
         {'     short'}
-        db> SELECT str_pad_start('much too long', 10);
+        db> select str_pad_start('much too long', 10);
         {'much too l'}
-        db> SELECT str_pad_start('short', 10, '.:');
+        db> select str_pad_start('short', 10, '.:');
         {'.:.:.short'}
 
 
@@ -367,11 +367,11 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_pad_end('short', 10);
+        db> select str_pad_end('short', 10);
         {'short     '}
-        db> SELECT str_pad_end('much too long', 10);
+        db> select str_pad_end('much too long', 10);
         {'much too l'}
-        db> SELECT str_pad_end('short', 10, '.:');
+        db> select str_pad_end('short', 10, '.:');
         {'short.:.:.'}
 
 
@@ -388,15 +388,15 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_trim_start('     data');
+        db> select str_trim_start('     data');
         {'data'}
-        db> SELECT str_trim_start('.....data', '.:');
+        db> select str_trim_start('.....data', '.:');
         {'data'}
-        db> SELECT str_trim_start(':::::data', '.:');
+        db> select str_trim_start(':::::data', '.:');
         {'data'}
-        db> SELECT str_trim_start(':...:data', '.:');
+        db> select str_trim_start(':...:data', '.:');
         {'data'}
-        db> SELECT str_trim_start('.:.:.data', '.:');
+        db> select str_trim_start('.:.:.data', '.:');
         {'data'}
 
 
@@ -413,15 +413,15 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_trim_end('data     ');
+        db> select str_trim_end('data     ');
         {'data'}
-        db> SELECT str_trim_end('data.....', '.:');
+        db> select str_trim_end('data.....', '.:');
         {'data'}
-        db> SELECT str_trim_end('data:::::', '.:');
+        db> select str_trim_end('data:::::', '.:');
         {'data'}
-        db> SELECT str_trim_end('data:...:', '.:');
+        db> select str_trim_end('data:...:', '.:');
         {'data'}
-        db> SELECT str_trim_end('data.:.:.', '.:');
+        db> select str_trim_end('data.:.:.', '.:');
         {'data'}
 
 
@@ -439,15 +439,15 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_trim('  data     ');
+        db> select str_trim('  data     ');
         {'data'}
-        db> SELECT str_trim('::data.....', '.:');
+        db> select str_trim('::data.....', '.:');
         {'data'}
-        db> SELECT str_trim('..data:::::', '.:');
+        db> select str_trim('..data:::::', '.:');
         {'data'}
-        db> SELECT str_trim('.:data:...:', '.:');
+        db> select str_trim('.:data:...:', '.:');
         {'data'}
-        db> SELECT str_trim(':.:.data.:.', '.:');
+        db> select str_trim(':.:.data.:.', '.:');
         {'data'}
 
 
@@ -462,9 +462,9 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_repeat('.', 3);
+        db> select str_repeat('.', 3);
         {'...'}
-        db> SELECT str_repeat('foo', -1);
+        db> select str_repeat('foo', -1);
         {''}
 
 
@@ -480,12 +480,12 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_split('1, 2, 3', ', ');
+        db> select str_split('1, 2, 3', ', ');
         {['1', '2', '3']}
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_split('123', '');
+        db> select str_split('123', '');
         {['1', '2', '3']}
 
 
@@ -506,7 +506,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT re_match(r'\w{4}ql', 'I ❤️ edgeql');
+        db> select re_match(r'\w{4}ql', 'I ❤️ edgeql');
         {['edgeql']}
 
 
@@ -514,7 +514,7 @@ String
 
 
 .. eql:function:: std::re_match_all(pattern: str, \
-                                    string: str) -> SET OF array<str>
+                                    string: str) -> set of array<str>
 
     :index: regex regexp regular
 
@@ -527,7 +527,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT re_match_all(r'a\w+', 'an abstract concept');
+        db> select re_match_all(r'a\w+', 'an abstract concept');
         {['an'], ['abstract']}
 
 
@@ -536,7 +536,7 @@ String
 
 .. eql:function:: std::re_replace(pattern: str, sub: str, \
                                   string: str, \
-                                  NAMED ONLY flags: str='') \
+                                  named only flags: str='') \
                   -> str
 
     :index: regex regexp regular replace
@@ -551,7 +551,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT re_replace(r'l', r'L', 'Hello World',
+        db> select re_replace(r'l', r'L', 'Hello World',
         ...                   flags := 'g');
         {'HeLLo WorLd'}
 
@@ -572,26 +572,26 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT re_test(r'a', 'abc');
+        db> select re_test(r'a', 'abc');
         {true}
 
 
 ------------
 
 
-.. eql:function:: std::to_str(val: datetime, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: duration, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: int64, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: float64, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: bigint, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: decimal, fmt: OPTIONAL str={}) -> str
-                  std::to_str(val: json, fmt: OPTIONAL str={}) -> str
+.. eql:function:: std::to_str(val: datetime, fmt: optional str={}) -> str
+                  std::to_str(val: duration, fmt: optional str={}) -> str
+                  std::to_str(val: int64, fmt: optional str={}) -> str
+                  std::to_str(val: float64, fmt: optional str={}) -> str
+                  std::to_str(val: bigint, fmt: optional str={}) -> str
+                  std::to_str(val: decimal, fmt: optional str={}) -> str
+                  std::to_str(val: json, fmt: optional str={}) -> str
                   std::to_str(val: cal::local_datetime, \
-                              fmt: OPTIONAL str={}) -> str
+                              fmt: optional str={}) -> str
                   std::to_str(val: cal::local_date, \
-                              fmt: OPTIONAL str={}) -> str
+                              fmt: optional str={}) -> str
                   std::to_str(val: cal::local_time, \
-                              fmt: OPTIONAL str={}) -> str
+                              fmt: optional str={}) -> str
 
     :index: stringify dumps join array_to_string
 
@@ -614,10 +614,10 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_str(<datetime>'2018-05-07 15:01:22.306916-05',
+        db> select to_str(<datetime>'2018-05-07 15:01:22.306916-05',
         ...               'FMDDth of FMMonth, YYYY');
         {'7th of May, 2018'}
-        db> SELECT to_str(<cal::local_date>'2018-05-07', 'CCth "century"');
+        db> select to_str(<cal::local_date>'2018-05-07', 'CCth "century"');
         {'21st century'}
 
     When converting one of the numeric types, this function is the
@@ -632,15 +632,15 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_str(123, '999999');
+        db> select to_str(123, '999999');
         {'    123'}
-        db> SELECT to_str(123, '099999');
+        db> select to_str(123, '099999');
         {' 000123'}
-        db> SELECT to_str(123.45, 'S999.999');
+        db> select to_str(123.45, 'S999.999');
         {'+123.450'}
-        db> SELECT to_str(123.45e-20, '9.99EEEE');
+        db> select to_str(123.45e-20, '9.99EEEE');
         {' 1.23e-18'}
-        db> SELECT to_str(-123.45n, 'S999.99');
+        db> select to_str(-123.45n, 'S999.99');
         {'-123.45'}
 
     When converting :eql:type:`json`, this function can take
@@ -651,13 +651,13 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_str(<json>2);
+        db> select to_str(<json>2);
         {'2'}
 
-        db> SELECT to_str(<json>['hello', 'world']);
+        db> select to_str(<json>['hello', 'world']);
         {'["hello", "world"]'}
 
-        db> SELECT to_str(<json>(a := 2, b := 'hello'), 'pretty');
+        db> select to_str(<json>(a := 2, b := 'hello'), 'pretty');
         {'{
             "a": 2,
             "b": "hello"
@@ -668,7 +668,7 @@ String
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_str(['one', 'two', 'three'], ', ');
+        db> select to_str(['one', 'two', 'three'], ', ');
         {'one, two, three'}
 
     .. warning::
@@ -747,7 +747,7 @@ Formatting
     POSSIBILITY OF SUCH DAMAGE.
 
     THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
-    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+    INCLUDING, BUT not LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
     AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
     ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
     PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
@@ -934,10 +934,10 @@ the *FX* prefix modifier is used. For example:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT cal::to_local_date(
+    db> select cal::to_local_date(
     ...     '2000    JUN', 'YYYY MON');
     {<cal::local_date>'2000-06-01'}
-    db> SELECT cal::to_local_date(
+    db> select cal::to_local_date(
     ...     '2000    JUN', 'FXYYYY MON');
     InternalServerError: invalid value "   " for "MON"
 

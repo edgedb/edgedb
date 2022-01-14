@@ -128,7 +128,7 @@ since only ``Dog`` objects occur in both sets, this can be conceptualized as a
 .. -----------
 
 .. You can create a type union with the pipe operator: :eql:op:`type | type
-.. <TYPEOR>`. This is mostly commonly used for object types.
+.. <typeor>`. This is mostly commonly used for object types.
 
 .. .. code-block:: edgeql-repl
 
@@ -142,7 +142,7 @@ Type checking
 -------------
 
 The ``[is foo]`` "type intersection" syntax should not be confused with the
-*type checking* operator :eql:op:`is <IS>`.
+*type checking* operator :eql:op:`is`.
 
 .. code-block:: edgeql-repl
 
@@ -158,7 +158,7 @@ The ``[is foo]`` "type intersection" syntax should not be confused with the
 The ``typeof`` operator
 -----------------------
 
-The type of any expression can be extracted with the :eql:op:`typeof <TYPEOF>`
+The type of any expression can be extracted with the :eql:op:`typeof`
 operator. This can be used in any expression that expects a type.
 
 .. code-block:: edgeql-repl

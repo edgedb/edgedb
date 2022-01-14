@@ -9,11 +9,11 @@ Define a function for counting reviews given a user name:
 
     CREATE FUNCTION review_count(name: str) -> int64
     USING EdgeQL $$
-        WITH MODULE default
-        SELECT count(
+        with module default
+        select count(
             (
-                SELECT Review
-                FILTER .author.name = name
+                select Review
+                filter .author.name = name
             )
         )
     $$
@@ -37,14 +37,14 @@ Define and use polymorphic function:
 .. code-block:: edgeql-repl
 
     db> CREATE FUNCTION make_name(name: str) -> str
-    ... USING EdgeQL $$ SELECT 'my_name_' ++ name $$;
+    ... USING EdgeQL $$ select 'my_name_' ++ name $$;
     CREATE
     db> CREATE FUNCTION make_name(name: int64) -> str
-    ... USING EdgeQL $$ SELECT 'my_name_' ++ <str>name $$;
+    ... USING EdgeQL $$ select 'my_name_' ++ <str>name $$;
     CREATE
-    q> SELECT make_name('Alice');
+    q> select make_name('Alice');
     {'my_name_Alice'}
-    q> SELECT make_name(42);
+    q> select make_name(42);
     {'my_name_42'}
 
 .. list-table::

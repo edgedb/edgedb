@@ -24,19 +24,19 @@
 
 .. _ref_eql_statements_rollback_savepoint:
 
-ROLLBACK TO SAVEPOINT
+Rollback to savepoint
 =====================
 
 :eql-statement:
 
 
-``ROLLBACK TO SAVEPOINT`` -- rollback to a savepoint within the current
+``rollback to savepoint`` -- rollback to a savepoint within the current
 transaction
 
 
 .. eql:synopsis::
 
-    ROLLBACK TO SAVEPOINT <savepoint-name> ;
+    rollback to savepoint <savepoint-name> ;
 
 
 Description
@@ -46,7 +46,7 @@ Rollback all commands that were executed after the savepoint
 was established. The savepoint remains valid and can be rolled back
 to again later, if needed.
 
-``ROLLBACK TO SAVEPOINT`` implicitly destroys all savepoints that
+``rollback to savepoint`` implicitly destroys all savepoints that
 were established after the named savepoint.
 
 
@@ -55,26 +55,26 @@ Example
 
 .. code-block:: edgeql
 
-    START TRANSACTION;
+    start transaction;
     # ...
-    DECLARE SAVEPOINT f1;
+    declare savepoint f1;
     # ...
-    ROLLBACK TO SAVEPOINT f1;
+    rollback to savepoint f1;
     # ...
-    ROLLBACK;
+    rollback;
 
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`Reference > EdgeQL > START TRANSACTION
+  * - :ref:`Reference > EdgeQL > Start transaction
       <ref_eql_statements_start_tx>`
-  * - :ref:`Reference > EdgeQL > COMMIT
+  * - :ref:`Reference > EdgeQL > Commit
       <ref_eql_statements_commit_tx>`
-  * - :ref:`Reference > EdgeQL > ROLLBACK
-      <ref_eql_statements_rollback_tx>`,
-  * - :ref:`Reference > EdgeQL > DECLARE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Rollabck
+      <ref_eql_statements_rollback_tx>`
+  * - :ref:`Reference > EdgeQL > Declare savepoint
       <ref_eql_statements_declare_savepoint>`
-  * - :ref:`Reference > EdgeQL > RELEASE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Release savepoint
       <ref_eql_statements_release_savepoint>`

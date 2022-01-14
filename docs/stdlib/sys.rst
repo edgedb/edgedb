@@ -41,7 +41,7 @@ System
 
     .. code-block:: edgeql-repl
 
-        db> SELECT sys::get_version();
+        db> select sys::get_version();
         {(major := 1, minor := 0, stage := <sys::VersionStage>'alpha',
           stage_no := 1, local := [])}
 
@@ -55,7 +55,7 @@ System
 
     .. code-block:: edgeql-repl
 
-        db> SELECT sys::get_version_as_str();
+        db> select sys::get_version_as_str();
         {'1.0-alpha.1'}
 
 
@@ -72,7 +72,7 @@ System
 
     .. code-block:: edgeql-repl
 
-        db> SELECT sys::get_transaction_isolation();
+        db> select sys::get_transaction_isolation();
         {sys::TransactionIsolation.RepeatableRead}
 
 
@@ -85,7 +85,7 @@ System
 
     .. code-block:: edgeql-repl
 
-        db> SELECT sys::get_current_database();
+        db> select sys::get_current_database();
         {'my_database'}
 
 

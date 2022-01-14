@@ -31,7 +31,7 @@ For example, the following computes the length of a string ``'foo'``:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT len('foo');
+    db> select len('foo');
     {3}
 
 And here's an example of using a *named only* argument to provide a
@@ -39,7 +39,7 @@ default value:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT array_get(['hello', 'world'], 10, default := 'n/a');
+    db> select array_get(['hello', 'world'], 10, default := 'n/a');
     {'n/a'}
 
 

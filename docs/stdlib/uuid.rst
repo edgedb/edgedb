@@ -10,9 +10,9 @@ UUID
     * - :eql:type:`uuid`
       - UUID type
 
-    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    * - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+        :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+        :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
       - Comparison operators
 
     * - :eql:func:`uuid_generate_v1mc`
@@ -44,5 +44,5 @@ UUID
 
     .. code-block:: edgeql-repl
 
-        db> SELECT uuid_generate_v1mc();
+        db> select uuid_generate_v1mc();
         {'1893e2b6-57ce-11e8-8005-13d4be166783'}

@@ -603,9 +603,9 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
         Test
         ====
 
-        A ref to :eql:stmt:`CREATE FUNCTION`
+        A ref to :eql:stmt:`create function`
 
-        A ref to :eql:stmt:`ttt <CREATE TYPE>`
+        A ref to :eql:stmt:`ttt <create type>`
         '''
 
         out = self.build(src, format='xml')
@@ -615,16 +615,16 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
             x.xpath('''
                 //paragraph /
                 reference[@eql-type="statement" and
-                          @refid="statement::CREATE-FUNCTION"] /
+                          @refid="statement::create-function"] /
                 literal / text()
             '''),
-            ['CREATE FUNCTION'])
+            ['create function'])
 
         self.assertEqual(
             x.xpath('''
                 //paragraph /
                 reference[@eql-type="statement" and
-                          @refid="statement::CREATE-TYPE"] /
+                          @refid="statement::create-type"] /
                 literal / text()
             '''),
             ['ttt'])
@@ -633,8 +633,8 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
             x.xpath('''
                 //section[@eql-statement="true"]/@ids
             '''),
-            ['create-function statement::CREATE-FUNCTION',
-             'create-type statement::CREATE-TYPE'])
+            ['create-function statement::create-function',
+             'create-type statement::create-type'])
 
         self.assertEqual(
             x.xpath('''
@@ -656,23 +656,6 @@ class TestEqlStatement(unittest.TestCase, BaseDomainTest):
 
         with self.assert_fails(
                 'first paragraph is longer than 79 characters'):
-            self.build(src)
-
-    def test_sphinx_eql_stmt_07(self):
-        src = '''
-
-        AA aa
-        =====
-
-        :eql-statement:
-
-        aa aaaaaa aaaaa aaaa aa.
-
-        aa aaaaaa aaaaa aaaa aa aaaaaa aaaaa aaaa.
-        '''
-
-        with self.assert_fails(
-                'but does not satisfy pattern for valid'):
             self.build(src)
 
     def test_sphinx_eql_stmt_08(self):

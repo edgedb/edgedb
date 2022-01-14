@@ -17,8 +17,8 @@ EdgeQL
 
   .. code-block:: edgeql
 
-    CREATE SCALAR TYPE schema::TypeModifier
-        EXTENDING enum<SetOfType, OptionalType, SingletonType>;
+    create scalar type schema::TypeModifier
+        extending enum<SetOfType, OptionalType, SingletonType>;
 
 * Rename built-in schema enums to use CamelCase names (:eql:gh:`#1843`).
 * Rename string handling functions to use ``start`` and ``end`` in
@@ -29,21 +29,19 @@ EdgeQL
   - Deprecate :eql:func:`str_ltrim` in favor of :eql:func:`str_trim_start`
   - Deprecate :eql:func:`str_rtrim` in favor of :eql:func:`str_trim_end`
 
-* Improve :ref:`UPDATE <ref_eql_statements_update>` functionality (
-  :eql:gh:`#1746`).
+* Improve :eql:stmt:`update` functionality (:eql:gh:`#1746`).
 * Forbid usage of DML in some special cases (:eql:gh:`#1726`).
 * Add tracking of DML inside function bodies (:eql:gh:`#1741`).
 * Allow functions with non-statement bodies (:eql:gh:`#1723`).
-* Allow the usage of :eql:op:`EXISTS` in constraints (:eql:gh:`#1750`).
+* Allow the usage of :eql:op:`exists` in constraints (:eql:gh:`#1750`).
 * Allow partial paths in object constraints (:eql:gh:`#1704`)
 * Allow trailing commas in collection types (:eql:gh:`#1749`).
-* Fix :eql:stmt:`INSERT ... UNLESS CONFLICT ... ELSE <INSERT>` when
+* Fix :eql:stmt:`insert ... unless conflict ... else <insert>` when
   combined with shape (:eql:gh:`#1743`).
-* Fix how :ref:`FOR <ref_eql_statements_for>` statement correlates
-  values (:eql:gh:`#1776`).
+* Fix how :eql:stmt:`for` statement correlates values (:eql:gh:`#1776`).
 * Fix handling of collections of newly created types in SDL (:eql:gh:`#1730`).
 * Fix handling of function definitions in SDL (:eql:gh:`#1649`).
-* Fix interactions of ``SET OF`` and ``OPTIONAL`` arguments (:eql:gh:`#1640`).
+* Fix interactions of ``set of`` and ``optional`` arguments (:eql:gh:`#1640`).
 * Implementation of more of the features of the new migration syntax
   (`RFC 1000 <migrations_>`_).
 

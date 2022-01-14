@@ -1,7 +1,7 @@
 .. _ref_admin_roles:
 
 ====
-ROLE
+Role
 ====
 
 :edb-alt-title: Roles
@@ -10,7 +10,7 @@ ROLE
 This section describes the administrative commands pertaining to *roles*.
 
 
-CREATE ROLE
+Create role
 ===========
 
 :eql-statement:
@@ -19,35 +19,35 @@ Create a role.
 
 .. eql:synopsis::
 
-    CREATE SUPERUSER ROLE <name> [ EXTENDING <base> [, ...] ]
+    create superuser role <name> [ extending <base> [, ...] ]
     "{" <subcommand>; [...] "}" ;
 
     # where <subcommand> is one of
 
-      SET password := <password>
+      set password := <password>
 
 
 Description
 -----------
 
-``CREATE ROLE`` defines a new database role.
+The command ``create role`` defines a new database role.
 
-:eql:synopsis:`SUPERUSER`
+:eql:synopsis:`superuser`
     If specified, the created role will have the *superuser* status, and
     will be exempt from all permission checks.  Currently,
-    the ``SUPERUSER`` qualifier is mandatory, i.e. it is not possible to
+    the ``superuser`` qualifier is mandatory, i.e. it is not possible to
     create non-superuser roles for now.
 
 :eql:synopsis:`<name>`
     The name of the role to create.
 
-:eql:synopsis:`EXTENDING <base> [, ...]`
+:eql:synopsis:`extending <base> [, ...]`
     If specified, declares the parent roles for this role. The role
     inherits all the privileges of the parents.
 
-The following subcommands are allowed in the ``CREATE ROLE`` block:
+The following subcommands are allowed in the ``create role`` block:
 
-:eql:synopsis:`SET password := <password>`
+:eql:synopsis:`set password := <password>`
     Set the password for the role.
 
 
@@ -58,12 +58,12 @@ Create a new role:
 
 .. code-block:: edgeql
 
-    CREATE ROLE alice {
-        SET password := 'wonderland';
+    create role alice {
+        set password := 'wonderland';
     };
 
 
-ALTER ROLE
+Alter role
 ==========
 
 :eql-statement:
@@ -72,36 +72,36 @@ Alter an existing role.
 
 .. eql:synopsis::
 
-    ALTER ROLE <name> "{" <subcommand>; [...] "}" ;
+    alter role <name> "{" <subcommand>; [...] "}" ;
 
     # where <subcommand> is one of
 
-      RENAME TO <newname>
-      SET password := <password>
-      EXTENDING ...
+      rename to <newname>
+      set password := <password>
+      extending ...
 
 
 Description
 -----------
 
-``ALTER ROLE`` changes the settings of an existing role.
+The command ``alter role`` changes the settings of an existing role.
 
 
 :eql:synopsis:`<name>`
     The name of the role to alter.
 
-The following subcommands are allowed in the ``ALTER ROLE`` block:
+The following subcommands are allowed in the ``alter role`` block:
 
-:eql:synopsis:`RENAME TO <newname>`
+:eql:synopsis:`rename to <newname>`
     Change the name of the role to *newname*.
 
-:eql:synopsis:`EXTENDING ...`
+:eql:synopsis:`extending ...`
     Alter the role parent list.  The full syntax of this subcommand is:
 
     .. eql:synopsis::
 
-         EXTENDING <name> [, ...]
-            [ FIRST | LAST | BEFORE <parent> | AFTER <parent> ]
+         extending <name> [, ...]
+            [ first | last | before <parent> | after <parent> ]
 
     This subcommand makes the role a child of the specified list of
     parent roles. The role inherits all the privileges of the parents.
@@ -109,12 +109,12 @@ The following subcommands are allowed in the ``ALTER ROLE`` block:
     It is possible to specify the position in the parent list
     using the following optional keywords:
 
-    * ``FIRST`` -- insert parent(s) at the beginning of the
+    * ``first`` -- insert parent(s) at the beginning of the
       parent list,
-    * ``LAST`` -- insert parent(s) at the end of the parent list,
-    * ``BEFORE <parent>`` -- insert parent(s) before an
+    * ``last`` -- insert parent(s) at the end of the parent list,
+    * ``before <parent>`` -- insert parent(s) before an
       existing *parent*,
-    * ``AFTER <parent>`` -- insert parent(s) after an existing
+    * ``after <parent>`` -- insert parent(s) after an existing
       *parent*.
 
 
@@ -125,12 +125,12 @@ Alter a role:
 
 .. code-block:: edgeql
 
-    ALTER ROLE alice {
-        SET password := 'new password';
+    alter role alice {
+        set password := 'new password';
     };
 
 
-DROP ROLE
+Drop role
 =========
 
 :eql-statement:
@@ -139,12 +139,12 @@ Remove a role.
 
 .. eql:synopsis::
 
-    DROP ROLE <name> ;
+    drop role <name> ;
 
 Description
 -----------
 
-``DROP ROLE`` removes an existing role.
+The command ``drop role`` removes an existing role.
 
 Examples
 --------
@@ -153,4 +153,4 @@ Remove a role:
 
 .. code-block:: edgeql
 
-    DROP ROLE alice;
+    drop role alice;

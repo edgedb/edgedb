@@ -55,7 +55,7 @@ like code and less like word soup.
 .. <https://www.postgresql.org/docs/current/sql-keywords-appendix.html>`_.
 
 .. **Compiles to SQL**. All EdgeQL queries, no matter how complex, compile to a
-.. single PostgreSQL query under the hood. With the exception of ``GROUP BY``,
+.. single PostgreSQL query under the hood. With the exception of ``group by``,
 .. EdgeQL is equivalent to SQL in terms of power and expressivity.
 
 **Easy deep querying**. EdgeDB's object-relational nature makes it painless

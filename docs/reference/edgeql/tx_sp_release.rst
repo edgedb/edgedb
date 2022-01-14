@@ -24,32 +24,31 @@
 
 .. _ref_eql_statements_release_savepoint:
 
-RELEASE SAVEPOINT
+Release savepoint
 =================
 
 :eql-statement:
 
 
-``RELEASE SAVEPOINT`` -- release a previously declared savepoint
+``release savepoint`` -- release a previously declared savepoint
 
 .. eql:synopsis::
 
-    RELEASE SAVEPOINT <savepoint-name> ;
+    release savepoint <savepoint-name> ;
 
 
 Description
 -----------
 
-``RELEASE SAVEPOINT`` destroys a savepoint previously defined in the
+``release savepoint`` destroys a savepoint previously defined in the
 current transaction.
 
 Destroying a savepoint makes it unavailable as a rollback point,
 but it has no other user visible behavior. It does not undo the effects
 of commands executed after the savepoint was established.
-(To do that, see
-:ref:`ROLLBACK TO SAVEPOINT <ref_eql_statements_rollback_savepoint>`.)
+(To do that, see :eql:stmt:`rollback to savepoint`.)
 
-``RELEASE SAVEPOINT`` also destroys all savepoints that were
+``release savepoint`` also destroys all savepoints that were
 established after the named savepoint was established.
 
 
@@ -58,25 +57,25 @@ Example
 
 .. code-block:: edgeql
 
-    START TRANSACTION;
+    start transaction;
     # ...
-    DECLARE SAVEPOINT f1;
+    declare savepoint f1;
     # ...
-    RELEASE SAVEPOINT f1;
+    release savepoint f1;
     # ...
-    ROLLBACK;
+    rollback;
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`Reference > EdgeQL > START TRANSACTION
+  * - :ref:`Reference > EdgeQL > Start transaction
       <ref_eql_statements_start_tx>`
-  * - :ref:`Reference > EdgeQL > COMMIT
+  * - :ref:`Reference > EdgeQL > Commit
       <ref_eql_statements_commit_tx>`
-  * - :ref:`Reference > EdgeQL > ROLLBACK
-      <ref_eql_statements_rollback_tx>`,
-  * - :ref:`Reference > EdgeQL > DECLARE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Rollabck
+      <ref_eql_statements_rollback_tx>`
+  * - :ref:`Reference > EdgeQL > Declare savepoint
       <ref_eql_statements_declare_savepoint>`
-  * - :ref:`Reference > EdgeQL > ROLLBACK TO SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Rollback to savepoint
       <ref_eql_statements_rollback_savepoint>`

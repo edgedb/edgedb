@@ -21,9 +21,9 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT math::abs(1);
+        db> select math::abs(1);
         {1}
-        db> SELECT math::abs(-1);
+        db> select math::abs(-1);
         {1}
 
 
@@ -41,9 +41,9 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT math::ceil(1.1);
+        db> select math::ceil(1.1);
         {2}
-        db> SELECT math::ceil(-1.1);
+        db> select math::ceil(-1.1);
         {-1}
 
 
@@ -61,9 +61,9 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT math::floor(1.1);
+        db> select math::floor(1.1);
         {1}
-        db> SELECT math::floor(-1.1);
+        db> select math::floor(-1.1);
         {-2}
 
 
@@ -80,7 +80,7 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 2.718281829 ^ math::ln(100);
+        db> select 2.718281829 ^ math::ln(100);
         {100.00000009164575}
 
 
@@ -97,13 +97,13 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 10 ^ math::lg(42);
+        db> select 10 ^ math::lg(42);
         {42.00000000000001}
 
 ----------
 
 
-.. eql:function:: math::log(x: decimal, NAMED ONLY base: decimal) -> decimal
+.. eql:function:: math::log(x: decimal, named only base: decimal) -> decimal
 
     :index: logarithm
 
@@ -111,16 +111,16 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 3 ^ math::log(15n, base := 3n);
+        db> select 3 ^ math::log(15n, base := 3n);
         {15.0000000000000005n}
 
 
 ----------
 
 
-.. eql:function:: math::mean(vals: SET OF int64) -> float64
-                  math::mean(vals: SET OF float64) -> float64
-                  math::mean(vals: SET OF decimal) -> decimal
+.. eql:function:: math::mean(vals: set of int64) -> float64
+                  math::mean(vals: set of float64) -> float64
+                  math::mean(vals: set of decimal) -> decimal
 
     :index: average avg
 
@@ -128,16 +128,16 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT math::mean({1, 3, 5});
+        db> select math::mean({1, 3, 5});
         {3}
 
 
 ----------
 
 
-.. eql:function:: math::stddev(vals: SET OF int64) -> float64
-                  math::stddev(vals: SET OF float64) -> float64
-                  math::stddev(vals: SET OF decimal) -> decimal
+.. eql:function:: math::stddev(vals: set of int64) -> float64
+                  math::stddev(vals: set of float64) -> float64
+                  math::stddev(vals: set of decimal) -> decimal
 
     :index: average
 
@@ -145,12 +145,12 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT math::stddev({1, 3, 5});
+        db> select math::stddev({1, 3, 5});
         {2}
 
-.. eql:function:: math::stddev_pop(vals: SET OF int64) -> float64
-                  math::stddev_pop(vals: SET OF float64) -> float64
-                  math::stddev_pop(vals: SET OF decimal) -> decimal
+.. eql:function:: math::stddev_pop(vals: set of int64) -> float64
+                  math::stddev_pop(vals: set of float64) -> float64
+                  math::stddev_pop(vals: set of decimal) -> decimal
 
     :index: average
 
@@ -158,16 +158,16 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT math::stddev_pop({1, 3, 5});
+        db> select math::stddev_pop({1, 3, 5});
         {1.63299316185545}
 
 
 ----------
 
 
-.. eql:function:: math::var(vals: SET OF int64) -> float64
-                  math::var(vals: SET OF float64) -> float64
-                  math::var(vals: SET OF decimal) -> decimal
+.. eql:function:: math::var(vals: set of int64) -> float64
+                  math::var(vals: set of float64) -> float64
+                  math::var(vals: set of decimal) -> decimal
 
     :index: average
 
@@ -175,16 +175,16 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT math::var({1, 3, 5});
+        db> select math::var({1, 3, 5});
         {4}
 
 
 ----------
 
 
-.. eql:function:: math::var_pop(vals: SET OF int64) -> float64
-                  math::var_pop(vals: SET OF float64) -> float64
-                  math::var_pop(vals: SET OF decimal) -> decimal
+.. eql:function:: math::var_pop(vals: set of int64) -> float64
+                  math::var_pop(vals: set of float64) -> float64
+                  math::var_pop(vals: set of decimal) -> decimal
 
     :index: average
 
@@ -192,5 +192,5 @@ Math
 
     .. code-block:: edgeql-repl
 
-        db> SELECT math::var_pop({1, 3, 5});
+        db> select math::var_pop({1, 3, 5});
         {2.66666666666667}

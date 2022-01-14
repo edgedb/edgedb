@@ -17,7 +17,7 @@ Description
 ===========
 
 ``edgedb describe schema`` is a terminal command equivalent to
-:eql:stmt:`DESCRIBE SCHEMA AS SDL <DESCRIBE>` introspection command.
+:eql:stmt:`describe schema as sdl <describe>` introspection command.
 
 
 Options

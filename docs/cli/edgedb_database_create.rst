@@ -16,7 +16,7 @@ Description
 ===========
 
 ``edgedb database create`` is a terminal command equivalent to
-:eql:stmt:`CREATE DATABASE`.
+:eql:stmt:`create database`.
 
 
 Options

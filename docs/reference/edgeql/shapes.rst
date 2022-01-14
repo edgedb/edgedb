@@ -5,7 +5,7 @@ Shapes
 ======
 
 A *shape* is a powerful syntactic construct that can be used to describe
-type variants in queries, data in ``INSERT`` and ``UPDATE`` statements,
+type variants in queries, data in ``insert`` and ``update`` statements,
 and to specify the format of statement output.
 
 Shapes always follow an expression, and are a list of *shape elements*
@@ -22,7 +22,7 @@ Shape element has the following syntax:
 
 .. eql:synopsis::
 
-    [ "[" IS <object-type> "]" ] <pointer-spec>
+    [ "[" is <object-type> "]" ] <pointer-spec>
 
 If an optional :eql:synopsis:`<object-type>` filter is used,
 :eql:synopsis:`<pointer-spec>` will only apply to those objects in
@@ -45,7 +45,7 @@ the :eql:synopsis:`<expr>` set that are instances of
 
   .. eql:synopsis ::
 
-    <pointer-name>: [ "[" IS <target-type> "]" ] "{" ... "}"`
+    <pointer-name>: [ "[" is <target-type> "]" ] "{" ... "}"`
 
   The :eql:synopsis:`<pointer-name>` is the name of an existing link
   or property, and :eql:synopsis:`<target-type>` is an optional object
@@ -76,7 +76,7 @@ reasonable solution to this might be:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT (User.name, User.friends.name ?? '');
+    db> select (User.name, User.friends.name ?? '');
     {
       ('Alice', 'Cameron'),
       ('Alice', 'Dana'),
@@ -97,7 +97,7 @@ aggregating all the friend names into an array:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT (User.name, array_agg(User.friends.name));
+    db> select (User.name, array_agg(User.friends.name));
     {
       ('Alice', ['Cameron', 'Dana']),
       ('Billie', ['Dana']),
@@ -115,7 +115,7 @@ use *shapes*, because they mimic the structure of the data and the output:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT User {
+    db> select User {
     ...     name,
     ...     friends: {
     ...         name
@@ -148,12 +148,12 @@ letter "i" or "o" in their names:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT User {
+    db> select User {
     ...     name,
     ...     friends: {
     ...         name
     ...     }
-    ... } FILTER .friends.name ILIKE '%i%' OR .friends.name ILIKE '%o%';
+    ... } filter .friends.name ilike '%i%' or .friends.name ilike '%o%';
     {
       default::User {
         name: 'Alice',
@@ -172,19 +172,19 @@ letter "i" or "o" in their names:
       },
     }
 
-That ``FILTER`` is getting a bit bulky, so perhaps we can just factor
+That ``filter`` is getting a bit bulky, so perhaps we can just factor
 these flags out as part of the shape's computed properties:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT User {
+    db> select User {
     ...     name,
     ...     friends: {
     ...         name
     ...     },
-    ...     has_i := .friends.name ILIKE '%i%',
-    ...     has_o := .friends.name ILIKE '%o%',
-    ... } FILTER .has_i OR .has_o;
+    ...     has_i := .friends.name ilike '%i%',
+    ...     has_o := .friends.name ilike '%o%',
+    ... } filter .has_i or .has_o;
     {
       default::User {
         name: 'Alice',
@@ -211,24 +211,23 @@ It looks like this refactoring came at the cost of putting extra
 things into the output. In this case we don't want our intermediate
 calculations to actually show up in the output, so what can we do? In
 EdgeDB the output structure is determined *only* by the expression
-appearing in the top-level :eql:stmt:`SELECT`. This means that we can
-move our intermediate calculations into the :eql:kw:`WITH <WITH>`
-block:
+appearing in the top-level :eql:stmt:`select`. This means
+that we can move our intermediate calculations into the :eql:kw:`with` block:
 
 .. code-block:: edgeql-repl
 
-    db> WITH U := (
-    ...     SELECT User {
-    ...         has_i := .friends.name ILIKE '%i%',
-    ...         has_o := .friends.name ILIKE '%o%',
+    db> with U := (
+    ...     select User {
+    ...         has_i := .friends.name ilike '%i%',
+    ...         has_o := .friends.name ilike '%o%',
     ...     }
     ... )
-    ... SELECT U {
+    ... select U {
     ...     name,
     ...     friends: {
     ...         name
     ...     },
-    ... } FILTER .has_i OR .has_o;
+    ... } filter .has_i or .has_o;
     {
       default::User {
         name: 'Alice',
@@ -254,13 +253,13 @@ General Shaping Rules
 =====================
 
 In EdgeDB typically all shapes appearing in the top-level
-:eql:stmt:`SELECT` should be reflected in the output. This also applies
-to shapes no matter where and how they are nested. Aside from
-other shapes, this includes nesting in arrays:
+:eql:stmt:`select` should be reflected in the output. This
+also applies to shapes no matter where and how they are nested.
+Aside from other shapes, this includes nesting in arrays:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT array_agg(User {name});
+    db> select array_agg(User {name});
     {
       [
         default::User {name: 'Alice'},
@@ -274,7 +273,7 @@ other shapes, this includes nesting in arrays:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT enumerate(User {name});
+    db> select enumerate(User {name});
     {
       (0, default::User {name: 'Alice'}),
       (1, default::User {name: 'Billie'}),
@@ -287,7 +286,7 @@ be intact:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT enumerate(User{name}).1;
+    db> select enumerate(User{name}).1;
     {
       default::User {name: 'Alice'},
       default::User {name: 'Billie'},
@@ -296,12 +295,12 @@ be intact:
     }
 
 Accessing array elements or working with slices also preserves output
-shape and is analogous to using ``OFFSET`` and ``LIMIT`` when working
+shape and is analogous to using ``offset`` and ``limit`` when working
 with sets:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT array_agg(User {name})[2];
+    db> select array_agg(User {name})[2];
     {default::User {name: 'Cameron'}}
 
 
@@ -313,18 +312,18 @@ partially discarded. Any such operation also prevents the altered
 shape from appearing in the output altogether.
 
 In order for the shape to be preserved, the original expression type
-must be preserved. This means that :eql:op:`UNION` can alter the shape,
-because the result of a :eql:op:`UNION` is a :eql:op:`union type
-<TYPEOR>`. So you can still refer to the common properties, but not to
+must be preserved. This means that :eql:op:`union` can alter the shape,
+because the result of a :eql:op:`union` is a :eql:op:`union type
+<typeor>`. So you can still refer to the common properties, but not to
 the properties that appeared in the shape.
 
-As mentioned above, since :eql:op:`UNION` potentially alters the
+As mentioned above, since :eql:op:`union` potentially alters the
 expression shape it never preserves output shape, even when the
 underlying type wasn't altered:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT User{name} UNION User{name};
+    db> select User{name} union User{name};
     {
       default::User {id: 7769045a-27bf-11ec-94ea-3f6c0ae59eb3},
       default::User {id: 7b42ed20-27bf-11ec-94ea-7700ec77834e},
@@ -337,17 +336,17 @@ underlying type wasn't altered:
     }
 
 Listing several items inside a set ``{ ... }`` functions identically
-to a :eql:op:`UNION` and so will also produce a union type and remove
+to a :eql:op:`union` and so will also produce a union type and remove
 shape from output.
 
 Another subtle way for a type union to remove the shape from the output
-is by the :eql:op:`?? <COALESCE>` and the :eql:op:`IF..ELSE` operators. Both
+is by the :eql:op:`?? <coalesce>` and the :eql:op:`if..else` operators. Both
 of them determine the result type as the union of the left and right
 operands:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT <User>{} ?? User {name};
+    db> select <User>{} ?? User {name};
     {
       default::User {id: 7769045a-27bf-11ec-94ea-3f6c0ae59eb3},
       default::User {id: 7b42ed20-27bf-11ec-94ea-7700ec77834e},
@@ -356,14 +355,14 @@ operands:
     }
 
 Shapes survive array creation (either via :eql:func:`array_agg` or by
-using ``[ ... ]``), but they follow the same rules as for :eql:op:`UNION`
-for array :eql:op:`concatenation <ARRAYPLUS>`. Basically the element type
+using ``[ ... ]``), but they follow the same rules as for :eql:op:`union`
+for array :eql:op:`concatenation <arrayplus>`. Basically the element type
 of the resulting array must be a union type and thus all shape
 information is lost:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT array_agg(User{name}) ++ array_agg(User{name});
+    db> select array_agg(User{name}) ++ array_agg(User{name});
     {
       [
         default::User {id: 7769045a-27bf-11ec-94ea-3f6c0ae59eb3},
@@ -379,6 +378,6 @@ information is lost:
 
 .. note::
 
-    The :eql:stmt:`FOR` statement preserves the shape given inside the
-    ``UNION`` clause, effectively applying the shape to its entire
+    The :eql:stmt:`for` statement preserves the shape given inside the
+    ``union`` clause, effectively applying the shape to its entire
     result.

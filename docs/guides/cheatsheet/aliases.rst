@@ -28,7 +28,7 @@ Define an alias for traversing a :ref:`backlink
     alias MovieAlias := Movie {
         # A computed link for accessing all the
         # reviews for this movie.
-        reviews := .<movie[IS Review]
+        reviews := .<movie[is Review]
     }
 
 .. note::

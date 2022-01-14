@@ -24,19 +24,19 @@ Enum
 
     .. code-block:: edgeql-repl
 
-        db> SELECT Color.Red IS Color;
+        db> select Color.Red is Color;
         {true}
 
-    :eql:op:`Casting <CAST>` can be used to obtain an
+    :eql:op:`Casting <cast>` can be used to obtain an
     enum value in an expression:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 'Red' IS Color;
+        db> select 'Red' is Color;
         {false}
-        db> SELECT <Color>'Red' IS Color;
+        db> select <Color>'Red' is Color;
         {true}
-        db> SELECT <Color>'Red' = Color.Red;
+        db> select <Color>'Red' = Color.Red;
         {true}
 
     .. note::

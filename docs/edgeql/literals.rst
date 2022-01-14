@@ -118,9 +118,9 @@ For a complete reference on strings, see :ref:`Standard Library > String
 .. list-table::
 
   * - Indexing and slicing
-    - :eql:op:`str[i] <STRIDX>` :eql:op:`str[from:to] <STRSLICE>`
+    - :eql:op:`str[i] <stridx>` :eql:op:`str[from:to] <strslice>`
   * - Concatenation
-    - :eql:op:`str ++ str <STRPLUS>`
+    - :eql:op:`str ++ str <strplus>`
   * - Utilities
     - :eql:func:`len`
   * - Transformation functions
@@ -129,13 +129,13 @@ For a complete reference on strings, see :ref:`Standard Library > String
       :eql:func:`str_trim` :eql:func:`str_trim_start` :eql:func:`str_trim_end`
       :eql:func:`str_repeat`
   * - Comparison operators
-    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+      :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+      :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
   * - Search
     - :eql:func:`contains` :eql:func:`find`
   * - Pattern matching and regexes
-    - :eql:op:`str LIKE pattern <LIKE>` :eql:op:`str ILIKE pattern <ILIKE>`
+    - :eql:op:`str like pattern <like>` :eql:op:`str ilike pattern <ilike>`
       :eql:func:`re_match` :eql:func:`re_match_all` :eql:func:`re_replace`
       :eql:func:`re_test`
 
@@ -159,11 +159,11 @@ EdgeDB provides a set of operators that operate on boolean values.
 .. list-table::
 
   * - Comparison operators
-    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+      :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+      :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
   * - Logical operators
-    - :eql:op:`OR <OR>` :eql:op:`AND <AND>` :eql:op:`NOT <NOT>`
+    - :eql:op:`or` :eql:op:`and` :eql:op:`not`
   * - Aggregation
     - :eql:func:`all` :eql:func:`any`
 
@@ -249,13 +249,13 @@ numerical data.
 .. list-table::
 
   * - Comparison operators
-    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+      :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+      :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
   * - Arithmetic
-    - :eql:op:`+ <PLUS>` :eql:op:`- <MINUS>` :eql:op:`- <UMINUS>`
-      :eql:op:`* <MULT>` :eql:op:`/ <DIV>` :eql:op:`/  <FLOORDIV>`
-      :eql:op:`% <MOD>` :eql:op:`^ <POW>`
+    - :eql:op:`+ <plus>` :eql:op:`- <minus>` :eql:op:`- <uminus>`
+      :eql:op:`* <mult>` :eql:op:`/ <div>` :eql:op:`/  <floordiv>`
+      :eql:op:`% <mod>` :eql:op:`^ <pow>`
   * - Statistics
     - :eql:func:`sum` :eql:func:`min` :eql:func:`max` :eql:func:`math::mean`
       :eql:func:`math::stddev` :eql:func:`math::stddev_pop`
@@ -354,11 +354,11 @@ EdgeQL supports a set of functions and operators on datetime types.
 .. list-table::
 
   * - Comparison operators
-    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+      :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+      :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
   * - Arithmetic
-    - :eql:op:`dt + dt <DTPLUS>` :eql:op:`dt - dt <DTMINUS>`
+    - :eql:op:`dt + dt <dtplus>` :eql:op:`dt - dt <dtminus>`
   * - String parsing
     - :eql:func:`to_datetime` :eql:func:`cal::to_local_datetime`
       :eql:func:`cal::to_local_date` :eql:func:`cal::to_local_time`
@@ -429,11 +429,11 @@ EdgeQL supports a set of functions and operators on duration types.
 .. list-table::
 
   * - Comparison operators
-    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+      :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+      :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
   * - Arithmetic
-    - :eql:op:`dt + dt <DTPLUS>` :eql:op:`dt - dt <DTMINUS>`
+    - :eql:op:`dt + dt <dtplus>` :eql:op:`dt - dt <dtminus>`
   * - Duration string parsing
     - :eql:func:`to_duration` :eql:func:`cal::to_relative_duration`
   * - Truncation
@@ -475,14 +475,14 @@ EdgeQL provides a set of functions and operators on arrays.
 .. list-table::
 
   * - Indexing and slicing
-    - :eql:op:`array[i] <ARRAYIDX>` :eql:op:`array[from:to] <ARRAYSLICE>`
+    - :eql:op:`array[i] <arrayidx>` :eql:op:`array[from:to] <arrayslice>`
       :eql:func:`array_get`
   * - Concatenation
-    - :eql:op:`array ++ array <ARRAYPLUS>`
+    - :eql:op:`array ++ array <arrayplus>`
   * - Comparison operators
-    - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-      :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-      :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+      :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+      :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
   * - Utilities
     - :eql:func:`len` :eql:func:`array_join`
   * - Search
@@ -589,14 +589,14 @@ details documentation.
 .. list-table::
 
     * - Indexing
-      - :eql:op:`json[i] <JSONIDX>` :eql:op:`json[from:to] <JSONSLICE>`
-        :eql:op:`json[name] <JSONOBJDEST>` :eql:func:`json_get`
+      - :eql:op:`json[i] <jsonidx>` :eql:op:`json[from:to] <jsonslice>`
+        :eql:op:`json[name] <jsonobjdest>` :eql:func:`json_get`
     * - Merging
-      - :eql:op:`json ++ json <JSONPLUS>`
+      - :eql:op:`json ++ json <jsonplus>`
     * - Comparison operators
-      - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+      - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+        :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+        :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
     * - Conversion to/from strings
       - :eql:func:`to_json` :eql:func:`to_str`
     * - Conversion to/from sets

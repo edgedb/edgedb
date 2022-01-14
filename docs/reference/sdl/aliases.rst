@@ -18,7 +18,7 @@ via a :ref:`computed link <ref_datamodel_computed>` "friend_of":
 
     alias UserAlias := User {
         # declare a computed link
-        friend_of := User.<friends[IS User]
+        friend_of := User.<friends[is User]
     };
 
 .. _ref_eql_sdl_aliases_syntax:

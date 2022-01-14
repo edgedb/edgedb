@@ -37,7 +37,7 @@ and it is ready for use:
       });
 
       try {
-        console.log(await conn.fetchOne("SELECT 1 + 1"));
+        console.log(await conn.fetchOne("select 1 + 1"));
       } finally {
         await conn.close();
       }
@@ -62,10 +62,10 @@ can now be used to express both ``std::bigint`` and :eql:type:`std::decimal`:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT 1n IS std::bigint;
+    db> select 1n is std::bigint;
     {true}
 
-    db> SELECT 1.0n IS std::decimal;
+    db> select 1.0n is std::decimal;
     {true}
 
 The ``std::bigint`` and ``std::decimal`` maintain the
@@ -152,46 +152,46 @@ versions of EdgeDB.
 EdgeQL
 ======
 
-[IS ...] Operator
+[is ...] Operator
 -----------------
 
-The :eql:op:`[IS ...] <ISINTERSECT>` operator is now used to specify the
+The :eql:op:`[is ...] <isintersect>` operator is now used to specify the
 link target type in shapes.  Consider the following query that fetches a
 ``User`` along with everything linked to it via the ``favorites`` link:
 
 .. code-block:: edgeql
 
-    SELECT User {
+    select User {
         favorites: {
             title
         }
     }
-    FILTER .id = <uuid>$id;
+    filter .id = <uuid>$id;
 
-Using the :eql:op:`[IS ...] <ISINTERSECT>` operator we can filter the
+Using the :eql:op:`[is ...] <isintersect>` operator we can filter the
 set of user favorites:
 
 .. code-block:: edgeql
 
-    SELECT User {
+    select User {
         # the old syntax was "favorites: Book {...}"
-        favorites[IS Book]: {
+        favorites[is Book]: {
             title
         }
     }
-    FILTER .id = <uuid>$id;
+    filter .id = <uuid>$id;
 
 This change makes the shape construct consistent with the paths syntax
 and removes potential confusion with the similarly looking computed
 expressions in shapes.
 
 Another change is related to backlink navigation. Starting with Alpha 2
-it is required to use the :eql:op:`[IS ...] <ISINTERSECT>` operator in order
+it is required to use the :eql:op:`[is ...] <isintersect>` operator in order
 to access target objects' properties and links:
 
 .. code-block:: edgeql
 
-    SELECT User.<profile[IS Profile].settings;
+    select User.<profile[is Profile].settings;
 
 (See :eql:gh:`#969` for details.)
 
@@ -202,15 +202,15 @@ Other Fixes and Enhancements
   (:eql:gh:`#921`).
 * Remove the ``.>`` alternate syntax for forward link navigation
   (:eql:gh:`#982`).
-* Fix interaction of the :eql:stmt:`FOR` statement and nested shapes
+* Fix interaction of the :eql:stmt:`for` statement and nested shapes
   (:eql:gh:`#834`).
 * Place restrictions on the use of DML statements (:eql:gh:`#741`).
 * Fix queries with unions with overlapping subtypes (:eql:gh:`#1010`).
-* Allow trailing commas in the :ref:`WITH <ref_eql_with>` clause
+* Allow trailing commas in the :ref:`with <ref_eql_with>` clause
   (:eql:gh:`#868`).
 * Ban use of ``::`` in quoted names (:eql:gh:`#840`).
 * Add syntax for quoting backticks in quoted names (:eql:gh:`#632`).
-* Remove ``SELECT``-like clauses from the :eql:stmt:`FOR` statement
+* Remove ``select``-like clauses from the :eql:stmt:`for` statement
   (:eql:gh:`#743`).
 * Fix implicit ``id`` and ``__tid__`` properties injection in
   DML statements (:eql:gh:`#664`).
@@ -317,13 +317,13 @@ changes:
   :ref:`"overloaded" <ref_eql_sdl_links_overloading>`. (:eql:gh:`#806`).
 * Reimplement :ref:`SDL <ref_eql_sdl>` through :ref:`DDL <ref_eql_ddl>`.
   (:eql:gh:`824f14a6`).
-* Rename the DDL "FROM" clause to "USING" (:eql:gh:`4194ab46`).
+* Rename the DDL ``from`` clause to ``using`` (:eql:gh:`4194ab46`).
 * Add support for collection type views :eql:gh:`367820ba`.
-* Prohibit "multi" or "required" link properties (:eql:gh:`#994`).
+* Prohibit ``multi`` or ``required`` link properties (:eql:gh:`#994`).
 * Forbid redefinition of read-only flag. (:eql:gh:`#1048`).
-* Change ``SET ANNOTATION`` to ``CREATE/ALTER ANNOTATION``
+* Change ``set annotation`` to ``create/alter annotation``
   (:eql:gh:`0e53e2ff`).
-* Implement ``CREATE MODULE IF NOT EXISTS`` (:eql:gh:`27924c10`.)
+* Implement ``create module if not exists`` (:eql:gh:`27924c10`.)
 * Allow indexes to be annotated (:eql:gh:`50d8809a`).
 * Remove explicit index names (:eql:gh:`e0f462c2`).
 * Enforce correct expression cardinality and type in link/property default
@@ -336,26 +336,26 @@ Introspection
 Generic Describe
 ----------------
 
-:eql:stmt:`DESCRIBE` is a new introspection command that can generate
-DDL, SDL, or a descriptive text summary of any schema object in
-EdgeDB.  A few examples:
+The new :eql:stmt:`describe` introspection command can generate DDL,
+SDL, or a descriptive text summary of any schema object in EdgeDB.  A
+few examples:
 
 .. code-block:: edgeql-repl
 
-    db> DESCRIBE TYPE Movie AS DDL;
+    db> describe type Movie as ddl;
     {
       'CREATE TYPE default::Movie EXTENDING default::HasImage {
         CREATE SINGLE PROPERTY avg_rating := (WITH
           MODULE default
         SELECT
-          math::mean(.<movie[IS Review].rating)
+          math::mean(.<movie[is Review].rating)
         );
 
         ...
       };'
     }
 
-    db> DESCRIBE TYPE Movie AS TEXT VERBOSE;
+    db> describe type Movie as text verbose;
     {
       'type default::Movie extending default::HasImage {
         index on (__subject__.image);
@@ -438,7 +438,7 @@ Auto Limit
 ----------
 
 The REPL now automatically injects limits to user queries so that a simple
-``SELECT Log`` does not fetch all data from the database.  Auto limits are only
+``select Log`` does not fetch all data from the database.  Auto limits are only
 enabled in parts of the query that return visible data; auto limits are
 disabled inside aggregate functions, so analytical queries work as expected.
 

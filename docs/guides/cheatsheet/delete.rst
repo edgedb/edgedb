@@ -16,8 +16,8 @@ Delete all reviews from a specific user:
 
 .. code-block:: edgeql
 
-    DELETE Review
-    FILTER .author.name = 'trouble2020'
+    delete Review
+    filter .author.name = 'trouble2020'
 
 
 ----------
@@ -27,10 +27,10 @@ Alternative way to delete all reviews from a specific user:
 
 .. code-block:: edgeql
 
-    DELETE (
-        SELECT User
-        FILTER .name = 'troll2020'
-    ).<author[IS Review]
+    delete (
+        select User
+        filter .name = 'troll2020'
+    ).<author[is Review]
 
 
 .. list-table::

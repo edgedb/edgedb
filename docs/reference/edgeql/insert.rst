@@ -1,44 +1,44 @@
 .. _ref_eql_statements_insert:
 
-INSERT
+Insert
 ======
 
 :eql-statement:
 :eql-haswith:
 
-``INSERT`` -- create a new object in a database
+``insert`` -- create a new object in a database
 
 .. eql:synopsis::
 
-    [ WITH <with-spec> [ ,  ... ] ]
-    INSERT <expression> [ <insert-shape> ]
-    [ UNLESS CONFLICT
-        [ ON <property-expr> [ ELSE <alternative> ] ]
+    [ with <with-spec> [ ,  ... ] ]
+    insert <expression> [ <insert-shape> ]
+    [ unless conflict
+        [ on <property-expr> [ else <alternative> ] ]
     ] ;
 
 
 Description
 -----------
 
-``INSERT`` inserts a new object into a database.
+``insert`` inserts a new object into a database.
 
-When evaluating an ``INSERT`` statement, *expression* is used solely to
+When evaluating an ``insert`` statement, *expression* is used solely to
 determine the *type* of the inserted object and is not evaluated in any
 other way.
 
 If a value for a *required* link is evaluated to an empty set, an error is
 raised.
 
-It is possible to insert multiple objects by putting the ``INSERT``
-into a :eql:stmt:`FOR` statement.
+It is possible to insert multiple objects by putting the ``insert``
+into a :eql:stmt:`for` statement.
 
-See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
+See :ref:`ref_eql_forstatement` for more details.
 
-:eql:synopsis:`WITH`
+:eql:synopsis:`with`
     Alias declarations.
 
-    The ``WITH`` clause allows specifying module aliases as well
-    as expression aliases that can be referenced by the ``UPDATE``
+    The ``with`` clause allows specifying module aliases as well
+    as expression aliases that can be referenced by the :eql:stmt:`update`
     statement.  See :ref:`ref_eql_statements_with` for more information.
 
 :eql:synopsis:`<expression>`
@@ -46,21 +46,21 @@ See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
 
     .. eql:synopsis::
 
-        INSERT <expression>
+        insert <expression>
         [ "{" <link> := <insert-value-expr> [, ...]  "}" ]
 
 .. _ref_eql_statements_conflict:
 
-:eql:synopsis:`UNLESS CONFLICT [ ON <property-expr> ]`
+:eql:synopsis:`unless conflict [ on <property-expr> ]`
     :index: unless conflict
 
     Handler of conflicts.
 
     This clause allows to handle specific conflicts arising during
-    execution of ``INSERT`` without producing an error.  If the
+    execution of ``insert`` without producing an error.  If the
     conflict arises due to exclusive constraints on the properties
     specified by *property-expr*, then instead of failing with an
-    error the ``INSERT`` statement produces an empty set (or an
+    error the ``insert`` statement produces an empty set (or an
     alternative result).
 
     The exclusive constraint on ``<property-expr>`` cannot be defined on a
@@ -70,80 +70,80 @@ See :ref:`Usage of FOR statement <ref_eql_forstatement>` for more details.
     property (or link) or a tuple of references to properties (or
     links).
 
-    A caveat, however, is that ``UNLESS CONFLICT`` will not prevent
+    A caveat, however, is that ``unless conflict`` will not prevent
     conflicts caused between multiple DML operations in the same
-    query; inserting two conflicting objects (through use of ``FOR``
-    or simply with two ``INSERT`` statements) will cause a constraint
+    query; inserting two conflicting objects (through use of ``for``
+    or simply with two ``insert`` statements) will cause a constraint
     error.
 
     Example:
 
     .. code-block:: edgeql
 
-        INSERT User { email := 'user@example.org' }
-        UNLESS CONFLICT ON .email
+        insert User { email := 'user@example.org' }
+        unless conflict on .email
 
     .. code-block:: edgeql
 
-        INSERT User { first := 'Jason', last := 'Momoa' }
-        UNLESS CONFLICT ON (.first, .last)
+        insert User { first := 'Jason', last := 'Momoa' }
+        unless conflict on (.first, .last)
 
-:eql:synopsis:`ELSE <alternative>`
+:eql:synopsis:`else <alternative>`
     Alternative result in case of conflict.
 
-    This clause can only appear after ``UNLESS CONFLICT`` clause. Any
+    This clause can only appear after ``unless conflict`` clause. Any
     valid expression can be specified as the *alternative*. When a
-    conflict arises, the result of the ``INSERT`` becomes the
+    conflict arises, the result of the ``insert`` becomes the
     *alternative* expression (instead of the default ``{}``).
 
     In order to refer to the conflicting object in the *alternative*
-    expression, the name used in the ``INSERT`` must be used (see
+    expression, the name used in the ``insert`` must be used (see
     :ref:`example below <ref_eql_statements_insert_unless>`).
 
 Outputs
 -------
 
-The result of an ``INSERT`` statement used as an *expression* is a
+The result of an ``insert`` statement used as an *expression* is a
 singleton set containing the inserted object.
 
 
 Examples
 --------
 
-Here's a simple example of an ``INSERT`` statement creating a new user:
+Here's a simple example of an ``insert`` statement creating a new user:
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    INSERT User {
+    with module example
+    insert User {
         name := 'Bob Johnson'
     };
 
-``INSERT`` is not only a statement, but also an expression and as such
+``insert`` is not only a statement, but also an expression and as such
 is has a value of the set of objects that has been created.
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    INSERT Issue {
+    with module example
+    insert Issue {
         number := '100',
-        body := 'Fix errors in INSERT',
+        body := 'Fix errors in insert',
         owner := (
-            SELECT User FILTER User.name = 'Bob Johnson'
+            select User filter User.name = 'Bob Johnson'
         )
     };
 
-It is possible to create nested objects in a single ``INSERT``
+It is possible to create nested objects in a single ``insert``
 statement as an atomic operation.
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    INSERT Issue {
+    with module example
+    insert Issue {
         number := '101',
-        body := 'Nested INSERT',
+        body := 'Nested insert',
         owner := (
-            INSERT User {
+            insert User {
                 name := 'Nested User'
             }
         )
@@ -156,30 +156,30 @@ expression.
 
 It is also possible to create new objects based on some existing data
 either provided as an explicit list (possibly automatically generated
-by some tool) or a query. A ``FOR`` statement is the basis for this
-use-case and ``INSERT`` is simply the expression in the ``UNION``
+by some tool) or a query. A ``for`` statement is the basis for this
+use-case and ``insert`` is simply the expression in the ``union``
 clause.
 
 .. code-block:: edgeql
 
     # example of a bulk insert of users based on explicitly provided
     # data
-    WITH MODULE example
-    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    UNION (INSERT User {
+    with module example
+    for x in {'Alice', 'Bob', 'Carol', 'Dave'}
+    union (insert User {
         name := x
     });
 
 
     # example of a bulk insert of issues based on a query
-    WITH
-        MODULE example,
-        Elvis := (SELECT User FILTER .name = 'Elvis'),
-        Open := (SELECT Status FILTER .name = 'Open')
+    with
+        module example,
+        Elvis := (select User filter .name = 'Elvis'),
+        Open := (select Status filter .name = 'Open')
 
-    FOR Q IN (SELECT User FILTER .name ILIKE 'A%')
+    for Q in (select User filter .name ilike 'A%')
 
-    UNION (INSERT Issue {
+    union (insert Issue {
         name := Q.name + ' access problem',
         body := 'This user was affected by recent system glitch',
         owner := Elvis,
@@ -190,19 +190,19 @@ clause.
 
 There's an important use-case where it is necessary to either insert a
 new object or update an existing one identified with some key. This is
-what the ``UNLESS CONFLICT`` clause allows:
+what the ``unless conflict`` clause allows:
 
 .. code-block:: edgeql
 
-    WITH MODULE people
-    SELECT (
-        INSERT Person {
+    with module people
+    select (
+        insert Person {
             name := "Łukasz Langa", is_admin := true
         }
-        UNLESS CONFLICT ON .name
-        ELSE (
-            UPDATE Person
-            SET { is_admin := true }
+        unless conflict on .name
+        else (
+            update Person
+            set { is_admin := true }
         )
     ) {
         name,

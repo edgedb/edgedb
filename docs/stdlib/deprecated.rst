@@ -42,11 +42,11 @@ Deprecated
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_lpad('short', 10);
+        db> select str_lpad('short', 10);
         {'     short'}
-        db> SELECT str_lpad('much too long', 10);
+        db> select str_lpad('much too long', 10);
         {'much too l'}
-        db> SELECT str_lpad('short', 10, '.:');
+        db> select str_lpad('short', 10, '.:');
         {'.:.:.short'}
 
 
@@ -69,11 +69,11 @@ Deprecated
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_rpad('short', 10);
+        db> select str_rpad('short', 10);
         {'short     '}
-        db> SELECT str_rpad('much too long', 10);
+        db> select str_rpad('much too long', 10);
         {'much too l'}
-        db> SELECT str_rpad('short', 10, '.:');
+        db> select str_rpad('short', 10, '.:');
         {'short.:.:.'}
 
 
@@ -95,15 +95,15 @@ Deprecated
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_ltrim('     data');
+        db> select str_ltrim('     data');
         {'data'}
-        db> SELECT str_ltrim('.....data', '.:');
+        db> select str_ltrim('.....data', '.:');
         {'data'}
-        db> SELECT str_ltrim(':::::data', '.:');
+        db> select str_ltrim(':::::data', '.:');
         {'data'}
-        db> SELECT str_ltrim(':...:data', '.:');
+        db> select str_ltrim(':...:data', '.:');
         {'data'}
-        db> SELECT str_ltrim('.:.:.data', '.:');
+        db> select str_ltrim('.:.:.data', '.:');
         {'data'}
 
 
@@ -125,13 +125,13 @@ Deprecated
 
     .. code-block:: edgeql-repl
 
-        db> SELECT str_rtrim('data     ');
+        db> select str_rtrim('data     ');
         {'data'}
-        db> SELECT str_rtrim('data.....', '.:');
+        db> select str_rtrim('data.....', '.:');
         {'data'}
-        db> SELECT str_rtrim('data:::::', '.:');
+        db> select str_rtrim('data:::::', '.:');
         {'data'}
-        db> SELECT str_rtrim('data:...:', '.:');
+        db> select str_rtrim('data:...:', '.:');
         {'data'}
-        db> SELECT str_rtrim('data.:.:.', '.:');
+        db> select str_rtrim('data.:.:.', '.:');
         {'data'}

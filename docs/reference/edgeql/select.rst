@@ -1,6 +1,6 @@
 .. _ref_eql_statements_select:
 
-SELECT
+Select
 ======
 
 :eql-statement:
@@ -8,43 +8,43 @@ SELECT
 
 :index: order filter select offset limit with then asc desc first last empty
 
-``SELECT``--retrieve or compute a set of values.
+``select``--retrieve or compute a set of values.
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
+    [ with <with-item> [, ...] ]
 
-    SELECT <expr>
+    select <expr>
 
-    [ FILTER <filter-expr> ]
+    [ filter <filter-expr> ]
 
-    [ ORDER BY <order-expr> [direction] [THEN ...] ]
+    [ order by <order-expr> [direction] [then ...] ]
 
-    [ OFFSET <offset-expr> ]
+    [ offset <offset-expr> ]
 
-    [ LIMIT  <limit-expr> ] ;
+    [ limit  <limit-expr> ] ;
 
-:eql:synopsis:`FILTER <filter-expr>`
-    The optional ``FILTER`` clause, where :eql:synopsis:`<filter-expr>`
+:eql:synopsis:`filter <filter-expr>`
+    The optional ``filter`` clause, where :eql:synopsis:`<filter-expr>`
     is any expression that has a result of type :eql:type:`bool`.
     The condition is evaluated for every element in the set produced by
-    the ``SELECT`` clause.  The result of the evaluation of the
-    ``FILTER`` clause is a set of boolean values.  If at least one value
+    the ``select`` clause.  The result of the evaluation of the
+    ``filter`` clause is a set of boolean values.  If at least one value
     in this set is ``true``, the input element is included, otherwise
     it is eliminated from the output.
 
 .. _ref_reference_select_order:
 
-:eql:synopsis:`ORDER BY <order-expr> [direction] [THEN ...]`
-    The optional ``ORDER BY`` clause has this general form:
+:eql:synopsis:`order by <order-expr> [direction] [then ...]`
+    The optional ``order by`` clause has this general form:
 
     .. eql:synopsis::
 
-        ORDER BY
-            <order-expr> [ ASC | DESC ] [ EMPTY { FIRST | LAST } ]
-            [ THEN ... ]
+        order by
+            <order-expr> [ asc | desc ] [ empty { first | last } ]
+            [ then ... ]
 
-    The ``ORDER BY`` clause produces a result set sorted according
+    The ``order by`` clause produces a result set sorted according
     to the specified expression or expressions, which are evaluated
     for every element of the input set.
 
@@ -59,94 +59,94 @@ SELECT
     must be an empty set or a singleton.  Using an expression that may
     produce more elements is a compile-time error.
 
-    An optional ``ASC`` or ``DESC`` keyword can be added after any
-    *expression*.  If not specified ``ASC`` is assumed by default.
+    An optional ``asc`` or ``desc`` keyword can be added after any
+    *expression*.  If not specified ``asc`` is assumed by default.
 
-    If ``EMPTY LAST`` is specified, then input values that produce
+    If ``empty last`` is specified, then input values that produce
     an empty set when evaluating an *expression* are sorted *after*
-    all other values; if ``EMPTY FIRST`` is specified, then they
+    all other values; if ``empty first`` is specified, then they
     are sorted *before* all other values.  If neither is specified,
-    ``EMPTY FIRST`` is assumed when ``ASC`` is specified or implied,
-    and ``EMPTY LAST`` when ``DESC`` is specified.
+    ``empty first`` is assumed when ``asc`` is specified or implied,
+    and ``empty last`` when ``desc`` is specified.
 
-:eql:synopsis:`OFFSET <offset-expr>`
-    The optional ``OFFSET`` clause, where
+:eql:synopsis:`offset <offset-expr>`
+    The optional ``offset`` clause, where
     :eql:synopsis:`<offset-expr>`
     is a *singleton expression* of an integer type.
     This expression is evaluated once and its result is used
     to skip the first *element-count* elements of the input set
     while producing the output.  If *element-count* evaluates to
-    an empty set, it is equivalent to ``OFFSET 0``, which is equivalent
-    to omitting the ``OFFSET`` clause.  If *element-count* evaluates
+    an empty set, it is equivalent to ``offset 0``, which is equivalent
+    to omitting the ``offset`` clause.  If *element-count* evaluates
     to a value that is larger then the cardinality of the input set,
     an empty set is produced as the result.
 
-:eql:synopsis:`LIMIT <limit-expr>`
-    The optional ``LIMIT`` clause, where :eql:synopsis:`<limit-expr>`
+:eql:synopsis:`limit <limit-expr>`
+    The optional ``limit`` clause, where :eql:synopsis:`<limit-expr>`
     is a *singleton expression* of an integer
     type.  This expression is evaluated once and its result is used
     to include only the first *element-count* elements of the input set
     while producing the output.  If *element-count* evaluates to
-    an empty set, it is equivalent to specifying no ``LIMIT`` clause.
+    an empty set, it is equivalent to specifying no ``limit`` clause.
 
 
 Description
 -----------
 
-``SELECT`` retrieves or computes a set of values.  The data
-flow of a ``SELECT`` block can be conceptualized like this:
+``select`` retrieves or computes a set of values.  The data
+flow of a ``select`` block can be conceptualized like this:
 
 .. eql:synopsis::
 
-    WITH MODULE example
+    with module example
 
     # select clause
-    SELECT
+    select
         <expr>  # compute a set of things
 
     # optional clause
-    FILTER
+    filter
         <expr>  # filter the computed set
 
     # optional clause
-    ORDER BY
+    order by
         <expr>  # define ordering of the filtered set
 
     # optional clause
-    OFFSET
+    offset
         <expr>  # slice the filtered/ordered set
 
     # optional clause
-    LIMIT
+    limit
         <expr>  # slice the filtered/ordered set
 
-Please note that the ``ORDER BY`` clause defines ordering that can
+Please note that the ``order by`` clause defines ordering that can
 only be relied upon if the resulting set is not used in any other
-operation. ``SELECT``, ``OFFSET`` and ``LIMIT`` clauses are the only
+operation. ``select``, ``offset`` and ``limit`` clauses are the only
 exception to that rule as they preserve the inherent ordering of the
 underlying set.
 
-The first clause is ``SELECT``. It indicates that ``FILTER``, ``ORDER
-BY``, ``OFFSET``, or ``LIMIT`` clauses may follow an expression, i.e.
-it makes an expression into a ``SELECT`` statement. Without any of the
-optional clauses a ``(SELECT Expr)`` is completely equivalent to
+The first clause is ``select``. It indicates that ``filter``, ``order
+by``, ``offset``, or ``limit`` clauses may follow an expression, i.e.
+it makes an expression into a ``select`` statement. Without any of the
+optional clauses a ``(select Expr)`` is completely equivalent to
 ``Expr`` for any expression ``Expr``.
 
-Consider an example using the ``FILTER`` optional clause:
+Consider an example using the ``filter`` optional clause:
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    SELECT User {
+    with module example
+    select User {
         name,
-        owned := (SELECT
-            User.<owner[IS Issue] {
+        owned := (select
+            User.<owner[is Issue] {
                 number,
                 body
             }
         )
     }
-    FILTER User.name LIKE 'Alice%';
+    filter User.name like 'Alice%';
 
 
 
@@ -154,43 +154,43 @@ The above example retrieves a single user with a specific name. The
 fact that there is only one such user is a detail that can be well-
 known and important to the creator of the database, but otherwise non-
 obvious. However, forcing the cardinality to be at most 1 by using the
-``LIMIT`` clause ensures that a set with a single object or
+``limit`` clause ensures that a set with a single object or
 ``{}`` is returned. This way any further code that relies on the
 result of this query can safely assume there's only one result
 available.
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    SELECT User {
+    with module example
+    select User {
         name,
-        owned := (SELECT
-            User.<owner[IS Issue] {
+        owned := (select
+            User.<owner[is Issue] {
                 number,
                 body
             }
         )
     }
-    FILTER User.name LIKE 'Alice%'
-    LIMIT 1;
+    filter User.name like 'Alice%'
+    limit 1;
 
-Next example makes use of ``ORDER BY`` and ``LIMIT`` clauses:
+Next example makes use of ``order by`` and ``limit`` clauses:
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    SELECT Issue {
+    with module example
+    select Issue {
         number,
         body,
         due_date
     }
-    FILTER
-        EXISTS Issue.due_date
-        AND
+    filter
+        exists Issue.due_date
+        and
         Issue.status.name = 'Open'
-    ORDER BY
+    order by
         Issue.due_date
-    LIMIT 3;
+    limit 3;
 
 The above query retrieves the top 3 open Issues with the closest due
 date.
@@ -201,32 +201,32 @@ date.
 Filter
 ------
 
-The ``FILTER`` clause cannot affect anything aggregate-like in the
-preceding ``SELECT`` clause. This is due to how ``FILTER`` clause
+The ``filter`` clause cannot affect anything aggregate-like in the
+preceding ``select`` clause. This is due to how ``filter`` clause
 works. It can be conceptualized as a function like ``filter($input,
-SET OF $cond)``, where the ``$input`` represents the value of the
+set of $cond)``, where the ``$input`` represents the value of the
 preceding clause, while the ``$cond`` represents the filtering
 condition expression. Consider the following:
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    SELECT count(User)
-    FILTER User.name LIKE 'Alice%';
+    with module example
+    select count(User)
+    filter User.name like 'Alice%';
 
 The above can be conceptualized as:
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    SELECT _filter(
+    with module example
+    select _filter(
         count(User),
-        User.name LIKE 'Alice%'
+        User.name like 'Alice%'
     );
 
-In this form it is more apparent that ``User`` is a ``SET OF``
-argument (of :eql:func:`count`), while ``User.name LIKE 'Alice%'`` is
-also a ``SET OF`` argument (of ``filter``). So the symbol ``User`` in
+In this form it is more apparent that ``User`` is a ``set of``
+argument (of :eql:func:`count`), while ``User.name like 'Alice%'`` is
+also a ``set of`` argument (of ``filter``). So the symbol ``User`` in
 these two expressions exists in 2 parallel scopes. Contrast it with:
 
 .. code-block:: edgeql
@@ -234,28 +234,28 @@ these two expressions exists in 2 parallel scopes. Contrast it with:
     # This will actually only count users whose name starts with
     # 'Alice'.
 
-    WITH MODULE example
-    SELECT count(
-        (SELECT User
-         FILTER User.name LIKE 'Alice%')
+    with module example
+    select count(
+        (select User
+         filter User.name like 'Alice%')
     );
 
     # which can be represented as:
-    WITH MODULE example
-    SELECT count(
+    with module example
+    select count(
         _filter(User,
-               User.name LIKE 'Alice%')
+               User.name like 'Alice%')
     );
 
 Clause signatures
 -----------------
 
-Here is a summary of clauses that can be used with ``SELECT``:
+Here is a summary of clauses that can be used with ``select``:
 
-- *A* FILTER ``SET OF`` *B*
-- *A* ORDER BY ``SET OF`` *B*
-- ``SET OF`` *A* OFFSET ``SET OF`` *B*
-- ``SET OF`` *A* LIMIT ``SET OF`` *B*
+- *A* filter ``set of`` *B*
+- *A* order by ``set of`` *B*
+- ``set of`` *A* offset ``set of`` *B*
+- ``set of`` *A* limit ``set of`` *B*
 
 .. list-table::
   :class: seealso

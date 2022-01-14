@@ -16,12 +16,12 @@ Flag all reviews to a specific movie:
 
 .. code-block:: edgeql
 
-    UPDATE Review
-    FILTER
+    update Review
+    filter
         Review.movie.title = 'Dune'
-        AND
+        and
         Review.movie.director.last_name = 'Villeneuve'
-    SET {
+    set {
         flag := True
     }
 
@@ -33,14 +33,14 @@ Add an actor with a specific ``list_order`` link property to a movie:
 
 .. code-block:: edgeql
 
-    UPDATE Movie
-    FILTER
+    update Movie
+    filter
         .title = 'Dune'
-        AND
+        and
         .directors.last_name = 'Villeneuve'
-    SET {
+    set {
         actors := (
-            INSERT Person {
+            insert Person {
                 first_name := 'Timothee',
                 last_name := 'Chalamet',
                 image := 'tchalamet.jpg',
@@ -53,27 +53,27 @@ Add an actor with a specific ``list_order`` link property to a movie:
 ----------
 
 
-Using a ``FOR`` query to set a specific ``list_order`` link property
+Using a ``for`` query to set a specific ``list_order`` link property
 for the actors list:
 
 .. code-block:: edgeql
 
-    UPDATE Movie
-    FILTER
+    update Movie
+    filter
         .title = 'Dune'
-        AND
+        and
         .directors.last_name = 'Villeneuve'
-    SET {
+    set {
         actors := (
-            FOR x IN {
+            for x in {
                 ('Timothee Chalamet', 1),
                 ('Zendaya', 2),
                 ('Rebecca Ferguson', 3),
                 ('Jason Momoa', 4),
             }
-            UNION (
-                SELECT Person {@list_order := x.1}
-                FILTER .full_name = x.0
+            union (
+                select Person {@list_order := x.1}
+                filter .full_name = x.0
             )
         )
     }
@@ -86,14 +86,14 @@ Updating a multi link by adding one more item:
 
 .. code-block:: edgeql
 
-    UPDATE Movie
-    FILTER
+    update Movie
+    filter
         .title = 'Dune'
-        AND
+        and
         .directors.last_name = 'Villeneuve'
-    SET {
+    set {
         actors += (
-            INSERT Person {
+            insert Person {
                 first_name := 'Dave',
                 last_name := 'Bautista',
                 image := 'dbautista.jpg',
@@ -109,15 +109,15 @@ Updating a multi link by removing an item:
 
 .. code-block:: edgeql
 
-    UPDATE Movie
-    FILTER
+    update Movie
+    filter
         .title = 'Dune'
-        AND
+        and
         .directors.last_name = 'Villeneuve'
-    SET {
+    set {
         actors -= (
-            SELECT Person
-            FILTER
+            select Person
+            filter
                 .full_name = 'Jason Momoa'
         )
     }
@@ -130,19 +130,19 @@ Update the ``list_order`` link property for a specific link:
 
 .. code-block:: edgeql
 
-    UPDATE Movie
-    FILTER
+    update Movie
+    filter
         .title = 'Dune'
-        AND
+        and
         .directors.last_name = 'Villeneuve'
-    SET {
+    set {
         # The += operator will allow updating only the
         # specified actor link.
         actors += (
-            SELECT Person {
+            select Person {
                 @list_order := 5,
             }
-            FILTER .full_name = 'Jason Momoa'
+            filter .full_name = 'Jason Momoa'
         )
     }
 

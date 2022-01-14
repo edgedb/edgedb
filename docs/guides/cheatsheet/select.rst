@@ -16,7 +16,7 @@ Select a Movie with associated actors and reviews with their authors:
 
 .. code-block:: edgeql
 
-    SELECT Movie {
+    select Movie {
         id,
         title,
         year,
@@ -27,7 +27,7 @@ Select a Movie with associated actors and reviews with their authors:
             full_name,
         },
 
-        reviews := .<movie[IS Review] {
+        reviews := .<movie[is Review] {
             id,
             body,
             rating,
@@ -37,7 +37,7 @@ Select a Movie with associated actors and reviews with their authors:
             }
         },
     }
-    FILTER .id = <uuid>'09c34154-4148-11ea-9c68-5375ca908326'
+    filter .id = <uuid>'09c34154-4148-11ea-9c68-5375ca908326'
 
 
 ----------
@@ -47,13 +47,13 @@ Select movies with Keanu Reeves:
 
 .. code-block:: edgeql
 
-    SELECT Movie {
+    select Movie {
         id,
         title,
         year,
         description,
     }
-    FILTER .actors.full_name = 'Keanu Reeves'
+    filter .actors.full_name = 'Keanu Reeves'
 
 
 ----------
@@ -64,55 +64,55 @@ include the same-last-name actor list as well:
 
 .. code-block:: edgeql
 
-    SELECT Person {
+    select Person {
         id,
         full_name,
         same_last_name := (
-            WITH
-                P := DETACHED Person
-            SELECT P {
+            with
+                P := detached Person
+            select P {
                 id,
                 full_name,
             }
-            FILTER
+            filter
                 # same last name
                 P.last_name = Person.last_name
-                AND
+                and
                 # not the same person
                 P != Person
         ),
     }
-    FILTER EXISTS .same_last_name
+    filter exists .same_last_name
 
 
 ----------
 
 
-The same query can be refactored moving the ``WITH`` block to the
+The same query can be refactored moving the ``with`` block to the
 top-level:
 
 .. code-block:: edgeql
 
-    WITH
-        # don't need DETACHED at top-level
+    with
+        # don't need detached at top-level
         P := Person
-    SELECT Person {
+    select Person {
         id,
         full_name,
         same_last_name := (
-            SELECT P {
+            select P {
                 id,
                 full_name,
             }
-            FILTER
+            filter
                 # same last name
                 P.last_name = Person.last_name
-                AND
+                and
                 # not the same person
                 P != Person
         ),
     }
-    FILTER EXISTS .same_last_name
+    filter exists .same_last_name
 
 
 ----------
@@ -122,9 +122,9 @@ Select user names and the number of reviews they have:
 
 .. code-block:: edgeql
 
-    SELECT (
+    select (
         User.name,
-        count(User.<author[IS Review])
+        count(User.<author[is Review])
     )
 
 
@@ -137,10 +137,10 @@ result):
 
 .. code-block:: edgeql
 
-    SELECT (
+    select (
         User.name,
         Movie.title,
-        Movie IN User.<author[IS Review].movie
+        Movie in User.<author[is Review].movie
     )
 
 
@@ -151,27 +151,27 @@ Perform a set intersection of all actors with all directors:
 
 .. code-block:: edgeql
 
-    WITH
+    with
         # get the set of actors and set of directors
         Actor := Movie.actors,
         Director := Movie.director,
-    # set intersection is done via the FILTER clause
-    SELECT Actor FILTER Actor IN Director;
+    # set intersection is done via the filter clause
+    select Actor filter Actor in Director;
 
 
 ----------
 
 
 To order a set of scalars first assign the set to a variable and use the
-variable in the ORDER BY clause.
+variable in the order by clause.
 
 .. code-block:: edgeql
 
-    SELECT numbers := {3, 1, 2} ORDER BY numbers;
+    select numbers := {3, 1, 2} order by numbers;
 
     # alternatively
-    WITH numbers := {3, 1, 2}
-    SELECT numbers ORDER BY numbers;
+    with numbers := {3, 1, 2}
+    select numbers order by numbers;
 
 
 ----------
@@ -194,8 +194,8 @@ Consider the following query:
 
 .. code-block:: edgeql
 
-    WITH U := (SELECT User FILTER .name LIKE '%user%')
-    SELECT {
+    with U := (select User filter .name like '%user%')
+    select {
         matches := U {name},
         total := count(U),
         total_users := count(User),
@@ -208,8 +208,8 @@ return a single *free object* with ``results``, ``total``, and
 
 .. code-block:: edgeql
 
-    WITH U := (SELECT User FILTER .name LIKE '%user%')
-    SELECT (
+    with U := (select User filter .name like '%user%')
+    select (
         matches := array_agg(U {name}),
         total := count(U),
         total_users := count(User),

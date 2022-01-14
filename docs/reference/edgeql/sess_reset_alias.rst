@@ -1,18 +1,18 @@
 .. _ref_eql_statements_session_reset_alias:
 
-RESET
+Reset
 =====
 
 :eql-statement:
 
 
-``RESET`` -- reset one or multiple session-level parameters
+``reset`` -- reset one or multiple session-level parameters
 
 .. eql:synopsis::
 
-    RESET MODULE ;
-    RESET ALIAS <alias> ;
-    RESET ALIAS * ;
+    reset module ;
+    reset alias <alias> ;
+    reset alias * ;
 
 
 Description
@@ -25,30 +25,30 @@ the current session.
 Variations
 ----------
 
-:eql:synopsis:`RESET MODULE`
+:eql:synopsis:`reset module`
     Reset the default module name back to "default" for the current
     session.
 
     For example, if a module ``foo`` contains type ``FooType``,
-    the following is how the ``SET`` and ``RESET`` commands can be used
+    the following is how the ``set`` and ``reset`` commands can be used
     to alias it:
 
     .. code-block:: edgeql
 
         # Set the default module to "foo" for the current session.
-        SET MODULE foo;
+        set module foo;
 
-        # This query is now equivalent to "SELECT foo::FooType".
-        SELECT FooType;
+        # This query is now equivalent to "select foo::FooType".
+        select FooType;
 
         # Reset the default module for the current session.
-        RESET MODULE;
+        reset module;
 
         # This query will now produce an error.
-        SELECT FooType;
+        select FooType;
 
 
-:eql:synopsis:`RESET ALIAS <alias>`
+:eql:synopsis:`reset alias <alias>`
     Reset :eql:synopsis:`<alias>` for the current session.
 
     For example:
@@ -56,32 +56,30 @@ Variations
     .. code-block:: edgeql
 
         # Alias the "std" module as "foo".
-        SET ALIAS foo AS MODULE std;
+        set alias foo as module std;
 
         # Now "std::min()" can be called as "foo::min()" in
         # the current session.
-        SELECT foo::min({1});
+        select foo::min({1});
 
         # Reset the alias.
-        RESET ALIAS foo;
+        reset alias foo;
 
         # Now this query will error out, as there is no
         # module "foo".
-        SELECT foo::min({1});
+        select foo::min({1});
 
-:eql:synopsis:`RESET ALIAS *`
+:eql:synopsis:`reset alias *`
     Reset all aliases defined in the current session.  This command
-    affects aliases set with
-    :ref:`SET ALIAS <ref_eql_statements_session_set_alias>` and
-    :ref:`SET MODULE <ref_eql_statements_session_set_alias>`.
-    The default module will be set to "default".
+    affects aliases set with :eql:stmt:`set alias <set>` and
+    :eql:stmt:`set module <set>`. The default module will be set to "default".
 
     Example:
 
     .. code-block:: edgeql
 
         # Reset all custom aliases for the current session.
-        RESET ALIAS *;
+        reset alias *;
 
 
 Examples
@@ -89,16 +87,15 @@ Examples
 
 .. code-block:: edgeql
 
-    RESET MODULE;
+    reset module;
 
-    RESET ALIAS foo;
+    reset alias foo;
 
-    RESET ALIAS *;
+    reset alias *;
 
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`Reference > EdgeQL > SET ALIAS
-      <ref_eql_statements_session_set_alias>`
+  * - :ref:`Reference > EdgeQL > Set <ref_eql_statements_session_set_alias>`

@@ -83,7 +83,7 @@ List scalar types:
 
 .. code-block:: edgeql-repl
 
-    db> \lT
+    db> \ls
 
 
 ----------
@@ -104,7 +104,7 @@ Describe an object type:
 
 .. code-block:: edgeql-repl
 
-    db> \d Object
+    db> \d object Object
     abstract type std::Object extending std::BaseObject {
         required single link __type__ -> schema::Type {
             readonly := true;
@@ -122,7 +122,7 @@ Describe a scalar type:
 
 .. code-block:: edgeql-repl
 
-    db> \d decimal
+    db> \d object decimal
     scalar type std::decimal extending std::anynumeric;
 
 
@@ -133,28 +133,34 @@ Describe a function:
 
 .. code-block:: edgeql-repl
 
-    db> \d sum
-    function std::sum(s: SET OF std::float64) ->  std::float64 {
+    db> \d object sum
+    function std::sum(s: set of std::bigint) ->  std::bigint {
         volatility := 'Immutable';
-        using sql
+        annotation std::description := 'Return the sum of the set of numbers.';
+        using sql function 'sum'
     ;};
-    function std::sum(s: SET OF std::decimal) ->  std::decimal {
+    function std::sum(s: set of std::int32) ->  std::int64 {
         volatility := 'Immutable';
-        using sql
+        annotation std::description := 'Return the sum of the set of numbers.';
+        using sql function 'sum'
     ;};
-    function std::sum(s: SET OF std::float32) ->  std::float32 {
+    function std::sum(s: set of std::decimal) ->  std::decimal {
         volatility := 'Immutable';
-        using sql
+        annotation std::description := 'Return the sum of the set of numbers.';
+        using sql function 'sum'
     ;};
-    function std::sum(s: SET OF std::bigint) ->  std::bigint {
+    function std::sum(s: set of std::float32) ->  std::float32 {
         volatility := 'Immutable';
-        using sql
+        annotation std::description := 'Return the sum of the set of numbers.';
+        using sql function 'sum'
     ;};
-    function std::sum(s: SET OF std::int64) ->  std::int64 {
+    function std::sum(s: set of std::int64) ->  std::int64 {
         volatility := 'Immutable';
-        using sql
+        annotation std::description := 'Return the sum of the set of numbers.';
+        using sql function 'sum'
     ;};
-    function std::sum(s: SET OF std::int32) ->  std::int64 {
+    function std::sum(s: set of std::float64) ->  std::float64 {
         volatility := 'Immutable';
-        using sql
+        annotation std::description := 'Return the sum of the set of numbers.';
+        using sql function 'sum'
     ;};

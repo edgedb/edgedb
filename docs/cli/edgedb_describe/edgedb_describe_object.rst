@@ -16,7 +16,7 @@ Description
 ===========
 
 ``edgedb describe`` is a terminal command equivalent to
-:eql:stmt:`DESCRIBE OBJECT <DESCRIBE>` introspection command.
+:eql:stmt:`describe object <describe>` introspection command.
 
 
 Options
@@ -27,8 +27,8 @@ specifying the connection target see :ref:`connection options
 <ref_cli_edgedb_connopts>`.
 
 :cli:synopsis:`--verbose`
-    This is equivalent to running :eql:stmt:`DESCRIBE OBJECT ... AS
-    TEXT VERBOSE <DESCRIBE>` command, which enables displaying
+    This is equivalent to running :eql:stmt:`describe object ... as
+    text verbose <describe>` command, which enables displaying
     additional details, such as annotations and constraints, which are
     otherwise omitted.
 

@@ -24,17 +24,17 @@
 
 .. _ref_eql_statements_rollback_tx:
 
-ROLLBACK
+Rollback
 ========
 
 :eql-statement:
 
 
-``ROLLBACK`` -- abort the current transaction
+``rollback`` -- abort the current transaction
 
 .. eql:synopsis::
 
-    ROLLBACK ;
+    rollback ;
 
 
 Example
@@ -44,13 +44,13 @@ Abort the current transaction:
 
 .. code-block:: edgeql
 
-    ROLLBACK;
+    rollback;
 
 
 Description
 -----------
 
-``ROLLBACK`` rolls back the current transaction and causes all
+The ``rollback`` command rolls back the current transaction and causes all
 updates made by the transaction to be discarded.
 
 
@@ -58,13 +58,13 @@ updates made by the transaction to be discarded.
   :class: seealso
 
   * - **See also**
-  * - :ref:`Reference > EdgeQL > START TRANSACTION
+  * - :ref:`Reference > EdgeQL > Start transaction
       <ref_eql_statements_start_tx>`
-  * - :ref:`Reference > EdgeQL > COMMIT
+  * - :ref:`Reference > EdgeQL > Commit
       <ref_eql_statements_commit_tx>`
-  * - :ref:`Reference > EdgeQL > DECLARE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Declare savepoint
       <ref_eql_statements_declare_savepoint>`
-  * - :ref:`Reference > EdgeQL > ROLLBACK TO SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Rollback to savepoint
       <ref_eql_statements_rollback_savepoint>`
-  * - :ref:`Reference > EdgeQL > RELEASE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Release savepoint
       <ref_eql_statements_release_savepoint>`

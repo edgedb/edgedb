@@ -1,6 +1,6 @@
 .. _ref_eql_statements_for:
 
-FOR
+For
 ===
 
 :eql-statement:
@@ -9,24 +9,24 @@ FOR
 :index: for union filter order offset limit
 
 
-``FOR``--compute a union of subsets based on values of another set
+``for``--compute a union of subsets based on values of another set
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
+    [ with <with-item> [, ...] ]
 
-    FOR <variable> IN <iterator-expr>
+    for <variable> in <iterator-expr>
 
-    UNION <output-expr> ;
+    union <output-expr> ;
 
-:eql:synopsis:`FOR <variable> IN <iterator-expr>`
-    The ``FOR`` clause has this general form:
+:eql:synopsis:`for <variable> in <iterator-expr>`
+    The ``for`` clause has this general form:
 
     .. TODO: rewrite this
 
     .. eql:synopsis::
 
-        FOR <variable> IN <iterator-expr>
+        for <variable> in <iterator-expr>
 
     where :eql:synopsis:`<iterator-expr>` is a
 	:ref:`literal <ref_eql_literals>`,
@@ -35,49 +35,49 @@ FOR
 	a :ref:`path <ref_reference_paths>`,
 	or any parenthesized expression or statement.
 
-:eql:synopsis:`UNION <output-expr>`
-    The ``UNION`` clause of the ``FOR`` statement has this general form:
+:eql:synopsis:`union <output-expr>`
+    The ``union`` clause of the ``for`` statement has this general form:
 
     .. TODO: rewrite this
 
     .. eql:synopsis::
 
-        UNION <output-expr>
+        union <output-expr>
 
     Here, :eql:synopsis:`<output-expr>`
     is an arbitrary expression that is evaluated for
-    every element in a set produced by evaluating the ``FOR`` clause.
+    every element in a set produced by evaluating the ``for`` clause.
     The results of the evaluation are appended to the result set.
 
 
 .. _ref_eql_forstatement:
 
-Usage of FOR statement
-++++++++++++++++++++++
+Usage of ``for`` statement
+++++++++++++++++++++++++++
 
-``FOR`` statement has some powerful features that deserve to be
+``for`` statement has some powerful features that deserve to be
 considered in detail separately. However, the common core is that
-``FOR`` iterates over elements of some arbitrary expression. Then for
+``for`` iterates over elements of some arbitrary expression. Then for
 each element of the iterator some set is computed and combined via a
-:eql:op:`UNION` with the other such computed sets.
+:eql:op:`union` with the other such computed sets.
 
 The simplest use case is when the iterator is given by a set
-expression and it follows the general form of ``FOR x IN A ...``:
+expression and it follows the general form of ``for x in A ...``:
 
 .. code-block:: edgeql
 
-    WITH MODULE example
+    with module example
     # the iterator is an explicit set of tuples, so x is an
     # element of this set, i.e. a single tuple
-    FOR x IN {
+    for x in {
         (name := 'Alice', theme := 'fire'),
         (name := 'Bob', theme := 'rain'),
         (name := 'Carol', theme := 'clouds'),
         (name := 'Dave', theme := 'forest')
     }
     # typically this is used with an INSERT, DELETE or UPDATE
-    UNION (
-        INSERT
+    union (
+        insert
             User {
                 name := x.name,
                 theme := x.theme,
@@ -85,83 +85,83 @@ expression and it follows the general form of ``FOR x IN A ...``:
     );
 
 Since ``x`` is an element of a set it is guaranteed to be a non-empty
-singleton in all of the expressions used by the ``UNION OF`` and later
-clauses of ``FOR``.
+singleton in all of the expressions used by the ``union`` and later
+clauses of ``for``.
 
-Another variation this usage of ``FOR`` is a bulk ``UPDATE``. There
+Another variation this usage of ``for`` is a bulk ``update``. There
 are cases when a bulk update involves a lot of external data that
 cannot be derived from the objects being updated. That is a good
-use-case when a ``FOR`` statement is appropriate.
+use-case when a ``for`` statement is appropriate.
 
 .. code-block:: edgeql
 
     # Here's an example of an update that is awkward to
     # express without the use of FOR statement
-    WITH MODULE example
-    UPDATE User
-    FILTER .name IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    SET {
-        theme := 'red'  IF .name = 'Alice' ELSE
-                 'star' IF .name = 'Bob' ELSE
-                 'dark' IF .name = 'Carol' ELSE
+    with module example
+    update User
+    filter .name in {'Alice', 'Bob', 'Carol', 'Dave'}
+    set {
+        theme := 'red'  if .name = 'Alice' else
+                 'star' if .name = 'Bob' else
+                 'dark' if .name = 'Carol' else
                  'strawberry'
     };
 
     # Using a FOR statement, the above update becomes simpler to
     # express or review for a human.
-    WITH MODULE example
-    FOR x IN {
+    with module example
+    for x in {
         (name := 'Alice', theme := 'red'),
         (name := 'Bob', theme := 'star'),
         (name := 'Carol', theme := 'dark'),
         (name := 'Dave', theme := 'strawberry')
     }
-    UNION (
-        UPDATE User
-        FILTER .name = x.name
-        SET {
+    union (
+        update User
+        filter .name = x.name
+        set {
             theme := x.theme
         }
     );
 
 When updating data that mostly or completely depends on the objects
-being updated there's no need to use the ``FOR`` statement and it is not
+being updated there's no need to use the ``for`` statement and it is not
 advised to use it for performance reasons.
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    UPDATE User
-    FILTER .name IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    SET {
+    with module example
+    update User
+    filter .name in {'Alice', 'Bob', 'Carol', 'Dave'}
+    set {
         theme := 'halloween'
     };
 
-    # The above can be accomplished with a FOR statement,
+    # The above can be accomplished with a for statement,
     # but it is not recommended.
-    WITH MODULE example
-    FOR x IN {'Alice', 'Bob', 'Carol', 'Dave'}
-    UNION (
-        UPDATE User
-        FILTER .name = x
-        SET {
+    with module example
+    for x in {'Alice', 'Bob', 'Carol', 'Dave'}
+    union (
+        update User
+        filter .name = x
+        set {
             theme := 'halloween'
         }
     );
 
-Another example of using a ``FOR`` statement is working with link
+Another example of using a ``for`` statement is working with link
 properties. Specifying the link properties either at creation time or
-in a later step with an update is often simpler with a ``FOR``
+in a later step with an update is often simpler with a ``for``
 statement helping to associate the link target to the link property in
 an intuitive manner.
 
 .. code-block:: edgeql
 
-    # Expressing this without FOR statement is fairly tedious.
-    WITH
-        MODULE example,
+    # Expressing this without for statement is fairly tedious.
+    with
+        module example,
         U2 := User
-    FOR x IN {
+    for x in {
         (
             name := 'Alice',
             friends := [('Bob', 'coffee buff'),
@@ -173,16 +173,16 @@ an intuitive manner.
                         ('Dave', 'cat person')]
         )
     }
-    UNION (
-        UPDATE User
-        FILTER .name = x.name
-        SET {
+    union (
+        update User
+        filter .name = x.name
+        set {
             friends := assert_distinct(
                 (
-                    FOR f in array_unpack(x.friends)
-                    UNION (
-                        SELECT U2 {@nickname := f.1}
-                        FILTER U2.name = f.0
+                    for f in array_unpack(x.friends)
+                    union (
+                        select U2 {@nickname := f.1}
+                        filter U2.name = f.0
                     )
                 )
             )

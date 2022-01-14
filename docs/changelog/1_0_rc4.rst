@@ -25,7 +25,7 @@ Migrations
 EdgeQL
 ======
 
-* :eql:stmt:`for <FOR>` loops no longer require wrapping everything
+* :eql:stmt:`for` loops no longer require wrapping everything
   into ``{ }``. Simple expressions using a single path or a function
   call can be used directly (:eql:gh:`#3243`):
 

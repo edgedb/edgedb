@@ -8,7 +8,7 @@ This section describes the DDL commands pertaining to
 :ref:`functions <ref_datamodel_functions>`.
 
 
-CREATE FUNCTION
+Create function
 ===============
 
 :eql-statement:
@@ -19,16 +19,16 @@ CREATE FUNCTION
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    CREATE FUNCTION <name> ([ <argspec> ] [, ... ]) -> <returnspec>
-    USING ( <expr> );
+    [ with <with-item> [, ...] ]
+    create function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
+    using ( <expr> );
 
-    [ WITH <with-item> [, ...] ]
-    CREATE FUNCTION <name> ([ <argspec> ] [, ... ]) -> <returnspec>
-    USING <language> <functionbody> ;
+    [ with <with-item> [, ...] ]
+    create function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
+    using <language> <functionbody> ;
 
-    [ WITH <with-item> [, ...] ]
-    CREATE FUNCTION <name> ([ <argspec> ] [, ... ]) -> <returnspec>
+    [ with <with-item> [, ...] ]
+    create function <name> ([ <argspec> ] [, ... ]) -> <returnspec>
     "{" <subcommand> [, ...] "}" ;
 
     # where <argspec> is:
@@ -37,11 +37,11 @@ CREATE FUNCTION
 
     # <argkind> is:
 
-      [ { VARIADIC | NAMED ONLY } ]
+      [ { variadic | named only } ]
 
     # <typequal> is:
 
-      [ { SET OF | OPTIONAL } ]
+      [ { set of | optional } ]
 
     # and <returnspec> is:
 
@@ -49,18 +49,18 @@ CREATE FUNCTION
 
     # and <subcommand> is one of
 
-      SET volatility := {'Immutable' | 'Stable' | 'Volatile'} ;
-      CREATE ANNOTATION <annotation-name> := <value> ;
-      USING ( <expr> ) ;
-      USING <language> <functionbody> ;
+      set volatility := {'Immutable' | 'Stable' | 'Volatile'} ;
+      create annotation <annotation-name> := <value> ;
+      using ( <expr> ) ;
+      using <language> <functionbody> ;
 
 
 Description
 -----------
 
-``CREATE FUNCTION`` defines a new function.  If *name* is qualified
-with a module name, then the function is created in that module,
-otherwise it is created in the current module.
+The command ``create function`` defines a new function.  If *name* is
+qualified with a module name, then the function is created in that
+module, otherwise it is created in the current module.
 
 The function name must be distinct from that of any existing function
 with the same argument types in the same module.  Functions of
@@ -75,16 +75,16 @@ Most sub-commands and options of this command are identical to the
 :ref:`SDL function declaration <ref_eql_sdl_functions_syntax>`, with
 some additional features listed below:
 
-:eql:synopsis:`SET volatility := {'Immutable' | 'Stable' | 'Volatile'}`
+:eql:synopsis:`set volatility := {'Immutable' | 'Stable' | 'Volatile'}`
     Function volatility determines how aggressively the compiler can
     optimize its invocations. Other than a slight syntactical
     difference this is the same as the corresponding SDL declaration.
 
-:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
+:eql:synopsis:`create annotation <annotation-name> := <value>`
     Set the function's :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
-    See :eql:stmt:`CREATE ANNOTATION` for details.
+    See :eql:stmt:`create annotation` for details.
 
 
 Examples
@@ -94,33 +94,33 @@ Define a function returning the sum of its arguments:
 
 .. code-block:: edgeql
 
-    CREATE FUNCTION mysum(a: int64, b: int64) -> int64
-    USING (
-        SELECT a + b
+    create function mysum(a: int64, b: int64) -> int64
+    using (
+        select a + b
     );
 
 The same, but using a variadic argument and an explicit language:
 
 .. code-block:: edgeql
 
-    CREATE FUNCTION mysum(VARIADIC argv: int64) -> int64
-    USING edgeql $$
-        SELECT sum(array_unpack(argv))
+    create function mysum(variadic argv: int64) -> int64
+    using edgeql $$
+        select sum(array_unpack(argv))
     $$;
 
 Define a function using the block syntax:
 
 .. code-block:: edgeql
 
-    CREATE FUNCTION mysum(a: int64, b: int64) -> int64 {
-        USING (
-            SELECT a + b
+    create function mysum(a: int64, b: int64) -> int64 {
+        using (
+            select a + b
         );
-        CREATE ANNOTATION title := "My sum function.";
+        create annotation title := "My sum function.";
     };
 
 
-ALTER FUNCTION
+Alter function
 ==============
 
 :eql-statement:
@@ -130,8 +130,8 @@ Change the definition of a function.
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    ALTER FUNCTION <name> ([ <argspec> ] [, ... ]) "{"
+    [ with <with-item> [, ...] ]
+    alter function <name> ([ <argspec> ] [, ... ]) "{"
         <subcommand> [, ...]
     "}"
 
@@ -141,45 +141,46 @@ Change the definition of a function.
 
     # and <subcommand> is one of
 
-      SET volatility := {'Immutable' | 'Stable' | 'Volatile'} ;
-      RESET volatility ;
-      RENAME TO <newname> ;
-      CREATE ANNOTATION <annotation-name> := <value> ;
-      ALTER ANNOTATION <annotation-name> := <value> ;
-      DROP ANNOTATION <annotation-name> ;
-      USING ( <expr> ) ;
-      USING <language> <functionbody> ;
+      set volatility := {'Immutable' | 'Stable' | 'Volatile'} ;
+      reset volatility ;
+      rename to <newname> ;
+      create annotation <annotation-name> := <value> ;
+      alter annotation <annotation-name> := <value> ;
+      drop annotation <annotation-name> ;
+      using ( <expr> ) ;
+      using <language> <functionbody> ;
 
 
 Description
 -----------
 
-``ALTER FUNCTION`` changes the definition of a function. The command
-allows to change annotations, the volatility level, and other attributes.
+The command ``alter function`` changes the definition of a function.
+The command allows to change annotations, the volatility level, and
+other attributes.
 
 
 Subcommands
 -----------
 
-The following subcommands are allowed in the ``ALTER FUNCTION`` block
-in addition to the commands common to the ``CREATE FUNCITON``:
+The following subcommands are allowed in the ``alter function`` block
+in addition to the commands common to the ``create function``:
 
-:eql:synopsis:`RESET volatility`
+:eql:synopsis:`reset volatility`
     Remove explicitly specified volatility in favor of the volatility
     inferred from the function body.
 
-:eql:synopsis:`RENAME TO <newname>`
+:eql:synopsis:`rename to <newname>`
     Change the name of the function to *newname*.
 
-:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+:eql:synopsis:`alter annotation <annotation-name>;`
     Alter function :eql:synopsis:`<annotation-name>`.
-    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
+    See :eql:stmt:`alter annotation` for details.
 
-:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+:eql:synopsis:`drop annotation <annotation-name>;`
     Remove function :eql:synopsis:`<annotation-name>`.
-    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
+    See :eql:stmt:`drop annotation` for details.
 
-:eql:synopsis:`RESET errmessage;`
+:eql:synopsis:`reset errmessage;`
     Remove the error message from this abstract constraint.
     The error message specified in the base abstract constraint
     will be used instead.
@@ -190,26 +191,26 @@ Example
 
 .. code-block:: edgeql
 
-    CREATE FUNCTION mysum(a: int64, b: int64) -> int64 {
-        USING (
-            SELECT a + b
+    create function mysum(a: int64, b: int64) -> int64 {
+        using (
+            select a + b
         );
-        CREATE ANNOTATION title := "My sum function.";
+        create annotation title := "My sum function.";
     };
 
-    ALTER FUNCTION mysum(a: int64, b: int64) {
-        SET volatility := 'Immutable';
+    alter function mysum(a: int64, b: int64) {
+        set volatility := 'Immutable';
         DROP ANNOTATION title;
     };
 
-    ALTER FUNCTION mysum(a: int64, b: int64) {
-        USING (
-            SELECT (a + b) * 100
+    alter function mysum(a: int64, b: int64) {
+        using (
+            select (a + b) * 100
         )
     };
 
 
-DROP FUNCTION
+Drop function
 =============
 
 :eql-statement:
@@ -220,8 +221,8 @@ Remove a function.
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    DROP FUNCTION <name> ([ <argspec> ] [, ... ]);
+    [ with <with-item> [, ...] ]
+    drop function <name> ([ <argspec> ] [, ... ]);
 
     # where <argspec> is:
 
@@ -231,7 +232,7 @@ Remove a function.
 Description
 -----------
 
-``DROP FUNCTION`` removes the definition of an existing function.
+The command ``drop function`` removes the definition of an existing function.
 The argument types to the function must be specified, since there
 can be different functions with the same name.
 
@@ -246,7 +247,7 @@ Parameters
     The name of an argument used in the function definition.
 
 :eql:synopsis:`<argmode>`
-    The mode of an argument: ``SET OF`` or ``OPTIONAL`` or ``VARIADIC``.
+    The mode of an argument: ``set of`` or ``optional`` or ``variadic``.
 
 :eql:synopsis:`<argtype>`
     The data type(s) of the function's arguments
@@ -260,7 +261,7 @@ Remove the ``mysum`` function:
 
 .. code-block:: edgeql
 
-    DROP FUNCTION mysum(a: int64, b: int64);
+    drop function mysum(a: int64, b: int64);
 
 
 .. list-table::

@@ -46,13 +46,13 @@ Description
 -----------
 
 The module block declaration defines a new module similar to the
-:eql:stmt:`CREATE MODULE` command, but it also allows putting the
+:eql:stmt:`create module` command, but it also allows putting the
 module content as nested declarations:
 
 :sdl:synopsis:`<schema-declarations>`
     Define various schema items that belong to this module.
 
-Unlike :eql:stmt:`CREATE MODULE` command, a module block with the
+Unlike :eql:stmt:`create module` command, a module block with the
 same name can appear multiple times in an SDL document.  In that case
 all blocks with the same name are merged into a single module under
 that name. For example:

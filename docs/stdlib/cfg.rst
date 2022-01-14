@@ -137,11 +137,9 @@ Client connections
 
   .. code-block:: edgeql-repl
 
-    edgedb> configure instance insert Auth {
-    .......   priority := 0,
-    .......   method := (INSERT Trust)
-    ....... }
-    CONFIGURE: OK
+    edgedb> configure instance insert
+    .......   Auth {priority := 0, method := (insert Trust)};
+    OK: CONFIGURE INSTANCE
 
   Below are the properties of the ``Auth`` class.
 
@@ -183,8 +181,8 @@ Client connections
 
   .. code-block:: edgeql-repl
 
-    edgedb> CONFIGURE INSTANCE INSERT
-    .......   Auth {priority := 0, method := (INSERT Trust)};
+    edgedb> configure instance insert
+    .......   Auth {priority := 0, method := (insert Trust)};
     OK: CONFIGURE INSTANCE
 
 -------
@@ -197,8 +195,8 @@ Client connections
 
   .. code-block:: edgeql-repl
 
-    edgedb> CONFIGURE INSTANCE INSERT
-    .......   Auth {priority := 0, method := (INSERT Scram)};
+    edgedb> configure instance insert
+    .......   Auth {priority := 0, method := (insert Scram)};
     OK: CONFIGURE INSTANCE
 
 

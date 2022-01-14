@@ -119,7 +119,7 @@ EdgeQL
 
 * Implement index and slicing of JSON strings (:eql:gh:`#3203`).
 
-  We already implement :eql:op:`++ <JSONPLUS>` for JSON strings, but
+  We already implement :eql:op:`++ <jsonplus>` for JSON strings, but
   indexing operations were left out until now. This change fixes this
   oversight:
 
@@ -130,8 +130,8 @@ EdgeQL
     db> select to_json('"hello"')[1:3];
     {"\"el\""}
 
-* Fix some corner cases of functions without ``OPTIONAL`` or ``SET
-  OF`` arguments being called on empty input (:eql:gh:`#3195`).
+* Fix some corner cases of functions without ``optional`` or ``set
+  of`` arguments being called on empty input (:eql:gh:`#3195`).
 
 * Fix some corner cases of changing link type (:eql:gh:`#3183`).
 

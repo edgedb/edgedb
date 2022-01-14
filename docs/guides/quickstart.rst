@@ -396,10 +396,10 @@ properties, we add a :ref:`shape <ref_reference_shapes>`:
 
 This time, the results contain ``title`` and ``year`` as requested in
 the query shape. Note that the ``year`` for Dune is given as ``{}`` (the
-empty set). This is the equivalent of a ``NULL`` value in SQL.
+empty set). This is the equivalent of a ``null`` value in SQL.
 
 Let's narrow down the ``Movie`` search to "blade runner" using
-:eql:op:`ILIKE` (case-insensitive pattern matching). With the %
+:eql:op:`ilike` (case-insensitive pattern matching). With the %
 at the end, anything after ``blade runner`` will match: "Blade Runner",
 "Blade Runner 2049", "BlAdE RUnnEr", etc...
 
@@ -560,8 +560,8 @@ properties of ``Person``. Let's update ``dbschema/default.esdl``:
 
   +     property full_name :=
   +       .first_name ++ ' ' ++ .last_name
-  +       IF EXISTS .last_name
-  +       ELSE .first_name;
+  +       if exists .last_name
+  +       else .first_name;
 
       }
       type Movie {
