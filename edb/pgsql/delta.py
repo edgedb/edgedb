@@ -5516,7 +5516,9 @@ class AlterRole(MetaCommand, RoleMixin, adapts=s_roles.AlterRole):
         kwargs = {}
         if self.has_attribute_value('password'):
             passwd = self.get_attribute_value('password')
-            kwargs['password'] = passwd
+            if backend_params.has_create_role:
+                # Only modify Postgres password of roles managed by EdgeDB
+                kwargs['password'] = passwd
             kwargs['metadata'] = dict(
                 id=str(role.id),
                 name=role_name,
