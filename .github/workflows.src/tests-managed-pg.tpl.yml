@@ -436,26 +436,10 @@ jobs:
 
     # Run the test
 
-    - name: Change Heroku Postgres password
-      shell: python
-      id: passwd
-      run: |
-        import asyncio, asyncpg, urllib.parse
-        async def main():
-            dsn = "${{ steps.pgdsn.outputs.stdout }}"
-            p = urllib.parse.urlparse(dsn)
-            conn = await asyncpg.connect(dsn)
-            await conn.execute(f"""\
-                ALTER ROLE {p.username} PASSWORD 'test';
-            """)
-            p = p._replace(netloc=f'{p.username}:test@{p.hostname}')
-            print(f'::set-output name=pgdsn::{p.geturl()}')
-        asyncio.run(main())
-
     - name: Test
       env:
         EDGEDB_TEST_BACKEND_VENDOR: heroku-postgres
-        EDGEDB_TEST_BACKEND_DSN: ${{ steps.passwd.outputs.pgdsn }}
+        EDGEDB_TEST_BACKEND_DSN: ${{ steps.pgdsn.outputs.stdout }}
       run: |
         edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
         edb test -j1 -v --backend-dsn=$EDGEDB_TEST_BACKEND_DSN

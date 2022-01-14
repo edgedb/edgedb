@@ -7119,6 +7119,35 @@ type default::Foo {
             }]
         )
 
+    async def test_edgeql_ddl_role_05(self):
+        if self.has_create_role:
+            self.skipTest("create role is supported by the backend")
+        con = await self.connect()
+        try:
+            await con.execute("""
+                ALTER ROLE edgedb SET password := 'test_role_05'
+            """)
+            if self.has_create_database:
+                await con.execute("""CREATE DATABASE test_role_05""")
+        finally:
+            await con.aclose()
+        args = {'password': "test_role_05"}
+        if self.has_create_database:
+            args['database'] = "test_role_05"
+        con = await self.connect(**args)
+        try:
+            await con.execute("""
+                ALTER ROLE edgedb SET password := 'test'
+            """)
+        finally:
+            await con.aclose()
+        con = await self.connect()
+        try:
+            if self.has_create_database:
+                await con.execute("""DROP DATABASE test_role_05""")
+        finally:
+            await con.aclose()
+
     async def test_edgeql_ddl_describe_roles(self):
         if not self.has_create_role:
             self.skipTest("create role is not supported by the backend")

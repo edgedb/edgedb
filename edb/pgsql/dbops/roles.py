@@ -92,7 +92,10 @@ class RoleExists(base.Condition):
 
 class RoleCommand:
 
-    def _render(self):
+    def _role(self):
+        return f'ROLE {self.object.get_id()}'
+
+    def _attrs(self):
         attrs = []
 
         attrmap = {
@@ -116,7 +119,7 @@ class RoleCommand:
         elif self.object.password is not base.NotSpecified:
             attrs.append(f'PASSWORD {ql(self.object.password)}')
 
-        return f'ROLE {self.object.get_id()} {" ".join(attrs)}'
+        return " ".join(attrs)
 
 
 class CreateRole(ddl.CreateObject, RoleCommand):
@@ -132,13 +135,17 @@ class CreateRole(ddl.CreateObject, RoleCommand):
             members = f'ROLE {roles}'
         else:
             members = ''
-        return f'CREATE {self._render()} {membership} {members}'
+        return f'CREATE {self._role()} {self._attrs()} {membership} {members}'
 
 
 class AlterRole(ddl.AlterObject, RoleCommand):
 
     def code(self, block: base.PLBlock) -> str:
-        return f'ALTER {self._render()}'
+        attrs = self._attrs()
+        if attrs:
+            return f'ALTER {self._role()} {attrs}'
+        else:
+            return ''
 
     def generate_extra(self, block: base.PLBlock) -> None:
         super().generate_extra(block)
