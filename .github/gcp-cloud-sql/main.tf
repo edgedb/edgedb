@@ -5,7 +5,7 @@ provider "google" {
 }
 
 resource "google_sql_database_instance" "default" {
-  database_version    = "POSTGRES_12"
+  database_version    = "POSTGRES_13"
   deletion_protection = false
 
   settings {

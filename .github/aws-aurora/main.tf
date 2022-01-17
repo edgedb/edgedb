@@ -16,7 +16,7 @@ module "aurora" {
 
   name           = "aws-aurora-instance"
   engine         = "aurora-postgresql"
-  engine_version = "12.8"
+  engine_version = "13.4"
   instance_type = "db.r6g.large"
 
 

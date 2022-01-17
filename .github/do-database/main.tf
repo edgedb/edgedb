@@ -17,7 +17,7 @@ provider "digitalocean" {
 resource "digitalocean_database_cluster" "default" {
   name = "edbtest"
   engine     = "pg"
-  version    = "12"
+  version    = "13"
   size       = "db-s-4vcpu-8gb"
   region     = "nyc1"
   node_count = 1
