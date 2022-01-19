@@ -127,7 +127,8 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: Expression to use to force SQL expression volatility in this context
     #: (Delayed with a lambda to avoid inserting it when not used.)
     volatility_ref: Tuple[
-        Callable[[CompilerContextLevel], Optional[pgast.BaseExpr]], ...]
+        Callable[[pgast.SelectStmt, CompilerContextLevel],
+                 Optional[pgast.BaseExpr]], ...]
 
     # Current path_id we are INSERTing, so that we can avoid creating
     # a bogus volatility ref to it...

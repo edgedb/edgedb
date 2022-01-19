@@ -1153,7 +1153,7 @@ def process_set_as_subquery(
                 # skip it based on the current_insert_path_id check.
                 path_id = ir_source.path_id
                 newctx.volatility_ref += (
-                    lambda xctx: relctx.maybe_get_path_var(
+                    lambda _stmt, xctx: relctx.maybe_get_path_var(
                         stmt, path_id=path_id, aspect='identity',
                         ctx=xctx),)
 
