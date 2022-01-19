@@ -119,7 +119,7 @@ def _get_type_variant(
 ) -> Optional[s_obj.Object]:
     type_variant = ctx.aliased_views.get(name)
     if type_variant is not None:
-        ctx.must_use_views.pop(type_variant, None)
+        ctx.must_use_views[type_variant] = None
         return type_variant
     else:
         return None
