@@ -3273,6 +3273,35 @@ class TestEdgeQLScope(tb.QueryTestCase):
         self.assertEqual(len(res), 9)
         self.assertTrue(set(res).issubset(baseline))
 
+    async def test_edgeql_scope_ref_outer_08(self):
+        await self.assert_query_result(
+            """
+            SELECT User { avatar := .avatar {
+                tag := User.name ++ ' - ' ++ .name
+            } }
+            ORDER BY .avatar.tag
+            """,
+            [
+                {"avatar": None},
+                {"avatar": None},
+                {"avatar": {"tag": "Alice - Dragon"}},
+                {"avatar": {"tag": "Dave - Djinn"}}
+            ]
+        )
+
+    async def test_edgeql_scope_ref_outer_09(self):
+        await self.assert_query_result(
+            """
+            SELECT User { avatar := .avatar {
+                tag := User.name ++ ' - ' ++ .name
+            } }
+            FILTER .avatar.tag != 'Dave - Djinn'
+            """,
+            [
+                {"avatar": {"tag": "Alice - Dragon"}},
+            ]
+        )
+
     async def test_edgeql_scope_ref_side_01(self):
         await self.assert_query_result(
             """

@@ -1495,6 +1495,13 @@ def _get_computable_ctx(
 
             subctx.pending_stmt_full_path_id_namespace = frozenset(subns)
 
+            # If one of the sources present at the definition site is still
+            # visible, make sure to hang on to the remapping.
+            for entry in qlctx.view_map.values():
+                for map_path_id, remapped in entry:
+                    if subctx.path_scope.is_visible(map_path_id):
+                        update_view_map(map_path_id, remapped, ctx=subctx)
+
             inner_path_id = inner_source_path_id.merge_namespace(subns)
             with subctx.new() as remapctx:
                 remapctx.path_id_namespace |= subns
