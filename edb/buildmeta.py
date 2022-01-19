@@ -116,7 +116,7 @@ def get_pg_config_path() -> pathlib.Path:
     return pg_config
 
 
-_bundled_pg_version = None
+_bundled_pg_version: Optional[BackendVersion] = None
 
 
 def get_pg_version() -> BackendVersion:
