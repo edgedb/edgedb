@@ -20,7 +20,6 @@
 import unittest
 
 from edb.tools import toy_eval_model as model
-from edb.tools import test
 
 from edb.common import assert_data_shape
 
@@ -578,7 +577,6 @@ class TestModelSmokeTests(unittest.TestCase):
             {('boxing', False), ('unboxing', True), ('dynamic', True)}
         )
 
-    @test.xfail('The model has a lot of trouble with shadowing.')
     def test_model_alias_shadowing_01(self):
         self.assert_test_query(
             r"""

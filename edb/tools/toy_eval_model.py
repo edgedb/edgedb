@@ -205,6 +205,12 @@ class IPtr(NamedTuple):
     is_link_property: bool = False
 
 
+# Wrapper to indicate that an entry in the input tuple is really
+# a *set* bound by an alias.
+class Alias(NamedTuple):
+    contents: List[Data]
+
+
 IPathElement = Union[IPartial, IExpr, IORef, ITypeIntersection, IPtr]
 IPath = Tuple[IPathElement, ...]
 
@@ -376,7 +382,6 @@ BASIS_IMPLS: Dict[Tuple[str, str], LiftedFunc] = {
 class EvalContext:
     query_input_list: List[IPath]
     input_tuple: Tuple[Data, ...]
-    aliases: Dict[str, Result]
     cur_path: Optional[qlast.Path]
     db: DB
 
@@ -526,13 +531,20 @@ def eval_limit(limit: Optional[qlast.Expr], out: List[Row],
     return out
 
 
+def add_alias(name: str, vals: Data, ctx: EvalContext) -> EvalContext:
+    return replace(
+        ctx,
+        query_input_list=ctx.query_input_list + [(IORef(name),)],
+        input_tuple=ctx.input_tuple + (Alias(vals),),
+    )
+
+
 def eval_aliases(node: qlast.Statement, ctx: EvalContext) -> EvalContext:
     if node.aliases:
-        ctx = replace(ctx, aliases=ctx.aliases.copy())
         for alias in node.aliases:
             assert isinstance(alias, qlast.AliasedExpr)
-            ctx.aliases[alias.alias] = (
-                strip_shapes(subquery(alias.expr, ctx=ctx)))
+            ctx = add_alias(
+                alias.alias, subquery(alias.expr, ctx=ctx), ctx=ctx)
 
     return ctx
 
@@ -658,15 +670,14 @@ def get_groups(node: qlast.GroupQuery, ctx: EvalContext) -> List[Tuple[
     for val in subject_vals:
         subctx = replace(ctx, query_input_list=new_qil,
                          cur_path=subq_path,
-                         input_tuple=ctx.input_tuple + (val,),
-                         aliases=ctx.aliases.copy())
+                         input_tuple=ctx.input_tuple + (val,))
 
         keys: Dict[ByElement, Data] = {}
         # Collect all the USING bindings
         for using in (node.using or ()):
             using_val = eval(using.expr, ctx=subctx)
             assert len(using_val) <= 1
-            subctx.aliases[using.alias] = using_val
+            subctx = add_alias(using.alias, using_val, subctx)
             keys[IORef(using.alias)] = using_val
         # And collect all the partial path references
         for key_el in all_keys:
@@ -996,7 +1007,6 @@ def eval_computed(
     subctx = EvalContext(
         query_input_list=[simplify_path(p) for p in paths],
         input_tuple=input_tuple,
-        aliases={},
         cur_path=paths[-1],
         db=ctx.db,
     )
@@ -1045,9 +1055,6 @@ def eval_intersect(
 
 # This should only get called during input tuple building
 def eval_objref(name: str, ctx: EvalContext) -> Result:
-    if name in ctx.aliases:
-        return ctx.aliases[name]
-
     return [
         Obj(obj["id"]) for obj in ctx.db.data.values()
         if obj["__type__"] == name
@@ -1067,6 +1074,8 @@ def eval_path(path: IPath, ctx: EvalContext) -> Result:
         # need last index, since there could be multiple IPrefixes or the like
         i = last_index(ctx.query_input_list, path)
         obj = ctx.input_tuple[i]
+        if isinstance(obj, Alias):
+            return obj.contents
         return [obj] if obj is not None else []
 
     if len(path) == 1:
@@ -1418,7 +1427,6 @@ def toplevel_query(q: qlast.Expr, db: DB) -> Data:
     ctx = EvalContext(
         query_input_list=[],
         input_tuple=(),
-        aliases={},
         cur_path=None,
         db=db,
     )
