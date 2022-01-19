@@ -1046,11 +1046,13 @@ class ScopeTreeNode:
     def dump(self) -> None:
         print(self.pdebugformat())
 
-    def dump_full(self) -> None:
+    def dump_full(self, others: Collection[ScopeTreeNode]=()) -> None:
         """Do a debug dump of the root but hilight the current node."""
         styles = {}
         if term.supports_colors(sys.stdout.fileno()):
             styles[self] = term.Style16(color='magenta', bold=True)
+            for other in others:
+                styles[other] = term.Style16(color='blue', bold=True)
         print(self.root.pdebugformat(styles=styles))
 
     def _set_parent(self, parent: Optional[ScopeTreeNode]) -> None:
