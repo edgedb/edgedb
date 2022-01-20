@@ -12335,7 +12335,8 @@ type default::Foo {
             CREATE TYPE D {
                 CREATE MULTI LINK multi_link -> C;
             };
-            CREATE TYPE E EXTENDING D
+            CREATE TYPE E EXTENDING D;
+            INSERT C;
         """)
 
         await self.con.execute(r"""
@@ -12344,9 +12345,14 @@ type default::Foo {
             };
         """)
 
+        await self.con.execute(r"""
+            DELETE C;
+        """)
+
     async def test_edgeql_ddl_drop_multi_parent_multi_link(self):
         await self.con.execute(r"""
             CREATE TYPE C;
+            INSERT C;
             CREATE TYPE D {
                 CREATE MULTI LINK multi_link -> C;
             };
@@ -12360,6 +12366,19 @@ type default::Foo {
             ALTER TYPE D {
                 DROP LINK multi_link;
             };
+        """)
+
+        await self.con.execute(r"""
+            DELETE C;
+        """)
+
+    async def test_edgeql_ddl_drop_incoming_link(self):
+        await self.con.execute(r"""
+            create type Foo;
+            create type Bar { create link foo -> Foo; };
+            alter type Bar { drop link foo; };
+            insert Foo;
+            delete Foo;
         """)
 
 
