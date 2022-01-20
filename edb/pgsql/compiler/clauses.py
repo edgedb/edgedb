@@ -38,15 +38,17 @@ from . import relgen
 
 
 def get_volatility_ref(
-        path_id: irast.PathId, *,
+        path_id: irast.PathId,
+        stmt: pgast.SelectStmt,
+        *,
         ctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
     """Produce an appropriate volatility_ref from a path_id."""
 
     ref: Optional[pgast.BaseExpr] = relctx.maybe_get_path_var(
-        ctx.rel, path_id, aspect='identity', ctx=ctx)
+        stmt, path_id, aspect='identity', ctx=ctx)
     if not ref:
         rvar = relctx.maybe_get_path_rvar(
-            ctx.rel, path_id, aspect='value', ctx=ctx)
+            stmt, path_id, aspect='value', ctx=ctx)
         if rvar and isinstance(rvar.query, pgast.ReturningQuery):
             # If we are selecting from a nontrivial subquery, manually
             # add a volatility ref based on row_number. We do it
@@ -63,7 +65,7 @@ def get_volatility_ref(
             ref = pgast.ColumnRef(name=[rvar.alias.aliasname, name])
         else:
             ref = relctx.maybe_get_path_var(
-                ctx.rel, path_id, aspect='value', ctx=ctx)
+                stmt, path_id, aspect='value', ctx=ctx)
 
     return ref
 
@@ -78,19 +80,12 @@ def setup_iterator_volatility(
     old = () if is_cte else ctx.volatility_ref
 
     path_id = iterator.path_id
-    ref: Optional[pgast.BaseExpr] = None
 
     # We use a callback scheme here to avoid inserting volatility ref
     # columns unless there is actually a volatile operation that
     # requires it.
-    def get_ref(
-            xctx: context.CompilerContextLevel) -> Optional[pgast.BaseExpr]:
-        nonlocal ref
-        if ref is None:
-            ref = get_volatility_ref(path_id, ctx=xctx)
-        return ref
-
-    ctx.volatility_ref = old + (get_ref,)
+    ctx.volatility_ref = old + (
+        lambda stmt, xctx: get_volatility_ref(path_id, stmt, ctx=xctx),)
 
 
 def compile_materialized_exprs(
