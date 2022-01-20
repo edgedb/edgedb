@@ -401,9 +401,13 @@ class ContextLevel(compiler.ContextLevel):
 
     must_use_views: Dict[
         s_types.Type,
-        Tuple[s_name.Name, Optional[parsing.ParserContext]],
+        Optional[Tuple[s_name.Name, Optional[parsing.ParserContext]]],
     ]
-    """A set of views that *must* be used in an expression."""
+    """A set of views that *must* be used in an expression.
+
+    Once a view is used, we set it to None rather than removing it so
+    that we can avoid adding it again if it is defined inside a
+    computable."""
 
     expr_view_cache: Dict[Tuple[qlast.Base, s_name.Name], irast.Set]
     """Type cache used by expression-level views."""
