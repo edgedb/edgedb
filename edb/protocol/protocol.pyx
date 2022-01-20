@@ -109,7 +109,10 @@ async def new_connection(
     password: str = None,
     database: str = None,
     timeout: float = 60,
+    tls_ca: str = None,
+    tls_ca_file: str = None,
     tls_security: str = 'default',
+    credentials: str = None,
     credentials_file: str = None,
     **kwargs
 ):
@@ -119,8 +122,11 @@ async def new_connection(
         timeout=timeout,
         command_timeout=None,
         server_settings=None,
+        tls_ca=tls_ca,
+        tls_ca_file=tls_ca_file,
         tls_security=tls_security,
         wait_until_available=timeout,
+        credentials=credentials,
         credentials_file=credentials_file,
         **kwargs
     )

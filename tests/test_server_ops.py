@@ -590,22 +590,10 @@ class TestServerOps(tb.TestCase):
             finally:
                 con.close()
 
-            # TODO: Implement TLS-less connection in testbase/connection.py.
-            # con = await edb_protocol.new_connection(
-            #     user='edgedb',
-            #     password=sd.password,
-            #     host=sd.host,
-            #     port=sd.port,
-            #     tls_ca_file=None,
-            #     tls_security='no_host_verification',
-            # )
-            # try:
-            #     with self.assertRaisesRegex(
-            #         errors.BinaryProtocolError, "TLS Required"
-            #     ):
-            #         await con.connect()
-            # finally:
-            #     await con.aclose()
+            with self.assertRaisesRegex(
+                errors.BinaryProtocolError, "TLS Required"
+            ):
+                await sd.connect(test_no_tls=True)
 
             con = await edb_protocol.new_connection(
                 user='edgedb',

@@ -31,7 +31,6 @@ import tempfile
 import time
 
 import asyncpg
-import edgedb
 
 from edb import buildmeta
 from edb.common import devmode
@@ -143,12 +142,6 @@ class BaseCluster:
             'port': self._effective_port,
             'tls_ca_file': self._tls_cert_file,
         }
-
-    def connect(self, **kwargs: Any) -> edgedb.BlockingIOConnection:
-        connect_args = self.get_connect_args().copy()
-        connect_args.update(kwargs)
-
-        return edgedb.connect(**connect_args)
 
     async def init(
         self,
