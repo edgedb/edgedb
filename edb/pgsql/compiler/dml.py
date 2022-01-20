@@ -990,7 +990,7 @@ def compile_insert_shape_element(
 
         if iterator_id is not None:
             id = iterator_id
-            insvalctx.volatility_ref = (lambda _ctx: id,)
+            insvalctx.volatility_ref = (lambda _stmt, _ctx: id,)
         else:
             # Single inserts have no need for forced
             # computable volatility, and, furthermore,
@@ -1943,7 +1943,7 @@ def process_link_values(
             input_rel = input_rel_ctx.rel
             input_rel_ctx.expr_exposed = False
             input_rel_ctx.volatility_ref = (
-                lambda _ctx: pathctx.get_path_identity_var(
+                lambda _stmt, _ctx: pathctx.get_path_identity_var(
                     row_query, ir_stmt.subject.path_id,
                     env=input_rel_ctx.env),)
 
