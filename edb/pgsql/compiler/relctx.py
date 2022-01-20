@@ -1104,7 +1104,7 @@ def reserialize_object(
     tref = pgast.ColumnRef(name=[el.colname], is_packed_multi=el.multi)
 
     with ctx.subrel() as subctx:
-        sub_rvar = unpack_var(subctx.rel, tel.path_id, ref=tref, ctx=ctx)
+        sub_rvar = unpack_var(subctx.rel, tel.path_id, ref=tref, ctx=subctx)
     reqry = sub_rvar.query
     assert isinstance(reqry, pgast.Query)
     rptr = tel.path_id.rptr()

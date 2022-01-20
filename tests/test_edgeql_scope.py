@@ -544,7 +544,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail("Eta-expansion breaks somehow with link properties")
     async def test_edgeql_scope_tuple_05b(self):
         # Similar to above tests, but forcing use of eta-expansion
         await self.assert_query_result(
