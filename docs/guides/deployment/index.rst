@@ -9,3 +9,4 @@ Deploying EdgeDB
     :maxdepth: 1
 
     fly_io
+    docker
