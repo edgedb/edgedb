@@ -4056,8 +4056,9 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
             condition = dbops.TableExists(name=old_table_name)
             self.pgops.add(
                 dbops.DropTable(name=old_table_name, conditions=[condition]))
-            self.schedule_endpoint_delete_action_update(
-                link, orig_schema, schema, context)
+
+        self.schedule_endpoint_delete_action_update(
+            link, orig_schema, schema, context)
 
 
 class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
