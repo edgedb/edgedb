@@ -176,3 +176,7 @@
 0x_FF_03_00_00   NoDataError
 
 0x_FF_04_00_00   InternalClientError
+
+0x_FF_05_00_00   ClientTimeoutError
+0x_FF_05_01_00   ClientQueryTimeoutError
+0x_FF_05_02_00   ClientCloseTimeoutError
