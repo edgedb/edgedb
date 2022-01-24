@@ -158,7 +158,7 @@ project init`` inside project again to create or select a new instance.
 .. code-block:: bash
 
   $ edgedb project init
-  No `edgedb.toml` found in current directory or above.
+  No `edgedb.toml` found in `~/path/to/my_project` or above.
   Do you want to initialize a new project? [Y/n]
   > Y
   Specify the name of EdgeDB instance to use with this project
@@ -170,6 +170,6 @@ project init`` inside project again to create or select a new instance.
   Type a number to select an option:
   > 1
   Checking EdgeDB versions...
-  Specify the version of EdgeDB to use with this project [default: 1-rc3]:
-  > 1-rc3
+  Specify the version of EdgeDB to use with this project [default: 1.0-rc.4]:
+  > 1.0-rc.4
 

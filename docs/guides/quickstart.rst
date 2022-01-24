@@ -73,8 +73,8 @@ up your first EdgeDB instance. You should see something like this:
 
   $ edgedb project init
 
-  No `edgedb.toml` found at `~/path/to/quickstart`
-  or above. Do you want to initialize a new project? [Y/n]
+  No `edgedb.toml` found in `~/path/to/quickstart` or above.
+  Do you want to initialize a new project? [Y/n]
   > Y
 
   Specify the name of EdgeDB instance to use with this
@@ -89,20 +89,24 @@ up your first EdgeDB instance. You should see something like this:
 
   Checking EdgeDB versions...
   Specify the version of EdgeDB to use with this project
-  [default: 1-rc3]:
-  > 1-rc3
+  [default: 1.0-rc.4]:
+  > 1.0-rc.4
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
   │ Schema dir (empty)  │ ~/path/to/quickstart/dbschema                 │
   │ Installation method │ Native System Package                         │
-  │ Version             │ 1.0b2+ga7130d5c7.cv202104290000-202105060205  │
+  │ Version             │ 1.0-rc.4+c21decd                              │
   │ Instance name       │ quickstart                                    │
   └─────────────────────┴───────────────────────────────────────────────┘
+  Downloading package...
+  00:00:01 [====================] 32.98MiB/32.98MiB 32.89MiB/s | ETA: 0s
+  Successfully installed 1.0-rc.4+c21decd
   Initializing EdgeDB instance...
-  Bootstrap complete. Server is up and running now.
-  Project initialialized.
-  To connect to `quickstart`, just run `edgedb`.
+  Applying migrations...
+  Everything is up to date. Revision initial
+  Project initialized.
+  To connect to quickstart, run `edgedb`
 
 
 This did a couple things.
