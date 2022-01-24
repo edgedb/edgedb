@@ -47,6 +47,8 @@ fn whitespace_and_comments() {
     assert_eq!(tok_str("# hello { world }"), &[] as &[&str]);
     assert_eq!(tok_str("# x\n  "), &[] as &[&str]);
     assert_eq!(tok_str("  # x"), &[] as &[&str]);
+    assert_eq!(tok_err("  # xxx \u{202A} yyy"),
+        "Unexpected `unexpected character '\\u{202a}'`");
 }
 
 #[test]
@@ -703,6 +705,35 @@ fn strings() {
     assert_eq!(tok_err(r#"`__x__`"#),
         "Unexpected `backtick-quoted names surrounded by double \
                     underscores are forbidden`");
+
+}
+
+#[test]
+fn string_prohibited_chars() {
+    assert_eq!(tok_err("'xxx \u{202A}'"),
+        "character U+202A is not allowed, use escaped form \\u202a");
+    assert_eq!(tok_err("\"\u{202A} yyy\""),
+        "character U+202A is not allowed, use escaped form \\u202a");
+    assert_eq!(tok_err("r\"\u{202A}\""),
+        "character U+202A is not allowed, use escaped form \\u202a");
+    assert_eq!(tok_err("r'\u{202A}'"),
+        "character U+202A is not allowed, use escaped form \\u202a");
+    assert_eq!(tok_err("b'\u{202A}'"),
+        "Unexpected `invalid bytes literal: character '\\u{202a}' \
+         is unexpected, only ascii chars are allowed in bytes literals`");
+    assert_eq!(tok_err("b\"\u{202A}\""),
+        "Unexpected `invalid bytes literal: character '\\u{202a}' \
+         is unexpected, only ascii chars are allowed in bytes literals`");
+    assert_eq!(tok_err("`\u{202A}`"),
+        "character U+202A is not allowed");
+    assert_eq!(tok_err("$`\u{202A}`"),
+        "character U+202A is not allowed");
+    assert_eq!(tok_err("$x\u{202A}$ inner $x\u{202A}$"),
+        "Unexpected `unexpected character '\\u{202a}'`");
+    assert_eq!(tok_err("$$ \u{202A} $$"),
+        "character U+202A is not allowed");
+    assert_eq!(tok_err("$hello$ \u{202A} $hello$"),
+        "character U+202A is not allowed");
 }
 
 #[test]

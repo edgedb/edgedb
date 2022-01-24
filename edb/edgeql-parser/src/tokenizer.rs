@@ -194,6 +194,7 @@ impl<'a> TokenStream<'a> {
                 return Ok((tok, end));
             }
         }
+
         let old_pos = self.off;
         let (kind, len) = self.peek_token()?;
 
@@ -317,6 +318,7 @@ impl<'a> TokenStream<'a> {
                         }
                         return Ok((BacktickName, idx+1));
                     }
+                    check_prohibited(c, false)?;
                 }
                 return Err(Error::unexpected_static_message(
                     "unterminated backtick name"));
@@ -411,6 +413,9 @@ impl<'a> TokenStream<'a> {
                             if let Some(end) = find_str(
                                 &self.buf[self.off+2..], "$$")
                             {
+                                for c in self.buf[self.off+2..][..end].chars() {
+                                    check_prohibited(c, false)?;
+                                }
                                 return Ok((Str, 2+end+2));
                             } else {
                                 return Err(Error::unexpected_static_message(
@@ -455,6 +460,7 @@ impl<'a> TokenStream<'a> {
                                     }
                                     return Ok((Argument, idx+1));
                                 }
+                                check_prohibited(c, false)?;
                             }
                             return Err(Error::unexpected_static_message(
                                 "unterminated backtick argument"));
@@ -489,6 +495,10 @@ impl<'a> TokenStream<'a> {
                                 &self.buf[self.off+msize..],
                                 &marker)
                             {
+                                let data = &self.buf[self.off+msize..][..end];
+                                for c in data.chars() {
+                                    check_prohibited(c, false)?;
+                                }
                                 return Ok((Str, msize+end+msize));
                             } else {
                                 return Err(Error::unexpected_format(
@@ -587,7 +597,7 @@ impl<'a> TokenStream<'a> {
                     c if c == open_quote => {
                         return Ok((Kind::Str, quote_off+idx+1))
                     }
-                    _ => {}
+                    _ => check_prohibited(c, true)?,
                 }
             }
         }
@@ -767,7 +777,7 @@ impl<'a> TokenStream<'a> {
 
     fn skip_whitespace(&mut self) {
         let mut iter = self.buf[self.off..].char_indices();
-        let idx = loop {
+        let idx = 'outer: loop {
             let (idx, cur_char) = match iter.next() {
                 Some(pair) => pair,
                 None => break self.buf.len() - self.off,
@@ -786,7 +796,13 @@ impl<'a> TokenStream<'a> {
                 }
                 //comment
                 '#' => {
-                    while let Some((_, cur_char)) = iter.next() {
+                    while let Some((idx, cur_char)) = iter.next() {
+                        if check_prohibited(cur_char, false).is_err() {
+                            // can't return error from skip_whitespace
+                            // but we return up to this char, so the tokenizer
+                            // chokes on it next time is invoked
+                            break 'outer idx;
+                        }
                         if cur_char == '\r' || cur_char == '\n' {
                             self.position.column = 1;
                             self.position.line += 1;
@@ -832,6 +848,27 @@ impl<'a> TokenStream<'a> {
 impl<'a> fmt::Display for Token<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}[{:?}]", self.value, self.kind)
+    }
+}
+
+fn check_prohibited(c: char, escape: bool)
+    -> Result<(), Error<Token<'static>, Token<'static>>>
+{
+    match c {
+        '\u{202A}' | '\u{202B}' | '\u{202C}' | '\u{202D}' |
+        '\u{202E}' | '\u{2066}' | '\u{2067}' | '\u{2068}' |
+        '\u{2069}' => {
+            if escape {
+                Err(Error::message_format(format!(
+                    "character U+{0:04X} is not allowed, \
+                     use escaped form \\u{0:04x}",
+                    c as u32)))
+            } else {
+                Err(Error::message_format(
+                    format!("character U+{:04X} is not allowed", c as u32)))
+            }
+        }
+        _ => Ok(())
     }
 }
 
@@ -938,3 +975,4 @@ pub fn is_keyword(s: &str) -> bool {
         _ => false,
     }
 }
+
