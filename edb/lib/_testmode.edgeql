@@ -112,6 +112,7 @@ ALTER TYPE cfg::AbstractConfig {
     };
 
     CREATE PROPERTY enumprop -> cfg::TestEnum {
+        CREATE ANNOTATION cfg::internal := 'true';
         SET default := cfg::TestEnum.One;
     };
 
