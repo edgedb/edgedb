@@ -26,7 +26,7 @@ from edb.common import assert_data_shape
 bag = assert_data_shape.bag
 
 
-class TestModelGroupests(unittest.TestCase):
+class TestModelGroupTests(unittest.TestCase):
     """Tests for GROUP BY in the toy evaluator model."""
 
     DB1 = model.DB1
@@ -195,76 +195,76 @@ class TestModelGroupests(unittest.TestCase):
 
     def test_model_group_04(self):
         res = [
-            {"key": {"element": [], "nowners": []}, "num": 9, "grouping": []},
+            {"key": {"element": [], "nowners": []}, "num": 9, "agrouping": []},
             {
                 "key": {"element": "Air", "nowners": []},
                 "num": 3,
-                "grouping": ["element"],
+                "agrouping": ["element"],
             },
             {
                 "key": {"element": "Earth", "nowners": []},
                 "num": 2,
-                "grouping": ["element"],
+                "agrouping": ["element"],
             },
             {
                 "key": {"element": "Fire", "nowners": []},
                 "num": 2,
-                "grouping": ["element"],
+                "agrouping": ["element"],
             },
             {
                 "key": {"element": "Water", "nowners": []},
                 "num": 2,
-                "grouping": ["element"],
+                "agrouping": ["element"],
             },
             {
                 "key": {"element": "Air", "nowners": 2},
                 "num": 3,
-                "grouping": ["element", "nowners"],
+                "agrouping": ["element", "nowners"],
             },
             {
                 "key": {"element": "Earth", "nowners": 2},
                 "num": 1,
-                "grouping": ["element", "nowners"],
+                "agrouping": ["element", "nowners"],
             },
             {
                 "key": {"element": "Earth", "nowners": 3},
                 "num": 1,
-                "grouping": ["element", "nowners"],
+                "agrouping": ["element", "nowners"],
             },
             {
                 "key": {"element": "Fire", "nowners": 1},
                 "num": 1,
-                "grouping": ["element", "nowners"],
+                "agrouping": ["element", "nowners"],
             },
             {
                 "key": {"element": "Fire", "nowners": 2},
                 "num": 1,
-                "grouping": ["element", "nowners"],
+                "agrouping": ["element", "nowners"],
             },
             {
                 "key": {"element": "Water", "nowners": 4},
                 "num": 2,
-                "grouping": ["element", "nowners"],
+                "agrouping": ["element", "nowners"],
             },
             {
                 "key": {"element": [], "nowners": 1},
                 "num": 1,
-                "grouping": ["nowners"],
+                "agrouping": ["nowners"],
             },
             {
                 "key": {"element": [], "nowners": 2},
                 "num": 5,
-                "grouping": ["nowners"],
+                "agrouping": ["nowners"],
             },
             {
                 "key": {"element": [], "nowners": 3},
                 "num": 1,
-                "grouping": ["nowners"],
+                "agrouping": ["nowners"],
             },
             {
                 "key": {"element": [], "nowners": 4},
                 "num": 2,
-                "grouping": ["nowners"],
+                "agrouping": ["nowners"],
             },
         ]
 
@@ -277,8 +277,10 @@ class TestModelGroupests(unittest.TestCase):
             ) {
                 key: {element, nowners},
                 num := count(.elements),
-                grouping
-            } ORDER BY .grouping THEN .key.element THEN .key.nowners;
+                agrouping := array_agg((SELECT _ := .grouping ORDER BY _))
+            }
+            ORDER BY .agrouping
+            THEN .key.element THEN .key.nowners;
             """,
             res,
         )

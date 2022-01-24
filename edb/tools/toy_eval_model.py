@@ -732,7 +732,7 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
         group_dict = {
             'key': [key_obj],
             'elements': elements,
-            'grouping': [[g.name for g in grouping]],
+            'grouping': [g.name for g in grouping],
         }
         group_obj = Obj(FREE_ID, group_dict, group_dict)
         out.append(group_obj)
