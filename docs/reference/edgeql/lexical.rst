@@ -443,4 +443,4 @@ EdgeQL operators listed in order of precedence from lowest to highest:
         :eql:op:`str[] <stridx>`,
         :eql:op:`json[] <jsonidx>`,
         :eql:op:`bytes[] <bytesidx>`
-    * - :ref:`DETACHED <ref_eql_with_detached>`
+    * - :eql:kw:`detached`

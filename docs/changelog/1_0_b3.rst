@@ -76,8 +76,8 @@ EdgeQL
     ERROR: CardinalityViolationError: assert_single violation: more than
            one element returned by an expression
 
-* Adjust the precedence of :ref:`DETACHED <ref_eql_with_detached>` to
-  match that of :eql:op:`exists` (:eql:gh:`#2638`).
+* Adjust the precedence of :eql:op:`detached` to match that of
+  :eql:op:`exists` (:eql:gh:`#2638`).
 
   This makes it apply to shapes in a more intuitive fashion:
 

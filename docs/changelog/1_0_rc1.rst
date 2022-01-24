@@ -82,9 +82,8 @@ EdgeQL
 ======
 
 * Drop ``final`` from the syntax (:eql:gh:`#2607`).
-* Restore the precedence of :ref:`detached <ref_eql_with_detached>` to
-  no longer match that of :eql:op:`exists` undoing the change
-  :eql:gh:`#2638`.
+* Restore the precedence of :eql:op:`detached` to no longer match that
+  of :eql:op:`exists` undoing the change :eql:gh:`#2638`.
 * Fix ``unless conflict`` with inheritance hierarchies (:eql:gh:`#2525`).
 * Always use serializable isolation (:eql:gh:`#2877`).
 * Correctly raise exclusive constraints when performing an ``insert``

@@ -141,10 +141,13 @@ An example of incorrect refactoring would be:
     select (Issue, U);
 
 
-.. _ref_eql_with_detached:
-
 Detached
 ++++++++
+
+.. eql:keyword:: detached
+
+    The ``detached`` keyword marks an expression as not belonging to
+    any scope.
 
 A ``detached`` expression allows referring to some set as if it were
 defined in the top-level ``with`` block. Basically, ``detached``
