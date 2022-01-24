@@ -328,7 +328,8 @@ class TestDocSnippets(unittest.TestCase):
                     'javascript',
                     'python',
                     'typescript',
-                    'go'
+                    'go',
+                    'yaml'
                 }:
                     pass
                 elif lang[-5:] == '-diff':
