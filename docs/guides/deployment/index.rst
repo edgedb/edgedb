@@ -8,5 +8,6 @@ Deploying EdgeDB
 .. toctree::
     :maxdepth: 1
 
+    azure_flexibleserver
     fly_io
     docker
