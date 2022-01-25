@@ -986,7 +986,7 @@ def compile_insert_shape_element(
         assert shape_el.rptr is not None
         if (shape_el.rptr.dir_cardinality
                 is qltypes.Cardinality.AT_MOST_ONE):
-            insvalctx.force_optional.add(shape_el.path_id)
+            insvalctx.force_optional |= {shape_el.path_id}
 
         if iterator_id is not None:
             id = iterator_id
@@ -1955,7 +1955,7 @@ def process_link_values(
             input_rel_ctx.shapes_needed_by_dml.add(shape_expr)
 
             if ptr_is_required and enforce_cardinality:
-                input_rel_ctx.force_optional.add(ir_expr.path_id)
+                input_rel_ctx.force_optional |= {ir_expr.path_id}
 
             dispatch.visit(ir_expr, ctx=input_rel_ctx)
 

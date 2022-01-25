@@ -135,11 +135,11 @@ class CompilerContextLevel(compiler.ContextLevel):
     current_insert_path_id: Optional[irast.PathId]
 
     #: Paths, for which semi-join is banned in this context.
-    disable_semi_join: Set[irast.PathId]
+    disable_semi_join: FrozenSet[irast.PathId]
 
     #: Paths, which need to be explicitly wrapped into SQL
     #: optionality scaffolding.
-    force_optional: Set[irast.PathId]
+    force_optional: FrozenSet[irast.PathId]
 
     #: Specifies that references to a specific Set must be narrowed
     #: by only selecting instances of type specified by the mapping value.
@@ -229,8 +229,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.volatility_ref = ()
             self.current_insert_path_id = None
 
-            self.disable_semi_join = set()
-            self.force_optional = set()
+            self.disable_semi_join = frozenset()
+            self.force_optional = frozenset()
             self.intersection_narrowing = {}
 
             self.path_scope = collections.ChainMap()
@@ -265,8 +265,8 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.volatility_ref = prevlevel.volatility_ref
             self.current_insert_path_id = prevlevel.current_insert_path_id
 
-            self.disable_semi_join = prevlevel.disable_semi_join.copy()
-            self.force_optional = prevlevel.force_optional.copy()
+            self.disable_semi_join = prevlevel.disable_semi_join
+            self.force_optional = prevlevel.force_optional
             self.intersection_narrowing = prevlevel.intersection_narrowing
 
             self.path_scope = prevlevel.path_scope
@@ -310,8 +310,8 @@ class CompilerContextLevel(compiler.ContextLevel):
                 self.rel_hierarchy = {}
                 self.scope_tree = prevlevel.scope_tree.root
 
-                self.disable_semi_join = set()
-                self.force_optional = set()
+                self.disable_semi_join = frozenset()
+                self.force_optional = frozenset()
                 self.intersection_narrowing = {}
                 self.pending_type_ctes = set(prevlevel.pending_type_ctes)
 
