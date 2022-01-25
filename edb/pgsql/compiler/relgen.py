@@ -907,12 +907,14 @@ def process_set_as_path(
 
     if is_linkprop:
         backtrack_src = ir_source
-        ctx.disable_semi_join.add(backtrack_src.path_id)
+        new_paths = {backtrack_src.path_id}
 
         assert backtrack_src.rptr
         while backtrack_src.path_id.is_type_intersection_path():
             backtrack_src = backtrack_src.rptr.source
-            ctx.disable_semi_join.add(backtrack_src.path_id)
+            new_paths.add(backtrack_src.path_id)
+
+        ctx.disable_semi_join |= new_paths
 
     semi_join = (
         not source_is_visible and
@@ -2089,7 +2091,7 @@ def process_set_as_existence_assertion(
         # The solution to assert_exists() is as simple as
         # calling raise_on_null().
         newctx.expr_exposed = False
-        newctx.force_optional.add(ir_arg_set.path_id)
+        newctx.force_optional |= {ir_arg_set.path_id}
         pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg_set.path_id)
         arg_ref = dispatch.compile(ir_arg_set, ctx=newctx)
         arg_val = output.output_as_value(arg_ref, env=newctx.env)

@@ -56,7 +56,7 @@ def compile_shape(
             pgast.NullTest(arg=var, negated=True))
 
     with ctx.newscope() as shapectx:
-        shapectx.disable_semi_join.add(ir_set.path_id)
+        shapectx.disable_semi_join |= {ir_set.path_id}
 
         if isinstance(ir_set.expr, irast.Stmt):
             # The source set for this shape is a FOR statement,
