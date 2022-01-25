@@ -500,10 +500,19 @@ def can_omit_optional_wrapper(
     Doing so is safe when the expression is guarenteed to result in
     a NULL and not an empty set.
 
-    Currently the only such case implement is a path `foo.bar` where foo
+    The main such case implemented is a path `foo.bar` where foo
     is visible and bar is a single non-computed property, which we know
     will be stored as NULL in the database.
+
+    We also handle trivial SELECTs wrapping such an expression.
     """
+    if ir_set.expr and irutils.is_trivial_select(ir_set.expr):
+        return can_omit_optional_wrapper(
+            ir_set.expr.result,
+            relctx.get_scope(ir_set.expr.result, ctx=ctx) or new_scope,
+            ctx=ctx,
+        )
+
     return bool(
         ir_set.expr is None
         and not ir_set.path_id.is_objtype_path()

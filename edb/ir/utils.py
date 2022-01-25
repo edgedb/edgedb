@@ -21,6 +21,8 @@
 
 from __future__ import annotations
 from typing import *
+if TYPE_CHECKING:
+    from typing_extensions import TypeGuard
 
 import json
 
@@ -188,7 +190,7 @@ def is_implicit_wrapper(ir_expr: irast.Base) -> bool:
     )
 
 
-def is_trivial_select(ir_expr: irast.Base) -> bool:
+def is_trivial_select(ir_expr: irast.Base) -> TypeGuard[irast.SelectStmt]:
     """Return True if the given *ir_expr* expression is a trivial
        SELECT expression, i.e `SELECT <expr>`.
     """
