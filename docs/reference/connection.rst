@@ -196,7 +196,7 @@ for production), or rely on ``edgedb project`` (recommended for development).
       import * as edgedb from "edgedb";
 
       const pool = edgedb.connect();
-      pool.query(`SELECT 2 + 2;`).then(result => {
+      pool.query(`select 2 + 2;`).then(result => {
         // do stuff
       })
 

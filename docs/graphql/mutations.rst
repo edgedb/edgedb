@@ -4,8 +4,8 @@
 Mutations
 =========
 
-EdgeDB provides GraphQL mutations to perform ``DELETE``, ``INSERT``
-and ``UPDATE`` operations.
+EdgeDB provides GraphQL mutations to perform ``delete``, ``insert``
+and ``update`` operations.
 
 
 Delete
@@ -28,8 +28,8 @@ has a corresponding ``delete_`` mutation:
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     mutation delete_all_books { |     SELECT (                    |
-    |         delete_Book {           |         DELETE Book             |
+    |     mutation delete_all_books { |     select (                    |
+    |         delete_Book {           |         delete Book             |
     |             title               |     ) {                         |
     |             synopsis            |         title,                  |
     |             author {            |         synopsis,               |
@@ -40,9 +40,9 @@ has a corresponding ``delete_`` mutation:
     +---------------------------------+---------------------------------+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     mutation delete_book_spam { |     SELECT (                    |
-    |         delete_Book(            |         DELETE Book             |
-    |             filter: {           |         FILTER                  |
+    |     mutation delete_book_spam { |     select (                    |
+    |         delete_Book(            |         delete Book             |
+    |             filter: {           |         filter                  |
     |                 title: {        |             Book.title = 'Spam' |
     |                     eq: "Spam"  |     ) {                         |
     |                 }               |         title,                  |
@@ -55,14 +55,14 @@ has a corresponding ``delete_`` mutation:
     +---------------------------------+---------------------------------+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     mutation delete_one_book {  |     SELECT (                    |
-    |         delete_Book(            |         DELETE Book             |
-    |             filter: {           |         FILTER                  |
+    |     mutation delete_one_book {  |     select (                    |
+    |         delete_Book(            |         delete Book             |
+    |             filter: {           |         filter                  |
     |                 author: {       |             Book.author.name =  |
     |                     name: {     |                 'Lewis Carroll' |
-    |                         eq:     |         ORDER BY                |
+    |                         eq:     |         order by                |
     |                 "Lewis Carroll" |             Book.title ASC      |
-    |                     }           |         LIMIT 1                 |
+    |                     }           |         limit 1                 |
     |                 }               |     ) {                         |
     |             },                  |         title,                  |
     |             order: {            |         synopsis                |
@@ -97,11 +97,11 @@ in the insert specification):
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     mutation insert_books {     |     SELECT {                    |
-    |         insert_Book(            |         (INSERT Book {          |
+    |     mutation insert_books {     |     select {                    |
+    |         insert_Book(            |         (insert Book {          |
     |             data: [{            |             title := "One"      |
     |                 title: "One"    |         }),                     |
-    |             }, {                |         (INSERT Book {          |
+    |             }, {                |         (insert Book {          |
     |                 title: "Two"    |             title := "Two"      |
     |             }]                  |         })                      |
     |         ) {                     |     } {                         |
@@ -122,11 +122,11 @@ book and a new author):
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     mutation insert_books {     |     SELECT (                    |
-    |         insert_Book(            |         INSERT Book {           |
+    |     mutation insert_books {     |     select (                    |
+    |         insert_Book(            |         insert Book {           |
     |             data: [{            |             title := "Three",   |
     |                 title: "Three", |             author := (         |
-    |                 author: {       |                 INSERT Author { |
+    |                 author: {       |                 insert Author { |
     |                     data: {     |                     name :=     |
     |                         name:   |                     "Unknown"   |
     |                     "Unknown"   |                 }               |
@@ -156,12 +156,12 @@ define a set of objects to be connected:
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     mutation insert_book {      |     SELECT (                    |
-    |         insert_Book(            |         INSERT Book {           |
+    |     mutation insert_book {      |     select (                    |
+    |         insert_Book(            |         insert Book {           |
     |             data: [{            |             title := "Four",    |
     |                 title: "Four",  |             author := (         |
-    |                 author: {       |                 SELECT Author   |
-    |                     filter: {   |                 FILTER          |
+    |                 author: {       |                 select Author   |
+    |                     filter: {   |                 filter          |
     |         name: {eq: "Unknown"}   |                 Author.name =   |
     |                     }           |                     "Unknown"   |
     |                 }               |             )                   |
@@ -197,24 +197,24 @@ depend on the type of field being updated.
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     mutation update_book {      |     WITH                        |
+    |     mutation update_book {      |     with                        |
     |         update_Book(            |         Upd := (                |
-    |             filter: {           |             UPDATE Book         |
-    |                 title: {        |             FILTER              |
+    |             filter: {           |             update Book         |
+    |                 title: {        |             filter              |
     |                     eq: "One"   |                 Book.title =    |
     |                 }               |                     "One"       |
-    |             }                   |             SET {               |
+    |             }                   |             set {               |
     |             data: {             |                 synopsis :=     |
     |                 synopsis: {     |                     "TBD",      |
     |                     set: "TBD"  |                 author := (     |
-    |                 }               |                 SELECT Author   |
-    |                 author: {       |                 FILTER          |
+    |                 }               |                 select Author   |
+    |                 author: {       |                 filter          |
     |                     set: {      |                 Author.name =   |
     |             filter: {           |                     "Unknown"   |
     |                 name: {         |                 )               |
     |                     eq:         |             }                   |
     |                     "Unknown"   |         )                       |
-    |                 }               |     SELECT Upd {                |
+    |                 }               |     select Upd {                |
     |             }                   |         id,                     |
     |                     }           |         title                   |
     |                 }               |     };                          |

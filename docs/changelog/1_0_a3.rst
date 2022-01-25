@@ -59,9 +59,9 @@ REPL (and can be changed via the ``\set`` command:
 EdgeQL
 ======
 
-* Add ``+=`` and ``-=`` operations for use in :eql:stmt:`UPDATE`
+* Add ``+=`` and ``-=`` operations for use in :eql:stmt:`update`
   (:eql:gh:`#165`).
-* Distinguish ``REQUIRED`` and ``OPTIONAL`` query parameters
+* Distinguish ``required`` and ``optional`` query parameters
   (:eql:gh:`#1352`, :eql:gh:`#1355`)
 * Allow tuple arrays in schema definitions (:eql:gh:`73125882`).
 * Get rid of ``schema::CompoundType`` in favor of ``is_compound_type``
@@ -89,7 +89,7 @@ EdgeQL
   (:eql:gh:`#1201`, :eql:gh:`#349`).
 * Prohibit database names longer than 63 characters (:eql:gh:`#1158`).
 * Prohibit duplicate elements in shapes (:eql:gh:`#1368`).
-* Implement :eql:stmt:`ALTER FUNCTION` (:eql:gh:`#1433`).
+* Implement :eql:stmt:`alter function` (:eql:gh:`#1433`).
 
 
 GraphQL

@@ -12,27 +12,27 @@ EdgeQL
 ======
 
 * Add support for per-database configuration by adding a new
-  :eql:stmt:`CURRENT DATABASE <CONFIGURE>` configuration scope
+  :eql:stmt:`current database <configure>` configuration scope
   (:eql:gh:`#1867`).
 
   This allows to make changes that are more broad
-  that :eql:stmt:`SESSION <CONFIGURE>` scope and less broad that
-  :eql:stmt:`SYSTEM <CONFIGURE>`:
+  that :eql:stmt:`session <configure>` scope and less broad that
+  :eql:stmt:`system <configure>`:
 
   .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET query_work_mem := '4MB';
+    configure current database set query_work_mem := '4MB';
 
 * Add support for altering :eql:type:`enums <std::enum>` in order to
   add new labels (:eql:gh:`#1956`).
 
   .. code-block:: edgeql-repl
 
-    db> CREATE SCALAR TYPE Color
-    ...     EXTENDING enum<Red, Green, Blue>;
+    db> create scalar type Color
+    ...     extending enum<Red, Green, Blue>;
     OK: CREATE
-    db> ALTER SCALAR TYPE Color
-    ...     EXTENDING enum<Red, Green, Blue, Magic>;
+    db> alter scalar type Color
+    ...     extending enum<Red, Green, Blue, Magic>;
     OK: ALTER
 
 * Update :eql:type:`std::decimal` and :eql:type:`std::bigint` criteria
@@ -43,15 +43,15 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> CREATE FUNCTION enumerate_letters(word: str)
-    ...     -> SET OF tuple<int64, str>
-    ...     USING (
+    db> create function enumerate_letters(word: str)
+    ...     -> set of tuple<int64, str>
+    ...     using (
     ...         enumerate(
     ...             array_unpack(
     ...                 str_split(word, '')))
     ...     );
     OK: CREATE
-    db> SELECT enumerate_letters('hello');
+    db> select enumerate_letters('hello');
     {(0, 'h'), (1, 'e'), (2, 'l'), (3, 'l'), (4, 'o')}
 
 * Functions can no longer share a shortname with types in order to
@@ -61,20 +61,19 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT ({1, 2}, random());
+    db> select ({1, 2}, random());
     error: can not take cross product of volatile operation
       ┌─ query:1:17
       │
-    1 │ SELECT ({1, 2}, random());
+    1 │ select ({1, 2}, random());
       │                 ^^^^^^^^^ error
-    db> FOR x IN {1, 2} UNION (x, random());
+    db> for x in {1, 2} union (x, random());
     {(1, 0.25724045818607166), (2, 0.7268530965023459)}
 
 * Forbid scalar types from having more than one concrete base
   (:eql:gh:`#1790`).
-* Forbid partial path expressions in :ref:`LIMIT
-  <ref_eql_statements_select>`/:ref:`OFFSET
-  <ref_eql_statements_select>` clauses (:eql:gh:`#1919`).
+* Forbid partial path expressions in :eql:stmt:`limit <select>`/
+  :eql:stmt:`offset <select>` clauses (:eql:gh:`#1919`).
 * Forbid changing cardinality via inheritance (:eql:gh:`#1772`).
 * Remove legacy unused ``.>`` token (:eql:gh:`#1648`).
 * Fix cardinality inference on operators (:eql:gh:`#2001`).
@@ -96,7 +95,7 @@ with a default value:
 
 .. code-block:: edgeql-repl
 
-    db> START MIGRATION TO {
+    db> start migration to {
     ...   module default {
     ...     type Foo {
     ...       property val -> str {
@@ -106,15 +105,15 @@ with a default value:
     ...   }
     ... };
 
-We use :eql:stmt:`DESCRIBE CURRENT MIGRATION AS JSON <DESCRIBE CURRENT
-MIGRATION>` to see what EdgeDB is proposing. The JSON format makes it
+We use :eql:stmt:`describe current migration as json <describe current
+migration>` to see what EdgeDB is proposing. The JSON format makes it
 easier to potentially integrate this with other tools. For this
 example it's worth turning on ``json`` output mode for edgedb REPL:
 
 .. code-block:: edgeql-repl
 
     db> \set output-mode json
-    db[tx]> DESCRIBE CURRENT MIGRATION AS JSON;
+    db[tx]> describe current migration as json;
     [
       {
         "complete": false,
@@ -136,23 +135,23 @@ whole migration.
 
 .. code-block:: edgeql-repl
 
-    db[tx]> POPULATE MIGRATION;
+    db[tx]> populate migration;
     OK: POPULATE MIGRATION
-    db[tx]> COMMIT MIGRATION;
+    db[tx]> commit migration;
     OK: COMMIT MIGRATION
 
 Now, let's remove that ``default``, after all the property is optional.
 
 .. code-block:: edgeql-repl
 
-    db> START MIGRATION TO {
+    db> start migration to {
     ...   module default {
     ...     type Foo {
     ...       property val -> str;
     ...     }
     ...   }
     ... };
-    db[tx]> DESCRIBE CURRENT MIGRATION AS JSON;
+    db[tx]> describe current migration as json;
     [
       {
         "complete": false,
@@ -168,14 +167,14 @@ Now, let's remove that ``default``, after all the property is optional.
       }
     ]
 
-The proposed statements will ``DROP default`` for our property, so all
+The proposed statements will ``drop default`` for our property, so all
 seems to be in order and we can apply this migration, too, using
-:eql:stmt:`POPULATE MIGRATION` and :eql:stmt:`COMMIT MIGRATION`.
+:eql:stmt:`populate migration` and :eql:stmt:`commit migration`.
 
 We're currently working on a CLI tool for managing migrations more
 gracefully and without the need for the user to rely on these
-low-level commands (like ``START MIGRATION`` or ``DESCRIBE CURRENT
-MIGRATION AS JSON``). The migration tool is going to use these
+low-level commands (like``start migration`` or ``describe current
+migration as json``). The migration tool is going to use these
 commands behind the scenes, though.
 
 We've also made improvements to the following migration features:

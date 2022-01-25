@@ -1,13 +1,13 @@
 .. _ref_eql_statements_with:
 
-WITH block
+With block
 ==========
 
 :index: alias module
 
-.. eql:keyword:: WITH
+.. eql:keyword:: with
 
-    The ``WITH`` block in EdgeQL is used to define aliases.
+    The ``with`` block in EdgeQL is used to define aliases.
 
     The expression aliases are evaluated in the lexical scope they appear in,
     not the scope where their alias is used. This means that refactoring
@@ -17,12 +17,12 @@ WITH block
 Specifying a module
 +++++++++++++++++++
 
-.. eql:keyword:: MODULE
+.. eql:keyword:: module
 
-    Used inside a :eql:kw:`WITH block <WITH>` to specify module names.
+    Used inside a ``with`` block to specify module names.
 
-One of the more basic and common uses of the ``WITH`` block is to
-specify the default module that is used in a query. ``WITH MODULE
+One of the more basic and common uses of the ``with`` block is to
+specify the default module that is used in a query. ``with module
 <name>`` construct indicates that whenever an identifier is used
 without any module specified explicitly, the module will default to
 ``<name>`` and then fall back to built-ins from ``std`` module.
@@ -31,56 +31,56 @@ The following queries are exactly equivalent:
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    SELECT User {
+    with module example
+    select User {
         name,
-        owned := (SELECT
-            User.<owner[IS Issue] {
+        owned := (select
+            User.<owner[is Issue] {
                 number,
                 body
             }
         )
     }
-    FILTER User.name LIKE 'Alice%';
+    filter User.name like 'Alice%';
 
-    SELECT example::User {
+    select example::User {
         name,
-        owned := (SELECT
-            example::User.<owner[IS example::Issue] {
+        owned := (select
+            example::User.<owner[is example::Issue] {
                 number,
                 body
             }
         )
     }
-    FILTER example::User.name LIKE 'Alice%';
+    filter example::User.name like 'Alice%';
 
 
-It is also possible to define aliased modules in the ``WITH`` block.
+It is also possible to define aliased modules in the ``with`` block.
 Consider the following query that needs to compare objects
 corresponding to concepts defined in two different modules.
 
 .. code-block:: edgeql
 
-    WITH
-        MODULE example,
-        f AS MODULE foo
-    SELECT User {
+    with
+        module example,
+        f as module foo
+    select User {
         name
     }
-    FILTER .name = f::Foo.name;
+    filter .name = f::Foo.name;
 
 Another use case is for giving short aliases to long module names
 (especially if module names contain ``.``).
 
 .. code-block:: edgeql
 
-    WITH
-        MODULE example,
-        fbz AS MODULE foo.bar.baz
-    SELECT User {
+    with
+        module example,
+        fbz as module foo.bar.baz
+    select User {
         name
     }
-    FILTER .name = fbz::Baz.name;
+    filter .name = fbz::Baz.name;
 
 
 Local Expression Aliases
@@ -90,35 +90,35 @@ It is possible to define an alias for an arbitrary expression. The result
 set of an alias expression behaves as a completely independent set of a
 given name. The contents of the set are determined by the expression
 at the point where the alias is defined. In terms of scope, the alias
-expression in the ``WITH`` block is in a sibling scope to the rest
+expression in the ``with`` block is in a sibling scope to the rest
 of the query.
 
 It may be useful to factor out a common sub-expression from a larger
 complex query. This can be done by assigning the sub-expression a new
-symbol in the ``WITH`` block. However, care must be taken to ensure
+symbol in the ``with`` block. However, care must be taken to ensure
 that this refactoring doesn't alter the meaning of the expression due
 to scope change.
 
-All expression aliases defined in a ``WITH`` block must be referenced in
+All expression aliases defined in a ``with`` block must be referenced in
 the body of the query.
 
 .. code-block:: edgeql
 
     # Consider a query to get all users that own Issues and the
     # comments those users made.
-    WITH MODULE example
-    SELECT Issue.owner {
+    with module example
+    select Issue.owner {
         name,
-        comments := Issue.owner.<owner[IS Comment]
+        comments := Issue.owner.<owner[is Comment]
     };
 
     # The above query can be refactored like this:
-    WITH
-        MODULE example,
+    with
+        module example,
         U := Issue.owner
-    SELECT U {
+    select U {
         name,
-        comments := U.<owner[IS Comment]
+        comments := U.<owner[is Comment]
     };
 
 An example of incorrect refactoring would be:
@@ -127,45 +127,48 @@ An example of incorrect refactoring would be:
 
     # This query gets a set of tuples of
     # issues and their owners.
-    WITH
-        MODULE example
-    SELECT (Issue, Issue.owner);
+    with
+        module example
+    select (Issue, Issue.owner);
 
     # This query gets a set of tuples that
     # result from a cartesian product of all issues
     # with all owners. This is because ``Issue`` and ``U``
     # are considered independent sets.
-    WITH
-        MODULE example,
+    with
+        module example,
         U := Issue.owner
-    SELECT (Issue, U);
+    select (Issue, U);
 
-
-.. _ref_eql_with_detached:
 
 Detached
 ++++++++
 
-A ``DETACHED`` expression allows referring to some set as if it were
-defined in the top-level ``WITH`` block. Basically, ``DETACHED``
+.. eql:keyword:: detached
+
+    The ``detached`` keyword marks an expression as not belonging to
+    any scope.
+
+A ``detached`` expression allows referring to some set as if it were
+defined in the top-level ``with`` block. Basically, ``detached``
 expressions ignore all current scopes they are nested in and only take
 into account module aliases. The net effect is that it is possible to
 refer to an otherwise related set as if it were unrelated:
 
 .. code-block:: edgeql
 
-    WITH MODULE example
-    UPDATE User
-    FILTER .name = 'Dave'
-    SET {
-        friends := (SELECT DETACHED User FILTER .name = 'Alice'),
-        coworkers := (SELECT DETACHED User FILTER .name = 'Bob')
+    with module example
+    update User
+    filter .name = 'Dave'
+    set {
+        friends := (select detached User filter .name = 'Alice'),
+        coworkers := (select detached User filter .name = 'Bob')
     };
 
-Here you can use the ``DETACHED User`` expression, rather than having to
-define ``U := User`` in the ``WITH`` block just to allow it to be used
-in the body of the ``UPDATE``. The goal is to indicate that the
-``User`` in the ``UPDATE`` body is not in any way related to the
+Here you can use the ``detached User`` expression, rather than having to
+define ``U := User`` in the ``with`` block just to allow it to be used
+in the body of the ``update``. The goal is to indicate that the
+``User`` in the ``update`` body is not in any way related to the
 ``User`` that's being updated.
 
 .. list-table::

@@ -24,17 +24,17 @@
 
 .. _ref_eql_statements_commit_tx:
 
-COMMIT
+Commit
 ======
 
 :eql-statement:
 
 
-``COMMIT`` -- commit the current transaction
+``commit`` -- commit the current transaction
 
 .. eql:synopsis::
 
-    COMMIT ;
+    commit ;
 
 
 Example
@@ -44,28 +44,28 @@ Commit the current transaction:
 
 .. code-block:: edgeql
 
-    COMMIT;
+    commit;
 
 
 Description
 -----------
 
-``COMMIT`` commits the current transaction. All changes made by the
-transaction become visible to others and are guaranteed to be durable
-if a crash occurs.
+The ``commit`` command  commits the current transaction. All changes
+made by the transaction become visible to others and are guaranteed to
+be durable if a crash occurs.
 
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`Reference > EdgeQL > START TRANSACTION
+  * - :ref:`Reference > EdgeQL > Start transaction
       <ref_eql_statements_start_tx>`
-  * - :ref:`Reference > EdgeQL > ROLLBACK
+  * - :ref:`Reference > EdgeQL > Rollabck
       <ref_eql_statements_rollback_tx>`
-  * - :ref:`Reference > EdgeQL > DECLARE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Declare savepoint
       <ref_eql_statements_declare_savepoint>`
-  * - :ref:`Reference > EdgeQL > ROLLBACK TO SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Rollback to savepoint
       <ref_eql_statements_rollback_savepoint>`
-  * - :ref:`Reference > EdgeQL > RELEASE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Release savepoint
       <ref_eql_statements_release_savepoint>`

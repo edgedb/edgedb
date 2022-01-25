@@ -13,7 +13,7 @@ Glossary
    DDL
       Data Definition Language. DDL is a type of database-specific
       syntax used to define the structuring of schemas. Common DDL
-      statements include ``CREATE``, ``DROP``, and ``ALTER``.
+      statements include ``create``, ``drop``, and ``alter``.
 
    link
       Link items define a specific relationship between two object types. Link
@@ -23,7 +23,7 @@ Glossary
 
    set reference
       An identifier that represents a set of values. It can be the name of an
-      object type or an *expression alias* (defined in a statement :ref:`WITH
+      object type or an *expression alias* (defined in a statement :ref:`with
       block <ref_eql_statements_with>` or in the schema via an :ref:`alias
       declaration <ref_eql_sdl_aliases>`. or a qualified schema name).
 

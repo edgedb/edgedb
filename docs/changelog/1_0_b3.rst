@@ -35,8 +35,8 @@ EdgeQL
 
   .. code-block:: edgeql
 
-    WITH U := (SELECT User FILTER .name LIKE '%user%')
-    SELECT {
+    with U := (select User filter .name like '%user%')
+    select {
         matches := U {name},
         total := count(U),
         total_users := count(User),
@@ -53,13 +53,13 @@ EdgeQL
 
   .. code-block:: edgeql
 
-    SELECT Color.Red;
+    select Color.Red;
 
   is equivalent to
 
   .. code-block:: edgeql
 
-    SELECT <Color>'Red';
+    select <Color>'Red';
 
 * Allow removal and reordering of :eql:type:`enum` elements
   (:eql:gh:`#2564`).
@@ -69,40 +69,40 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT assert_single((SELECT User FILTER .name = "Unique"));
+    db> select assert_single((select User filter .name = "Unique"));
     {default::User {id: ...}}
 
-    db> SELECT assert_single((SELECT User))
+    db> select assert_single((select User))
     ERROR: CardinalityViolationError: assert_single violation: more than
            one element returned by an expression
 
-* Adjust the precedence of :ref:`DETACHED <ref_eql_with_detached>` to
-  match that of :eql:op:`EXISTS` (:eql:gh:`#2638`).
+* Adjust the precedence of :eql:op:`detached` to match that of
+  :eql:op:`exists` (:eql:gh:`#2638`).
 
   This makes it apply to shapes in a more intuitive fashion:
 
   .. code-block:: edgeql
 
-    SELECT DETACHED User {
+    select detached User {
         exclamation := User.name ++ '!'
     }
 
   The above expression will now interpret the ``User`` inside that
-  shape as the same ``DETACHED`` User as mentioned at the root of the
+  shape as the same ``detached`` User as mentioned at the root of the
   shape.
 
 * Prohibit backlink syntax for computed links (:eql:gh:`#2619`).
 * Prohibit "$" as the first character in identifiers (:eql:gh:`#2595`).
-* Fix how :eql:op:`??<COALESCE>` works with :eql:type:`tuples <tuple>`
+* Fix how :eql:op:`?? <coalesce>` works with :eql:type:`tuples <tuple>`
   (:eql:gh:`#2602`).
 * Fix cardinality inference of computed links and properties
   (:eql:gh:`#2585`).
-* Fix how :eql:op:`DISTINCT` applies to collections of shapes
+* Fix how :eql:op:`distinct` applies to collections of shapes
   (:eql:gh:`#2540`).
-* Fix some cases of nested ``UNLESS CONFLICT`` bugs (:eql:gh:`#2555`).
+* Fix some cases of nested ``unless conflict`` bugs (:eql:gh:`#2555`).
 * Fix how nested volatile computed expressions get executed
   (:eql:gh:`#2545`).
-* Fix how ``USING`` expressions propagate to subtypes (:eql:gh:`#2543`).
+* Fix how ``using`` expressions propagate to subtypes (:eql:gh:`#2543`).
 
 
 GraphQL

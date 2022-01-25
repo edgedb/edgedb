@@ -79,7 +79,7 @@ Inserting
 The ``@strength`` property is specified in the *shape* of the ``select``
 subquery. This is only valid in a subquery *inside* an ``insert`` statement.
 
-We are using the :eql:op:`detached <DETACHED>` operator to unbind the
+We are using the :eql:op:`detached` operator to unbind the
 ``Person`` reference from the scope of the ``insert`` query.
 
 Updating

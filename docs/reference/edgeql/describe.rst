@@ -1,42 +1,42 @@
 .. _ref_eql_statements_describe:
 
-DESCRIBE
+Describe
 ========
 
 :eql-statement:
 
-``DESCRIBE`` -- provide human-readable description of a schema or a
+``describe`` -- provide human-readable description of a schema or a
 schema object
 
 .. eql:synopsis::
 
-    DESCRIBE SCHEMA [ AS {DDL | SDL | TEXT [ VERBOSE ]} ];
+    describe schema [ as {ddl | sdl | test [ verbose ]} ];
 
-    DESCRIBE <schema-type> <name> [ AS {DDL | SDL | TEXT [ VERBOSE ]} ];
+    describe <schema-type> <name> [ as {ddl | sdl | text [ verbose ]} ];
 
     # where <schema-type> is one of
 
-      OBJECT
-      ANNOTATION
-      CONSTRAINT
-      FUNCTION
-      LINK
-      MODULE
-      PROPERTY
-      SCALAR TYPE
-      TYPE
+      object
+      annotation
+      constraint
+      function
+      link
+      module
+      property
+      scalar type
+      type
 
 Description
 -----------
 
-``DESCRIBE`` generates a human-readable description of a schema object.
+``describe`` generates a human-readable description of a schema object.
 
-The output of a ``DESCRIBE`` command is a :eql:type:`str` , although
+The output of a ``describe`` command is a :eql:type:`str` , although
 it cannot be used as an expression in queries.
 
 There are three output formats to choose from:
 
-:eql:synopsis:`AS DDL`
+:eql:synopsis:`as ddl`
     Provide a valid :ref:`DDL <ref_eql_ddl>` definition.
 
     The :ref:`DDL <ref_eql_ddl>` generated is a complete valid
@@ -45,67 +45,67 @@ There are three output formats to choose from:
 
     This is the default format.
 
-:eql:synopsis:`AS SDL`
+:eql:synopsis:`as sdl`
     Provide an :ref:`SDL <ref_eql_sdl>` definition.
 
     The :ref:`SDL <ref_eql_sdl>` generated is a complete valid
     definition of the particular schema object assuming all the other
     referenced schema objects already exist.
 
-:eql:synopsis:`AS TEXT [VERBOSE]`
+:eql:synopsis:`as text [verbose]`
     Provide a human-oriented definition.
 
     The human-oriented definition generated is similar to :ref:`SDL
     <ref_eql_sdl>`, but it includes all the details that are inherited
     (if any).
 
-    The :eql:synopsis:`VERBOSE` mode enables displaying additional
+    The :eql:synopsis:`verbose` mode enables displaying additional
     details, such as :ref:`annotations <ref_datamodel_annotations>`
     and :ref:`constraints <ref_datamodel_constraints>`, which are
     otherwise omitted.
 
-When the ``DESCRIBE`` command is used with the :eql:synopsis:`SCHEMA`
+When the ``describe`` command is used with the :eql:synopsis:`schema`
 the result is a definition of the entire database schema. Only the
-:eql:synopsis:`AS DDL` option is available for schema description.
+:eql:synopsis:`as ddl` option is available for schema description.
 
-The ``DESCRIBE`` command can specify the type of schema object that it
+The ``describe`` command can specify the type of schema object that it
 should generate the description of:
 
-:eql:synopsis:`OBJECT <name>`
+:eql:synopsis:`object <name>`
     Match any module level schema object with the specified *name*.
 
-    This is the most general use of the ``DESCRIBE`` command. It does
+    This is the most general use of the ``describe`` command. It does
     not match :ref:`modules <ref_datamodel_modules>` (and other
     globals that cannot be uniquely identified just by the name).
 
-:eql:synopsis:`ANNOTATION <name>`
+:eql:synopsis:`annotation <name>`
     Match only :ref:`annotations <ref_datamodel_annotations>` with the
     specified *name*.
 
-:eql:synopsis:`CONSTRAINT <name>`
+:eql:synopsis:`constraint <name>`
     Match only :ref:`constraints <ref_datamodel_constraints>` with the
     specified *name*.
 
-:eql:synopsis:`FUNCTION <name>`
+:eql:synopsis:`function <name>`
     Match only :ref:`functions <ref_datamodel_functions>` with the
     specified *name*.
 
-:eql:synopsis:`LINK <name>`
+:eql:synopsis:`link <name>`
     Match only :ref:`links <ref_datamodel_links>` with the specified *name*.
 
-:eql:synopsis:`MODULE <name>`
+:eql:synopsis:`module <name>`
     Match only :ref:`modules <ref_datamodel_modules>` with the
     specified *name*.
 
-:eql:synopsis:`PROPERTY <name>`
+:eql:synopsis:`property <name>`
     Match only :ref:`properties <ref_datamodel_props>` with the
     specified *name*.
 
-:eql:synopsis:`SCALAR TYPE <name>`
+:eql:synopsis:`scalar type <name>`
     Match only :ref:`scalar types <ref_datamodel_scalar_types>` with the
     specified *name*.
 
-:eql:synopsis:`TYPE <name>`
+:eql:synopsis:`type <name>`
     Match only :ref:`object types <ref_datamodel_object_types>` with the
     specified *name*.
 
@@ -129,19 +129,19 @@ Consider the following schema:
         }
     }
 
-Here are some examples of a ``DESCRIBE`` command:
+Here are some examples of a ``describe`` command:
 
 .. code-block:: edgeql-repl
 
-    db> DESCRIBE OBJECT User;
+    db> describe object User;
     {
-        "CREATE TYPE default::User EXTENDING default::Named {
-        CREATE REQUIRED SINGLE PROPERTY email -> std::str {
-            CREATE ANNOTATION std::title := 'Contact email';
+        "create type default::User extending default::Named {
+        create required single property email -> std::str {
+            create annotation std::title := 'Contact email';
         };
     };"
     }
-    db> DESCRIBE OBJECT User AS SDL;
+    db> describe object User as sdl;
     {
         "type default::User extending default::Named {
         required single property email -> std::str {
@@ -149,7 +149,7 @@ Here are some examples of a ``DESCRIBE`` command:
         };
     };"
     }
-    db> DESCRIBE OBJECT User AS TEXT;
+    db> describe object User as text;
     {
         'type default::User extending default::Named {
         required single link __type__ -> schema::Type {
@@ -162,7 +162,7 @@ Here are some examples of a ``DESCRIBE`` command:
         required single property name -> std::str;
     };'
     }
-    db> DESCRIBE OBJECT User AS TEXT VERBOSE;
+    db> describe object User as text verbose;
     {
         "type default::User extending default::Named {
         required single link __type__ -> schema::Type {
@@ -180,22 +180,22 @@ Here are some examples of a ``DESCRIBE`` command:
         };
     };"
     }
-    db> DESCRIBE SCHEMA;
+    db> describe schema;
     {
-        "CREATE MODULE default IF NOT EXISTS;
-    CREATE ABSTRACT TYPE default::Named {
-        CREATE REQUIRED SINGLE PROPERTY name -> std::str {
-            CREATE DELEGATED CONSTRAINT std::exclusive;
+        "create module default if not exists;
+    create abstract type default::Named {
+        create required single property name -> std::str {
+            create delegated constraint std::exclusive;
         };
     };
-    CREATE TYPE default::User EXTENDING default::Named {
-        CREATE REQUIRED SINGLE PROPERTY email -> std::str {
-            CREATE ANNOTATION std::title := 'Contact email';
+    create type default::User extending default::Named {
+        create required single property email -> std::str {
+            create annotation std::title := 'Contact email';
         };
     };"
     }
 
-The ``DESCRIBE`` command also warns you if there are standard library
+The ``describe`` command also warns you if there are standard library
 matches that are masked by some user-defined object. Consider the
 following schema:
 
@@ -203,7 +203,7 @@ following schema:
 
     module default {
         function len(v: tuple<float64, float64>) -> float64 using (
-            SELECT (v.0 ^ 2 + v.1 ^ 2) ^ 0.5
+            select (v.0 ^ 2 + v.1 ^ 2) ^ 0.5
         );
     }
 
@@ -212,31 +212,37 @@ So within the ``default`` module the user-defined function ``len``
 
 .. code-block:: edgeql-repl
 
-    db> DESCRIBE FUNCTION len AS TEXT;
+    db> describe function len as text;
     {
       'function default::len(v: tuple<std::float64, std::float64>) ->
-    std::float64 using (SELECT
+    std::float64 using (select
         (((v.0 ^ 2) + (v.1 ^ 2)) ^ 0.5)
     );
 
     # The following builtins are masked by the above:
 
+    # function std::len(array: array<anytype>) ->  std::int64 {
+    #     volatility := \'Immutable\';
+    #     annotation std::description := \'A polymorphic function to calculate
+    a "length" of its first argument.\';
+    #     using sql $$
+    #     SELECT cardinality("array")::bigint
+    #     $$
+    # ;};
     # function std::len(bytes: std::bytes) ->  std::int64 {
     #     volatility := \'Immutable\';
+    #     annotation std::description := \'A polymorphic function to calculate
+    a "length" of its first argument.\';
     #     using sql $$
     #     SELECT length("bytes")::bigint
     #     $$
     # ;};
     # function std::len(str: std::str) ->  std::int64 {
     #     volatility := \'Immutable\';
+    #     annotation std::description := \'A polymorphic function to calculate
+    a "length" of its first argument.\';
     #     using sql $$
     #     SELECT char_length("str")::bigint
-    #     $$
-    # ;};
-    # function std::len(array: array<anytype>) ->  std::int64 {
-    #     volatility := \'Immutable\';
-    #     using sql $$
-    #     SELECT cardinality("array")::bigint
     #     $$
     # ;};',
     }

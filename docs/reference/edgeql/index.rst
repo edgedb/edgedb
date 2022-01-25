@@ -8,63 +8,62 @@ more ``clauses`` and is used to retrieve or modify data in a database.
 
 Query statements:
 
-* :ref:`SELECT <ref_eql_statements_select>`
+* :eql:stmt:`select`
 
   Retrieve data from a database and compute arbitrary expressions.
 
-* :ref:`FOR <ref_eql_statements_for>`
+* :eql:stmt:`for`
 
   Compute an expression for every element of an input set and
   concatenate the results.
 
 Data modification statements:
 
-* :ref:`INSERT <ref_eql_statements_insert>`
+* :eql:stmt:`insert`
 
   Create new object in a database.
 
-* :ref:`UPDATE <ref_eql_statements_update>`
+* :eql:stmt:`update`
 
   Update objects in a database.
 
-* :ref:`DELETE <ref_eql_statements_delete>`
+* :eql:stmt:`delete`
 
   Remove objects from a database.
 
 Transaction control statements:
 
-* :ref:`START TRANSACTION <ref_eql_statements_start_tx>`
+* :eql:stmt:`start transaction`
 
   Start a transaction.
 
-* :ref:`COMMIT <ref_eql_statements_commit_tx>`
+* :eql:stmt:`commit`
 
   Commit the current transaction.
 
-* :ref:`ROLLBACK <ref_eql_statements_rollback_tx>`
+* :eql:stmt:`rollback`
 
   Abort the current transaction.
 
-* :ref:`DECLARE SAVEPOINT <ref_eql_statements_declare_savepoint>`
+* :eql:stmt:`declare savepoint`
 
   Declare a savepoint within the current transaction.
 
-* :ref:`ROLLBACK TO SAVEPOINT <ref_eql_statements_rollback_savepoint>`
+* :eql:stmt:`rollback to savepoint`
 
   Rollback to a savepoint within the current transaction.
 
-* :ref:`RELEASE SAVEPOINT <ref_eql_statements_release_savepoint>`
+* :eql:stmt:`release savepoint`
 
   Release a previously declared savepoint.
 
 Session state control statements:
 
-* :ref:`SET ALIAS <ref_eql_statements_session_set_alias>` and
-  :ref:`RESET ALIAS <ref_eql_statements_session_reset_alias>`.
+* :eql:stmt:`set` and :eql:stmt:`reset`.
 
 Introspection command:
 
-* :ref:`DESCRIBE <ref_eql_statements_describe>`.
+* :eql:stmt:`describe`.
 
 
 .. toctree::

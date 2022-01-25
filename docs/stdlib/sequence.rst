@@ -55,7 +55,7 @@ Sequences
 
     .. code-block:: edgeql-repl
 
-       db> SELECT sequence_next(INTROSPECT MySequence);
+       db> select sequence_next(introspect MySequence);
        {11}
 
 
@@ -75,13 +75,13 @@ Sequences
 
     .. code-block:: edgeql-repl
 
-       db> SELECT sequence_reset(INTROSPECT MySequence);
+       db> select sequence_reset(introspect MySequence);
        {1}
-       db> SELECT sequence_next(INTROSPECT MySequence);
+       db> select sequence_next(introspect MySequence);
        {1}
-       db> SELECT sequence_reset(INTROSPECT MySequence, 22);
+       db> select sequence_reset(introspect MySequence, 22);
        {22}
-       db> SELECT sequence_next(INTROSPECT MySequence);
+       db> select sequence_next(introspect MySequence);
        {23}
 
 
@@ -92,13 +92,13 @@ Sequences
    The sequence to be operated on by the functions above is specified
    by a ``schema::ScalarType`` object.  If the sequence argument is
    known ahead of time and does not change, the recommended way to pass
-   it is to use the :eql:op:`INTROSPECT` operator:
+   it is to use the :eql:op:`introspect` operator:
 
    .. code-block:: edgeql
 
-      SELECT sequence_next(INTROSPECT MySequenceType);
+      select sequence_next(introspect MySequenceType);
       # or
-      SELECT sequence_next(INTROSPECT TYPEOF MyObj.seq_prop);
+      select sequence_next(introspect typeof MyObj.seq_prop);
 
    This style will ensure that a reference to a sequence type from an
    expression is tracked properly to ensure schema referential integrity.
@@ -109,12 +109,12 @@ Sequences
 
    .. code-block:: edgeql
 
-      WITH
+      with
         SeqType := (
-          SELECT schema::ScalarType
-          FILTER .name = <str>$seq_type_name
+          select schema::ScalarType
+          filter .name = <str>$seq_type_name
         )
-      SELECT
+      select
         sequence_next(SeqType);
 
 

@@ -109,7 +109,7 @@ operation.
   Certain functions and operators avoid this "short-circuit" behavior by
   marking their inputs as :ref:`optional <ref_eql_sdl_functions_syntax>`. A
   notable example of an operator with optional inputs is the :eql:op:`??
-  <COALESCE>` operator.
+  <coalesce>` operator.
 
   .. code-block:: edgeql-repl
 
@@ -121,7 +121,7 @@ Per-input cardinality
 ^^^^^^^^^^^^^^^^^^^^^
 
 Ultimately, the distinction between "aggregate vs element-wise" operations is
-a false one. Consider the :eql:op:`IN` operation.
+a false one. Consider the :eql:op:`in` operation.
 
 .. code-block:: edgeql-repl
 

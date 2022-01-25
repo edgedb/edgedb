@@ -8,7 +8,7 @@ This section describes the DDL commands pertaining to
 :ref:`object types <ref_datamodel_object_types>`.
 
 
-CREATE TYPE
+Create type
 ===========
 
 :eql-statement:
@@ -19,22 +19,23 @@ CREATE TYPE
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    CREATE [ABSTRACT] TYPE <name> [ EXTENDING <supertype> [, ...] ]
+    [ with <with-item> [, ...] ]
+    create [abstract] type <name> [ extending <supertype> [, ...] ]
     [ "{" <subcommand>; [...] "}" ] ;
 
     # where <subcommand> is one of
 
-      CREATE ANNOTATION <annotation-name> := <value>
-      CREATE LINK <link-name> ...
-      CREATE PROPERTY <property-name> ...
-      CREATE CONSTRAINT <constraint-name> ...
-      CREATE INDEX ON <index-expr>
+      create annotation <annotation-name> := <value>
+      create link <link-name> ...
+      create property <property-name> ...
+      create constraint <constraint-name> ...
+      create index on <index-expr>
 
 Description
 -----------
 
-``CREATE TYPE`` defines a new object type for use in the current database.
+The command ``create type`` defines a new object type for use in the
+current database.
 
 If *name* is qualified with a module name, then the type is created
 in that module, otherwise it is created in the current module.
@@ -48,37 +49,37 @@ Most sub-commands and options of this command are identical to the
 :ref:`SDL object type declaration <ref_eql_sdl_object_types_syntax>`,
 with some additional features listed below:
 
-:eql:synopsis:`WITH <with-item> [, ...]`
+:eql:synopsis:`with <with-item> [, ...]`
     Alias declarations.
 
-    The ``WITH`` clause allows specifying module aliases
+    The ``with`` clause allows specifying module aliases
     that can be referenced by the command.  See :ref:`ref_eql_statements_with`
     for more information.
 
-The following subcommands are allowed in the ``CREATE TYPE`` block:
+The following subcommands are allowed in the ``create type`` block:
 
-:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
+:eql:synopsis:`create annotation <annotation-name> := <value>`
     Set object type :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
-    See :eql:stmt:`CREATE ANNOTATION` for details.
+    See :eql:stmt:`create annotation` for details.
 
-:eql:synopsis:`CREATE LINK <link-name> ...`
+:eql:synopsis:`create link <link-name> ...`
     Define a new link for this object type.  See
-    :eql:stmt:`CREATE LINK` for details.
+    :eql:stmt:`create link` for details.
 
-:eql:synopsis:`CREATE PROPERTY <property-name> ...`
+:eql:synopsis:`create property <property-name> ...`
     Define a new property for this object type.  See
-    :eql:stmt:`CREATE PROPERTY` for details.
+    :eql:stmt:`create property` for details.
 
-:eql:synopsis:`CREATE CONSTRAINT <constraint-name> ...`
+:eql:synopsis:`create constraint <constraint-name> ...`
     Define a concrete constraint for this object type.  See
-    :eql:stmt:`CREATE CONSTRAINT` for details.
+    :eql:stmt:`create constraint` for details.
 
-:eql:synopsis:`CREATE INDEX ON <index-expr>`
+:eql:synopsis:`create index on <index-expr>`
     Define a new :ref:`index <ref_datamodel_indexes>`
     using *index-expr* for this object type.  See
-    :eql:stmt:`CREATE INDEX` for details.
+    :eql:stmt:`create index` for details.
 
 Examples
 --------
@@ -87,14 +88,14 @@ Create an object type ``User``:
 
 .. code-block:: edgeql
 
-    CREATE TYPE User {
-        CREATE PROPERTY name -> str;
+    create type User {
+        create property name -> str;
     };
 
 
 .. _ref_eql_ddl_object_types_alter:
 
-ALTER TYPE
+Alter type
 ==========
 
 :eql-statement:
@@ -106,62 +107,62 @@ Change the definition of an
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    ALTER TYPE <name>
+    [ with <with-item> [, ...] ]
+    alter type <name>
     [ "{" <subcommand>; [...] "}" ] ;
 
-    [ WITH <with-item> [, ...] ]
-    ALTER TYPE <name> <subcommand> ;
+    [ with <with-item> [, ...] ]
+    alter type <name> <subcommand> ;
 
     # where <subcommand> is one of
 
-      RENAME TO <newname>
-      EXTENDING <parent> [, ...]
-      CREATE ANNOTATION <annotation-name> := <value>
-      ALTER ANNOTATION <annotation-name> := <value>
-      DROP ANNOTATION <annotation-name>
-      CREATE LINK <link-name> ...
-      ALTER LINK <link-name> ...
-      DROP LINK <link-name> ...
-      CREATE PROPERTY <property-name> ...
-      ALTER PROPERTY <property-name> ...
-      DROP PROPERTY <property-name> ...
-      CREATE CONSTRAINT <constraint-name> ...
-      ALTER CONSTRAINT <constraint-name> ...
-      DROP CONSTRAINT <constraint-name> ...
-      CREATE INDEX ON <index-expr>
-      DROP INDEX ON <index-expr>
+      rename to <newname>
+      extending <parent> [, ...]
+      create annotation <annotation-name> := <value>
+      alter annotation <annotation-name> := <value>
+      drop annotation <annotation-name>
+      create link <link-name> ...
+      alter link <link-name> ...
+      drop link <link-name> ...
+      create property <property-name> ...
+      alter property <property-name> ...
+      drop property <property-name> ...
+      create constraint <constraint-name> ...
+      alter constraint <constraint-name> ...
+      drop constraint <constraint-name> ...
+      create index on <index-expr>
+      drop index on <index-expr>
 
 
 Description
 -----------
 
-``ALTER TYPE`` changes the definition of an object type.
+The command ``alter type`` changes the definition of an object type.
 *name* must be a name of an existing object type, optionally qualified
 with a module name.
 
 Parameters
 ----------
 
-The following subcommands are allowed in the ``ALTER TYPE`` block:
+The following subcommands are allowed in the ``alter type`` block:
 
-:eql:synopsis:`WITH <with-item> [, ...]`
+:eql:synopsis:`with <with-item> [, ...]`
     Alias declarations.
 
-    The ``WITH`` clause allows specifying module aliases
+    The ``with`` clause allows specifying module aliases
     that can be referenced by the command.  See :ref:`ref_eql_statements_with`
     for more information.
 
 :eql:synopsis:`<name>`
     The name (optionally module-qualified) of the type being altered.
 
-:eql:synopsis:`EXTENDING <parent> [, ...]`
+:eql:synopsis:`extending <parent> [, ...]`
     Alter the supertype list.  The full syntax of this subcommand is:
 
     .. eql:synopsis::
 
-         EXTENDING <parent> [, ...]
-            [ FIRST | LAST | BEFORE <exparent> | AFTER <exparent> ]
+         extending <parent> [, ...]
+            [ first | last | before <exparent> | after <exparent> ]
 
     This subcommand makes the type a subtype of the specified list
     of supertypes.  The requirements for the parent-child relationship
@@ -170,52 +171,52 @@ The following subcommands are allowed in the ``ALTER TYPE`` block:
     It is possible to specify the position in the parent list
     using the following optional keywords:
 
-    * ``FIRST`` -- insert parent(s) at the beginning of the
+    * ``first`` -- insert parent(s) at the beginning of the
       parent list,
-    * ``LAST`` -- insert parent(s) at the end of the parent list,
-    * ``BEFORE <parent>`` -- insert parent(s) before an
+    * ``last`` -- insert parent(s) at the end of the parent list,
+    * ``before <parent>`` -- insert parent(s) before an
       existing *parent*,
-    * ``AFTER <parent>`` -- insert parent(s) after an existing
+    * ``after <parent>`` -- insert parent(s) after an existing
       *parent*.
 
-:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+:eql:synopsis:`alter annotation <annotation-name>;`
     Alter object type annotation :eql:synopsis:`<annotation-name>`.
-    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
+    See :eql:stmt:`alter annotation` for details.
 
-:eql:synopsis:`DROP ANNOTATION <annotation-name>`
+:eql:synopsis:`drop annotation <annotation-name>`
     Remove object type :eql:synopsis:`<annotation-name>`.
-    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
+    See :eql:stmt:`drop annotation` for details.
 
-:eql:synopsis:`ALTER LINK <link-name> ...`
+:eql:synopsis:`alter link <link-name> ...`
     Alter the definition of a link for this object type.  See
-    :eql:stmt:`ALTER LINK` for details.
+    :eql:stmt:`alter link` for details.
 
-:eql:synopsis:`DROP LINK <link-name>`
+:eql:synopsis:`drop link <link-name>`
     Remove a link item from this object type.  See
-    :eql:stmt:`DROP LINK` for details.
+    :eql:stmt:`drop link` for details.
 
-:eql:synopsis:`ALTER PROPERTY <property-name> ...`
+:eql:synopsis:`alter property <property-name> ...`
     Alter the definition of a property item for this object type.
-    See :eql:stmt:`ALTER PROPERTY` for details.
+    See :eql:stmt:`alter property` for details.
 
-:eql:synopsis:`DROP PROPERTY <property-name>`
+:eql:synopsis:`drop property <property-name>`
     Remove a property item from this object type.  See
-    :eql:stmt:`DROP PROPERTY` for details.
+    :eql:stmt:`drop property` for details.
 
-:eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
+:eql:synopsis:`alter constraint <constraint-name> ...`
     Alter the definition of a constraint for this object type.  See
-    :eql:stmt:`ALTER CONSTRAINT` for details.
+    :eql:stmt:`alter constraint` for details.
 
-:eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
+:eql:synopsis:`drop constraint <constraint-name>;`
     Remove a constraint from this object type.  See
-    :eql:stmt:`DROP CONSTRAINT` for details.
+    :eql:stmt:`drop constraint` for details.
 
-:eql:synopsis:`DROP INDEX ON <index-expr>`
+:eql:synopsis:`drop index on <index-expr>`
     Remove an :ref:`index <ref_datamodel_indexes>` defined as *index-expr*
-    from this object type.  See :eql:stmt:`DROP INDEX` for details.
+    from this object type.  See :eql:stmt:`drop index` for details.
 
-All the subcommands allowed in the ``CREATE TYPE`` block are also
-valid subcommands for ``ALTER TYPE`` block.
+All the subcommands allowed in the ``create type`` block are also
+valid subcommands for ``alter type`` block.
 
 Examples
 --------
@@ -224,14 +225,14 @@ Alter the ``User`` object type to make ``name`` required:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User {
-        ALTER PROPERTY name {
-            SET REQUIRED;
+    alter type User {
+        alter property name {
+            set required;
         }
     };
 
 
-DROP TYPE
+Drop type
 =========
 
 :eql-statement:
@@ -242,14 +243,14 @@ Remove the specified object type from the schema.
 
 .. eql:synopsis::
 
-    DROP TYPE <name> ;
+    drop type <name> ;
 
 Description
 -----------
 
-``DROP TYPE`` removes the specified object type from the schema.
-schema.  All subordinate schema items defined on this type, such
-as links and indexes, are removed as well.
+The command ``drop type`` removes the specified object type from the
+schema. schema.  All subordinate schema items defined on this type,
+such as links and indexes, are removed as well.
 
 Examples
 --------
@@ -258,7 +259,7 @@ Remove the ``User`` object type:
 
 .. code-block:: edgeql
 
-    DROP TYPE User;
+    drop type User;
 
 .. list-table::
   :class: seealso

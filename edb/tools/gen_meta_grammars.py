@@ -67,7 +67,7 @@ def main(names, data):
     constraints = sorted(set(data['c_names']))
     fn_builtins = sorted(set(data['f_names']))
     # add non-word operators
-    operators = sorted(set(data['o_names']) | {':='})
+    operators = sorted((set(data['o_names']) - {'[]'}) | {':='})
 
     for gname in names:
         if gname == 'edgeql':

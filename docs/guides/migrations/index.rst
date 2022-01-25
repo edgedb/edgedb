@@ -141,7 +141,7 @@ Type ``?`` into the prompt for an explanation of these options.
 
 The process of creating migrations is truly interactive. You can go back to
 previous prompts, split the schema changes into several individual migrations,
-or inspect the associated DDL commands (e.g. ``CREATE TYPE``, etc).
+or inspect the associated DDL commands (e.g. ``create type``, etc).
 
 Running ``migration create`` simply generates a migration script, it doesn't
 apply it! So you can safely quit at any time with ``q`` or ``Ctrl/Cmd-C``

@@ -110,11 +110,11 @@ to traverse a link in the *reverse* direction.
 
   type User {
     property name -> str;
-    blog_posts := .<author[IS BlogPost]
+    blog_posts := .<author[is BlogPost]
   }
 
 The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
-conjunction with a *type filter* ``[IS BlogPost]`` to fetch all the
+conjunction with a *type filter* ``[is BlogPost]`` to fetch all the
 ``BlogPosts`` associated with a given ``User``. For details on this syntax, see
 the EdgeQL docs for :ref:`Backlinks <ref_eql_paths>`.
 

@@ -49,13 +49,13 @@ Examples:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT (1, 'EdgeDB').0;
+    db> select (1, 'EdgeDB').0;
     {1}
 
-    db> SELECT (number := 1, name := 'EdgeDB').name;
+    db> select (number := 1, name := 'EdgeDB').name;
     {"EdgeDB"}
 
-    db> SELECT (number := 1, name := 'EdgeDB').1;
+    db> select (number := 1, name := 'EdgeDB').1;
     {"EdgeDB"}
 
 Nesting tuples
@@ -65,20 +65,20 @@ Tuples can be nested:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT (nested_tuple := (1, 2)).nested_tuple.0;
+    db> select (nested_tuple := (1, 2)).nested_tuple.0;
     {1}
 
 Referencing a non-existent tuple element will result in an error:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT (1, 2).5;
+    db> select (1, 2).5;
     EdgeQLError: 5 is not a member of a tuple
 
     ---- query context ----
 
         line 1
-            > SELECT (1, 2).3;
+            > select (1, 2).3;
 
 
 .. _ref_eql_types_tuple:
@@ -114,13 +114,13 @@ Here's a few examples of using tuple types in EdgeQL queries:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT <tuple<int64, str>>('1', 3);
+    db> select <tuple<int64, str>>('1', 3);
     {(1, '3')}
-    db> SELECT <tuple<x: int64, y: int64>>(1, 2);
+    db> select <tuple<x: int64, y: int64>>(1, 2);
     {(x := 1, y := 2)}
-    db> SELECT (1, '3') IS (tuple<int64, str>);
+    db> select (1, '3') is (tuple<int64, str>);
     {true}
-    db> SELECT ([1, 2], 'a') IS (tuple<array<int64>, str>);
+    db> select ([1, 2], 'a') is (tuple<array<int64>, str>);
     {true}
 
 
@@ -140,7 +140,7 @@ Here's a few examples of using tuple types in EdgeQL queries:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT ('foo', 42);
+        db> select ('foo', 42);
         {('foo', 42)}
 
     Two tuples are equal if all of their elements are equal and in the same
@@ -149,7 +149,7 @@ Here's a few examples of using tuple types in EdgeQL queries:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT (1, 2, 3) = (a := 1, b := 2, c := 3);
+        db> select (1, 2, 3) = (a := 1, b := 2, c := 3);
         {true}
 
     The syntax of a tuple type declaration can be found in :ref:`this

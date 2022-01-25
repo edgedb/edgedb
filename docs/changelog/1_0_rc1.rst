@@ -15,8 +15,8 @@ We continue fixing bugs that affect schema definitions and migrations:
 
 * Always escape newlines when string literals appear in automatically
   generated code, such as in migrations (:eql:gh:`#2704`).
-* Fix behavior of ``SET MULTI`` to make sure that it does not imply
-  ``SET REQUIRED`` (:eql:gh:`#2778`).
+* Fix behavior of ``set multi`` to make sure that it does not imply
+  ``set required`` (:eql:gh:`#2778`).
 * Make properties non-distinct by default (:eql:gh:`#2853`).
 
   All values in EdgeQL are considered to be :ref:`multisets
@@ -34,7 +34,7 @@ We continue fixing bugs that affect schema definitions and migrations:
   distinct.  Computed links must follow this rule too so as to behave
   exactly like materialized links externally.  To illustrate, consider
   a common case of finding a set of "friends of friends" of a
-  particular user.  In EdgeQL this is simply ``SELECT
+  particular user.  In EdgeQL this is simply ``select
   User.friends.friends``.
 
   Properties are different, because their value is scalar, and scalars
@@ -45,7 +45,7 @@ We continue fixing bugs that affect schema definitions and migrations:
   Finally, we should enforce consistent multiplicity rules on computed
   properties, and static inference of multiplicity on scalars is weak
   and will effectively force users to pollute queries with pointless
-  and expensive :eql:op:`DISTINCT`.
+  and expensive :eql:op:`distinct`.
 
   Here we change EdgeDB behavior to allow multiplicity *greater than
   one* in ``multi`` properties.
@@ -81,14 +81,13 @@ We continue fixing bugs that affect schema definitions and migrations:
 EdgeQL
 ======
 
-* Drop ``FINAL`` from the syntax (:eql:gh:`#2607`).
-* Restore the precedence of :ref:`DETACHED <ref_eql_with_detached>` to
-  no longer match that of :eql:op:`EXISTS` undoing the change
-  :eql:gh:`#2638`.
-* Fix ``UNLESS CONFLICT`` with inheritance hierarchies (:eql:gh:`#2525`).
+* Drop ``final`` from the syntax (:eql:gh:`#2607`).
+* Restore the precedence of :eql:op:`detached` to no longer match that
+  of :eql:op:`exists` undoing the change :eql:gh:`#2638`.
+* Fix ``unless conflict`` with inheritance hierarchies (:eql:gh:`#2525`).
 * Always use serializable isolation (:eql:gh:`#2877`).
-* Correctly raise exclusive constraints when performing an ``INSERT``
-  or an ``UPDATE`` on related types (:eql:gh:`#2845`).
+* Correctly raise exclusive constraints when performing an ``insert``
+  or an ``update`` on related types (:eql:gh:`#2845`).
 * Enforce link or property cardinality in mutations (:eql:gh:`#2827`).
 * Fix cardinality inference in "optionality-preserving" functions
   (:eql:gh:`#2844`).
@@ -109,10 +108,10 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT assert_exists((SELECT User FILTER .name = "Administrator"));
+    db> select assert_exists((select User filter .name = "Administrator"));
     {default::User {id: ...}}
 
-    db> SELECT assert_exists((SELECT User FILTER .name = "Nonexistent"));
+    db> select assert_exists((select User filter .name = "Nonexistent"));
     ERROR: CardinalityViolationError: assert_exists violation: expression
            returned an empty set.
 

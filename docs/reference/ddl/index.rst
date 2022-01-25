@@ -29,15 +29,15 @@ commands against your database, just like any other EdgeQL query.
 
 .. code-block:: edgeql-repl
 
-    db> CREATE TYPE Person {
-    ...     CREATE REQUIRED PROPERTY name -> str;
-    ... };
-    OK: CREATE
-    db> CREATE TYPE Movie {
-    ...     CREATE REQUIRED PROPERTY title -> str;
-    ...     CREATE REQUIRED LINK director -> Person;
-    ... };
-    OK: CREATE
+    edgedb> create type Person {
+    .......     create required property name -> str;
+    ....... };
+    OK: CREATE TYPE
+    edgedb> create type Movie {
+    .......     create required property title -> str;
+    .......     create required link director -> Person;
+    ....... };
+    OK: CREATE TYPE
 
 In DDL, the *order* of commands is important. In the example above, you
 couldn't create ``Movie`` before ``Person``, because ``Movie`` contains a link

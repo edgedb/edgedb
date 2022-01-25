@@ -14,18 +14,18 @@ Boolean
     * - :eql:type:`bool`
       - Boolean type
 
-    * - :eql:op:`bool OR bool <OR>`
-      - :eql:op-desc:`OR`
+    * - :eql:op:`bool or bool <or>`
+      - :eql:op-desc:`or`
 
-    * - :eql:op:`bool AND bool <AND>`
-      - :eql:op-desc:`AND`
+    * - :eql:op:`bool and bool <and>`
+      - :eql:op-desc:`and`
 
-    * - :eql:op:`NOT bool <NOT>`
-      - :eql:op-desc:`NOT`
+    * - :eql:op:`not bool <not>`
+      - :eql:op-desc:`not`
 
-    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    * - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+        :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+        :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
       - Comparison operators
 
     * - :eql:func:`all`
@@ -47,31 +47,31 @@ Boolean
 
     .. code-block:: edgeql-repl
 
-        db> SELECT (True, true, TRUE);
+        db> select (True, true, TRUE);
         {(true, true, true)}
-        db> SELECT (False, false, FALSE);
+        db> select (False, false, FALSE);
         {(false, false, false)}
 
     A boolean value may arise as a result of a :ref:`logical
-    <ref_std_logical>` or :eql:op:`comparison <EQ>`
-    operations as well as :eql:op:`IN`
-    and :eql:op:`NOT IN <IN>`:
+    <ref_std_logical>` or :eql:op:`comparison <eq>`
+    operations as well as :eql:op:`in`
+    and :eql:op:`not in <in>`:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT true AND 2 < 3;
+        db> select true and 2 < 3;
         {true}
-        db> SELECT '!' IN {'hello', 'world'};
+        db> select '!' IN {'hello', 'world'};
         {false}
 
-    It is also possible to :eql:op:`cast <CAST>` between
+    It is also possible to :eql:op:`cast <cast>` between
     :eql:type:`bool`, :eql:type:`str`, and :eql:type:`json`:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <json>true;
+        db> select <json>true;
         {'true'}
-        db> SELECT <bool>'True';
+        db> select <bool>'True';
         {true}
 
     :ref:`Filter <ref_eql_statements_select_filter>` clauses must
@@ -79,64 +79,64 @@ Boolean
 
     .. code-block:: edgeql
 
-        SELECT User
-        FILTER .name ILIKE 'alice';
+        select User
+        filter .name ilike 'alice';
 
 
 ----------
 
 
-.. eql:operator:: OR: bool OR bool -> bool
+.. eql:operator:: or: bool or bool -> bool
 
     Logical disjunction.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT false OR true;
+        db> select false or true;
         {true}
 
 
 ----------
 
 
-.. eql:operator:: AND: bool AND bool -> bool
+.. eql:operator:: and: bool and bool -> bool
 
     Logical conjunction.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT false AND true;
+        db> select false and true;
         {false}
 
 
 ----------
 
 
-.. eql:operator:: NOT: NOT bool -> bool
+.. eql:operator:: not: not bool -> bool
 
     Logical negation.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT NOT false;
+        db> select not false;
         {true}
 
 
 ----------
 
 
-The ``AND`` and ``OR`` operators are commutative.
+The ``and`` and ``or`` operators are commutative.
 
 The truth tables are as follows:
 
-+-------+-------+-----------+----------+----------+
-|   a   |   b   |  a AND b  |  a OR b  |  NOT a   |
-+=======+=======+===========+==========+==========+
-| true  | true  |   true    |   true   |   false  |
-+-------+-------+-----------+----------+----------+
-| true  | false |   false   |   true   |   false  |
-+-------+-------+-----------+----------+----------+
-| false | true  |   false   |   true   |   true   |
-+-------+-------+-----------+----------+----------+
-| false | false |   false   |   false  |   true   |
-+-------+-------+-----------+----------+----------+
++-------+-------+---------------+--------------+--------------+
+|   a   |   b   |  a ``and`` b  |  a ``or`` b  |  ``not`` a   |
++=======+=======+===============+==============+==============+
+| true  | true  |   true        |   true       |   false      |
++-------+-------+---------------+--------------+--------------+
+| true  | false |   false       |   true       |   false      |
++-------+-------+---------------+--------------+--------------+
+| false | true  |   false       |   true       |   true       |
++-------+-------+---------------+--------------+--------------+
+| false | false |   false       |   false      |   true       |
++-------+-------+---------------+--------------+--------------+

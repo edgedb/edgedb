@@ -54,7 +54,7 @@ link to the same person. Thus, we have a one-to-many relationship between
 
 When fetching a ``Person``, it's possible to deeply fetch their collection of
 ``Shirts`` by traversing the ``Shirt.owner`` link *in reverse*. This is known
-as a **backlink**; read the :ref:`SELECT docs <ref_eql_statements_select>` to
+as a **backlink**; read the :ref:`select docs <ref_eql_statements_select>` to
 learn more.
 
 

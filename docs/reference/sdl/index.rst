@@ -17,8 +17,8 @@ details of how to arrive at that state.  Each *SDL* block represents
 the complete schema state for a given :ref:`database
 <ref_datamodel_databases>`.
 
-Syntactically, an SDL declaration mirrors the ``CREATE`` DDL for the
-corresponding entity, but with all of the ``CREATE`` and ``SET``
+Syntactically, an SDL declaration mirrors the ``create`` DDL for the
+corresponding entity, but with all of the ``create`` and ``set``
 keywords omitted.  The typical SDL structure is to use :ref:`module
 blocks <ref_eql_sdl_modules>` with the rest of the declarations being
 nested in their respective modules.

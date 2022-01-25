@@ -82,7 +82,7 @@ commands <ref_eql_ddl_props>`.
       property <name>
       [ extending <base> [, ...] ] [-> <type>]
       [ "{"
-          USING (<expression>) ;
+          using (<expression>) ;
           [ <annotation-declarations> ]
           [ <constraint-declarations> ]
           ...
@@ -155,7 +155,7 @@ The valid SDL sub-declarations are listed below:
 
 :eql:synopsis:`default := <expression>`
     Specifies the default value for the property as an EdgeQL expression.
-    The default value is used in an ``INSERT`` statement if an explicit
+    The default value is used in an ``insert`` statement if an explicit
     value for this property is not specified.
 
 :eql:synopsis:`readonly := {true | false}`

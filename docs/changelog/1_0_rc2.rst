@@ -27,7 +27,7 @@ counterparts:
     }
 
     type Profile {
-        required link user := assert_exists(.<profile[IS User]);
+        required link user := assert_exists(.<profile[is User]);
     }
 
 * Fix issues when migrating between regular and computed links and
@@ -36,7 +36,7 @@ counterparts:
 * Fix issues when changing cardinality of computed links and
   properties (:eql:gh:`#3003`).
 
-* Fix how ``ALTER`` suggestions are rejected when processing
+* Fix how ``alter`` suggestions are rejected when processing
   migrations, making sure that they don't repeat (:eql:gh:`#3111`).
 
 
@@ -52,7 +52,7 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT User {comp := enumerate(.name)};
+    db> select User {comp := enumerate(.name)};
     {default::User {comp: (0, 'alice')}}
 
 * Fix some issues with :eql:func:`enumerate` applied to the results of
@@ -60,7 +60,7 @@ EdgeQL
 
 * Fix :eql:func:`assert_distinct` on tuples (:eql:gh:`#2990`).
 
-* Fix a case where :eql:stmt:`FOR` over an empty set erroneously
+* Fix a case where :eql:stmt:`for` over an empty set erroneously
   produced a non-empty result (:eql:gh:`#3012`).
 
 * Fix :eql:constraint:`exclusive` constraint issue when conflicting
@@ -69,7 +69,7 @@ EdgeQL
 * Fix issues with how tuple elements are correlated (:eql:gh:`#3001`).
 
 * Fix how functions or operators with ``optional`` parameters such as
-  :eql:op:`??<COALESCE>` interact with shape subqueries
+  :eql:op:`?? <coalesce>` interact with shape subqueries
   (:eql:gh:`#3008`).
 
   This makes it possible to have a shape as one element of a tuple to
@@ -77,7 +77,7 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT (
+    db> select (
     ...   User {name, friends: {name}},
     ...   User.friends.name ?? 'n/a'
     ... );
@@ -121,7 +121,7 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT [(SELECT User FILTER .name = 'alice'), (SELECT SystemUser)];
+    db> select [(select User filter .name = 'alice'), (select SystemUser)];
     {
       [
         default::User {id: 8f69777e-3129-11ec-ba91-0f55d65fd8d7},
@@ -130,7 +130,7 @@ EdgeQL
     }
 
   Conceptually, there's no difference between first creating a set via
-  :eql:op:`UNION` and using :eql:func:`array_agg` on it or using an
+  :eql:op:`union` and using :eql:func:`array_agg` on it or using an
   array constructor directly and supply the individual elements as
   subqueries.
 
@@ -144,11 +144,11 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> SELECT [(User,)][0];
+    db> select [(User,)][0];
     {
       (default::User {id: 8f69777e-3129-11ec-ba91-0f55d65fd8d7}),
     }
-    db> SELECT ([User],).0;
+    db> select ([User],).0;
     {
       [default::User {id: 8f69777e-3129-11ec-ba91-0f55d65fd8d7}],
     }
@@ -156,10 +156,11 @@ EdgeQL
 * Fix some issues with ad-hoc computed links or properties inside
   arrays (:eql:gh:`#2979`).
 
-* Fix :eql:op:`AND` to consistently apply to properties and produce
-  an ``{}`` even for the case of ``False AND {}`` (:eql:gh:`#3121`).
+* Fix :eql:op:`and` to consistently apply to properties and produce
+  an ``{}`` even for the case of ``False and {}`` (:eql:gh:`#3121`).
 
-* Restrict :eql:op:`TYPEOR` operator to object types only (:eql:gh:`#3116`).
+* Restrict :eql:op:`| <typeor>` operator to object types only
+  (:eql:gh:`#3116`).
 
 * Reserve ``never`` as a keyword for future use (:eql:gh:`#3102`).
 
@@ -169,9 +170,9 @@ GraphQL
 
 * Make ``and`` and ``or`` in GraphQL use "short-circuiting" logic.
 
-  In EdgeQL :eql:op:`AND` and :eql:op:`OR` produce ``{}`` if any of
+  In EdgeQL :eql:op:`and` and :eql:op:`or` produce ``{}`` if any of
   the operands are ``{}``. There are different ways of handling the
-  ``{}`` by using :eql:op:`COALESCE` or :eql:op:`IF..ELSE` operator.
+  ``{}`` by using :eql:op:`?? <coalesce>` or :eql:op:`if..else` operator.
   However, within the restricted context of operations reflected to
   GraphQL ``filter`` it makes sense to use "short-circuiting" versions
   of the operators and enforce that if any of the operands to ``or``

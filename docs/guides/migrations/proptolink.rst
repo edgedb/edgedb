@@ -48,7 +48,7 @@ After some development work we decide to add more details about the
 available classes and encapsulate that information into its own type.
 This way instead of a property ``class`` we want to end up with a link
 ``class`` to the new data structure. Since we cannot just
-:eql:op:`cast <CAST>` a scalar into an object, we'll need to convert
+:eql:op:`cast <cast>` a scalar into an object, we'll need to convert
 between the two explicitly. This means that we will need to have both
 the old and the new "class" information to begin with:
 
@@ -101,24 +101,24 @@ And then edit the ``00003.edgeql`` file to create and update objects:
       CREATE MIGRATION m1iztxroh3ifoeqmvxncy77whnaei6tp5j3sewyxtrfysronjkxgga
           ONTO m1uttd6f7fpiwiwikhdh6qyijb6pcji747ccg2cyt5357i3wsj3l3q
       {
-    +     INSERT default::NewClass {
+    +     insert default::NewClass {
     +         name := 'Warrior',
     +         skills := {'punch', 'kick', 'run', 'jump'},
     +     };
-    +     INSERT default::NewClass {
+    +     insert default::NewClass {
     +         name := 'Scholar',
     +         skills := {'read', 'write', 'analyze', 'refine'},
     +     };
-    +     INSERT default::NewClass {
+    +     insert default::NewClass {
     +         name := 'Rogue',
     +         skills := {'impress', 'sing', 'steal', 'run', 'jump'},
     +     };
     +
-    +    UPDATE default::Character
-    +    SET {
+    +    update default::Character
+    +    set {
     +        new_class := assert_single((
-    +            SELECT default::NewClass
-    +            FILTER .name ILIKE <str>default::Character.class
+    +            select default::NewClass
+    +            filter .name ilike <str>default::Character.class
     +        )),
     +    };
       };

@@ -18,20 +18,20 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-      db> WITH
+      db> with
       ...     data := <tuple<
       ...        first_name: str,
       ...        last_name: str,
       ...        interests: array<str>
       ...     >> <json>$input
-      ... INSERT User {
+      ... insert User {
       ...     first_name := data.first_name,
       ...     last_name := data.last_name,
       ...     interests := (
-      ...         SELECT
+      ...         select
       ...             Interest
-      ...         FILTER
-      ...             .label IN array_unpack(data.interests)
+      ...         filter
+      ...             .label in array_unpack(data.interests)
       ...     )
       ... };
       Parameter <json>$input:
@@ -45,12 +45,12 @@ EdgeQL
 * Allow constraints directly on object types in SDL (:eql:gh:`#1164`)
 * Disallow using :eql:constraint:`exclusive` on scalar types
   (:eql:gh:`#1575`).
-* Proper implementation of ``SET/DROP OWNED``.
-* Fix issues with some ``FOR`` statements (:eql:gh:`#1594`).
+* Proper implementation of ``set/drop owned``.
+* Fix issues with some ``for`` statements (:eql:gh:`#1594`).
 * Use fully-qualified names to disambiguate the expressions produced
-  by :eql:stmt:`DESCRIBE` (:eql:gh:`#1254`).
-* Initial implementation of :eql:stmt:`INSERT ... UNLESS CONFLICT ...
-  ELSE <INSERT>` (:eql:gh:`#1639`)
+  by :eql:stmt:`describe` (:eql:gh:`#1254`).
+* Initial implementation of :eql:stmt:`insert ... unless conflict ...
+  else <insert>` (:eql:gh:`#1639`)
 * Implementation of more of the features of the new migration syntax
   (`RFC 1000 <migrations_>`_).
 
@@ -115,11 +115,11 @@ Bindings
 
     await con.transaction(async () => {
         await con.execute(`
-            INSERT Example {
+            insert Example {
                 name := 'Test Transaction 1'
             };
         `);
-        await con.execute("SELECT 1 / 0;");
+        await con.execute("select 1 / 0;");
     });
 
     // nested transactions are supported
@@ -129,7 +129,7 @@ Bindings
         // nested transaction
         await con.transaction(async () => {
             await con.execute(`
-                INSERT Example {
+                insert Example {
                     name := 'Test Transaction 2'
                 };
             `);

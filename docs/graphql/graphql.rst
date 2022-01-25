@@ -46,7 +46,7 @@ Consider this example:
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     {                           |     SELECT                      |
+    |     {                           |     select                      |
     |         Book {                  |         Book {                  |
     |             title               |             title,              |
     |             synopsis            |             synopsis,           |
@@ -131,12 +131,12 @@ Here are some examples of using a filter:
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     {                           |     SELECT                      |
+    |     {                           |     select                      |
     |         Book(                   |         Book {                  |
     |             filter: {           |             title,              |
     |                 title: {        |             synopsis            |
     |                     eq: "Spam"  |         }                       |
-    |                 }               |     FILTER                      |
+    |                 }               |     filter                      |
     |             }                   |         Book.title = 'Spam';    |
     |         ) {                     |                                 |
     |             title               |                                 |
@@ -146,12 +146,12 @@ Here are some examples of using a filter:
     +---------------------------------+---------------------------------+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     {                           |     SELECT                      |
+    |     {                           |     select                      |
     |         Book(                   |         Book {                  |
     |             filter: {           |             title,              |
     |                 author: {       |             synopsis            |
     |                     name: {     |         }                       |
-    |                         eq:     |     FILTER                      |
+    |                         eq:     |     filter                      |
     |                 "Lewis Carroll" |         Book.author.name =      |
     |                     }           |             'Lewis Carroll';    |
     |                 }               |                                 |
@@ -175,13 +175,13 @@ example:
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     {                           |     SELECT                      |
+    |     {                           |     select                      |
     |         Book(                   |         Book {                  |
     |             filter: {           |             title,              |
     |                 title: {        |         }                       |
-    |                     gte: "m",   |     FILTER                      |
+    |                     gte: "m",   |     filter                      |
     |                     lt: "o"     |         Book.title >= 'm'       |
-    |                 }               |         AND                     |
+    |                 }               |         and                     |
     |             }                   |         Book.title < 'o';       |
     |         ) {                     |                                 |
     |             title               |                                 |
@@ -201,13 +201,13 @@ some reason:
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     {                           |     SELECT                      |
+    |     {                           |     select                      |
     |         Book(                   |         Book {                  |
     |             filter: {           |             id,                 |
     |                 author: {       |             title               |
     |                   exists: false |         }                       |
-    |                 }               |     FILTER                      |
-    |             }                   |         NOT EXISTS              |
+    |                 }               |     filter                      |
+    |             }                   |         not exists              |
     |         ) {                     |             Book.author;        |
     |             id                  |                                 |
     |             title               |                                 |
@@ -270,13 +270,13 @@ If the value of ``nulls`` is not specified it is assumed to be
     +====================================+==============================+
     | .. code-block:: graphql            | .. code-block:: edgeql       |
     |                                    |                              |
-    |     {                              |     SELECT                   |
+    |     {                              |     select                   |
     |         Author(                    |         Author {             |
     |             order: {               |             name,            |
     |                 name: {            |         }                    |
-    |                     dir: ASC,      |     ORDER BY                 |
-    |                     nulls: BIGGEST |         Author.name ASC      |
-    |                 }                  |             EMPTY LAST;      |
+    |                     dir: ASC,      |     order by                 |
+    |                     nulls: BIGGEST |         Author.name asc      |
+    |                 }                  |             empty last;      |
     |             }                      |                              |
     |         ) {                        |                              |
     |             name                   |                              |
@@ -329,13 +329,13 @@ The objects corresponding to the indices specified by ``before`` or
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     {                           |     SELECT                      |
+    |     {                           |     select                      |
     |         Author(                 |         Author {                |
     |             order: {            |             name,               |
     |                 name: {         |         }                       |
-    |                     dir: ASC    |     ORDER BY                    |
-    |                 }               |         Author.name ASC         |
-    |             },                  |     LIMIT 10;                   |
+    |                     dir: ASC    |     order by                    |
+    |                 }               |         Author.name asc         |
+    |             },                  |     limit 10;                   |
     |             first: 10           |                                 |
     |         ) {                     |                                 |
     |             name                |                                 |
@@ -344,13 +344,13 @@ The objects corresponding to the indices specified by ``before`` or
     +---------------------------------+---------------------------------+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     {                           |     SELECT                      |
+    |     {                           |     select                      |
     |         Author(                 |         Author {                |
     |             order: {            |             name,               |
     |                 name: {         |         }                       |
-    |                     dir: ASC    |     ORDER BY                    |
-    |                 }               |         Author.name ASC         |
-    |             },                  |     OFFSET 20 LIMIT 10;         |
+    |                     dir: ASC    |     order by                    |
+    |                 }               |         Author.name asc         |
+    |             },                  |     offset 20 limit 10;         |
     |             after: "19",        |                                 |
     |             first: 10           |                                 |
     |         ) {                     |                                 |
@@ -360,13 +360,13 @@ The objects corresponding to the indices specified by ``before`` or
     +---------------------------------+---------------------------------+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     {                           |     SELECT                      |
+    |     {                           |     select                      |
     |         Author(                 |         Author {                |
     |             order: {            |             name,               |
     |                 name: {         |         }                       |
-    |                     dir: ASC    |     ORDER BY                    |
-    |                 }               |         Author.name ASC         |
-    |             },                  |     OFFSET 20 LIMIT 10;         |
+    |                     dir: ASC    |     order by                    |
+    |                 }               |         Author.name asc         |
+    |             },                  |     offset 20 limit 10;         |
     |             after: "19",        |                                 |
     |             before: "30"        |                                 |
     |         ) {                     |                                 |
@@ -390,12 +390,12 @@ mapped to variables in EdgeQL.
     +=================================+=================================+
     | .. code-block:: graphql         | .. code-block:: edgeql          |
     |                                 |                                 |
-    |     query ($title: String!) {   |     SELECT                      |
+    |     query ($title: String!) {   |     select                      |
     |         Book(                   |        Book {                   |
     |           filter: {             |            title,               |
     |             title: {            |            synopsis,            |
     |               eq: $title        |        }                        |
-    |             }                   |     FILTER                      |
+    |             }                   |     filter                      |
     |           }                     |         .title = $title;        |
     |         ) {                     |                                 |
     |             title               |                                 |

@@ -67,7 +67,7 @@ demonstration purposes, the queries below assume the following schema.
 
     type Hero extending Person {
       property secret_identity -> str;
-      multi link villains := .<nemesis[IS Villain];
+      multi link villains := .<nemesis[is Villain];
     }
 
     type Villain extending Person {
@@ -292,8 +292,8 @@ expression, primitive or otherwise.
 
   In EdgeDB all values are orderable. Objects are compared using their ``id``;
   tuples and arrays are compared element-by-element from left to right. By
-  extension, the generic comparison operators :eql:op:`= <EQ>`,
-  :eql:op:`\< <LT>`, :eql:op:`\> <GT>`, etc. can be used with any two
+  extension, the generic comparison operators :eql:op:`= <eq>`,
+  :eql:op:`\< <lt>`, :eql:op:`\> <gt>`, etc. can be used with any two
   expressions of the same type.
 
 You can also order by multiple
@@ -544,7 +544,7 @@ be a mix of ``Hero`` and ``Villain`` objects (and possibly other subtypes of
 
 You may also encounter such "mixed sets" when querying a link that points to an
 abstract type (such as ``Movie.characters``) or a :eql:op:`union type
-<TYPEOR>`.
+<typeor>`.
 
 .. code-block:: edgeql-repl
 
@@ -643,7 +643,7 @@ exclusively fetch the ``Movie.characters`` of type ``Hero``.
 
   db> select Movie {
   ...   title,
-  ...   characters[IS Hero]: {
+  ...   characters[is Hero]: {
   ...     secret_identity
   ...   },
   ... };

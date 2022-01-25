@@ -8,7 +8,7 @@ This section describes the DDL commands pertaining to
 :ref:`properties <ref_datamodel_props>`.
 
 
-CREATE PROPERTY
+Create property
 ===============
 
 :eql-statement:
@@ -18,47 +18,47 @@ CREATE PROPERTY
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
+    [ with <with-item> [, ...] ]
+    {create|alter} {type|link} <SourceName> "{"
       [ ... ]
-      CREATE [{REQUIRED | OPTIONAL}] [{SINGLE | MULTI}]
-        PROPERTY <name>
-        [ EXTENDING <base> [, ...] ] -> <type>
+      create [{required | optional}] [{single | multi}]
+        property <name>
+        [ extending <base> [, ...] ] -> <type>
         [ "{" <subcommand>; [...] "}" ] ;
       [ ... ]
     "}"
 
     # Computed property form:
 
-    [ WITH <with-item> [, ...] ]
-    {CREATE|ALTER} {TYPE|LINK} <SourceName> "{"
+    [ with <with-item> [, ...] ]
+    {create|alter} {type|link} <SourceName> "{"
       [ ... ]
-      CREATE [{REQUIRED | OPTIONAL}] [{SINGLE | MULTI}]
-        PROPERTY <name> := <expression>;
+      create [{required | optional}] [{single | multi}]
+        property <name> := <expression>;
       [ ... ]
     "}"
 
     # Abstract property form:
 
-    [ WITH <with-item> [, ...] ]
-    CREATE ABSTRACT PROPERTY [<module>::]<name> [EXTENDING <base> [, ...]]
+    [ with <with-item> [, ...] ]
+    create abstract property [<module>::]<name> [extending <base> [, ...]]
     [ "{" <subcommand>; [...] "}" ]
 
     # where <subcommand> is one of
 
-      SET default := <expression>
-      SET readonly := {true | false}
-      CREATE ANNOTATION <annotation-name> := <value>
-      CREATE CONSTRAINT <constraint-name> ...
+      set default := <expression>
+      set readonly := {true | false}
+      create annotation <annotation-name> := <value>
+      create constraint <constraint-name> ...
 
 
 Description
 -----------
 
-:eql:synopsis:`{CREATE|ALTER} {TYPE|LINK} ... CREATE PROPERTY` defines a new
-concrete property for a given object type or link.
+The combination :eql:synopsis:`{create|alter} {type|link} ... create property`
+defines a new concrete property for a given object type or link.
 
-There are three forms of ``CREATE PROPERTY``, as shown in the syntax synopsis
+There are three forms of ``create property``, as shown in the syntax synopsis
 above.  The first form is the canonical definition form, the second
 form is a syntax shorthand for defining a
 :ref:`computed property <ref_datamodel_computed>`, and the third
@@ -74,27 +74,27 @@ Parameters
 
 Most sub-commands and options of this command are identical to the
 :ref:`SDL property declaration <ref_eql_sdl_props_syntax>`. The
-following subcommands are allowed in the ``CREATE PROPERTY`` block:
+following subcommands are allowed in the ``create property`` block:
 
-:eql:synopsis:`SET default := <expression>`
+:eql:synopsis:`set default := <expression>`
     Specifies the default value for the property as an EdgeQL expression.
     Other than a slight syntactical difference this is the same as the
     corresponding SDL declaration.
 
-:eql:synopsis:`SET readonly := {true | false}`
+:eql:synopsis:`set readonly := {true | false}`
     Specifies whether the property is considered *read-only*. Other
     than a slight syntactical difference this is the same as the
     corresponding SDL declaration.
 
-:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>`
+:eql:synopsis:`create annotation <annotation-name> := <value>`
     Set property :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
-    See :eql:stmt:`CREATE ANNOTATION` for details.
+    See :eql:stmt:`create annotation` for details.
 
-:eql:synopsis:`CREATE CONSTRAINT`
+:eql:synopsis:`create constraint`
     Define a concrete constraint on the property.
-    See :eql:stmt:`CREATE CONSTRAINT` for details.
+    See :eql:stmt:`create constraint` for details.
 
 
 Examples
@@ -104,8 +104,8 @@ Define a new link ``address`` on the ``User`` object type:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User {
-        CREATE PROPERTY address -> str
+    alter type User {
+        create property address -> str
     };
 
 Define a new :ref:`computed property <ref_datamodel_computed>`
@@ -114,8 +114,8 @@ number of interests:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User {
-        CREATE PROPERTY number_of_connections :=
+    alter type User {
+        create property number_of_connections :=
             count(.interests)
     };
 
@@ -123,12 +123,12 @@ Define a new abstract link ``orderable`` with ``weight`` property:
 
 .. code-block:: edgeql
 
-    CREATE ABSTRACT LINK orderable {
-        CREATE PROPERTY weight -> std::int64
+    create abstract link orderable {
+        create property weight -> std::int64
     };
 
 
-ALTER PROPERTY
+Alter property
 ==============
 
 :eql-statement:
@@ -139,52 +139,52 @@ Change the definition of a :ref:`property <ref_datamodel_props>`.
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    {CREATE | ALTER} {TYPE | LINK} <source> "{"
+    [ with <with-item> [, ...] ]
+    {create | alter} {type | link} <source> "{"
       [ ... ]
-      ALTER PROPERTY <name>
+      alter property <name>
       [ "{" ] <subcommand>; [...] [ "}" ];
       [ ... ]
     "}"
 
 
-    [ WITH <with-item> [, ...] ]
-    ALTER ABSTRACT PROPERTY [<module>::]<name>
+    [ with <with-item> [, ...] ]
+    alter abstract property [<module>::]<name>
     [ "{" ] <subcommand>; [...] [ "}" ];
 
     # where <subcommand> is one of
 
-      SET default := <expression>
-      RESET default
-      SET readonly := {true | false}
-      RESET readonly
-      RENAME TO <newname>
-      EXTENDING ...
-      SET REQUIRED
-      SET OPTIONAL
-      RESET OPTIONALITY
-      SET SINGLE
-      SET MULTI
-      RESET CARDINALITY
-      SET TYPE <typename> [USING (<conversion-expr)]
-      RESET TYPE
-      USING (<computed-expr>)
-      CREATE ANNOTATION <annotation-name> := <value>
-      ALTER ANNOTATION <annotation-name> := <value>
-      DROP ANNOTATION <annotation-name>
-      CREATE CONSTRAINT <constraint-name> ...
-      ALTER CONSTRAINT <constraint-name> ...
-      DROP CONSTRAINT <constraint-name> ...
+      set default := <expression>
+      reset default
+      set readonly := {true | false}
+      reset readonly
+      rename to <newname>
+      extending ...
+      set required
+      set optional
+      reset optionalily
+      set single
+      set multi
+      reset cardinality
+      set type <typename> [using (<conversion-expr)]
+      reset type
+      using (<computed-expr>)
+      create annotation <annotation-name> := <value>
+      alter annotation <annotation-name> := <value>
+      drop annotation <annotation-name>
+      create constraint <constraint-name> ...
+      alter constraint <constraint-name> ...
+      drop constraint <constraint-name> ...
 
 
 Description
 -----------
 
-:eql:synopsis:`{CREATE|ALTER} {TYPE|LINK} ... CREATE PROPERTY` defines a new
-concrete property for a given object type or link.
+The combination :eql:synopsis:`{create|alter} {type|link} ... create property`
+defines a new concrete property for a given object type or link.
 
-:eql:synopsis:`ALTER ABSTRACT PROPERTY` changes the definition of an abstract
-property item.
+The command :eql:synopsis:`alter abstract property` changes the
+definition of an abstract property item.
 
 
 Parameters
@@ -201,20 +201,20 @@ Parameters
     Optional name of the module to create or alter the abstract property in.
     If not specified, the current module is used.
 
-The following subcommands are allowed in the ``ALTER LINK`` block:
+The following subcommands are allowed in the ``alter link`` block:
 
-:eql:synopsis:`RENAME TO <newname>`
+:eql:synopsis:`rename to <newname>`
     Change the name of the property to :eql:synopsis:`<newname>`.
     All concrete properties inheriting from this property are
     also renamed.
 
-:eql:synopsis:`EXTENDING ...`
+:eql:synopsis:`extending ...`
     Alter the property parent list.  The full syntax of this subcommand is:
 
     .. eql:synopsis::
 
-         EXTENDING <name> [, ...]
-            [ FIRST | LAST | BEFORE <parent> | AFTER <parent> ]
+         extending <name> [, ...]
+            [ first | last | before <parent> | after <parent> ]
 
     This subcommand makes the property a child of the specified list
     of parent property items.  The requirements for the parent-child
@@ -223,82 +223,82 @@ The following subcommands are allowed in the ``ALTER LINK`` block:
     It is possible to specify the position in the parent list
     using the following optional keywords:
 
-    * ``FIRST`` -- insert parent(s) at the beginning of the
+    * ``first`` -- insert parent(s) at the beginning of the
       parent list,
-    * ``LAST`` -- insert parent(s) at the end of the parent list,
-    * ``BEFORE <parent>`` -- insert parent(s) before an
+    * ``last`` -- insert parent(s) at the end of the parent list,
+    * ``before <parent>`` -- insert parent(s) before an
       existing *parent*,
-    * ``AFTER <parent>`` -- insert parent(s) after an existing
+    * ``after <parent>`` -- insert parent(s) after an existing
       *parent*.
 
-:eql:synopsis:`SET REQUIRED`
+:eql:synopsis:`set required`
     Make the property *required*.
 
-:eql:synopsis:`SET OPTIONAL`
+:eql:synopsis:`set optional`
     Make the property no longer *required* (i.e. make it *optional*).
 
-:eql:synopsis:`RESET OPTIONALITY`
-    Reset the optionality of the property to the default value (``OPTIONAL``),
+:eql:synopsis:`reset optionalily`
+    Reset the optionality of the property to the default value (``optional``),
     or, if the property is inherited, to the value inherited from properties in
     supertypes.
 
-:eql:synopsis:`SET SINGLE`
+:eql:synopsis:`set single`
     Change the maximum cardinality of the property set to *one*.  Only
     valid for concrete properties.
 
-:eql:synopsis:`SET MULTI`
+:eql:synopsis:`set multi`
     Change the maximum cardinality of the property set to
     *greater than one*.  Only valid for concrete properties;
 
-:eql:synopsis:`RESET CARDINALITY`
+:eql:synopsis:`reset cardinality`
     Reset the maximum cardinality of the property to the default value
-    (``SINGLE``), or, if the property is inherited, to the value inherited
+    (``single``), or, if the property is inherited, to the value inherited
     from properties in supertypes.
 
-:eql:synopsis:`SET TYPE <typename> [USING (<conversion-expr)]`
+:eql:synopsis:`set type <typename> [using (<conversion-expr)]`
     Change the type of the property to the specified
-    :eql:synopsis:`<typename>`.  The optional ``USING`` clause specifies
+    :eql:synopsis:`<typename>`.  The optional ``using`` clause specifies
     a conversion expression that computes the new property value from the old.
     The conversion expression must return a singleton set and is evaluated
-    on each element of ``MULTI`` properties.  A ``USING`` clause must be
+    on each element of ``multi`` properties.  A ``using`` clause must be
     provided if there is no implicit or assignment cast from old to new type.
 
-:eql:synopsis:`RESET TYPE`
+:eql:synopsis:`reset type`
     Reset the type of the property to the type inherited from properties
-    of the same name in supertypes.  It is an error to ``RESET TYPE`` on
+    of the same name in supertypes.  It is an error to ``reset type`` on
     a property that is not inherited.
 
-:eql:synopsis:`USING (<computed-expr>)`
+:eql:synopsis:`using (<computed-expr>)`
     Change the expression of a :ref:`computed property
     <ref_datamodel_computed>`.  Only valid for concrete properties.
 
-:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+:eql:synopsis:`alter annotation <annotation-name>;`
     Alter property annotation :eql:synopsis:`<annotation-name>`.
-    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
+    See :eql:stmt:`alter annotation` for details.
 
-:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+:eql:synopsis:`drop annotation <annotation-name>;`
     Remove property :eql:synopsis:`<annotation-name>`.
-    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
+    See :eql:stmt:`drop annotation` for details.
 
-:eql:synopsis:`ALTER CONSTRAINT <constraint-name> ...`
+:eql:synopsis:`alter constraint <constraint-name> ...`
     Alter the definition of a constraint for this property.  See
-    :eql:stmt:`ALTER CONSTRAINT` for details.
+    :eql:stmt:`alter constraint` for details.
 
-:eql:synopsis:`DROP CONSTRAINT <constraint-name>;`
+:eql:synopsis:`drop constraint <constraint-name>;`
     Remove a constraint from this property.  See
-    :eql:stmt:`DROP CONSTRAINT` for details.
+    :eql:stmt:`drop constraint` for details.
 
-:eql:synopsis:`RESET default`
+:eql:synopsis:`reset default`
     Remove the default value from this property, or reset it to the value
     inherited from a supertype, if the property is inherited.
 
-:eql:synopsis:`RESET readonly`
+:eql:synopsis:`reset readonly`
     Set property writability to the default value (writable), or, if the
     property is inherited, to the value inherited from properties in
     supertypes.
 
-All the subcommands allowed in the ``CREATE PROPERTY`` block are also
-valid subcommands for ``ALTER PROPERTY`` block.
+All the subcommands allowed in the ``create property`` block are also
+valid subcommands for ``alter property`` block.
 
 
 Examples
@@ -309,9 +309,9 @@ Set the ``title`` annotation of property ``address`` of object type
 
 .. code-block:: edgeql
 
-    ALTER TYPE User {
-        ALTER PROPERTY address
-            CREATE ANNOTATION title := "Home address";
+    alter type User {
+        alter property address
+            create annotation title := "Home address";
     };
 
 Add a maximum-length constraint to property ``address`` of object type
@@ -319,9 +319,9 @@ Add a maximum-length constraint to property ``address`` of object type
 
 .. code-block:: edgeql
 
-    ALTER TYPE User {
-        ALTER PROPERTY address {
-            CREATE CONSTRAINT max_len_value(500);
+    alter type User {
+        alter property address {
+            create constraint max_len_value(500);
         };
     };
 
@@ -329,8 +329,8 @@ Rename the property ``weight`` of link ``orderable`` to ``sort_by``:
 
 .. code-block:: edgeql
 
-    ALTER ABSTRACT LINK orderable {
-        ALTER PROPERTY weight RENAME TO sort_by;
+    alter abstract link orderable {
+        alter property weight rename to sort_by;
     };
 
 Redefine the :ref:`computed property <ref_datamodel_computed>`
@@ -338,44 +338,44 @@ Redefine the :ref:`computed property <ref_datamodel_computed>`
 
 .. code-block:: edgeql
 
-    ALTER TYPE User {
-        ALTER PROPERTY number_of_connections USING (
+    alter type User {
+        alter property number_of_connections using (
             count(.friends)
         )
     };
 
 
-DROP PROPERTY
+Drop property
 =============
 
 :eql-statement:
 :eql-haswith:
 
-Remove a :ref:`property <ref_datamodel_props>` from the
-schema.
+Remove a :ref:`property <ref_datamodel_props>` from the schema.
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    {CREATE|ALTER} TYPE <TypeName> "{"
+    [ with <with-item> [, ...] ]
+    {create|alter} type <TypeName> "{"
       [ ... ]
-      DROP LINK <name>
+      drop link <name>
       [ ... ]
     "}"
 
 
-    [ WITH <with-item> [, ...] ]
-    DROP ABSTRACT PROPERTY <name> ;
+    [ with <with-item> [, ...] ]
+    drop abstract property <name> ;
 
 Description
 -----------
 
-:eql:synopsis:`ALTER {TYPE|LINK} DROP PROPERTY` removes the specified property
-from its containing object type or link.  All properties that inherit from this
-property are also removed.
+The combination :eql:synopsis:`alter {type|link} drop property`
+removes the specified property from its containing object type or
+link.  All properties that inherit from this property are also
+removed.
 
-:eql:synopsis:`DROP ABSTRACT PROPERTY` removes the specified abstract
-property item from the schema.
+The command :eql:synopsis:`drop abstract property` removes the
+specified abstract property item from the schema.
 
 Example
 -------
@@ -384,8 +384,8 @@ Remove property ``address`` from type ``User``:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User {
-        DROP PROPERTY address;
+    alter type User {
+        drop property address;
     };
 
 

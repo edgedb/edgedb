@@ -8,7 +8,7 @@ This section describes the DDL commands pertaining to
 :ref:`extensions <ref_datamodel_extensions>`.
 
 
-CREATE EXTENSION
+Create extension
 ================
 
 :eql-statement:
@@ -17,16 +17,16 @@ Enable a particular extension for the current schema.
 
 .. eql:synopsis::
 
-    CREATE EXTENSION <ExtensionName> ";"
+    create extension <ExtensionName> ";"
 
-There's a :ref:`corresponding SDL declaration
-<ref_eql_sdl_extensions>` for enabling an extension, which is the
-recommended way of doing this.
+There's a :ref:`corresponding SDL declaration <ref_eql_sdl_extensions>`
+for enabling an extension, which is the recommended way of doing this.
 
 Description
 -----------
 
-``CREATE EXTENSION`` enables the specified extension for the current database.
+The command ``create extension`` enables the specified extension for
+the current database.
 
 Examples
 --------
@@ -36,17 +36,17 @@ schema:
 
 .. code-block:: edgeql
 
-    CREATE EXTENSION graphql;
+    create extension graphql;
 
 Enable :ref:`EdgeQL over HTTP <ref_edgeql_http>` extension for the
 current database:
 
 .. code-block:: edgeql
 
-    CREATE EXTENSION edgeql_http;
+    create extension edgeql_http;
 
 
-DROP EXTENSION
+drop extension
 ==============
 
 :eql-statement:
@@ -56,13 +56,13 @@ Disable an extension.
 
 .. eql:synopsis::
 
-    DROP EXTENSION <ExtensionName> ";"
+    drop extension <ExtensionName> ";"
 
 
 Description
 -----------
 
-``DROP EXTENSION`` disables a currently active extension for the
+The command ``drop extension`` disables a currently active extension for the
 current database.
 
 
@@ -74,13 +74,13 @@ schema:
 
 .. code-block:: edgeql
 
-    DROP EXTENSION graphql;
+    drop extension graphql;
 
 Disable :ref:`EdgeQL over HTTP <ref_edgeql_http>` extension for the
 current database:
 
 .. code-block:: edgeql
 
-    DROP EXTENSION edgeql_http;
+    drop extension edgeql_http;
 
 

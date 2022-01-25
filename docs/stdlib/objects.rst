@@ -34,7 +34,7 @@ which is a subtype of ``std::BaseObject``.
         abstract type std::BaseObject {
             # Universally unique object identifier
             required property id -> uuid {
-                default := (SELECT std::uuid_generate_v1mc());
+                default := (select std::uuid_generate_v1mc());
                 readonly := true;
                 constraint exclusive;
             }

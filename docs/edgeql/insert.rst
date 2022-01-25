@@ -25,7 +25,7 @@ samples on this page assume the following schema:
 
     type Hero extending Person {
       property secret_identity -> str;
-      multi link villains := .<nemesis[IS Villain];
+      multi link villains := .<nemesis[is Villain];
     }
 
     type Villain extending Person {
