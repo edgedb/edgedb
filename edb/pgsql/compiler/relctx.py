@@ -946,7 +946,10 @@ def unpack_var(
                 ctr += 1
 
                 typ = pg_types.pg_type_from_ir_typeref(el_id.target)
-                if el_id.target.id in ctx.env.materialized_views:
+                if (
+                    el_id.target.id in ctx.env.materialized_views
+                    or el_id.is_array_path()
+                ):
                     typ = ('record',)
                     must_pack = True
 
