@@ -409,7 +409,7 @@ at the end, anything after ``blade runner`` will match: "Blade Runner",
   .......     title,
   .......     year
   ....... }
-  ....... filter .title = "Blade Runner 2049";
+  ....... filter .title ILIKE 'blade runner%';
   {default::Movie {title: 'Blade Runner 2049', year: 2017}}
 
 Let's get more details about the ``Movie``:
