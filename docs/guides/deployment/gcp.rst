@@ -15,14 +15,14 @@ Prerequisites
 * ``kubectl`` CLI (`install <kubectl-install_>`_)
 
 .. _gcp-trial: https://cloud.google.com/free/
-.. _gcloud-install: https://cloud.google.com/sdk/
+.. _gcloud-intsll: https://cloud.google.com/sdk/
 .. _kubectl-install: https://kubernetes.io/docs/tasks/tools/install-kubectl/
 
 Make sure you are logged into google cloud.
 
 .. code-block:: bash
 
-   gcloud init
+   $ gcloud init
 
 Create a project
 ================
@@ -31,9 +31,9 @@ If you already have a project you can use your existing project.
 
 .. code-block:: bash
 
-   PROJECT=edgedb
+   $ PROJECT=edgedb
 
-   gcloud projects create $PROJECT
+   $ gcloud projects create $PROJECT
 
 Choose a name
 =============
@@ -43,7 +43,7 @@ deployment.
 
 .. code-block:: bash
 
-   NAME=edgedb
+   $ NAME=edgedb
 
 Provision a Postgres instance
 =============================
@@ -53,16 +53,19 @@ popostgres and EdgeDB.
 
 .. code-block:: bash
 
-   ADMIN_PASSWORD=supersecret1
+   $ read -rsp "Admin Password: " ADMIN_PASSWORD
 
-   gcloud sql instances create ${NAME}-postgres \
+   $ gcloud services enable container.googleapis.com \
+       --project=$PROJECT
+
+   $ gcloud sql instances create ${NAME}-postgres \
        --database-version=POSTGRES_12 \
        --cpu=1 \
        --memory=3840MiB \
        --region=us-west2 \
        --project=$PROJECT
 
-   gcloud sql users set-password postgres \
+   $ gcloud sql users set-password postgres \
        --instance=${NAME}-postgres \
        --password=$ADMIN_PASSWORD \
        --project=$PROJECT
@@ -74,14 +77,14 @@ Before creating the cluster be sure that the Kubernetes Engine API is enabled .
 
 .. code-block:: bash
 
-   gcloud services enable container.googleapis.com \
+   $ gcloud services enable container.googleapis.com \
        --project=$PROJECT
 
 Create a cluster.
 
 .. code-block:: bash
 
-   gcloud container clusters create ${NAME}-k8s \
+   $ gcloud container clusters create ${NAME}-k8s \
        --zone=us-west2-a \
        --num-nodes=1 \
        --project=$PROJECT
@@ -91,34 +94,36 @@ Configure Cloud SQL proxy credentials
 
 .. code-block:: bash
 
-   gcloud services enable iam.googleapis.com \
+   $ gcloud services enable iam.googleapis.com \
        --project=$PROJECT
 
-   gcloud iam service-accounts create ${NAME}-account \
+   $ gcloud iam service-accounts create ${NAME}-account \
        --project=$PROJECT
 
-   gcloud services enable sqladmin.googleapis.com \
+   $ gcloud services enable sqladmin.googleapis.com \
        --project=$PROJECT
 
-   gcloud projects add-iam-policy-binding $PROJECT \
-       --member="serviceAccount:${NAME}-account@${PROJECT}.iam.gserviceaccount.com" \
+   $ MEMBER="serviceAccount:${NAME}-account@${PROJECT}.iam.gserviceaccount.com"
+   $ gcloud projects add-iam-policy-binding $PROJECT \
+       --member=$MEMBER \
        --role=roles/cloudsql.admin \
        --project=$PROJECT
 
-   gcloud iam service-accounts keys create credentials.json \
+   $ gcloud iam service-accounts keys create credentials.json \
        --iam-account=${NAME}-account@${PROJECT}.iam.gserviceaccount.com
 
-   kubectl create secret generic cloudsql-instance-credentials \
+   $ kubectl create secret generic cloudsql-instance-credentials \
        --from-file=credentials.json=credentials.json
 
-   INSTANCE_CONNECTION_NAME=$(
+   $ INSTANCE_CONNECTION_NAME=$(
        gcloud sql instances describe ${NAME}-postgres \
            --format="value(connectionName)" \
            --project=$PROJECT
    )
 
-   kubectl create secret generic cloudsql-db-credentials \
-       --from-literal=dsn="postgresql://postgres:${ADMIN_PASSWORD}@127.0.0.1:5432" \
+   $ DSN="postgresql://postgres:${ADMIN_PASSWORD}@127.0.0.1:5432"
+   $ kubectl create secret generic cloudsql-db-credentials \
+       --from-literal=dsn=$DSN \
        --from-literal=password=$ADMIN_PASSWORD \
        --from-literal=instance=${INSTANCE_CONNECTION_NAME}=tcp:5432
 
@@ -127,27 +132,30 @@ Deploy EdgeDB
 
 .. code-block:: bash
 
-   wget url-for-deployment.yaml  # TBD
-   kubectl apply -f deployment.yaml
+   $ URL="https://raw.githubusercontent.com"
+   $ URL="${URL}/edgedb/edgedb-deploy/dev/gcp/deployment.yaml"
+   $ wget $URL
+
+   $ kubectl apply -f deployment.yaml
 
 Ensure the pods are running. It may take a minute for the first boot to finish.
 
 .. code-block:: bash
 
-   kubectl get pods
+   $ kubectl get pods
 
 If there were errors you can check EdgeDB's logs with:
 
-.. code-bloc:: bash
+.. code-block:: bash
 
-   kubectl logs deployment/edgedb --container edgedb
+   $ kubectl logs deployment/edgedb --container edgedb
 
 Persist TLS Certificate
 =======================
 
 .. code-block:: bash
 
-   kubectl create secret generic cloudsql-tls-credentials \
+   $ kubectl create secret generic cloudsql-tls-credentials \
        --from-literal=tlskey="$(
            kubectl exec deploy/edgedb -c=edgedb -- \
                edgedb-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_KEY
@@ -157,15 +165,15 @@ Persist TLS Certificate
                edgedb-show-secrets.sh --format=raw EDGEDB_SERVER_TLS_CERT
        )"
 
-   kubectl delete -f deployment.yaml
-   kubectl apply -f deployment.yaml
+   $ kubectl delete -f deployment.yaml
+   $ kubectl apply -f deployment.yaml
 
 Expose EdgeDB
 =============
 
-.. code-bloc:: bash
+.. code-block:: bash
 
-   kubectl expose deploy/edgedb --type LoadBalancer
+   $ kubectl expose deploy/edgedb --type LoadBalancer
 
 
 Create a local link to the new EdgeDB instance
@@ -173,16 +181,23 @@ Create a local link to the new EdgeDB instance
 
 .. code-block:: bash
 
-   echo $ADMIN_PASSWORD | edgedb instance link \
+   $ echo $ADMIN_PASSWORD | edgedb instance link \
        --password-from-stdin \
        --non-interactive \
        --trust-tls-cert \
        --host "$(
            kubectl get service \
-               --template="{{range .items}}{{if eq .spec.type \"LoadBalancer\"}}{{range .status.loadBalancer.ingress}}{{.ip}}{{end}}{{end}}{{end}}"
+               --template="{{
+               range .items}}{{
+               if eq .spec.type \"LoadBalancer\"}}{{
+               range .status.loadBalancer.ingress}}{{
+               .ip}}{{
+               end}}{{
+               end}}{{
+               end}}"
        )" \
        google
 
 .. code-block:: bash
 
-   edgedb -I google
+   $ edgedb -I google
