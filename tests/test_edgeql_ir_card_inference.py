@@ -879,3 +879,31 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         ONE
         """
+
+    def test_edgeql_ir_card_inference_101(self):
+        """
+        SELECT 1 LIMIT 0
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_102(self):
+        """
+        SELECT 1 LIMIT (SELECT count(User))
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_103(self):
+        """
+        SELECT {1, 2} LIMIT (SELECT count(User))
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_104(self):
+        """
+        SELECT 1 OFFSET 2
+% OK %
+        AT_MOST_ONE
+        """
