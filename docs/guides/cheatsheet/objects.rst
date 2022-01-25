@@ -76,12 +76,12 @@ the other properties:
             (
                 (
                     (.first_name ++ ' ')
-                    IF .first_name != '' ELSE
+                    if .first_name != '' else
                     ''
                 ) ++
                 (
                     (.middle_name ++ ' ')
-                    IF .middle_name != '' ELSE
+                    if .middle_name != '' else
                     ''
                 ) ++
                 .last_name
@@ -134,7 +134,7 @@ aggregates values from another linked type:
         multi link directors extending crew -> Person;
         multi link actors extending crew -> Person;
 
-        property avg_rating := math::mean(.<movie[IS Review].rating);
+        property avg_rating := math::mean(.<movie[is Review].rating);
     }
 
 

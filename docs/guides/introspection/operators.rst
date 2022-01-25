@@ -74,7 +74,7 @@ Since ``params`` are quite important to operators, here's their structure:
         }
     }
 
-Introspection of the :eql:op:`AND` operator:
+Introspection of the :eql:op:`and` operator:
 
 .. code-block:: edgeql-repl
 

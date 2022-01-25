@@ -1152,12 +1152,6 @@ class StatementTransform(s_transforms.SphinxTransform):
             if 'eql-statement' not in fields:
                 continue
 
-            if not re.match(r'^([A-Z]+\s?)+$', title):
-                raise shared.EdgeSphinxExtensionError(
-                    f'section {title!r} is marked with an :eql-statement: '
-                    f'field, but does not satisfy pattern for valid titles: '
-                    f'UPPERCASE WORDS separated by single space characters')
-
             nested_statements = x.xpath(
                 '//field_list/field/field_name[text()="eql-statement"]')
             if len(nested_statements) > 1:
@@ -1183,7 +1177,9 @@ class StatementTransform(s_transforms.SphinxTransform):
             section['summary'] = summary
 
             objects = self.env.domaindata['eql']['objects']
-            target = 'statement::' + title.replace(' ', '-')
+            # Make it so that the statement can be referenced by the
+            # lower-case version by default.
+            target = 'statement::' + title.lower().replace(' ', '-')
 
             if target in objects:
                 raise shared.EdgeSphinxExtensionError(

@@ -26,9 +26,9 @@ For example:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT [1, 2, 3];
+    db> select [1, 2, 3];
     {[1, 2, 3]}
-    db> SELECT [('a', 1), ('b', 2), ('c', 3)];
+    db> select [('a', 1), ('b', 2), ('c', 3)];
     {[('a', 1), ('b', 2), ('c', 3)]}
 
 Empty arrays
@@ -40,13 +40,13 @@ elements.
 
 .. code-block:: edgeql-repl
 
-    db> SELECT [];
+    db> select [];
     QueryError: expression returns value of indeterminate type
     Hint: Consider using an explicit type cast.
-    ### SELECT [];
+    ### select [];
     ###        ^
 
-    db> SELECT <array<int64>>[];
+    db> select <array<int64>>[];
     {[]}
 
 Functions and operators
@@ -55,18 +55,18 @@ Functions and operators
 .. list-table::
     :class: funcoptable
 
-    * - :eql:op:`array[i] <ARRAYIDX>`
-      - :eql:op-desc:`ARRAYIDX`
+    * - :eql:op:`array[i] <arrayidx>`
+      - :eql:op-desc:`arrayidx`
 
-    * - :eql:op:`array[from:to] <ARRAYSLICE>`
-      - :eql:op-desc:`ARRAYSLICE`
+    * - :eql:op:`array[from:to] <arrayslice>`
+      - :eql:op-desc:`arrayslice`
 
-    * - :eql:op:`array ++ array <ARRAYPLUS>`
-      - :eql:op-desc:`ARRAYPLUS`
+    * - :eql:op:`array ++ array <arrayplus>`
+      - :eql:op-desc:`arrayplus`
 
-    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    * - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+        :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+        :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
       - Comparison operators
 
     * - :eql:func:`len`
@@ -111,7 +111,7 @@ Reference
 
     .. code-block:: edgeql-repl
 
-        db> SELECT [1, 2];
+        db> select [1, 2];
         {[1, 2]}
 
     The syntax of an array type declaration can be found in :ref:`this
@@ -126,7 +126,7 @@ Reference
 ----------
 
 
-.. eql:operator:: ARRAYIDX: array<anytype> [ int64 ] -> anytype
+.. eql:operator:: arrayidx: array<anytype> [ int64 ] -> anytype
 
     Array indexing.
 
@@ -134,30 +134,30 @@ Reference
 
     .. code-block:: edgeql-repl
 
-        db> SELECT [1, 2, 3][0];
+        db> select [1, 2, 3][0];
         {1}
-        db> SELECT [(x := 1, y := 1), (x := 2, y := 3.3)][1];
+        db> select [(x := 1, y := 1), (x := 2, y := 3.3)][1];
         {(x := 2, y := 3.3)}
 
     Negative indexing is supported:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT [1, 2, 3][-1];
+        db> select [1, 2, 3][-1];
         {3}
 
     Referencing a non-existent array element will result in an error:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT [1, 2, 3][4];
+        db> select [1, 2, 3][4];
         InvalidValueError: array index 4 is out of bounds
 
 
 ----------
 
 
-.. eql:operator:: ARRAYSLICE: array<anytype> [ int64 : int64 ] -> anytype
+.. eql:operator:: arrayslice: array<anytype> [ int64 : int64 ] -> anytype
 
     Array slicing.
 
@@ -170,13 +170,13 @@ Reference
 
     .. code-block:: edgeql-repl
 
-        db> SELECT [1, 2, 3][0:2];
+        db> select [1, 2, 3][0:2];
         {[1, 2]}
-        db> SELECT [1, 2, 3][2:];
+        db> select [1, 2, 3][2:];
         {[3]}
-        db> SELECT [1, 2, 3][:1];
+        db> select [1, 2, 3][:1];
         {[1]}
-        db> SELECT [1, 2, 3][:-2];
+        db> select [1, 2, 3][:-2];
         {[1]}
 
     Referencing an array slice beyond the array boundaries will result in
@@ -184,29 +184,29 @@ Reference
 
     .. code-block:: edgeql-repl
 
-        db> SELECT [1, 2, 3][1:20];
+        db> select [1, 2, 3][1:20];
         {[2, 3]}
-        db> SELECT [1, 2, 3][10:20];
+        db> select [1, 2, 3][10:20];
         {[]}
 
 
 ---------
 
 
-.. eql:operator:: ARRAYPLUS: array<anytype> ++ array<anytype> -> array<anytype>
+.. eql:operator:: arrayplus: array<anytype> ++ array<anytype> -> array<anytype>
 
     Array concatenation.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT [1, 2, 3] ++ [99, 98];
+        db> select [1, 2, 3] ++ [99, 98];
         {[1, 2, 3, 99, 98]}
 
 
 ----------
 
 
-.. eql:function:: std::array_agg(s: SET OF anytype) -> array<anytype>
+.. eql:function:: std::array_agg(s: set of anytype) -> array<anytype>
 
     :index: aggregate array set
 
@@ -216,10 +216,10 @@ Reference
 
     .. code-block:: edgeql-repl
 
-        db> SELECT array_agg({2, 3, 5});
+        db> select array_agg({2, 3, 5});
         {[2, 3, 5]}
 
-        db> SELECT array_agg(User.name ORDER BY User.name);
+        db> select array_agg(User.name order by User.name);
         {['Alice', 'Bob', 'Joe', 'Sam']}
 
 
@@ -228,8 +228,8 @@ Reference
 
 .. eql:function:: std::array_get(array: array<anytype>, \
                                  index: int64, \
-                                 NAMED ONLY default: anytype = {} \
-                              ) -> OPTIONAL anytype
+                                 named only default: anytype = {} \
+                              ) -> optional anytype
 
     :index: array access get
 
@@ -238,24 +238,24 @@ Reference
     If *index* is out of array bounds, the *default* or ``{}`` (empty set)
     is returned.
 
-    This works the same as :eql:op:`array indexing operator <ARRAYIDX>`
+    This works the same as :eql:op:`array indexing operator <arrayidx>`
     except that if the index is outside array boundaries an empty set
     of the array element type is returned instead of raising an exception.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT array_get([2, 3, 5], 1);
+        db> select array_get([2, 3, 5], 1);
         {3}
-        db> SELECT array_get([2, 3, 5], 100);
+        db> select array_get([2, 3, 5], 100);
         {}
-        db> SELECT array_get([2, 3, 5], 100, default := 42);
+        db> select array_get([2, 3, 5], 100, default := 42);
         {42}
 
 
 ----------
 
 
-.. eql:function:: std::array_unpack(array: array<anytype>) -> SET OF anytype
+.. eql:function:: std::array_unpack(array: array<anytype>) -> set of anytype
 
     :index: set array unpack
 
@@ -267,7 +267,7 @@ Reference
 
     .. code-block:: edgeql-repl
 
-        db> SELECT array_unpack([2, 3, 5]);
+        db> select array_unpack([2, 3, 5]);
         {3, 2, 5}
 
 
@@ -284,5 +284,5 @@ Reference
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_str(['one', 'two', 'three'], ', ');
+        db> select to_str(['one', 'two', 'three'], ', ');
         {'one, two, three'}

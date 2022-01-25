@@ -1,21 +1,21 @@
 .. _ref_eql_statements_configure:
 
-CONFIGURE
+Configure
 =========
 
 :eql-statement:
 
 
-``CONFIGURE`` -- change a server configuration parameter
+``configure`` -- change a server configuration parameter
 
 .. eql:synopsis::
 
-    CONFIGURE {SESSION | CURRENT DATABASE | INSTANCE}
-        SET <parameter> := <value> ;
-    CONFIGURE INSTANCE INSERT <parameter-class> <insert-shape> ;
-    CONFIGURE {SESSION | CURRENT DATABASE | INSTANCE} RESET <parameter> ;
-    CONFIGURE {CURRENT DATABASE | INSTANCE}
-        RESET <parameter-class> [ FILTER <filter-expr> ] ;
+    configure {session | current database | instance}
+        set <parameter> := <value> ;
+    configure instance insert <parameter-class> <insert-shape> ;
+    configure {session | current database | instance} reset <parameter> ;
+    configure {current database | instance}
+        reset <parameter-class> [ filter <filter-expr> ] ;
 
 
 Description
@@ -23,21 +23,21 @@ Description
 
 This command allows altering the server configuration.
 
-The effects of :eql:synopsis:`CONFIGURE SESSION` last until the end of the
+The effects of :eql:synopsis:`configure session` last until the end of the
 current session. Some configuration parameters cannot be modified by
-:eql:synopsis:`CONFIGURE SESSION` and can only be set by
-:eql:synopsis:`CONFIGURE INSTANCE`.
+:eql:synopsis:`configure session` and can only be set by
+:eql:synopsis:`configure instance`.
 
-:eql:synopsis:`CONFIGURE CURRENT DATABASE` is used to configure an
+:eql:synopsis:`configure current database` is used to configure an
 individual EdgeDB database within a server instance with the
 changes persisted across server restarts.
 
-:eql:synopsis:`CONFIGURE INSTANCE` is used to configure the entire EdgeDB
+:eql:synopsis:`configure instance` is used to configure the entire EdgeDB
 instance with the changes persisted across server restarts.  This variant
 acts directly on the file system and cannot be rolled back, so it cannot
 be used in a transaction block.
 
-The :eql:synopsis:`CONFIGURE INSTANCE INSERT` variant is used for composite
+The :eql:synopsis:`configure instance insert` variant is used for composite
 configuration parameters, such as ``Auth``.
 
 
@@ -66,27 +66,27 @@ Set the ``listen_addresses`` parameter:
 
 .. code-block:: edgeql
 
-    CONFIGURE INSTANCE SET listen_addresses := {'127.0.0.1', '::1'};
+    configure instance set listen_addresses := {'127.0.0.1', '::1'};
 
 Set the ``query_work_mem`` parameter for the duration of the session:
 
 .. code-block:: edgeql
 
-    CONFIGURE SESSION SET query_work_mem := <cfg::memory>'4MiB';
+    configure session set query_work_mem := <cfg::memory>'4MiB';
 
 Set the same parameter, but for the current database:
 
 .. code-block:: edgeql
 
-    CONFIGURE CURRENT DATABASE SET query_work_mem := <cfg::memory>'4MiB';
+    configure current database set query_work_mem := <cfg::memory>'4MiB';
 
 Add a Trust authentication method for "my_user":
 
 .. code-block:: edgeql
 
-    CONFIGURE INSTANCE INSERT Auth {
+    configure instance insert Auth {
         priority := 1,
-        method := (INSERT Trust),
+        method := (insert Trust),
         user := 'my_user'
     };
 
@@ -94,4 +94,4 @@ Remove all Trust authentication methods:
 
 .. code-block:: edgeql
 
-    CONFIGURE INSTANCE RESET Auth FILTER Auth.method IS Trust;
+    configure instance reset Auth filter Auth.method is Trust;

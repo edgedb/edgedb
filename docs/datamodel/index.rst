@@ -60,7 +60,7 @@ concise. For example:
 
 .. code-block:: edgeql
 
-  SELECT Movie {
+  select Movie {
     title,
     director: {
       name
@@ -97,7 +97,7 @@ migrations <ref_guide_migrations>` guide.
 .. important::
 
   A migration consists of a sequence of *imperative* schema-modifying commands
-  like ``CREATE TYPE``, ``ALTER PROPERTY``, etc. Collectively these commands
+  like ``create type``, ``alter property``, etc. Collectively these commands
   are known as DDL (*data definition language*). We recommend that most users
   use SDL and migrations when building applications. However, if you prefer
   SQL-style imperative schema modeling, you are free to use DDL directly;

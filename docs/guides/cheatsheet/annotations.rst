@@ -25,13 +25,13 @@ Retrieving the annotations can be done via an introspection query:
 
 .. code-block:: edgeql-repl
 
-    db> WITH MODULE schema
-    ... SELECT ObjectType {
+    db> with module schema
+    ... select ObjectType {
     ...     name,
     ...     annotations: {name, @value},
     ...     links: {name, annotations: {name, @value}}
     ... }
-    ... FILTER .name = 'default::Label';
+    ... filter .name = 'default::Label';
     {
         Object {
             name: 'default::Label',

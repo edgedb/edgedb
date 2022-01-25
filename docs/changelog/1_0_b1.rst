@@ -138,11 +138,11 @@ the link required and run :ref:`edgedb create-migration
     y
     Please specify an expression to populate existing objects in
     order to make link 'channel' required:
-    fill_expr> SELECT Channel FILTER .title = 'Main' LIMIT 1
+    fill_expr> select Channel filter .title = 'Main' limit 1
     Created app_schema/migrations/00003.edgeql, id:
     m1ur35mvstn5wafse2kqwmjy4but3l7nigh4cqktxy6kt2j2wuz65a
 
-However, before applying this migration we also add the line ``INSERT
+However, before applying this migration we also add the line ``insert
 default::Channel {title := 'Main'};`` at the beginning of the
 migration block in the ``app_schema/migrations/00003.edgeql`` file.
 Now we can actually apply the changes:
@@ -215,60 +215,60 @@ EdgeQL
 
   .. code-block:: edgeql-repl
 
-    db> CREATE TYPE Foo;
+    db> create type Foo;
     OK: CREATE TYPE
-    db> CREATE FUNCTION foo() -> bool
-    ... USING (SELECT random() > 0.5);
+    db> create function foo() -> bool
+    ... using (select random() > 0.5);
     OK: CREATE FUNCTION
 
-* Stop using ``DROP`` to change field value, introduce ``RESET`` and
-  ``SET`` syntax to do that (:eql:gh:`#2031`).
+* Stop using ``drop`` to change field value, introduce ``reset`` and
+  ``set`` syntax to do that (:eql:gh:`#2031`).
 
   .. code-block:: edgeql
 
-    ALTER TYPE Foo {
-        ALTER PROPERTY a {
-            RESET default;
+    alter type Foo {
+        alter property a {
+            reset default;
         }
     };
 
-* ``ALTER ... SET TYPE`` now requires an explicit conversion
-  expression specified in the ``USING`` clause, if the new type is not
+* ``alter ... set type`` now requires an explicit conversion
+  expression specified in the ``using`` clause, if the new type is not
   assignment-castable from the old type (:eql:gh:`#2115`).
 
   .. code-block:: edgeql-repl
 
-    db> CREATE TYPE Foo {
-    ...     CREATE PROPERTY bar -> int64
+    db> create type Foo {
+    ...     create property bar -> int64
     ... };
     OK: CREATE TYPE
-    db> INSERT Foo {bar := 3};
+    db> insert Foo {bar := 3};
     {default::Foo {id: efcffce4-6471-11eb-8be5-ff6b1f4c46ee}}
-    db> ALTER TYPE Foo ALTER PROPERTY bar {
-    ...    SET TYPE str USING (<str>.bar ++ '!')
+    db> alter type Foo alter property bar {
+    ...    set type str using (<str>.bar ++ '!')
     ... };
     OK: ALTER TYPE
-    db> SELECT Foo {bar};
+    db> select Foo {bar};
     {default::Foo {bar: '3!'}}
 
-* Add a ``USING`` clause for ``SET REQUIRED`` so that en expression to
+* Add a ``using`` clause for ``set required`` so that en expression to
   fill in missing values can be specified (:eql:gh:`#2130`).
 
   .. code-block:: edgeql-repl
 
-    db> CREATE TYPE Foo {
-    ...     CREATE PROPERTY bar -> str
+    db> create type Foo {
+    ...     create property bar -> str
     ... };
     OK: CREATE TYPE
-    db> INSERT Foo;
+    db> insert Foo;
     {default::Foo {id: efcffce4-6471-11eb-8be5-ff6b1f4c46ee}}
-    db> SELECT Foo {bar};
+    db> select Foo {bar};
     {default::Foo {bar: {}}}
-    db> ALTER TYPE Foo ALTER PROPERTY bar {
-    ...    SET REQUIRED USING ('init')
+    db> alter type Foo alter property bar {
+    ...    set required using ('init')
     ... };
     OK: ALTER TYPE
-    db> SELECT Foo {bar};
+    db> select Foo {bar};
     {default::Foo {bar: 'init'}}
 
 * Expose link/property ``readonly`` aspect in introspection schema
@@ -279,12 +279,12 @@ EdgeQL
 * Add support for computed link properties (:eql:gh:`#2067`).
 * Infer and validate volatility for functions (:eql:gh:`#1937`).
 * Allow trailing commas in functions (:eql:gh:`#1462`).
-* Fix handling of implicit path prefix in the ``ELSE`` part of
-  ``UNLESS CONFLICT`` so that it properly refers to existing object
+* Fix handling of implicit path prefix in the ``else`` part of
+  ``unless conflict`` so that it properly refers to existing object
   (:eql:gh:`#2091`).
 * Fix issues with :eql:func:`enumerate` when applied to objects
   (:eql:gh:`#1815`) and results of function calls (:eql:gh:`#1816`).
-* Fix ``DROP PROPERTY`` for ``MULTI`` properties (:eql:gh:`#2059`).
+* Fix ``drop property`` for ``multi`` properties (:eql:gh:`#2059`).
 * Make sure computed links and properties don't appear in dump
   (:eql:gh:`#2057`).
 * Fix accessing links on objects that come from functions and other
@@ -316,7 +316,7 @@ Bindings
         for tx in con.retrying_transaction():
             with tx:
                 tx.execute('''
-                    INSERT Message {
+                    insert Message {
                         body := 'Hello'
                     };
                 ''')
@@ -330,7 +330,7 @@ Bindings
         tr = con.raw_transaction()
         with tr as with_tr:
             with_tr.execute('''
-                INSERT Message {
+                insert Message {
                     body := 'Hello'
                 };
             ''')

@@ -30,33 +30,33 @@ Numbers
     * - :eql:type:`decimal`
       - Arbitrary precision number.
 
-    * - :eql:op:`anyreal + anyreal <PLUS>`
-      - :eql:op-desc:`PLUS`
+    * - :eql:op:`anyreal + anyreal <plus>`
+      - :eql:op-desc:`plus`
 
-    * - :eql:op:`anyreal - anyreal <MINUS>`
-      - :eql:op-desc:`MINUS`
+    * - :eql:op:`anyreal - anyreal <minus>`
+      - :eql:op-desc:`minus`
 
-    * - :eql:op:`-anyreal <UMINUS>`
-      - :eql:op-desc:`UMINUS`
+    * - :eql:op:`-anyreal <uminus>`
+      - :eql:op-desc:`uminus`
 
-    * - :eql:op:`anyreal * anyreal <MULT>`
-      - :eql:op-desc:`MULT`
+    * - :eql:op:`anyreal * anyreal <mult>`
+      - :eql:op-desc:`mult`
 
-    * - :eql:op:`anyreal / anyreal <DIV>`
-      - :eql:op-desc:`DIV`
+    * - :eql:op:`anyreal / anyreal <div>`
+      - :eql:op-desc:`div`
 
-    * - :eql:op:`anyreal // anyreal <FLOORDIV>`
-      - :eql:op-desc:`FLOORDIV`
+    * - :eql:op:`anyreal // anyreal <floordiv>`
+      - :eql:op-desc:`floordiv`
 
-    * - :eql:op:`anyreal % anyreal <MOD>`
-      - :eql:op-desc:`MOD`
+    * - :eql:op:`anyreal % anyreal <mod>`
+      - :eql:op-desc:`mod`
 
-    * - :eql:op:`anyreal ^ anyreal <POW>`
-      - :eql:op-desc:`POW`
+    * - :eql:op:`anyreal ^ anyreal <pow>`
+      - :eql:op-desc:`pow`
 
-    * - :eql:op:`= <EQ>` :eql:op:`\!= <NEQ>` :eql:op:`?= <COALEQ>`
-        :eql:op:`?!= <COALNEQ>` :eql:op:`\< <LT>` :eql:op:`\> <GT>`
-        :eql:op:`\<= <LTEQ>` :eql:op:`\>= <GTEQ>`
+    * - :eql:op:`= <eq>` :eql:op:`\!= <neq>` :eql:op:`?= <coaleq>`
+        :eql:op:`?!= <coalneq>` :eql:op:`\< <lt>` :eql:op:`\> <gt>`
+        :eql:op:`\<= <lteq>` :eql:op:`\>= <gteq>`
       - Comparison operators
 
     * - :eql:func:`sum`
@@ -106,7 +106,7 @@ String parsing
   * - :eql:func:`to_float64`
     - :eql:func-desc:`to_float64`
 
-It's possible to explicitly :eql:op:`cast <CAST>`
+It's possible to explicitly :eql:op:`cast <cast>`
 between all numeric types. All numeric types can also be cast to and
 from :eql:type:`str` and :eql:type:`json`.
 
@@ -202,7 +202,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 42n IS bigint;
+        db> select 42n is bigint;
         {true}
 
     To represent really big integers it is possible to use the
@@ -211,7 +211,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 1e+100n IS bigint;
+        db> select 1e+100n is bigint;
         {true}
 
     When a float literal is followed by ‘n’ it produces a
@@ -219,10 +219,10 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 1.23n IS decimal;
+        db> select 1.23n is decimal;
         {true}
 
-        db> SELECT 1.0e+100n IS decimal;
+        db> select 1.0e+100n is decimal;
         {true}
 
     .. note::
@@ -264,10 +264,10 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 1.23n IS decimal;
+        db> select 1.23n is decimal;
         {true}
 
-        db> SELECT 1.0e+100n IS decimal;
+        db> select 1.0e+100n is decimal;
         {true}
 
     Note that an integer literal (without a dot or exponent) followed
@@ -276,10 +276,10 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 42n IS bigint;
+        db> select 42n is bigint;
         {true}
 
-        db> SELECT 12e+34n IS bigint;
+        db> select 12e+34n is bigint;
         {true}
 
     .. note::
@@ -297,7 +297,7 @@ from :eql:type:`str` and :eql:type:`json`.
 ----------
 
 
-.. eql:operator:: PLUS: anyreal + anyreal -> anyreal
+.. eql:operator:: plus: anyreal + anyreal -> anyreal
 
     :index: plus add
 
@@ -305,14 +305,14 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 2 + 2;
+        db> select 2 + 2;
         {4}
 
 
 ----------
 
 
-.. eql:operator:: MINUS: anyreal - anyreal -> anyreal
+.. eql:operator:: minus: anyreal - anyreal -> anyreal
 
     :index: minus subtract
 
@@ -320,14 +320,14 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 3 - 2;
+        db> select 3 - 2;
         {1}
 
 
 ----------
 
 
-.. eql:operator:: UMINUS: - anyreal -> anyreal
+.. eql:operator:: uminus: - anyreal -> anyreal
 
     :index: unary minus subtract
 
@@ -335,14 +335,14 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT -5;
+        db> select -5;
         {-5}
 
 
 ----------
 
 
-.. eql:operator:: MULT: anyreal * anyreal -> anyreal
+.. eql:operator:: mult: anyreal * anyreal -> anyreal
 
     :index: multiply multiplication
 
@@ -350,14 +350,14 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 2 * 10;
+        db> select 2 * 10;
         {20}
 
 
 ----------
 
 
-.. eql:operator:: DIV: anyreal / anyreal -> anyreal
+.. eql:operator:: div: anyreal / anyreal -> anyreal
 
     :index: divide division
 
@@ -365,21 +365,21 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 10 / 4;
+        db> select 10 / 4;
         {2.5}
 
     Division by zero results in an error:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 10 / 0;
+        db> select 10 / 0;
         DivisionByZeroError: division by zero
 
 
 ----------
 
 
-.. eql:operator:: FLOORDIV: anyreal // anyreal -> anyreal
+.. eql:operator:: floordiv: anyreal // anyreal -> anyreal
 
     :index: floor divide division
 
@@ -391,11 +391,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 10 // 4;
+        db> select 10 // 4;
         {2}
-        db> SELECT math::floor(10 / 4);
+        db> select math::floor(10 / 4);
         {2}
-        db> SELECT -10 // 4;
+        db> select -10 // 4;
         {-3}
 
     It also works on :eql:type:`float <anyfloat>`, :eql:type:`bigint`, and
@@ -404,62 +404,62 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 3.7 // 1.1;
+        db> select 3.7 // 1.1;
         {3.0}
-        db> SELECT 3.7n // 1.1n;
+        db> select 3.7n // 1.1n;
         {3.0n}
-        db> SELECT 37 // 11;
+        db> select 37 // 11;
         {3}
 
-    Regular division, floor division, and :eql:op:`%<MOD>` are
+    Regular division, floor division, and :eql:op:`%<mod>` are
     related in the following way: ``A // B  =  (A - (A % B)) / B``.
 
 
 ----------
 
 
-.. eql:operator:: MOD: anyreal % anyreal -> anyreal
+.. eql:operator:: mod: anyreal % anyreal -> anyreal
 
     :index: modulo mod division
 
     Remainder from division (modulo).
 
     This is the remainder from floor division. Just as is
-    the case with :eql:op:`//<FLOORDIV>` the result type of the
+    the case with :eql:op:`//<floordiv>` the result type of the
     remainder operator corresponds to the operand type:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 10 % 4;
+        db> select 10 % 4;
         {2}
-        db> SELECT 10n % 4;
+        db> select 10n % 4;
         {2n}
-        db> SELECT -10 % 4;
+        db> select -10 % 4;
         {2}
         db> # floating arithmetic is inexact, so
         ... # we get 0.3999999999999999 instead of 0.4
-        ... SELECT 3.7 % 1.1;
+        ... select 3.7 % 1.1;
         {0.3999999999999999}
-        db> SELECT 3.7n % 1.1n;
+        db> select 3.7n % 1.1n;
         {0.4n}
-        db> SELECT 37 % 11;
+        db> select 37 % 11;
         {4}
 
-    Regular division, :eql:op:`//<FLOORDIV>` and :eql:op:`%<MOD>` are
+    Regular division, :eql:op:`//<floordiv>` and :eql:op:`%<mod>` are
     related in the following way: ``A // B  =  (A - (A % B)) / B``.
 
     Modulo division by zero results in an error:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 10 % 0;
+        db> select 10 % 0;
         DivisionByZeroError: division by zero
 
 
 -----------
 
 
-.. eql:operator:: POW: anyreal ^ anyreal -> anyreal
+.. eql:operator:: pow: anyreal ^ anyreal -> anyreal
 
     :index: power pow
 
@@ -467,7 +467,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 2 ^ 4;
+        db> select 2 ^ 4;
         {16}
 
 
@@ -489,26 +489,26 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT round(1.2);
+        db> select round(1.2);
         {1}
 
-        db> SELECT round(1.5);
+        db> select round(1.5);
         {2}
 
-        db> SELECT round(2.5);
+        db> select round(2.5);
         {2}
 
     :eql:type:`decimal` tie is rounded away from 0:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT round(1.2n);
+        db> select round(1.2n);
         {1n}
 
-        db> SELECT round(1.5n);
+        db> select round(1.5n);
         {2n}
 
-        db> SELECT round(2.5n);
+        db> select round(2.5n);
         {3n}
 
     Additionally, when rounding a :eql:type:`decimal` *value* an
@@ -517,19 +517,19 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT round(163.278n, 2);
+        db> select round(163.278n, 2);
         {163.28n}
 
-        db> SELECT round(163.278n, 1);
+        db> select round(163.278n, 1);
         {163.3n}
 
-        db> SELECT round(163.278n, 0);
+        db> select round(163.278n, 0);
         {163n}
 
-        db> SELECT round(163.278n, -1);
+        db> select round(163.278n, -1);
         {160n}
 
-        db> SELECT round(163.278n, -2);
+        db> select round(163.278n, -2);
         {200n}
 
 
@@ -542,14 +542,14 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT random();
+        db> select random();
         {0.62649393780157}
 
 
 ------------
 
 
-.. eql:function:: std::to_bigint(s: str, fmt: OPTIONAL str={}) -> bigint
+.. eql:function:: std::to_bigint(s: str, fmt: optional str={}) -> bigint
 
     :index: parse bigint
 
@@ -560,9 +560,9 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_bigint('-000,012,345', 'S099,999,999,999');
+        db> select to_bigint('-000,012,345', 'S099,999,999,999');
         {-12345n}
-        db> SELECT to_bigint('31st', '999th');
+        db> select to_bigint('31st', '999th');
         {31n}
 
     For more details on formatting see :ref:`here
@@ -573,7 +573,7 @@ from :eql:type:`str` and :eql:type:`json`.
 
 
 
-.. eql:function:: std::to_decimal(s: str, fmt: OPTIONAL str={}) -> decimal
+.. eql:function:: std::to_decimal(s: str, fmt: optional str={}) -> decimal
 
     :index: parse decimal
 
@@ -584,11 +584,11 @@ from :eql:type:`str` and :eql:type:`json`.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT to_decimal('-000,012,345', 'S099,999,999,999');
+        db> select to_decimal('-000,012,345', 'S099,999,999,999');
         {-12345.0n}
-        db> SELECT to_decimal('-012.345');
+        db> select to_decimal('-012.345');
         {-12.345n}
-        db> SELECT to_decimal('31st', '999th');
+        db> select to_decimal('31st', '999th');
         {31.0n}
 
     For more details on formatting see :ref:`here
@@ -598,7 +598,7 @@ from :eql:type:`str` and :eql:type:`json`.
 ------------
 
 
-.. eql:function:: std::to_int16(s: str, fmt: OPTIONAL str={}) -> int16
+.. eql:function:: std::to_int16(s: str, fmt: optional str={}) -> int16
 
     :index: parse int16
 
@@ -614,7 +614,7 @@ from :eql:type:`str` and :eql:type:`json`.
 ------------
 
 
-.. eql:function:: std::to_int32(s: str, fmt: OPTIONAL str={}) -> int32
+.. eql:function:: std::to_int32(s: str, fmt: optional str={}) -> int32
 
     :index: parse int32
 
@@ -630,7 +630,7 @@ from :eql:type:`str` and :eql:type:`json`.
 ------------
 
 
-.. eql:function:: std::to_int64(s: str, fmt: OPTIONAL str={}) -> int64
+.. eql:function:: std::to_int64(s: str, fmt: optional str={}) -> int64
 
     :index: parse int64
 
@@ -646,7 +646,7 @@ from :eql:type:`str` and :eql:type:`json`.
 ------------
 
 
-.. eql:function:: std::to_float32(s: str, fmt: OPTIONAL str={}) -> float32
+.. eql:function:: std::to_float32(s: str, fmt: optional str={}) -> float32
 
     :index: parse float32
 
@@ -662,7 +662,7 @@ from :eql:type:`str` and :eql:type:`json`.
 ------------
 
 
-.. eql:function:: std::to_float64(s: str, fmt: OPTIONAL str={}) -> float64
+.. eql:function:: std::to_float64(s: str, fmt: optional str={}) -> float64
 
     :index: parse float64
 

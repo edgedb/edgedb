@@ -22,8 +22,8 @@ We'll start with this schema:
 We specify a ``prev`` link because that will make adding a new
 ``Event`` at the end of the chain easier, since we'll be able to
 specify the payload and the chain the ``Event`` should be appended to
-in a single :eql:stmt:`INSERT`. Once we've updated the schema file we
-proceed with our first migration:
+in a single :eql:stmt:`insert`. Once we've updated the schema
+file we proceed with our first migration:
 
 .. code-block:: bash
 
@@ -61,7 +61,7 @@ define it as a computed link by using :ref:`backlink
         required property name -> str;
 
         link prev -> Event;
-        link next := .<prev[IS Event];
+        link next := .<prev[is Event];
     }
 
 The migration is straightforward enough:
@@ -119,7 +119,7 @@ we're interested in building event chains, not trees.
         link prev -> Event {
             constraint exclusive;
         };
-        link next := .<prev[IS Event];
+        link next := .<prev[is Event];
     }
 
 Since the ``next`` link is computed, the migration should not need any

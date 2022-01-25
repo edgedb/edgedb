@@ -1,17 +1,17 @@
 .. _ref_eql_statements_session_set_alias:
 
-SET
+Set
 ===
 
 :eql-statement:
 
 
-``SET`` -- set one or multiple session-level parameters
+``set`` -- set one or multiple session-level parameters
 
 .. eql:synopsis::
 
-    SET MODULE <module> ;
-    SET ALIAS <alias> AS MODULE <module> ;
+    set module <module> ;
+    set alias <alias> as module <module> ;
 
 
 Description
@@ -23,7 +23,7 @@ This command allows altering the configuration of the current session.
 Variations
 ----------
 
-:eql:synopsis:`SET MODULE <module>`
+:eql:synopsis:`set module <module>`
     Set the default module for the current section to *module*.
 
     For example, if a module ``foo`` contains type ``FooType``,
@@ -32,19 +32,19 @@ Variations
     .. code-block:: edgeql
 
         # Use the fully-qualified name.
-        SELECT foo::FooType;
+        select foo::FooType;
 
         # Use the WITH clause to define the default module
         # for the query.
-        WITH MODULE foo SELECT foo::FooType;
+        with module foo select foo::FooType;
 
         # Set the default module for the current session ...
-        SET MODULE foo;
+        set module foo;
         # ... and use an unqualified name.
-        SELECT FooType;
+        select FooType;
 
 
-:eql:synopsis:`SET ALIAS <alias> AS MODULE <module>`
+:eql:synopsis:`set alias <alias> as module <module>`
     Define :eql:synopsis:`<alias>` for the
     :eql:synopsis:`<module>`.
 
@@ -53,18 +53,18 @@ Variations
     .. code-block:: edgeql
 
         # Use the fully-qualified name.
-        SELECT foo::FooType;
+        select foo::FooType;
 
         # Use the WITH clause to define a custom alias
         # for the "foo" module.
-        WITH bar AS MODULE foo
-        SELECT bar::FooType;
+        with bar as module foo
+        select bar::FooType;
 
         # Define "bar" as an alias for the "foo" module for
         # the current session ...
-        SET ALIAS bar AS MODULE foo;
+        set alias bar as module foo;
         # ... and use "bar" instead of "foo".
-        SELECT bar::FooType;
+        select bar::FooType;
 
 
 Examples
@@ -72,14 +72,14 @@ Examples
 
 .. code-block:: edgeql
 
-    SET MODULE foo;
+    set module foo;
 
-    SET ALIAS foo AS MODULE std;
+    set alias foo AS module std;
 
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`Reference > EdgeQL > RESET ALIAS
+  * - :ref:`Reference > EdgeQL > Reset
       <ref_eql_statements_session_reset_alias>`

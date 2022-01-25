@@ -93,9 +93,9 @@ Now we proceed with the migration:
 Some objects must have the same ``name``, so the migration can't be
 applied. We have a couple of options for fixing this:
 
-1) Review the existing data and manually :eql:stmt:`UPDATE` the
+1) Review the existing data and manually :eql:stmt:`update` the
    entries with duplicate names so that they are unique.
-2) Edit the migration to add an :eql:stmt:`UPDATE` which will
+2) Edit the migration to add an :eql:stmt:`update` which will
    de-duplicate ``name`` for any potential existing ``User`` objects.
 
 The first option is good for situations where we want to signal to any
@@ -115,10 +115,10 @@ We edit the last migration file ``00003.edgeql``:
       CREATE MIGRATION m1dxs3xbk4f3vhmqh6mjzetojafddtwlphp5a3kfbfuyvupjafevya
           ONTO m1ndhbxx7yudb2dv7zpypl2su2oygyjlggk3olryb5uszofrfml4uq
       {
-    +   WITH U := default::User
-    +   UPDATE default::User
-    +   FILTER U.name = .name AND U != default::User
-    +   SET {
+    +   with U := default::User
+    +   update default::User
+    +   filter U.name = .name and U != default::User
+    +   set {
     +     # De-duplicate names by appending a random uuid.
     +     name := .name ++ '_' ++ <str>uuid_generate_v1mc()
     +   };

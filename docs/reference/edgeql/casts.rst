@@ -24,10 +24,10 @@ For example, the following expression casts an integer value into a string:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT <str>10;
+    db> select <str>10;
     {"10"}
 
-See the :eql:op:`type cast operator <CAST>` section for more
+See the :eql:op:`type cast operator <cast>` section for more
 information on type casting rules.
 
 
@@ -44,7 +44,7 @@ when dealing with numeric value using fewer bits:
 
     # Automatically cast a literal 42 (which is int64
     # by default) into an int16 value.
-    INSERT MyObject {
+    insert MyObject {
         int16_val := 42
     };
 
@@ -69,8 +69,8 @@ casts* can occur:
 
    .. code-block:: edgeql-repl
 
-        db> WITH x := <float32>12.34
-        ... SELECT math::ceil(x);
+        db> with x := <float32>12.34
+        ... select math::ceil(x);
         {13}
 
    The function :eql:func:`math::ceil` only takes :eql:type:`int64`,
@@ -84,10 +84,10 @@ casts* can occur:
 
    .. code-block:: edgeql-repl
 
-        db> SELECT 1 + 2.3;
+        db> select 1 + 2.3;
         {3.3}
 
-   The operator :eql:op:`+ <PLUS>` is defined only for operands of
+   The operator :eql:op:`+ <plus>` is defined only for operands of
    the same type, so in the expression above the :eql:type:`int64`
    value ``1`` is *implicitly cast* into a :eql:type:`float64` in
    order to match the other operand and produce a valid signature.
@@ -96,17 +96,17 @@ casts* can occur:
 
    .. code-block:: edgeql-repl
 
-        db> SELECT {1, 2.3, <float32>4.5} IS float64;
+        db> select {1, 2.3, <float32>4.5} is float64;
         {true, true, true}
 
    All elements in a set have to be of the same type, so the values
    are cast into :eql:type:`float64` as that happens to be the common
    type to which all the set elements can be *implicitly cast*. This
-   would work out the same way if :eql:op:`UNION` was used instead:
+   would work out the same way if :eql:op:`union` was used instead:
 
    .. code-block:: edgeql-repl
 
-        db> SELECT (1 UNION 2.3 UNION <float32>4.5) IS float64;
+        db> select (1 union 2.3 union <float32>4.5) is float64;
         {true, true, true}
 
 If *implicit* casting is supported for a given pair of types,

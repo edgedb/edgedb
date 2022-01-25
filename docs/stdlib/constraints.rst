@@ -33,7 +33,7 @@ Constraints
             );
         }
 
-.. eql:constraint:: std::one_of(VARIADIC members: anytype)
+.. eql:constraint:: std::one_of(variadic members: anytype)
 
     Specifies the list of allowed values directly.
 

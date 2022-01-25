@@ -11,33 +11,33 @@ Type
 .. list-table::
     :class: funcoptable
 
-    * - :eql:op:`IS type <IS>`
-      - :eql:op-desc:`IS`
+    * - :eql:op:`is type <is>`
+      - :eql:op-desc:`is`
 
-    * - :eql:op:`type | type <TYPEOR>`
-      - :eql:op-desc:`TYPEOR`
+    * - :eql:op:`type | type <typeor>`
+      - :eql:op-desc:`typeor`
 
-    * - :eql:op:`<type> val <CAST>`
-      - :eql:op-desc:`CAST`
+    * - :eql:op:`<type> val <cast>`
+      - :eql:op-desc:`cast`
 
-    * - :eql:op:`TYPEOF anytype <TYPEOF>`
-      - :eql:op-desc:`TYPEOF`
+    * - :eql:op:`typeof anytype <typeof>`
+      - :eql:op-desc:`typeof`
 
-    * - :eql:op:`INTROSPECT type <INTROSPECT>`
-      - :eql:op-desc:`INTROSPECT`
+    * - :eql:op:`introspect type <introspect>`
+      - :eql:op-desc:`introspect`
 
 
 ----------
 
 
-.. eql:operator:: IS: anytype IS type -> bool
-                      anytype IS NOT type -> bool
+.. eql:operator:: is: anytype is type -> bool
+                      anytype is not type -> bool
 
     Type checking operator.
 
     Check if ``A`` is an instance of ``B`` or any of ``B``'s subtypes.
 
-    Type-checking operators :eql:op:`IS` and :eql:op:`IS NOT<IS>` that
+    Type-checking operators ``is`` and ``is not`` that
     test whether the left operand is of any of the types given by the
     comma-separated list of types provided as the right operand.
 
@@ -47,40 +47,40 @@ Type
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 1 IS int64;
+        db> select 1 is int64;
         {true}
 
-        db> SELECT User IS NOT SystemUser
-        ... FILTER User.name = 'Alice';
+        db> select User is not SystemUser
+        ... filter User.name = 'Alice';
         {true}
 
-        db> SELECT User IS (Text | Named);
+        db> select User is (Text | Named);
         {true, ..., true}  # one for every user instance
 
 
 ----------
 
 
-.. eql:operator:: TYPEOR: type | type -> type
+.. eql:operator:: typeor: type | type -> type
 
     :index: poly polymorphism polymorphic queries nested shapes
 
     Type union operator.
 
     This operator is only valid in contexts where type checking is
-    done. The most obvious use case is with the :eql:op:`IS` and
-    :eql:op:`IS NOT<IS>`. The operator allows to refer to a union of
+    done. The most obvious use case is with the :eql:op:`is` and
+    :eql:op:`is not <is>`. The operator allows to refer to a union of
     types in order to check whether a value is of any of these
     types.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT User IS (Text | Named);
+        db> select User is (Text | Named);
         {true, ..., true}  # one for every user instance
 
     It can similarly be used when specifying a link target type. The
     same logic then applies: in order to be a valid link target the
-    object must satisfy ``object IS (A | B | C)``.
+    object must satisfy ``object is (A | B | C)``.
 
     .. code-block:: sdl
 
@@ -104,25 +104,25 @@ Type
 
     .. code-block:: edgeql-repl
 
-        db> INSERT Item {name := 'cube'};
+        db> insert Item {name := 'cube'};
         {Object { id: <uuid>'...' }}
-        db> INSERT Note {body := 'some reminder'};
+        db> insert Note {body := 'some reminder'};
         {Object { id: <uuid>'...' }}
-        db> INSERT User {
+        db> insert User {
         ...     name := 'Alice',
         ...     stuff := Note,  # all the notes
         ... };
         {Object { id: <uuid>'...' }}
-        db> INSERT User {
+        db> insert User {
         ...     name := 'Bob',
         ...     stuff := Item,  # all the items
         ... };
         {Object { id: <uuid>'...' }}
-        db> SELECT User {
+        db> select User {
         ...     name,
         ...     stuff: {
-        ...         [IS Named].name,
-        ...         [IS Text].body
+        ...         [is Named].name,
+        ...         [is Text].body
         ...     }
         ... };
         {
@@ -140,7 +140,7 @@ Type
 -----------
 
 
-.. eql:operator:: CAST: < type > anytype -> anytype
+.. eql:operator:: cast: < type > anytype -> anytype
 
     Type cast operator.
 
@@ -161,9 +161,9 @@ Type
 
     It is illegal to cast one :eql:type:`Object` into another. The
     only way to construct a new :eql:type:`Object` is by using
-    :ref:`INSERT <ref_eql_statements_insert>`. However, the
-    :eql:op:`type intersection <ISINTERSECT>` can be used to achieve an
-    effect similar to casting for Objects.
+    :eql:stmt:`insert`. However, the :eql:op:`type intersection
+    <isintersect>` can be used to achieve an effect similar to
+    casting for Objects.
 
     When a cast is applied to an expression of a known type, it represents a
     run-time type conversion. The cast will succeed only if a suitable type
@@ -174,15 +174,15 @@ Type
     .. code-block:: edgeql-repl
 
         db> # cast a string literal into an integer
-        ... SELECT <int64>"42";
+        ... select <int64>"42";
         {42}
 
         db> # cast an array of integers into an array of str
-        ... SELECT <array<str>>[1, 2, 3];
+        ... select <array<str>>[1, 2, 3];
         {['1', '2', '3']}
 
         db> # cast an issue number into a string
-        ... SELECT <str>example::Issue.number;
+        ... select <str>example::Issue.number;
         {'142'}
 
     Casts also work for converting tuples or declaring different tuple
@@ -190,14 +190,14 @@ Type
 
     .. code-block:: edgeql-repl
 
-        db> SELECT <tuple<int64, str>>(1, 3);
+        db> select <tuple<int64, str>>(1, 3);
         {[1, '3']}
 
-        db> WITH
+        db> with
         ...     # a test tuple set, that could be a result of
         ...     # some other computation
         ...     stuff := (1, 'foo', 42)
-        ... SELECT (
+        ... select (
         ...     # cast the tuple into something more convenient
         ...     <tuple<a: int64, name: str, b: int64>>stuff
         ... ).name;  # access the 'name' element
@@ -209,10 +209,10 @@ Type
 
     .. code-block:: edgeql
 
-        WITH MODULE example
-        SELECT Text {
+        with module example
+        select Text {
             name :=
-                Text[IS Issue].name IF Text IS Issue ELSE
+                Text[is Issue].name IF Text is Issue ELSE
                 <str>{},
                 # the cast to str is necessary here, because
                 # the type of the computed expression must be defined
@@ -224,8 +224,8 @@ Type
 
     .. code-block:: edgeql
 
-        WITH MODULE example
-        SELECT User {
+        with module example
+        select User {
             name,
             friends := <User>{}
             # the cast is the only way to indicate that the
@@ -240,17 +240,17 @@ Type
 -----------
 
 
-.. eql:operator:: TYPEOF: TYPEOF anytype -> type
+.. eql:operator:: typeof: typeof anytype -> type
 
     :index: type introspect introspection
 
     Static type inference operator.
 
     This operator converts an expression into a type, which can be
-    used with :eql:op:`IS`, :eql:op:`IS NOT<IS>`, and
-    :eql:op:`INTROSPECT`.
+    used with :eql:op:`is`, :eql:op:`is not<is>`, and
+    :eql:op:`introspect`.
 
-    Currently, ``TYPEOF`` operator only supports :ref:`scalars
+    Currently, ``typeof`` operator only supports :ref:`scalars
     <ref_datamodel_scalar_types>` and :ref:`objects
     <ref_datamodel_object_types>`, but **not** the :ref:`collections
     <ref_datamodel_collection_types>` as a valid operand.
@@ -267,37 +267,37 @@ Type
 
         type Bar extending Foo;
 
-    We can use ``TYPEOF`` to determine if certain expression has the
+    We can use ``typeof`` to determine if certain expression has the
     same type as the property ``bar``:
 
     .. code-block:: edgeql-repl
 
-        db> INSERT Foo { bar := 1 };
+        db> insert Foo { bar := 1 };
         {Object { id: <uuid>'...' }}
-        db> SELECT (Foo.bar / 2) IS TYPEOF Foo.bar;
+        db> select (Foo.bar / 2) is typeof Foo.bar;
         {false}
 
     To determine the actual resulting type of an expression we can
-    use :eql:op:`INTROSPECT`:
+    use :eql:op:`introspect`:
 
     .. code-block:: edgeql-repl
 
-        db> SELECT INTROSPECT (TYPEOF Foo.bar).name;
+        db> select introspect (typeof Foo.bar).name;
         {'std::int16'}
-        db> SELECT INTROSPECT (TYPEOF (Foo.bar / 2)).name;
+        db> select introspect (typeof (Foo.bar / 2)).name;
         {'std::float64'}
 
-    Similarly, we can use ``TYPEOF`` to discriminate between the
+    Similarly, we can use ``typeof`` to discriminate between the
     different ``Foo`` objects that can and cannot be targets of link
     ``baz``:
 
     .. code-block:: edgeql-repl
 
-        db> INSERT Bar { bar := 2 };
+        db> insert Bar { bar := 2 };
         {Object { id: <uuid>'...' }}
-        db> SELECT Foo {
+        db> select Foo {
         ...     bar,
-        ...     can_be_baz := Foo IS TYPEOF Foo.baz
+        ...     can_be_baz := Foo is typeof Foo.baz
         ... };
         {
             Object { bar: 1, can_be_baz: false },
@@ -308,7 +308,7 @@ Type
 -----------
 
 
-.. eql:operator:: INTROSPECT: INTROSPECT type -> schema::Type
+.. eql:operator:: introspect: introspect type -> schema::Type
 
     :index: type typeof introspection
 
@@ -316,9 +316,9 @@ Type
 
     This operator returns the :ref:`introspection type
     <ref_eql_introspection>` corresponding to type provided as
-    operand. It works well in combination with :eql:op:`TYPEOF`.
+    operand. It works well in combination with :eql:op:`typeof`.
 
-    Currently, the ``INTROSPECT`` operator only supports :ref:`scalar
+    Currently, the ``introspect`` operator only supports :ref:`scalar
     types <ref_datamodel_scalar_types>` and :ref:`object types
     <ref_datamodel_object_types>`, but **not** the :ref:`collection
     types <ref_datamodel_collection_types>` as a valid operand.
@@ -337,24 +337,24 @@ Type
 
     .. code-block:: edgeql-repl
 
-        db> SELECT (INTROSPECT int16).name;
+        db> select (introspect int16).name;
         {'std::int16'}
-        db> SELECT (INTROSPECT Foo).name;
+        db> select (introspect Foo).name;
         {'default::Foo'}
-        db> SELECT (INTROSPECT TYPEOF Foo.bar).name;
+        db> select (introspect typeof Foo.bar).name;
         {'std::int16'}
 
     .. note::
 
         For any :ref:`object type <ref_datamodel_object_types>`
-        ``SomeType`` the expressions ``INTROSPECT SomeType`` and
-        ``INTROSPECT TYPEOF SomeType`` are equivalent as the object
+        ``SomeType`` the expressions ``introspect SomeType`` and
+        ``introspect typeof SomeType`` are equivalent as the object
         type name is syntactically identical to the *expression*
         denoting the set of those objects.
 
     There's an important difference between the combination of
-    ``INTROSPECT TYPEOF SomeType`` and ``SomeType.__type__``
-    expressions when used with objects. ``INTROSPECT TYPEOF SomeType``
+    ``introspect typeof SomeType`` and ``SomeType.__type__``
+    expressions when used with objects. ``introspect typeof SomeType``
     is statically evaluated and does not take in consideration the
     actual objects contained in the ``SomeType`` set. Conversely,
     ``SomeType.__type__`` is the actual set of all the types reachable
@@ -366,19 +366,19 @@ Type
     .. code-block:: edgeql-repl
 
         db> # first let's make sure we don't have any Foo objects
-        ... DELETE Foo;
+        ... delete Foo;
         { there may be some deleted objects here }
-        db> SELECT (INTROSPECT TYPEOF Foo).name;
+        db> select (introspect typeof Foo).name;
         {'default::Foo'}
-        db> SELECT Foo.__type__.name;
+        db> select Foo.__type__.name;
         {}
         db> # let's add an object of type Foo
-        ... INSERT Foo;
+        ... insert Foo;
         {Object { id: <uuid>'...' }}
         db> # Bar is also of type Foo
-        ... INSERT Bar;
+        ... insert Bar;
         {Object { id: <uuid>'...' }}
-        db> SELECT (INTROSPECT TYPEOF Foo).name;
+        db> select (introspect typeof Foo).name;
         {'default::Foo'}
-        db> SELECT Foo.__type__.name;
+        db> select Foo.__type__.name;
         {'default::Bar', 'default::Foo'}

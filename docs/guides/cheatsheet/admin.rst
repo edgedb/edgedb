@@ -7,8 +7,8 @@ Create a database:
 
 .. code-block:: edgeql-repl
 
-    db> CREATE DATABASE my_new_project;
-    CREATE
+    db> create database my_new_project;
+    OK: CREATE DATABASE
 
 
 ----------
@@ -18,8 +18,8 @@ Create a role:
 
 .. code-block:: edgeql-repl
 
-    db> CREATE SUPERUSER ROLE project;
-    CREATE
+    db> create superuser role project;
+    OK: CREATE ROLE
 
 
 ----------
@@ -29,15 +29,15 @@ Configure passwordless access (such as to a local development database):
 
 .. code-block:: edgeql-repl
 
-    db> CONFIGURE INSTANCE INSERT Auth {
+    db> configure instance insert Auth {
     ...     # Human-oriented comment helps figuring out
     ...     # what authentication methods have been setup
     ...     # and makes it easier to identify them.
     ...     comment := 'passwordless access',
     ...     priority := 1,
-    ...     method := (INSERT Trust),
+    ...     method := (insert Trust),
     ... };
-    CONFIGURE INSTANCE
+    OK: CONFIGURE INSTANCE
 
 
 ----------
@@ -47,9 +47,9 @@ Set a password for a role:
 
 .. code-block:: edgeql-repl
 
-    db> ALTER ROLE project
-    ...     SET password := 'super-password';
-    ALTER
+    db> alter role project
+    ...     set password := 'super-password';
+    OK: ALTER ROLE
 
 
 ----------
@@ -59,12 +59,12 @@ Configure access that checks password (with a higher priority):
 
 .. code-block:: edgeql-repl
 
-    db> CONFIGURE INSTANCE INSERT Auth {
+    db> configure instance insert Auth {
     ...     comment := 'password is required',
     ...     priority := 0,
-    ...     method := (INSERT SCRAM),
+    ...     method := (insert SCRAM),
     ... };
-    CONFIGURE INSTANCE
+    OK: CONFIGURE INSTANCE
 
 
 ----------
@@ -74,9 +74,9 @@ Remove a specific authentication method:
 
 .. code-block:: edgeql-repl
 
-    db> CONFIGURE INSTANCE RESET Auth
-    ... FILTER .comment = 'password is required';
-    CONFIGURE INSTANCE
+    db> configure instance reset Auth
+    ... filter .comment = 'password is required';
+    OK: CONFIGURE INSTANCE
 
 
 ----------

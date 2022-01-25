@@ -173,34 +173,34 @@ Here's some examples of regular strings using escape sequences
 
 .. code-block:: edgeql-repl
 
-    db> SELECT 'hello
+    db> select 'hello
     ... world';
     {'hello
     world'}
 
-    db> SELECT "hello\nworld";
+    db> select "hello\nworld";
     {'hello
     world'}
 
-    db> SELECT 'hello \
+    db> select 'hello \
     ...         world';
     {'hello world'}
 
-    db> SELECT 'https://edgedb.com/\
+    db> select 'https://edgedb.com/\
     ...         docs/edgeql/lexical\
     ...         #constants';
     {'https://edgedb.com/docs/edgeql/lexical#constants'}
 
-    db> SELECT 'hello \\ world';
+    db> select 'hello \\ world';
     {'hello \ world'}
 
-    db> SELECT 'hello \'world\'';
+    db> select 'hello \'world\'';
     {"hello 'world'"}
 
-    db> SELECT 'hello \x77orld';
+    db> select 'hello \x77orld';
     {'hello world'}
 
-    db> SELECT 'hello \u0077orld';
+    db> select 'hello \u0077orld';
     {'hello world'}
 
 .. _ref_eql_lexical_raw:
@@ -210,15 +210,15 @@ all the symbols between the quotes exactly as typed.
 
 .. code-block:: edgeql-repl
 
-    db> SELECT r'hello \\ world';
+    db> select r'hello \\ world';
     {'hello \\ world'}
 
-    db> SELECT r'hello \
+    db> select r'hello \
     ... world';
     {'hello \
      world'}
 
-    db> SELECT r'hello
+    db> select r'hello
     ... world';
     {'hello
      world'}
@@ -237,18 +237,18 @@ content with *dollar-quotes* in an unambiguous manner:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT $$hello
+    db> select $$hello
     ... world$$;
     {'hello
     world'}
 
-    db> SELECT $$hello\nworld$$;
+    db> select $$hello\nworld$$;
     {'hello\nworld'}
 
-    db> SELECT $$"hello" 'world'$$;
+    db> select $$"hello" 'world'$$;
     {"\"hello\" 'world'"}
 
-    db> SELECT $a$hello$$world$$$a$;
+    db> select $a$hello$$world$$$a$;
     {'hello$$world$$'}
 
 More specifically, a delimiter:
@@ -318,26 +318,26 @@ or :eql:type:`int32`:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT 0;
+    db> select 0;
     {0}
 
-    db> SELECT 123;
+    db> select 123;
     {123}
 
-    db> SELECT <int16>456;
+    db> select <int16>456;
     {456}
 
-    db> SELECT <int32>789;
+    db> select <int32>789;
     {789}
 
 Examples of :eql:type:`bigint` literals:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT 123n;
+    db> select 123n;
     {123n}
 
-    db> SELECT 12345678901234567890n;
+    db> select 12345678901234567890n;
     {12345678901234567890n}
 
 
@@ -363,32 +363,32 @@ while an explicit cast can be used to convert them to :eql:type:`float32`:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT 0.1;
+    db> select 0.1;
     {0.1}
 
-    db> SELECT 12.3;
+    db> select 12.3;
     {12.3}
 
-    db> SELECT 1e3;
+    db> select 1e3;
     {1000.0}
 
-    db> SELECT 1.2e-3;
+    db> select 1.2e-3;
     {0.0012}
 
-    db> SELECT <float32>12.3;
+    db> select <float32>12.3;
     {12.3}
 
 Examples of :eql:type:`decimal` literals:
 
 .. code-block:: edgeql-repl
 
-    db> SELECT 12.3n;
+    db> select 12.3n;
     {12.3n}
 
-    db> SELECT 12345678901234567890.12345678901234567890n;
+    db> select 12345678901234567890.12345678901234567890n;
     {12345678901234567890.12345678901234567890n}
 
-    db> SELECT 12345678901234567890.12345678901234567890e-3n;
+    db> select 12345678901234567890.12345678901234567890e-3n;
     {12345678901234567.89012345678901234567890n}
 
 
@@ -420,27 +420,27 @@ EdgeQL operators listed in order of precedence from lowest to highest:
     :header-rows: 1
 
     * - operator
-    * - :eql:op:`UNION`
-    * - :eql:op:`IF..ELSE`
-    * - :eql:op:`OR`
-    * - :eql:op:`AND`
-    * - :eql:op:`NOT`
-    * - :eql:op:`=<EQ>`, :eql:op:`\!=<NEQ>`, :eql:op:`?=<COALEQ>`,
-        :eql:op:`?\!=<COALNEQ>`
-    * - :eql:op:`\<<LT>`, :eql:op:`><GT>`, :eql:op:`\<=<LTEQ>`,
-        :eql:op:`>=<GTEQ>`
-    * - :eql:op:`LIKE`, :eql:op:`ILIKE`
-    * - :eql:op:`IN`, :eql:op:`NOT IN <IN>`
-    * - :eql:op:`IS`, :eql:op:`IS NOT <IS>`
-    * - :eql:op:`+<PLUS>`, :eql:op:`-<MINUS>`, :eql:op:`++<STRPLUS>`
-    * - :eql:op:`*<MULT>`, :eql:op:`/<DIV>`,
-        :eql:op:`//<FLOORDIV>`, :eql:op:`%<MOD>`
-    * - :eql:op:`??<COALESCE>`
-    * - :eql:op:`DISTINCT`, unary :eql:op:`-<UMINUS>`
-    * - :eql:op:`^<POW>`
-    * - :eql:op:`type cast <CAST>`
-    * - :eql:op:`array[] <ARRAYIDX>`,
-        :eql:op:`str[] <STRIDX>`,
-        :eql:op:`json[] <JSONIDX>`,
-        :eql:op:`bytes[] <BYTESIDX>`
-    * - :ref:`DETACHED <ref_eql_with_detached>`
+    * - :eql:op:`union`
+    * - :eql:op:`if..else`
+    * - :eql:op:`or`
+    * - :eql:op:`and`
+    * - :eql:op:`not`
+    * - :eql:op:`=<eq>`, :eql:op:`\!=<neq>`, :eql:op:`?=<coaleq>`,
+        :eql:op:`?\!=<coalneq>`
+    * - :eql:op:`\<<lt>`, :eql:op:`><gt>`, :eql:op:`\<=<lteq>`,
+        :eql:op:`>=<gteq>`
+    * - :eql:op:`like`, :eql:op:`ilike`
+    * - :eql:op:`in`, :eql:op:`not in <in>`
+    * - :eql:op:`is`, :eql:op:`is not <is>`
+    * - :eql:op:`+<plus>`, :eql:op:`-<minus>`, :eql:op:`++<strplus>`
+    * - :eql:op:`*<mult>`, :eql:op:`/<div>`,
+        :eql:op:`//<floordiv>`, :eql:op:`%<mod>`
+    * - :eql:op:`?? <coalesce>`
+    * - :eql:op:`distinct`, unary :eql:op:`-<uminus>`
+    * - :eql:op:`^<pow>`
+    * - :eql:op:`type cast <cast>`
+    * - :eql:op:`array[] <arrayidx>`,
+        :eql:op:`str[] <stridx>`,
+        :eql:op:`json[] <jsonidx>`,
+        :eql:op:`bytes[] <bytesidx>`
+    * - :eql:kw:`detached`

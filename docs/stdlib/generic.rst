@@ -9,29 +9,29 @@ Generic
 .. list-table::
     :class: funcoptable
 
-    * - :eql:op:`anytype = anytype <EQ>`
-      - :eql:op-desc:`EQ`
+    * - :eql:op:`anytype = anytype <eq>`
+      - :eql:op-desc:`eq`
 
-    * - :eql:op:`anytype != anytype <NEQ>`
-      - :eql:op-desc:`NEQ`
+    * - :eql:op:`anytype != anytype <neq>`
+      - :eql:op-desc:`neq`
 
-    * - :eql:op:`anytype ?= anytype <COALEQ>`
-      - :eql:op-desc:`COALEQ`
+    * - :eql:op:`anytype ?= anytype <coaleq>`
+      - :eql:op-desc:`coaleq`
 
-    * - :eql:op:`anytype ?!= anytype <COALNEQ>`
-      - :eql:op-desc:`COALNEQ`
+    * - :eql:op:`anytype ?!= anytype <coalneq>`
+      - :eql:op-desc:`coalneq`
 
-    * - :eql:op:`anytype \< anytype <LT>`
-      - :eql:op-desc:`LT`
+    * - :eql:op:`anytype \< anytype <lt>`
+      - :eql:op-desc:`lt`
 
-    * - :eql:op:`anytype \> anytype <GT>`
-      - :eql:op-desc:`GT`
+    * - :eql:op:`anytype \> anytype <gt>`
+      - :eql:op-desc:`gt`
 
-    * - :eql:op:`anytype \<= anytype <LTEQ>`
-      - :eql:op-desc:`LTEQ`
+    * - :eql:op:`anytype \<= anytype <lteq>`
+      - :eql:op-desc:`lteq`
 
-    * - :eql:op:`anytype \>= anytype <GTEQ>`
-      - :eql:op-desc:`GTEQ`
+    * - :eql:op:`anytype \>= anytype <gteq>`
+      - :eql:op-desc:`gteq`
 
     * - :eql:func:`len`
       - :eql:func-desc:`len`
@@ -45,94 +45,94 @@ Generic
 -----------
 
 
-.. eql:operator:: EQ: anytype = anytype -> bool
+.. eql:operator:: eq: anytype = anytype -> bool
 
     Compare two values for equality.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 3 = 3.0;
+        db> select 3 = 3.0;
         {true}
-        db> SELECT 3 = 3.14;
+        db> select 3 = 3.14;
         {false}
-        db> SELECT [1, 2] = [1, 2];
+        db> select [1, 2] = [1, 2];
         {true}
-        db> SELECT (1, 2) = (x := 1, y := 2);
+        db> select (1, 2) = (x := 1, y := 2);
         {true}
-        db> SELECT (x := 1, y := 2) = (a := 1, b := 2);
+        db> select (x := 1, y := 2) = (a := 1, b := 2);
         {true}
-        db> SELECT 'hello' = 'world';
+        db> select 'hello' = 'world';
         {false}
 
 
 ----------
 
 
-.. eql:operator:: NEQ: anytype != anytype -> bool
+.. eql:operator:: neq: anytype != anytype -> bool
 
     Compare two values for inequality.
 
     .. code-block:: edgeql-repl
 
 
-        db> SELECT 3 != 3.0;
+        db> select 3 != 3.0;
         {false}
-        db> SELECT 3 != 3.14;
+        db> select 3 != 3.14;
         {true}
-        db> SELECT [1, 2] != [2, 1];
+        db> select [1, 2] != [2, 1];
         {false}
-        db> SELECT (1, 2) != (x := 1, y := 2);
+        db> select (1, 2) != (x := 1, y := 2);
         {false}
-        db> SELECT (x := 1, y := 2) != (a := 1, b := 2);
+        db> select (x := 1, y := 2) != (a := 1, b := 2);
         {false}
-        db> SELECT 'hello' != 'world';
+        db> select 'hello' != 'world';
         {true}
 
 
 ----------
 
 
-.. eql:operator:: COALEQ: OPTIONAL anytype ?= OPTIONAL anytype -> bool
+.. eql:operator:: coaleq: optional anytype ?= optional anytype -> bool
 
     Compare two (potentially empty) values for equality.
 
-    Works the same as regular :eql:op:`=<EQ>`, but also allows
+    Works the same as regular :eql:op:`=<eq>`, but also allows
     comparing ``{}``.  Two ``{}`` are considered equal.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT {1} ?= {1.0};
+        db> select {1} ?= {1.0};
         {true}
-        db> SELECT {1} ?= <int64>{};
+        db> select {1} ?= <int64>{};
         {false}
-        db> SELECT <int64>{} ?= <int64>{};
+        db> select <int64>{} ?= <int64>{};
         {true}
 
 
 ----------
 
 
-.. eql:operator:: COALNEQ: OPTIONAL anytype ?!= OPTIONAL anytype -> bool
+.. eql:operator:: coalneq: optional anytype ?!= optional anytype -> bool
 
     Compare two (potentially empty) values for inequality.
 
-    Works the same as regular :eql:op:`\!= <NEQ>`, but also allows
+    Works the same as regular :eql:op:`\!= <neq>`, but also allows
     comparing ``{}``.  Two ``{}`` are considered equal.
 
     .. code-block:: edgeql-repl
 
-        db> SELECT {2} ?!= {2};
+        db> select {2} ?!= {2};
         {false}
-        db> SELECT {1} ?!= <int64>{};
+        db> select {1} ?!= <int64>{};
         {true}
-        db> SELECT <bool>{} ?!= <bool>{};
+        db> select <bool>{} ?!= <bool>{};
         {false}
 
 
 ----------
 
 
-.. eql:operator:: LT: anytype < anytype -> bool
+.. eql:operator:: lt: anytype < anytype -> bool
 
     Less than operator.
 
@@ -154,7 +154,7 @@ Generic
 ----------
 
 
-.. eql:operator:: GT: anytype > anytype -> bool
+.. eql:operator:: gt: anytype > anytype -> bool
 
     Greater than operator.
 
@@ -164,9 +164,9 @@ Generic
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 1 > 2;
+        db> select 1 > 2;
         {false}
-        db> SELECT 3 > 2;
+        db> select 3 > 2;
         {true}
         db> select 'hello' > 'world';
         {false}
@@ -177,7 +177,7 @@ Generic
 ----------
 
 
-.. eql:operator:: LTEQ: anytype <= anytype -> bool
+.. eql:operator:: lteq: anytype <= anytype -> bool
 
     Less or equal operator.
 
@@ -188,7 +188,7 @@ Generic
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 1 <= 2;
+        db> select 1 <= 2;
         {true}
         db> select 2 <= 2;
         {true}
@@ -203,7 +203,7 @@ Generic
 ----------
 
 
-.. eql:operator:: GTEQ: anytype >= anytype -> bool
+.. eql:operator:: gteq: anytype >= anytype -> bool
 
     Greater or equal operator.
 
@@ -214,11 +214,11 @@ Generic
 
     .. code-block:: edgeql-repl
 
-        db> SELECT 1 >= 2;
+        db> select 1 >= 2;
         {false}
-        db> SELECT 2 >= 2;
+        db> select 2 >= 2;
         {true}
-        db> SELECT 3 >= 2;
+        db> select 3 >= 2;
         {true}
         db> select 'hello' >= 'world';
         {false}
@@ -244,13 +244,13 @@ Generic
 
     .. code-block:: edgeql-repl
 
-        db> SELECT len('foo');
+        db> select len('foo');
         {3}
 
-        db> SELECT len(b'bar');
+        db> select len(b'bar');
         {3}
 
-        db> SELECT len([2, 5, 7]);
+        db> select len([2, 5, 7]);
         {3}
 
 
@@ -275,13 +275,13 @@ Generic
 
     .. code-block:: edgeql-repl
 
-        db> SELECT contains('qwerty', 'we');
+        db> select contains('qwerty', 'we');
         {true}
 
-        db> SELECT contains(b'qwerty', b'42');
+        db> select contains(b'qwerty', b'42');
         {false}
 
-        db> SELECT contains([2, 5, 7, 2, 100], 2);
+        db> select contains([2, 5, 7, 2, 100], 2);
         {true}
 
 
@@ -310,16 +310,16 @@ Generic
 
     .. code-block:: edgeql-repl
 
-        db> SELECT find('qwerty', 'we');
+        db> select find('qwerty', 'we');
         {1}
 
-        db> SELECT find(b'qwerty', b'42');
+        db> select find(b'qwerty', b'42');
         {-1}
 
-        db> SELECT find([2, 5, 7, 2, 100], 2);
+        db> select find([2, 5, 7, 2, 100], 2);
         {0}
 
-        db> SELECT find([2, 5, 7, 2, 100], 2, 1);
+        db> select find([2, 5, 7, 2, 100], 2, 1);
         {3}
 
 

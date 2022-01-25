@@ -18,7 +18,7 @@ the end of the that string:
 
     function foo(s: str) -> str
         using (
-            SELECT s ++ <str>len(a)
+            select s ++ <str>len(a)
         );
 
 .. _ref_eql_sdl_functions_syntax:

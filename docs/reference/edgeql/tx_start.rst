@@ -24,23 +24,23 @@
 
 .. _ref_eql_statements_start_tx:
 
-START TRANSACTION
+Start transaction
 =================
 
 :eql-statement:
 
 
-``START TRANSACTION`` -- start a transaction
+``start transaction`` -- start a transaction
 
 .. eql:synopsis::
 
-    START TRANSACTION <transaction-mode> [ , ... ] ;
+    start transaction <transaction-mode> [ , ... ] ;
 
     # where <transaction-mode> is one of:
 
-    ISOLATION { SERIALIZABLE | REPEATABLE READ }
-    READ WRITE | READ ONLY
-    DEFERRABLE | NOT DEFERRABLE
+    isolation { serializable | repeatable read }
+    read write | read only
+    deferrable | not deferrable
 
 
 Description
@@ -60,7 +60,7 @@ Parameters
 
 The :eql:synopsis:`<transaction-mode>` can be one of the following:
 
-:eql:synopsis:`ISOLATION SERIALIZABLE`
+:eql:synopsis:`isolation serializable`
     All statements of the current transaction can only see data
     changes committed before the first query or data-modification
     statement was executed in this transaction.  If a pattern
@@ -70,32 +70,30 @@ The :eql:synopsis:`<transaction-mode>` can be one of the following:
     transactions, one of them will be rolled back with a
     serialization_failure error.
 
-:eql:synopsis:`ISOLATION REPEATABLE READ`
+:eql:synopsis:`isolation repeatable read`
     All statements of the current transaction can only see data
     committed before the first query or data-modification statement
     was executed in this transaction.
 
     This is the default.
 
-:eql:synopsis:`READ WRITE`
+:eql:synopsis:`read write`
     Sets the transaction access mode to read/write.
 
     This is the default.
 
-:eql:synopsis:`READ ONLY`
+:eql:synopsis:`read only`
     Sets the transaction access mode to read-only.  Any data
-    modifications with :ref:`INSERT <ref_eql_statements_insert>`,
-    :ref:`UPDATE <ref_eql_statements_update>`, or
-    :ref:`DELETE <ref_eql_statements_delete>` are disallowed.
-    Schema mutations via :ref:`DDL <ref_eql_ddl>` are also
-    disallowed.
+    modifications with :eql:stmt:`insert`, :eql:stmt:`update`, or
+    :eql:stmt:`delete` are disallowed. Schema mutations via :ref:`DDL
+    <ref_eql_ddl>` are also disallowed.
 
-:eql:synopsis:`DEFERRABLE`
+:eql:synopsis:`deferrable`
     The transaction can be set to deferrable mode only when it is
-    ``SERIALIZABLE`` and ``READ ONLY``.  When all three of these
+    ``serializable`` and ``read only``.  When all three of these
     properties are selected for a transaction, the transaction
     may block when first acquiring its snapshot, after which it is
-    able to run without the normal overhead of a ``SERIALIZABLE``
+    able to run without the normal overhead of a ``serializable``
     transaction and without any risk of contributing to or being
     canceled by a serialization failure. This mode is well suited
     for long-running reports or backups.
@@ -108,28 +106,28 @@ Start a new transaction and rollback it:
 
 .. code-block:: edgeql
 
-    START TRANSACTION;
-    SELECT 'Hello World!';
-    ROLLBACK;
+    start transaction;
+    select 'Hello World!';
+    rollback;
 
 Start a serializable deferrable transaction:
 
 .. code-block:: edgeql
 
-    START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY, DEFERRABLE;
+    start transaction isolation serializable, read only, deferrable;
 
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`Reference > EdgeQL > COMMIT
+  * - :ref:`Reference > EdgeQL > Commit
       <ref_eql_statements_commit_tx>`
-  * - :ref:`Reference > EdgeQL > ROLLBACK
-      <ref_eql_statements_rollback_tx>`,
-  * - :ref:`Reference > EdgeQL > DECLARE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Rollabck
+      <ref_eql_statements_rollback_tx>`
+  * - :ref:`Reference > EdgeQL > Declare savepoint
       <ref_eql_statements_declare_savepoint>`
-  * - :ref:`Reference > EdgeQL > ROLLBACK TO SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Rollback to savepoint
       <ref_eql_statements_rollback_savepoint>`
-  * - :ref:`Reference > EdgeQL > RELEASE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Release savepoint
       <ref_eql_statements_release_savepoint>`

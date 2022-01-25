@@ -8,7 +8,7 @@ This section describes the DDL commands pertaining to
 :ref:`expression aliases <ref_datamodel_aliases>`.
 
 
-CREATE ALIAS
+Create alias
 ============
 
 :eql-statement:
@@ -18,26 +18,26 @@ CREATE ALIAS
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    CREATE ALIAS <alias-name> := <alias-expr> ;
+    [ with <with-item> [, ...] ]
+    create alias <alias-name> := <alias-expr> ;
 
-    [ WITH <with-item> [, ...] ]
-    CREATE ALIAS <alias-name> "{"
-        USING <alias-expr>;
-        [ CREATE ANNOTATION <attr-name> := <attr-value>; ... ]
+    [ with <with-item> [, ...] ]
+    create alias <alias-name> "{"
+        using <alias-expr>;
+        [ create annotation <attr-name> := <attr-value>; ... ]
     "}" ;
 
     # where <with-item> is:
 
-    [ <module-alias> := ] MODULE <module-name>
+    [ <module-alias> := ] module <module-name>
 
 
 Description
 -----------
 
-``CREATE ALIAS`` defines a new expression alias in the schema.
+The command ``create alias`` defines a new expression alias in the schema.
 The schema-level expression aliases are functionally equivalent
-to expression aliases defined in a statement :ref:`WITH block
+to expression aliases defined in a statement :ref:`with block
 <ref_eql_statements_with>`, but are available to all queries using the schema
 and can be introspected.
 
@@ -54,13 +54,13 @@ Most sub-commands and options of this command are identical to the
 :ref:`SDL alias declaration <ref_eql_sdl_aliases_syntax>`, with some
 additional features listed below:
 
-:eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
+:eql:synopsis:`[ <module-alias> := ] module <module-name>`
     An optional list of module alias declarations to be used in the
     alias definition.
 
-:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
+:eql:synopsis:`create annotation <annotation-name> := <value>;`
     An optional list of annotation values for the alias.
-    See :eql:stmt:`CREATE ANNOTATION` for details.
+    See :eql:stmt:`create annotation` for details.
 
 
 Example
@@ -70,12 +70,12 @@ Create a new alias:
 
 .. code-block:: edgeql
 
-    CREATE ALIAS Superusers := (
-        SELECT User FILTER User.groups.name = 'Superusers'
+    create alias Superusers := (
+        select User filter User.groups.name = 'Superusers'
     );
 
 
-DROP ALIAS
+Drop alias
 ==========
 
 :eql-statement:
@@ -86,14 +86,14 @@ Remove an expression alias from the schema.
 
 .. eql:synopsis::
 
-    [ WITH <with-item> [, ...] ]
-    DROP ALIAS <alias-name> ;
+    [ with <with-item> [, ...] ]
+    drop alias <alias-name> ;
 
 
 Description
 -----------
 
-``DROP ALIAS`` removes an expression alias from the schema.
+The command ``drop alias`` removes an expression alias from the schema.
 
 
 Parameters
@@ -111,7 +111,7 @@ Remove an alias:
 
 .. code-block:: edgeql
 
-    DROP ALIAS SuperUsers;
+    drop alias SuperUsers;
 
 
 .. list-table::

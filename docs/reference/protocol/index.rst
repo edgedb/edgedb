@@ -322,14 +322,14 @@ Implicit Transactions
 
 All EdgeDB commands (with the exception of a few DDL commands) execute in
 a transaction block.  An *explicit* transaction block is started by a
-:eql:stmt:`START TRANSACTION` command.  If not within an explicit transaction,
+:eql:stmt:`start transaction` command.  If not within an explicit transaction,
 an *implicit* transaction block is started when the first message is received
-by the server.  If a ``START TRANSACTION`` command is executed in an implicit
+by the server.  If a ``start transaction`` command is executed in an implicit
 transaction block, that block becomes explicit.  An implicit transaction block
 ends if:
 
-* a :eql:stmt:`COMMIT` command is executed,
-* a :eql:stmt:`ROLLBACK` command is executed,
+* a :eql:stmt:`commit` command is executed,
+* a :eql:stmt:`rollback` command is executed,
 * a :ref:`ref_protocol_msg_sync` message is received.
 
 

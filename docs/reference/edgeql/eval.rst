@@ -7,11 +7,11 @@ Evaluation algorithm
 EdgeQL is a functional language in the sense that every expression is
 a composition of one or more queries.
 
-Queries can be *explicit*, such as a :eql:stmt:`SELECT` statement,
+Queries can be *explicit*, such as a :eql:stmt:`select` statement,
 or *implicit*, as dictated by the semantics of a function, operator or
 a statement clause.
 
-An implicit ``SELECT`` subquery is assumed in the following situations:
+An implicit ``select`` subquery is assumed in the following situations:
 
 - expressions passed as an argument for an aggregate function parameter
   or operand;
@@ -38,7 +38,7 @@ A query is evaluated recursively using the following procedure:
 
    .. code-block:: edgeql
 
-      SELECT (
+      select (
         User.firstname,
         User.friends.firstname,
         User.friends.lastname,
@@ -95,7 +95,7 @@ A query is evaluated recursively using the following procedure:
 
      * a function or an operator is evaluated in a loop over a Cartesian
        product of its non-aggregate arguments
-       (empty ``OPTIONAL`` arguments are excluded from the product);
+       (empty ``optional`` arguments are excluded from the product);
        aggregate arguments are passed as a whole set;
        the results of the invocations are collected to form a single set.
 

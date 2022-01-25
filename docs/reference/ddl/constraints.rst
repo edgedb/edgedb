@@ -8,7 +8,7 @@ This section describes the DDL commands pertaining to
 :ref:`constraints <ref_datamodel_constraints>`.
 
 
-CREATE ABSTRACT CONSTRAINT
+Create abstract constraint
 ==========================
 
 :eql-statement:
@@ -18,10 +18,10 @@ CREATE ABSTRACT CONSTRAINT
 
 .. eql:synopsis::
 
-    [ WITH [ <module-alias> := ] MODULE <module-name> ]
-    CREATE ABSTRACT CONSTRAINT <name> [ ( [<argspec>] [, ...] ) ]
-      [ ON ( <subject-expr> ) ]
-      [ EXTENDING <base> [, ...] ]
+    [ with [ <module-alias> := ] module <module-name> ]
+    create abstract constraint <name> [ ( [<argspec>] [, ...] ) ]
+      [ on ( <subject-expr> ) ]
+      [ extending <base> [, ...] ]
     "{" <subcommand>; [...] "}" ;
 
     # where <argspec> is:
@@ -30,15 +30,15 @@ CREATE ABSTRACT CONSTRAINT
 
     # where <subcommand> is one of
 
-      USING <constr-expression>
-      SET errmessage := <error-message>
-      CREATE ANNOTATION <annotation-name> := <value>
+      using <constr-expression>
+      set errmessage := <error-message>
+      create annotation <annotation-name> := <value>
 
 
 Description
 -----------
 
-``CREATE ABSTRACT CONSTRAINT`` defines a new abstract constraint.
+The command ``create abstract constraint`` defines a new abstract constraint.
 
 If *name* is qualified with a module name, then the constraint is
 created in that module, otherwise it is created in the current module.
@@ -53,23 +53,23 @@ Most sub-commands and options of this command are identical to the
 :ref:`SDL constraint declaration <ref_eql_sdl_constraints_syntax>`,
 with some additional features listed below:
 
-:eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
+:eql:synopsis:`[ <module-alias> := ] module <module-name>`
     An optional list of module alias declarations to be used in the
     migration definition.  When *module-alias* is not specified,
     *module-name* becomes the effective current module and is used
     to resolve all unqualified names.
 
-:eql:synopsis:`SET errmessage := <error_message>`
+:eql:synopsis:`set errmessage := <error_message>`
     An optional string literal defining the error message template
     that is raised when the constraint is violated. Other than a
     slight syntactical difference this is the same as the
     corresponding SDL declaration.
 
-:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
+:eql:synopsis:`create annotation <annotation-name> := <value>;`
     Set constraint :eql:synopsis:`<annotation-name>` to
     :eql:synopsis:`<value>`.
 
-    See :eql:stmt:`CREATE ANNOTATION` for details.
+    See :eql:stmt:`create annotation` for details.
 
 
 Example
@@ -80,14 +80,14 @@ is a string in upper case.
 
 .. code-block:: edgeql
 
-    CREATE ABSTRACT CONSTRAINT uppercase {
-        CREATE ANNOTATION title := "Upper case constraint";
-        USING (str_upper(__subject__) = __subject__);
-        SET errmessage := "{__subject__} is not in upper case";
+    create abstract constraint uppercase {
+        create annotation title := "Upper case constraint";
+        using (str_upper(__subject__) = __subject__);
+        set errmessage := "{__subject__} is not in upper case";
     };
 
 
-ALTER ABSTRACT CONSTRAINT
+Alter abstract constraint
 =========================
 
 :eql-statement:
@@ -98,33 +98,33 @@ Alter the definition of an
 
 .. eql:synopsis::
 
-    [ WITH [ <module-alias> := ] MODULE <module-name> ]
-    ALTER ABSTRACT CONSTRAINT <name>
+    [ with [ <module-alias> := ] module <module-name> ]
+    alter abstract constraint <name>
     "{" <subcommand>; [...] "}" ;
 
     # where <subcommand> is one of
 
-      RENAME TO <newname>
-      USING <constr-expression>
-      SET errmessage := <error-message>
-      RESET errmessage
-      CREATE ANNOTATION <annotation-name> := <value>
-      ALTER ANNOTATION <annotation-name> := <value>
-      DROP ANNOTATION <annotation-name>
+      rename to <newname>
+      using <constr-expression>
+      set errmessage := <error-message>
+      reset errmessage
+      create annotation <annotation-name> := <value>
+      alter annotation <annotation-name> := <value>
+      drop annotation <annotation-name>
 
 
 Description
 -----------
 
-``ALTER ABSTRACT CONSTRAINT`` changes the definition of an abstract constraint
-item.  *name* must be a name of an existing abstract constraint, optionally
-qualified with a module name.
+The command ``alter abstract constraint`` changes the definition of an
+abstract constraint item.  *name* must be a name of an existing
+abstract constraint, optionally qualified with a module name.
 
 
 Parameters
 ----------
 
-:eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
+:eql:synopsis:`[ <module-alias> := ] module <module-name>`
     An optional list of module alias declarations to be used in the
     migration definition.  When *module-alias* is not specified,
     *module-name* becomes the effective current module and is used
@@ -133,28 +133,28 @@ Parameters
 :eql:synopsis:`<name>`
     The name (optionally module-qualified) of the constraint to alter.
 
-The following subcommands are allowed in the ``ALTER ABSTRACT
-CONSTRAINT`` block:
+The following subcommands are allowed in the ``alter abstract
+constraint`` block:
 
-:eql:synopsis:`RENAME TO <newname>`
+:eql:synopsis:`rename to <newname>`
     Change the name of the constraint to *newname*.  All concrete
     constraints inheriting from this constraint are also renamed.
 
-:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+:eql:synopsis:`alter annotation <annotation-name>;`
     Alter constraint :eql:synopsis:`<annotation-name>`.
-    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
+    See :eql:stmt:`alter annotation` for details.
 
-:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
+:eql:synopsis:`drop annotation <annotation-name>;`
     Remove constraint :eql:synopsis:`<annotation-name>`.
-    See :eql:stmt:`DROP ANNOTATION <DROP ANNOTATION>` for details.
+    See :eql:stmt:`drop annotation` for details.
 
-:eql:synopsis:`RESET errmessage;`
+:eql:synopsis:`reset errmessage;`
     Remove the error message from this abstract constraint.
     The error message specified in the base abstract constraint
     will be used instead.
 
-All the subcommands allowed in a ``CREATE ABSTRACT CONSTRAINT`` block
-are also valid subcommands for an ``ALTER ABSTRACT CONSTRAINT`` block.
+All the subcommands allowed in a ``create abstract constraint`` block
+are also valid subcommands for an ``alter abstract constraint`` block.
 
 
 Example
@@ -164,10 +164,10 @@ Rename the abstract constraint "uppercase"  to "upper_case":
 
 .. code-block:: edgeql
 
-    ALTER ABSTRACT CONSTRAINT uppercase RENAME TO upper_case;
+    alter abstract constraint uppercase rename to upper_case;
 
 
-DROP ABSTRACT CONSTRAINT
+Drop abstract constraint
 ========================
 
 :eql-statement:
@@ -179,22 +179,22 @@ from the schema.
 
 .. eql:synopsis::
 
-    [ WITH [ <module-alias> := ] MODULE <module-name> ]
-    DROP ABSTRACT CONSTRAINT <name> ;
+    [ with [ <module-alias> := ] module <module-name> ]
+    drop abstract constraint <name> ;
 
 
 Description
 -----------
 
-``DROP ABSTRACT CONSTRAINT`` removes an existing abstract constraint
-item from the database schema.  If any schema items depending on this
-constraint exist, the operation is refused.
+The command ``drop abstract constraint`` removes an existing abstract
+constraint item from the database schema.  If any schema items
+depending on this constraint exist, the operation is refused.
 
 
 Parameters
 ----------
 
-:eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
+:eql:synopsis:`[ <module-alias> := ] module <module-name>`
     An optional list of module alias declarations to be used in the
     migration definition.  When *module-alias* is not specified,
     *module-name* becomes the effective current module and is used
@@ -211,10 +211,10 @@ Drop abstract constraint ``upper_case``:
 
 .. code-block:: edgeql
 
-    DROP ABSTRACT CONSTRAINT upper_case;
+    drop abstract constraint upper_case;
 
 
-CREATE CONSTRAINT
+Create constraint
 =================
 
 :eql-statement:
@@ -223,10 +223,10 @@ Define a concrete constraint on the specified schema item.
 
 .. eql:synopsis::
 
-    [ WITH [ <module-alias> := ] MODULE <module-name> ]
-    CREATE [ DELEGATED ] CONSTRAINT <name>
+    [ with [ <module-alias> := ] module <module-name> ]
+    create [ delegated ] constraint <name>
       [ ( [<argspec>] [, ...] ) ]
-      [ ON ( <subject-expr> ) ]
+      [ on ( <subject-expr> ) ]
     "{" <subcommand>; [...] "}" ;
 
     # where <argspec> is:
@@ -235,18 +235,18 @@ Define a concrete constraint on the specified schema item.
 
     # where <subcommand> is one of
 
-      SET errmessage := <error-message>
-      CREATE ANNOTATION <annotation-name> := <value>
+      set errmessage := <error-message>
+      create annotation <annotation-name> := <value>
 
 
 Description
 -----------
 
-``CREATE CONSTRAINT`` defines a new concrete constraint.  It can only be
-used in the context of :eql:stmt:`CREATE SCALAR TYPE`,
-:eql:stmt:`ALTER SCALAR TYPE`, :eql:stmt:`CREATE PROPERTY`,
-:eql:stmt:`ALTER PROPERTY`, :eql:stmt:`CREATE LINK`, or
-:eql:Stmt:`ALTER LINK`.
+The command ``create constraint`` defines a new concrete constraint.
+It can only be used in the context of :eql:stmt:`create scalar type`,
+:eql:stmt:`alter scalar type`, :eql:stmt:`create property`,
+:eql:stmt:`alter property`, :eql:stmt:`create link`, or
+:eql:Stmt:`alter link`.
 
 *name* must be a name (optionally module-qualified) of previously defined
 abstract constraint.
@@ -259,21 +259,21 @@ Most sub-commands and options of this command are identical to the
 :ref:`SDL constraint declaration <ref_eql_sdl_constraints_syntax>`,
 with some additional features listed below:
 
-:eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
+:eql:synopsis:`[ <module-alias> := ] module <module-name>`
     An optional list of module alias declarations to be used in the
     migration definition.  When *module-alias* is not specified,
     *module-name* becomes the effective current module and is used
     to resolve all unqualified names.
 
-:eql:synopsis:`SET errmessage := <error_message>`
+:eql:synopsis:`set errmessage := <error_message>`
     An optional string literal defining the error message template
     that is raised when the constraint is violated. Other than a
     slight syntactical difference this is the same as the
     corresponding SDL declaration.
 
-:eql:synopsis:`CREATE ANNOTATION <annotation-name> := <value>;`
+:eql:synopsis:`create annotation <annotation-name> := <value>;`
     An optional list of annotations for the constraint.
-    See :eql:stmt:`CREATE ANNOTATION` for details.
+    See :eql:stmt:`create annotation` for details.
 
 
 Example
@@ -284,24 +284,24 @@ constraint:
 
 .. code-block:: edgeql
 
-    ALTER TYPE User CREATE PROPERTY score -> int64 {
-        CREATE CONSTRAINT min_value(0)
+    alter type User create property score -> int64 {
+        create constraint min_value(0)
     };
 
 Create a Vector with a maximum magnitude:
 
 .. code-block:: edgeql
 
-    CREATE TYPE Vector {
-        CREATE REQUIRED PROPERTY x -> float64;
-        CREATE REQUIRED PROPERTY y -> float64;
-        CREATE CONSTRAINT expression ON (
+    create type Vector {
+        create required property x -> float64;
+        create required property y -> float64;
+        create constraint expression ON (
             __subject__.x^2 + __subject__.y^2 < 25
         );
     }
 
 
-ALTER CONSTRAINT
+Alter constraint
 ================
 
 :eql-statement:
@@ -310,43 +310,43 @@ Alter the definition of a concrete constraint on the specified schema item.
 
 .. eql:synopsis::
 
-    [ WITH [ <module-alias> := ] MODULE <module-name> [, ...] ]
-    ALTER CONSTRAINT <name>
+    [ with [ <module-alias> := ] module <module-name> [, ...] ]
+    alter constraint <name>
       [ ( [<argspec>] [, ...] ) ]
-      [ ON ( <subject-expr> ) ]
+      [ on ( <subject-expr> ) ]
     "{" <subcommand>; [ ... ] "}" ;
 
     # -- or --
 
-    [ WITH [ <module-alias> := ] MODULE <module-name> [, ...] ]
-    ALTER CONSTRAINT <name>
+    [ with [ <module-alias> := ] module <module-name> [, ...] ]
+    alter constraint <name>
       [ ( [<argspec>] [, ...] ) ]
-      [ ON ( <subject-expr> ) ]
+      [ on ( <subject-expr> ) ]
       <subcommand> ;
 
     # where <subcommand> is one of:
 
-      SET DELEGATED
-      SET NOT DELEGATED
-      SET errmessage := <error-message>
-      RESET errmessage
-      CREATE ANNOTATION <annotation-name> := <value>
-      ALTER ANNOTATION <annotation-name>
-      DROP ANNOTATION <annotation-name>
+      set delegated
+      set not delegated
+      set errmessage := <error-message>
+      reset errmessage
+      create annotation <annotation-name> := <value>
+      alter annotation <annotation-name>
+      drop annotation <annotation-name>
 
 
 Description
 -----------
 
-``ALTER CONSTRAINT`` changes the definition of a concrete constraint.
-As for most ``ALTER`` commands, both single- and multi-command forms are
-supported.
+The command ``alter constraint`` changes the definition of a concrete
+constraint. As for most ``alter`` commands, both single- and
+multi-command forms are supported.
 
 
 Parameters
 ----------
 
-:eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
+:eql:synopsis:`[ <module-alias> := ] module <module-name>`
     An optional list of module alias declarations to be used in the
     migration definition.  When *module-alias* is not specified,
     *module-name* becomes the effective current module and is used
@@ -358,37 +358,37 @@ Parameters
 
 :eql:synopsis:`<argspec>`
     A list of constraint arguments as specified at the time of
-    ``CREATE CONSTRAINT``.
+    ``create constraint``.
 
-:eql:synopsis:`ON ( <subject-expr> )`
+:eql:synopsis:`on ( <subject-expr> )`
     A expression defining the *subject* of the constraint as specified
-    at the time of ``CREATE CONSTRAINT``.
+    at the time of ``create constraint``.
 
 
-The following subcommands are allowed in the ``ALTER CONSTRAINT`` block:
+The following subcommands are allowed in the ``alter constraint`` block:
 
-:eql:synopsis:`SET DELEGATED`
+:eql:synopsis:`set delegated`
     Makes the constraint delegated.
 
-:eql:synopsis:`SET NOT DELEGATED`
+:eql:synopsis:`set not delegated`
     Makes the constraint non-delegated.
 
-:eql:synopsis:`RENAME TO <newname>`
+:eql:synopsis:`rename to <newname>`
     Change the name of the constraint to :eql:synopsis:`<newname>`.
 
-:eql:synopsis:`ALTER ANNOTATION <annotation-name>;`
+:eql:synopsis:`alter annotation <annotation-name>;`
     Alter constraint :eql:synopsis:`<annotation-name>`.
-    See :eql:stmt:`ALTER ANNOTATION <ALTER ANNOTATION>` for details.
+    See :eql:stmt:`alter annotation` for details.
 
-:eql:synopsis:`DROP ANNOTATION <annotation-name>;`
-    Remove an *annotation*. See :eql:stmt:`DROP ANNOTATION` for details.
+:eql:synopsis:`drop annotation <annotation-name>;`
+    Remove an *annotation*. See :eql:stmt:`drop annotation` for details.
 
-:eql:synopsis:`RESET errmessage;`
+:eql:synopsis:`reset errmessage;`
     Remove the error message from this constraint. The error message
     specified in the abstract constraint will be used instead.
 
-All the subcommands allowed in the ``CREATE CONSTRAINT`` block are also
-valid subcommands for ``ALTER CONSTRAINT`` block.
+All the subcommands allowed in the ``create constraint`` block are also
+valid subcommands for ``alter constraint`` block.
 
 Example
 -------
@@ -398,12 +398,12 @@ Change the error message on the minimum value constraint on the property
 
 .. code-block:: edgeql
 
-    ALTER TYPE User ALTER PROPERTY score
-    ALTER CONSTRAINT min_value(0)
-    SET errmessage := 'Score cannot be negative';
+    alter type User alter property score
+        alter constraint min_value(0)
+            set errmessage := 'Score cannot be negative';
 
 
-DROP CONSTRAINT
+Drop constraint
 ===============
 
 :eql-statement:
@@ -413,23 +413,23 @@ Remove a concrete constraint from the specified schema item.
 
 .. eql:synopsis::
 
-    [ WITH [ <module-alias> := ] MODULE <module-name> [, ...] ]
-    DROP CONSTRAINT <name>
+    [ with [ <module-alias> := ] module <module-name> [, ...] ]
+    drop constraint <name>
       [ ( [<argspec>] [, ...] ) ]
-      [ ON ( <subject-expr> ) ] ;
+      [ on ( <subject-expr> ) ] ;
 
 
 Description
 -----------
 
-``DROP CONSTRAINT`` removes the specified constraint from its
-containing schema item.
+The command ``drop constraint`` removes the specified constraint from
+its containing schema item.
 
 
 Parameters
 ----------
 
-:eql:synopsis:`[ <module-alias> := ] MODULE <module-name>`
+:eql:synopsis:`[ <module-alias> := ] module <module-name>`
     An optional list of module alias declarations to be used in the
     migration definition.  When *module-alias* is not specified,
     *module-name* becomes the effective current module and is used
@@ -441,11 +441,11 @@ Parameters
 
 :eql:synopsis:`<argspec>`
     A list of constraint arguments as specified at the time of
-    ``CREATE CONSTRAINT``.
+    ``create constraint``.
 
-:eql:synopsis:`ON ( <subject-expr> )`
+:eql:synopsis:`on ( <subject-expr> )`
     A expression defining the *subject* of the constraint as specified
-    at the time of ``CREATE CONSTRAINT``.
+    at the time of ``create constraint``.
 
 
 Example
@@ -456,8 +456,8 @@ Remove constraint "min_value" from the property "score" of the
 
 .. code-block:: edgeql
 
-    ALTER TYPE User ALTER PROPERTY score
-    DROP CONSTRAINT min_value(0);
+    alter type User alter property score
+        drop constraint min_value(0);
 
 
 .. list-table::

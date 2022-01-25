@@ -1,7 +1,7 @@
 .. _ref_admin_databases:
 
 ========
-DATABASE
+Database
 ========
 
 :edb-alt-title: Databases
@@ -11,7 +11,7 @@ This section describes the administrative commands pertaining to
 :ref:`databases <ref_datamodel_databases>`.
 
 
-CREATE DATABASE
+Create database
 ===============
 
 :eql-statement:
@@ -20,12 +20,12 @@ Create a new database.
 
 .. eql:synopsis::
 
-    CREATE DATABASE <name> ;
+    create database <name> ;
 
 Description
 -----------
 
-``CREATE DATABASE`` creates a new EdgeDB database.
+The command ``create database`` creates a new EdgeDB database.
 
 The new database will be created with all standard schemas prepopulated.
 
@@ -36,10 +36,10 @@ Create a new database:
 
 .. code-block:: edgeql
 
-    CREATE DATABASE appdb;
+    create database appdb;
 
 
-DROP DATABASE
+Drop database
 =============
 
 :eql-statement:
@@ -48,17 +48,18 @@ Remove a database.
 
 .. eql:synopsis::
 
-    DROP DATABASE <name> ;
+    drop database <name> ;
 
 Description
 -----------
 
-``DROP DATABASE`` removes an existing database.  It cannot be executed
-while there are existing connections to the target database.
+The command ``drop database`` removes an existing database.  It cannot
+be executed while there are existing connections to the target
+database.
 
 .. warning::
 
-    ``DROP DATABASE`` removes data permanently and cannot be undone.
+    Executing ``drop database`` removes data permanently and cannot be undone.
 
 Examples
 --------
@@ -67,4 +68,4 @@ Remove a database:
 
 .. code-block:: edgeql
 
-    DROP DATABASE appdb;
+    drop database appdb;

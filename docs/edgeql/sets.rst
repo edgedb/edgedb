@@ -43,7 +43,7 @@ list of values inside a set of ``{curly braces}``.
   {1, 2, 3}
 
 In actuality, curly braces are a syntactic sugar for the
-:eql:op:`union <UNION>` operator. The  previous examples are perfectly
+:eql:op:`union` operator. The  previous examples are perfectly
 equivalent to the following:
 
 .. code-block:: edgeql-repl
@@ -135,7 +135,7 @@ Empty sets
 ----------
 
 The reason EdgeQL introduced the concept of *sets* is to eliminate the concept
-of ``NULL``. In SQL databases ``NULL`` is a special value denoting the absence
+of ``null``. In SQL databases ``null`` is a special value denoting the absence
 of data; in EdgeDB the absence of data is just an empty set.
 
 .. note::
@@ -170,8 +170,8 @@ this isn't possible, so an *explicit cast* is required.
   db> select count(<str>{});
   {0}
 
-You can check whether or not a set is *empty* with the :eql:op:`exists
-<EXISTS>` operator.
+You can check whether or not a set is *empty* with the :eql:op:`exists`
+operator.
 
 .. code-block:: edgeql-repl
 
@@ -200,7 +200,7 @@ your schema.
   db> select count(User);
   {2}
 
-It may also be an *alias*, which can be defined in a :ref:`WITH block
+It may also be an *alias*, which can be defined in a :ref:`with block
 <ref_eql_with>` or as an :ref:`alias declaration <ref_eql_sdl_aliases>` in your
 schema.
 
@@ -222,7 +222,7 @@ Multisets
 
 Technically sets in EdgeDB are actually *multisets*, because they can contain
 duplicates of the same element. To eliminate duplicates, use the
-:eql:op:`distinct <DISTINCT>` set operator.
+:eql:op:`distinct` set operator.
 
 .. code-block:: edgeql-repl
 
@@ -236,7 +236,7 @@ duplicates of the same element. To eliminate duplicates, use the
 Checking membership
 -------------------
 
-Use the :eql:op:`IN` operator to check whether a set contains a particular
+Use the :eql:op:`in` operator to check whether a set contains a particular
 element.
 
 .. code-block:: edgeql-repl
@@ -252,7 +252,7 @@ element.
 Merging sets
 ------------
 
-Use the :eql:op:`UNION` operator to merge two sets.
+Use the :eql:op:`union` operator to merge two sets.
 
 .. code-block:: edgeql-repl
 
@@ -268,7 +268,7 @@ Coalescing
 ----------
 
 Occasionally in queries, you need to handle the case where a set is empty. This
-can be achieved with a coalescing operator :eql:op:`?? <COALESCE>`. This is
+can be achieved with a coalescing operator :eql:op:`?? <coalesce>`. This is
 commonly used to provide default values for optional :ref:`query parameters
 <ref_eql_params>`.
 
@@ -437,10 +437,10 @@ Reference
 .. list-table::
 
   * - Set operators
-    - :eql:op:`DISTINCT <DISTINCT>` :eql:op:`IN <IN>` :eql:op:`UNION <UNION>`
-      :eql:op:`EXISTS <EXISTS>` :eql:op:`IF..ELSE <IF..ELSE>`
-      :eql:op:`?? <COALESCE>` :eql:op:`DETACHED`
-      :eql:op:`[IS type] <ISINTERSECT>`
+    - :eql:op:`distinct` :eql:op:`in` :eql:op:`union`
+      :eql:op:`exists` :eql:op:`if..else`
+      :eql:op:`?? <coalesce>` :eql:op:`detached`
+      :eql:op:`[is type] <isintersect>`
   * - Utility functions
     - :eql:func:`count` :eql:func:`enumerate`
   * - Cardinality assertion

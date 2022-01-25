@@ -24,23 +24,23 @@
 
 .. _ref_eql_statements_declare_savepoint:
 
-DECLARE SAVEPOINT
+Declare savepoint
 =================
 
 :eql-statement:
 
 
-``DECLARE SAVEPOINT`` -- declare a savepoint within the current transaction
+``declare savepoint`` -- declare a savepoint within the current transaction
 
 .. eql:synopsis::
 
-    DECLARE SAVEPOINT <savepoint-name> ;
+    declare savepoint <savepoint-name> ;
 
 
 Description
 -----------
 
-``SAVEPOINT`` establishes a new savepoint within the current
+``savepoint`` establishes a new savepoint within the current
 transaction.
 
 A savepoint is a special mark inside a transaction that allows all
@@ -57,41 +57,41 @@ Example
 .. code-block:: edgeql
 
     # Will select no objects:
-    SELECT test::TestObject { name };
+    select test::TestObject { name };
 
-    START TRANSACTION;
+    start transaction;
 
-        INSERT test::TestObject { name := 'q1' };
-        INSERT test::TestObject { name := 'q2' };
+        insert test::TestObject { name := 'q1' };
+        insert test::TestObject { name := 'q2' };
 
         # Will select two TestObjects with names 'q1' and 'q2'
-        SELECT test::TestObject { name };
+        select test::TestObject { name };
 
-        DECLARE SAVEPOINT f1;
-            INSERT test::TestObject { name:='w1' };
+        declare savepoint f1;
+            insert test::TestObject { name:='w1' };
 
             # Will select three TestObjects with names
             # 'q1' 'q2', and 'w1'
-            SELECT test::TestObject { name };
-        ROLLBACK TO SAVEPOINT f1;
+            select test::TestObject { name };
+        rollback to savepoint f1;
 
         # Will select two TestObjects with names 'q1' and 'q2'
-        SELECT test::TestObject { name };
+        select test::TestObject { name };
 
-    ROLLBACK;
+    rollback;
 
 
 .. list-table::
   :class: seealso
 
   * - **See also**
-  * - :ref:`Reference > EdgeQL > START TRANSACTION
+  * - :ref:`Reference > EdgeQL > Start transaction
       <ref_eql_statements_start_tx>`
-  * - :ref:`Reference > EdgeQL > COMMIT
+  * - :ref:`Reference > EdgeQL > Commit
       <ref_eql_statements_commit_tx>`
-  * - :ref:`Reference > EdgeQL > ROLLBACK
-      <ref_eql_statements_rollback_tx>`,
-  * - :ref:`Reference > EdgeQL > ROLLBACK TO SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Rollabck
+      <ref_eql_statements_rollback_tx>`
+  * - :ref:`Reference > EdgeQL > Rollback to savepoint
       <ref_eql_statements_rollback_savepoint>`
-  * - :ref:`Reference > EdgeQL > RELEASE SAVEPOINT
+  * - :ref:`Reference > EdgeQL > Release savepoint
       <ref_eql_statements_release_savepoint>`

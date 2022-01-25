@@ -5,7 +5,7 @@ Casts
 =====
 
 This section describes introspection of EdgeDB :eql:op:`type casts
-<CAST>`. Features like whether the casts are implicit can be
+<cast>`. Features like whether the casts are implicit can be
 discovered by introspecting ``schema::Cast``.
 
 Introspection of the ``schema::Cast``:
