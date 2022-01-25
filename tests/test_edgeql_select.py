@@ -1295,6 +1295,24 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 OFFSET <int64>.<owner[IS Issue].number;
             """)
 
+    async def test_edgeql_select_limit_10(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'LIMIT must not be negative'):
+
+            await self.con.query("""
+                SELECT 1 LIMIT -1
+            """)
+
+    async def test_edgeql_select_offset_01(self):
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r'OFFSET must not be negative'):
+
+            await self.con.query("""
+                SELECT 1 OFFSET -1
+            """)
+
     async def test_edgeql_select_polymorphic_01(self):
         await self.assert_query_result(
             r'''
