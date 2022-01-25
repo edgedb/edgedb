@@ -49,13 +49,13 @@ Provision a PostgreSQL server.
 .. code-block:: bash
 
    $ PG_SERVER_NAME=postgres-for-edgedb
-   $ read -s PG_PASSWORD
+   $ read -rsp "Password: " PASSWORD
    $ az postgres flexible-server create \
        --resource-group $GROUP \
        --name $PG_SERVER_NAME \
        --location westus \
        --admin-user edgedb \
-       --admin-password $PG_PASSWORD \
+       --admin-password $PASSWORD \
        --sku-name Standard_D2s_v3 \
        --version 12 \
        --yes
@@ -75,13 +75,13 @@ Start an EdgeDB container.
 
 .. code-block:: bash
 
-   $ PG_HOSTNAME=$(
+   $ PG_HOST=$(
        az postgres flexible-server list \
          --resource-group $GROUP \
          --query "[?name=='$PG_SERVER_NAME'].fullyQualifiedDomainName | [0]" \
          --output tsv
      )
-   $ DSN="postgresql://edgedb:$PG_PASSWORD@$PG_HOSTNAME/postgres?sslmode=require"
+   $ DSN="postgresql://edgedb:$PASSWORD@$PG_HOST/postgres?sslmode=require"
    $ az container create \
        --resource-group $GROUP \
        --name edgedb-container-group \
@@ -89,8 +89,8 @@ Start an EdgeDB container.
        --dns-name-label edgedb \
        --ports 5656 \
        --secure-environment-variables \
-         "EDGEDB_SERVER_PASSWORD=$PG_PASSWORD" \
-         "EDGEDB_SERVER_BACKEND_DSN=$DSN"
+         "EDGEDB_SERVER_PASSWORD=$PASSWORD" \
+         "EDGEDB_SERVER_BACKEND_DSN=$DSN" \
        --environment-variables \
          EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
 
@@ -102,20 +102,16 @@ or reboots copy the certificate files and use their contents in the
 
 .. code-block:: bash
 
-   $ key="$(
-       az container exec \
-         --resource-group $GROUP \
-         --name edgedb-container-group \
-         --exec-command "cat /etc/ssl/edgedb/edbprivkey.pem" \
-       | tr -d "\r"
-     )"
-   $ cert="$(
-       az container exec \
-         --resource-group $GROUP \
-         --name edgedb-container-group \
-         --exec-command "cat /etc/ssl/edgedb/edbtlscert.pem" \
-       | tr -d "\r"
-     )"
+   $ key="$( az container exec \
+               --resource-group $GROUP \
+               --name edgedb-container-group \
+               --exec-command "cat /etc/ssl/edgedb/edbprivkey.pem" \
+             | tr -d "\r" )"
+   $ cert="$( az container exec \
+                --resource-group $GROUP \
+                --name edgedb-container-group \
+                --exec-command "cat /etc/ssl/edgedb/edbtlscert.pem" \
+             | tr -d "\r" )"
    $ az container delete \
        --resource-group $GROUP \
        --name edgedb-container-group \
@@ -138,16 +134,15 @@ machine link the instance.
 
 .. code-block:: bash
 
-   $ printf $PG_PASSWORD | edgedb instance link \
+   $ printf $PASSWORD | edgedb instance link \
        --password-from-stdin \
        --non-interactive \
        --trust-tls-cert \
-       --host $(
+       --host $( \
          az container list \
            --resource-group $GROUP \
            --query "[?name=='edgedb-container-group'].ipAddress.fqdn | [0]" \
-           --output tsv
-       ) \
+           --output tsv ) \
        azure
 
 You can now connect to your instance.
