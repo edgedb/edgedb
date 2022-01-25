@@ -1096,11 +1096,25 @@ def __infer_select_stmt(
                     'where only singletons are allowed',
                     context=part.context)
 
-    if (ir.limit is not None and
-            isinstance(ir.limit.expr, irast.IntegerConstant) and
-            ir.limit.expr.value == '1'):
-        # Explicit LIMIT 1 clause.
-        stmt_card = _bounds_to_card(_card_to_bounds(stmt_card).lower, CB_ONE)
+    if ir.limit is not None:
+        if (
+            isinstance(ir.limit.expr, irast.IntegerConstant)
+            and ir.limit.expr.value == '1'
+        ):
+            # Explicit LIMIT 1 clause.
+            stmt_card = _bounds_to_card(
+                _card_to_bounds(stmt_card).lower, CB_ONE)
+        elif (
+            not isinstance(ir.limit.expr, irast.IntegerConstant)
+            or ir.limit.expr.value == '0'
+        ):
+            # LIMIT 0 or a non-static LIMIT that could be 0
+            stmt_card = _bounds_to_card(
+                CB_ZERO, _card_to_bounds(stmt_card).upper)
+
+    if ir.offset is not None:
+        stmt_card = _bounds_to_card(
+            CB_ZERO, _card_to_bounds(stmt_card).upper)
 
     if ir.iterator_stmt:
         stmt_card = cartesian_cardinality((stmt_card, iter_card))
