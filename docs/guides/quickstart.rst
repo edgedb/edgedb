@@ -402,10 +402,7 @@ This time, the results contain ``title`` and ``year`` as requested in
 the query shape. Note that the ``year`` for Dune is given as ``{}`` (the
 empty set). This is the equivalent of a ``null`` value in SQL.
 
-Let's narrow down the ``Movie`` search to "blade runner" using
-:eql:op:`ilike` (case-insensitive pattern matching). With the %
-at the end, anything after ``blade runner`` will match: "Blade Runner",
-"Blade Runner 2049", "BlAdE RUnnEr", etc...
+Let's fetch more information about Blade Runner 2049 specifically.
 
 .. code-block:: edgeql-repl
 
@@ -432,7 +429,7 @@ Let's get more details about the ``Movie``:
   .......         last_name
   .......     }
   ....... }
-  ....... filter .title ILIKE 'blade runner%';
+  ....... filter .title = "Blade Runner 2049";
   {
     default::Movie {
       title: 'Blade Runner 2049',
