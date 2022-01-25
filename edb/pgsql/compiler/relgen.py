@@ -190,7 +190,7 @@ def get_set_rvar(
             subctx.scope_tree.is_optional(path_id) or
             new_scope.is_optional(path_id) or
             path_id in subctx.force_optional
-        )
+        ) and not can_omit_optional_wrapper(ir_set, new_scope, ctx=ctx)
 
         optional_wrapping = is_optional and not is_empty_set
 
@@ -490,6 +490,32 @@ def set_as_subquery(
                 rel=wrapper, path_id=ir_set.path_id, env=ctx.env)
 
     return wrapper
+
+
+def can_omit_optional_wrapper(
+        ir_set: irast.Set, new_scope: irast.ScopeTreeNode, *,
+        ctx: context.CompilerContextLevel) -> bool:
+    """Determine whether it is safe to omit the optional wrapper.
+
+    Doing so is safe when the expression is guarenteed to result in
+    a NULL and not an empty set.
+
+    Currently the only such case implement is a path `foo.bar` where foo
+    is visible and bar is a single non-computed property, which we know
+    will be stored as NULL in the database.
+    """
+    if (
+        ir_set.expr is None
+        and not ir_set.path_id.is_objtype_path()
+        and ir_set.rptr
+        and new_scope.is_visible(ir_set.rptr.source.path_id)
+        and not ir_set.rptr.is_inbound
+        and ir_set.rptr.ptrref.out_cardinality.is_single()
+        and not ir_set.rptr.ptrref.is_computable
+    ):
+        return True
+
+    return False
 
 
 def prepare_optional_rel(
