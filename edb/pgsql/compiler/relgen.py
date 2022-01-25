@@ -504,7 +504,7 @@ def can_omit_optional_wrapper(
     is visible and bar is a single non-computed property, which we know
     will be stored as NULL in the database.
     """
-    if (
+    return (
         ir_set.expr is None
         and not ir_set.path_id.is_objtype_path()
         and ir_set.rptr
@@ -512,10 +512,7 @@ def can_omit_optional_wrapper(
         and not ir_set.rptr.is_inbound
         and ir_set.rptr.ptrref.out_cardinality.is_single()
         and not ir_set.rptr.ptrref.is_computable
-    ):
-        return True
-
-    return False
+    )
 
 
 def prepare_optional_rel(
