@@ -504,7 +504,7 @@ def can_omit_optional_wrapper(
     is visible and bar is a single non-computed property, which we know
     will be stored as NULL in the database.
     """
-    return (
+    return bool(
         ir_set.expr is None
         and not ir_set.path_id.is_objtype_path()
         and ir_set.rptr
