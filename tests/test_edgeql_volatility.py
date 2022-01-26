@@ -1637,6 +1637,28 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 for tgt in obj['tgt']:
                     self.assertEqual(tgt['x'], -tgt['y'])
 
+    async def test_edgeql_volatility_shape_array_01(self):
+        for query in self.test_loop():
+            res = await query("""
+                WITH X := { multi x := [next()] },
+                SELECT ((SELECT X.x), (SELECT X.x));
+            """)
+
+            self.assertEqual(len(res), 1)
+            for obj in res:
+                self.assertEqual(obj[0], obj[1])
+
+    async def test_edgeql_volatility_shape_array_02(self):
+        for query in self.test_loop():
+            res = await query("""
+                WITH X := { x := [next()] },
+                SELECT ((SELECT X.x), (SELECT X.x));
+            """)
+
+            self.assertEqual(len(res), 1)
+            for obj in res:
+                self.assertEqual(obj[0], obj[1])
+
     async def test_edgeql_volatility_errors_01(self):
         async with self._run_and_rollback():
             with self.assertRaisesRegex(
