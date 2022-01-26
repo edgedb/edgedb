@@ -9,5 +9,6 @@ Deploying EdgeDB
     :maxdepth: 1
 
     azure_flexibleserver
+    digitalocean
     fly_io
     docker
