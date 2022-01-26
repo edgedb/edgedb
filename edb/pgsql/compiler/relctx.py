@@ -951,6 +951,11 @@ def unpack_var(
                     must_pack = True
 
                 if not is_singleton:
+                    # Arrays get wrapped in a record before they can be put
+                    # in another array
+                    if el_id.is_array_path():
+                        typ = ('record',)
+                        must_pack = True
                     typ = pg_types.pg_type_array(typ)
 
                 coldeflist.append(
