@@ -102,8 +102,8 @@ types out of combinations of more basic types.
     property profession -> str;
   }
 
-Name conflicts are not allowed; supertypes cannot share any link or property
-names.
+If multiple supertypes share links or properties, those properties must be
+of the same type and cardinality.
 
 
 .. note::
