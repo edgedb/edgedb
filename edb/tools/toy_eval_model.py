@@ -183,6 +183,7 @@ BASIS = {
 
 
 # #############
+# FIXME: Make these dataclasses.
 class IPartial(NamedTuple):
     pass
 
@@ -192,6 +193,10 @@ class IExpr(NamedTuple):
 
 
 class IORef(NamedTuple):
+    name: str
+
+
+class IAliasRef(NamedTuple):
     name: str
 
 
@@ -211,7 +216,8 @@ class Alias(NamedTuple):
     contents: List[Data]
 
 
-IPathElement = Union[IPartial, IExpr, IORef, ITypeIntersection, IPtr]
+IPathElement = Union[
+    IPartial, IExpr, IORef, ITypeIntersection, IAliasRef, IPtr]
 IPath = Tuple[IPathElement, ...]
 
 # Implementation of built in functions and operators
@@ -534,7 +540,7 @@ def eval_limit(limit: Optional[qlast.Expr], out: List[Row],
 def add_alias(name: str, vals: Data, ctx: EvalContext) -> EvalContext:
     return replace(
         ctx,
-        query_input_list=ctx.query_input_list + [(IORef(name),)],
+        query_input_list=ctx.query_input_list + [(IAliasRef(name),)],
         input_tuple=ctx.input_tuple + (Alias(vals),),
     )
 
@@ -1305,6 +1311,13 @@ def find_common_prefixes(
     return prefixes
 
 
+def _contains_non_alias_path(paths: Sequence[IPath], new: IPath) -> bool:
+    return any(
+        new == y and not (len(y) == 1 and isinstance(y[0], IAliasRef))
+        for y in paths
+    )
+
+
 def make_query_input_list(
     direct_refs: List[Tuple[IPath, Optional[int]]],
     subquery_refs: List[Tuple[IPath, Optional[int]]],
@@ -1313,7 +1326,7 @@ def make_query_input_list(
     direct_refs = [x for x in direct_refs if isinstance(x[0][0], IORef)]
     qil = find_common_prefixes(direct_refs, subquery_refs)
 
-    return sorted(x for x in qil if x not in old)
+    return sorted(x for x in qil if not _contains_non_alias_path(old, x))
 
 
 def simplify_path(path: qlast.Path) -> IPath:
