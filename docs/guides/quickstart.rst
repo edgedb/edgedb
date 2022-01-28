@@ -304,12 +304,13 @@ previous query.
 
 .. code-block:: edgeql-repl
 
-  edgedb> insert Movie {
+  edgedb> with director_id := <uuid>$director_id
+  ....... insert Movie {
   .......   title := 'Blade Runnr 2049', # typo is intentional 🙃
   .......   year := 2017,
   .......   director := (
   .......     select Person
-  .......     filter .id = <uuid>$director_id
+  .......     filter .id = director_id
   .......   ),
   .......   actors := {
   .......     (insert Person {
@@ -349,11 +350,6 @@ link entirely.
   ....... };
   {default::Movie {id: 4d0c8ddc-54d4-11e9-8c54-7776f6130e05}}
 
-
-This query uses the ``+=`` operator to add Ryan Gosling to the cast of Blade
-Runner 2049 using the ``+=`` operator. You could also unlink cast members with
-``-=``.
-
 Our database is still a little sparse. Let's quickly add a couple more movies.
 
 .. code-block:: edgeql-repl
@@ -382,9 +378,9 @@ Let's write some basic queries:
     default::Movie {id: ca69776e-40df-11ec-b1b8-b7c909ac034a}
   }
 
-The above query simply returned all the ``Movie`` objects in the database. By
+This query simply returns all the ``Movie`` objects in the database. By
 default, only the ``id`` property is returned for each result. To select more
-properties, we add a :ref:`shape <ref_reference_shapes>`:
+properties, add a :ref:`shape <ref_reference_shapes>`:
 
 .. code-block:: edgeql-repl
 
@@ -402,10 +398,7 @@ This time, the results contain ``title`` and ``year`` as requested in
 the query shape. Note that the ``year`` for Dune is given as ``{}`` (the
 empty set). This is the equivalent of a ``null`` value in SQL.
 
-Let's narrow down the ``Movie`` search to "blade runner" using
-:eql:op:`ilike` (case-insensitive pattern matching). With the %
-at the end, anything after ``blade runner`` will match: "Blade Runner",
-"Blade Runner 2049", "BlAdE RUnnEr", etc...
+Let's fetch more information about Blade Runner 2049 specifically.
 
 .. code-block:: edgeql-repl
 
@@ -432,7 +425,7 @@ Let's get more details about the ``Movie``:
   .......         last_name
   .......     }
   ....... }
-  ....... filter .title ILIKE 'blade runner%';
+  ....... filter .title = "Blade Runner 2049";
   {
     default::Movie {
       title: 'Blade Runner 2049',
