@@ -593,3 +593,18 @@ class TestModelSmokeTests(unittest.TestCase):
                 ["Dave", 2],
             ])
         )
+
+    def test_model_alias_computable_correlate(self):
+        self.assert_test_query(
+            r"""
+            WITH X := (SELECT Obj {m := {1, 2}}) SELECT (X {n, m}, X.m);
+            """,
+            bag([
+                [{"n": [1], "m": [1]}, 1],
+                [{"n": [1], "m": [2]}, 2],
+                [{"n": [2], "m": [1]}, 1],
+                [{"n": [2], "m": [2]}, 2],
+                [{"n": [3], "m": [1]}, 1],
+                [{"n": [3], "m": [2]}, 2],
+            ]),
+        )
