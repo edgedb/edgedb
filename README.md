@@ -1,123 +1,136 @@
 <p align="center">
-  <a href="https://www.edgedb.com"><img width="160px" src="logo.svg"></a>
+  <a href="https://www.edgedb.com">
+    <img src="https://i.imgur.com/H2Jio0X.png">
+  </a>
 </p>
 
-[![Build Status](https://github.com/edgedb/edgedb/workflows/Tests/badge.svg?event=push&branch=master)](https://github.com/edgedb/edgedb/actions) [![Join GitHub discussions](https://img.shields.io/badge/join-github%20discussions-green)](https://github.com/edgedb/edgedb/discussions)
+- make banner bigger for small screens
+- improve logo for dark mode on github
+- update messaging
+- add links for Docs, Quickstart, Blog
+- add banner for EdgeDB Day
+- update code samples
+- better description of EdgeDB
+- SDL
+- EdgeQL features
 
-# What is EdgeDB?
+<div align="center">
+  <h1>EdgeDB</h1>
+  <a href="https://github.com/edgedb/edgedb" rel="nofollow"><img src="https://img.shields.io/github/stars/edgedb/edgedb" alt="Stars"></a>
+  <a href="https://github.com/edgedb/edgedb/actions"><img src="https://github.com/edgedb/edgedb/workflows/Tests/badge.svg?event=push&branch=master" /></a>
+  <a href="https://github.com/edgedb/edgedb/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" /></a>
+  <br />
+  <br />
+  <a href="https://www.edgedb.com/docs/guides/quickstart">Quickstart</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.edgedb.com">Website</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.edgedb.com/docs">Docs</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.edgedb.com/tutorial">Playground</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://www.edgedb.com/blog">Blog</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://discord.gg/umUueND6ag">Discord</a>
+  <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
+  <a href="https://twitter.com/edgedatabase">Twitter</a>
+  <br />
+  <hr />
+</div>
 
-EdgeDB is an **open-source** object-relational database built on top of
-PostgreSQL. The goal of EdgeDB is to _empower_ its users to build safe
-and efficient software with less effort.
+## EdgeDB 1.0 is coming
 
-EdgeDB features:
+The first stable release of EdgeDB is finally here. On February 10th, 2022, EdgeDB 1.0 will be released after 14 pre-releases and 4 years of active development. Join us for the live launch event!
 
-- strict, strongly typed schema;
-- powerful and expressive query language;
-- rich standard library;
-- built-in support for schema migrations;
-- native GraphQL support.
+<a href="https://lu.ma/edgedb" rel="nofollow">
+  <img
+    style="max-width: 450px;"
+    src="https://www.edgedb.com/blog/edgedb_day_register.png"
+    alt="Register for EdgeDB Launch Day"
+  />
+</a>
 
-Check out the [blog](https://www.edgedb.com/blog/edgedb-a-new-beginning)
-[posts](https://www.edgedb.com/blog/edgedb-1-0-alpha-1) for more examples and
-the philosophy behind EdgeDB.
+[View the full event page →](https://lu.ma/edgedb)
 
-## Modern Type-safe Schema
+## The Tao of EdgeDB
 
-The data schema in EdgeDB is a clean high-level representation of a conceptual
-data model:
+EdgeDB is an open-source **object-relational database** designed to bring the best parts of relational databases, graph databases, ORMs, and GraphQL into a new database with a unified developer experience. The goal of EdgeDB is to empower developers to build safe and efficient software with less effort.
+
+### Types, not tables.
+
+Schema is the foundation of your application. It should be something you can read, write, and understand.
+
+Forget foreign keys; tabular data modeling is a relic of an older age, and it [isn't compatible](https://en.wikipedia.org/wiki/Object%E2%80%93relational_impedance_mismatch) with modern languages. EdgeDB thinks about schema the same way you do: as **object types** containing **properties** connected by **links**.
 
 ```
-type User {
-    required property name -> str;
-}
-
-type Person {
-    required property first_name -> str;
-    required property last_name -> str;
-}
-
-type Review {
-    required property body -> str;
-    required property rating -> int64 {
-        constraint min_value(0);
-        constraint max_value(5);
-    }
-
-    required link author -> User;
-    required link movie -> Movie;
-
-    required property creation_time -> cal::local_datetime;
+type Character {
+  required property name -> str;
 }
 
 type Movie {
-    required property title -> str;
-    required property year -> int64;
-    required property description -> str;
-
-    multi link directors -> Person;
-    multi link cast -> Person;
-
-    property avg_rating := math::mean(.<movie[IS Review].rating);
+  required property title -> str;
+  multi link characters -> Character;
 }
 ```
 
-EdgeDB has a rich library of datatypes and functions.
+This example is intentionally simple; EdgeDB supports everything you'd expect from your database—indexes, constraints, computed properties—plus some shiny new stuff too: link properties, world-class JSON support, and schema mixins. Read the [schema docs](https://www.edgedb.com/docs/datamodel/index) for details.
 
-## EdgeQL
+### Objects, not rows.
 
-EdgeQL is the query language of EdgeDB. It is efficient, intuitive, and easy
-to learn.
+EdgeDB's super-powered query language EdgeQL is designed as a ground-up redesign of SQL that aims to it in power and surpass it in elegance, brevity, and expressiveness.
 
-EdgeQL supports fetching object hierarchies with arbitrary level of nesting,
-filtering, sorting and aggregation:
+Based in set theory, EdgeQL features a comprehensive standard library, composable syntax, and painless deep querying...bye, bye, JOINs.
 
 ```
-SELECT User {
-    id,
-    name,
-    image,
-    latest_reviews := (
-        WITH UserReviews := User.<author[IS Review]
-        SELECT UserReviews {
-            id,
-            body,
-            rating,
-            movie: {
-                id,
-                title,
-                avg_rating,
-            }
-        }
-        ORDER BY .creation_time DESC
-        LIMIT 10
-    )
+select Movie {
+  title,
+  characters: {
+    name
+  }
 }
-FILTER .id = <uuid>$id
+filter .title = "The Matrix"
 ```
 
-# Status
+One of its core design goals of EdgeQL is _composability_; it should be possible to use one EdgeQL query as an expression inside another. This property makes thinks like _subqueries_ and _nested mutations_ a breeze.
 
-EdgeDB is currently in beta. See our
-[Issues](https://github.com/edgedb/edgedb/issues) for a list of features
-planned or in development.
+```
+insert Movie {
+  title := "The Matrix Resurrections",
+  characters := (
+    select Character
+    filter .name in {'Neo', 'Trinity', 'Niobe'}
+  )
+}
+```
 
-# Getting Started
+There's a lot more to EdgeQL: computed properties, polymorphic queries, `with` blocks, transactions; read the [EdgeQL docs](https://www.edgedb.com/docs/edgeql/index) for details.
 
-Please refer to the [Tutorial](https://www.edgedb.com/docs/quickstart) section
-of the documentation on how to install and run EdgeDB.
+### More than a mapper.
 
-# Documentation
+While EdgeDB solves the same problems as ORM libraries, it's so much more. It's a full-fledged database with a formally-defined query language, migrations system, suite of client libraries in different langauges, command-line tool, and—soon—cloud hosting service. The goal is to rethink every aspect of how developers manage, maintain, migrate, and query their database.
 
-The EdgeDB documentation can be found at
-[edgedb.com/docs](https://www.edgedb.com/docs).
+Here's a taste-test of EdgeDB: you can install our CLI, spin up an instance, and open an interactive shell with just three commands (Linux/macOS)
 
-# Building From Source
+```
+$ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
+$ edgedb project init
+$ edgedb
+```
 
-Please follow the instructions outlined
-[in the documentation](https://www.edgedb.com/docs/internals/dev).
+## Get started
 
-# License
+To start learning about EdgeDB, check out the following resources:
+
+- If you're just starting out, go through 10-minute [Quickstart guide](https://www.edgedb.com/docs/guides/quickstart). It's the fastest way to get up and running.
+- For a structured deep-dive into the EdgeQL query language, try the web-based [interactive tutorial](https://www.edgedb.com/tutorial)— no need to install anything.
+- For the most comprehensive walkthrough of EdgeDB concepts, check out our illustrated e-book `Easy EdgeDB </easy-edgedb>`\_. It's designed to walk a total beginner through EdgeDB, from the basics through advanced concepts.
+- Or jump straight into the docs for [schema modeling](https://www.edgedb.com/docs/datamodel/index) or [EdgeQL](https://www.edgedb.com/docs/edgeql/index)!
+
+## Contributing
+
+PRs are always welcome! To get started, follow [this guide](https://www.edgedb.com/docs/internals/dev) to build EdgeDB from source on your local machine.
+
+## License
 
 The code in this repository is developed and distributed under the
 Apache 2.0 license. See [LICENSE](LICENSE) for details.
