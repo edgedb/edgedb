@@ -1787,11 +1787,18 @@ aa';
 
     def test_edgeql_syntax_struct_07(self):
         """
-        SELECT (
+        WITH
             # unreserved keywords
-            abstract := 1,
-            action := 2
-        );
+            abort := 'abort',
+            abstract := 'abstract',
+            action := 'action',
+            declare := 'declare',
+            empty := 'empty',
+            populate := 'populate',
+            release := 'release',
+            reset := 'reset',
+            start := 'start'
+        SELECT 1;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
