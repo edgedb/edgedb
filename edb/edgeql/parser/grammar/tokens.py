@@ -187,6 +187,10 @@ class T_EXTENSIONPACKAGE(Token):
     pass
 
 
+class T_ORDERBY(Token):
+    pass
+
+
 class T_ICONST(Token):
     pass
 
