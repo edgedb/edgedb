@@ -631,10 +631,10 @@ class build_ext(setuptools_build_ext.build_ext):
         if getattr(self, '_initialized', False):
             return
 
-        if self.build_mode not in {'both', 'py-only', 'skip'}:
+        if self.build_mode not in {'both', 'py-only', 'rust-only', 'skip'}:
             raise RuntimeError(f'Illegal BUILD_EXT_MODE={self.build_mode}; '
                                f'can only be "both", "py-only" or "skip".')
-        if self.build_mode == 'skip':
+        if self.build_mode not in {'both', 'py-only'}:
             super(build_ext, self).finalize_options()
             return
 
@@ -761,7 +761,7 @@ if setuptools_rust is not None:
         def run(self):
             _check_rust()
             build_ext = self.get_finalized_command("build_ext")
-            if build_ext.build_mode != 'both':
+            if build_ext.build_mode not in {'both', 'rust-only'}:
                 distutils.log.info(f'Skipping build_rust because '
                                    f'BUILD_EXT_MODE={build_ext.build_mode}')
                 return
