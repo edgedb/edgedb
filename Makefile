@@ -8,6 +8,8 @@ cython:
 	find edb -name '*.pyx' | xargs touch
 	BUILD_EXT_MODE=py-only python setup.py build_ext --inplace
 
+rust:
+	BUILD_EXT_MODE=rust-only python setup.py build_ext --inplace
 
 docs:
 	find docs -name '*.rst' | xargs touch
