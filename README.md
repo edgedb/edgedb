@@ -28,7 +28,11 @@
 
 </div>
 
-## EdgeDB 1.0 is almost here! 👀
+EdgeDB is a new kind of database that takes the best parts of relational databases, graph databases, and ORMs. We call it a graph-relational database.
+
+<div align="center">
+  <h2>EdgeDB 1.0 is almost here! 👀</h2>
+</div>
 
 The first stable release of EdgeDB is finally here. On February 10th, 2022, EdgeDB 1.0 will be released after 14 pre-releases and 4 years of active development. Join us for the live launch event!
 
@@ -42,11 +46,16 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 
 [View the full event page →](https://lu.ma/edgedb)
 
-## The core principles
+<div align="center">
+  <h2>The core principles</h2>
+  <p>EdgeDB was designed with a few key principles in mind.</p>
+</div>
 
-EdgeDB is a new kind of database that takes the best parts of relational databases, graph databases, and ORMs. We call it a **graph-relational database**. It was designed with a few key principles in mind.
+<div align="center">
+  <h2>🧩 Types, not tables 🧩</h2>
+</div>
 
-### Types, not tables. 🧩
+<!-- ### 🧩 Types, not tables 🧩 -->
 
 Schema is the foundation of your application. It should be something you can read, write, and understand.
 
@@ -65,7 +74,11 @@ type Movie {
 
 This example is intentionally simple; EdgeDB supports everything you'd expect from your database—indexes, constraints, computed properties—plus some shiny new stuff too: link properties, world-class JSON support, and schema mixins. Read the [schema docs](https://www.edgedb.com/docs/datamodel/index) for details.
 
-### Objects, not rows. ❄️
+<!-- ### Objects, not rows. ❄️ -->
+
+<div align="center">
+  <h2>❄️ Objects, not rows ❄️</h2>
+</div>
 
 EdgeDB's super-powered query language EdgeQL is designed as a ground-up redesign of SQL that aims to it in power and surpass it in elegance, brevity, and expressiveness.
 
@@ -95,7 +108,11 @@ insert Movie {
 
 There's a lot more to EdgeQL: computed properties, polymorphic queries, `with` blocks, transactions; read the [EdgeQL docs](https://www.edgedb.com/docs/edgeql/index) for details.
 
-### More than a mapper. 🦋
+<div align="center">
+  <h2>🦋 More than a mapper 🦋</h2>
+</div>
+
+<!-- ### More than a mapper. 🦋 -->
 
 While EdgeDB solves the same problems as ORM libraries, it's so much more. It's a full-fledged database with a formally-defined query language, migrations system, suite of client libraries in different langauges, command-line tool, and—soon—cloud hosting service. The goal is to rethink every aspect of how developers manage, maintain, migrate, and query their database.
 
