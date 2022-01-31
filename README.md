@@ -140,6 +140,8 @@ $ edgedb project init
 $ edgedb
 ```
 
+<br />
+
 ## Get started
 
 To start learning about EdgeDB, check out the following resources:
@@ -148,6 +150,8 @@ To start learning about EdgeDB, check out the following resources:
 - **[The interactive tutorial](https://www.edgedb.com/tutorial)**. For a structured deep-dive into the EdgeQL query language, try the web-based tutorial— no need to install anything.
 - **[The e-book](https://www.edgedb.com/easy-edgedb)**. For the most comprehensive walkthrough of EdgeDB concepts, check out our illustrated e-book [Easy EdgeDB](https://www.edgedb.com/easy-edgedb). It's designed to walk a total beginner through EdgeDB in its entirety, from the basics through advanced concepts.
 - **The docs.** Jump straight into the docs for [schema modeling](https://www.edgedb.com/docs/datamodel/index) or [EdgeQL](https://www.edgedb.com/docs/edgeql/index)!
+
+<br />
 
 ## Contributing
 
@@ -158,6 +162,8 @@ PRs are always welcome! To get started, follow [this guide](https://www.edgedb.c
 [Start a Discussion 👉](https://github.com/edgedb/edgedb/discussions/new)
 
 [Join the discord 👉](https://discord.gg/umUueND6ag)
+
+<br />
 
 ## License
 
