@@ -1226,6 +1226,9 @@ def process_set_as_subquery(
 
             return _new_subquery_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
+        # materialized refs should always get picked up by now
+        assert not ir_set.is_materialized_ref
+
         if inner_id != outer_id:
             pathctx.put_path_id_map(ctx.rel, outer_id, inner_id)
 
