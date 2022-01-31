@@ -48,7 +48,14 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 
 <div align="center">
   <h2>What is EdgeDB?</h2>
-  <p>EdgeDB is a new kind of database that takes the best parts of relational databases, graph databases, and ORMs. We call it a graph-relational database.EdgeDB was designed with a few key principles in mind.</p>
+  <p>
+    EdgeDB is a new kind of database that takes the
+    <br/>
+    best parts of relational databases, graph databases,
+    <br/>
+    and ORMs. We call it a graph-relational database. It
+    <br/>
+    was designed with a few key principles in mind.</p>
 </div>
 
 <div align="center">
