@@ -30,7 +30,6 @@
 
 <br />
 <br />
-<hr />
 
 ## EdgeDB 1.0 is almost here! 👀
 
@@ -46,7 +45,6 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 
 [View the full event page →](https://lu.ma/edgedb)
 
-<hr />
 <br />
 <br />
 
