@@ -935,8 +935,8 @@ aa';
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=17)
     def test_edgeql_syntax_name_08(self):
         """
-        SELECT (event::order);
-        SELECT (order::event);
+        SELECT (event::if);
+        SELECT (if::event);
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, line=3, col=23)
@@ -1794,6 +1794,7 @@ aa';
             action := 'action',
             declare := 'declare',
             empty := 'empty',
+            order := 'order',
             populate := 'populate',
             release := 'release',
             reset := 'reset',
@@ -1802,12 +1803,12 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'order'", line=4, col=13)
+                  "Unexpected 'if'", line=4, col=13)
     def test_edgeql_syntax_struct_08(self):
         """
         SELECT (
             # reserved keywords
-            order := 1,
+            if := 1,
             select := 2
         );
         """
@@ -3763,23 +3764,23 @@ aa';
 
     def test_edgeql_syntax_ddl_database_04(self):
         """
-        CREATE DATABASE order;
+        CREATE DATABASE if;
         CREATE DATABASE abstract;
 
 % OK %
 
-        CREATE DATABASE `order`;
+        CREATE DATABASE `if`;
         CREATE DATABASE abstract;
         """
 
     def test_edgeql_syntax_ddl_database_05(self):
         """
-        DROP DATABASE order;
+        DROP DATABASE if;
         DROP DATABASE abstract;
 
 % OK %
 
-        DROP DATABASE `order`;
+        DROP DATABASE `if`;
         DROP DATABASE abstract;
         """
 
@@ -3802,11 +3803,11 @@ aa';
             EXTENDING delegated, `mytest"baserole"`;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'order'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'if'",
                   line=2, col=21)
     def test_edgeql_syntax_ddl_role_02(self):
         """
-        CREATE ROLE order;
+        CREATE ROLE if;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '::'",

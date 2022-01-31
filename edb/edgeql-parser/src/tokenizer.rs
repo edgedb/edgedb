@@ -916,7 +916,6 @@ pub fn is_keyword(s: &str) -> bool {
         | "offset"
         | "optional"
         | "or"
-        | "order"
         | "rollback"
         | "select"
         | "set"

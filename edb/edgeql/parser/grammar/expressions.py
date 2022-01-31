@@ -785,8 +785,8 @@ class OptFilterClause(Nonterm):
 
 
 class SortClause(Nonterm):
-    def reduce_ORDER_BY_OrderbyList(self, *kids):
-        self.val = kids[2].val
+    def reduce_ORDERBY_OrderbyList(self, *kids):
+        self.val = kids[1].val
 
 
 class OptSortClause(Nonterm):
