@@ -28,15 +28,17 @@
   <hr />
 </div>
 
-EdgeDB is an open-source **object-relational database** designed to bring the best parts of relational databases, graph databases, ORMs, and GraphQL into a new kind of database.
+<div align="center">
+  <h3>EdgeDB 1.0 is almost here</h3>
+</div>
 
-### EdgeDB 1.0 is coming
+## EdgeDB 1.0 is almost here! 👀
 
 The first stable release of EdgeDB is finally here. On February 10th, 2022, EdgeDB 1.0 will be released after 14 pre-releases and 4 years of active development. Join us for the live launch event!
 
 <a href="https://lu.ma/edgedb" rel="nofollow">
   <img
-    width="400px"
+    width="450px"
     src="https://www.edgedb.com/blog/edgedb_day_register.png"
     alt="Register for EdgeDB Launch Day"
   />
@@ -46,8 +48,7 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 
 ## The core principles
 
-EdgeDB is a whole new abstraction for databases, designed with a few core
-principles in mind.
+EdgeDB is a new kind of database that takes the best parts of relational databases, graph databases, and ORMs. We call it a **graph-relational database**. It was designed with a few key principles in mind.
 
 ### Types, not tables. 🧩
 
