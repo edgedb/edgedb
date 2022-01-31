@@ -158,9 +158,9 @@ To start learning about EdgeDB, check out the following resources:
 PRs are always welcome! To get started, follow [this guide](https://www.edgedb.com/docs/internals/dev) to build EdgeDB from source on your local machine.
 
 [File an issue 👉](https://github.com/edgedb/edgedb/issues/new/choose)
-
+<br />
 [Start a Discussion 👉](https://github.com/edgedb/edgedb/discussions/new)
-
+<br />
 [Join the discord 👉](https://discord.gg/umUueND6ag)
 
 <br />
