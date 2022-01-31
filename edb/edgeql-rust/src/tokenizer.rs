@@ -99,6 +99,8 @@ pub struct Tokens {
     set_type_val: PyString,
     extension_package: PyString,
     extension_package_val: PyString,
+    order_by: PyString,
+    order_by_val: PyString,
 
     dot: PyString,
     backward_link: PyString,
@@ -175,7 +177,8 @@ pub fn init_module(py: Python) {
 
 fn peek_keyword(iter: &mut Peekable<Iter<CowToken>>, kw: &str) -> bool {
     iter.peek()
-       .map(|t| t.kind == Kind::Ident && t.value.eq_ignore_ascii_case(kw))
+       .map(|t| (t.kind == Kind::Ident || t.kind == Kind::Keyword)
+                && t.value.eq_ignore_ascii_case(kw))
        .unwrap_or(false)
 }
 
@@ -268,6 +271,8 @@ impl Tokens {
             set_type_val: PyString::new(py, "SET TYPE"),
             extension_package: PyString::new(py, "EXTENSIONPACKAGE"),
             extension_package_val: PyString::new(py, "EXTENSION PACKAGE"),
+            order_by: PyString::new(py, "ORDERBY"),
+            order_by_val: PyString::new(py, "ORDER BY"),
 
             dot: PyString::new(py, "."),
             backward_link: PyString::new(py, ".<"),
@@ -603,6 +608,12 @@ fn convert(py: Python, tokens: &Tokens, cache: &mut Cache,
                          tok_iter.next();
                          Ok((tokens.extension_package.clone_ref(py),
                              tokens.extension_package_val.clone_ref(py),
+                             py.None()))
+                    }
+                    "order" if peek_keyword(tok_iter, "by") => {
+                         tok_iter.next();
+                         Ok((tokens.order_by.clone_ref(py),
+                             tokens.order_by_val.clone_ref(py),
                              py.None()))
                     }
                     _ => match tokens.keywords.get(&cache.keyword_buf) {
