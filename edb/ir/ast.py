@@ -476,6 +476,8 @@ class Set(Base):
     shape_source: typing.Optional[Set] = None
     is_binding: typing.Optional[BindingKind] = None
 
+    is_materialized_ref: bool = False
+
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
 
