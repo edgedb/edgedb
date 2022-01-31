@@ -94,9 +94,9 @@ This example is intentionally simple; EdgeDB supports everything you'd expect fr
 </div>
 <br/>
 
-EdgeDB's super-powered query language EdgeQL is designed as a ground-up redesign of SQL that aims to it in power and surpass it in elegance, brevity, and expressiveness.
+EdgeDB's super-powered query language EdgeQL is designed as a ground-up redesign of SQL that aims to match it in power and surpass it in elegance, brevity, and expressiveness.
 
-Based in set theory, EdgeQL features a comprehensive standard library, composable syntax, and painless deep querying...bye, bye, JOINs.
+EdgeQL queries produce rich, structured objects, not flat lists of rows. Deeply fetching related objects is painless...bye, bye, JOINs.
 
 ```
 select Movie {
