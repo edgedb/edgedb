@@ -36,7 +36,7 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 
 <a href="https://lu.ma/edgedb" rel="nofollow">
   <img
-    style="max-width: 450px;"
+    width="400px"
     src="https://www.edgedb.com/blog/edgedb_day_register.png"
     alt="Register for EdgeDB Launch Day"
   />
