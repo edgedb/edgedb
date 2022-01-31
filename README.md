@@ -45,7 +45,7 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 [View the full event page →](https://lu.ma/edgedb)
 
 <hr />
-
+<br/>
 <div align="center">
   <h2>What is EdgeDB?</h2>
   <p>
@@ -59,11 +59,14 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 </div>
 
 <br/>
-<br/>
 
+<br/>
 <div align="center">
   <h3>🧩 Types, not tables 🧩</h3>
 </div>
+<br/>
+
+### 🧩 Types, not tables 🧩
 
 <!-- ### 🧩 Types, not tables 🧩 -->
 
@@ -86,9 +89,11 @@ This example is intentionally simple; EdgeDB supports everything you'd expect fr
 
 <!-- ### Objects, not rows. ❄️ -->
 
+<br/>
 <div align="center">
   <h3>❄️ Objects, not rows ❄️</h3>
 </div>
+<br/>
 
 EdgeDB's super-powered query language EdgeQL is designed as a ground-up redesign of SQL that aims to it in power and surpass it in elegance, brevity, and expressiveness.
 
@@ -118,9 +123,11 @@ insert Movie {
 
 There's a lot more to EdgeQL: computed properties, polymorphic queries, `with` blocks, transactions; read the [EdgeQL docs](https://www.edgedb.com/docs/edgeql/index) for details.
 
+<br/>
 <div align="center">
   <h3>🦋 More than a mapper 🦋</h3>
 </div>
+<br/>
 
 <!-- ### More than a mapper. 🦋 -->
 
