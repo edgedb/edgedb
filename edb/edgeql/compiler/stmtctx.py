@@ -323,6 +323,10 @@ def _fixup_materialized_sets(
                 subctx.path_scope = new_scope
                 viewgen.late_compile_view_shapes(ir_set, ctx=subctx)
 
+            for use_set in mat_set.use_sets:
+                if use_set != mat_set.materialized:
+                    use_set.is_materialized_ref = True
+
             assert (
                 not any(use.src_path() for use in mat_set.uses)
                 or mat_set.materialized.rptr
