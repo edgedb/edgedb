@@ -108,7 +108,7 @@ select Movie {
 filter .title = "The Matrix"
 ```
 
-One of its core design goals of EdgeQL is _composability_; it should be possible to use one EdgeQL query as an expression inside another. This property makes thinks like _subqueries_ and _nested mutations_ a breeze.
+EdgeQL queries are also _composable_; you can use one EdgeQL query as an expression inside another. This property makes thinks like _subqueries_ and _nested mutations_ a breeze.
 
 ```
 insert Movie {
