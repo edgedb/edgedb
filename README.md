@@ -25,11 +25,7 @@
   <span>&nbsp;&nbsp;•&nbsp;&nbsp;</span>
   <a href="https://twitter.com/edgedatabase">Twitter</a>
   <br />
-  <hr />
-</div>
 
-<div align="center">
-  <h3>EdgeDB 1.0 is almost here</h3>
 </div>
 
 ## EdgeDB 1.0 is almost here! 👀
