@@ -58,6 +58,9 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
     was designed with a few key principles in mind.</p>
 </div>
 
+<br/>
+<br/>
+
 <div align="center">
   <h3>🧩 Types, not tables 🧩</h3>
 </div>
