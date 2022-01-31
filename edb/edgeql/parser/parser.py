@@ -26,6 +26,7 @@ from edb.common.english import add_a as a
 from .grammar import rust_lexer, tokens
 from .grammar import expressions as gr_exprs
 from .grammar import commondl as gr_commondl
+from .grammar import keywords as gr_keywords
 
 
 class EdgeQLParserBase(parsing.Parser):
@@ -34,6 +35,7 @@ class EdgeQLParserBase(parsing.Parser):
 
     def get_exception(self, native_err, context, token=None):
         msg = native_err.args[0]
+        details = None
         hint = None
 
         if isinstance(native_err, errors.EdgeQLSyntaxError):
@@ -43,6 +45,11 @@ class EdgeQLParserBase(parsing.Parser):
                 token = token or getattr(native_err, 'token', None)
                 token_kind = token.kind()
                 ltok = self.parser._stack[-1][0]
+
+                is_reserved = (
+                    token.text().lower()
+                    in gr_keywords.by_type[gr_keywords.RESERVED_KEYWORD]
+                )
 
                 # Look at the parsing stack and use tokens and
                 # non-terminals to infer the parser rule when the
@@ -129,11 +136,23 @@ class EdgeQLParserBase(parsing.Parser):
                     msg = f'Unexpected {token.val!r}'
                 elif token_kind == 'NL':
                     msg = 'Unexpected end of line'
+                elif is_reserved and not isinstance(ltok, gr_exprs.Expr):
+                    # Another token followed by a reserved keyword:
+                    # likely an attempt to use keyword as identifier
+                    msg = f'Unexpected keyword {token.text()!r}'
+                    details = (
+                        f'Token {token.text()!r} is a reserved keyword and'
+                        f' cannot be used as an identifier'
+                    )
+                    hint = (
+                        f'Use a different identifier or quote the name with'
+                        f' backticks: `{token.text()}`'
+                    )
                 else:
                     msg = f'Unexpected {token.text()!r}'
 
         return errors.EdgeQLSyntaxError(
-            msg, hint=hint, context=context, token=token)
+            msg, details=details, hint=hint, context=context, token=token)
 
     def _get_rule(self):
         ltok = self.parser._stack[-1][0]
