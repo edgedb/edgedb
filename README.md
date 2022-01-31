@@ -28,9 +28,11 @@
 
 </div>
 
+<br />
+<br />
 <hr />
 
-## EdgeDB 1.0 is almots here! 👀
+## EdgeDB 1.0 is almost here! 👀
 
 The first stable release of EdgeDB is finally here. On February 10th, 2022, EdgeDB 1.0 will be released after 14 pre-releases and 4 years of active development. Join us for the live launch event!
 
@@ -45,6 +47,9 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 [View the full event page →](https://lu.ma/edgedb)
 
 <hr />
+<br />
+<br />
+
 <br/>
 <div align="center">
   <h2>What is EdgeDB?</h2>
@@ -144,14 +149,16 @@ To start learning about EdgeDB, check out the following resources:
 - **[The quickstart](https://www.edgedb.com/docs/guides/quickstart)**. If you're just starting out, the 10-minute quickstart guide is the fastest way to get up and running.
 - **[The interactive tutorial](https://www.edgedb.com/tutorial)**. For a structured deep-dive into the EdgeQL query language, try the web-based tutorial— no need to install anything.
 - **[The e-book](https://www.edgedb.com/easy-edgedb)**. For the most comprehensive walkthrough of EdgeDB concepts, check out our illustrated e-book [Easy EdgeDB](https://www.edgedb.com/easy-edgedb). It's designed to walk a total beginner through EdgeDB in its entirety, from the basics through advanced concepts.
-- Or jump straight into the docs for [schema modeling](https://www.edgedb.com/docs/datamodel/index) or [EdgeQL](https://www.edgedb.com/docs/edgeql/index)!
+- **The docs.** Jump straight into the docs for [schema modeling](https://www.edgedb.com/docs/datamodel/index) or [EdgeQL](https://www.edgedb.com/docs/edgeql/index)!
 
 ## Contributing
 
 PRs are always welcome! To get started, follow [this guide](https://www.edgedb.com/docs/internals/dev) to build EdgeDB from source on your local machine.
 
 [File an issue 👉](https://github.com/edgedb/edgedb/issues/new/choose)
+
 [Start a Discussion 👉](https://github.com/edgedb/edgedb/discussions/new)
+
 [Join the discord 👉](https://discord.gg/umUueND6ag)
 
 ## License
