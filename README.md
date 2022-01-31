@@ -4,16 +4,6 @@
   </a>
 </p>
 
-- make banner bigger for small screens
-- improve logo for dark mode on github
-- update messaging
-- add links for Docs, Quickstart, Blog
-- add banner for EdgeDB Day
-- update code samples
-- better description of EdgeDB
-- SDL
-- EdgeQL features
-
 <div align="center">
   <h1>EdgeDB</h1>
   <a href="https://github.com/edgedb/edgedb" rel="nofollow"><img src="https://img.shields.io/github/stars/edgedb/edgedb" alt="Stars"></a>
