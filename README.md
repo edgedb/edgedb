@@ -28,11 +28,9 @@
 
 </div>
 
-EdgeDB is a new kind of database that takes the best parts of relational databases, graph databases, and ORMs. We call it a graph-relational database.
+<hr />
 
-<div align="center">
-  <h2>EdgeDB 1.0 is almost here! 👀</h2>
-</div>
+## EdgeDB 1.0 is almots here! 👀
 
 The first stable release of EdgeDB is finally here. On February 10th, 2022, EdgeDB 1.0 will be released after 14 pre-releases and 4 years of active development. Join us for the live launch event!
 
@@ -46,13 +44,15 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 
 [View the full event page →](https://lu.ma/edgedb)
 
+<hr />
+
 <div align="center">
-  <h2>The core principles</h2>
-  <p>EdgeDB was designed with a few key principles in mind.</p>
+  <h2>What is EdgeDB?</h2>
+  <p>EdgeDB is a new kind of database that takes the best parts of relational databases, graph databases, and ORMs. We call it a graph-relational database.EdgeDB was designed with a few key principles in mind.</p>
 </div>
 
 <div align="center">
-  <h2>🧩 Types, not tables 🧩</h2>
+  <h3>🧩 Types, not tables 🧩</h3>
 </div>
 
 <!-- ### 🧩 Types, not tables 🧩 -->
@@ -77,7 +77,7 @@ This example is intentionally simple; EdgeDB supports everything you'd expect fr
 <!-- ### Objects, not rows. ❄️ -->
 
 <div align="center">
-  <h2>❄️ Objects, not rows ❄️</h2>
+  <h3>❄️ Objects, not rows ❄️</h3>
 </div>
 
 EdgeDB's super-powered query language EdgeQL is designed as a ground-up redesign of SQL that aims to it in power and surpass it in elegance, brevity, and expressiveness.
@@ -109,7 +109,7 @@ insert Movie {
 There's a lot more to EdgeQL: computed properties, polymorphic queries, `with` blocks, transactions; read the [EdgeQL docs](https://www.edgedb.com/docs/edgeql/index) for details.
 
 <div align="center">
-  <h2>🦋 More than a mapper 🦋</h2>
+  <h3>🦋 More than a mapper 🦋</h3>
 </div>
 
 <!-- ### More than a mapper. 🦋 -->
