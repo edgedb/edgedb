@@ -28,7 +28,9 @@
   <hr />
 </div>
 
-## EdgeDB 1.0 is coming
+EdgeDB is an open-source **object-relational database** designed to bring the best parts of relational databases, graph databases, ORMs, and GraphQL into a new kind of database.
+
+### EdgeDB 1.0 is coming
 
 The first stable release of EdgeDB is finally here. On February 10th, 2022, EdgeDB 1.0 will be released after 14 pre-releases and 4 years of active development. Join us for the live launch event!
 
@@ -42,15 +44,16 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 
 [View the full event page →](https://lu.ma/edgedb)
 
-## The Tao of EdgeDB
+## The core principles
 
-EdgeDB is an open-source **object-relational database** designed to bring the best parts of relational databases, graph databases, ORMs, and GraphQL into a new database with a unified developer experience. The goal of EdgeDB is to empower developers to build safe and efficient software with less effort.
+EdgeDB is a whole new abstraction for databases, designed with a few core
+principles in mind.
 
-### Types, not tables.
+### Types, not tables. 🧩
 
 Schema is the foundation of your application. It should be something you can read, write, and understand.
 
-Forget foreign keys; tabular data modeling is a relic of an older age, and it [isn't compatible](https://en.wikipedia.org/wiki/Object%E2%80%93relational_impedance_mismatch) with modern languages. EdgeDB thinks about schema the same way you do: as **object types** containing **properties** connected by **links**.
+Forget foreign keys; tabular data modeling is a relic of an older age, and it [isn't compatible](https://en.wikipedia.org/wiki/Object%E2%80%93relational_impedance_mismatch) with modern languages. Instaed, EdgeDB thinks about schema the same way you do: as **object types** containing **properties** connected by **links**.
 
 ```
 type Character {
@@ -65,7 +68,7 @@ type Movie {
 
 This example is intentionally simple; EdgeDB supports everything you'd expect from your database—indexes, constraints, computed properties—plus some shiny new stuff too: link properties, world-class JSON support, and schema mixins. Read the [schema docs](https://www.edgedb.com/docs/datamodel/index) for details.
 
-### Objects, not rows.
+### Objects, not rows. ❄️
 
 EdgeDB's super-powered query language EdgeQL is designed as a ground-up redesign of SQL that aims to it in power and surpass it in elegance, brevity, and expressiveness.
 
@@ -95,7 +98,7 @@ insert Movie {
 
 There's a lot more to EdgeQL: computed properties, polymorphic queries, `with` blocks, transactions; read the [EdgeQL docs](https://www.edgedb.com/docs/edgeql/index) for details.
 
-### More than a mapper.
+### More than a mapper. 🦋
 
 While EdgeDB solves the same problems as ORM libraries, it's so much more. It's a full-fledged database with a formally-defined query language, migrations system, suite of client libraries in different langauges, command-line tool, and—soon—cloud hosting service. The goal is to rethink every aspect of how developers manage, maintain, migrate, and query their database.
 
