@@ -1803,7 +1803,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'if'", line=4, col=13)
+                  "Unexpected keyword 'if'", line=4, col=13)
     def test_edgeql_syntax_struct_08(self):
         """
         SELECT (
@@ -1995,14 +1995,14 @@ aa';
         SELECT ..foo;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '__source__'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword '__source__'",
                   line=2, col=20)
     def test_edgeql_syntax_path_18(self):
         """
         SELECT Foo.__source__;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '__subject__'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword '__subject__'",
                   line=2, col=20)
     def test_edgeql_syntax_path_19(self):
         """
@@ -2036,14 +2036,14 @@ aa';
         SELECT TUP.0.2e2;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '__type__'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword '__type__'",
                   line=2, col=16)
     def test_edgeql_syntax_path_23(self):
         """
         SELECT __type__;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected '__type__'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword '__type__'",
                   line=2, col=24)
     def test_edgeql_syntax_path_24(self):
         """
@@ -3289,7 +3289,7 @@ aa';
     # NOTE: this test is a remnant of an attempt to define syntax for
     # window functions. It may become valid again.
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'OVER'", line=2, col=36)
+                  r"Unexpected keyword 'OVER'", line=2, col=36)
     def test_edgeql_syntax_function_04(self):
         """
         SELECT some_agg(User.name) OVER (ORDER BY User.age ASC);
@@ -3803,7 +3803,7 @@ aa';
             EXTENDING delegated, `mytest"baserole"`;
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'if'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword 'if'",
                   line=2, col=21)
     def test_edgeql_syntax_ddl_role_02(self):
         """
@@ -4088,7 +4088,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'anytype'", line=2, col=28)
+                  "Unexpected keyword 'anytype'", line=2, col=28)
     def test_edgeql_syntax_ddl_scalar_02(self):
         """
         CREATE SCALAR TYPE anytype EXTENDING int64;
@@ -4493,7 +4493,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'SET'", line=2, col=43)
+                  "Unexpected keyword 'SET'", line=2, col=43)
     def test_edgeql_syntax_ddl_function_31(self):
         # parameter name is missing
         """
@@ -4501,14 +4501,14 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'SET'", line=2, col=43)
+                  "Unexpected keyword 'SET'", line=2, col=43)
     def test_edgeql_syntax_ddl_function_32(self):
         """
         CREATE FUNCTION std::foo(VARIADIC SET OF std::str) -> std::int64;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'VARIADIC'", line=2, col=39)
+                  "Unexpected keyword 'VARIADIC'", line=2, col=39)
     def test_edgeql_syntax_ddl_function_33(self):
         """
         CREATE FUNCTION std::foo(bar: VARIADIC SET OF std::str) -> std::int64;
@@ -4521,7 +4521,7 @@ aa';
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  "Unexpected 'VARIADIC'", line=2, col=57)
+                  "Unexpected keyword 'VARIADIC'", line=2, col=57)
     def test_edgeql_syntax_ddl_function_35(self):
         """
         CREATE FUNCTION std::foo(a: SET OF std::str) -> VARIADIC std::int64

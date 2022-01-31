@@ -261,7 +261,7 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
         };
         """
 
-    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected 'Commit'",
+    @tb.must_fail(errors.EdgeQLSyntaxError, "Unexpected keyword 'Commit'",
                   line=3, col=18)
     def test_eschema_syntax_type_11(self):
         """
@@ -1659,7 +1659,7 @@ abstract property test::foo {
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
-                  r"Unexpected 'extending'", line=3, col=46)
+                  r"Unexpected keyword 'extending'", line=3, col=46)
     def test_eschema_syntax_annotation_14(self):
         """
         module test {
