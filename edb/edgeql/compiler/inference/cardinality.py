@@ -1233,9 +1233,10 @@ def __infer_select_stmt(
 ) -> qltypes.Cardinality:
 
     if ir.iterator_stmt:
-        iter_card = infer_cardinality(
-            ir.iterator_stmt, scope_tree=scope_tree, ctx=ctx,
-        )
+        iter_card = cartesian_cardinality([
+            infer_cardinality(iter, scope_tree=scope_tree, ctx=ctx)
+            for iter in ir.iterator_stmt
+        ])
 
     stmt_card = _infer_stmt_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
 
