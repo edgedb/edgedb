@@ -148,19 +148,15 @@ def compile_SelectQuery(
     return result
 
 
-@dispatch.compile.register(qlast.ForQuery)
-def compile_ForQuery(
-        qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
-    if rewritten := try_desugar(qlstmt, ctx=ctx):
-        return rewritten
+def _compile_for_binding(
+        qlstmt: qlast.ForQuery, binding: qlast.ForBinding,
+        *, ctx: context.ContextLevel) -> irast.Set:
 
-    with ctx.subquery() as sctx:
-        stmt = irast.SelectStmt(context=qlstmt.context)
-        init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
-
+    # This ctx is not really needed
+    with ctx.new() as sctx:
         # As an optimization, if the iterator is a singleton set, use
         # the element directly.
-        iterator = qlstmt.iterator
+        iterator = binding.iterator
         if isinstance(iterator, qlast.Set) and len(iterator.elements) == 1:
             iterator = iterator.elements[0]
 
@@ -171,7 +167,7 @@ def compile_ForQuery(
                 ectx.expr_exposed = context.Exposure.BINDING
             iterator_view = stmtctx.declare_view(
                 iterator,
-                s_name.UnqualName(qlstmt.iterator_alias),
+                s_name.UnqualName(binding.iterator_alias),
                 factoring_fence=contains_dml,
                 path_id_namespace=sctx.path_id_namespace,
                 binding_kind=irast.BindingKind.For,
@@ -180,7 +176,6 @@ def compile_ForQuery(
 
         iterator_stmt = setgen.new_set_from_set(iterator_view, ctx=sctx)
         iterator_view.is_visible_binding_ref = True
-        stmt.iterator_stmt = iterator_stmt
 
         iterator_type = setgen.get_set_type(iterator_stmt, ctx=ctx)
         if iterator_type.is_any(ctx.env.schema):
@@ -191,20 +186,19 @@ def compile_ForQuery(
 
         view_scope_info = sctx.env.path_scope_map[iterator_view]
 
-        if qlstmt.optional and not ctx.env.options.devmode:
+        if binding.optional and not ctx.env.options.devmode:
             raise errors.UnsupportedFeatureError(
                 "'FOR OPTIONAL' is an internal testing feature",
-                context=qlstmt.context,
+                context=binding.context,
             )
 
         pathctx.register_set_in_scope(
             iterator_stmt,
             path_scope=sctx.path_scope,
-            optional=qlstmt.optional,
+            optional=binding.optional,
             ctx=sctx,
         )
 
-        sctx.iterator_path_ids |= {stmt.iterator_stmt.path_id}
         node = sctx.path_scope.find_descendant(iterator_stmt.path_id)
         if node is not None:
             # If the body contains DML, then we need to prohibit
@@ -222,6 +216,37 @@ def compile_ForQuery(
 
             node.attach_subtree(view_scope_info.path_scope,
                                 context=iterator.context)
+
+    return iterator_stmt
+
+
+@dispatch.compile.register(qlast.ForQuery)
+def compile_ForQuery(
+        qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    if rewritten := try_desugar(qlstmt, ctx=ctx):
+        return rewritten
+
+    with ctx.subquery() as sctx:
+        stmt = irast.SelectStmt(context=qlstmt.context)
+        init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
+
+        if len(qlstmt.iterator_bindings) != 1 and not ctx.env.options.devmode:
+            raise errors.UnsupportedFeatureError(
+                "Multiple 'FOR' iterators is an internal testing feature",
+                context=qlstmt.context,
+            )
+
+        iterator_stmts = []
+        for binding in qlstmt.iterator_bindings:
+            # XXX: can one iterator reference an earlier one?
+            iterator_stmts.append(
+                _compile_for_binding(qlstmt, binding, ctx=sctx))
+
+        sctx.iterator_path_ids |= {
+            iterator_stmt.path_id for iterator_stmt in iterator_stmts
+        }
+
+        stmt.iterator_stmt = iterator_stmts
 
         # Compile the body
         with sctx.newscope(fenced=True) as bctx:

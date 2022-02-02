@@ -190,7 +190,7 @@ def _normalize_with_block(
 
 
 def _normalize_aliased_field(
-    node: Union[qlast.SubjectMixin, qlast.ReturningMixin, qlast.ForQuery],
+    node: Union[qlast.SubjectMixin, qlast.ReturningMixin, qlast.ForBinding],
     fname: str,
     *,
     schema: s_schema.Schema,
@@ -383,13 +383,14 @@ def normalize_ForQuery(
     )
 
     # Process the iterator expression
-    localnames = _normalize_aliased_field(
-        node,
-        'iterator',
-        schema=schema,
-        modaliases=modaliases,
-        localnames=localnames,
-    )
+    for binding in node.iterator_bindings:
+        localnames = _normalize_aliased_field(
+            binding,
+            'iterator',
+            schema=schema,
+            modaliases=modaliases,
+            localnames=localnames,
+        )
 
     # Process the result expression
     localnames = _normalize_aliased_field(

@@ -1006,7 +1006,7 @@ class Stmt(Expr):
     # so we stick a bogus Empty set in.
     result: Set = EmptySet()  # type: ignore
     parent_stmt: typing.Optional[Stmt] = None
-    iterator_stmt: typing.Optional[Set] = None
+    iterator_stmt: typing.Sequence[Set] = ()
     bindings: typing.Optional[typing.List[Set]] = None
 
 

@@ -606,10 +606,14 @@ class DeleteQuery(Query, SubjectMixin, SelectClauseMixin):
     pass
 
 
-class ForQuery(Query, ReturningMixin, OrderByMixin):
+class ForBinding(Base):
     optional: bool = False
     iterator: Expr
     iterator_alias: str
+
+
+class ForQuery(Query, ReturningMixin, OrderByMixin):
+    iterator_bindings: typing.List[ForBinding]
 
 
 # Transactions

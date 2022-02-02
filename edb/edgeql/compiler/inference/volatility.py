@@ -255,10 +255,9 @@ def __infer_select_stmt(
     ir: irast.SelectStmt,
     env: context.Environment,
 ) -> InferredVolatility:
-    components = []
+    components: List[irast.Set] = []
 
-    if ir.iterator_stmt is not None:
-        components.append(ir.iterator_stmt)
+    components.extend(ir.iterator_stmt)
 
     components.append(ir.result)
 
