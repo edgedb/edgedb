@@ -65,7 +65,7 @@ from edb.common.ast import NodeVisitor
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, replace, field
 from collections import defaultdict
 
 import argparse
@@ -183,28 +183,38 @@ BASIS = {
 
 
 # #############
-# FIXME: Make these dataclasses.
-class IPartial(NamedTuple):
+@dataclass(frozen=True, order=True)
+class IPathElement:
+    def is_alias_ref(self) -> bool:
+        return False
+
+
+@dataclass(frozen=True, order=True)
+class IPartial(IPathElement):
     pass
 
 
-class IExpr(NamedTuple):
+@dataclass(frozen=True, order=True)
+class IExpr(IPathElement):
     expr: qlast.Expr
 
 
-class IORef(NamedTuple):
+@dataclass(frozen=True, order=True)
+class IORef(IPathElement):
     name: str
+    is_alias: bool = field(default=False, compare=False)
+
+    def is_alias_ref(self) -> bool:
+        return self.is_alias
 
 
-class IAliasRef(NamedTuple):
-    name: str
-
-
-class ITypeIntersection(NamedTuple):
+@dataclass(frozen=True, order=True)
+class ITypeIntersection(IPathElement):
     typ: str
 
 
-class IPtr(NamedTuple):
+@dataclass(frozen=True, order=True)
+class IPtr(IPathElement):
     name: str
     direction: Optional[str] = None
     is_link_property: bool = False
@@ -216,8 +226,6 @@ class Alias(NamedTuple):
     contents: List[Data]
 
 
-IPathElement = Union[
-    IPartial, IExpr, IORef, ITypeIntersection, IAliasRef, IPtr]
 IPath = Tuple[IPathElement, ...]
 
 # Implementation of built in functions and operators
@@ -540,7 +548,8 @@ def eval_limit(limit: Optional[qlast.Expr], out: List[Row],
 def add_alias(name: str, vals: Data, ctx: EvalContext) -> EvalContext:
     return replace(
         ctx,
-        query_input_list=ctx.query_input_list + [(IAliasRef(name),)],
+        query_input_list=ctx.query_input_list + [
+            (IORef(name, is_alias=True),)],
         input_tuple=ctx.input_tuple + (Alias(vals),),
     )
 
@@ -1099,7 +1108,7 @@ def eval_path(path: IPath, ctx: EvalContext) -> Result:
     for obj in base:
         if isinstance(ptr, IPtr):
             out.extend(eval_ptr(obj, ptr, ctx))
-        else:
+        elif isinstance(ptr, ITypeIntersection):
             out.extend(eval_intersect(obj, ptr, ctx))
     # We need to deduplicate links.
     if base and isinstance(base[0], Obj) and out and isinstance(out[0], Obj):
@@ -1313,7 +1322,7 @@ def find_common_prefixes(
 
 def _contains_non_alias_path(paths: Sequence[IPath], new: IPath) -> bool:
     return any(
-        new == y and not (len(y) == 1 and isinstance(y[0], IAliasRef))
+        new == y and not (len(y) == 1 and y[0].is_alias_ref())
         for y in paths
     )
 
