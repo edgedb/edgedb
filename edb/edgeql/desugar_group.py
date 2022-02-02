@@ -236,7 +236,9 @@ def try_group_rewrite(
                 *_,
                 qlast.AliasedExpr(alias=alias, expr=qlast.GroupQuery() as grp)
             ] as qaliases,
-            iterator=astutils.alias_view((alias2, [])),
+            iterator_bindings=[qlast.ForBinding(
+                iterator_alias=astutils.alias_view((alias2, [])),
+            )],
             result=result,
         ) if alias == alias2 and _count_alias_uses(result, alias) == 0:
             node = node.replace(
@@ -270,12 +272,16 @@ def try_group_rewrite(
     # Eliminate FORs over GROUPs
     if (
         isinstance(node, qlast.ForQuery)
-        and isinstance(node.iterator, qlast.GroupQuery)
+        and len(node.iterator_bindings) == 1
+        and (binding := node.iterator_bindings[0])
+        and isinstance(binding.iterator, qlast.GroupQuery)
     ):
-        igroup = desugar_group(node.iterator, aliases)
+        igroup = desugar_group(binding.iterator, aliases)
         new_result = qlast.ForQuery(
-            iterator_alias=node.iterator_alias,
-            iterator=igroup.result,
+            iterator_bindings=[qlast.ForBinding(
+                iterator_alias=binding.iterator_alias,
+                iterator=igroup.result,
+            )],
             result=node.result,
         )
         return igroup.replace(result=new_result, aliases=node.aliases)
