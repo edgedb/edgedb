@@ -12381,6 +12381,104 @@ type default::Foo {
             delete Foo;
         """)
 
+    async def test_edgeql_ddl_set_multi_with_children_01(self):
+        await self.con.execute(r"""
+            create type Person { create link lover -> Person; };
+            create type NPC extending Person;
+            alter type Person { alter link lover { set multi; }; };
+        """)
+
+        await self.con.execute(r"""
+            drop type NPC;
+            drop type Person;
+        """)
+
+    async def test_edgeql_ddl_set_multi_with_children_02(self):
+        await self.con.execute(r"""
+            create abstract type Person { create link lover -> Person; };
+            create type NPC extending Person;
+            alter type Person { alter link lover { set multi; }; };
+        """)
+
+        await self.con.execute(r"""
+            drop type NPC;
+            drop type Person;
+        """)
+
+    async def test_edgeql_ddl_set_multi_with_children_03(self):
+        await self.con.execute(r"""
+            create type Person { create property foo -> str; };
+            create type NPC extending Person;
+            alter type Person { alter property foo { set multi; }; };
+        """)
+
+        await self.con.execute(r"""
+            drop type NPC;
+            drop type Person;
+        """)
+
+    async def test_edgeql_ddl_set_multi_with_children_04(self):
+        await self.con.execute(r"""
+            create abstract type Person { create property foo -> str; };
+            create type NPC extending Person;
+            alter type Person { alter property foo { set multi; }; };
+        """)
+
+        await self.con.execute(r"""
+            drop type NPC;
+            drop type Person;
+        """)
+
+    async def test_edgeql_ddl_set_single_with_children_01(self):
+        await self.con.execute(r"""
+            create abstract type Person { create multi link foo -> Person; };
+            create type NPC extending Person;
+            alter type Person alter link foo {
+                set single USING (SELECT .foo LIMIT 1);
+            };
+        """)
+
+        await self.con.execute(r"""
+            drop type NPC;
+            drop type Person;
+        """)
+
+    async def test_edgeql_ddl_set_single_with_children_02(self):
+        await self.con.execute(r"""
+            create abstract type Person { create multi property foo -> str; };
+            create type NPC extending Person;
+            alter type Person alter property foo {
+                set single USING (SELECT .foo LIMIT 1);
+            };
+        """)
+
+        await self.con.execute(r"""
+            drop type NPC;
+            drop type Person;
+        """)
+
+    async def test_edgeql_ddl_drop_multi_child_01(self):
+        await self.con.execute(r"""
+            create abstract type Person { create multi property foo -> str; };
+            create type NPC extending Person;
+        """)
+
+        await self.con.execute(r"""
+            drop type NPC;
+            drop type Person;
+        """)
+
+    async def test_edgeql_ddl_drop_multi_child_02(self):
+        await self.con.execute(r"""
+            create abstract type Person { create multi link foo -> Person; };
+            create type NPC extending Person;
+        """)
+
+        await self.con.execute(r"""
+            drop type NPC;
+            drop type Person;
+        """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
