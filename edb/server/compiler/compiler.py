@@ -810,7 +810,6 @@ class Compiler:
             )
 
             context = self._new_delta_context(ctx)
-            orig_schema = schema
             schema = delta.apply(schema, context=context)
 
             if mstate.last_proposed:
@@ -1160,8 +1159,10 @@ class Compiler:
                         if mstate.parent_migration is not None
                         else 'initial'
                     ),
-                    'complete': not proposed_desc and s_ddl.schemas_are_equal(
-                        schema, mstate.target_schema),
+                    'complete': (
+                        proposed_desc is None
+                        and s_ddl.schemas_are_equal(
+                            schema, mstate.target_schema)),
                     'confirmed': confirmed,
                     'proposed': proposed_desc,
                 }).encode('unicode_escape').decode('utf-8')
