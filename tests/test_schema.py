@@ -1827,6 +1827,34 @@ class TestSchema(tb.BaseSchemaLoadTest):
                 ALTER TYPE Foo EXTENDING Bar;
             ''')
 
+    def test_schema_with_block_01(self):
+        self.load_schema(r'''
+            function test(foo: str, bar: str) -> str {
+                using (
+                    with
+                        f := foo,
+                        b := bar,
+                        r := f ++ b,
+                    select r
+                )
+            }
+        ''', modname='default')
+
+    def test_schema_with_block_02(self):
+        self.load_schema(r'''
+            alias a := 1;
+
+            function test(foo: int64, bar: int64) -> int64 {
+                using (
+                    with
+                        aa := a,
+                        def as module default,
+                        aa2 := def::a
+                    select aa + aa2 + foo + bar
+                )
+            }
+        ''', modname='default')
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.

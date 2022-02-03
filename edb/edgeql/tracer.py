@@ -271,7 +271,7 @@ class TracerContext:
         source: Optional[sn.QualName],
         subject: Optional[sn.QualName],
         path_prefix: Optional[sn.QualName],
-        modaliases: Mapping[Optional[str], str],
+        modaliases: Dict[Optional[str], str],
         params: Mapping[str, sn.QualName],
     ) -> None:
         self.schema = schema
@@ -334,48 +334,45 @@ def alias_context(
     aliases: Optional[
         Sequence[Union[qlast.AliasedExpr, qlast.ModuleAliasDecl]]],
 ) -> Generator[TracerContext, None, None]:
-    module = None
-    modaliases: Dict[Optional[str], str] = {}
-    # make a copy of the objects dict so that it can be safely updated
-    # with aliased expressions
-    objects = dict(ctx.objects)
-    ctx_changed = False
+    nctx = None
+
+    def _fork_context() -> TracerContext:
+        nonlocal nctx
+
+        if nctx is None:
+            nctx = TracerContext(
+                schema=ctx.schema,
+                module=ctx.module,
+                objects=dict(ctx.objects),
+                source=ctx.source,
+                subject=ctx.subject,
+                path_prefix=ctx.path_prefix,
+                modaliases=dict(ctx.modaliases),
+                params=ctx.params,
+            )
+            nctx.refs = ctx.refs
+
+        return nctx
 
     for alias in (aliases or ()):
         # module and modalias in ctx needs to be amended
         if isinstance(alias, qlast.ModuleAliasDecl):
-            ctx_changed = True
+            ctx = _fork_context()
             if alias.alias:
-                modaliases[alias.alias] = alias.module
+                ctx.modaliases[alias.alias] = alias.module
             else:
                 # default module
-                module = alias.module
+                ctx.module = alias.module
 
         elif isinstance(alias, qlast.AliasedExpr):
-            ctx_changed = True
+            ctx = _fork_context()
             obj = trace(alias.expr, ctx=ctx)
             # Regardless of whether tracing the expression produces an
             # object, record the alias.
-            objects[sn.QualName('__alias__', alias.alias)] = obj
-
-    if ctx_changed:
-        nctx = TracerContext(
-            schema=ctx.schema,
-            module=module or ctx.module,
-            objects=objects,
-            source=ctx.source,
-            subject=ctx.subject,
-            path_prefix=ctx.path_prefix,
-            modaliases=modaliases or ctx.modaliases,
-            params=ctx.params,
-        )
-        # use the same refs set
-        nctx.refs = ctx.refs
-    else:
-        nctx = ctx
+            ctx.objects[sn.QualName('__alias__', alias.alias)] = obj
 
     try:
-        yield nctx
+        yield ctx
     finally:
         # refs are already updated
         pass
