@@ -351,6 +351,9 @@ def _static_interpret_cardinality_violation(_code, err_details):
     elif err_details.constraint_name == 'std::assert_distinct':
         return errors.ConstraintViolationError(err_details.message)
 
+    elif err_details.constraint_name == 'set abstract':
+        return errors.ConstraintViolationError(err_details.message)
+
     return errors.InternalServerError(err_details.message)
 
 
