@@ -3186,7 +3186,9 @@ class PointerMetaCommand(MetaCommand):
                 dt = dbops.DropTable(name=otabname, conditions=[condition])
                 self.pgops.add(dt)
 
-            self.alter_inhview(schema, context, source_op.scls)
+            self.schedule_inhview_update(
+                schema, context, source_op.scls,
+                s_objtypes.ObjectTypeCommandContext,)
         else:
             # Moving from source table to pointer table.
             self.create_table(ptr, schema, context)
@@ -4132,15 +4134,17 @@ class AlterLinkUpperCardinality(
     LinkMetaCommand,
     adapts=s_links.AlterLinkUpperCardinality,
 ):
-    def apply(
+    def _alter_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        orig_schema = context.current().original_schema
         pop = self.get_parent_op(context)
-        orig_schema = schema
-        schema = super().apply(schema, context)
 
+        # We need to run the parent change *before* the children,
+        # or else the view update in the child might fail if a
+        # link table isn't created in the parent yet.
         if (
             not self.scls.generic(schema)
             and not self.scls.is_pure_computable(schema)
@@ -4151,7 +4155,7 @@ class AlterLinkUpperCardinality(
             if orig_card != new_card:
                 self._alter_pointer_cardinality(schema, orig_schema, context)
 
-        return schema
+        return super()._alter_innards(schema, context)
 
 
 class AlterLinkLowerCardinality(
@@ -4462,6 +4466,8 @@ class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
 
         if has_table(prop, orig_schema):
             self.drop_inhview(orig_schema, context, prop)
+            self.alter_ancestor_inhviews(
+                schema, context, prop, exclude_children={prop})
             old_table_name = common.get_backend_name(
                 orig_schema, prop, catenate=False)
             self.pgops.add(dbops.DropTable(name=old_table_name))
@@ -4535,15 +4541,17 @@ class AlterPropertyUpperCardinality(
     PropertyMetaCommand,
     adapts=s_props.AlterPropertyUpperCardinality,
 ):
-    def apply(
+    def _alter_innards(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         pop = self.get_parent_op(context)
-        orig_schema = schema
-        schema = super().apply(schema, context)
+        orig_schema = context.current().original_schema
 
+        # We need to run the parent change *before* the children,
+        # or else the view update in the child might fail if a
+        # link table isn't created in the parent yet.
         if (
             not self.scls.generic(schema)
             and not self.scls.is_pure_computable(schema)
@@ -4555,7 +4563,7 @@ class AlterPropertyUpperCardinality(
             if orig_card != new_card:
                 self._alter_pointer_cardinality(schema, orig_schema, context)
 
-        return schema
+        return super()._alter_innards(schema, context)
 
 
 class AlterPropertyLowerCardinality(
