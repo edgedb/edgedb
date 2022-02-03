@@ -315,7 +315,7 @@ class MigrationState(NamedTuple):
     target_schema: s_schema.Schema
     guidance: s_obj.DeltaGuidance
     accepted_cmds: Tuple[qlast.Command, ...]
-    last_proposed: Tuple[ProposedMigrationStep, ...]
+    last_proposed: Optional[Tuple[ProposedMigrationStep, ...]]
 
 
 class TransactionState(NamedTuple):
