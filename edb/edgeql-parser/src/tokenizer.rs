@@ -919,6 +919,7 @@ pub fn is_keyword(s: &str) -> bool {
         | "rollback"
         | "select"
         | "set"
+        | "start"
         | "true"
         | "typeof"
         | "update"
