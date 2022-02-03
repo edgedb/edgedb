@@ -746,6 +746,7 @@ class Compiler:
         self,
         ctx: CompileContext,
         stmt: qlast.DDLOperation,
+        source: Optional[edgeql.Source] = None,
     ) -> dbstate.DDLQuery:
         if isinstance(stmt, qlast.GlobalObjectCommand):
             self._assert_not_in_migration_block(ctx, stmt)
@@ -809,7 +810,6 @@ class Compiler:
             )
 
             context = self._new_delta_context(ctx)
-            orig_schema = schema
             schema = delta.apply(schema, context=context)
 
             if mstate.last_proposed:
@@ -821,14 +821,12 @@ class Compiler:
                     # if user input is required.
                     # Also skip auto-applying for renames, since
                     # renames often force a bunch of rethinking.
-                    mstate = mstate._replace(last_proposed=tuple())
+                    mstate = mstate._replace(last_proposed=None)
                 else:
                     proposed_stmts = mstate.last_proposed[0].statements
                     ddl_script = '\n'.join(proposed_stmts)
-                    proposed_schema = s_ddl.apply_ddl_script(
-                        ddl_script, schema=orig_schema)
 
-                    if s_ddl.schemas_are_equal(schema, proposed_schema):
+                    if source and source.text() == ddl_script:
                         # The client has confirmed the proposed migration step,
                         # advance the proposed script.
                         mstate = mstate._replace(
@@ -838,7 +836,7 @@ class Compiler:
                         # The client replied with a statement that does not
                         # match what was proposed, reset the proposed script
                         # to force script regeneration on next DESCRIBE.
-                        mstate = mstate._replace(last_proposed=tuple())
+                        mstate = mstate._replace(last_proposed=None)
 
             current_tx.update_migration_state(mstate)
             current_tx.update_schema(schema)
@@ -979,7 +977,7 @@ class Compiler:
                     guidance=s_obj.DeltaGuidance(),
                     target_schema=target_schema,
                     accepted_cmds=tuple(),
-                    last_proposed=tuple(),
+                    last_proposed=None,
                 ),
             )
 
@@ -1078,7 +1076,7 @@ class Compiler:
                             stmt, pretty=True, uppercase=True) + ';',
                     )
 
-                if not mstate.last_proposed:
+                if mstate.last_proposed is None:
                     guided_diff = s_ddl.delta_schemas(
                         schema,
                         mstate.target_schema,
@@ -1150,7 +1148,10 @@ class Compiler:
 
                     current_tx.update_migration_state(mstate)
                 else:
-                    proposed_desc = mstate.last_proposed[0].to_json()
+                    if mstate.last_proposed:
+                        proposed_desc = mstate.last_proposed[0].to_json()
+                    else:
+                        proposed_desc = None
 
                 desc = json.dumps({
                     'parent': (
@@ -1158,8 +1159,10 @@ class Compiler:
                         if mstate.parent_migration is not None
                         else 'initial'
                     ),
-                    'complete': s_ddl.schemas_are_equal(
-                        schema, mstate.target_schema),
+                    'complete': (
+                        proposed_desc is None
+                        and s_ddl.schemas_are_equal(
+                            schema, mstate.target_schema)),
                     'confirmed': confirmed,
                     'proposed': proposed_desc,
                 }).encode('unicode_escape').decode('utf-8')
@@ -1213,7 +1216,7 @@ class Compiler:
 
             mstate = mstate._replace(
                 guidance=new_guidance,
-                last_proposed=tuple(),
+                last_proposed=None,
             )
             current_tx.update_migration_state(mstate)
 
@@ -1583,7 +1586,8 @@ class Compiler:
     def _compile_dispatch_ql(
         self,
         ctx: CompileContext,
-        ql: qlast.Base
+        ql: qlast.Base,
+        source: Optional[edgeql.Source] = None,
     ) -> Tuple[dbstate.BaseQuery, enums.Capability]:
         if isinstance(ql, qlast.MigrationCommand):
             query = self._compile_ql_migration(ctx, ql)
@@ -1597,7 +1601,7 @@ class Compiler:
 
         elif isinstance(ql, (qlast.DatabaseCommand, qlast.DDL)):
             return (
-                self._compile_and_apply_ddl_stmt(ctx, ql),
+                self._compile_and_apply_ddl_stmt(ctx, ql, source=source),
                 enums.Capability.DDL,
             )
 
@@ -1703,7 +1707,8 @@ class Compiler:
         unit = None
 
         for stmt in statements:
-            comp, capabilities = self._compile_dispatch_ql(ctx, stmt)
+            comp, capabilities = self._compile_dispatch_ql(
+                ctx, stmt, source=source if len(statements) == 1 else None)
 
             if unit is not None:
                 if comp.single_unit:
