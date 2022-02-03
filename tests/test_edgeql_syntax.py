@@ -1797,8 +1797,7 @@ aa';
             order := 'order',
             populate := 'populate',
             release := 'release',
-            reset := 'reset',
-            start := 'start'
+            reset := 'reset'
         SELECT 1;
         """
 
