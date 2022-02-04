@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import *
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
@@ -290,8 +292,10 @@ class CreateAnnotationValue(
             astnode.value, schema=schema)
 
         if not isinstance(value, str):
-            raise ValueError(
-                f'unexpected value type in annotation: {value!r}')
+            raise errors.InvalidValueError(
+                'annotation values must be strings',
+                context=astnode.value.context,
+            )
 
         anno = utils.ast_objref_to_object_shell(
             utils.name_to_ast_ref(annoname),
@@ -366,8 +370,10 @@ class AlterAnnotationValue(
                 astnode.value, schema=schema)
 
             if not isinstance(value, str):
-                raise ValueError(
-                    f'unexpected value type in AnnotationValue: {value!r}')
+                raise errors.InvalidValueError(
+                    'annotation values must be strings',
+                    context=astnode.value.context,
+                )
 
             cmd.set_attribute_value(
                 'value',
