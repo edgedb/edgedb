@@ -6261,6 +6261,37 @@ type default::Foo {
             ]
         )
 
+    async def test_edgeql_ddl_annotation_16(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION attr1;
+        """)
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"annotation values must be 'std::str', "
+                r"got scalar type 'std::int64'"):
+            await self.con.execute("""
+                CREATE SCALAR TYPE TestAttrType1 EXTENDING std::str {
+                    CREATE ANNOTATION attr1 := 10;
+                };
+            """)
+
+    async def test_edgeql_ddl_annotation_17(self):
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION attr1;
+            CREATE SCALAR TYPE TestAttrType1 EXTENDING std::str {
+                CREATE ANNOTATION attr1 := '10';
+            };
+        """)
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                r"annotation values must be 'std::str', "
+                r"got scalar type 'std::int64'"):
+            await self.con.execute("""
+                ALTER SCALAR TYPE TestAttrType1 {
+                    ALTER ANNOTATION attr1 := 10;
+                };
+            """)
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
