@@ -1,0 +1,22 @@
+.. _ref_changelog_rc5:
+
+========
+1.0 RC 5
+========
+
+This changelog summarizes changes and bugfixes in EdgeDB 1.0 Release
+Candidate 5 "Tau Ceti". Compared to other releases this is a very
+small one as we're closing in on the stable version.
+
+
+Changes
+=======
+
+* Downgrade some keywords from being reserved to unreserved:
+  ``abort``, ``declare``, ``empty``, ``order``, ``populate``,
+  ``release``, ``reset``, ``start`` (:eql:gh:`#3387`).
+* Fix an issue with removing types from the schema (:eql:gh:`#3309`).
+* Improve cardinality inference for ``offset`` and ``limit`` clauses
+  (:eql:gh:`#3375`).
+* Enable :eql:type:`enums <enum>` for some configuration values
+  (:eql:gh:`#3320`).

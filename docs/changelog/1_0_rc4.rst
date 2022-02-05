@@ -45,7 +45,7 @@ the cleanup of our bindings, with a handful of improvements. We now
 support non-file variants of ``tls_ca`` and ``credentials`` options.
 
 * Release `edgedb-python <https://github.com/edgedb/edgedb-python>`_
-  v0.20.1 driver. This version will now automatically retry on
+  v0.21.0 driver. This version will now automatically retry on
   ``TransactionConflictError``.
 * Release `edgedb-js <https://github.com/edgedb/edgedb-js>`_ v0.18.0 driver.
-* Release `edgedb-go <https://github.com/edgedb/edgedb-go>`_ v0.10.0 driver.
+* Release `edgedb-go <https://github.com/edgedb/edgedb-go>`_ v0.9.1 driver.
