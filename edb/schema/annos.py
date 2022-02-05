@@ -282,8 +282,6 @@ class CreateAnnotationValue(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> CreateAnnotationValue:
-        from . import scalars as s_scalar
-
         assert isinstance(astnode, qlast.CreateAnnotationValue)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, CreateAnnotationValue)
@@ -292,10 +290,7 @@ class CreateAnnotationValue(
         value, ir = qlcompiler.evaluate_ast_to_python_val_and_ir(
             astnode.value, schema=schema)
 
-        if (
-            not isinstance(ir.stype, s_scalar.ScalarType)
-            or ir.stype.get_name(schema) != sn.QualName('std', 'str')
-        ):
+        if ir.stype.get_name(schema) != sn.QualName('std', 'str'):
             vn = ir.stype.get_verbosename(schema)
             raise errors.InvalidValueError(
                 f"annotation values must be 'std::str', got {vn}",
@@ -363,8 +358,6 @@ class AlterAnnotationValue(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> AlterAnnotationValue:
-        from . import scalars as s_scalar
-
         assert isinstance(
             astnode,
             (qlast.CreateAnnotationValue, qlast.AlterAnnotationValue),
@@ -376,10 +369,7 @@ class AlterAnnotationValue(
             value, ir = qlcompiler.evaluate_ast_to_python_val_and_ir(
                 astnode.value, schema=schema)
 
-            if (
-                not isinstance(ir.stype, s_scalar.ScalarType)
-                or ir.stype.get_name(schema) != sn.QualName('std', 'str')
-            ):
+            if ir.stype.get_name(schema) != sn.QualName('std', 'str'):
                 vn = ir.stype.get_verbosename(schema)
                 raise errors.InvalidValueError(
                     f"annotation values must be 'std::str', got {vn}",
