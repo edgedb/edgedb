@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import *
 
+from edb import errors
+
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes
@@ -280,18 +282,20 @@ class CreateAnnotationValue(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> CreateAnnotationValue:
-
         assert isinstance(astnode, qlast.CreateAnnotationValue)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, CreateAnnotationValue)
         annoname = sn.shortname_from_fullname(cmd.classname)
 
-        value = qlcompiler.evaluate_ast_to_python_val(
+        value, ir = qlcompiler.evaluate_ast_to_python_val_and_ir(
             astnode.value, schema=schema)
 
-        if not isinstance(value, str):
-            raise ValueError(
-                f'unexpected value type in annotation: {value!r}')
+        if ir.stype.get_name(schema) != sn.QualName('std', 'str'):
+            vn = ir.stype.get_verbosename(schema)
+            raise errors.InvalidValueError(
+                f"annotation values must be 'std::str', got {vn}",
+                context=astnode.value.context,
+            )
 
         anno = utils.ast_objref_to_object_shell(
             utils.name_to_ast_ref(annoname),
@@ -362,12 +366,15 @@ class AlterAnnotationValue(
         assert isinstance(cmd, AlterAnnotationValue)
 
         if astnode.value is not None:
-            value = qlcompiler.evaluate_ast_to_python_val(
+            value, ir = qlcompiler.evaluate_ast_to_python_val_and_ir(
                 astnode.value, schema=schema)
 
-            if not isinstance(value, str):
-                raise ValueError(
-                    f'unexpected value type in AnnotationValue: {value!r}')
+            if ir.stype.get_name(schema) != sn.QualName('std', 'str'):
+                vn = ir.stype.get_verbosename(schema)
+                raise errors.InvalidValueError(
+                    f"annotation values must be 'std::str', got {vn}",
+                    context=astnode.value.context,
+                )
 
             cmd.set_attribute_value(
                 'value',
