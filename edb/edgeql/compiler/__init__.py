@@ -366,6 +366,47 @@ def evaluate_to_python_val(
     return evaluate_ast_to_python_val(tree, schema, modaliases=modaliases)
 
 
+def evaluate_ast_to_python_val_and_ir(
+    tree: qlast.Base,
+    schema: s_schema.Schema,
+    *,
+    modaliases: Optional[Mapping[Optional[str], str]] = None,
+) -> Tuple[Any, irast.Statement]:
+    """Evaluate the given EdgeQL AST as a constant expression.
+
+    Args:
+        tree:
+            EdgeQL AST.
+
+        schema:
+            Schema instance.  Must contain definitions for objects
+            referenced by AST *tree*.
+
+        modaliases:
+            Module name resolution table.  Useful when this EdgeQL
+            expression is part of some other construct, such as a
+            DDL statement.
+
+    Returns:
+        The result of the evaluation as a Python value and the associated IR.
+
+    Raises:
+        If the expression is not constant, or is otherwise not supported by
+        the const evaluator, the function will raise
+        :exc:`ir.staeval.UnsupportedExpressionError`.
+    """
+    if modaliases is None:
+        modaliases = {}
+    ir = compile_ast_fragment_to_ir(
+        tree,
+        schema,
+        options=CompilerOptions(
+            modaliases=modaliases,
+        ),
+    )
+    return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema), ir
+
+
 def evaluate_ast_to_python_val(
     tree: qlast.Base,
     schema: s_schema.Schema,
@@ -395,16 +436,9 @@ def evaluate_ast_to_python_val(
         the const evaluator, the function will raise
         :exc:`ir.staeval.UnsupportedExpressionError`.
     """
-    if modaliases is None:
-        modaliases = {}
-    ir = compile_ast_fragment_to_ir(
-        tree,
-        schema,
-        options=CompilerOptions(
-            modaliases=modaliases,
-        ),
-    )
-    return ireval.evaluate_to_python_val(ir.expr, schema=ir.schema)
+    return evaluate_ast_to_python_val_and_ir(
+        tree, schema, modaliases=modaliases
+    )[0]
 
 
 @compiler_entrypoint

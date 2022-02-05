@@ -282,18 +282,23 @@ class CreateAnnotationValue(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> CreateAnnotationValue:
+        from . import scalars as s_scalar
 
         assert isinstance(astnode, qlast.CreateAnnotationValue)
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, CreateAnnotationValue)
         annoname = sn.shortname_from_fullname(cmd.classname)
 
-        value = qlcompiler.evaluate_ast_to_python_val(
+        value, ir = qlcompiler.evaluate_ast_to_python_val_and_ir(
             astnode.value, schema=schema)
 
-        if not isinstance(value, str):
+        if (
+            not isinstance(ir.stype, s_scalar.ScalarType)
+            or ir.stype.get_name(schema) != sn.QualName('std', 'str')
+        ):
+            vn = ir.stype.get_verbosename(schema)
             raise errors.InvalidValueError(
-                'annotation values must be strings',
+                f"annotation values must be 'std::str', got {vn}",
                 context=astnode.value.context,
             )
 
@@ -358,6 +363,8 @@ class AlterAnnotationValue(
         astnode: qlast.DDLOperation,
         context: sd.CommandContext
     ) -> AlterAnnotationValue:
+        from . import scalars as s_scalar
+
         assert isinstance(
             astnode,
             (qlast.CreateAnnotationValue, qlast.AlterAnnotationValue),
@@ -366,12 +373,16 @@ class AlterAnnotationValue(
         assert isinstance(cmd, AlterAnnotationValue)
 
         if astnode.value is not None:
-            value = qlcompiler.evaluate_ast_to_python_val(
+            value, ir = qlcompiler.evaluate_ast_to_python_val_and_ir(
                 astnode.value, schema=schema)
 
-            if not isinstance(value, str):
+            if (
+                not isinstance(ir.stype, s_scalar.ScalarType)
+                or ir.stype.get_name(schema) != sn.QualName('std', 'str')
+            ):
+                vn = ir.stype.get_verbosename(schema)
                 raise errors.InvalidValueError(
-                    'annotation values must be strings',
+                    f"annotation values must be 'std::str', got {vn}",
                     context=astnode.value.context,
                 )
 
