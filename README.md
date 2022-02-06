@@ -71,7 +71,7 @@ The first stable release of EdgeDB is finally here. On February 10th, 2022, Edge
 
 Schema is the foundation of your application. It should be something you can read, write, and understand.
 
-Forget foreign keys; tabular data modeling is a relic of an older age, and it [isn't compatible](https://en.wikipedia.org/wiki/Object%E2%80%93relational_impedance_mismatch) with modern languages. Instaed, EdgeDB thinks about schema the same way you do: as **object types** containing **properties** connected by **links**.
+Forget foreign keys; tabular data modeling is a relic of an older age, and it [isn't compatible](https://en.wikipedia.org/wiki/Object%E2%80%93relational_impedance_mismatch) with modern languages. Instead, EdgeDB thinks about schema the same way you do: as **object types** containing **properties** connected by **links**.
 
 ```
 type Character {
