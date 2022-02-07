@@ -59,14 +59,13 @@ development. Join us for the live launch event!
 <br/>
 <div align="center">
   <h2>What is EdgeDB?</h2>
-  <p>
-    EdgeDB is a new kind of database that takes the
-    <br/>
-    best parts of relational databases, graph databases,
-    <br/>
-    and ORMs. We call it a graph-relational database. It
-    <br/>
-    was designed with a few key principles in mind.</p>
+  <p style="">
+    EdgeDB is a new kind of database that
+    <br/>takes the best parts of relational
+    <br/>databases, graph databases, and
+    <br/>ORMs. We call it a graph-relational
+    <br/>database. It was designed with a few
+    <br/>key principles in mind.</p>
 </div>
 
 <br/>
