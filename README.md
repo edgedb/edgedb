@@ -110,16 +110,13 @@ Read the [schema docs](https://www.edgedb.com/docs/datamodel/index) for details.
 <br/>
 
 EdgeDB's super-powered query language EdgeQL is designed as a ground-up
-redesign of SQL that aims to match it in power and surpass it in elegance,
-brevity, and expressiveness.
-
-EdgeQL queries produce rich, structured objects, not flat lists of rows. Deeply
-fetching related objects is painless...bye, bye, JOINs.
+redesign of SQL. EdgeQL queries produce rich, structured objects, not flat
+lists of rows. Deeply fetching related objects is painless...bye, bye, JOINs.
 
 ```
 select Movie {
   title,
-  characters: {
+  actors: {
     name
   }
 }
@@ -133,16 +130,21 @@ _nested mutations_ a breeze.
 ```
 insert Movie {
   title := "The Matrix Resurrections",
-  characters := (
+  actors := (
     select Character
-    filter .name in {'Neo', 'Trinity', 'Niobe'}
+    filter .name in {
+      'Keanu Reeves',
+      'Carrie-Anne Moss',
+      'Laurence Fishburne'
+    }
   )
 }
 ```
 
-There's a lot more to EdgeQL: computed properties, polymorphic queries, `with`
-blocks, transactions; read the
-[EdgeQL docs](https://www.edgedb.com/docs/edgeql/index) for details.
+There's a lot more to EdgeQL: a comprehensive standard library, computed
+properties, polymorphic queries, `with` blocks, transactions, and much more.
+Read the [EdgeQL docs](https://www.edgedb.com/docs/edgeql/index) for the full
+picture.
 
 <br/>
 <div align="center">
@@ -160,8 +162,9 @@ different languages, a
 cloud hosting platform. The goal is to rethink every aspect of how developers
 model, migrate, manage, and query their database.
 
-Here's a taste-test of EdgeDB's next-level DX: you can install our CLI, spin up
-an instance, and open an interactive EdgeQL shell with just three commands.
+Here's a taste-test of EdgeDB's next-level developer experience: you can
+install our CLI, spin up an instance, and open an interactive EdgeQL shell with
+just three commands.
 
 ```
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
