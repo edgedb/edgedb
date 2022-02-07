@@ -67,7 +67,7 @@ development. Join us for the live launch event!
     relational databases, graph
     <br/>
     databases, and ORMs. We call it
-    <br/>a graph-relational database.
+    <br/>a <b>graph-relational database</b>.
     </p>
 </div>
 
