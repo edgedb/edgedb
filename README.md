@@ -86,26 +86,28 @@ with modern languages. Instead, EdgeDB thinks about schema the same way you do:
 as **object types** containing **properties** connected by **links**.
 
 ```
-type Character {
+type Person {
   required property name -> str;
 }
 
 type Movie {
   required property title -> str;
-  multi link characters -> Character;
+  multi link actors -> Person;
 }
 ```
 
-This example is intentionally simple; EdgeDB supports everything you'd expect
-from your database—indexes, constraints, computed properties—plus some shiny
-new stuff too: link properties, world-class JSON support, and schema mixins.
-Read the [schema docs](https://www.edgedb.com/docs/datamodel/index) for details.
+This example is intentionally simple, but EdgeDB supports everything you'd
+expect from your database: a strict type system, indexes, constraints, computed
+properties, stored procedures...the list goes on. Plus it gives you some shiny
+new features too: link properties, schema mixins, and best-in-class JSON
+support. Read the [schema docs](https://www.edgedb.com/docs/datamodel/index)
+for details.
 
 <!-- ### Objects, not rows. ❄️ -->
 
 <br/>
 <div align="center">
-  <h3>❄️ Objects, not rows ❄️</h3>
+  <h3>🌳 Objects, not rows 🌳</h3>
 </div>
 <br/>
 
@@ -131,7 +133,7 @@ _nested mutations_ a breeze.
 insert Movie {
   title := "The Matrix Resurrections",
   actors := (
-    select Character
+    select Person
     filter .name in {
       'Keanu Reeves',
       'Carrie-Anne Moss',
