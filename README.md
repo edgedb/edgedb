@@ -64,8 +64,8 @@ development. Join us for the live launch event!
     <br/>takes the best parts of relational
     <br/>databases, graph databases, and
     <br/>ORMs. We call it a graph-relational
-    <br/>database. It was designed with a few
-    <br/>key principles in mind.</p>
+    <br/>database.
+    </p>
 </div>
 
 <br/>
