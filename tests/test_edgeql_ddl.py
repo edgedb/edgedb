@@ -12510,6 +12510,19 @@ type default::Foo {
             drop type Person;
         """)
 
+    async def test_edgeql_ddl_set_abstract_bogus_01(self):
+        await self.con.execute(r"""
+            create type Foo;
+            insert Foo;
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r"may not make non-empty object type 'default::Foo' abstract"):
+            await self.con.execute(r"""
+                alter type Foo set abstract;
+            """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False

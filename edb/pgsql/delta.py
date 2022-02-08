@@ -2952,6 +2952,7 @@ class AlterObjectType(ObjectTypeMetaCommand,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        orig_schema = schema
         schema = super().apply(schema, context=context)
         objtype = self.scls
 
@@ -2959,6 +2960,8 @@ class AlterObjectType(ObjectTypeMetaCommand,
 
         self.table_name = common.get_backend_name(
             schema, objtype, catenate=False)
+
+        self._maybe_do_abstract_test(orig_schema, schema, context)
 
         if has_table(objtype, schema):
             self.attach_alter_table(context)
@@ -2968,6 +2971,39 @@ class AlterObjectType(ObjectTypeMetaCommand,
                 self.pgops.add(self.update_search_indexes)
 
         return schema
+
+    def _maybe_do_abstract_test(
+        self,
+        orig_schema: s_schema.Schema,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        orig_abstract = self.scls.get_abstract(orig_schema)
+        new_abstract = self.scls.get_abstract(schema)
+        if orig_abstract or not new_abstract:
+            return
+
+        table = q(*common.get_backend_name(
+            schema,
+            self.scls,
+            catenate=False,
+        ))
+
+        vn = self.scls.get_verbosename(schema)
+        check_qry = textwrap.dedent(f'''\
+            SELECT
+                edgedb.raise(
+                    NULL::text,
+                    'cardinality_violation',
+                    msg => {common.quote_literal(
+                            f"may not make non-empty {vn} abstract")},
+                    "constraint" => 'set abstract'
+                )
+            FROM {table}
+            INTO _dummy_text;
+        ''')
+
+        self.pgops.add(dbops.Query(check_qry))
 
 
 class DeleteObjectType(ObjectTypeMetaCommand,
