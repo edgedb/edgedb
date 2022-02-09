@@ -12,4 +12,5 @@ Deploying EdgeDB
     azure_flexibleserver
     digitalocean
     fly_io
+    gcp
     docker
