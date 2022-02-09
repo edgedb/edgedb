@@ -45,6 +45,7 @@ from edb.common import verutils
 
 # Increment this whenever the database layout or stdlib changes.
 EDGEDB_CATALOG_VERSION = 2022_01_07_00_00
+EDGEDB_MAJOR_VERSION = 2
 
 
 class MetadataError(Exception):
@@ -434,7 +435,7 @@ def get_version_from_scm(root: pathlib.Path) -> str:
 
     m = pep440_version_re.match(tag)
     assert m is not None
-    major = m.group('major')
+    major = EDGEDB_MAJOR_VERSION
     minor = m.group('minor')
     micro = m.group('micro') or ''
     microkind = '.' if micro else ''
