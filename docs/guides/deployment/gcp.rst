@@ -1,4 +1,4 @@
-.. _ref_guide_deployment_aws_aurora_ecs:
+.. _ref_guide_deployment_gcp:
 
 =======================================
 On Google Cloud Platform and Kubernetes
