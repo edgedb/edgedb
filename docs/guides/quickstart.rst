@@ -480,7 +480,7 @@ Unfortunately, adding Zendaya isn't possible with the current schema
 since both ``first_name`` and ``last_name`` are required. So let's
 migrate our schema to make ``last_name`` optional.
 
-If necessary, close the REPL with ``\q``, then open ``dbschema/schema.esdl``.
+If necessary, close the REPL with ``\q``, then open ``dbschema/default.esdl``.
 
 .. code-block:: sdl-diff
 
