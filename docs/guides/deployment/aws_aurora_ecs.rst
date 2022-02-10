@@ -278,8 +278,7 @@ Create a Private Subnet in Availability Zone "A"
             --region $REGION \
             --output text \
             --query " \
-            NetworkAcls[*].Associations[ \
-              ?SubnetId == '${SUBNET_A_PRIVATE_ID}' \
+            NetworkAcls[*].Associations[?SubnetId == '${SUBNET_A_PRIVATE_ID}' \
             ][] | [0].NetworkAclAssociationId" \
         )
 
@@ -333,8 +332,7 @@ Create a Public Subnet in Availability Zone "B"
             --region $REGION \
             --output text \
             --query " \
-              NetworkAcls[*].Associations[ \
-                ?SubnetId == '${SUBNET_B_PUBLIC_ID}' \
+              NetworkAcls[*].Associations[?SubnetId == '${SUBNET_B_PUBLIC_ID}'\
               ][] | [0].NetworkAclAssociationId" \
         )
 
