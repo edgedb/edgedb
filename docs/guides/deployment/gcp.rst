@@ -59,7 +59,7 @@ popostgres and EdgeDB.
        --project=$PROJECT
 
    $ gcloud sql instances create ${NAME}-postgres \
-       --database-version=POSTGRES_12 \
+       --database-version=POSTGRES_13 \
        --cpu=1 \
        --memory=3840MiB \
        --region=us-west2 \
@@ -132,9 +132,8 @@ Deploy EdgeDB
 
 .. code-block:: bash
 
-   $ URL="https://raw.githubusercontent.com"
-   $ URL="${URL}/edgedb/edgedb-deploy/dev/gcp/deployment.yaml"
-   $ wget $URL
+   $ wget "https://raw.githubusercontent.com\
+   /edgedb/edgedb-deploy/dev/gcp/deployment.yaml"
 
    $ kubectl apply -f deployment.yaml
 
