@@ -1,11 +1,11 @@
 .. _ref_guide_deployment_azure_flexibleserver:
 
 ================================
-On Azure Postgres FelxibleServer
+On Azure Postgres FlexibleServer
 ================================
 
 In this guide we show how to deploy EdgeDB on Azure using Postgres
-FelxibleServer as the backend.
+FlexibleServer as the backend.
 
 
 Prerequisites
