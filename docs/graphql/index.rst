@@ -9,8 +9,8 @@ GraphQL
 EdgeDB supports `GraphQL queries`__ natively out of the box. Not
 everything that can be expressed in EdgeQL can easily be queried using
 GraphQL, but generally setting up :ref:`aliases <ref_datamodel_aliases>`
-for complex expressions makes it possible to then use use GraphQL to
-query them.
+for complex expressions makes it possible to then use GraphQL to query
+them.
 
 EdgeDB exposes the Types and :ref:`ref_datamodel_aliases` for GraphQL
 querying. Types and expression aliases from the ``default`` module are
