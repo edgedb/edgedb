@@ -2058,6 +2058,11 @@ cdef class EdgeConnection:
                     self.get_dbview().get_schema(),
                     exc.fields
                 )
+            elif isinstance(static_exc,
+                    errors.DuplicateDatabaseDefinitionError):
+                tenant_id = self.server.get_tenant_id()
+                message = static_exc.args[0].replace(f'{tenant_id}_', '')
+                exc = errors.DuplicateDatabaseDefinitionError(message)
             else:
                 exc = static_exc
 
