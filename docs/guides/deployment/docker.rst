@@ -25,7 +25,7 @@ The simplest way to run the image (without data persistence) is this:
 .. code-block:: bash
 
    $ docker run --name edgedb -d \
-       -e -e EDGEDB_SERVER_SECURITY=insecure_dev_mode \
+       -e EDGEDB_SERVER_SECURITY=insecure_dev_mode \
        edgedb/edgedb
 
 See the :ref:`ref_guides_deployment_docker_customization` section below for the
