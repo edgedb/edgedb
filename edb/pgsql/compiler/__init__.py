@@ -166,7 +166,7 @@ def compile_ir_to_sql(
         argmap = {}
 
     # Generate query text
-    codegen = _run_codegen(qtree, pretty=pretty)
+    codegen = run_codegen(qtree, pretty=pretty)
     sql_text = ''.join(codegen.result)
 
     if (  # pragma: no cover
@@ -178,7 +178,7 @@ def compile_ir_to_sql(
     return sql_text, argmap
 
 
-def _run_codegen(
+def run_codegen(
     qtree: pgast.Base,
     *,
     pretty: bool=True,
