@@ -43,7 +43,7 @@ Let's unpack that.
    <ref_cli_edgedb_paths>`—feel free to peek inside to see how it's stored.
 5. Then it creates an ``edgedb.toml`` file, which marks this directory as an
    EdgeDB project.
-6. Finally, it creates a ``dbschema`` directory and a ``dbschema/schema.esdl``
+6. Finally, it creates a ``dbschema`` directory and a ``dbschema/default.esdl``
    schema file (if they don't already exist).
 
 
