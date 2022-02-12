@@ -17,9 +17,12 @@
 #
 
 
+import pathlib
 import unittest
 
+import edb
 from edb import errors
+from edb.tools import gen_errors
 
 
 class TestErrorsClasses(unittest.TestCase):
@@ -59,3 +62,20 @@ class TestErrorsClasses(unittest.TestCase):
         # intended for client libraries.
 
         self.assertFalse(hasattr(errors, 'ClientError'))
+
+
+class TestErrorsTags(unittest.TestCase):
+    errors_path = pathlib.Path(edb.__path__[0]) / 'api' / 'errors.txt'
+
+    def test_api_errors_tags_01(self):
+        tree = gen_errors.ErrorsTree()
+        tree.load(self.errors_path)
+
+        for (code, desc) in tree.get_errors().items():
+            parent = tree.get_parent(code)
+            if parent is None:
+                continue
+
+            self.assertTrue(
+                all(tag in desc.tags for tag in parent.tags),
+                f"{desc.name} error doesn't inherit all {parent.name} tags")

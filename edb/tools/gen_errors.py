@@ -181,6 +181,9 @@ class ErrorsTree:
 
             self.add(desc)
 
+    def get_errors(self):
+        return self._tree
+
     def get_parent(self, code):
         b1, b2, b3, b4 = code
 
