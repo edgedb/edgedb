@@ -68,16 +68,30 @@ body:
         to the following link: https://docs.github.com/en/github/writing-on-github/working-with-advanced-formatting/attaching-files
       placeholder: |
         You can drag your video or image files inside of this editor ↓
-  - type: textarea
-    id: platform
+  - type: input
+    id: os-version
     attributes:
-      label: Platform
-      value: |
+      label: Operating System
+      placeholder: |
         - OS: [e.g. macOS, Windows, Linux]
-        - Browser: [e.g. Chrome, Safari, Firefox]
-        - Version: [e.g. 91.1]
     validations:
       required: true
+  - type: input
+    id: edgedb-version
+    attributes:
+      label: EdgeDB Version
+      placeholder: 'x.x.x'
+    validations:
+      required: true
+  - type: textarea
+    id: db-schema
+    attributes:
+      label: Relevant Database Schema
+      description: Share a code snippet
+      placeholder: |
+        Tip: wrap your code in backticks or submit a github gist file link
+    validations:
+      required: false
   - type: textarea
     id: additional
     attributes:
