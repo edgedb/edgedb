@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Question or idea
+  - name: Long question or idea
     url: https://github.com/edgedb/edgedb/discussions
-    about: Ask questions and discuss ideas.
+    about: Ask long-form questions and discuss ideas.
+  - name: Quick questions or chat
+    url: https://www.edgedb.com/p/discord
+    about: Ask quick questions or simply chat on the EdgeDB Discord server.
