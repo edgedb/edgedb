@@ -665,6 +665,33 @@ class TestConnectParams(tb.TestCase):
         },
 
         {
+            'name': 'dsn_ipv6_multi_host',
+            'dsn': 'postgresql://user@[2001:db8::1234%25eth0],[::1]/db',
+            'result': ([('2001:db8::1234%eth0', 5432), ('::1', 5432)], {
+                'database': 'db',
+                'user': 'user',
+            })
+        },
+
+        {
+            'name': 'dsn_ipv6_multi_host_port',
+            'dsn': 'postgresql://user@[2001:db8::1234]:1111,[::1]:2222/db',
+            'result': ([('2001:db8::1234', 1111), ('::1', 2222)], {
+                'database': 'db',
+                'user': 'user',
+            })
+        },
+
+        {
+            'name': 'dsn_ipv6_multi_host_query_part',
+            'dsn': 'postgresql:///db?user=user&host=[2001:db8::1234],[::1]',
+            'result': ([('2001:db8::1234', 5432), ('::1', 5432)], {
+                'database': 'db',
+                'user': 'user',
+            })
+        },
+
+        {
             'name': 'dsn_only_illegal_protocol',
             'dsn': 'pq:///dbname?host=/unix_sock/test&user=spam',
             'error': (ValueError, 'invalid DSN')
