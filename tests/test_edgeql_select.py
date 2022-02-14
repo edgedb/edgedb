@@ -4431,10 +4431,6 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             [{'number': '1'}, {'number': '4'}],
         )
 
-    @test.xfail(
-        "Known issue in Postgres 14",
-        unless=int(os.getenv("EDGEDB_TEST_POSTGRES_VERSION", "13")) < 14
-    )
     async def test_edgeql_select_subqueries_07(self):
         await self.assert_query_result(
             r"""
