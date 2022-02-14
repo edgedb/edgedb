@@ -217,11 +217,23 @@ def _parse_hostlist(
         result_port = _validate_port_spec(hostspecs, port)
 
     for i, hostspec in enumerate(hostspecs):
-        if not hostspec.startswith('/'):
-            addr, _, hostspec_port = hostspec.partition(':')
-        else:
+        if hostspec[0] == '/':
+            # Unix socket
             addr = hostspec
             hostspec_port = ''
+        elif hostspec[0] == '[':
+            # IPv6 address
+            m = re.match(r'(?:\[([^\]]+)\])(?::([0-9]+))?', hostspec)
+            if m:
+                addr = m.group(1)
+                hostspec_port = m.group(2)
+            else:
+                raise ValueError(
+                    f'invalid IPv6 address in the connection URI: {hostspec!r}'
+                )
+        else:
+            # IPv4 address
+            addr, _, hostspec_port = hostspec.partition(':')
 
         if unquote:
             addr = urllib.parse.unquote(addr)
