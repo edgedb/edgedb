@@ -60,3 +60,17 @@ class TestDatabase(tb.ConnectedTestCase):
                 r'characters are not supported'):
             await self.con.execute(
                 f'CREATE DATABASE mytestdb_{"x" * s_def.MAX_NAME_LENGTH};')
+
+    async def test_database_create_03(self):
+        if not self.has_create_database:
+            self.skipTest("create database is not supported by the backend")
+
+        await self.con.execute('CREATE DATABASE databasename;')
+
+        try:
+            with self.assertRaisesRegex(
+                    edgedb.DuplicateDatabaseDefinitionError,
+                    r'database "databasename" already exists'):
+                await self.con.execute('CREATE DATABASE databasename;')
+        finally:
+            await self.con.execute('DROP DATABASE databasename;')
