@@ -259,6 +259,9 @@ class Server(ha_base.ClusterProtocol):
     def get_loop(self):
         return self.__loop
 
+    def get_tenant_id(self):
+        return self._tenant_id
+
     def in_dev_mode(self):
         return self._devmode
 
