@@ -135,10 +135,11 @@ def _internal_state_dir(runstate_dir):
               f'--runstate-dir to specify the correct location')
 
 
-async def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
-    from edb.server import bootstrap
-
-    need_restart = await bootstrap.ensure_bootstrapped(cluster, args)
+async def _init_cluster(
+    cluster,
+    args: srvargs.ServerConfig,
+    need_restart: bool,
+) -> bool:
     global _server_initialized
     _server_initialized = True
 
@@ -181,8 +182,10 @@ async def _run_server(
     runstate_dir,
     internal_runstate_dir,
     *,
-    do_setproctitle: bool
+    do_setproctitle: bool,
+    bootstrapped_by_us: bool,
 ):
+
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
         ss = server.Server(
             cluster=cluster,
@@ -201,6 +204,7 @@ async def _run_server(
             backend_adaptive_ha=args.backend_adaptive_ha,
             default_auth_method=args.default_auth_method,
             testmode=args.testmode,
+            bootstrapped_by_us=bootstrapped_by_us,
         )
         await sc.wait_for(ss.init())
 
@@ -220,7 +224,7 @@ async def _run_server(
             args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
 
         if args.bootstrap_only:
-            if args.startup_script:
+            if args.startup_script and bootstrapped_by_us:
                 await sc.wait_for(ss.run_startup_script_and_exit())
             return
 
@@ -375,6 +379,7 @@ async def run_server(
     do_setproctitle: bool=False,
 ) -> None:
     from . import server as server_mod
+    from edb.server import bootstrap
     global server
     server = server_mod
 
@@ -482,7 +487,10 @@ async def run_server(
             elif cluster_status != 'running':
                 abort('Could not start database cluster in %s', args.data_dir)
 
-            need_cluster_restart = await _init_cluster(cluster, args)
+            bootstrapped_by_us = await bootstrap.ensure_bootstrapped(
+                cluster, args)
+            need_cluster_restart = await _init_cluster(
+                cluster, args, bootstrapped_by_us)
 
             if need_cluster_restart and pg_cluster_started_by_us:
                 logger.info('Restarting server to reload configuration...')
@@ -531,6 +539,7 @@ async def run_server(
                         runstate_dir,
                         int_runstate_dir,
                         do_setproctitle=do_setproctitle,
+                        bootstrapped_by_us=bootstrapped_by_us,
                     )
 
         except server.StartupError as e:

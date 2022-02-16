@@ -1636,6 +1636,10 @@ async def ensure_bootstrapped(
     cluster: pgcluster.BaseCluster,
     args: edbargs.ServerConfig,
 ) -> bool:
+    """Bootstraps postgres if it hasn't been bootstrapped already.
+
+    Returns True if the current invocation bootstrapped postgres.
+    """
     pgconn = await cluster.connect()
     pgconn.add_log_listener(_pg_log_listener)
 
