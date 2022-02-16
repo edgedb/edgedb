@@ -543,7 +543,7 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 
     def test_edgeql_ir_card_inference_57(self):
         """
-        SELECT Person FILTER .p = 7 AND .q = 3
+        SELECT Person { first } FILTER .p = 7 AND .q = 3
 % OK %
         AT_MOST_ONE
         """
