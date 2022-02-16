@@ -128,7 +128,7 @@ class Server(ha_base.ClusterProtocol):
         compiler_pool_size,
         nethosts,
         netport,
-        bootstrapped_by_us: bool,
+        new_instance: bool,
         testmode: bool = False,
         binary_endpoint_security: srvargs.ServerEndpointSecurityMode = (
             srvargs.ServerEndpointSecurityMode.Tls),
@@ -197,7 +197,7 @@ class Server(ha_base.ClusterProtocol):
         self._status_sinks = status_sinks
 
         self._startup_script = startup_script
-        self._bootstrapped_by_us = bootstrapped_by_us
+        self._new_instance = new_instance
 
         # Never use `self.__sys_pgcon` directly; get it via
         # `await self._acquire_sys_pgcon()`.
@@ -1519,7 +1519,7 @@ class Server(ha_base.ClusterProtocol):
         await self._cluster.start_watching(self)
         await self._create_compiler_pool()
 
-        if self._startup_script and self._bootstrapped_by_us:
+        if self._startup_script and self._new_instance:
             await binary.EdgeConnection.run_script(
                 server=self,
                 database=self._startup_script.database,

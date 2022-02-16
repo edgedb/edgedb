@@ -1638,7 +1638,8 @@ async def ensure_bootstrapped(
 ) -> bool:
     """Bootstraps EdgeDB instance if it hasn't been bootstrapped already.
 
-    Returns True if bootstrap happened and False if the instance was already bootstrapped.
+    Returns True if bootstrap happened and False if the instance was already
+    bootstrapped.
     """
     pgconn = await cluster.connect()
     pgconn.add_log_listener(_pg_log_listener)
