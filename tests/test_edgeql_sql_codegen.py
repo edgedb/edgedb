@@ -37,7 +37,7 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
     """
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'cards.esdl')
+                          'graphql.esdl')
 
     SCHEMA_ISSUES = os.path.join(os.path.dirname(__file__), 'schemas',
                                  'issues.esdl')
@@ -60,20 +60,25 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         qtree = self._compile_to_tree(source)
         return ''.join(pg_compiler.run_codegen(qtree).result)
 
-    @test.xfail('''
-        Issue #2567: We generate a pointless self join
-    ''')
     def test_codegen_no_self_join(self):
+        # Issue #2567: We generate a pointless self join
+
         sql = self._compile('''
-            SELECT User.deck.name
+            SELECT User.profile
         ''')
 
         # Make sure that User is only selected from *once* in the query
         user_obj = self.schema.get('default::User')
         user_id_str = str(user_obj.id)
-
         self.assertEqual(
-            sql.count(user_id_str), 1, "User table referenced more than once"
+            sql.count(user_id_str), 1, "User table referenced more than once: " + sql
+        )
+
+        # Make sure that Profile is only selected from *once* in the query
+        profile_obj = self.schema.get('default::Profile')
+        profile_id_str = str(profile_obj.id)
+        self.assertEqual(
+            sql.count(profile_id_str), 1, "Profile table referenced more than once: " + sql
         )
 
     def test_codegen_elide_optional_wrapper(self):
