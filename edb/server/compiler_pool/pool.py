@@ -326,14 +326,21 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
             env = _ENV
             if debug.flags.server:
                 env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
+
+            cmdline = [sys.executable]
+            if sys.flags.isolated:
+                cmdline.append('-I')
+
+            cmdline.extend([
+                '-m', WORKER_MOD,
+                '--sockname', self._poolsock_name,
+                '--numproc', str(self._pool_size),
+                '--version-serial', version,
+            ])
+
             self._template_transport, _ = await self._loop.subprocess_exec(
                 lambda: self,
-                *[
-                    sys.executable, '-m', WORKER_MOD,
-                    '--sockname', self._poolsock_name,
-                    '--numproc', str(self._pool_size),
-                    '--version-serial', version,
-                ],
+                *cmdline,
                 env=env,
                 stdin=subprocess.DEVNULL,
                 stdout=None,
