@@ -368,6 +368,19 @@ class TestConstraintsSchema(tb.QueryTestCase):
                     };
                 """)
 
+    async def test_constraints_exclusive_pair(self):
+        await self.assert_query_result(
+            r'''
+                select {
+                    single z := (
+                        select Pair {x, y} filter .x = 'a' and .y = 'b')
+                }
+            ''',
+            [
+                {"z": None}
+            ],
+        )
+
     async def test_constraints_exclusive_multi_property_distinct(self):
         await self.con.execute("""
             INSERT PropertyContainer {
