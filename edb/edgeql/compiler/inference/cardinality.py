@@ -940,14 +940,15 @@ def extract_exclusive_filters(
 
     results: List[Tuple[Tuple[s_pointers.Pointer, irast.Set], ...]] = []
     if filtered_ptrs:
-        filtered_ptrs_map = dict(filtered_ptrs)
         schema = ctx.env.schema
-        ptr_set = set()
+        filtered_ptrs_map = {
+            ptr.get_nearest_non_derived_parent(schema): expr
+            for ptr, expr in filtered_ptrs
+        }
+        ptr_set = set(filtered_ptrs_map)
         # First look at each referenced pointer and see if it has
         # an exclusive constraint.
-        for ptr, expr in filtered_ptrs:
-            ptr = ptr.get_nearest_non_derived_parent(schema)
-            ptr_set.add(ptr)
+        for ptr, expr in filtered_ptrs_map.items():
             for constr in ptr.get_exclusive_constraints(schema):
                 # Bingo, got an equality filter on a pointer with a
                 # unique constraint

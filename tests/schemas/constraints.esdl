@@ -257,3 +257,9 @@ type PropertyContainer {
         constraint exclusive
     }
 }
+
+type Pair {
+    required property x -> str;
+    required property y -> str;
+    constraint exclusive on (( .x, .y ));
+}
