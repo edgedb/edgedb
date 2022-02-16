@@ -445,7 +445,8 @@ def ensure_source_rvar(
             scope_stmt, ir_set.path_id, aspect='source', ctx=ctx)
         if rvar is None:
             rvar = relctx.new_root_rvar(ir_set, lateral=True, ctx=ctx)
-            relctx.include_rvar(scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
+            relctx.include_rvar(
+                scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
             pathctx.put_path_rvar(
                 stmt, ir_set.path_id, rvar, aspect='source', env=ctx.env)
 

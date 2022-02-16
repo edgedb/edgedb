@@ -20,7 +20,6 @@
 import os.path
 
 from edb.testbase import lang as tb
-from edb.tools import test
 
 from edb.common.ast import visitor as ast_visitor
 
@@ -69,16 +68,18 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
 
         # Make sure that User is only selected from *once* in the query
         user_obj = self.schema.get('default::User')
-        user_id_str = str(user_obj.id)
         self.assertEqual(
-            sql.count(user_id_str), 1, "User table referenced more than once: " + sql
+            sql.count(str(user_obj.id)),
+            1,
+            "User table referenced more than once: " + sql
         )
 
         # Make sure that Profile is only selected from *once* in the query
         profile_obj = self.schema.get('default::Profile')
-        profile_id_str = str(profile_obj.id)
         self.assertEqual(
-            sql.count(profile_id_str), 1, "Profile table referenced more than once: " + sql
+            sql.count(str(profile_obj.id)),
+            1,
+            "Profile table referenced more than once: " + sql
         )
 
     def test_codegen_elide_optional_wrapper(self):
