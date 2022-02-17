@@ -34,6 +34,33 @@ CloudFormation Web Portal
 Click `here <cf-deploy_>`_ to start the deployment process using CloudFormation
 portal and follow the prompts.
 
+Once the deployment is complete you can find the host name that you will use to
+connect to your new EdgeDB instance in the `AWS console <aws_console_>`_. Be
+sure that you have the correct region selected (top right corner of the
+screen).  Then highlight a network interface. You can use either the public IP
+or the public DNS to connect to your new EdgeDB instance.
+
+To access the EdgeDB instance you've just provisioned from your local machine
+run ``edgedb instance link``:
+
+.. code-block:: bash
+
+   $ edgedb instance link \
+        --trust-tls-cert \
+        --host <ip-or-dns> \
+        --port 5656 \
+        --user edgedb \
+        --database edgedb \
+        aws
+
+Don't forget to replace ``<ip-or-dns>`` with the value from the AWS console.
+You can now use the EdgeDB instance deployed on AWS as ``aws``, for example:
+
+.. code-block:: bash
+
+   $ edgedb -I aws
+   edgedb>
+
 CloudFormation CLI
 ------------------
 
@@ -55,6 +82,9 @@ your terminal:
    https://console.aws.amazon.com
    /cloudformation/home#/stacks/new?stackName=EdgeDB&templateURL=
    https%3A%2F%2Fedgedb-deploy.s3.us-east-2.amazonaws.com%2Fedgedb-aurora.yml
+.. _aws_console:
+   https://console.aws.amazon.com
+   /ec2/v2/home#NIC:search=ec2-security-group
 
 
 Manual Install with CLI
