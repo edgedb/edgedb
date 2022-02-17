@@ -1431,6 +1431,7 @@ class _EdgeDBServer:
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode] = None,  # see __aexit__
         enable_backend_adaptive_ha: bool = False,
+        ignore_other_tenants: bool = False,
         tls_cert_file: Optional[os.PathLike] = None,
         tls_key_file: Optional[os.PathLike] = None,
         tls_cert_mode: edgedb_args.ServerTlsCertMode = (
@@ -1456,6 +1457,7 @@ class _EdgeDBServer:
         self.binary_endpoint_security = binary_endpoint_security
         self.http_endpoint_security = http_endpoint_security
         self.enable_backend_adaptive_ha = enable_backend_adaptive_ha
+        self.ignore_other_tenants = ignore_other_tenants
         self.tls_cert_file = tls_cert_file
         self.tls_key_file = tls_key_file
         self.tls_cert_mode = tls_cert_mode
@@ -1593,6 +1595,9 @@ class _EdgeDBServer:
         if self.enable_backend_adaptive_ha:
             cmd += ['--enable-backend-adaptive-ha']
 
+        if self.ignore_other_tenants:
+            cmd += ['--ignore-other-tenants']
+
         if self.tls_cert_file:
             cmd += ['--tls-cert-file', self.tls_cert_file]
 
@@ -1712,6 +1717,7 @@ def start_edgedb_server(
     http_endpoint_security: Optional[
         edgedb_args.ServerEndpointSecurityMode] = None,
     enable_backend_adaptive_ha: bool = False,
+    ignore_other_tenants: bool = False,
     tls_cert_file: Optional[os.PathLike] = None,
     tls_key_file: Optional[os.PathLike] = None,
     tls_cert_mode: edgedb_args.ServerTlsCertMode = (
@@ -1756,6 +1762,7 @@ def start_edgedb_server(
         binary_endpoint_security=binary_endpoint_security,
         http_endpoint_security=http_endpoint_security,
         enable_backend_adaptive_ha=enable_backend_adaptive_ha,
+        ignore_other_tenants=ignore_other_tenants,
         tls_cert_file=tls_cert_file,
         tls_key_file=tls_key_file,
         tls_cert_mode=tls_cert_mode,
