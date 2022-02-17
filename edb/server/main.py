@@ -609,6 +609,10 @@ def server_main(**kwargs):
     context_settings=dict(help_option_names=['-h', '--help']))
 @srvargs.server_options
 def main(version=False, **kwargs):
+    if kwargs.get('testmode') and 'EDGEDB_TEST_CATALOG_VERSION' in os.environ:
+        buildmeta.EDGEDB_CATALOG_VERSION = int(
+            os.environ['EDGEDB_TEST_CATALOG_VERSION']
+        )
     if version:
         print(f"edgedb-server, version {buildmeta.get_version()}")
         sys.exit(0)
