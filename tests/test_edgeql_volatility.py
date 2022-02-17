@@ -1550,7 +1550,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
                 for tgt in obj['a']['tgt']:
                     self.assertEqual(tgt['x'], -tgt['y'])
 
-    @test.xfail("We return non-matching values")
     async def test_edgeql_volatility_for_hard_05(self):
         for query in self.test_loop(single=True):
             res = await query("""
