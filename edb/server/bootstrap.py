@@ -223,6 +223,7 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
     # First, check the existence of EDGEDB_SUPERGROUP - the role which is
     # usually created at the beginning of bootstrap.
     is_default_tenant = tenant_id == buildmeta.get_default_tenant_id()
+    ignore_others = is_default_tenant and ctx.args.ignore_other_tenants
     if is_default_tenant:
         result = await ctx.conn.fetch('''
             SELECT
@@ -242,37 +243,45 @@ async def _get_cluster_mode(ctx: BootstrapContext) -> ClusterMode:
                 r.rolname = $1
         ''', ctx.cluster.get_role_name(edbdef.EDGEDB_SUPERGROUP))
 
-    if result:
-        if not is_default_tenant or not ctx.args.ignore_other_tenants:
-            return ClusterMode.regular
+    if not result:
+        # No tenant slots, check if the current database was bootstrapped
+        # in single-db mode.
+        has_instdata = await ctx.conn.fetch('''
+            SELECT
+                tablename
+            FROM
+                pg_catalog.pg_tables
+            WHERE
+                schemaname = 'edgedbinstdata'
+                AND tablename = 'instdata'
+        ''')
+        if has_instdata:
+            return ClusterMode.single_database
 
+        # Then, check for single-role-bootstrapped instance by trying to find
+        # the EdgeDB System DB with the assumption that we are not running in
+        # single-db mode. If not found, this is a pristine backend cluster.
+        sys_db = await _find_system_db(ctx)
+        if sys_db:
+            return ClusterMode.single_role
+        else:
+            return ClusterMode.pristine
+    elif ignore_others:
+        # We were explicitly asked to ignore the other default tenant,
+        # so check specifically if our tenant slot is occupied and ignore
+        # the others.
+        # This mode is used for in-place upgrade.
         for row in result:
             rolname = row['rolname']
             other_tenant_id = rolname[: -(len(edbdef.EDGEDB_SUPERGROUP) + 1)]
             if other_tenant_id == tenant_id:
                 return ClusterMode.regular
-
-    # Then, check if the current database was bootstrapped in single-db mode.
-    has_instdata = await ctx.conn.fetch('''
-        SELECT
-            tablename
-        FROM
-            pg_catalog.pg_tables
-        WHERE
-            schemaname = 'edgedbinstdata'
-            AND tablename = 'instdata'
-    ''')
-    if has_instdata:
-        return ClusterMode.single_database
-
-    # At last, check for single-role-bootstrapped instance by trying to find
-    # the EdgeDB System DB with the assumption that we are not running in
-    # single-db mode. If not found, this is a pristine backend cluster.
-    sys_db = await _find_system_db(ctx)
-    if sys_db:
-        return ClusterMode.single_role
+        else:
+            return ClusterMode.pristine
     else:
-        return ClusterMode.pristine
+        # Either our tenant slot is occupied, or there is
+        # a default tenant present.
+        return ClusterMode.regular
 
 
 async def _create_edgedb_template_database(
