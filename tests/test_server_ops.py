@@ -437,6 +437,77 @@ class TestServerOps(tb.TestCase):
             finally:
                 await cluster.stop()
 
+    async def _test_server_ops_ignore_other_tenants(self, td, user):
+        async with tb.start_edgedb_server(
+            backend_dsn=f'postgres:///?user={user}&host={td}',
+            runstate_dir=None if devmode.is_in_dev_mode() else td,
+            reset_auth=True,
+        ) as sd:
+            con = await sd.connect()
+            await con.aclose()
+
+        async with tb.start_edgedb_server(
+            backend_dsn=f'postgres:///?user=postgres&host={td}',
+            runstate_dir=None if devmode.is_in_dev_mode() else td,
+            reset_auth=True,
+            ignore_other_tenants=True,
+            env={'EDGEDB_TEST_CATALOG_VERSION': '3022_01_07_00_00'},
+        ) as sd:
+            con = await sd.connect()
+            await con.aclose()
+
+    async def test_server_ops_ignore_other_tenants(self):
+        with tempfile.TemporaryDirectory() as td:
+            cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
+            cluster.set_connection_params(
+                pgconnparams.ConnectionParameters(
+                    user='postgres',
+                    database='template1',
+                ),
+            )
+            self.assertTrue(await cluster.ensure_initialized())
+
+            await cluster.start()
+            try:
+                await self._test_server_ops_ignore_other_tenants(
+                    td, 'postgres'
+                )
+            finally:
+                await cluster.stop()
+
+    async def test_server_ops_ignore_other_tenants_single_role(self):
+        with tempfile.TemporaryDirectory() as td:
+            cluster = await pgcluster.get_local_pg_cluster(td, log_level='s')
+            cluster.set_connection_params(
+                pgconnparams.ConnectionParameters(
+                    user='postgres',
+                    database='template1',
+                ),
+            )
+            self.assertTrue(await cluster.ensure_initialized())
+            cluster.add_hba_entry(
+                type="local",
+                database="all",
+                user="single",
+                auth_method="trust",
+            )
+            await cluster.start()
+            conn = await cluster.connect()
+            setup = """\
+                CREATE ROLE single WITH LOGIN CREATEDB;
+                CREATE DATABASE single;
+                REVOKE ALL ON DATABASE single FROM PUBLIC;
+                GRANT CONNECT ON DATABASE single TO single;
+                GRANT ALL ON DATABASE single TO single;\
+            """
+            for sql in setup.split('\n'):
+                await conn.execute(sql)
+            await conn.close()
+            try:
+                await self._test_server_ops_ignore_other_tenants(td, 'single')
+            finally:
+                await cluster.stop()
+
     async def _test_connection(self, con):
         await con.send(
             protocol.ExecuteScript(
