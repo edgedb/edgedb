@@ -29,10 +29,6 @@ Options
 :cli:synopsis:`--nightly`
     Installs the nightly server version.
 
-:cli:synopsis:`--method=<method>`
-    Specifies whether the server should be installed via the local
-    package system (``package``) or as a docker image (``docker``).
-
 :cli:synopsis:`--version=<version>`
     Specifies the version of the server to be installed. Defaults to
     the most recent release.
