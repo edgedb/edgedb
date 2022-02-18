@@ -27,17 +27,8 @@ Options
 :cli:synopsis:`<name>`
     The new EdgeDB instance name.
 
-:cli:synopsis:`-i, --interactive`
-    Performs the installation in interactive mode, similar to how
-    :ref:`downloading and installing <ref_cli_edgedb_install>` works.
-
 :cli:synopsis:`--nightly`
     Use the nightly server for this instance.
-
-:cli:synopsis:`--overwrite`
-    Overwrite data directory and credential file if any of these
-    exist. This is mainly useful for recovering from interrupted
-    initializations.
 
 :cli:synopsis:`--default-database=<default-database>`
     Specifies the default database name (created during
@@ -47,11 +38,6 @@ Options
 :cli:synopsis:`--default-user=<default-user>`
     Specifies the default user name (created during initialization,
     and saved in credentials file). Defaults to: ``edgedb``.
-
-:cli:synopsis:`--method=<method>`
-    Specifies which EdgeDB server should be used to run the new
-    instance: ``package`` or ``docker``. To list the currently
-    available options use :ref:`ref_cli_edgedb_server_list_versions`.
 
 :cli:synopsis:`--port=<port>`
     Specifies which port should the instance be configured on. By
