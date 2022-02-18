@@ -28,12 +28,11 @@ Options
 :cli:synopsis:`--nightly`
     Display the information about the nightly server version.
 
+:cli:synopsis:`--latest`
+    Display the information about the latest server version.
+
 :cli:synopsis:`--bin-path`
     Display only the server binary path (if applicable).
-
-:cli:synopsis:`--method=<method>`
-    Display the information about the servers installed as either a
-    local package (``package``) or as a docker image (``docker``).
 
 :cli:synopsis:`--version=<version>`
     Display the information about a specific server version.
