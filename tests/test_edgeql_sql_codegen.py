@@ -36,7 +36,7 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
     """
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
-                          'graphql.esdl')
+                          'cards.esdl')
 
     SCHEMA_ISSUES = os.path.join(os.path.dirname(__file__), 'schemas',
                                  'issues.esdl')
@@ -59,28 +59,25 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         qtree = self._compile_to_tree(source)
         return ''.join(pg_compiler.run_codegen(qtree).result)
 
-    def test_codegen_no_self_join(self):
+    def no_self_join_test(self, query, tables):
         # Issue #2567: We generate a pointless self join
 
-        sql = self._compile('''
-            SELECT User.profile
-        ''')
+        sql = self._compile(query)
 
-        # Make sure that User is only selected from *once* in the query
-        user_obj = self.schema.get('default::User')
-        self.assertEqual(
-            sql.count(str(user_obj.id)),
-            1,
-            "User table referenced more than once: " + sql
-        )
+        for table in tables:
+            # Make sure that table is only selected from *once* in the query
+            table_obj = self.schema.get("default::" + table)
+            count = sql.count(str(table_obj.id))
+            self.assertEqual(
+                count,
+                1,
+                f"{table} referenced more than once: {sql}")
 
-        # Make sure that Profile is only selected from *once* in the query
-        profile_obj = self.schema.get('default::Profile')
-        self.assertEqual(
-            sql.count(str(profile_obj.id)),
-            1,
-            "Profile table referenced more than once: " + sql
-        )
+    def test_codegen_no_self_join_single(self):
+        self.no_self_join_test("SELECT User.avatar", ["User", "Card"])
+
+    def test_codegen_no_self_join_multi(self):
+        self.no_self_join_test("SELECT User.deck.name", ["User"])
 
     def test_codegen_elide_optional_wrapper(self):
         sql = self._compile('''
