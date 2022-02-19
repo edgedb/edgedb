@@ -570,19 +570,31 @@ cdef class PGConnection:
             await self.after_command()
 
     async def wait_for_sync(self):
-        while True:
-            if not self.buffer.take_message():
-                await self.wait_for_message()
-            mtype = self.buffer.get_message_type()
-            if mtype == b'Z':
-                self.parse_sync_message()
-                return
-            else:
-                if not self.parse_notification():
-                    if PG_DEBUG or self.debug:
-                        self.debug_print(f'PGCon.wait_for_sync: discarding '
-                                         f'{chr(mtype)!r} message')
-                    self.buffer.discard_message()
+        error = None
+        try:
+            while True:
+                if not self.buffer.take_message():
+                    await self.wait_for_message()
+                mtype = self.buffer.get_message_type()
+                if mtype == b'Z':
+                    self.parse_sync_message()
+                    break
+                elif mtype == b'E':
+                    # ErrorResponse
+                    er_cls, fields = self.parse_error_message()
+                    error = er_cls(fields=fields)
+                else:
+                    if not self.parse_notification():
+                        if PG_DEBUG or self.debug:
+                            self.debug_print(f'PGCon.wait_for_sync: discarding '
+                                            f'{chr(mtype)!r} message')
+                        self.buffer.discard_message()
+        finally:
+            if error is not None:
+                # Postgres might send an ErrorResponse if, e.g.
+                # in implicit transaction fails to commit due to
+                # serialization conflicts.
+                raise error
 
     cdef before_prepare(self, stmt_name, dbver, WriteBuffer outbuf):
         parse = 1
