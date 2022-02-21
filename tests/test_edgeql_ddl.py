@@ -5173,7 +5173,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r'cannot change supertype of scalar type'):
+                r'cannot change supertypes of scalar type'):
             await self.con.execute('''
                 ALTER SCALAR TYPE myint EXTENDING b;
             ''')
@@ -5186,7 +5186,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r'cannot change supertype of scalar type'):
+                r'cannot change supertypes of scalar type'):
             await self.con.execute('''
                 ALTER SCALAR TYPE a EXTENDING str;
             ''')
@@ -5298,7 +5298,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r'cannot change supertype of scalar type'):
+                r'cannot change supertypes of scalar type'):
             await self.con.execute('''
                 alter scalar type Foo drop extending int64;
             ''')
