@@ -571,7 +571,8 @@ class RebaseScalarType(
                 scls, cur_labels, new_labels, schema, context)
 
         else:
-            schema = super().apply(schema, context)
+            raise errors.SchemaError(
+                f'cannot change supertypes of scalar type')
 
         self.validate_scalar_bases(schema, context)
         return schema
