@@ -20,7 +20,6 @@
 import os.path
 
 from edb.testbase import lang as tb
-from edb.tools import test
 
 from edb.common.ast import visitor as ast_visitor
 
@@ -60,21 +59,25 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         qtree = self._compile_to_tree(source)
         return ''.join(pg_compiler.run_codegen(qtree).result)
 
-    @test.xfail('''
-        Issue #2567: We generate a pointless self join
-    ''')
-    def test_codegen_no_self_join(self):
-        sql = self._compile('''
-            SELECT User.deck.name
-        ''')
+    def no_self_join_test(self, query, tables):
+        # Issue #2567: We generate a pointless self join
 
-        # Make sure that User is only selected from *once* in the query
-        user_obj = self.schema.get('default::User')
-        user_id_str = str(user_obj.id)
+        sql = self._compile(query)
 
-        self.assertEqual(
-            sql.count(user_id_str), 1, "User table referenced more than once"
-        )
+        for table in tables:
+            # Make sure that table is only selected from *once* in the query
+            table_obj = self.schema.get("default::" + table)
+            count = sql.count(str(table_obj.id))
+            self.assertEqual(
+                count,
+                1,
+                f"{table} referenced more than once: {sql}")
+
+    def test_codegen_no_self_join_single(self):
+        self.no_self_join_test("SELECT User.avatar", ["User", "Card"])
+
+    def test_codegen_no_self_join_multi(self):
+        self.no_self_join_test("SELECT User.deck.name", ["User"])
 
     def test_codegen_elide_optional_wrapper(self):
         sql = self._compile('''
