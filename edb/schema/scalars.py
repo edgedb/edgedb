@@ -315,9 +315,18 @@ class ScalarTypeCommand(
         abstract = self.get_attribute_value('abstract')
         enum = self.get_attribute_value('enum_values')
         if not abstract and not enum and len(real_concrete_ancestors) < 1:
+            if not ancestors:
+                hint = (
+                    f'\nFor example: scalar type {self.classname.name} '
+                    f'extending str'
+                )
+            else:
+                hint = 'Bases were specified but no concrete bases were found'
+
             raise errors.SchemaError(
                 f'scalar type must have a concrete base type',
                 context=self.source_context,
+                hint=hint,
             )
 
     def validate_scalar_bases(
