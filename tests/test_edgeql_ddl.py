@@ -5173,7 +5173,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r'cannot change supertypes of scalar type'):
+                r'scalar type may not have more than one concrete base type'):
             await self.con.execute('''
                 ALTER SCALAR TYPE myint EXTENDING b;
             ''')
@@ -5186,7 +5186,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r'cannot change supertypes of scalar type'):
+                r'scalar type may not have more than one concrete base type'):
             await self.con.execute('''
                 ALTER SCALAR TYPE a EXTENDING str;
             ''')
@@ -5298,9 +5298,23 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         ''')
         with self.assertRaisesRegex(
                 edgedb.SchemaError,
-                r'cannot change supertypes of scalar type'):
+                r'scalar type must have a concrete base type'):
             await self.con.execute('''
-                alter scalar type Foo drop extending int64;
+                alter scalar type Foo drop extending str;
+            ''')
+
+    async def test_edgeql_ddl_scalar_12(self):
+        await self.con.execute('''
+            create scalar type Foo extending str;
+        ''')
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r'cannot change concrete base of a scalar type'):
+            await self.con.execute('''
+                alter scalar type Foo {
+                    drop extending str;
+                    extending int64 LAST;
+                };
             ''')
 
     async def test_edgeql_ddl_cast_01(self):
