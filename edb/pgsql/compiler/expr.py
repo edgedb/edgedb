@@ -315,6 +315,14 @@ def compile_SliceIndirection(
     return result
 
 
+@dispatch.compile.register(irast.TypeIntrospection)
+def compile_TypeIntrospection(
+        expr: irast.TypeIntrospection, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    raise errors.UnsupportedFeatureError(
+        'type introspection not supported in simple expressions')
+
+
 def _compile_call_args(
     expr: irast.Call, *,
     ctx: context.CompilerContextLevel
