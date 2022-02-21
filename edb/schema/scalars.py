@@ -314,7 +314,12 @@ class ScalarTypeCommand(
             )
         abstract = self.get_attribute_value('abstract')
         enum = self.get_attribute_value('enum_values')
-        if not abstract and not enum and len(real_concrete_ancestors) < 1:
+        if (
+            len(real_concrete_ancestors) < 1
+            and not context.stdmode
+            and not abstract
+            and not enum
+        ):
             if not ancestors:
                 hint = (
                     f'\nFor example: scalar type {self.classname.name} '
