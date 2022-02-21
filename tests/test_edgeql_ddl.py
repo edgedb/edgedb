@@ -5286,8 +5286,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
 
     async def test_edgeql_ddl_scalar_10(self):
         with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
-                r'scalar type must have a super type'):
+                edgedb.SchemaError,
+                r'scalar type must have a concrete base type'):
             await self.con.execute('''
                 create scalar type Foo;
             ''')
