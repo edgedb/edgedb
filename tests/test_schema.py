@@ -502,6 +502,14 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         """
 
+    @tb.must_fail(errors.SchemaError,
+                  "scalar type must have a concrete base type",
+                  position=27)
+    def test_schema_bad_type_15(self):
+        """
+            scalar type Foo;
+        """
+
     def test_schema_computable_cardinality_inference_01(self):
         schema = self.load_schema("""
             type Object {
