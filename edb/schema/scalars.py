@@ -370,6 +370,11 @@ class CreateScalarType(
             create_cmd = cmd
 
         if isinstance(astnode, qlast.CreateScalarType):
+            if not astnode.bases:
+                raise errors.SchemaError(
+                    f'scalar type must have a supertype',
+                    context=astnode.context,
+                )
             bases = [
                 s_utils.ast_to_type_shell(
                     b,
