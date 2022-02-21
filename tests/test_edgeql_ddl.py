@@ -5284,6 +5284,14 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 CREATE FINAL SCALAR TYPE myint EXTENDING std::int64;
             ''')
 
+    async def test_edgeql_ddl_scalar_10(self):
+        with self.assertRaisesRegex(
+                edgedb.SchemaError,
+                r'scalar type must have a concrete base type'):
+            await self.con.execute('''
+                create scalar type Foo;
+            ''')
+
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
             CREATE SCALAR TYPE type_a EXTENDING std::str;

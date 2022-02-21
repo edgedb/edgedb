@@ -289,7 +289,7 @@ class ScalarTypeCommand(
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> None:
-        concrete_ancestors = {
+        real_concrete_ancestors = {
             ancestor for ancestor in ancestors
             if not ancestor.get_abstract(schema)
         }
@@ -300,10 +300,10 @@ class ScalarTypeCommand(
         # (If we wanted to allow diamonds, we could instead filter out
         # anything that has concrete bases.)
         concrete_ancestors = {
-            c1 for c1 in concrete_ancestors
+            c1 for c1 in real_concrete_ancestors
             if not all(c1 == c2 or c1.issubclass(schema, c2)
                        or c2.issubclass(schema, c1)
-                       for c2 in concrete_ancestors)
+                       for c2 in real_concrete_ancestors)
         }
 
         if len(concrete_ancestors) > 1:
@@ -311,6 +311,27 @@ class ScalarTypeCommand(
                 f'scalar type may not have more than '
                 f'one concrete base type',
                 context=self.source_context,
+            )
+        abstract = self.get_attribute_value('abstract')
+        enum = self.get_attribute_value('enum_values')
+        if (
+            len(real_concrete_ancestors) < 1
+            and not context.stdmode
+            and not abstract
+            and not enum
+        ):
+            if not ancestors:
+                hint = (
+                    f'\nFor example: scalar type {self.classname.name} '
+                    f'extending str'
+                )
+            else:
+                hint = 'Bases were specified but no concrete bases were found'
+
+            raise errors.SchemaError(
+                f'scalar type must have a concrete base type',
+                context=self.source_context,
+                hint=hint,
             )
 
     def validate_scalar_bases(
@@ -321,7 +342,7 @@ class ScalarTypeCommand(
         bases = self.get_resolved_attribute_value(
             'bases', schema=schema, context=context)
 
-        if bases:
+        if bases is not None:
             ancestors = []
             for base in bases.objects(schema):
                 ancestors.append(base)
@@ -377,7 +398,7 @@ class CreateScalarType(
                     modaliases=context.modaliases,
                     schema=schema,
                 )
-                for b in astnode.bases
+                for b in (astnode.bases or [])
             ]
             is_enum = any(
                 isinstance(br, AnonymousEnumTypeShell) for br in bases)
