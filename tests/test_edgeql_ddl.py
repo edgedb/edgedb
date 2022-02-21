@@ -12494,6 +12494,19 @@ type default::Foo {
                 alter type Foo set abstract;
             """)
 
+    async def test_edgeql_ddl_no_type_intro_in_default(self):
+        with self.assertRaisesRegex(
+                edgedb.UnsupportedFeatureError,
+                r"type introspection not supported in simple expressions"):
+            await self.con.execute(r"""
+                create scalar type Foo extending sequence;
+                create type Project {
+                    create required property number -> Foo {
+                        set default := sequence_next(introspect Foo);
+                    }
+                };
+            """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
