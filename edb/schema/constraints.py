@@ -787,7 +787,10 @@ class ConstraintCommand(
                     # which is always valid. (And which is a singleton
                     # in a constraint expression if it is itself a
                     # singleton, regardless of other parts of the path.)
-                    if rptr.ptrref.id == subject.id:
+                    if (
+                        isinstance(rptr.ptrref, ir_ast.PointerRef)
+                        and rptr.ptrref.id == subject_obj.id
+                    ):
                         break
 
                     if (not isinstance(rptr.ptrref,
