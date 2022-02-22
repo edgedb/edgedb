@@ -8085,7 +8085,7 @@ type default::Foo {
                 """)
 
     @test.xfail('''
-        EXISTS constraint violation not raised for MULTI property.
+        Reports an schema error. Maybe that is exactly what we want?
     ''')
     async def test_edgeql_ddl_constraint_04(self):
         # Test for #1727. Usage of EXISTS in constraints.
@@ -8144,7 +8144,7 @@ type default::Foo {
                 """)
 
     @test.xfail('''
-        EXISTS constraint violation not raised for MULTI links.
+        Reports an schema error. Maybe that is exactly what we want?
     ''')
     async def test_edgeql_ddl_constraint_06(self):
         # Test for #1727. Usage of EXISTS in constraints.
@@ -8309,6 +8309,59 @@ type default::Foo {
         await self.con.execute(r"""
             ALTER TYPE Foo DROP PROPERTY x;
         """)
+
+    async def test_edgeql_ddl_constraint_14(self):
+        # Test for #1727. Usage of EXISTS in constraints.
+        await self.con.execute(r"""
+            CREATE TYPE Foo;
+            CREATE TYPE Bar {
+                CREATE MULTI LINK children -> Foo {
+                    CREATE PROPERTY lprop -> str {
+                        CREATE CONSTRAINT expression ON (EXISTS __subject__)
+                    }
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT Foo;
+            INSERT Bar {children := (SELECT Foo {@lprop := "test"})};
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'invalid lprop'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT Bar { children := Foo };
+                """)
+
+    async def test_edgeql_ddl_constraint_15(self):
+        # Test for #1727. Usage of ?!= in constraints.
+        await self.con.execute(r"""
+            CREATE TYPE Foo;
+            CREATE TYPE Bar {
+                CREATE MULTI LINK children -> Foo {
+                    CREATE PROPERTY lprop -> str {
+                        CREATE CONSTRAINT expression ON (
+                            __subject__ ?!= <str>{})
+                    }
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            INSERT Foo;
+            INSERT Bar {children := (SELECT Foo {@lprop := "test"})};
+        """)
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                r'invalid lprop'):
+            async with self.con.transaction():
+                await self.con.execute("""
+                    INSERT Bar { children := Foo };
+                """)
 
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
