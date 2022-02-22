@@ -17,7 +17,12 @@ here is ``0x_05_03_01``.
 When the EdgeDB client expects a more general error and EdgeDB returns a more
 specific error that inherits from the general error, the check in the client
 must take this into account. This can be expressed by the ``binary and``
-operation or ``&`` opeator in most programming languages.
+operation or ``&`` opeator in most programming languages:
+
+.. code-block::
+
+  (expected_error_code & server_error_code) == expected_error_code
+
 
 Note that although it is not explicitly stated in the ``edb/api/errors.txt``
 file, each inherited error must contain all tags of the parent error. Given
