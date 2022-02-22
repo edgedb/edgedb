@@ -846,6 +846,15 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [['schema', 'Link'], ['schema', 'Property']],
         )
 
+    async def test_edgeql_functions_re_match_03(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "invalid regular expression"
+        ):
+            await self.con.query(r'''
+                select re_match('\\', 'asdf')
+            ''')
+
     @test.xfail(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"

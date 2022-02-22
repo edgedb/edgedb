@@ -89,6 +89,7 @@ directly_mappable = {
     pgerrors.ERROR_INVALID_ROW_COUNT_IN_LIMIT_CLAUSE: errors.InvalidValueError,
     pgerrors.ERROR_INVALID_ROW_COUNT_IN_RESULT_OFFSET_CLAUSE: (
         errors.InvalidValueError),
+    pgerrors.ERROR_INVALID_REGULAR_EXPRESSION: errors.InvalidValueError,
 }
 
 
