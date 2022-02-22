@@ -105,6 +105,12 @@ def reverse_map_path_id(
     return path_id
 
 
+def put_path_id_mask(
+    stmt: pgast.EdgeQLPathInfo, path_id: irast.PathId
+) -> None:
+    stmt.path_id_mask.add(path_id)
+
+
 def put_path_id_map(
     rel: pgast.Query,
     outer_path_id: irast.PathId,
@@ -773,7 +779,7 @@ def put_path_rvar(
         pass
     else:
         if path_id in query.path_id_mask:
-            stmt.path_id_mask.add(path_id)
+            put_path_id_mask(stmt, path_id)
 
 
 def put_path_value_rvar(
