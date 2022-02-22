@@ -782,6 +782,14 @@ class ConstraintCommand(
                     rptr = ref.rptr
                     if rptr.dir_cardinality.is_multi():
                         has_multi = True
+
+                    # We don't need to look further than the subject,
+                    # which is always valid. (And which is a singleton
+                    # in a constraint expression if it is itself a
+                    # singleton, regardless of other parts of the path.)
+                    if rptr.ptrref.id == subject.id:
+                        break
+
                     if (not isinstance(rptr.ptrref,
                                        ir_ast.TupleIndirectionPointerRef)
                             and rptr.ptrref.source_ptr is None
