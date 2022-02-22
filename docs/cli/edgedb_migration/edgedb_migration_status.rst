@@ -9,7 +9,7 @@ Show current migration state.
 
 .. cli:synopsis::
 
-    edgedb migration show [<options>]
+    edgedb migration status [<options>]
 
 The tool will show how the state of the schema in the EdgeDB instance
 compares to the migrations stored in the schema directory.
