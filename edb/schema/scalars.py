@@ -570,10 +570,20 @@ class RebaseScalarType(
             schema = self._validate_enum_change(
                 scls, cur_labels, new_labels, schema, context)
 
+            self.validate_scalar_bases(schema, context)
+
         else:
+            old_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
+
             schema = super().apply(schema, context)
 
-        self.validate_scalar_bases(schema, context)
+            self.validate_scalar_bases(schema, context)
+
+            new_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
+            if old_concrete != new_concrete:
+                raise errors.SchemaError(
+                    f'cannot change concrete base of a scalar type')
+
         return schema
 
     def validate_scalar_bases(
