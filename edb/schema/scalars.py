@@ -573,18 +573,16 @@ class RebaseScalarType(
             self.validate_scalar_bases(schema, context)
 
         else:
-            if not self.scls.get_abstract(schema):
-                old_concrete = self.scls.get_topmost_concrete_base(schema)
+            old_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
 
             schema = super().apply(schema, context)
 
             self.validate_scalar_bases(schema, context)
 
-            if not self.scls.get_abstract(schema):
-                new_concrete = self.scls.get_topmost_concrete_base(schema)
-                if old_concrete != new_concrete:
-                    raise errors.SchemaError(
-                        f'cannot change concrete base of a scalar type')
+            new_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
+            if old_concrete != new_concrete:
+                raise errors.SchemaError(
+                    f'cannot change concrete base of a scalar type')
 
         return schema
 
@@ -602,7 +600,6 @@ class RebaseScalarType(
             # For each descendant, compute its new ancestors and check
             # that they are valid for a scalar type.
             new_schema = obj.set_field_value(schema, 'bases', bases)
-
             for desc in obj.descendants(schema):
                 ancestors = so.compute_ancestors(new_schema, desc)
                 self.validate_scalar_ancestors(ancestors, schema, context)
