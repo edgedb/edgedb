@@ -46,6 +46,7 @@ There are a couple more environment variables we need to set:
     $ flyctl secrets set \
         EDGEDB_SERVER_BACKEND_DSN_ENV=DATABASE_URL \
         EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
+        EDGEDB_SERVER_PORT=8080 \
         -a $EDB_APP
     Secrets are staged for the first deployment
 
@@ -54,18 +55,20 @@ look for the PostgreSQL connection string (more on that below), and the
 ``EDGEDB_SERVER_TLS_CERT_MODE`` tells EdgeDB to auto-generate a self-signed
 TLS certificate.  You may choose to provision a custom TLS certificate instead
 and pass it in the ``EDGEDB_SERVER_TLS_CERT`` secret, with the private key in
-the ``EDGEDB_SERVER_TLS_KEY`` secret.
+the ``EDGEDB_SERVER_TLS_KEY`` secret.  Lastly, ``EDGEDB_SERVER_PORT`` makes
+EdgeDB listen on port 8080 instead of the default 5656, because Fly.io prefers
+``8080`` for its default health checks.
 
 Finally, let's scale the VM as EdgeDB requires a little bit more than the
 default Fly.io VM side provides:
 
 .. code-block:: bash
 
-    $ flyctl scale vm dedicated-cpu-1x -a $EDB_APP
+    $ flyctl scale vm shared-cpu-1x --memory=1024 -a $EDB_APP
     Scaled VM Type to
-     dedicated-cpu-1x
+     shared-cpu-1x
           CPU Cores: 1
-             Memory: 2 GB
+             Memory: 1 GB
 
 
 Create a PostgreSQL cluster
@@ -127,7 +130,7 @@ Everything is set, time to start EdgeDB:
 
 .. code-block:: bash
 
-    $ flyctl deploy --image=edgedb/edgedb:nightly \
+    $ flyctl deploy --image=edgedb/edgedb \
         --remote-only -a $EDB_APP
     ...
     1 desired, 1 placed, 1 healthy, 0 unhealthy
@@ -169,6 +172,7 @@ running and then run ``edgedb instance link``:
    $ echo $EDGEDB_PASSWORD | edgedb instance link \
         --trust-tls-cert \
         --host $EDB_APP.internal \
+        --port 8080 \
         --password-from-stdin \
         --non-interactive \
         fly
