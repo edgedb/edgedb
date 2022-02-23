@@ -8899,6 +8899,55 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 POPULATE MIGRATION;
             """)
 
+    async def test_edgeql_migration_inherited_default_01(self):
+        await self.migrate(r"""
+            abstract type Foo {
+                multi link link -> Obj {
+                    default := ( select Obj filter .name = 'X' )
+                };
+            }
+
+            type Bar extending Foo {}
+
+            type Obj {
+                required property name -> str {
+                    constraint exclusive;
+                }
+            }
+        """)
+
+    async def test_edgeql_migration_inherited_default_02(self):
+        await self.migrate(r"""
+            abstract type Foo {
+                multi link link -> Obj {
+                };
+            }
+
+            type Bar extending Foo {}
+
+            type Obj {
+                required property name -> str {
+                    constraint exclusive;
+                }
+            }
+        """)
+
+        await self.migrate(r"""
+            abstract type Foo {
+                multi link link -> Obj {
+                    default := ( select Obj filter .name = 'X' )
+                };
+            }
+
+            type Bar extending Foo {}
+
+            type Obj {
+                required property name -> str {
+                    constraint exclusive;
+                }
+            }
+        """)
+
     async def test_edgeql_migration_scalar_array_01(self):
         await self.migrate(r"""
             type User {

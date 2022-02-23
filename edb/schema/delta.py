@@ -2012,7 +2012,12 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                                     schema, cmd_create, fn, context, value)
 
                         cmd_drop.set_attribute_value(fn, dummy)
-                        cmd_create.set_attribute_value(fn, value)
+                        cmd_create.set_attribute_value(
+                            fn,
+                            value,
+                            inherited=ref.field_is_inherited(schema, fn),
+                            computed=ref.field_is_computed(schema, fn),
+                        )
 
                     context.affected_finalization[self].append(
                         (delta_create, cmd_create, this_ref_desc)
