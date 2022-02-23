@@ -51,7 +51,7 @@ JavaScript
 
 .. code-block:: javascript
 
-  await client.query("select 'I ❤️ ' ++ <str>$var ++ '!';", {
+  await client.query("select 'I ❤️ ' ++ <str>$name ++ '!';", {
     name: "rock and roll"
   });
 
