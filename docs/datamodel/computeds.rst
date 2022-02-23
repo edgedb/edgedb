@@ -110,7 +110,7 @@ to traverse a link in the *reverse* direction.
 
   type User {
     property name -> str;
-    blog_posts := .<author[is BlogPost]
+    multi link blog_posts := .<author[is BlogPost]
   }
 
 The ``User.blog_posts`` expression above uses the *backlink operator* ``.<`` in
