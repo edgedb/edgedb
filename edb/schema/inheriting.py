@@ -78,8 +78,15 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         fields: Optional[Iterable[str]] = None,
         ignore_local: bool = False,
     ) -> s_schema.Schema:
+        from . import referencing as s_referencing
+
         mcls = self.get_schema_metaclass()
         scls = self.scls
+
+        is_owned = (
+            isinstance(scls, s_referencing.ReferencedObject)
+            and scls.get_owned(schema)
+        )
 
         field_names: Iterable[str]
         if fields is not None:
@@ -121,7 +128,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
                 (
                     result != ours
                     or inherited
-                    or (was_inherited and not scls.get_owned(schema))
+                    or (was_inherited and not is_owned)
                 ) or (
                     result is None and ours is None and ignore_local
                 )
