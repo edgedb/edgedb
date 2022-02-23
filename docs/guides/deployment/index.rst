@@ -10,6 +10,7 @@ Deploying EdgeDB
 
     aws_aurora_ecs
     azure_flexibleserver
+    digitalocean
     fly_io
     gcp
     docker
