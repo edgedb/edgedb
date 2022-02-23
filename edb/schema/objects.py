@@ -1462,6 +1462,20 @@ class Object(s_abc.Object, ObjectContainer, metaclass=ObjectMeta):
 
         return schema
 
+    def field_is_computed(
+        self,
+        schema: s_schema.Schema,
+        field_name: str,
+    ) -> bool:
+        return field_name in self.get_computed_fields(schema)
+
+    def field_is_inherited(
+        self,
+        schema: s_schema.Schema,
+        field_name: str,
+    ) -> bool:
+        return False
+
     def del_classref(
         self,
         schema: s_schema.Schema,
