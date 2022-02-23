@@ -1420,6 +1420,66 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "Profile": [],
         })
 
+    def test_graphql_mutation_insert_default_01(self):
+        # Test insert object with a required property with a default.
+        data = {
+            'name': 'New InactiveUser01',
+            'age': 99,
+            'active': False,
+            'score': 0,
+        }
+
+        validation_query = r"""
+            query {
+                User(filter: {name: {eq: "New InactiveUser01"}}) {
+                    name
+                    age
+                    active
+                    score
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_User {
+                insert_User(
+                    data: [{
+                        name: "New InactiveUser01",
+                        age: 99
+                    }]
+                ) {
+                    name
+                    age
+                    active
+                    score
+                }
+            }
+        """, {
+            "insert_User": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "User": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_User {
+                delete_User(filter: {name: {eq: "New InactiveUser01"}}) {
+                    name
+                    age
+                    active
+                    score
+                }
+            }
+        """, {
+            "delete_User": [data]
+        })
+
+        # validate that the deletion worked
+        self.assert_graphql_query_result(validation_query, {
+            "User": []
+        })
+
     def test_graphql_mutation_update_scalars_01(self):
         orig_data = {
             'p_bool': True,
