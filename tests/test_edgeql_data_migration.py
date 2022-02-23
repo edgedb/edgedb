@@ -10506,6 +10506,58 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
             }
         ''')
 
+    async def test_edgeql_migration_fiddly_delete_01(self):
+        await self.migrate(r'''
+            type Document {
+              multi link entries -> Entry {
+                constraint exclusive;
+              }
+              multi link fields := .entries.field;
+              required link form -> Form;
+            }
+
+            type Entry {
+              required link field -> Field;
+              required property value -> str;
+              link form := .field.form;
+            }
+
+            type Field {
+              required property name -> str;
+
+              link form := .<fields[IS Form];
+            }
+
+            type Form {
+              required property name -> str {
+                constraint exclusive;
+              }
+
+              multi link fields -> Field;
+            }
+        ''')
+        await self.migrate(r'''
+            type Entry {
+              required link field -> Field;
+              required property value -> str;
+              link form := .field.form;
+            }
+
+            type Field {
+              required property name -> str;
+
+              link form := .<fields[IS Form];
+            }
+
+            type Form {
+              required property name -> str {
+                constraint exclusive;
+              }
+
+              multi link fields -> Field;
+            }
+        ''')
+
 
 class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
