@@ -48,6 +48,32 @@ pub fn full_statement(data: &[u8], continuation: Option<Continuation>)
                 }
                 return Err(Continuation { position: idx, braces: braces_buf });
             }
+            b'r' => {
+                if matches!(iter.peek(), Some((_, b'b'))) {
+                    // rb'something' -- skip `b` but match on quote
+                    iter.next();
+                };
+                match iter.next() {
+                    None => {
+                        return Err(Continuation {
+                            position: idx,
+                            braces: braces_buf,
+                        });
+                    }
+                    Some((_, end @ (b'\'' | b'"'))) => {
+                        while let Some((_, b)) = iter.next() {
+                            if b == end {
+                                continue 'outer;
+                            }
+                        }
+                        return Err(Continuation {
+                            position: idx,
+                            braces: braces_buf,
+                        });
+                    }
+                    Some((_, _)) => continue,
+                }
+            }
             b'`' => {
                 while let Some((_, b)) = iter.next() {
                     match b {

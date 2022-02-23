@@ -29,6 +29,17 @@ fn test_quoted_semicolon() {
 }
 
 #[test]
+fn test_raw_string() {
+    test_statement(br#"select r"\"; some trailer"#, 12);
+}
+
+#[test]
+fn test_raw_byte_string() {
+    test_statement(br#"select rb"\"; some trailer"#, 13);
+    test_statement(br#"select br'hello\'; some trailer"#, 18);
+}
+
+#[test]
 fn test_single_quoted_semicolon() {
     test_statement(b"select 'a;'; some trailer", 12);
 }

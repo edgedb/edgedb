@@ -452,6 +452,16 @@ The ``bytes`` type represents raw binary data.
   db> select b'bina\\x01ry';
   {b'bina\\x01ry'}
 
+There is a special syntax for declaring "raw byte strings". Raw byte strings
+treat the backslash ``\`` as a literal character instead of an escape
+character.
+
+.. code-block:: edgeql-repl
+
+  db> select rb'hello\nthere';
+  {b'hello\\nthere'}
+  db> select br'\';
+  {b'\\'}
 
 
 .. _ref_eql_literal_array:
