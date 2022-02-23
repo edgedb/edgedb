@@ -273,6 +273,7 @@ GQL_TO_EDB_SCALARS_MAP = {
 
 GQL_TO_OPS_MAP = {
     'exists': 'EXISTS',
+    'in': 'IN',
     'eq': '=',
     'neq': '!=',
     'gt': '>',
@@ -1136,6 +1137,8 @@ class GQLCoreSchema:
 
         # Always include the 'exists' operation
         fields['exists'] = GraphQLInputField(GraphQLBoolean)
+        # Always include the 'in' operation
+        fields['in'] = GraphQLInputField(GraphQLList(GraphQLNonNull(base)))
         for op in ops:
             fields[op] = GraphQLInputField(base)
 

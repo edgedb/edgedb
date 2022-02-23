@@ -3916,6 +3916,45 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
+    def test_graphql_functional_in_01(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                User(
+                    filter: {name: {in: ["Alice", "Bob"]}},
+                    order: {name: {dir: ASC}}
+                ) {
+                    name
+                }
+            }
+        """, {
+            "User": [
+                {
+                    "name": "Alice",
+                },
+                {
+                    "name": "Bob",
+                },
+            ]
+        })
+
+    def test_graphql_functional_in_02(self):
+        self.assert_graphql_query_result(r"""
+            query {
+                User(
+                    filter: {name: {in: ["Zoe", "Alice"]}},
+                    order: {name: {dir: ASC}}
+                ) {
+                    name
+                }
+            }
+        """, {
+            "User": [
+                {
+                    "name": "Alice",
+                },
+            ]
+        })
+
 
 class TestGraphQLInit(tb.GraphQLTestCase):
     """Test GraphQL initialization on an empty database."""

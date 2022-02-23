@@ -1383,6 +1383,14 @@ class GraphQLTranslator:
                 # The binary operator that we need here is "="
                 op = '='
 
+            elif op == 'IN':
+                # Instead of wrapping the values in an array, wrap
+                # them in a set
+                value = qlast.FunctionCall(
+                    func='array_unpack',
+                    args=[value],
+                )
+
             elif self._context.right_cast is not None:
                 # We don't need to cast the RHS for the EXISTS, only
                 # for other operations.
