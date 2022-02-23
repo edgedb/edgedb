@@ -4163,6 +4163,8 @@ class SetLinkType(LinkMetaCommand, adapts=s_links.SetLinkType):
             and (orig_type != new_type or self.cast_expr is not None)
         ):
             self._alter_pointer_type(self.scls, schema, orig_schema, context)
+            self.schedule_endpoint_delete_action_update(
+                self.scls, orig_schema, schema, context)
         return schema
 
 
@@ -5163,7 +5165,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
             if (
                 link.generic(eff_schema)
-                or link.is_pure_computable(eff_schema)
+                or (
+                    link.is_pure_computable(eff_schema)
+                    and link.is_pure_computable(orig_schema)
+                )
             ):
                 continue
 
@@ -5191,7 +5196,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 if target_is_affected:
                     affected_targets.add(target)
 
-                if isinstance(link_op, (AlterProperty, AlterLink)):
+                if isinstance(link_op, (SetLinkType, SetPropertyType)):
                     orig_target = link.get_target(orig_schema)
                     if target != orig_target:
                         current_orig_target = schema.get_by_id(

@@ -12469,6 +12469,67 @@ type default::Foo {
             delete Foo;
         """)
 
+    async def test_edgeql_ddl_switch_link_to_computed(self):
+        await self.con.execute(r"""
+            create type Identity;
+            create type User {
+                create required property name -> str {
+                    create constraint exclusive;
+                };
+                create multi link identities -> Identity {
+                    create constraint exclusive;
+                };
+            };
+            alter type Identity {
+                create link user -> User {
+                    on target delete delete source;
+                };
+            };
+        """)
+
+        await self.con.execute(r"""
+            alter type User {
+                alter link identities {
+                    drop constraint exclusive;
+                };
+                alter link identities {
+                    using (.<user[IS Identity]);
+                };
+            };
+        """)
+
+        await self.con.execute(r"""
+            insert Identity { user := (insert User { name := 'foo' }) }
+        """)
+        await self.con.execute(r"""
+            delete User filter true
+        """)
+
+    async def test_edgeql_ddl_switch_link_target(self):
+        await self.con.execute(r"""
+            create type Foo;
+            create type Bar;
+            create type Ptr { create link p -> Foo; };
+            alter type Ptr { alter link p set type Bar using (<Bar>{}); };
+            insert Ptr { p := (insert Bar) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            "prohibited by link target policy",
+        ):
+            await self.con.execute("""
+                delete Bar;
+            """)
+
+        await self.con.execute(r"""
+            drop type Ptr;
+        """)
+        await self.con.execute(r"""
+            insert Foo;
+            delete Foo;
+        """)
+
     async def test_edgeql_ddl_set_multi_with_children_01(self):
         await self.con.execute(r"""
             create type Person { create link lover -> Person; };
