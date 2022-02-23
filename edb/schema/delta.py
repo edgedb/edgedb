@@ -2233,12 +2233,18 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 self._append_subcmd_ast(schema, node, op, context)
 
         if isinstance(node, qlast.DropObject):
+            def _is_drop(ddl: qlast.ObjectDDL) -> bool:
+                return (
+                    isinstance(ddl, (qlast.DropObject, qlast.AlterObject))
+                    and all(_is_drop(sub) for sub in ddl.commands)
+                )
+
             # Deletes in the AST shouldn't have subcommands, so we
             # drop them.  To try to make sure we aren't papering
             # over bugs by dropping things we dont expect, make
-            # sure every subcommand was also a delete.
-            assert all(
-                isinstance(sub, qlast.DropObject) for sub in node.commands)
+            # sure every subcommand was also a delete (or an alter
+            # containing only deletes)
+            assert all(_is_drop(sub) for sub in node.commands)
             node.commands = []
 
     def _apply_field_ast(
