@@ -2233,7 +2233,7 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                 self._append_subcmd_ast(schema, node, op, context)
 
         if isinstance(node, qlast.DropObject):
-            def _is_drop(ddl: qlast.ObjectDDL) -> bool:
+            def _is_drop(ddl: qlast.DDLOperation) -> bool:
                 return (
                     isinstance(ddl, (qlast.DropObject, qlast.AlterObject))
                     and all(_is_drop(sub) for sub in ddl.commands)
