@@ -44,10 +44,14 @@ type Profile extending NamedObject {
 }
 
 type User extending NamedObject {
-    required property active -> bool;
+    required property active -> bool {
+        default := false;
+    }
     multi link groups -> UserGroup;
     required property age -> int64;
-    required property score -> float64;
+    required property score -> float64 {
+        default := 0;
+    }
     link profile -> Profile;
     # a link pointing to an abstract type
     multi link favorites -> NamedObject;
