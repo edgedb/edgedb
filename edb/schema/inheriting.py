@@ -78,8 +78,15 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         fields: Optional[Iterable[str]] = None,
         ignore_local: bool = False,
     ) -> s_schema.Schema:
+        from . import referencing as s_referencing
+
         mcls = self.get_schema_metaclass()
         scls = self.scls
+
+        is_owned = (
+            isinstance(scls, s_referencing.ReferencedObject)
+            and scls.get_owned(schema)
+        )
 
         field_names: Iterable[str]
         if fields is not None:
@@ -92,7 +99,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         deferred_complex_ops = []
 
         for field_name in field_names:
-            ignore_local_field = ignore_local or field_name in inherited_fields
+            was_inherited = field_name in inherited_fields
+            ignore_local_field = ignore_local or was_inherited
             field = mcls.get_field(field_name)
 
             try:
@@ -118,8 +126,9 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
             if (
                 (
-                    (result is not None or ours is not None)
-                    and (result != ours or inherited)
+                    result != ours
+                    or inherited
+                    or (was_inherited and not is_owned)
                 ) or (
                     result is None and ours is None and ignore_local
                 )

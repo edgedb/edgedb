@@ -42,6 +42,7 @@ from edb import edgeql
 from edb.common import debug
 from edb.common import verutils
 from edb.common import uuidgen
+from edb.common import ast
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
@@ -1097,7 +1098,7 @@ class Compiler:
                     proposed_steps = []
 
                     if proposed_ddl:
-                        for ddl_text, ast, top_op in proposed_ddl:
+                        for ddl_text, ddl_ast, top_op in proposed_ddl:
                             # get_ast has a lot of logic for figuring
                             # out when an op is implicit in a parent
                             # op. get_user_prompt does not have any of
@@ -1109,12 +1110,25 @@ class Compiler:
                             # *that*.
                             # This is stupid, and it is slow.
                             top_op2 = s_ddl.cmd_from_ddl(
-                                ast,
+                                ddl_ast,
                                 schema=schema,
                                 modaliases=current_tx.get_modaliases(),
                             )
                             prompt_key2, prompt_text = (
                                 top_op2.get_user_prompt())
+
+                            # Similarly, some placeholders may not have made
+                            # it into the actual query, so filter them out.
+                            used_placeholders = {
+                                p.name for p in ast.find_children(
+                                    ddl_ast,
+                                    lambda n: isinstance(n, qlast.Placeholder))
+                            }
+                            required_user_input = tuple(
+                                (k, v) for k, v in (
+                                    top_op.get_required_user_input().items())
+                                if k in used_placeholders
+                            )
 
                             # The prompt_id still needs to come from
                             # the original op, though, since
@@ -1131,9 +1145,7 @@ class Compiler:
                                 prompt=prompt_text,
                                 prompt_id=prompt_id,
                                 data_safe=top_op.is_data_safe(),
-                                required_user_input=tuple(
-                                    top_op.get_required_user_input().items(),
-                                ),
+                                required_user_input=required_user_input,
                                 operation_key=prompt_key2,
                             )
                             proposed_steps.append(step)
