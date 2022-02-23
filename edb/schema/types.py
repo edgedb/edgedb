@@ -478,7 +478,9 @@ class Type(
 
 
 class QualifiedType(so.QualifiedObject, Type):
-    pass
+    @classmethod
+    def get_schema_class_displayname(cls) -> str:
+        return 'type'
 
 
 class InheritingType(so.DerivableInheritingObject, QualifiedType):
