@@ -92,7 +92,8 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
         deferred_complex_ops = []
 
         for field_name in field_names:
-            ignore_local_field = ignore_local or field_name in inherited_fields
+            was_inherited = field_name in inherited_fields
+            ignore_local_field = ignore_local or was_inherited
             field = mcls.get_field(field_name)
 
             try:
@@ -118,8 +119,9 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
             if (
                 (
-                    (result is not None or ours is not None)
-                    and (result != ours or inherited)
+                    result != ours
+                    or inherited
+                    or (was_inherited and not scls.get_owned(schema))
                 ) or (
                     result is None and ours is None and ignore_local
                 )
