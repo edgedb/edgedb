@@ -994,7 +994,7 @@ def process_set_as_path(
         srcrel = srcctx.rel
         src_rvar = relctx.rvar_for_rel(srcrel, lateral=True, ctx=srcctx)
         relctx.include_rvar(stmt, src_rvar, path_id=ir_source.path_id, ctx=ctx)
-        stmt.path_id_mask.add(ir_source.path_id)
+        pathctx.put_path_id_mask(stmt, ir_source.path_id)
 
     # Path is a reference to a link property.
     if is_linkprop:
