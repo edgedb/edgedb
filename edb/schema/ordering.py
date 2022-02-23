@@ -843,7 +843,12 @@ def _trace_op(
                     for ref in refs:
                         write_ref_deps(ref, referrer, this_name_str)
 
-                if isinstance(obj, referencing.ReferencedInheritingObject):
+                if (
+                    isinstance(obj, referencing.ReferencedInheritingObject)
+                    # Changes to owned objects can't necessarily be merged
+                    # in with parents, so we make sure not to.
+                    and not obj.get_owned(new_schema)
+                ):
                     implicit_ancestors = [
                         b.get_name(new_schema)
                         for b in obj.get_implicit_ancestors(new_schema)
