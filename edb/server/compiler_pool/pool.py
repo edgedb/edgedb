@@ -301,7 +301,12 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
             PROCESS_INITIAL_RESPONSE_TIMEOUT
         )
 
-    async def _create_worker_process(self, numproc=None, version=0):
+    async def _create_compiler_process(self, numproc=None, version=0):
+        # Create a new compiler process. When numproc is None, a single
+        # standalone compiler worker process is started; if numproc is an int,
+        # a compiler template process will be created, which will then fork
+        # itself into `numproc` actual worker processes and run as a supervisor
+
         env = _ENV
         if debug.flags.server:
             env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
@@ -703,7 +708,7 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
             self._release_worker(worker)
 
 
-@srvargs.CompilerPoolScalingMode.Fixed.set_class
+@srvargs.CompilerPoolScalingMode.Fixed.assign_implementation
 class FixedPool(BasePool):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -747,7 +752,10 @@ class FixedPool(BasePool):
             return
         self._template_proc_version += 1
         try:
-            self._template_transport = await self._create_worker_process(
+            # Create the template process, which will then fork() into numproc
+            # child processes and manage them, so that we don't have to manage
+            # the actual compiler worker processes in the main process.
+            self._template_transport = await self._create_compiler_process(
                 numproc=self._pool_size,
                 version=self._template_proc_version,
             )
@@ -778,7 +786,7 @@ class FixedPool(BasePool):
             await trans._wait()
 
 
-@srvargs.CompilerPoolScalingMode.OnDemand.set_class
+@srvargs.CompilerPoolScalingMode.OnDemand.assign_implementation
 class SimpleAdaptivePool(BasePool):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -790,7 +798,7 @@ class SimpleAdaptivePool(BasePool):
 
     async def _start(self):
         async with taskgroup.TaskGroup() as g:
-            for i in range(self._pool_size):
+            for _i in range(self._pool_size):
                 g.create_task(self._create_worker())
 
     async def _stop(self):
@@ -864,7 +872,8 @@ class SimpleAdaptivePool(BasePool):
 
     async def _create_worker(self):
         try:
-            transport = await self._create_worker_process()
+            # Creates a single compiler worker process.
+            transport = await self._create_compiler_process()
             self._worker_transports[transport.get_pid()] = transport
             self._expected_num_workers += 1
         finally:

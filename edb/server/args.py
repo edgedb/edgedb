@@ -101,7 +101,8 @@ class CompilerPoolScalingMode(enum.StrEnum):
     def __init__(self, name):
         self.pool_class = None
 
-    def set_class(self, cls):
+    def assign_implementation(self, cls):
+        # decorator function to link this enum with the actual implementation
         self.pool_class = cls
         return cls
 
@@ -118,15 +119,15 @@ class OptionWithDynamicHelp(click.Option):
         self._help_func = help_func
         super().__init__(*args, **kwargs)
 
-    @property
-    def help(self):
+    def _get_help(self):
         if self._help:
             return self._help
         return self._help_func()
 
-    @help.setter
-    def help(self, value):
+    def _set_help(self, value):
         self._help = value
+
+    help = property(_get_help, _set_help)  # type: ignore
 
 
 class ServerConfig(NamedTuple):
@@ -472,11 +473,11 @@ _server_options = [
         cls=OptionWithDynamicHelp,
         help_func=lambda:
             'Specify the size of the compiler pool. Defaults to ' +
-             ', or '.join(
-                 f'{mode.compute_default_pool_size()} for "{mode.value}" '
-                 f'scaling mode'
-                 for mode in CompilerPoolScalingMode.__members__.values()
-             ) + '.',
+            ', or '.join(
+                f'{mode.compute_default_pool_size()} for "{mode.value}" '
+                f'scaling mode'
+                for mode in CompilerPoolScalingMode.__members__.values()
+            ) + '.',
     ),
     click.option(
         '--compiler-pool-scaling-mode',
