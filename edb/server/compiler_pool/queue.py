@@ -104,6 +104,12 @@ class WorkerQueue(typing.Generic[W]):
             self._queue.append(worker)
         self._wakeup_next_waiter()
 
+    def qsize(self) -> int:
+        return len(self._queue)
+
+    def count_waiters(self) -> int:
+        return len(self._waiters)
+
     def _wakeup_next_waiter(self) -> None:
         while self._waiters:
             waiter = self._waiters.popleft()
