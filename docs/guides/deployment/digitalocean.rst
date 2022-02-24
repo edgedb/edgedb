@@ -24,11 +24,13 @@ DigitalOcean. Once deployed you will have an EdgeDB instance running. The
 default admin password is ``edgedbpassword``. We strongly recommend that you
 change the password.
 
-`1-click deploy button <btn_>`_
+.. image:: images/do-btn-blue.svg
+   :target: 1-click-button_
 
-.. _btn: https://marketplace.digitalocean.com/apps/edgedb?refcode=f0b0d77b5d49
+.. _1-click-button:
+   https://marketplace.digitalocean.com/apps/edgedb?refcode=f0b0d77b5d49
 
-To change the password run the following. You will find you droplet ip address
+To change the password run the following. You will find your droplet ip address
 on digitalocean_.
 
 .. _digitalocean: https://cloud.digitalocean.com/droplets?
@@ -43,6 +45,7 @@ on digitalocean_.
          --password-from-stdin \
          --tls-security insecure \
          "alter role edgedb set password := '${PASSWORD}'"
+   OK: ALTER ROLE
 
 You can now link and connect to the new EdgeDB instance:
 
@@ -54,6 +57,10 @@ You can now link and connect to the new EdgeDB instance:
          --host $IP \
          --non-interactive \
          digitalocean
+   Authenticating to edgedb://edgedb@your-droplet-ip:5656/edgedb
+   Trusting unknown server certificate
+   Successfully linked to remote instance. To connect run:
+     edgedb -I digitalocean
 
 You can now use the EdgeDB instance deployed on DigitalOcean as
 ``digitalocean``, for example:
@@ -61,6 +68,7 @@ You can now use the EdgeDB instance deployed on DigitalOcean as
 .. code-block:: bash
 
    $ edgedb -I digitalocean
+   edgedb>
 
 
 .. _ref_guide_deployment_digitalocean_managed:
@@ -105,8 +113,8 @@ Provision a droplet
 Replace ``$SSH_KEY_IDS`` with the ids for the ssh keys you want to ssh into the
 new droplet with. Separate multiple values with a comma. You can list your
 keys with ``doctl compute ssh-key list``.  If you don't have any ssh keys in
-your DigitalOcean account you can follow `this guide <upload-ssh-keys_>`_ to do
-that now.
+your DigitalOcean account you can follow `this guide <upload-ssh-keys_>`_ to
+add one now.
 
 .. _upload-ssh-keys:
    https://docs.digitalocean.com/products/droplets
@@ -116,7 +124,7 @@ that now.
 
    $ IP="$( \
          doctl compute droplet create edgedb \
-             --image edgedb-1-rc4 \
+             --image edgedb \
              --region sfo3 \
              --size s-2vcpu-4gb \
              --ssh-keys $SSH_KEY_IDS \
@@ -145,6 +153,7 @@ Set the superuser password.
 
    $ edgedb -H $IP --tls-security insecure query \
          "alter role edgedb set password := '$PASSWORD'"
+   OK: ALTER ROLE
 
 Set the security policy to strict.
 
@@ -176,6 +185,11 @@ local machine run the following command.
          --host $IP \
          --non-interactive \
          digitalocean
+   Authenticating to edgedb://edgedb@137.184.227.94:5656/edgedb
+   Trusting unknown server certificate:
+   SHA1:1880da9527be464e2cad3bdb20dfc430a6af5727
+   Successfully linked to remote instance. To connect run:
+     edgedb -I digitalocean
 
 You can now use the EdgeDB instance deployed on DigitalOcean as
 ``digitalocean``, for example:
@@ -183,3 +197,4 @@ You can now use the EdgeDB instance deployed on DigitalOcean as
 .. code-block:: bash
 
    $ edgedb -I digitalocean
+   edgedb>
