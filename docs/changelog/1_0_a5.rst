@@ -1,3 +1,5 @@
+:orphan:
+
 .. _ref_changelog_alpha5:
 
 ===========
