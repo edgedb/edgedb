@@ -1648,6 +1648,34 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }],
         })
 
+    def test_graphql_functional_fragment_05(self):
+        # ISSUE #3514
+        #
+        # Fragment on the actual type should also work.
+        self.assert_graphql_query_result(r"""
+            fragment userFrag on User_Type {
+                active
+                profile {
+                    value
+                }
+            }
+
+            query {
+                User(filter: {name: {eq: "Alice"}}) {
+                    name
+                    ... userFrag
+                }
+            }
+        """, {
+            'User': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
     def test_graphql_functional_fragment_type_01(self):
         self.assert_graphql_query_result(r"""
             fragment userFrag on User {
@@ -2137,6 +2165,32 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             }
         """, {
             'NamedObject': [{
+                'name': 'Alice',
+                'active': True,
+                'profile': {
+                    'value': 'special',
+                }
+            }],
+        })
+
+    def test_graphql_functional_fragment_type_18(self):
+        # ISSUE #3514
+        #
+        # Fragment on the actual type should also work.
+        self.assert_graphql_query_result(r"""
+            query {
+                User(filter: {name: {eq: "Alice"}}) {
+                    ... on User_Type {
+                        active
+                        profile {
+                            value
+                        }
+                    }
+                    name
+                }
+            }
+        """, {
+            'User': [{
                 'name': 'Alice',
                 'active': True,
                 'profile': {

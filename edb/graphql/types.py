@@ -1347,36 +1347,46 @@ class GQLCoreSchema:
         kwargs: Dict[str, Any] = {'dummy': dummy}
 
         if not name.startswith('__graphql__::'):
-            if edb_base is None:
-                if '::' in name:
-                    edb_base = self.edb_schema.get(
-                        name,
-                        type=s_types.Type,
-                    )
-                else:
-                    for module in self.modules:
+            # The name may potentially contain the suffix "_Type",
+            # which in 99% cases indicates that it's a GraphQL
+            # internal type generated from the EdgeDB base type, but
+            # we technically need to check both.
+            if name.endswith('_Type'):
+                names = [name[:-len('_Type')], name]
+            else:
+                names = [name]
+
+            for tname in names:
+                if edb_base is None:
+                    if '::' in tname:
                         edb_base = self.edb_schema.get(
-                            f'{module}::{name}',
+                            tname,
                             type=s_types.Type,
-                            default=None,
                         )
-                        if edb_base:
-                            break
+                    else:
+                        for module in self.modules:
+                            edb_base = self.edb_schema.get(
+                                f'{module}::{tname}',
+                                type=s_types.Type,
+                                default=None,
+                            )
+                            if edb_base:
+                                break
 
-                    # XXX: find a better way to do this
-                    if edb_base is None:
-                        edb_base = self.edb_schema.get_global(
-                            s_types.Array, name, default=None
-                        )
+                        # XXX: find a better way to do this
+                        if edb_base is None:
+                            edb_base = self.edb_schema.get_global(
+                                s_types.Array, tname, default=None
+                            )
 
-                    if edb_base is None:
-                        edb_base = self.edb_schema.get_global(
-                            s_types.Tuple, name, default=None
-                        )
+                        if edb_base is None:
+                            edb_base = self.edb_schema.get_global(
+                                s_types.Tuple, tname, default=None
+                            )
 
-                    if edb_base is None:
-                        raise AssertionError(
-                            f'unresolved type: {module}::{name}')
+                if edb_base is None:
+                    raise AssertionError(
+                        f'unresolved type: {module}::{name}')
 
             kwargs['edb_base'] = edb_base
 
