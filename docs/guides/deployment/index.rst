@@ -14,3 +14,4 @@ Deploying EdgeDB
     fly_io
     gcp
     docker
+    bare_metal
