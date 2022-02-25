@@ -47,7 +47,6 @@ contributing fixes. You are awesome! 👍
   (:eql:gh:`#3399`).
 * Fix an issue that sometimes caused :eql:kw:`with` block variables to
   be unusable (:eql:gh:`#3385`).
-* The ``start`` keyword is now reserved (:eql:gh:`#3396`).
 
 
 Pre-releases
