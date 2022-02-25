@@ -11,8 +11,8 @@ v1
 EdgeDB 1.0 was released on February 10, 2022. Read the announcement
 blog post `here <v1anno_>`_.
 
-We would like to thank our community for reporting issue and
-contributing fixes. You are awesome! 👍
+We would like to thank our community for reporting issues and
+contributing fixes. You are awesome! ❤️
 
 
 1.1
