@@ -67,7 +67,7 @@ default. You can start the server by enabling the unit.
 
    $ systemctl enable --now edgedb-server-1
 
-This will start the server on port 5656. You can edit the unit to specify
-server arguments via the environment. The variables are largely the same as
-:ref:`those documented for Docker
-<ref_guides_deployment_docker_customization>`.
+This will start the server on port 5656, and the data directory will be
+``/var/lib/edgedb/1/data``. You can edit the unit to specify server arguments
+via the environment. The variables are largely the same as :ref:`those
+documented for Docker <ref_guides_deployment_docker_customization>`.
