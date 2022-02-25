@@ -708,7 +708,7 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
             self._release_worker(worker)
 
 
-@srvargs.CompilerPoolScalingMode.Fixed.assign_implementation
+@srvargs.CompilerPoolMode.Fixed.assign_implementation
 class FixedPool(BasePool):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -786,7 +786,7 @@ class FixedPool(BasePool):
             await trans._wait()
 
 
-@srvargs.CompilerPoolScalingMode.OnDemand.assign_implementation
+@srvargs.CompilerPoolMode.OnDemand.assign_implementation
 class SimpleAdaptivePool(BasePool):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

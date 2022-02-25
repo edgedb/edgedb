@@ -94,7 +94,7 @@ class BackendCapabilitySets(NamedTuple):
     must_be_absent: List[pgsql_params.BackendCapabilities]
 
 
-class CompilerPoolScalingMode(enum.StrEnum):
+class CompilerPoolMode(enum.StrEnum):
     Fixed = "fixed"
     OnDemand = "on_demand"
 
@@ -155,7 +155,7 @@ class ServerConfig(NamedTuple):
     runstate_dir: pathlib.Path
     max_backend_connections: Optional[int]
     compiler_pool_size: int
-    compiler_pool_scaling_mode: CompilerPoolScalingMode
+    compiler_pool_mode: CompilerPoolMode
     echo_runtime_info: bool
     emit_server_status: str
     temp_dir: bool
@@ -475,17 +475,17 @@ _server_options = [
             'Specify the size of the compiler pool. Defaults to ' +
             ', or '.join(
                 f'{mode.compute_default_pool_size()} for "{mode.value}" '
-                f'scaling mode'
-                for mode in CompilerPoolScalingMode.__members__.values()
+                f'mode'
+                for mode in CompilerPoolMode.__members__.values()
             ) + '.',
     ),
     click.option(
-        '--compiler-pool-scaling-mode',
+        '--compiler-pool-mode',
         type=click.Choice(
-            list(CompilerPoolScalingMode.__members__.values()),
+            list(CompilerPoolMode.__members__.values()),
             case_sensitive=True,
         ),
-        default=CompilerPoolScalingMode.Fixed.value,
+        default=CompilerPoolMode.Fixed.value,
         help='Choose a mode for the compiler pool to scale. "fixed" means the '
              'pool will not scale and sticks to --compiler-pool-size, while '
              '"on_demand" means the pool will maintain at least '
@@ -789,12 +789,12 @@ def parse_args(**kwargs: Any):
     kwargs['tls_cert_mode'] = ServerTlsCertMode(kwargs['tls_cert_mode'])
     kwargs['default_auth_method'] = ServerAuthMethod(
         kwargs['default_auth_method'])
-    kwargs['compiler_pool_scaling_mode'] = CompilerPoolScalingMode(
-        kwargs['compiler_pool_scaling_mode']
+    kwargs['compiler_pool_mode'] = CompilerPoolMode(
+        kwargs['compiler_pool_mode']
     )
     if not kwargs['compiler_pool_size']:
         kwargs['compiler_pool_size'] = kwargs[
-            'compiler_pool_scaling_mode'
+            'compiler_pool_mode'
         ].compute_default_pool_size()
 
     if kwargs['temp_dir']:
