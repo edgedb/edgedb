@@ -1286,6 +1286,193 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "Game": []
         })
 
+    def test_graphql_mutation_insert_nested_09(self):
+        # Issue #3470
+        # Test nested insert of the same type.
+        data = {
+            'after': 'BaseFoo09',
+            'color': 'GREEN',
+            'foos': [{
+                'after': 'NestedFoo090',
+                'color': 'RED',
+            }, {
+                'after': 'NestedFoo091',
+                'color': 'BLUE',
+            }],
+        }
+
+        validation_query = r"""
+            query {
+                other__Foo(filter: {after: {eq: "BaseFoo09"}}) {
+                    after
+                    color
+                    foos(order: {color: {dir: ASC}}) {
+                        after
+                        color
+                    }
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        after: "BaseFoo09",
+                        color: GREEN,
+                        foos: [{
+                            data: {
+                                after: "NestedFoo090",
+                                color: RED,
+                            }
+                        }, {
+                            data: {
+                                after: "NestedFoo091",
+                                color: BLUE,
+                            }
+                        }]
+                    }]
+                ) {
+                    after
+                    color
+                    foos(order: {color: {dir: ASC}}) {
+                        after
+                        color
+                    }
+                }
+            }
+        """, {
+            "insert_other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {after: {like: "%Foo09%"}},
+                    order: {color: {dir: ASC}}
+                ) {
+                    after
+                    color
+                }
+            }
+        """, {
+            "delete_other__Foo": [{
+                'after': 'NestedFoo090',
+                'color': 'RED',
+            }, {
+                'after': 'BaseFoo09',
+                'color': 'GREEN',
+            }, {
+                'after': 'NestedFoo091',
+                'color': 'BLUE',
+            }]
+        })
+
+    def test_graphql_mutation_insert_nested_10(self):
+        # Issue #3470
+        # Test nested insert of the same type.
+        data = {
+            'after': 'BaseFoo10',
+            'color': 'GREEN',
+            'foos': [{
+                'after': 'NestedFoo100',
+                'color': 'RED',
+            }, {
+                'after': 'NestedFoo101',
+                'color': 'BLUE',
+            }],
+        }
+
+        validation_query = r"""
+            query {
+                other__Foo(filter: {after: {eq: "BaseFoo10"}}) {
+                    after
+                    color
+                    foos(order: {color: {dir: ASC}}) {
+                        after
+                        color
+                    }
+                }
+            }
+        """
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        after: "NestedFoo100",
+                        color: RED,
+                    }]
+                ) {
+                    after
+                    color
+                }
+            }
+        """, {
+            "insert_other__Foo": [data['foos'][0]]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        after: "BaseFoo10",
+                        color: GREEN,
+                        foos: [{
+                            filter: {
+                                after: {eq: "NestedFoo100"},
+                            }
+                        }, {
+                            data: {
+                                after: "NestedFoo101",
+                                color: BLUE,
+                            }
+                        }]
+                    }]
+                ) {
+                    after
+                    color
+                    foos(order: {color: {dir: ASC}}) {
+                        after
+                        color
+                    }
+                }
+            }
+        """, {
+            "insert_other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {after: {like: "%Foo10%"}},
+                    order: {color: {dir: ASC}}
+                ) {
+                    after
+                    color
+                }
+            }
+        """, {
+            "delete_other__Foo": [{
+                'after': 'NestedFoo100',
+                'color': 'RED',
+            }, {
+                'after': 'BaseFoo10',
+                'color': 'GREEN',
+            }, {
+                'after': 'NestedFoo101',
+                'color': 'BLUE',
+            }]
+        })
+
     def test_graphql_mutation_insert_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
@@ -2881,6 +3068,220 @@ class TestGraphQLMutation(tb.GraphQLTestCase):
             "update_Profile": [{
                 'name': 'Alice profile',
                 'value': 'special',
+            }]
+        })
+
+    def test_graphql_mutation_update_multiple_02(self):
+        # Issue #3470
+        # Test nested update of the same type.
+        data = {
+            'after': 'BaseFoo02',
+            'color': 'GREEN',
+            'foos': [{
+                'after': 'NestedFoo020',
+                'color': 'RED',
+            }, {
+                'after': 'NestedFoo021',
+                'color': 'BLUE',
+            }],
+        }
+
+        validation_query = r"""
+            query {
+                other__Foo(filter: {after: {eq: "BaseFoo02"}}) {
+                    after
+                    color
+                    foos(order: {color: {dir: ASC}}) {
+                        after
+                        color
+                    }
+                }
+            }
+        """
+
+        self.graphql_query(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        after: "NestedFoo020",
+                        color: RED
+                    }, {
+                        after: "BaseFoo02",
+                        color: GREEN
+                    }, {
+                        after: "NestedFoo021",
+                        color: BLUE
+                    }]
+                ) {
+                    color
+                }
+            }
+        """)
+
+        self.assert_graphql_query_result(r"""
+            mutation update_other__Foo {
+                update_other__Foo(
+                    filter: {after: {eq: "BaseFoo02"}},
+                    data: {
+                        foos: {
+                            set: [{
+                                filter: {
+                                    after: {like: "NestedFoo02%"},
+                                }
+                            }]
+                        }
+                    }
+                ) {
+                    after
+                    color
+                    foos(order: {color: {dir: ASC}}) {
+                        after
+                        color
+                    }
+                }
+            }
+        """, {
+            "update_other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(validation_query, {
+            "other__Foo": [data]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {after: {like: "%Foo02%"}},
+                    order: {color: {dir: ASC}}
+                ) {
+                    after
+                    color
+                }
+            }
+        """, {
+            "delete_other__Foo": [{
+                'after': 'NestedFoo020',
+                'color': 'RED',
+            }, {
+                'after': 'BaseFoo02',
+                'color': 'GREEN',
+            }, {
+                'after': 'NestedFoo021',
+                'color': 'BLUE',
+            }]
+        })
+
+    def test_graphql_mutation_update_multiple_03(self):
+        # Issue #3470
+        # Test nested update of the same type.
+        self.graphql_query(r"""
+            mutation insert_other__Foo {
+                insert_other__Foo(
+                    data: [{
+                        after: "NestedFoo030",
+                        color: RED
+                    }, {
+                        after: "BaseFoo03",
+                        color: GREEN
+                    }, {
+                        after: "NestedFoo031",
+                        color: BLUE
+                    }]
+                ) {
+                    color
+                }
+            }
+        """)
+
+        self.assert_graphql_query_result(r"""
+            mutation update_other__Foo {
+                update_other__Foo(
+                    filter: {after: {eq: "BaseFoo03"}},
+                    data: {
+                        foos: {
+                            add: [{
+                                filter: {
+                                    after: {like: "NestedFoo03%"},
+                                }
+                            }]
+                        }
+                    }
+                ) {
+                    after
+                    color
+                    foos(order: {color: {dir: ASC}}) {
+                        after
+                        color
+                    }
+                }
+            }
+        """, {
+            "update_other__Foo": [{
+                'after': 'BaseFoo03',
+                'color': 'GREEN',
+                'foos': [{
+                    'after': 'NestedFoo030',
+                    'color': 'RED',
+                }, {
+                    'after': 'NestedFoo031',
+                    'color': 'BLUE',
+                }],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation update_other__Foo {
+                update_other__Foo(
+                    filter: {after: {eq: "BaseFoo03"}},
+                    data: {
+                        foos: {
+                            remove: [{
+                                filter: {
+                                    after: {eq: "NestedFoo031"},
+                                }
+                            }]
+                        }
+                    }
+                ) {
+                    after
+                    color
+                    foos(order: {color: {dir: ASC}}) {
+                        after
+                        color
+                    }
+                }
+            }
+        """, {
+            "update_other__Foo": [{
+                'after': 'BaseFoo03',
+                'color': 'GREEN',
+                'foos': [{
+                    'after': 'NestedFoo030',
+                    'color': 'RED',
+                }],
+            }]
+        })
+
+        self.assert_graphql_query_result(r"""
+            mutation delete_other__Foo {
+                delete_other__Foo(
+                    filter: {after: {like: "%Foo03%"}},
+                    order: {color: {dir: ASC}}
+                ) {
+                    after
+                    color
+                }
+            }
+        """, {
+            "delete_other__Foo": [{
+                'after': 'NestedFoo030',
+                'color': 'RED',
+            }, {
+                'after': 'BaseFoo03',
+                'color': 'GREEN',
+            }, {
+                'after': 'NestedFoo031',
+                'color': 'BLUE',
             }]
         })
 
