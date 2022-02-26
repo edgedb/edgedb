@@ -27,4 +27,9 @@ type Foo {
     property `select` -> str;
     property after -> str;
     required property color -> ColorEnum;
+
+    # Testing linking to the same type
+    multi link foos -> Foo {
+        on target delete deferred restrict;
+    }
 }
