@@ -1036,7 +1036,8 @@ class GraphQLTranslator:
 
             # NOTE: there will be more operations in the future
             if fname == 'set':
-                return self._get_input_expr_for_pointer_mutaiton(field)
+                return qlast.DetachedExpr(
+                    expr=self._get_input_expr_for_pointer_mutaiton(field))
             elif fname == 'clear':
                 cond = field.value
                 if isinstance(cond, gql_ast.VariableNode):
@@ -1109,7 +1110,7 @@ class GraphQLTranslator:
                 newset.elements.append(eqlpath)
                 return qlast.UnaryOp(
                     op='DISTINCT',
-                    operand=newset,
+                    operand=qlast.DetachedExpr(expr=newset),
                 )
             elif fname == 'remove':
                 alias = f'x{self._context.counter}'
@@ -1119,7 +1120,9 @@ class GraphQLTranslator:
                     where=qlast.BinOp(
                         left=qlast.Path(steps=[qlast.ObjectRef(name=alias)]),
                         op='NOT IN',
-                        right=self._visit_insert_value(field.value)
+                        right=qlast.DetachedExpr(
+                            expr=self._visit_insert_value(field.value)
+                        )
                     )
                 )
 
@@ -1163,6 +1166,12 @@ class GraphQLTranslator:
 
         # get the type of the value being inserted
         _, target = self._get_parent_and_current_type()
+
+        if target.is_object_type:
+            # Object types need to be wrapped in a DETACHED in
+            # mutations to avoid referencing the root object.
+            compexpr = qlast.DetachedExpr(expr=compexpr)
+
         if (isinstance(field.value, gql_ast.ListValueNode) and
                 target.is_object_type):
             # Need to wrap the set into an "assert_distinct()" if the
