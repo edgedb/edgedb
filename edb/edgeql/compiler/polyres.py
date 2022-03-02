@@ -32,6 +32,7 @@ from edb.ir import utils as irutils
 from edb.schema import functions as s_func
 from edb.schema import name as sn
 from edb.schema import types as s_types
+from edb.schema import pseudo as s_pseudo
 
 from edb.edgeql import qltypes as ft
 
@@ -48,6 +49,7 @@ class BoundArg(NamedTuple):
     val: irast.Set
     valtype: s_types.Type
     cast_distance: int
+    arg_id: Optional[Union[int, str]]
     is_default: bool = False
 
 
@@ -75,17 +77,68 @@ _OPTIONAL = ft.TypeModifier.OptionalType
 _SINGLETON = ft.TypeModifier.SingletonType
 
 
+def find_callable_typemods(
+        candidates: Sequence[s_func.CallableLike], *,
+        num_args: int,
+        kwargs_names: AbstractSet[str],
+        ctx: context.ContextLevel) -> Dict[Union[int, str], ft.TypeModifier]:
+    """Find the type modifiers for a callable.
+
+    We do this early, before we've compiled/checked the arguments,
+    so that we can compile the arguments with the proper fences.
+    """
+
+    typ = s_pseudo.PseudoType.get(ctx.env.schema, 'anytype')
+    dummy = irast.EmptySet()  # type: ignore
+    args = [(typ, dummy)] * num_args
+    kwargs = {k: (typ, dummy) for k in kwargs_names}
+    options = find_callable(
+        candidates, basic_matching_only=True, args=args, kwargs=kwargs, ctx=ctx
+    )
+
+    # No options means an error is going to happen later, but for now,
+    # just return some placeholders so that we can make it to the
+    # error later.
+    if not options:
+        return {k: _SINGLETON for k in set(range(num_args)) | kwargs_names}
+
+    fts: Dict[Union[int, str], ft.TypeModifier] = {}
+    for choice in options:
+        for barg in choice.args:
+            if not barg.param or barg.arg_id is None:
+                continue
+            ft = barg.param.get_typemod(ctx.env.schema)
+            if barg.arg_id in fts and fts[barg.arg_id] != ft:
+                if ft == _SET_OF or fts[barg.arg_id] == _SET_OF:
+                    raise errors.QueryError(
+                        f'argument could be SET OF or not in call to '
+                        f'{candidates[0].get_verbosename(ctx.env.schema)}: '
+                        f'seems like a stdlib bug!')
+                else:
+                    # If there is a mix between OPTIONAL and SINGLETON
+                    # arguments in possible call sites, we just call it
+                    # optional. Generated code quality will be a little
+                    # worse but still correct.
+                    fts[barg.arg_id] = _OPTIONAL
+            else:
+                fts[barg.arg_id] = ft
+
+    return fts
+
+
 def find_callable(
         candidates: Iterable[s_func.CallableLike], *,
         args: Sequence[Tuple[s_types.Type, irast.Set]],
         kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
+        basic_matching_only: bool=False,
         ctx: context.ContextLevel) -> List[BoundCall]:
 
     implicit_cast_distance = None
     matched = []
 
     for candidate in candidates:
-        call = try_bind_call_args(args, kwargs, candidate, ctx=ctx)
+        call = try_bind_call_args(
+            args, kwargs, candidate, basic_matching_only, ctx=ctx)
         if call is None:
             continue
 
@@ -138,7 +191,9 @@ def find_callable(
 def try_bind_call_args(
         args: Sequence[Tuple[s_types.Type, irast.Set]],
         kwargs: Mapping[str, Tuple[s_types.Type, irast.Set]],
-        func: s_func.CallableLike, *,
+        func: s_func.CallableLike,
+        basic_matching_only: bool,
+        *,
         ctx: context.ContextLevel) -> Optional[BoundCall]:
 
     return_type = func.get_return_type(ctx.env.schema)
@@ -151,6 +206,8 @@ def try_bind_call_args(
         param_type: s_types.Type,
     ) -> int:
         nonlocal resolved_poly_base_type
+        if basic_matching_only:
+            return 0
 
         if in_polymorphic_func:
             # Compiling a body of a polymorphic function.
@@ -228,7 +285,7 @@ def try_bind_call_args(
                     irast.BytesConstant(value=b'\x00', typeref=typeref),
                     typehint=bytes_t,
                     ctx=ctx)
-                bargs = [BoundArg(None, bytes_t, argval, bytes_t, 0)]
+                bargs = [BoundArg(None, bytes_t, argval, bytes_t, 0, -1)]
             return BoundCall(
                 func, bargs, set(),
                 return_type, False)
@@ -277,7 +334,8 @@ def try_bind_call_args(
                 return None
 
             bound_args_prep.append(
-                BoundArg(param, param_type, arg_val, arg_type, cd))
+                BoundArg(param, param_type, arg_val, arg_type, cd,
+                         param_shortname))
 
         else:
             if param.get_default(schema) is None:
@@ -318,15 +376,16 @@ def try_bind_call_args(
                     return None
 
                 bound_args_prep.append(
-                    BoundArg(param, param_type, arg_val, arg_type, cd))
+                    BoundArg(param, param_type, arg_val, arg_type, cd, ai - 1))
 
-                for arg_type, arg_val in args[ai:]:
+                for di, (arg_type, arg_val) in enumerate(args[ai:]):
                     cd = _get_cast_distance(arg_val, arg_type, var_type)
                     if cd < 0:
                         return None
 
                     bound_args_prep.append(
-                        BoundArg(param, param_type, arg_val, arg_type, cd))
+                        BoundArg(param, param_type, arg_val, arg_type, cd,
+                                 ai + di))
 
                 break
 
@@ -335,7 +394,7 @@ def try_bind_call_args(
                 return None
 
             bound_args_prep.append(
-                BoundArg(param, param_type, arg_val, arg_type, cd))
+                BoundArg(param, param_type, arg_val, arg_type, cd, ai - 1))
 
         else:
             break
@@ -395,7 +454,7 @@ def try_bind_call_args(
 
                 param_type = param.get_type(schema)
 
-                if empty_default:
+                if empty_default and not basic_matching_only:
                     default_type = None
 
                     if param_type.is_any(schema):
@@ -429,6 +488,7 @@ def try_bind_call_args(
                         default,
                         param_type,
                         0,
+                        None,
                         True,
                     )
                 )
@@ -450,13 +510,14 @@ def try_bind_call_args(
         bm_set = setgen.ensure_set(
             irast.BytesConstant(value=bm, typeref=typeref),
             typehint=bytes_t, ctx=ctx)
-        bound_param_args.insert(0, BoundArg(None, bytes_t, bm_set, bytes_t, 0))
+        bound_param_args.insert(
+            0, BoundArg(None, bytes_t, bm_set, bytes_t, 0, None))
 
     if return_type.is_polymorphic(schema):
         if resolved_poly_base_type is not None:
             ctx.env.schema, return_type = return_type.to_nonpolymorphic(
                 ctx.env.schema, resolved_poly_base_type)
-        elif not in_polymorphic_func:
+        elif not in_polymorphic_func and not basic_matching_only:
             return None
 
     # resolved_poly_base_type may be legitimately None within
@@ -472,6 +533,7 @@ def try_bind_call_args(
                     barg.val,
                     barg.valtype,
                     barg.cast_distance,
+                    barg.arg_id,
                 )
 
     return BoundCall(

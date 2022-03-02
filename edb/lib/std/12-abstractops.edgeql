@@ -37,10 +37,10 @@ CREATE ABSTRACT INFIX OPERATOR
 std::`=` (l: anytype, r: anytype) -> std::bool;
 
 CREATE ABSTRACT INFIX OPERATOR
-std::`?=` (l: anytype, r: anytype) -> std::bool;
+std::`?=` (l: OPTIONAL anytype, r: OPTIONAL anytype) -> std::bool;
 
 CREATE ABSTRACT INFIX OPERATOR
 std::`!=` (l: anytype, r: anytype) -> std::bool;
 
 CREATE ABSTRACT INFIX OPERATOR
-std::`?!=` (l: anytype, r: anytype) -> std::bool;
+std::`?!=` (l: OPTIONAL anytype, r: OPTIONAL anytype) -> std::bool;

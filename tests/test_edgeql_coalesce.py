@@ -1307,6 +1307,13 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
             [[False, 0]],
         )
 
+        await self.assert_query_result(
+            r'''
+                SELECT (count(Publication), Publication.title ?= "")
+            ''',
+            [[False, 0]],
+        )
+
     async def test_edgeql_coalesce_set_of_12(self):
         await self.assert_query_result(
             r'''
@@ -1619,4 +1626,120 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
                 SELECT _ := ([(1,2)][0] UNION (3,4)).1 ORDER BY _;
             ''',
             [2, 4],
+        )
+
+    async def test_edgeql_coalesce_overload_01(self):
+        # first argument bool -> optional second arg
+        await self.assert_query_result(
+            r'''
+                SELECT Issue.name ++ opt_test(false, <str>Issue.time_estimate)
+            ''',
+            {
+                "Issue 160", "Issue 290", "Issue 390",
+                "Issue 4", "Issue 5", "Issue 6",
+            },
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Issue.name, opt_test(false, Issue.time_estimate))
+            ''',
+            {
+                ("Issue 1", 60),
+                ("Issue 2", 90),
+                ("Issue 3", 90),
+                ("Issue 4", -1),
+                ("Issue 5", -1),
+                ("Issue 6", -1),
+            },
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT opt_test(true, <str>Issue.time_estimate)
+            ''',
+            tb.bag(["60", "90", "90"]),
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT opt_test(true, Issue.time_estimate)
+            ''',
+            tb.bag([60, 90, 90]),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Issue { z := opt_test(true, .time_estimate) }
+            ''',
+            tb.bag([
+                {"z": 60}, {"z": 90}, {"z": 90},
+                {"z": -1}, {"z": -1}, {"z": -1}
+            ]),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Issue { z := opt_test(true, .time_estimate, 1) }
+            ''',
+            tb.bag([
+                {"z": 1}, {"z": 1}, {"z": 1},
+                {"z": 1}, {"z": 1}, {"z": 1},
+            ]),
+        )
+
+    async def test_edgeql_coalesce_overload_02(self):
+        # first argument int -> singleton second arg
+        await self.assert_query_result(
+            r'''
+                SELECT Issue.name ++ opt_test(0, <str>Issue.time_estimate)
+            ''',
+            {
+                "Issue 160", "Issue 290", "Issue 390",
+            },
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT (Issue.name, opt_test(0, Issue.time_estimate))
+            ''',
+            {
+                ("Issue 1", 60),
+                ("Issue 2", 90),
+                ("Issue 3", 90),
+            },
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT opt_test(0, <str>Issue.time_estimate)
+            ''',
+            tb.bag(["60", "90", "90"]),
+        )
+
+        await self.assert_query_result(
+            r'''
+                SELECT opt_test(0, Issue.time_estimate)
+            ''',
+            tb.bag([60, 90, 90]),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Issue { z := opt_test(0, .time_estimate) }
+            ''',
+            tb.bag([
+                {"z": 60}, {"z": 90}, {"z": 90},
+                {"z": None}, {"z": None}, {"z": None}
+            ]),
+        )
+
+        await self.assert_query_result(
+            r'''
+                select Issue { z := opt_test(0, .time_estimate, 1) }
+            ''',
+            tb.bag([
+                {"z": 1}, {"z": 1}, {"z": 1},
+                {"z": None}, {"z": None}, {"z": None}
+            ]),
         )

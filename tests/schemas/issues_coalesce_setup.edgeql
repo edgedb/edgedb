@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-
 INSERT Priority {
     name := 'High'
 };

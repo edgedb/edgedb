@@ -88,9 +88,6 @@ def register_set_in_scope(
     if path_scope is None:
         path_scope = ctx.path_scope
 
-    if ctx.path_log is not None:
-        ctx.path_log.append(ir_set.path_id)
-
     return path_scope.attach_path(
         ir_set.path_id,
         optional=optional,

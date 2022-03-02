@@ -71,13 +71,8 @@ class ScopeTreeNode:
     factoring_allowlist: Set[pathid.PathId]
     """A list of prefixes that are always allowed to be factored."""
 
-    optional_count: Optional[int]
-    """Whether this node represents an optional path.
-
-    If None, the node is not an optional path. If 0, it is.
-    If positive, the node *was* an optional path but has had non-optional
-    nodes merged into it, but could become optional again.
-    """
+    optional: bool
+    """Whether this node represents an optional path."""
 
     children: List[ScopeTreeNode]
     """A set of child nodes."""
@@ -110,7 +105,7 @@ class ScopeTreeNode:
         self.unnest_fence = False
         self.factoring_fence = False
         self.factoring_allowlist = set()
-        self.optional_count = 0 if optional else None
+        self.optional = optional
         self.children = []
         self.namespaces = set()
         self._parent: Optional[weakref.ReferenceType[ScopeTreeNode]] = None
@@ -153,11 +148,7 @@ class ScopeTreeNode:
             )
         else:
             name = self.path_id.pformat_internal(debug=debug)
-        ocount = self.optional_count
-        return (
-            f'{name}{" [OPT]" if self.optional else ""}'
-            f'{" ["+str(ocount)+"]" if ocount else ""}'
-        )
+        return f'{name}{" [OPT]" if self.optional else ""}'
 
     def debugname(self, fuller: bool=False) -> str:
         parts = [f'{self._name(debug=fuller)}']
@@ -171,10 +162,6 @@ class ScopeTreeNode:
             parts.append('no-factor')
         parts.append(f'0x{id(self):0x}')
         return ' '.join(parts)
-
-    @property
-    def optional(self) -> bool:
-        return self.optional_count == 0
 
     @property
     def fence_info(self) -> FenceInfo:
@@ -267,7 +254,7 @@ class ScopeTreeNode:
                 An optional child to skip during the traversal. This
                 is useful for avoiding performance pathologies when
                 repeatedly searching descendants while climbing the
-                tree (see find_factoring_point).
+                tree (see find_factorable_nodes).
 
         Top-first.
         """
@@ -499,7 +486,8 @@ class ScopeTreeNode:
 
             path_id = descendant.path_id.strip_namespace(dns)
             visible, visible_finfo, vns = self.find_visible_ex(path_id)
-            desc_optional = descendant.is_optional_upto(node.parent)
+            desc_optional = (
+                descendant.is_optional_upto(node.parent) or self.optional)
 
             # If descendant is covered up by one CBRANCH, it is because it
             # was put there by a fence_pointer in attach_path. If the path
@@ -531,6 +519,7 @@ class ScopeTreeNode:
 
                 # This path is already present in the tree, discard,
                 # but merge its OPTIONAL status, if any.
+
                 desc_fenced = (
                     descendant.fence is not node.fence
                     or was_fenced
@@ -538,14 +527,14 @@ class ScopeTreeNode:
                 )
                 descendant.remove()
                 descendant._gravestone = visible
-                keep_optional = desc_optional or desc_fenced
-                if keep_optional:
-                    descendant.mark_as_optional()
+                descendant.optional = desc_optional
                 descendant.strip_path_namespace(dns | vns)
-                visible.fuse_subtree(descendant, self_fenced=False)
+                visible.fuse_subtree(
+                    descendant, self_fenced=False, node_fenced=desc_fenced)
 
             elif descendant.parent_fence is node:
                 # Unfenced path.
+
                 # Search for occurences elsewhere in the tree that
                 # can be factored with this one.
                 # If found, attach that node directly to the factoring point
@@ -567,6 +556,7 @@ class ScopeTreeNode:
                         existing_ns,
                         existing_finfo,
                         unnest_fence,
+                        node_fenced,
                     ) = factorable
 
                     self._check_factoring_errors(
@@ -574,7 +564,7 @@ class ScopeTreeNode:
                         unnest_fence, existing_finfo, context,
                     )
 
-                    existing_fenced = existing.parent_fence is not self
+                    existing_fenced = existing.parent_fence is not factor_point
                     if existing.is_optional_upto(factor_point):
                         existing.mark_as_optional()
 
@@ -591,7 +581,9 @@ class ScopeTreeNode:
                     # Discard the node from the subtree being attached.
                     current._gravestone = existing
                     existing.fuse_subtree(
-                        current, self_fenced=existing_fenced)
+                        current,
+                        self_fenced=existing_fenced,
+                        node_fenced=node_fenced)
 
                     current = existing
 
@@ -664,20 +656,18 @@ class ScopeTreeNode:
         self,
         node: ScopeTreeNode,
         self_fenced: bool=False,
+        node_fenced: bool=False,
     ) -> None:
         node.remove()
 
-        if (
-            self.optional_count is not None
-            and not node.optional
-        ):
-            self.optional_count += 1
+        if not node.optional and not node_fenced:
+            self.optional = False
         if node.optional and self_fenced:
-            self.mark_as_optional()
+            self.optional = True
 
         if node.path_id is not None:
             subtree = ScopeTreeNode(fenced=True)
-            subtree.optional_count = node.optional_count
+            subtree.optional = node.optional
             for child in tuple(node.children):
                 subtree.attach_child(child)
         else:
@@ -709,7 +699,7 @@ class ScopeTreeNode:
 
     def mark_as_optional(self) -> None:
         """Indicate that this scope is used as an OPTIONAL argument."""
-        self.optional_count = 0
+        self.optional = True
 
     def is_optional(self, path_id: pathid.PathId) -> bool:
         node = self.find_visible(path_id)
@@ -740,43 +730,6 @@ class ScopeTreeNode:
         parent = self.parent
         if parent is not None:
             parent.remove_subtree(self)
-
-    def collapse(self) -> None:
-        """Remove the node, reattaching the children to the parent."""
-        parent = self.parent
-        if parent is None:
-            raise ValueError('cannot collapse the root node')
-
-        if self.path_id is not None:
-            subtree = ScopeTreeNode()
-
-            for child in self.children:
-                subtree.attach_child(child)
-        else:
-            subtree = self
-
-        self.remove()
-        parent.attach_subtree(subtree)
-
-    def unfence(self) -> ScopeTreeNode:
-        """Remove the node, reattaching the children as an unfenced branch."""
-        parent = self.parent
-        if parent is None:
-            raise ValueError('cannot unfence the root node')
-
-        subtree = ScopeTreeNode(optional=self.optional)
-
-        for child in list(self.children):
-            subtree.attach_child(child)
-
-        self.remove()
-
-        parent_subtree = ScopeTreeNode(fenced=True)
-        parent_subtree.attach_child(subtree)
-
-        parent.attach_subtree(parent_subtree)
-
-        return subtree
 
     def is_empty(self) -> bool:
         if self.path_id is not None:
@@ -936,7 +889,7 @@ class ScopeTreeNode:
     def is_optional_upto(self, ancestor: Optional[ScopeTreeNode]) -> bool:
         node: Optional[ScopeTreeNode] = self
         while node and node is not ancestor:
-            if node.optional_count is not None:
+            if node.optional:
                 return True
             node = node.parent
         return False
@@ -950,6 +903,7 @@ class ScopeTreeNode:
             ScopeTreeNode,
             AbstractSet[pathid.Namespace],
             FenceInfo,
+            bool,
             bool,
         ]
     ]:
@@ -994,7 +948,8 @@ class ScopeTreeNode:
                 if (has_path_id(descendant)
                         and _paths_equal(descendant.path_id, path_id, cns)):
                     points.append((
-                        descendant, node, cns, finfo, unnest_fence_seen
+                        descendant, node, cns, finfo,
+                        unnest_fence_seen, fence_seen,
                     ))
 
             namespaces |= ans
