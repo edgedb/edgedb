@@ -302,7 +302,7 @@ def compile_operator(
     fq_op_name = next(iter(opers)).get_shortname(ctx.env.schema)
     conditional_args = CONDITIONAL_OPS.get(fq_op_name)
 
-    typemods, _ = polyres.find_callable_typemods(
+    typemods = polyres.find_callable_typemods(
         opers, num_args=len(qlargs), kwargs_names=set(), ctx=ctx)
 
     args = []
@@ -695,20 +695,18 @@ def compile_arg(
 def compile_func_call_args(
     expr: qlast.FunctionCall,
     funcname: sn.Name,
-    typemods: Tuple[
-        Sequence[ft.TypeModifier], Dict[str, ft.TypeModifier]],
+    typemods: Dict[Union[int, str], ft.TypeModifier],
     *,
     ctx: context.ContextLevel
 ) -> Tuple[
     List[Tuple[s_types.Type, irast.Set]],
     Dict[str, Tuple[s_types.Type, irast.Set]],
 ]:
-    arg_typemods, kwarg_typemods = typemods
     args = []
     kwargs = {}
 
     for ai, arg in enumerate(expr.args):
-        arg_ir = compile_arg(arg, arg_typemods[ai], ctx=ctx)
+        arg_ir = compile_arg(arg, typemods[ai], ctx=ctx)
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:
             raise errors.QueryError(
@@ -719,7 +717,7 @@ def compile_func_call_args(
         args.append((arg_type, arg_ir))
 
     for aname, arg in expr.kwargs.items():
-        arg_ir = compile_arg(arg, kwarg_typemods[aname], ctx=ctx)
+        arg_ir = compile_arg(arg, typemods[aname], ctx=ctx)
 
         arg_type = inference.infer_type(arg_ir, ctx.env)
         if arg_type is None:

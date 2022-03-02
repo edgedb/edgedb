@@ -81,8 +81,7 @@ def find_callable_typemods(
         candidates: Sequence[s_func.CallableLike], *,
         num_args: int,
         kwargs_names: AbstractSet[str],
-        ctx: context.ContextLevel) -> Tuple[
-            Sequence[ft.TypeModifier], Dict[str, ft.TypeModifier]]:
+        ctx: context.ContextLevel) -> Dict[Union[int, str], ft.TypeModifier]:
     """Find the type modifiers for a callable.
 
     We do this early, before we've compiled/checked the arguments,
@@ -101,10 +100,7 @@ def find_callable_typemods(
     # just return some placeholders so that we can make it to the
     # error later.
     if not options:
-        return (
-            [_SINGLETON] * num_args,
-            {k: _SINGLETON for k in kwargs_names},
-        )
+        return {k: _SINGLETON for k in set(range(num_args)) | kwargs_names}
 
     fts: Dict[Union[int, str], ft.TypeModifier] = {}
     for choice in options:
@@ -127,10 +123,7 @@ def find_callable_typemods(
             else:
                 fts[barg.arg_id] = ft
 
-    return (
-        [fts[i] for i in range(num_args)],
-        {s: fts[s] for s in kwargs_names},
-    )
+    return fts
 
 
 def find_callable(
