@@ -16,15 +16,6 @@
 # limitations under the License.
 #
 
-create function opt_test(tag: int64, x: str) -> str using (x ?? '');
-create function opt_test(tag: bool, x: optional str) -> str using (x ?? '');
-create function opt_test(tag: int64, x: int64) -> int64 using (x ?? -1);
-create function opt_test(tag: bool, x: optional int64) -> int64 using (x ?? -1);
-
-create function opt_test(tag: int64, x: int64, y: optional int64) -> int64 using (y ?? -1);
-create function opt_test(tag: bool, x: optional int64, y: optional int64) -> int64 using (y ?? -1);
-
-
 INSERT Priority {
     name := 'High'
 };

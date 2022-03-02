@@ -563,11 +563,14 @@ class ScopeTreeNode:
                         unnest_fence, existing_finfo, context,
                     )
 
-                    existing_fenced = existing.parent_fence is not self
+                    existing_fenced = existing.parent_fence is not factor_point
                     if existing.is_optional_upto(factor_point):
                         existing.mark_as_optional()
 
-                    desc_fenced = current.fence is not node or existing_fenced
+                    desc_fenced = (
+                        current.fence is not node
+                        or self.fence is not factor_point
+                    )
 
                     existing.remove()
                     current.remove()

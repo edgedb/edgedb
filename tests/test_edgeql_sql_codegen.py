@@ -79,11 +79,8 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
     def test_codegen_no_self_join_multi(self):
         self.no_self_join_test("SELECT User.deck.name", ["User"])
 
-    def test_codegen_elide_optional_wrapper(self):
-        sql = self._compile('''
-            with module issues
-            select Issue { te := .time_estimate ?? -1 }
-        ''')
+    def no_optional_test(self, query):
+        sql = self._compile(query)
 
         # One distinguishing characteristic of an optional wrapper is
         # selecting '("m~1" = first_value("m~1") OVER ())'
@@ -91,6 +88,30 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             "OVER ()", sql,
             "optional wrapper generated when it shouldn't be needed"
         )
+
+    def test_codegen_elide_optional_wrapper_01(self):
+        self.no_optional_test('''
+            with module issues
+            select Issue { te := .time_estimate ?? -1 }
+        ''')
+
+    def test_codegen_elide_optional_wrapper_02(self):
+        self.no_optional_test('''
+            with module issues
+            SELECT (Issue.name, Issue.time_estimate ?= 60)
+        ''')
+
+    def test_codegen_elide_optional_wrapper_03(self):
+        self.no_optional_test('''
+            with module issues
+            SELECT opt_test(0, <str>Issue.time_estimate)
+        ''')
+
+    def test_codegen_elide_optional_wrapper_04(self):
+        self.no_optional_test('''
+            with module issues
+            SELECT (Issue, opt_test(0, <str>Issue.time_estimate))
+        ''')
 
     def test_codegen_order_by_not_subquery_01(self):
         sql = self._compile_to_tree('''

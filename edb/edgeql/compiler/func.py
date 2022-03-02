@@ -200,6 +200,7 @@ def compile_FunctionCall(
 
     final_args, params_typemods = finalize_args(
         matched_call,
+        guessed_typemods=typemods,
         is_polymorphic=is_polymorphic,
         ctx=ctx,
     )
@@ -528,6 +529,7 @@ def compile_operator(
     final_args, params_typemods = finalize_args(
         matched_call,
         actual_typemods=actual_typemods,
+        guessed_typemods=typemods,
         is_polymorphic=is_polymorphic,
         ctx=ctx,
     )
@@ -734,6 +736,7 @@ def compile_func_call_args(
 def finalize_args(
     bound_call: polyres.BoundCall, *,
     actual_typemods: Sequence[ft.TypeModifier] = (),
+    guessed_typemods: Dict[Union[int, str], ft.TypeModifier],
     is_polymorphic: bool = False,
     ctx: context.ContextLevel,
 ) -> Tuple[List[irast.CallArg], List[ft.TypeModifier]]:
@@ -763,6 +766,23 @@ def finalize_args(
 
             if param_shortname in bound_call.null_args:
                 pathctx.register_set_in_scope(arg, optional=True, ctx=ctx)
+
+            # If we guessed the argument was optional but it wasn't,
+            # try to go back and make it *not* optional.
+            elif (
+                param_mod is ft.TypeModifier.SingletonType
+                and barg.arg_id is not None
+                and param_mod is not guessed_typemods[barg.arg_id]
+            ):
+                for child in ctx.path_scope.children:
+                    if (
+                        child.path_id == arg.path_id
+                        or (
+                            arg.path_scope_id is not None
+                            and child.unique_id == arg.path_scope_id
+                        )
+                    ):
+                        child.optional = False
 
             # Object type arguments to functions may be overloaded, so
             # we populate a path id field so that we can also pass the
