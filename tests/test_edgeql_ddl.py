@@ -8363,6 +8363,26 @@ type default::Foo {
                     INSERT Bar { children := Foo };
                 """)
 
+    async def test_edgeql_ddl_constraint_16(self):
+        await self.con.execute(r"""
+            create type Foo {
+                create property x -> tuple<x: str, y: str> {
+                    create constraint exclusive;
+                }
+             };
+        """)
+
+        await self.con.execute("""
+            INSERT Foo { x := ('1', '2') };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'x violates exclusivity constraint'):
+            await self.con.execute("""
+                INSERT Foo { x := ('1', '2') };
+            """)
+
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE ConTest01 {
