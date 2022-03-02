@@ -213,7 +213,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.indentation -= 2
 
-        if self.reordered:
+        if self.reordered and not node.op:
             _select()
 
             if node.target_list:
