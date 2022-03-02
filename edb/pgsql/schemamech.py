@@ -87,14 +87,15 @@ class ConstraintMech:
         if isinstance(tree.expr, irast.SelectStmt):
             tree = tree.expr.result
 
-        is_multicol = irtyputils.is_tuple(tree.typeref)
+        is_multicol = isinstance(sql_expr, (
+            pg_ast.RowExpr, pg_ast.ImplicitRowExpr))
 
         # Determine if the sequence of references are all simple refs, not
         # expressions.  This influences the type of Postgres constraint used.
         #
         is_trivial = (
             isinstance(sql_expr, pg_ast.ColumnRef) or (
-                isinstance(sql_expr, pg_ast.ImplicitRowExpr) and all(
+                is_multicol and all(
                     isinstance(el, pg_ast.ColumnRef)
                     for el in sql_expr.args)))
 
