@@ -166,14 +166,19 @@ def compile_ir_to_sql(
         argmap = {}
 
     # Generate query text
-    codegen = run_codegen(qtree, pretty=pretty)
-    sql_text = ''.join(codegen.result)
+    sql_text = run_codegen(qtree, pretty=pretty)
 
     if (  # pragma: no cover
         debug.flags.edgeql_compile or debug.flags.edgeql_compile_sql_text
     ):
         debug.header('SQL')
         debug.dump_code(sql_text, lexer='sql')
+    if (  # pragma: no cover
+        debug.flags.edgeql_compile_sql_reordered_text
+    ):
+        debug.header('Reordered SQL')
+        debug_sql_text = run_codegen(qtree, pretty=pretty, reordered=True)
+        debug.dump_code(debug_sql_text, lexer='sql')
 
     return sql_text, argmap
 
@@ -182,8 +187,9 @@ def run_codegen(
     qtree: pgast.Base,
     *,
     pretty: bool=True,
-) -> pgcodegen.SQLSourceGenerator:
-    codegen = pgcodegen.SQLSourceGenerator(pretty=pretty)
+    reordered: bool=False,
+) -> str:
+    codegen = pgcodegen.SQLSourceGenerator(pretty=pretty, reordered=reordered)
     try:
         codegen.visit(qtree)
     except pgcodegen.SQLSourceGeneratorError as e:  # pragma: no cover
@@ -199,7 +205,7 @@ def run_codegen(
         edgedb_error.add_context(err, ctx)
         raise err from e
 
-    return codegen
+    return ''.join(codegen.result)
 
 
 def new_external_rvar(

@@ -62,9 +62,10 @@ class SQLSourceGeneratorError(errors.InternalServerError):
 
 
 class SQLSourceGenerator(codegen.SourceGenerator):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, reordered: bool=False, **kwargs):
         super().__init__(*args, **kwargs)
-        self.param_index = {}
+        self.param_index: dict[object, int] = {}
+        self.reordered = reordered
 
     @classmethod
     def to_source(
@@ -152,20 +153,21 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         parenthesize = bool(self.result)
 
         if parenthesize:
-            self.new_lines = 1
+            if not self.reordered:
+                self.new_lines = 1
             self.write('(')
+            if self.reordered:
+                self.new_lines = 1
+                self.indentation += 1
 
         if node.ctes:
             self.gen_ctes(node.ctes)
 
-        if node.op:
-            # Upper level set operation node (UNION/INTERSECT)
-            self.visit(node.larg)
-            self.write(' ' + node.op + ' ')
-            if node.all:
-                self.write('ALL ')
-            self.visit(node.rarg)
-        else:
+        # If reordered is True, we try to put the FROM clause *before* SELECT,
+        # like it *ought* to be. We do various hokey things to try to make
+        # that look good.
+        # Otherwise we emit real SQL.
+        def _select() -> None:
             self.write('SELECT')
             if node.distinct_clause:
                 self.write(' DISTINCT')
@@ -179,19 +181,44 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 1
             self.indentation += 2
 
-        if node.target_list:
-            self.visit_list(node.target_list)
+        if node.op:
+            # Upper level set operation node (UNION/INTERSECT)
+            self.visit(node.larg)
+            self.write(' ' + node.op + ' ')
+            if node.all:
+                self.write('ALL ')
+            self.visit(node.rarg)
+        else:
+            if not self.reordered:
+                _select()
 
-        if not node.op:
-            self.indentation -= 2
+        if not self.reordered:
+            if node.target_list:
+                self.visit_list(node.target_list)
+
+            if not node.op:
+                self.indentation -= 2
 
         if node.from_clause:
-            self.indentation += 1
-            self.new_lines = 1
-            self.write('FROM')
-            self.new_lines = 1
-            self.indentation += 1
+            if not self.reordered:
+                self.indentation += 1
+                self.new_lines = 1
+            self.write('FROM ')
+            if not self.reordered:
+                self.new_lines = 1
+                self.indentation += 1
             self.visit_list(node.from_clause)
+            if self.reordered:
+                self.new_lines = 1
+            else:
+                self.indentation -= 2
+
+        if self.reordered and not node.op:
+            _select()
+
+            if node.target_list:
+                self.visit_list(node.target_list)
+
             self.indentation -= 2
 
         if node.where_clause:
@@ -246,6 +273,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         if parenthesize:
             self.new_lines = 1
+            if self.reordered:
+                self.indentation -= 1
             self.write(')')
 
     def visit_InsertStmt(self, node):
