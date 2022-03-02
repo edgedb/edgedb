@@ -469,7 +469,7 @@ EdgeDB stores and outputs timezone-aware values in UTC.
                           duration + duration -> duration
                           datetime + cal::relative_duration \
                               -> cal::relative_duration
-                          cal::local_dateiime + cal::relative_duration \
+                          cal::local_datetime + cal::relative_duration \
                               -> cal::relative_duration
                           cal::local_date + cal::relative_duration \
                               -> cal::relative_duration
