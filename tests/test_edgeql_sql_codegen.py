@@ -57,7 +57,7 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
 
     def _compile(self, source):
         qtree = self._compile_to_tree(source)
-        return ''.join(pg_compiler.run_codegen(qtree).result)
+        return pg_compiler.run_codegen(qtree)
 
     def no_self_join_test(self, query, tables):
         # Issue #2567: We generate a pointless self join

@@ -587,20 +587,11 @@ class LangRenderer(BaseRenderer):
 
 class CodeRenderer(BaseRenderer):
     def _write_code_token(self, val, style):
-        while val.startswith('\n'):
-            val = val[1:]
+        parts = val.split('\n')
+        for chunk in parts[:-1]:
+            self.buffer.write(chunk, style=style)
             self.buffer.new_line()
-
-        end_nl = 0
-        while val.endswith('\n'):
-            val = val[:-1]
-            end_nl += 1
-
-        self.buffer.write(val, style=style)
-
-        while end_nl:
-            end_nl -= 1
-            self.buffer.new_line()
+        self.buffer.write(parts[-1], style=style)
 
     def _render_code_Token(self, element):
         self._write_code_token(element.val, style=self.styles.code)

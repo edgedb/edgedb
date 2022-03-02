@@ -103,6 +103,9 @@ class flags(metaclass=FlagsMeta):
     edgeql_compile_sql_text = Flag(
         doc="Dump generated SQL text (subset of `edgeql_compile').")
 
+    edgeql_compile_sql_reordered_text = Flag(
+        doc="Dump generated SQL-like text that might better reflect scoping.")
+
     edgeql_disable_normalization = Flag(
         doc="Disable EdgeQL normalization (constant extraction etc)")
 
