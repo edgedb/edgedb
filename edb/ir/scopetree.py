@@ -254,7 +254,7 @@ class ScopeTreeNode:
                 An optional child to skip during the traversal. This
                 is useful for avoiding performance pathologies when
                 repeatedly searching descendants while climbing the
-                tree (see find_factoring_point).
+                tree (see find_factorable_nodes).
 
         Top-first.
         """
@@ -556,6 +556,7 @@ class ScopeTreeNode:
                         existing_ns,
                         existing_finfo,
                         unnest_fence,
+                        node_fenced,
                     ) = factorable
 
                     self._check_factoring_errors(
@@ -566,11 +567,6 @@ class ScopeTreeNode:
                     existing_fenced = existing.parent_fence is not factor_point
                     if existing.is_optional_upto(factor_point):
                         existing.mark_as_optional()
-
-                    desc_fenced = (
-                        current.fence is not node
-                        or self.fence is not factor_point
-                    )
 
                     existing.remove()
                     current.remove()
@@ -587,7 +583,7 @@ class ScopeTreeNode:
                     existing.fuse_subtree(
                         current,
                         self_fenced=existing_fenced,
-                        node_fenced=desc_fenced)
+                        node_fenced=node_fenced)
 
                     current = existing
 
@@ -908,6 +904,7 @@ class ScopeTreeNode:
             AbstractSet[pathid.Namespace],
             FenceInfo,
             bool,
+            bool,
         ]
     ]:
         """Find nodes factorable with path_id (if attaching path_id to self)
@@ -951,7 +948,8 @@ class ScopeTreeNode:
                 if (has_path_id(descendant)
                         and _paths_equal(descendant.path_id, path_id, cns)):
                     points.append((
-                        descendant, node, cns, finfo, unnest_fence_seen
+                        descendant, node, cns, finfo,
+                        unnest_fence_seen, fence_seen,
                     ))
 
             namespaces |= ans
