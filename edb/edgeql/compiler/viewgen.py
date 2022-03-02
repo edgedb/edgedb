@@ -83,7 +83,8 @@ def process_view(
     # factoring fence to be respected.
     hackscope = ctx.path_scope.attach_branch()
     pathctx.register_set_in_scope(ir_set, path_scope=hackscope, ctx=ctx)
-    hackscope.collapse()
+    hackscope.remove()
+    ctx.path_scope.attach_subtree(hackscope)
 
     view_scls, ir = _process_view(
         ir_set,
