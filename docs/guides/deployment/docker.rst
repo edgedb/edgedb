@@ -257,13 +257,16 @@ will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
-Custom scripts in ``/edgedb-bootstrap.d/``
-..........................................
+Custom scripts in ``/edgedb-bootstrap.d/`` and ``/edgedb-bootstrap-late.d``
+...........................................................................
 
 To perform additional initialization, a derived image may include one ore more
 ``*.edgeql``, or ``*.sh`` scripts, which are executed in addition to and
 _after_ the initialization specified by the environment variables above or the
-``/edgedb-bootstrap.edgeql`` script.
+``/edgedb-bootstrap.edgeql`` script.  Parts in ``/edgedb-bootstrap.d`` are
+executed _before_ any schema migrations are applied, and parts in
+``/edgedb-bootstrap-late.d`` are executed _after_ the schema migration have
+been applied.
 
 
 Runtime Options
@@ -307,7 +310,7 @@ Defaults to ``/var/lib/edgedb/data``.  The container needs to be able to change
 the ownership of the mounted directory to ``edgedb``.  Cannot be specified at
 the same time with ``EDGEDB_SERVER_BACKEND_DSN``.
 
-Maps directly to the ``edgedb-server`` flag ``--data-dir``. 
+Maps directly to the ``edgedb-server`` flag ``--data-dir``.
 
 
 .. _ref_reference_docker_edgedb_server_backend_dsn:
@@ -323,7 +326,7 @@ PostgreSQL server.  Cannot be specified at the same time with
 Maps directly to the ``edgedb-server`` flag ``--backend-dsn``. The ``*_FILE``
 and ``*_ENV`` variants are also supported.
 
-.. _URI format: 
+.. _URI format:
    https://www.postgresql.org/docs/13/libpq-connect.html#id-1.7.3.8.3.6
 
 
