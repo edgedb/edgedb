@@ -907,3 +907,11 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         AT_MOST_ONE
         """
+
+    def test_edgeql_ir_card_inference_105(self):
+        """
+        select User
+        filter .avatar.name = 'Dragon'
+% OK %
+        MANY
+        """
