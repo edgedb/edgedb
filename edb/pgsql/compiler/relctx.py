@@ -580,9 +580,6 @@ def new_rel_rvar(
         ir_set: irast.Set, stmt: pgast.Query, *,
         lateral: bool=True,
         ctx: context.CompilerContextLevel) -> pgast.PathRangeVar:
-    if irutils.is_scalar_view_set(ir_set):
-        ensure_bond_for_expr(ir_set, stmt, ctx=ctx)
-
     return rvar_for_rel(stmt, typeref=ir_set.typeref, lateral=lateral, ctx=ctx)
 
 
