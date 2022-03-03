@@ -7074,3 +7074,74 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 {"key": {"name": "Regression.", "number": "4"}},
             ]
         )
+
+    async def test_edgeql_select_scalar_views_01(self):
+        # Test the fix for #3525. I did not have a lot of luck
+        # minimizing this one.
+        await self.con.execute('''
+            CREATE TYPE default::Pair {
+                CREATE REQUIRED PROPERTY similarity -> std::float64;
+                CREATE REQUIRED PROPERTY word1 -> std::str;
+                CREATE REQUIRED PROPERTY word2 -> std::str;
+            };
+
+            for tup in {
+                ('hatch', 'foo', 0.5),
+                ('hatch', 'bar', 0.5),
+                ('hatch', 'baz', 0.5),
+
+                ('balkanize', 'foo', 0.1),
+                ('balkanize', 'bar', 0.2),
+                ('balkanize', 'baz', 0.3),
+
+                ('defenestrate', 'foo', 0.1),
+                ('defenestrate', 'bar', 0.2),
+                ('defenestrate', 'baz', 0.2),
+
+            } union {
+                (insert Pair { word1 := tup.0, word2 := tup.1,
+                               similarity := tup.2 }),
+                (insert Pair { word1 := tup.1, word2 := tup.0,
+                               similarity := tup.2 }),
+            };
+        ''')
+
+        await self.assert_query_result(
+            '''
+            with
+              options := {'balkanize', 'defenestrate'},
+              word2 := (select Pair
+                        filter .word1 = 'hatch' and .similarity = 0.5).word2,
+            select options filter (
+                with opt_pair := (
+                    select Pair filter .word1 = options and .word2 in (word2)),
+                select count(opt_pair) = count(distinct opt_pair.similarity)
+            );
+            ''',
+            ['balkanize'],
+        )
+
+    async def test_edgeql_select_scalar_views_02(self):
+        await self.assert_query_result(
+            '''
+            select (select {1,2} filter random() > 0) filter random() > 0
+            ''',
+            {1, 2},
+        )
+
+    async def test_edgeql_select_scalar_views_03(self):
+        # The thing this is testing for
+        await self.assert_query_result(
+            '''
+            select {1,2,3,4+0} filter random() > 0
+            ''',
+            {1, 2, 3, 4},
+        )
+
+    async def test_edgeql_select_scalar_views_04(self):
+        await self.assert_query_result(
+            '''
+            for x in 2 union (select {1,x} filter random() > 0)
+            ''',
+            {1, 2}
+        )

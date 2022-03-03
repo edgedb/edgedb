@@ -411,7 +411,26 @@ def _get_path_var_in_setop(
         else:
             all_null = False
 
-    if all_null:
+    # Fail if no subquery had the path or, for scalar identity paths,
+    # if any did not have it.
+    #
+    # We need to do this for scalar identity because scalar identity
+    # is only used for volatility refs, and it is OK if looking it up
+    # fails, because we create a backup volatility ref---but it is
+    # *not* OK for it to succeed and produce NULL in some cases.
+    if all_null or (
+        aspect == 'identity' and optional and not path_id.is_objtype_path()
+    ):
+        # If *none* of the subqueries had it, we have to remove them all
+        # before erroring, lest a future call see them and decide
+        # they really exist.
+        def _clear(subrel: pgast.Query) -> None:
+            assert flavor == 'normal'
+            new_path_id = map_path_id(path_id, subrel.view_path_id_map)
+            del subrel.path_outputs[new_path_id, aspect]
+            subrel.target_list.pop()
+
+        astutils.for_each_query_in_set(rel, _clear)
         raise LookupError(
             f'cannot find refs for '
             f'path {path_id} {aspect} in {rel}')
@@ -1086,7 +1105,7 @@ def _get_path_output(
                                     ptr_info=ptr_info, env=env)
 
     assert isinstance(rel, pgast.Query)
-    if is_values_relation(rel):
+    if is_values_relation(rel) and aspect != 'identity':
         # The VALUES() construct seems to always expose its
         # value as "column1".
         alias = 'column1'
