@@ -127,6 +127,7 @@ class Server(ha_base.ClusterProtocol):
         max_backend_connections,
         compiler_pool_size,
         compiler_pool_mode: srvargs.CompilerPoolMode,
+        compiler_pool_addr,
         nethosts,
         netport,
         new_instance: bool,
@@ -180,6 +181,7 @@ class Server(ha_base.ClusterProtocol):
         self._compiler_pool = None
         self._compiler_pool_size = compiler_pool_size
         self._compiler_pool_mode = compiler_pool_mode
+        self._compiler_pool_addr = compiler_pool_addr
         self._suggested_client_pool_size = max(
             min(max_backend_connections,
                 defines.MAX_SUGGESTED_CLIENT_POOL_SIZE),
@@ -468,7 +470,7 @@ class Server(ha_base.ClusterProtocol):
             raise
 
     async def _create_compiler_pool(self):
-        self._compiler_pool = await compiler_pool.create_compiler_pool(
+        args = dict(
             pool_size=self._compiler_pool_size,
             pool_class=self._compiler_pool_mode.pool_class,
             dbindex=self._dbindex,
@@ -478,6 +480,9 @@ class Server(ha_base.ClusterProtocol):
             refl_schema=self._refl_schema,
             schema_class_layout=self._schema_class_layout,
         )
+        if self._compiler_pool_mode == srvargs.CompilerPoolMode.Remote:
+            args['address'] = self._compiler_pool_addr
+        self._compiler_pool = await compiler_pool.create_compiler_pool(**args)
 
     async def _destroy_compiler_pool(self):
         if self._compiler_pool is not None:

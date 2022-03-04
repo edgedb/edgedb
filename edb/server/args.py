@@ -97,6 +97,7 @@ class BackendCapabilitySets(NamedTuple):
 class CompilerPoolMode(enum.StrEnum):
     Fixed = "fixed"
     OnDemand = "on_demand"
+    Remote = "remote"
 
     def __init__(self, name):
         self.pool_class = None
@@ -133,6 +134,7 @@ class ServerConfig(NamedTuple):
     max_backend_connections: Optional[int]
     compiler_pool_size: int
     compiler_pool_mode: CompilerPoolMode
+    compiler_pool_addr: str
     echo_runtime_info: bool
     emit_server_status: str
     temp_dir: bool
@@ -270,7 +272,7 @@ def adjust_testmode_max_connections(max_conns):
 
 
 def _validate_compiler_pool_size(ctx, param, value):
-    if value < defines.BACKEND_COMPILER_POOL_SIZE_MIN:
+    if value is not None and value < defines.BACKEND_COMPILER_POOL_SIZE_MIN:
         raise click.BadParameter(
             f'the minimum value for the compiler pool size option '
             f'is {defines.BACKEND_COMPILER_POOL_SIZE_MIN}')
@@ -448,7 +450,6 @@ _server_options = [
         callback=_validate_max_backend_connections),
     click.option(
         '--compiler-pool-size', type=int,
-        default=compute_default_compiler_pool_size(),
         callback=_validate_compiler_pool_size),
     click.option(
         '--compiler-pool-mode',
@@ -462,6 +463,10 @@ _server_options = [
              '"on_demand" means the pool will maintain at least 1 worker and '
              'automatically scale up (to --compiler-pool-size workers ) and '
              'down to the demand. Default to "fixed".',
+    ),
+    click.option(
+        '--compiler-pool-addr',
+        type=str,
     ),
     click.option(
         '--echo-runtime-info', type=bool, default=False, is_flag=True,
@@ -619,6 +624,28 @@ def server_options(func):
     return func
 
 
+_compiler_options = [
+    click.option(
+        "--pool-size",
+        type=int,
+        callback=_validate_compiler_pool_size,
+        default=compute_default_compiler_pool_size(),
+    ),
+    click.option(
+        "--cache-size",
+        type=int,
+        default=100,
+    ),
+    click.argument("socket_path"),
+]
+
+
+def compiler_options(func):
+    for option in reversed(_compiler_options):
+        func = option(func)
+    return func
+
+
 def parse_args(**kwargs: Any):
     kwargs['bind_addresses'] = kwargs.pop('bind_address')
 
@@ -771,6 +798,14 @@ def parse_args(**kwargs: Any):
     kwargs['compiler_pool_mode'] = CompilerPoolMode(
         kwargs['compiler_pool_mode']
     )
+    if kwargs['compiler_pool_size'] is None:
+        if kwargs['compiler_pool_mode'] == CompilerPoolMode.Remote:
+            kwargs['compiler_pool_size'] = 2
+        else:
+            kwargs['compiler_pool_size'] = compute_default_compiler_pool_size()
+    if kwargs['compiler_pool_mode'] == CompilerPoolMode.Remote:
+        if kwargs['compiler_pool_addr'] is None:
+            abort('--compiler-pool-mode=remote requires --compiler-pool-addr')
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:

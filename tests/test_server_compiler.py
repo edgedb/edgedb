@@ -93,7 +93,8 @@ class TestAmsg(tbs.TestCase):
             await server.start()
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    sys.executable, "-m", pool.WORKER_MOD,
+                    sys.executable,
+                    "-m", pool.WORKER_PKG + pool.BaseLocalPool._worker_mod,
                     "--sockname", sock_name,
                     "--numproc", str(num_proc),
                     "--version-serial", "1",

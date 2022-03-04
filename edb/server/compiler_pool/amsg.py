@@ -65,8 +65,7 @@ class HubProtocol(asyncio.Protocol):
         self._transport = None
         self._closed = False
         self._stream = MessageStream()
-        self._resp_waiter = None
-        self._resp_expected_id = -1
+        self._resp_waiters = {}
         self._on_pid = on_pid
         self._on_connection_lost = on_connection_lost
         self._pid = None
@@ -75,10 +74,9 @@ class HubProtocol(asyncio.Protocol):
         self._transport = tr
 
     def send(self, req_id: int, waiter: asyncio.Future, payload: bytes):
-        if self._resp_waiter is not None and not self._resp_waiter.done():
-            raise RuntimeError('FramedProtocol: another send() is in progress')
-        self._resp_waiter = waiter
-        self._resp_expected_id = req_id
+        if req_id in self._resp_waiters:
+            raise RuntimeError('FramedProtocol: duplicate request ID')
+        self._resp_waiters[req_id] = waiter
         self._transport.writelines(
             (_uint64_packer(len(payload) + 8), _uint64_packer(req_id), payload)
         )
@@ -86,13 +84,12 @@ class HubProtocol(asyncio.Protocol):
     def process_message(self, msg):
         msgview = memoryview(msg)
         req_id = _uint64_unpacker(msgview[:8])[0]
-        if req_id != self._resp_expected_id:
+        waiter = self._resp_waiters.pop(req_id, None)
+        if waiter is None:
             # This could have happened if the previous request got cancelled.
             return
-        if self._resp_waiter is not None and not self._resp_waiter.done():
-            self._resp_waiter.set_result(msgview[8:])
-            self._resp_waiter = None
-            self._resp_expected_id = -1
+        if not waiter.done():
+            waiter.set_result(msgview[8:])
 
     def data_received(self, data):
         if self._pid is None:
@@ -107,13 +104,15 @@ class HubProtocol(asyncio.Protocol):
     def connection_lost(self, exc):
         self._closed = True
 
-        if self._resp_waiter is not None:
+        if self._resp_waiters:
             if exc is not None:
-                self._resp_waiter.set_exception(exc)
+                for waiter in self._resp_waiters.values():
+                    waiter.set_exception(exc)
             else:
-                self._resp_waiter.set_exception(ConnectionError(
-                    'lost connection to the worker during a call'))
-            self._resp_waiter = None
+                for waiter in self._resp_waiters.values():
+                    waiter.set_exception(ConnectionError(
+                        'lost connection to the worker during a call'))
+            self._resp_waiters = {}
 
         self._on_connection_lost(self._pid)
 

@@ -69,6 +69,17 @@ class BaseCluster:
         if log_level:
             self._edgedb_cmd.extend(['--log-level', log_level])
 
+        compiler_addr = os.getenv('EDGEDB_TEST_REMOTE_COMPILER')
+        if compiler_addr:
+            self._edgedb_cmd.extend(
+                [
+                    '--compiler-pool-mode',
+                    'remote',
+                    '--compiler-pool-addr',
+                    compiler_addr,
+                ]
+            )
+
         if devmode.is_in_dev_mode():
             self._edgedb_cmd.append('--devmode')
 
