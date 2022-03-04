@@ -875,7 +875,14 @@ def extract_filters(
             if op_card.is_multi():
                 pass
 
-            elif _is_ptr_or_self_ref(left, result_set, env):
+            elif (
+                (left_matches := _is_ptr_or_self_ref(left, result_set, env))
+                or _is_ptr_or_self_ref(right, result_set, env)
+            ):
+                # If the match was on the right, flip the args
+                if not left_matches:
+                    left, right = right, left
+
                 if infer_cardinality(
                     right, scope_tree=scope_tree, ctx=ctx,
                 ).is_single():
@@ -893,24 +900,6 @@ def extract_filters(
 
                     return [(ptr, right)]
 
-            elif _is_ptr_or_self_ref(right, result_set, env):
-                if infer_cardinality(
-                    left, scope_tree=scope_tree, ctx=ctx,
-                ).is_single():
-                    right_stype = env.set_types[right]
-                    if right_stype == result_stype:
-                        assert isinstance(right_stype, s_objtypes.ObjectType)
-                        _ptr = right_stype.getptr(schema, sn.UnqualName('id'))
-                    else:
-                        assert right.rptr is not None
-                        _ptr = env.schema.get(right.rptr.ptrref.name,
-                                              type=s_pointers.Pointer)
-
-                    assert _ptr is not None
-                    ptr = _ptr
-
-                    return [(ptr, right)]
-
         elif str(expr.func_shortname) == 'std::AND':
             left, right = (a.expr for a in expr.args)
 
@@ -921,11 +910,7 @@ def extract_filters(
                 result_set, right, scope_tree, ctx
             )
 
-            ptr_filters: List[Tuple[s_pointers.Pointer, irast.Set]] = []
-            ptr_filters.extend(left_filters)
-            ptr_filters.extend(right_filters)
-
-            return ptr_filters
+            return [*left_filters, *right_filters]
 
     return []
 
