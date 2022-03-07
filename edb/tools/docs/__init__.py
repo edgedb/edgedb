@@ -20,6 +20,8 @@
 from __future__ import annotations
 
 from docutils import nodes as d_nodes
+from docutils.parsers import rst as d_rst
+from docutils.transforms import misc as d_misc
 from sphinx import transforms as s_transforms
 
 from . import cli
@@ -51,11 +53,28 @@ class ProhibitedNodeTransform(s_transforms.SphinxTransform):
                 f'perhaps you wanted to use double backticks?')
 
 
+class Collapsible(d_rst.Directive):
+    required_arguments = 0
+    optional_arguments = 0
+
+    def run(self):
+        # Taken from the "class" directive:
+        # https://github.com/docutils/docutils/blob/master/docutils/docutils/parsers/rst/directives/misc.py#L327
+        pending = d_nodes.pending(
+                d_misc.ClassAttribute,
+                {'class': ['_collapsible'], 'directive': self.name},
+                self.block_text)
+        self.state_machine.document.note_pending(pending)
+        return [pending]
+
+
 def setup(app):
     cli.setup_domain(app)
     eql.setup_domain(app)
     js.setup_domain(app)
     sdl.setup_domain(app)
     graphql.setup_domain(app)
+
+    app.add_directive('collapsible', Collapsible)
 
     app.add_transform(ProhibitedNodeTransform)

@@ -87,6 +87,8 @@ your terminal:
    /ec2/v2/home#NIC:search=ec2-security-group
 
 
+.. collapsible::
+
 Manual Install with CLI
 =======================
 
