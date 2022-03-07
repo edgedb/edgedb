@@ -400,6 +400,17 @@ def normalize_ForQuery(
         localnames=localnames,
     )
 
+    for field in ('orderby',):
+        value = getattr(node, field, None)
+        _normalize_recursively(
+            node,
+            field,
+            value,
+            schema=schema,
+            modaliases=modaliases,
+            localnames=localnames,
+        )
+
 
 @normalize.register
 def normalize_GroupQuery(
