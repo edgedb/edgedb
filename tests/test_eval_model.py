@@ -618,3 +618,11 @@ class TestModelSmokeTests(unittest.TestCase):
             ''',
             [0],
         )
+
+    def test_model_for_order_by(self):
+        self.assert_test_query(
+            r"""
+                for x in User union x.name order by x.name desc
+            """,
+            ["Dave", "Carol", "Bob", "Alice"],
+        )

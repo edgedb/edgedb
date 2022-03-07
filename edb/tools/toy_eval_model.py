@@ -898,12 +898,17 @@ def eval_For(node: qlast.ForQuery, ctx: EvalContext) -> Result:
         iter_vals = [None]
     qil = ctx.query_input_list + [(IORef(node.iterator_alias),)]
     out = []
+
     for val in iter_vals:
         subctx = replace(ctx, query_input_list=qil,
                          input_tuple=ctx.input_tuple + (val,))
-        out.extend(subquery(node.result, ctx=subctx))
+        for el in subquery(node.result, ctx=subctx):
+            out.append(subctx.input_tuple + (el,))
 
-    return out
+    if node.orderby:
+        out = eval_orderby(node.orderby, qil, out, ctx=ctx)
+
+    return [row[-1] for row in out]
 
 
 @_eval.register

@@ -240,6 +240,13 @@ def compile_ForQuery(
                 ctx=bctx,
             )
 
+        if qlstmt.orderby and not ctx.env.options.devmode:
+            raise errors.UnsupportedFeatureError(
+                "'FOR + ORDER BY' is an internal testing feature",
+                context=qlstmt.context,
+            )
+        stmt.orderby = clauses.compile_orderby_clause(qlstmt.orderby, ctx=sctx)
+
         # Inject an implicit limit if appropriate
         if ((ctx.expr_exposed or sctx.stmt is ctx.toplevel_stmt)
                 and ctx.implicit_limit):

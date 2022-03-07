@@ -1116,3 +1116,11 @@ class TestEdgeQLFor(tb.QueryTestCase):
             ''',
             [0],
         )
+
+    async def test_edgeql_for_order_by_01(self):
+        await self.assert_query_result(
+            r"""
+                for x in User union x.name order by x.name desc
+            """,
+            ["Dave", "Carol", "Bob", "Alice"],
+        )
