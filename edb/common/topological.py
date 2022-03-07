@@ -142,10 +142,14 @@ def sort_ex(
         weak_link: bool = False,
     ) -> None:
         if item in visiting:
+            # Separate the matching item from the rest of the visiting
+            # set for error reporting.
+            vis_list = list(visiting - {item})
+            cycle_item = item if len(vis_list) == 0 else vis_list[-1]
             raise CycleError(
-                f"dependency cycle between {list(visiting)[-1]!r} "
+                f"dependency cycle between {cycle_item!r} "
                 f"and {item!r}",
-                path=list(visiting)[1:],
+                path=vis_list,
                 item=item,
             )
         if item not in visited:

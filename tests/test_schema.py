@@ -1863,6 +1863,69 @@ class TestSchema(tb.BaseSchemaLoadTest):
             }
         ''', modname='default')
 
+    def test_schema_computed_01(self):
+        # Issue #3499
+        """
+            type Version {
+                multi link fields -> Field {
+                    property position -> int32 {
+                        default := 0;
+                    }
+                }
+                multi link sections :=
+                    (select .ordered_fields filter .type = 'section');
+                multi link ordered_fields :=
+                    (select .fields order by @position);
+            }
+
+            type Field {
+                required property type -> str;
+                multi link versions := .<fields[is Version];
+            }
+        """
+
+    def test_schema_computed_02(self):
+        # Issue #3499
+        """
+            type Version {
+                multi link fields -> Field {
+                    property position -> int32 {
+                        default := 0;
+                    }
+                }
+                multi link ordered_fields :=
+                    (select .fields order by @position);
+                multi link sections :=
+                    (select .ordered_fields filter .type = 'section');
+            }
+
+            type Field {
+                required property type -> str;
+                multi link versions := .<fields[is Version];
+            }
+        """
+
+    def test_schema_computed_03(self):
+        # Issue #3499
+        """
+            type Version {
+                multi link ordered_fields :=
+                    (select .fields order by @position);
+                multi link sections :=
+                    (select .ordered_fields filter .type = 'section');
+                multi link fields -> Field {
+                    property position -> int32 {
+                        default := 0;
+                    }
+                }
+            }
+
+            type Field {
+                required property type -> str;
+                multi link versions := .<fields[is Version];
+            }
+        """
+
 
 class TestGetMigration(tb.BaseSchemaLoadTest):
     """Test migration deparse consistency.

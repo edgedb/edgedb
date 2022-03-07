@@ -40,6 +40,7 @@ from edb import errors
 from edb.common import parsing
 from edb.common import topological
 from edb.common import english
+from edb.common.ordered import OrderedSet
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import codegen as qlcodegen
@@ -402,6 +403,12 @@ def sdl_to_ddl(
         for decl_ast in declarations:
             trace_dependencies(decl_ast, ctx=tracectx)
 
+    # Before sorting normalize all ordering, to make sure that errors
+    # are consistent.
+    for ddlentry in ddlgraph.values():
+        ddlentry.deps = OrderedSet(sorted(ddlentry.deps))
+        ddlentry.weak_deps = OrderedSet(sorted(ddlentry.weak_deps))
+
     try:
         ordered = topological.sort(ddlgraph, allow_unresolved=False)
     except topological.CycleError as e:
@@ -588,10 +595,13 @@ def _trace_item_layout(
         if isinstance(decl, qlast.CreateConcretePointer):
             assert isinstance(obj, qltracer.Source)
             target: Optional[qltracer.TypeLike]
+            target_expr: Optional[qlast.Expr]
             if isinstance(decl.target, qlast.TypeExpr):
                 target = _resolve_type_expr(decl.target, ctx=ctx)
+                target_expr = None
             else:
                 target = None
+                target_expr = decl.target
 
             pn = s_utils.ast_ref_to_unqualname(decl.name)
 
@@ -604,6 +614,7 @@ def _trace_item_layout(
                 s_name.QualName('__', pn.name),
                 source=obj,
                 target=target,
+                target_expr=target_expr,
             )
             obj.pointers[pn] = ptr
             ptr_name = s_name.QualName(
@@ -1077,6 +1088,14 @@ def _get_pointer_deps(
     # Only add the pointer if it is explicitly defined.
     if pointer in ctx.objects:
         result.add(pointer)
+
+    # HACK: Add all pointers that have this pointer (link, actually)
+    # as their prefix. As a rule, the assumption is that depending on
+    # a link typically comes as a package of depending on the link's
+    # property.
+    for propname in ctx.objects:
+        if str(propname).startswith(str(pointer) + '@'):
+            result.add(propname)
 
     return result
 
