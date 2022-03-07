@@ -1236,9 +1236,12 @@ class PathFinder(NodeVisitor):
         super().__init__()
         self.in_optional = False
         self.optional_counter = 0
-        self.in_subquery = False
-        self.paths: List[Tuple[qlast.Path, Optional[int], bool]] = []
+        self.in_subquery: bool = False
+        self.cur_binding: Optional[qlast.Expr] = None
+        self.paths: List[
+            Tuple[qlast.Path, Optional[int], bool, Optional[qlast.Expr]]] = []
         self.current_path = cur_path
+        self.tree: Dict[qlast.Expr, Tuple[Optional[qlast.Expr], bool]] = {}
 
     def _update(self, **kwargs: Any) -> Iterator[None]:
         old = {k: getattr(self, k) for k in kwargs}
@@ -1251,8 +1254,10 @@ class PathFinder(NodeVisitor):
                 setattr(self, k, v)
 
     @contextlib.contextmanager
-    def subquery(self) -> Iterator[None]:
-        yield from self._update(in_subquery=True)
+    def subquery(self, subq: Optional[qlast.Expr]) -> Iterator[None]:
+        if subq:
+            self.tree[subq] = (self.cur_binding, True)
+        yield from self._update(in_subquery=True, cur_binding=subq)
 
     @contextlib.contextmanager
     def update_path(
@@ -1266,17 +1271,21 @@ class PathFinder(NodeVisitor):
             graft(self.current_path, path, always_partial=always_partial),
             self.optional_counter if self.in_optional else None,
             self.in_subquery,
+            self.cur_binding,
         ))
         self.generic_visit(path)
 
+    def visit_subquery(self, subq: Optional[qlast.Expr]) -> None:
+        with self.subquery(subq):
+            self.visit(subq)
+
     def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
-        with self.subquery():
+        with self.subquery(query):
             # XXX: shadowing?
             self.visit(query.aliases)
 
             if query.result_alias:
-                with self.subquery():
-                    self.visit(query.result)
+                self.visit_subquery(query.result)
             else:
                 self.visit(query.result)
 
@@ -1289,12 +1298,11 @@ class PathFinder(NodeVisitor):
                 self.visit(query.offset)
 
     def visit_GroupQuery(self, query: qlast.GroupQuery) -> None:
-        with self.subquery():
+        with self.subquery(query):
             self.visit(query.aliases)
 
             if query.subject_alias:
-                with self.subquery():
-                    self.visit(query.subject)
+                self.visit_subquery(query.subject)
             else:
                 self.visit(query.subject)
 
@@ -1305,40 +1313,47 @@ class PathFinder(NodeVisitor):
     def visit_Shape(self, shape: qlast.Shape) -> None:
         expr = shape.expr or FREE_SHAPE_EXPR
         self.visit(expr)
-        with self.subquery(), self.update_path(expr):
+        with self.update_path(expr):
             self.visit(shape.elements)
 
     def visit_ShapeElement(self, el: qlast.ShapeElement) -> None:
-        if not el.compexpr:
-            self.visit_Path(el.expr, always_partial=True)
-        self.visit(el.compexpr)
-        with self.subquery(), self.update_path(el.expr):
-            self.visit(el.elements)
+        with self.subquery(el):
+            if not el.compexpr:
+                self.visit_Path(el.expr, always_partial=True)
+            self.visit(el.compexpr)
+            with self.update_path(el.expr):
+                self.visit(el.elements)
 
     def visit_ForQuery(self, query: qlast.ForQuery) -> None:
-        with self.subquery():
-            self.generic_visit(query)
+        # XXX: binding, shadowing
+        for binding in query.iterator_bindings:
+            self.visit_subquery(binding.iterator)
+        self.visit_subquery(query.result)
 
     def visit_Set(self, expr: qlast.Set) -> None:
-        with self.subquery():
-            self.visit(expr.elements)
+        for el in expr.elements:
+            self.visit_subquery(el)
 
     def visit_func_or_op(self, op: str, args: List[qlast.Expr]) -> None:
         # Totally ignoring that polymorphic whatever is needed
         arg_specs = BASIS.get(op)
-        old = self.in_optional, self.in_subquery
+        old = self.in_optional, self.in_subquery, self.cur_binding
         for i, arg in enumerate(args):
             if arg_specs:
                 # SET OF is a subquery so we skip it
                 if arg_specs[i] == SET_OF:
                     self.in_subquery = True
+                    self.tree[arg] = (self.cur_binding, True)
+                    self.cur_binding = arg
                 elif arg_specs[i] == OPTIONAL:
                     if not self.in_subquery and not self.in_optional:
                         self.optional_counter += 1
                     self.in_optional = True
+                    self.tree[arg] = (self.cur_binding, False)
+                    self.cur_binding = arg
 
             self.visit(arg)
-            self.in_optional, self.in_subquery = old
+            self.in_optional, self.in_subquery, self.cur_binding = old
 
     def visit_BinOp(self, query: qlast.BinOp) -> None:
         self.visit_func_or_op(query.op.upper(), [query.left, query.right])
@@ -1359,6 +1374,7 @@ class PathFinder(NodeVisitor):
             'IF', [query.if_expr, query.condition, query.else_expr])
 
     def visit_DetachedExpr(self, query: qlast.DetachedExpr) -> None:
+        # XXX: How do we want to handle this in a single-pass setup?
         pass
 
 
@@ -1371,10 +1387,11 @@ def find_paths(
     pf = PathFinder(cur_path)
     pf.visit(e)
     pf.in_subquery = True
+    pf.cur_binding = e
     for path, subq in extra_subqs:
         pf.current_path = path
         pf.visit(subq)
-    return pf.paths
+    return [x[:3] for x in pf.paths]
 
 
 def longest_common_prefix(p1: IPath, p2: IPath) -> IPath:
