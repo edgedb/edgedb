@@ -176,10 +176,12 @@ class Pointer(Source):
         *,
         source: Optional[SourceLike] = None,
         target: Optional[TypeLike] = None,
+        target_expr: Optional[qlast.Expr] = None,
     ) -> None:
         super().__init__(name)
         self.source = source
         self.target = target
+        self.target_expr = target_expr
 
     def is_pointer(self) -> bool:
         return True
@@ -256,6 +258,7 @@ def trace_refs(
         path_prefix=path_prefix,
         modaliases={},
         params=params,
+        visited=set(),
     )
     trace(qltree, ctx=ctx)
     return frozenset(ctx.refs)
@@ -273,6 +276,7 @@ class TracerContext:
         path_prefix: Optional[sn.QualName],
         modaliases: Dict[Optional[str], str],
         params: Mapping[str, sn.QualName],
+        visited: Set[Union[s_pointers.Pointer, Pointer]],
     ) -> None:
         self.schema = schema
         self.refs: Set[sn.QualName] = set()
@@ -283,6 +287,7 @@ class TracerContext:
         self.path_prefix = path_prefix
         self.modaliases = modaliases
         self.params = params
+        self.visited = visited
 
     def get_ref_name(self, ref: qlast.BaseObjectRef) -> sn.QualName:
         # We don't actually expect to handle anything other than
@@ -349,6 +354,7 @@ def alias_context(
                 path_prefix=ctx.path_prefix,
                 modaliases=dict(ctx.modaliases),
                 params=ctx.params,
+                visited=ctx.visited,
             )
             nctx.refs = ctx.refs
 
@@ -402,6 +408,7 @@ def result_alias_context(
             path_prefix=ctx.path_prefix,
             modaliases=ctx.modaliases,
             params=ctx.params,
+            visited=ctx.visited,
         )
         # use the same refs set
         nctx.refs = ctx.refs
@@ -653,6 +660,23 @@ def trace_Path(
                             assert isinstance(sname, sn.QualName)
                             ctx.refs.add(qualify_name(sname, step.ptr.name))
                             tip = ptr.get_target(ctx.schema)
+
+                            if tip is None:
+                                if ptr in ctx.visited:
+                                    # Possibly recursive definition, bail out.
+                                    return None
+
+                                # This can only be Pointer that didn't
+                                # infer the target type yet.
+                                assert isinstance(ptr, Pointer)
+                                # We haven't computed the target yet,
+                                # so try computing it now.
+                                ctx.visited.add(ptr)
+                                ptr_target = trace(ptr.target_expr, ctx=ctx)
+                                if isinstance(ptr_target, (Type,
+                                                           s_types.Type)):
+                                    tip = ptr.target = ptr_target
+
                         else:
                             # Can't figure out the new tip, so we bail.
                             return None
