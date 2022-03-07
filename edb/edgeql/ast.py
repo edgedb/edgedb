@@ -606,7 +606,7 @@ class DeleteQuery(Query, SubjectMixin, SelectClauseMixin):
     pass
 
 
-class ForQuery(Query, ReturningMixin):
+class ForQuery(Query, ReturningMixin, OrderByMixin):
     optional: bool = False
     iterator: Expr
     iterator_alias: str
