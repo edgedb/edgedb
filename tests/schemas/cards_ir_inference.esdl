@@ -43,6 +43,10 @@ type User extending Named {
     link avatar -> Card {
         property text -> str;
     }
+
+    link unique_avatar -> Card {
+        constraint exclusive;
+    }
 }
 
 type Card extending Named {

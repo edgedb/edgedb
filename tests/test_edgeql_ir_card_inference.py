@@ -570,6 +570,14 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
         AT_MOST_ONE
         """
 
+    def test_edgeql_ir_card_inference_60b(self):
+        """
+        SELECT Person
+        FILTER .p = 12 AND .card.name = 'Imp'
+% OK %
+        AT_MOST_ONE
+        """
+
     def test_edgeql_ir_card_inference_61(self):
         """
         SELECT Person FILTER .first = "Phil" OR .last = "Emarg"
@@ -904,6 +912,22 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
     def test_edgeql_ir_card_inference_104(self):
         """
         SELECT 1 OFFSET 2
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_105(self):
+        """
+        select User
+        filter .avatar.name = 'Dragon'
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_106(self):
+        """
+        select User
+        filter .unique_avatar.name = 'Dragon'
 % OK %
         AT_MOST_ONE
         """
