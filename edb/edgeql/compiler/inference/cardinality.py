@@ -834,15 +834,13 @@ def _is_ptr_or_self_ref(
 
         return (
             isinstance(srccls, s_objtypes.ObjectType)
-            and ir_set.expr is None
             and (
                 env.set_types[ir_set] == srccls
                 or (
                     (rptr := ir_set.rptr) is not None
-                    and srccls.maybe_get_ptr(
-                        env.schema,
-                        rptr.ptrref.shortname.get_local_name()
-                    ) is not None
+                    and isinstance(rptr.ptrref, irast.PointerRef)
+                    and not rptr.ptrref.is_computable
+                    and _is_ptr_or_self_ref(rptr.source, result_expr, env)
                 )
             )
         )
@@ -853,13 +851,11 @@ def extract_filters(
     filter_set: irast.Set,
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
-) -> Sequence[Tuple[s_pointers.Pointer, irast.Set]]:
+) -> Sequence[Tuple[Sequence[s_pointers.Pointer], irast.Set]]:
 
     env = ctx.env
     schema = env.schema
     scope_tree = inf_utils.get_set_scope(filter_set, scope_tree, ctx=ctx)
-
-    ptr: s_pointers.Pointer
 
     expr = filter_set.expr
     if isinstance(expr, irast.OperatorCall):
@@ -874,41 +870,33 @@ def extract_filters(
             if op_card.is_multi():
                 pass
 
-            elif _is_ptr_or_self_ref(left, result_set, env):
+            elif (
+                (left_matches := _is_ptr_or_self_ref(left, result_set, env))
+                or _is_ptr_or_self_ref(right, result_set, env)
+            ):
+                # If the match was on the right, flip the args
+                if not left_matches:
+                    left, right = right, left
+
                 if infer_cardinality(
                     right, scope_tree=scope_tree, ctx=ctx,
                 ).is_single():
+                    ptrs = []
                     left_stype = env.set_types[left]
                     if left_stype == result_stype:
                         assert isinstance(left_stype, s_objtypes.ObjectType)
                         _ptr = left_stype.getptr(schema, sn.UnqualName('id'))
+                        ptrs.append(_ptr)
                     else:
-                        assert left.rptr is not None
-                        _ptr = env.schema.get(left.rptr.ptrref.name,
-                                              type=s_pointers.Pointer)
+                        while env.set_types[left] != result_stype:
+                            assert left.rptr is not None
+                            _ptr = env.schema.get(left.rptr.ptrref.name,
+                                                  type=s_pointers.Pointer)
+                            ptrs.append(_ptr)
+                            left = left.rptr.source
+                        ptrs.reverse()
 
-                    assert _ptr is not None
-                    ptr = _ptr
-
-                    return [(ptr, right)]
-
-            elif _is_ptr_or_self_ref(right, result_set, env):
-                if infer_cardinality(
-                    left, scope_tree=scope_tree, ctx=ctx,
-                ).is_single():
-                    right_stype = env.set_types[right]
-                    if right_stype == result_stype:
-                        assert isinstance(right_stype, s_objtypes.ObjectType)
-                        _ptr = right_stype.getptr(schema, sn.UnqualName('id'))
-                    else:
-                        assert right.rptr is not None
-                        _ptr = env.schema.get(right.rptr.ptrref.name,
-                                              type=s_pointers.Pointer)
-
-                    assert _ptr is not None
-                    ptr = _ptr
-
-                    return [(ptr, right)]
+                    return [(ptrs, right)]
 
         elif str(expr.func_shortname) == 'std::AND':
             left, right = (a.expr for a in expr.args)
@@ -920,13 +908,31 @@ def extract_filters(
                 result_set, right, scope_tree, ctx
             )
 
-            ptr_filters: List[Tuple[s_pointers.Pointer, irast.Set]] = []
-            ptr_filters.extend(left_filters)
-            ptr_filters.extend(right_filters)
-
-            return ptr_filters
+            return [*left_filters, *right_filters]
 
     return []
+
+
+def _all_have_exclusive(
+    ptrs: Sequence[s_pointers.Pointer],
+    ctx: inference_context.InfCtx,
+) -> bool:
+    return all(
+        bool(ptr.get_exclusive_constraints(ctx.env.schema))
+        for ptr in ptrs
+    )
+
+
+def _track_all_constraint_refs(
+    ptrs: Sequence[s_pointers.Pointer],
+    ctx: inference_context.InfCtx,
+) -> None:
+    for ptr in ptrs:
+        for constr in ptr.get_exclusive_constraints(ctx.env.schema):
+            # We need to track all schema refs, since an expression
+            # in the schema needs to depend on any constraint
+            # that affects its cardinality.
+            ctx.env.add_schema_ref(constr, None)
 
 
 def extract_exclusive_filters(
@@ -941,22 +947,24 @@ def extract_exclusive_filters(
     results: List[Tuple[Tuple[s_pointers.Pointer, irast.Set], ...]] = []
     if filtered_ptrs:
         schema = ctx.env.schema
+        # Only look at paths where all trailing pointers are exclusive;
+        # that is, if we see `.foo.bar`, `bar` must be exclusive.
+        # If that's the case, then we can look at whether `.foo` is
+        # exclusive or used in an exclusive object constraint.
         filtered_ptrs_map = {
-            ptr.get_nearest_non_derived_parent(schema): expr
-            for ptr, expr in filtered_ptrs
+            ptrs[0].get_nearest_non_derived_parent(schema): (ptrs, expr)
+            for ptrs, expr in filtered_ptrs
+            if _all_have_exclusive(ptrs[1:], ctx)
         }
         ptr_set = set(filtered_ptrs_map)
         # First look at each referenced pointer and see if it has
         # an exclusive constraint.
-        for ptr, expr in filtered_ptrs_map.items():
-            for constr in ptr.get_exclusive_constraints(schema):
+        for ptr, (ptrs, expr) in filtered_ptrs_map.items():
+            if _all_have_exclusive([ptr], ctx):
                 # Bingo, got an equality filter on a pointer with a
                 # unique constraint
                 results.append(((ptr, expr),))
-                # We need to track all schema refs, since an expression
-                # in the schema needs to depend on any constraint
-                # that affects its cardinality.
-                ctx.env.add_schema_ref(constr, None)
+                _track_all_constraint_refs(ptrs, ctx)
 
         # Then look at all the object exclusive constraints
         result_stype = ctx.env.set_types[result_set]
@@ -964,8 +972,11 @@ def extract_exclusive_filters(
             result_stype, ptr_set, ctx.env)
         for constr, obj_exc_ptrs in obj_exclusives.items():
             results.append(
-                tuple((ptr, filtered_ptrs_map[ptr]) for ptr in obj_exc_ptrs))
+                tuple((ptr, filtered_ptrs_map[ptr][1]) for ptr in obj_exc_ptrs)
+            )
             ctx.env.add_schema_ref(constr, None)
+            for ptr in obj_exc_ptrs:
+                _track_all_constraint_refs(filtered_ptrs_map[ptr][0], ctx)
 
     return results
 
