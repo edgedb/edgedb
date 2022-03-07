@@ -61,9 +61,9 @@ class Collapsible(d_rst.Directive):
         # Taken from the "class" directive:
         # https://github.com/docutils/docutils/blob/master/docutils/docutils/parsers/rst/directives/misc.py#L327
         pending = d_nodes.pending(
-                d_misc.ClassAttribute,
-                {'class': ['_collapsible'], 'directive': self.name},
-                self.block_text)
+            d_misc.ClassAttribute,
+            {'class': ['_collapsible'], 'directive': self.name},
+            self.block_text)
         self.state_machine.document.note_pending(pending)
         return [pending]
 
