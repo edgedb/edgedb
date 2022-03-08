@@ -21,8 +21,6 @@
 
 from __future__ import annotations
 from typing import *
-if TYPE_CHECKING:
-    from typing_extensions import TypeGuard
 
 import sys
 import textwrap
@@ -43,10 +41,6 @@ class FenceInfo(NamedTuple):
             unnest_fence=self.unnest_fence or other.unnest_fence,
             factoring_fence=self.factoring_fence or other.factoring_fence,
         )
-
-
-def has_path_id(nobe: ScopeTreeNode) -> TypeGuard[ScopeTreeNodeWithPathId]:
-    return nobe.path_id is not None
 
 
 class ScopeTreeNode:
@@ -94,6 +88,7 @@ class ScopeTreeNode:
         unique_id: Optional[int]=None,
         optional: bool=False,
     ) -> None:
+        assert not path_id or isinstance(self, ScopeTreeNodeWithPathId)
         self.unique_id = unique_id
         self.path_id = path_id
         self.fenced = fenced
@@ -209,7 +204,7 @@ class ScopeTreeNode:
         """An iterator of node's children that have path ids."""
         return (
             p for p in self.children
-            if has_path_id(p)
+            if isinstance(p, ScopeTreeNodeWithPathId)
         )
 
     @property
@@ -217,7 +212,7 @@ class ScopeTreeNode:
         """An iterator of node's descendants that have path ids."""
         return (
             p for p in self.descendants
-            if has_path_id(p)
+            if isinstance(p, ScopeTreeNodeWithPathId)
         )
 
     def get_all_paths(self) -> Set[pathid.PathId]:
@@ -330,7 +325,7 @@ class ScopeTreeNode:
     @property
     def path_ancestor(self) -> Optional[ScopeTreeNodeWithPathId]:
         for ancestor in self.strict_ancestors:
-            if has_path_id(ancestor):
+            if isinstance(ancestor, ScopeTreeNodeWithPathId):
                 return ancestor
 
         return None
@@ -419,8 +414,8 @@ class ScopeTreeNode:
                 is_lprop = True
                 continue
 
-            new_child = ScopeTreeNode(path_id=prefix,
-                                      optional=optional and parent is subtree)
+            new_child = ScopeTreeNodeWithPathId(
+                path_id=prefix, optional=optional and parent is subtree)
             parent.attach_child(new_child)
 
             # If the path is a link property, or a tuple
@@ -479,7 +474,7 @@ class ScopeTreeNode:
             node = wrapper_node
 
         for descendant, dns, _ in node.descendants_and_namespaces_ex():
-            if not has_path_id(descendant):
+            if not isinstance(descendant, ScopeTreeNodeWithPathId):
                 continue
 
             path_id = descendant.path_id.strip_namespace(dns)
@@ -882,7 +877,7 @@ class ScopeTreeNode:
     ) -> List[ScopeTreeNodeWithPathId]:
         matched = []
         for descendant, dns, _ in self.strict_descendants_and_namespaces:
-            if (has_path_id(descendant)
+            if (isinstance(descendant, ScopeTreeNodeWithPathId)
                     and _paths_equal(descendant.path_id, path_id, dns)):
                 matched.append(descendant)
 
@@ -962,7 +957,7 @@ class ScopeTreeNode:
                     unfenced_only=fence_seen, skip=last)
             ):
                 cns: AbstractSet[str] = namespaces | dns
-                if (has_path_id(descendant)
+                if (isinstance(descendant, ScopeTreeNodeWithPathId)
                         and not descendant.is_group
                         and _paths_equal(descendant.path_id, path_id, cns)):
                     points.append((
