@@ -222,10 +222,16 @@ class IORef(IPathElement):
     def is_alias_ref(self) -> bool:
         return self.is_alias
 
+    def __repr__(self) -> str:
+        return ('$' if self.is_alias else '') + self.name
+
 
 @dataclass(frozen=True, order=True)
 class ITypeIntersection(IPathElement):
     typ: str
+
+    def __repr__(self) -> str:
+        return f'[is {self.typ}]'
 
 
 @dataclass(frozen=True, order=True)
@@ -233,6 +239,11 @@ class IPtr(IPathElement):
     name: str
     direction: Optional[str] = None
     is_link_property: bool = False
+
+    def __repr__(self) -> str:
+        direction = str(self.direction) if self.direction else ">"
+        prefix = '@' if self.is_link_property else f'.{direction}'
+        return f'{prefix}{self.name}'
 
 
 # Wrapper to indicate that an entry in the input tuple is really
@@ -1241,7 +1252,9 @@ class PathFinder(NodeVisitor):
         self.paths: List[
             Tuple[qlast.Path, Optional[int], bool, Optional[qlast.Expr]]] = []
         self.current_path = cur_path
-        self.tree: Dict[qlast.Expr, Tuple[Optional[qlast.Expr], bool]] = {}
+        # expr -> (parent expr, is subquery, is optional)
+        self.tree: Dict[
+            qlast.Expr, Tuple[Optional[qlast.Expr], bool, bool]] = {}
 
     def _update(self, **kwargs: Any) -> Iterator[None]:
         old = {k: getattr(self, k) for k in kwargs}
@@ -1255,8 +1268,8 @@ class PathFinder(NodeVisitor):
 
     @contextlib.contextmanager
     def subquery(self, subq: Optional[qlast.Expr]) -> Iterator[None]:
-        if subq:
-            self.tree[subq] = (self.cur_binding, True)
+        if subq and subq is not self.cur_binding:
+            self.tree[subq] = (self.cur_binding, True, False)
         yield from self._update(in_subquery=True, cur_binding=subq)
 
     @contextlib.contextmanager
@@ -1279,28 +1292,33 @@ class PathFinder(NodeVisitor):
         with self.subquery(subq):
             self.visit(subq)
 
-    def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
-        with self.subquery(query):
-            # XXX: shadowing?
-            self.visit(query.aliases)
+    def visit_OptionallyAliasedExpr(
+            self, query: qlast.OptionallyAliasedExpr) -> None:
+        # XXX: shadowing?
+        self.visit_subquery(query.expr)
 
+    def visit_SelectQuery(self, query: qlast.SelectQuery) -> None:
+        self.visit(query.aliases)
+
+        with self.subquery(query):
             if query.result_alias:
                 self.visit_subquery(query.result)
             else:
                 self.visit(query.result)
 
             with self.update_path(query):
-                self.visit(query.orderby)
-                self.visit(query.where)
+                self.visit_subquery(query.where)
+                for order in (query.orderby or ()):
+                    self.visit_subquery(order.path)
 
             with self.update_path(None):
-                self.visit(query.limit)
-                self.visit(query.offset)
+                self.visit_subquery(query.limit)
+                self.visit_subquery(query.offset)
 
     def visit_GroupQuery(self, query: qlast.GroupQuery) -> None:
-        with self.subquery(query):
-            self.visit(query.aliases)
+        self.visit(query.aliases)
 
+        with self.subquery(query):
             if query.subject_alias:
                 self.visit_subquery(query.subject)
             else:
@@ -1343,13 +1361,14 @@ class PathFinder(NodeVisitor):
                 # SET OF is a subquery so we skip it
                 if arg_specs[i] == SET_OF:
                     self.in_subquery = True
-                    self.tree[arg] = (self.cur_binding, True)
+                    self.tree[arg] = (self.cur_binding, True, False)
                     self.cur_binding = arg
                 elif arg_specs[i] == OPTIONAL:
                     if not self.in_subquery and not self.in_optional:
                         self.optional_counter += 1
                     self.in_optional = True
-                    self.tree[arg] = (self.cur_binding, False)
+                    is_subq = isinstance(arg, qlast.Query)
+                    self.tree[arg] = (self.cur_binding, is_subq, False)
                     self.cur_binding = arg
 
             self.visit(arg)
@@ -1392,6 +1411,112 @@ def find_paths(
         pf.current_path = path
         pf.visit(subq)
     return [x[:3] for x in pf.paths]
+
+##############################################
+
+
+@dataclass
+class BindingSite:
+    query: qlast.Expr
+    is_subquery: bool
+    is_optional: bool
+    children: List[BindingSite] = field(default_factory=list)
+
+
+@dataclass
+class FakePathId:
+    path: IPath
+
+    def pformat_internal(self, debug: bool = False) -> str:
+        return f"({''.join(str(x) for x in self.path)})"
+
+    def pformat(self) -> str:
+        return self.pformat_internal()
+
+    @property
+    def namespace(self) -> FrozenSet[str]:
+        return frozenset()
+
+    def strip_namespace(
+            self, namespace: AbstractSet[str]) -> FakePathId:
+        return self
+
+    def iter_prefixes(
+            self, include_ptr: bool = False) -> Iterator[FakePathId]:
+        # XXX: include_ptr??
+        for i in range(len(self.path)):
+            yield FakePathId(self.path[:i + 1])
+
+    def is_ptr_path(self) -> bool:
+        return False  # ???
+
+    def is_linkprop_path(self) -> bool:
+        return (
+            isinstance(self.path[-1], IPtr)
+            and self.path[-1].is_link_property
+        )
+
+    def is_tuple_indirection_path(self) -> bool:
+        return False  # ???
+
+    def is_type_intersection_path(self) -> bool:
+        return isinstance(self.path[-1], ITypeIntersection)
+
+    def is_computable_path(self) -> bool:
+        return False  # ???
+
+    def src_path(self) -> Optional[FakePathId]:
+        if len(self.path) > 1:
+            return FakePathId(self.path[:-1])
+        else:
+            return None
+
+
+def rewrite(e: qlast.Expr) -> qlast.Expr:
+    from edb.ir import ast  # noqa
+    from edb.ir import scopetree
+
+    FakeScopeTreeNode = scopetree.GenericScopeTreeNode[FakePathId]
+
+    e = qlast.SelectQuery(result=e)
+    pf = PathFinder(None)
+    pf.visit(e)
+
+    tree: Dict[qlast.Expr, BindingSite] = {}
+    for site, (_, is_subquery, is_optional) in pf.tree.items():
+        tree[site] = BindingSite(
+            query=site, is_subquery=is_subquery, is_optional=is_optional)
+    for site, (parent, _, _) in pf.tree.items():
+        if parent:
+            tree[parent].children.append(tree[site])
+
+    scope = FakeScopeTreeNode(fenced=True)
+
+    map = {}
+
+    def go(site: BindingSite, scope: FakeScopeTreeNode) -> None:
+        map[site.query] = scope
+        for child in site.children:
+            if child.is_subquery:
+                child_scope = scope.attach_fence()
+            else:
+                child_scope = scope.attach_branch()
+            child_scope.optional = child.is_optional
+            go(child, child_scope)
+
+    go(tree[e], scope)
+
+    for p, _, _, bind_site in pf.paths:
+        assert bind_site
+        map[bind_site].attach_path(
+            FakePathId(simplify_path(p)), context=p.context)
+
+    scope.dump()
+
+    return e
+
+
+##############################################
 
 
 def longest_common_prefix(p1: IPath, p2: IPath) -> IPath:
@@ -1565,6 +1690,7 @@ def toplevel_query(q: qlast.Expr, db: DB) -> Data:
         cur_path=None,
         db=db,
     )
+    q = rewrite(q)
     return subquery(q, ctx=ctx)
 
 
