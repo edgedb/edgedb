@@ -186,8 +186,30 @@ Optionally specifies the name of the default superuser account. Defaults to
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
 
+EDGEDB_SERVER_TLS_CERT_MODE
+...........................
+Specifies what to do when the TLS certificate and key are either not specified
+or are missing.  When set to ``require_file``, the TLS certificate and key must
+be specified in the ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY``
+variables and both must exist.  When set to ``generate_self_signed`` a new
+self-signed certificate and private key will be generated and placed in the
+path specified by ``EDGEDB_SERVER_TLS_CERT`` and ``EDGEDB_SERVER_TLS_KEY``, if
+those are set, otherwise the generated certificate and key are stored as
+``edbtlscert.pem`` and ``edbprivkey.pem`` in ``EDGEDB_SERVER_DATADIR``, or, if
+``EDGEDB_SERVER_DATADIR`` is not set then they will be placed in
+``/etc/ssl/edgedb``.
+
+The default is ``generate_self_signed`` when
+``EDGEDB_SERVER_SECURITY=insecure_dev_mode``. Otherwise the default is
+``require_file``.
+
+The ``*_FILE`` and ``*_ENV`` variants are also supported.
+
+
 EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT
 .......................................
+
+Deprecated: use ``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed`` instead.
 
 Set this option to ``1`` to tell the server to automatically generate a
 self-signed certificate with key file in the ``EDGEDB_SERVER_DATADIR`` (if
@@ -204,7 +226,7 @@ EDGEDB_SERVER_TLS_CERT EDGEDB_SERVER_TLS_KEY
 ............................................
 
 The TLS certificate and private key, exclusive with
-``EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT``.
+``EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed``.
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
 
@@ -234,10 +256,10 @@ EDGEDB_SERVER_SECURITY
 ......................
 
 When set to ``insecure_dev_mode``, sets ``EDGEDB_SERVER_DEFAULT_AUTH_METHOD``
-to ``Trust`` (see above), and enables
-``EDGEDB_SERVER_GENERATE_SELF_SIGNED_CERT`` (unless an explicit TLS certificate
-is specified).  Finally, if this option is set, the server will accept
-plaintext HTTP connections.
+to ``Trust`` (see above), and ``EDGEDB_SERVER_TLS_CERT_MODE`` to
+``generate_self_signed`` (unless an explicit TLS certificate is specified).
+Finally, if this option is set, the server will accept plaintext HTTP
+connections.
 
 Use at your own risk and only for development and testing.
 
@@ -255,6 +277,12 @@ will look for the presence of ``/edgedb-bootstrap.edgeql`` in the container
 (which can be placed in a derived image).
 
 The ``*_FILE`` and ``*_ENV`` variants are also supported.
+
+
+EDGEDB_SERVER_BOOTSTRAP_SCRIPT_FILE
+...................................
+Run the script when initializing the database. The script is run by default
+user within default database.
 
 
 Custom scripts in ``/edgedb-bootstrap.d/`` and ``/edgedb-bootstrap-late.d``
