@@ -192,6 +192,7 @@ async def _run_server(
             internal_runstate_dir=internal_runstate_dir,
             max_backend_connections=args.max_backend_connections,
             compiler_pool_size=args.compiler_pool_size,
+            compiler_pool_mode=args.compiler_pool_mode,
             nethosts=args.bind_addresses,
             netport=args.port,
             auto_shutdown_after=args.auto_shutdown_after,

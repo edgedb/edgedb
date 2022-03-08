@@ -34,9 +34,11 @@ import time
 import immutables
 
 from edb.common import debug
+from edb.common import taskgroup
 
 from edb.pgsql import params as pgparams
 
+from edb.server import args as srvargs
 from edb.server import defines
 from edb.server import metrics
 
@@ -47,6 +49,8 @@ from . import state
 
 PROCESS_INITIAL_RESPONSE_TIMEOUT: float = 60.0
 KILL_TIMEOUT: float = 10.0
+ADAPTIVE_SCALE_UP_WAIT_TIME: float = 3.0
+ADAPTIVE_SCALE_DOWN_WAIT_TIME: float = 60.0
 WORKER_MOD: str = __name__.rpartition('.')[0] + '.worker'
 
 
@@ -156,7 +160,7 @@ class Worker:
             pass
 
 
-class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
+class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
 
     _workers_queue: queue.WorkerQueue[Worker]
     _workers: Dict[int, Worker]
@@ -195,9 +199,6 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
         self._workers = {}
 
         self._server = amsg.Server(self._poolsock_name, loop, self)
-        self._template_transport = None
-        self._template_proc_scheduled = False
-        self._template_proc_version = 0
         self._ready_evt = asyncio.Event()
 
         self._running = None
@@ -222,8 +223,7 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
 
         self._workers[pid] = worker
         self._workers_queue.release(worker)
-        if len(self._workers) > self._pool_size:
-            self._server.kill_outdated_worker(self._template_proc_version)
+        self._worker_attached()
 
         logger.debug("started compiler worker process (PID %s)", pid)
         if (
@@ -237,6 +237,9 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
             self._ready_evt.set()
 
         return worker
+
+    def _worker_attached(self):
+        pass
 
     @functools.lru_cache(maxsize=None)
     def _get_init_args(self):
@@ -265,14 +268,6 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
         return init_args, pickled_args
 
     def worker_connected(self, pid, version):
-        if version < self._template_proc_version:
-            logger.debug(
-                "Outdated worker with PID %s connected; discard now.", pid
-            )
-            self._server.get_by_pid(pid).abort()
-            metrics.compiler_process_spawns.inc()
-            return
-
         logger.debug("Worker with PID %s connected, sending init args.", pid)
         args, pickled_args = self._get_init_args()
         self._loop.create_task(
@@ -286,18 +281,8 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
         self._workers.pop(pid, None)
         metrics.current_compiler_processes.dec()
 
-    def process_exited(self):
-        # Template process exited
-        self._template_transport = None
-        if self._running:
-            logger.error("Template compiler process exited; recreating now.")
-            self._schedule_template_proc(0)
-
     def get_template_pid(self):
-        if self._template_transport is None:
-            return None
-        else:
-            return self._template_transport.get_pid()
+        return None
 
     async def start(self):
         if self._running is not None:
@@ -309,62 +294,49 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
         await self._server.start()
         self._running = True
 
-        await self._create_template_proc(retry=False)
+        await self._start()
 
         await asyncio.wait_for(
             self._ready_evt.wait(),
             PROCESS_INITIAL_RESPONSE_TIMEOUT
         )
 
-    async def _create_template_proc(self, retry=True):
-        self._template_proc_scheduled = False
-        if not self._running:
-            return
-        self._template_proc_version += 1
-        version = str(self._template_proc_version)
-        try:
-            env = _ENV
-            if debug.flags.server:
-                env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
+    async def _create_compiler_process(self, numproc=None, version=0):
+        # Create a new compiler process. When numproc is None, a single
+        # standalone compiler worker process is started; if numproc is an int,
+        # a compiler template process will be created, which will then fork
+        # itself into `numproc` actual worker processes and run as a supervisor
 
-            cmdline = [sys.executable]
-            if sys.flags.isolated:
-                cmdline.append('-I')
+        env = _ENV
+        if debug.flags.server:
+            env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
 
+        cmdline = [sys.executable]
+        if sys.flags.isolated:
+            cmdline.append('-I')
+
+        cmdline.extend([
+            '-m', WORKER_MOD,
+            '--sockname', self._poolsock_name,
+            '--version-serial', str(version),
+        ])
+        if numproc:
             cmdline.extend([
-                '-m', WORKER_MOD,
-                '--sockname', self._poolsock_name,
-                '--numproc', str(self._pool_size),
-                '--version-serial', version,
+                '--numproc', str(numproc),
             ])
 
-            self._template_transport, _ = await self._loop.subprocess_exec(
-                lambda: self,
-                *cmdline,
-                env=env,
-                stdin=subprocess.DEVNULL,
-                stdout=None,
-                stderr=None,
-            )
-        except Exception:
-            if retry:
-                if self._running:
-                    t = defines.BACKEND_COMPILER_TEMPLATE_PROC_RESTART_INTERVAL
-                    logger.exception(
-                        f"Unexpected error occurred creating template compiler"
-                        f" process; retry in {t} second{'s' if t > 1 else ''}."
-                    )
-                    self._schedule_template_proc(t)
-            else:
-                raise
-
-    def _schedule_template_proc(self, sleep):
-        if self._template_proc_scheduled:
-            return
-        self._template_proc_scheduled = True
-        self._loop.call_later(
-            sleep, self._loop.create_task, self._create_template_proc()
+        transport, _ = await self._loop.subprocess_exec(
+            lambda: self,
+            *cmdline,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=None,
+            stderr=None,
         )
+        return transport
+
+    async def _start(self):
+        raise NotImplementedError
 
     async def stop(self):
         if not self._running:
@@ -377,10 +349,10 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
         self._workers_queue = queue.WorkerQueue(self._loop)
         self._workers.clear()
 
-        trans, self._template_transport = self._template_transport, None
-        if trans is not None:
-            trans.terminate()
-            await trans._wait()
+        await self._stop()
+
+    async def _stop(self):
+        raise NotImplementedError
 
     def _report_worker(self, worker: Worker, *, action: str = "spawn"):
         action = action.capitalize()
@@ -736,6 +708,205 @@ class Pool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
             self._release_worker(worker)
 
 
+@srvargs.CompilerPoolMode.Fixed.assign_implementation
+class FixedPool(BasePool):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._template_transport = None
+        self._template_proc_scheduled = False
+        self._template_proc_version = 0
+
+    def _worker_attached(self):
+        if len(self._workers) > self._pool_size:
+            self._server.kill_outdated_worker(self._template_proc_version)
+
+    def worker_connected(self, pid, version):
+        if version < self._template_proc_version:
+            logger.debug(
+                "Outdated worker with PID %s connected; discard now.", pid
+            )
+            self._server.get_by_pid(pid).abort()
+            metrics.compiler_process_spawns.inc()
+        else:
+            super().worker_connected(pid, version)
+
+    def process_exited(self):
+        # Template process exited
+        self._template_transport = None
+        if self._running:
+            logger.error("Template compiler process exited; recreating now.")
+            self._schedule_template_proc(0)
+
+    def get_template_pid(self):
+        if self._template_transport is None:
+            return None
+        else:
+            return self._template_transport.get_pid()
+
+    async def _start(self):
+        await self._create_template_proc(retry=False)
+
+    async def _create_template_proc(self, retry=True):
+        self._template_proc_scheduled = False
+        if not self._running:
+            return
+        self._template_proc_version += 1
+        try:
+            # Create the template process, which will then fork() into numproc
+            # child processes and manage them, so that we don't have to manage
+            # the actual compiler worker processes in the main process.
+            self._template_transport = await self._create_compiler_process(
+                numproc=self._pool_size,
+                version=self._template_proc_version,
+            )
+        except Exception:
+            if retry:
+                if self._running:
+                    t = defines.BACKEND_COMPILER_TEMPLATE_PROC_RESTART_INTERVAL
+                    logger.exception(
+                        f"Unexpected error occurred creating template compiler"
+                        f" process; retry in {t} second{'s' if t > 1 else ''}."
+                    )
+                    self._schedule_template_proc(t)
+            else:
+                raise
+
+    def _schedule_template_proc(self, sleep):
+        if self._template_proc_scheduled:
+            return
+        self._template_proc_scheduled = True
+        self._loop.call_later(
+            sleep, self._loop.create_task, self._create_template_proc()
+        )
+
+    async def _stop(self):
+        trans, self._template_transport = self._template_transport, None
+        if trans is not None:
+            trans.terminate()
+            await trans._wait()
+
+
+@srvargs.CompilerPoolMode.OnDemand.assign_implementation
+class SimpleAdaptivePool(BasePool):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._worker_transports = {}
+        self._expected_num_workers = 0
+        self._scale_up_handle = None
+        self._scale_down_handle = None
+        self._max_num_workers = srvargs.compute_default_compiler_pool_size()
+
+    async def _start(self):
+        async with taskgroup.TaskGroup() as g:
+            for _i in range(self._pool_size):
+                g.create_task(self._create_worker())
+
+    async def _stop(self):
+        self._expected_num_workers = 0
+        transports, self._worker_transports = self._worker_transports, {}
+        for transport in transports.values():
+            await transport._wait()
+
+    async def _acquire_worker(self, *, condition=None):
+        if (
+            self._running and
+            self._scale_up_handle is None
+            and self._workers_queue.qsize() == 0
+            and (
+                len(self._workers)
+                == self._expected_num_workers
+                < self._max_num_workers
+            )
+        ):
+            self._scale_up_handle = self._loop.call_later(
+                ADAPTIVE_SCALE_UP_WAIT_TIME,
+                self._maybe_scale_up,
+                self._workers_queue.count_waiters() + 1,
+            )
+        if self._scale_down_handle is not None:
+            self._scale_down_handle.cancel()
+            self._scale_down_handle = None
+        return await super()._acquire_worker(condition=condition)
+
+    def _release_worker(self, worker):
+        if self._scale_down_handle is not None:
+            self._scale_down_handle.cancel()
+            self._scale_down_handle = None
+        super()._release_worker(worker)
+        if (
+            self._running and
+            self._workers_queue.count_waiters() == 0 and
+            len(self._workers) > self._pool_size
+        ):
+            self._scale_down_handle = self._loop.call_later(
+                ADAPTIVE_SCALE_DOWN_WAIT_TIME,
+                self._scale_down,
+            )
+
+    def worker_disconnected(self, pid):
+        num_workers_before = len(self._workers)
+        super().worker_disconnected(pid)
+        self._worker_transports.pop(pid, None)
+        if not self._running:
+            return
+        if len(self._workers) < self._pool_size:
+            # The auto-scaler will not scale down below the pool_size, so we
+            # should restart the unexpectedly-exited worker process.
+            logger.warning(
+                "Compiler worker process[%d] exited unexpectedly; "
+                "start a new one now.", pid
+            )
+            self._loop.create_task(self._create_worker())
+            self._expected_num_workers = len(self._workers)
+        elif num_workers_before == self._expected_num_workers:
+            # This is likely the case when a worker died unexpectedly, and we
+            # don't want to restart the worker because the auto-scaler will
+            # start a new one again if necessary.
+            self._expected_num_workers = len(self._workers)
+
+    def process_exited(self):
+        if self._running:
+            for pid, transport in list(self._worker_transports.items()):
+                if transport.is_closing():
+                    self._worker_transports.pop(pid, None)
+
+    async def _create_worker(self):
+        try:
+            # Creates a single compiler worker process.
+            transport = await self._create_compiler_process()
+            self._worker_transports[transport.get_pid()] = transport
+            self._expected_num_workers += 1
+        finally:
+            self._scale_up_handle = None
+
+    def _maybe_scale_up(self, starting_num_waiters):
+        if not self._running:
+            return
+        if self._workers_queue.count_waiters() > starting_num_waiters:
+            logger.info(
+                "Compile requests are queuing up in the past %d seconds, "
+                "spawn a new compiler worker process now.",
+                ADAPTIVE_SCALE_UP_WAIT_TIME,
+            )
+            self._loop.create_task(self._create_worker())
+        else:
+            self._scale_up_handle = None
+
+    def _scale_down(self):
+        self._scale_down_handle = None
+        if not self._running or len(self._workers) <= self._pool_size:
+            return
+        logger.info(
+            "The compiler pool is not used in %d seconds, scaling down to %d.",
+            ADAPTIVE_SCALE_DOWN_WAIT_TIME, self._pool_size,
+        )
+        self._expected_num_workers = self._pool_size
+        for worker in sorted(
+            self._workers.values(), key=lambda w: w._last_used
+        )[:-self._pool_size]:
+            worker.close()
+
+
 async def create_compiler_pool(
     *,
     runstate_dir: str,
@@ -745,10 +916,11 @@ async def create_compiler_pool(
     std_schema,
     refl_schema,
     schema_class_layout,
-
-) -> Pool:
+    pool_class=FixedPool,
+) -> BasePool:
+    assert issubclass(pool_class, BasePool)
     loop = asyncio.get_running_loop()
-    pool = Pool(
+    pool = pool_class(
         loop=loop,
         pool_size=pool_size,
         runstate_dir=runstate_dir,
