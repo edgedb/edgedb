@@ -368,6 +368,14 @@ def main():
     parser.add_argument('--version-serial', type=int)
     args = parser.parse_args()
 
+    ql_parser.preload(allow_rebuild=False)
+    gc.freeze()
+
+    if args.numproc is None:
+        # Run a single worker process
+        run_worker(args.sockname, args.version_serial)
+        return
+
     numproc = int(args.numproc)
     assert numproc >= 1
 
@@ -375,9 +383,6 @@ def main():
     # new workers are created continuously - it probably means the
     # worker cannot start correctly.
     max_worker_spawns = numproc * 2
-
-    ql_parser.preload(allow_rebuild=False)
-    gc.freeze()
 
     children = set()
     continuous_num_spawns = 0

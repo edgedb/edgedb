@@ -126,6 +126,7 @@ class Server(ha_base.ClusterProtocol):
         internal_runstate_dir,
         max_backend_connections,
         compiler_pool_size,
+        compiler_pool_mode: srvargs.CompilerPoolMode,
         nethosts,
         netport,
         new_instance: bool,
@@ -176,6 +177,7 @@ class Server(ha_base.ClusterProtocol):
         self._max_backend_connections = max_backend_connections
         self._compiler_pool = None
         self._compiler_pool_size = compiler_pool_size
+        self._compiler_pool_mode = compiler_pool_mode
         self._suggested_client_pool_size = max(
             min(max_backend_connections,
                 defines.MAX_SUGGESTED_CLIENT_POOL_SIZE),
@@ -459,6 +461,7 @@ class Server(ha_base.ClusterProtocol):
     async def _create_compiler_pool(self):
         self._compiler_pool = await compiler_pool.create_compiler_pool(
             pool_size=self._compiler_pool_size,
+            pool_class=self._compiler_pool_mode.pool_class,
             dbindex=self._dbindex,
             runstate_dir=self._internal_runstate_dir,
             backend_runtime_params=self.get_backend_runtime_params(),
