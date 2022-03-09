@@ -177,7 +177,7 @@ def compile_ir_to_sql(
         debug.flags.edgeql_compile_sql_reordered_text
     ):
         debug.header('Reordered SQL')
-        debug_sql_text = run_codegen(qtree, pretty=pretty, reordered=True)
+        debug_sql_text = run_codegen(qtree, pretty=True, reordered=True)
         debug.dump_code(debug_sql_text, lexer='sql')
 
     return sql_text, argmap

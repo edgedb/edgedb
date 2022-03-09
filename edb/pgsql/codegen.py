@@ -179,7 +179,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             if self.pretty:
                 self.write('/*', repr(node), '*/')
             self.new_lines = 1
-            self.indentation += 2
 
         if node.op:
             # Upper level set operation node (UNION/INTERSECT)
@@ -191,6 +190,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         else:
             if not self.reordered:
                 _select()
+                self.indentation += 2
 
         if not self.reordered:
             if node.target_list:
@@ -216,9 +216,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if self.reordered and not node.op:
             _select()
 
+            self.indentation += 1
+
             if node.target_list:
                 self.visit_list(node.target_list)
 
+            # In reordered mode, we don't want to indent the clauses,
+            # so we overreduce the indentation at this point and fix
+            # it up at the end
             self.indentation -= 2
 
         if node.where_clause:
@@ -270,6 +275,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write('LIMIT ')
             self.visit(node.limit_count)
             self.indentation -= 1
+
+        if self.reordered and not node.op:
+            self.indentation += 1
 
         if parenthesize:
             self.new_lines = 1
