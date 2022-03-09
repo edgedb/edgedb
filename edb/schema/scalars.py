@@ -66,6 +66,12 @@ class ScalarType(
     def is_scalar(self) -> bool:
         return True
 
+    def is_concrete_enum(self, schema: s_schema.Schema) -> bool:
+        return any(
+            str(base.get_name(schema)) == 'std::anyenum'
+            for base in self.get_bases(schema).objects(schema)
+        )
+
     def is_enum(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_enum_values(schema))
 
@@ -237,7 +243,7 @@ class ScalarType(
 
         # If this is an enum and enum_values changed, we need to
         # generate a rebase.
-        enum_values = alter.get_attribute_value('enum_values')
+        enum_values = alter.get_local_attribute_value('enum_values')
         if enum_values is not None:
             assert isinstance(alter.classname, s_name.QualName)
             rebase = RebaseScalarType(
@@ -486,7 +492,7 @@ class CreateScalarType(
                 super()._apply_field_ast(schema, context, node, op)
 
         elif op.property == 'bases':
-            enum_values = self.get_attribute_value('enum_values')
+            enum_values = self.get_local_attribute_value('enum_values')
             if enum_values:
                 assert isinstance(node, qlast.BasesMixin)
                 node.bases = [
@@ -571,6 +577,8 @@ class RebaseScalarType(
                 scls, cur_labels, new_labels, schema, context)
 
             self.validate_scalar_bases(schema, context)
+
+            schema = super().apply(schema, context)
 
         else:
             old_concrete = self.scls.maybe_get_topmost_concrete_base(schema)

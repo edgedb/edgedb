@@ -1160,6 +1160,15 @@ def get_config_type_shape(
     return shape
 
 
+def type_shell_multi_substitute(
+    mapping: Dict[sn.Name, s_types.TypeShell[s_types.TypeT_co]],
+    typ: s_types.TypeShell[s_types.TypeT_co],
+) -> s_types.TypeShell[s_types.TypeT_co]:
+    for name, new in mapping.items():
+        typ = type_shell_substitute(name, new, typ)
+    return typ
+
+
 def type_shell_substitute(
     name: sn.Name,
     new: s_types.TypeShell[s_types.TypeT_co],

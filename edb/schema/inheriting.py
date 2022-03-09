@@ -1109,7 +1109,7 @@ class RebaseInheritingObject(
             if isinstance(pos, tuple):
                 pos, ref = pos
 
-            if pos is None or pos == 'LAST':
+            if not pos or pos == 'LAST':
                 idx = len(bases)
             elif pos == 'FIRST':
                 idx = 0
