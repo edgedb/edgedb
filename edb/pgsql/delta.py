@@ -1896,13 +1896,54 @@ class AliasCapableMetaCommand(MetaCommand):
 
 class ScalarTypeMetaCommand(AliasCapableMetaCommand):
 
-    def is_sequence(self, schema, scalar):
+    @classmethod
+    def is_sequence(cls, schema, scalar):
         seq = schema.get('std::sequence', default=None)
         return seq is not None and scalar.issubclass(schema, seq)
 
 
 class CreateScalarType(ScalarTypeMetaCommand,
                        adapts=s_scalars.CreateScalarType):
+
+    @classmethod
+    def create_scalar(cls, scalar, default, schema, context):
+        ops = dbops.CommandGroup()
+
+        new_domain_name = types.pg_type_from_scalar(schema, scalar)
+
+        if scalar.is_concrete_enum(schema):
+            enum_values = scalar.get_enum_values(schema)
+            new_enum_name = common.get_backend_name(
+                schema, scalar, catenate=False)
+            ops.add_command(dbops.CreateEnum(
+                dbops.Enum(name=new_enum_name, values=enum_values)))
+            base = q(*new_enum_name)
+
+        else:
+            base = types.get_scalar_base(schema, scalar)
+
+            if cls.is_sequence(schema, scalar):
+                seq_name = common.get_backend_name(
+                    schema, scalar, catenate=False, aspect='sequence')
+                ops.add_command(dbops.CreateSequence(name=seq_name))
+
+            domain = dbops.Domain(name=new_domain_name, base=base)
+            ops.add_command(dbops.CreateDomain(domain=domain))
+
+            if (default is not None
+                    and not isinstance(default, s_expr.Expression)):
+                # We only care to support literal defaults here. Supporting
+                # defaults based on queries has no sense on the database
+                # level since the database forbids queries for DEFAULT and
+                # pre- calculating the value does not make sense either
+                # since the whole point of query defaults is for them to be
+                # dynamic.
+                ops.add_command(
+                    dbops.AlterDomainAlterDefault(
+                        name=new_domain_name, default=default))
+
+        return ops
+
     def _create_begin(
         self,
         schema: s_schema.Schema,
@@ -1914,46 +1955,15 @@ class CreateScalarType(ScalarTypeMetaCommand,
         if scalar.get_abstract(schema):
             return schema
 
-        new_domain_name = types.pg_type_from_scalar(schema, scalar)
-
         if types.is_builtin_scalar(schema, scalar):
             return schema
 
-        enum_values = scalar.get_enum_values(schema)
-        if enum_values:
-            new_enum_name = common.get_backend_name(
-                schema, scalar, catenate=False)
-            self.pgops.add(dbops.CreateEnum(
-                dbops.Enum(name=new_enum_name, values=enum_values)))
-            base = q(*new_enum_name)
-
-        else:
-            base = types.get_scalar_base(schema, scalar)
-
-            if self.is_sequence(schema, scalar):
-                seq_name = common.get_backend_name(
-                    schema, scalar, catenate=False, aspect='sequence')
-                self.pgops.add(dbops.CreateSequence(name=seq_name))
-
-            domain = dbops.Domain(name=new_domain_name, base=base)
-            self.pgops.add(dbops.CreateDomain(domain=domain))
-
-            default = self.get_resolved_attribute_value(
-                'default',
-                schema=schema,
-                context=context,
-            )
-            if (default is not None
-                    and not isinstance(default, s_expr.Expression)):
-                # We only care to support literal defaults here. Supporting
-                # defaults based on queries has no sense on the database
-                # level since the database forbids queries for DEFAULT and
-                # pre- calculating the value does not make sense either
-                # since the whole point of query defaults is for them to be
-                # dynamic.
-                self.pgops.add(
-                    dbops.AlterDomainAlterDefault(
-                        name=new_domain_name, default=default))
+        default = self.get_resolved_attribute_value(
+            'default',
+            schema=schema,
+            context=context,
+        )
+        self.pgops.add(self.create_scalar(scalar, default, schema, context))
 
         return schema
 
@@ -1988,7 +1998,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         composite_only: bool,
     ) -> Optional[Tuple[
         Tuple[so.Object, ...],
-        List[Tuple[s_props.Property, s_types.TypeShell]],
+        Dict[s_props.Property, s_types.TypeShell],
     ]]:
         """Find problematic references to this scalar type that need handled.
 
@@ -2034,6 +2044,7 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         seen_other = set()
 
         typ = self.scls
+        typs = [typ]
         # Do a worklist driven search for properties that refer to this scalar
         # through a collection type. We search backwards starting from
         # referring collection types or from all refs, depending on
@@ -2044,8 +2055,10 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             obj = wl.pop()
             if isinstance(obj, s_props.Property):
                 seen_props.add(obj)
-            elif isinstance(obj, s_scalars.ScalarType):
-                pass
+            elif isinstance(obj, s_scalars.ScalarType) and not composite_only:
+                wl.extend(schema.get_referrers(obj))
+                seen_other.add(obj)
+                typs.append(obj)
             elif isinstance(obj, s_types.Collection):
                 wl.extend(schema.get_referrers(obj))
             elif isinstance(obj, s_funcs.Parameter) and not composite_only:
@@ -2061,39 +2074,40 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         if not seen_props and not seen_other:
             return None
 
-        props = []
+        props = {}
         if seen_props:
-            # Find a concrete ancestor to substitute in.
-            if typ.is_enum(schema):
-                ancestor = schema.get(sn.QualName('std', 'str'))
-            else:
-                for ancestor in typ.get_ancestors(schema).objects(schema):
-                    if not ancestor.get_abstract(schema):
-                        break
+            type_substs = {}
+            for typ in typs:
+                # Find a concrete ancestor to substitute in.
+                if typ.is_enum(schema):
+                    ancestor = schema.get(sn.QualName('std', 'str'))
                 else:
-                    raise AssertionError("can't find concrete base for scalar")
-            replacement_shell = ancestor.as_shell(schema)
+                    for ancestor in typ.get_ancestors(schema).objects(schema):
+                        if not ancestor.get_abstract(schema):
+                            break
+                    else:
+                        raise AssertionError(
+                            "can't find concrete base for scalar")
+                type_substs[typ.get_name(schema)] = ancestor.as_shell(schema)
 
-            props = [
-                (
-                    prop,
-                    s_utils.type_shell_substitute(
-                        typ.get_name(schema),
-                        replacement_shell,
-                        prop.get_target(schema).as_shell(schema))
-                )
+            props = {
+                prop:
+                s_utils.type_shell_multi_substitute(
+                    type_substs,
+                    prop.get_target(schema).as_shell(schema))
                 for prop in seen_props
-            ]
+            }
 
-        other = sd.sort_by_cross_refs(schema, seen_other)
-        return other, props
+        objs = sd.sort_by_cross_refs(schema, seen_props | seen_other)
+
+        return objs, props
 
     def _undo_everything(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        other: Tuple[so.Object, ...],
-        props: List[Tuple[s_props.Property, s_types.TypeShell]],
+        objs: Tuple[so.Object, ...],
+        props: Dict[s_props.Property, s_types.TypeShell],
     ) -> s_schema.Schema:
         """Rewrite the type of everything that uses this scalar dangerously.
 
@@ -2102,19 +2116,27 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
         # First we need to strip out any default value that might reference
         # one of the functions we are going to delete.
-        cmd = sd.CommandGroup()
-        for prop, _ in props:
+        # We also create any new types, in this pass.
+        cmd = sd.DeltaRoot()
+        for prop, new_typ in props.items():
+            try:
+                cmd.add(new_typ.as_create_delta(schema))
+            except errors.UnsupportedFeatureError:
+                pass
+
             if prop.get_default(schema):
                 delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
                     schema, context, cmdtype=sd.AlterObject)
                 cmd_alter.set_attribute_value('default', None)
                 cmd.add(delta_alter)
 
+        cmd.apply(schema, context)
         acmd = CommandMeta.adapt(cmd)
         schema = acmd.apply(schema, context)
         self.pgops.update(acmd.get_subcommands())
 
-        for obj in other:
+        # Now process all the objects in the appropriate order
+        for obj in objs:
             if isinstance(obj, s_funcs.Function):
                 # Force function deletions at the SQL level without ever
                 # bothering to remove them from our schema.
@@ -2132,26 +2154,21 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
                     ConstraintCommand.delete_constraint(obj, schema, context))
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(DeleteIndex.delete_index(obj, schema, context))
+            elif isinstance(obj, s_scalars.ScalarType):
+                self.pgops.add(DeleteScalarType.delete_scalar(
+                    obj, schema, context))
+            elif isinstance(obj, s_props.Property):
+                new_typ = props[obj]
 
-        cmd = sd.DeltaRoot()
-        for prop, new_typ in props:
-            try:
-                cmd.add(new_typ.as_create_delta(schema))
-            except errors.UnsupportedFeatureError:
-                pass
+                delta_alter, cmd_alter, alter_context = obj.init_delta_branch(
+                    schema, context, cmdtype=sd.AlterObject)
+                cmd_alter.set_attribute_value('target', new_typ)
+                cmd_alter.set_attribute_value('default', None)
 
-            delta_alter, cmd_alter, alter_context = prop.init_delta_branch(
-                schema, context, cmdtype=sd.AlterObject)
-            cmd_alter.set_attribute_value('target', new_typ)
-            cmd_alter.set_attribute_value('default', None)
-            cmd.add(delta_alter)
-
-        cmd.apply(schema, context)
-
-        for sub in cmd.get_subcommands():
-            acmd = CommandMeta.adapt(sub)
-            schema = acmd.apply(schema, context)
-            self.pgops.add(acmd)
+                delta_alter.apply(schema, context)
+                acmd = CommandMeta.adapt(delta_alter)
+                schema = acmd.apply(schema, context)
+                self.pgops.add(acmd)
 
         return schema
 
@@ -2160,37 +2177,15 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
         schema: s_schema.Schema,
         orig_schema: s_schema.Schema,
         context: sd.CommandContext,
-        other: Tuple[so.Object, ...],
-        props: List[Tuple[s_props.Property, s_types.TypeShell]],
+        objs: Tuple[so.Object, ...],
+        props: Dict[s_props.Property, s_types.TypeShell],
     ) -> s_schema.Schema:
         """Restore the type of everything that uses this scalar dangerously.
 
         See _get_problematic_refs above for details.
         """
 
-        cmd = sd.DeltaRoot()
-
-        for prop, new_typ in props:
-            delta_alter, cmd_alter, _ = prop.init_delta_branch(
-                schema, context, cmdtype=sd.AlterObject)
-            cmd_alter.set_attribute_value(
-                'target', prop.get_target(orig_schema))
-            cmd.add_prerequisite(delta_alter)
-
-            rnew_typ = new_typ.resolve(schema)
-            if delete := rnew_typ.as_type_delete_if_dead(schema):
-                cmd.add_caused(delete)
-
-        # do an apply of the schema-level command to force it to canonicalize,
-        # which prunes out duplicate deletions
-        cmd.apply(schema, context)
-
-        for sub in cmd.get_subcommands():
-            acmd = CommandMeta.adapt(sub)
-            schema = acmd.apply(schema, context)
-            self.pgops.add(acmd)
-
-        for obj in reversed(other):
+        for obj in reversed(objs):
             if isinstance(obj, s_funcs.Function):
                 # Super hackily recreate the functions
                 fc = CreateFunction(classname=obj.get_name(schema))
@@ -2203,16 +2198,38 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             elif isinstance(obj, s_indexes.Index):
                 self.pgops.add(
                     CreateIndex.create_index(obj, orig_schema, context))
+            elif isinstance(obj, s_scalars.ScalarType):
+                self.pgops.add(
+                    CreateScalarType.create_scalar(
+                        obj, obj.get_default(schema), orig_schema, context))
+            elif isinstance(obj, s_props.Property):
+                new_typ = props[obj]
 
+                delta_alter, cmd_alter, _ = obj.init_delta_branch(
+                    schema, context, cmdtype=sd.AlterObject)
+                cmd_alter.set_attribute_value(
+                    'target', obj.get_target(orig_schema))
+
+                delta_alter.apply(schema, context)
+                acmd = CommandMeta.adapt(delta_alter)
+                schema = acmd.apply(schema, context)
+                self.pgops.add(acmd)
+
+        # Restore defaults and prune newly created types
         cmd = sd.DeltaRoot()
+        for prop, new_typ in props.items():
+            rnew_typ = new_typ.resolve(schema)
+            if delete := rnew_typ.as_type_delete_if_dead(schema):
+                cmd.add_caused(delete)
 
-        for prop, _ in props:
             delta_alter, cmd_alter, _ = prop.init_delta_branch(
                 schema, context, cmdtype=sd.AlterObject)
             cmd_alter.set_attribute_value(
                 'default', prop.get_default(orig_schema))
             cmd.add(delta_alter)
 
+        # do an apply of the schema-level command to force it to canonicalize,
+        # which prunes out duplicate deletions
         cmd.apply(schema, context)
 
         for sub in cmd.get_subcommands():
@@ -2262,8 +2279,8 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
             self.problematic_refs = self._get_problematic_refs(
                 schema, context, composite_only=not needs_recreate)
             if self.problematic_refs:
-                other, props = self.problematic_refs
-                schema = self._undo_everything(schema, context, other, props)
+                objs, props = self.problematic_refs
+                schema = self._undo_everything(schema, context, objs, props)
 
         if new_enum_values:
             type_name = common.get_backend_name(
@@ -2322,12 +2339,12 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
     ) -> s_schema.Schema:
         schema = super()._alter_finalize(schema, context)
         if self.problematic_refs:
-            other, props = self.problematic_refs
+            objs, props = self.problematic_refs
             schema = self._redo_everything(
                 schema,
                 context.current().original_schema,
                 context,
-                other,
+                objs,
                 props,
             )
 
@@ -2336,6 +2353,20 @@ class AlterScalarType(ScalarTypeMetaCommand, adapts=s_scalars.AlterScalarType):
 
 class DeleteScalarType(ScalarTypeMetaCommand,
                        adapts=s_scalars.DeleteScalarType):
+    @classmethod
+    def delete_scalar(cls, scalar, orig_schema, context):
+        old_domain_name = common.get_backend_name(
+            orig_schema, scalar, catenate=False)
+
+        if scalar.is_concrete_enum(orig_schema):
+            old_enum_name = common.get_backend_name(
+                orig_schema, scalar, catenate=False)
+            cond = dbops.EnumExists(old_enum_name)
+            return dbops.DropEnum(name=old_enum_name, conditions=[cond])
+        else:
+            cond = dbops.DomainExists(old_domain_name)
+            return dbops.DropDomain(name=old_domain_name, conditions=[cond])
+
     def apply(
         self,
         schema: s_schema.Schema,
@@ -2351,17 +2382,7 @@ class DeleteScalarType(ScalarTypeMetaCommand,
 
         ops = link.op.pgops if link else self.pgops
 
-        old_domain_name = common.get_backend_name(
-            orig_schema, scalar, catenate=False)
-
-        if scalar.is_enum(orig_schema):
-            old_enum_name = common.get_backend_name(
-                orig_schema, scalar, catenate=False)
-            cond = dbops.EnumExists(old_enum_name)
-            ops.add(dbops.DropEnum(name=old_enum_name, conditions=[cond]))
-        else:
-            cond = dbops.DomainExists(old_domain_name)
-            ops.add(dbops.DropDomain(name=old_domain_name, conditions=[cond]))
+        ops.add(self.delete_scalar(scalar, orig_schema, context))
 
         if self.is_sequence(orig_schema, scalar):
             seq_name = common.get_backend_name(

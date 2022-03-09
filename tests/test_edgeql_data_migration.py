@@ -33,7 +33,7 @@ from edb.testbase import server as tb
 from edb.tools import test
 
 
-class TestEdgeQLDataMigration(tb.DDLTestCase):
+class EdgeQLDataMigrationTestCase(tb.DDLTestCase):
     """Test that migrations preserve data under certain circumstances.
 
     Renaming, changing constraints, increasing cardinality should not
@@ -225,6 +225,8 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
                 'complete': True
             })
 
+
+class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
     async def test_edgeql_migration_simple_01(self):
         # Base case, ensuring a single SDL migration from a clean
         # state works.
@@ -10710,7 +10712,7 @@ class TestEdgeQLDataMigration(tb.DDLTestCase):
         ''')
 
 
-class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
+class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
     TRANSACTION_ISOLATION = False
 
     async def test_edgeql_migration_eq_collections_25(self):
@@ -10747,3 +10749,66 @@ class TestEdgeQLDataMigrationNonisolated(tb.DDLTestCase):
             await self.con.execute(r"""
                 DROP FUNCTION cleanup_06(a: int64)
             """)
+
+    async def test_edgeql_migration_enum_01(self):
+        # Test some enum stuff. This needs to be nonisolated because postgres
+        # won't let you *use* an enum until it has been committed!
+        await self.migrate('''
+            scalar type Status extending enum<pending, in_progress, finished>;
+            scalar type ImportStatus extending Status;
+            scalar type ImportAnalyticsStatus extending Status;
+
+            type Foo { property x -> ImportStatus };
+        ''')
+        await self.con.execute('''
+            with module test
+            insert Foo { x := 'pending' };
+        ''')
+
+        await self.migrate('''
+            scalar type Status extending enum<
+                pending, in_progress, finished, wontfix>;
+            scalar type ImportStatus extending Status;
+            scalar type ImportAnalyticsStatus extending Status;
+
+            type Foo { property x -> ImportStatus };
+            function f(x: Status) -> str USING (<str>x);
+        ''')
+
+        await self.migrate('''
+            scalar type Status extending enum<
+                pending, in_progress, finished, wontfix, again>;
+            scalar type ImportStatus extending Status;
+            scalar type ImportAnalyticsStatus extending Status;
+
+            type Foo { property x -> ImportStatus };
+            function f(x: Status) -> str USING (<str>x);
+        ''')
+
+        await self.assert_query_result(
+            r"""
+                with module test
+                select <ImportStatus>'wontfix'
+            """,
+            ['wontfix'],
+        )
+
+        await self.assert_query_result(
+            r"""
+                with module test
+                select f(<ImportStatus>'wontfix')
+            """,
+            ['wontfix'],
+        )
+
+        await self.migrate('''
+            scalar type Status extending enum<
+                pending, in_progress, wontfix, again>;
+            scalar type ImportStatus extending Status;
+            scalar type ImportAnalyticsStatus extending Status;
+
+            type Foo { property x -> ImportStatus };
+            function f(x: Status) -> str USING (<str>x);
+        ''')
+
+        await self.migrate('')
