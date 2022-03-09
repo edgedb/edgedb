@@ -239,70 +239,6 @@ def compile_filter_clause(
     return where_clause
 
 
-def _get_target_from_range(
-    target: pgast.BaseExpr, rvar: pgast.BaseRangeVar
-) -> Optional[pgast.BaseExpr]:
-    """Try to read a target out of a very simple rvar.
-
-    The goal here is to allow collapsing trivial pass-through subqueries.
-    In particular, given a target `foo.bar` and an rvar
-    `(SELECT <expr> as "bar") AS "foo"`, we produce <expr>.
-
-    We can also recursively handle the nested case.
-    """
-    if (
-        not isinstance(rvar, pgast.RangeSubselect)
-
-        # Check that the relation name matches the rvar
-        or not isinstance(target, pgast.ColumnRef)
-        or not target.name
-        or target.name[0] != rvar.alias.aliasname
-
-        # And that the rvar is a simple subquery with one target
-        # and at most one from clause
-        or not (subq := rvar.subquery)
-        or len(subq.target_list) != 1
-        or not isinstance(subq, pgast.SelectStmt)
-        or not astutils.select_is_simple(subq)
-        or len(subq.from_clause) > 1
-
-        # And that the one target matches
-        or not (inner_tgt := rvar.subquery.target_list[0])
-        or inner_tgt.name != target.name[1]
-    ):
-        return None
-
-    if subq.from_clause:
-        return _get_target_from_range(inner_tgt.val, subq.from_clause[0])
-    else:
-        return inner_tgt.val
-
-
-def collapse_query(query: pgast.Query) -> pgast.BaseExpr:
-    """Try to collapse trivial queries into simple expressions.
-
-    In particular, we want to transform
-    `(SELECT foo.bar FROM LATERAL (SELECT <expr> as "bar") AS "foo")`
-    into simply `<expr>`.
-    """
-    if not isinstance(query, pgast.SelectStmt):
-        return query
-
-    if (
-        not isinstance(query, pgast.SelectStmt)
-        or len(query.target_list) != 1
-        or len(query.from_clause) != 1
-    ):
-        return query
-
-    val = _get_target_from_range(
-        query.target_list[0].val, query.from_clause[0])
-    if val:
-        return val
-    else:
-        return query
-
-
 def compile_orderby_clause(
         ir_exprs: Sequence[irast.SortExpr], *,
         ctx: context.CompilerContextLevel) -> List[pgast.SortBy]:
@@ -320,7 +256,7 @@ def compile_orderby_clause(
             # pg apparently can't use indexes for ordering if the body
             # of an ORDER BY is a subquery, so try to collapse the query
             # into a simple expression.
-            value = collapse_query(subq)
+            value = astutils.collapse_query(subq)
 
             sortexpr = pgast.SortBy(
                 node=value,
