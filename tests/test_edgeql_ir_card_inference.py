@@ -931,3 +931,34 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         AT_MOST_ONE
         """
+
+    def test_edgeql_ir_card_inference_107(self):
+        """
+        WITH
+          __scope_0_Hero := DETACHED default::User
+        UPDATE __scope_0_Hero
+        FILTER (__scope_0_Hero.name = "Spider-Man")
+        SET {
+          name := ("The Amazing " ++ __scope_0_Hero.name)
+        }
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_108(self):
+        """
+        WITH
+          __scope_0_Hero := DETACHED default::User
+        SELECT __scope_0_Hero
+        FILTER (__scope_0_Hero.name = "Spider-Man")
+% OK %
+        AT_MOST_ONE
+        """
+
+    def test_edgeql_ir_card_inference_109(self):
+        """
+        select User
+        filter (detached (select User limit 1)).name = 'Alice'
+% OK %
+        MANY
+        """
