@@ -37,7 +37,7 @@ from edb.common import markup
 from .. import args as srvargs
 from . import amsg
 from . import pool as pool_mod
-from . import worker as worker_mod
+from . import worker_proc
 from . import state as state_mod
 
 
@@ -58,17 +58,18 @@ class PickledState(typing.NamedTuple):
     database_config: typing.Optional[bytes]
 
     def diff(self, other: PickledState):
-        return PickledState(
-            None
-            if self.user_schema is other.user_schema
-            else self.user_schema,
-            None
-            if self.reflection_cache is other.reflection_cache
-            else self.reflection_cache,
-            None
-            if self.database_config is other.database_config
-            else self.database_config,
-        )
+        # Compare this state with the other state, generate a new state with
+        # fields from this state which are different in the other state, while
+        # the identical fields are left None, so that we can send the minimum
+        # diff to the worker to update the changed fields only.
+        user_schema = reflection_cache = database_config = None
+        if self.user_schema is not other.user_schema:
+            user_schema = self.user_schema
+        if self.reflection_cache is not other.reflection_cache:
+            reflection_cache = self.reflection_cache
+        if self.database_config is not other.database_config:
+            database_config = self.database_config
+        return PickledState(user_schema, reflection_cache, database_config)
 
 
 class ClientSchema(typing.NamedTuple):
@@ -78,6 +79,11 @@ class ClientSchema(typing.NamedTuple):
     dropped_dbs: tuple
 
     def diff(self, other: ClientSchema):
+        # Compare this schema with the other schema, generate a new schema with
+        # fields from this schema which are different in the other schema,
+        # while the identical fields are left None, so that we can send the
+        # minimum diff to the worker to update the changed fields only.
+        # NOTE: this is a deep diff that compares all children fields.
         dropped_dbs = tuple(
             dbname for dbname in other.dbs if dbname not in self.dbs
         )
@@ -88,16 +94,12 @@ class ClientSchema(typing.NamedTuple):
                 dbs = dbs.set(dbname, state)
             elif state is not other_state:
                 dbs = dbs.set(dbname, state.diff(other_state))
-        return ClientSchema(
-            dbs,
-            None
-            if self.global_schema is other.global_schema
-            else self.global_schema,
-            None
-            if self.instance_config is other.instance_config
-            else self.instance_config,
-            dropped_dbs,
-        )
+        global_schema = instance_config = None
+        if self.global_schema is not other.global_schema:
+            global_schema = self.global_schema
+        if self.instance_config is not other.instance_config:
+            instance_config = self.instance_config
+        return ClientSchema(dbs, global_schema, instance_config, dropped_dbs)
 
 
 class Worker(pool_mod.Worker):
@@ -232,15 +234,13 @@ class MultiSchemaPool(pool_mod.FixedPool):
         if self._inited.is_set():
             logger.debug("New client %d connected.", client_id)
             if self._backend_runtime_params != backend_runtime_params:
-                raise RuntimeError(
-                    "Incompatible client: backend_runtime_params"
-                )
-            # if self._std_schema != std_schema:
-            #     raise RuntimeError("Incompatible client: std_schema")
-            # if self._refl_schema != refl_schema:
-            #     raise RuntimeError("Incompatible client: refl_schema")
+                raise state_mod.IncompatibleClient("backend_runtime_params")
+            if not self._std_schema.eq(std_schema):
+                raise state_mod.IncompatibleClient("std_schema")
+            if not self._refl_schema.eq(refl_schema):
+                raise state_mod.IncompatibleClient("refl_schema")
             if self._schema_class_layout != schema_class_layout:
-                raise RuntimeError("Incompatible client: schema_class_layout")
+                raise state_mod.IncompatibleClient("schema_class_layout")
         else:
             self._backend_runtime_params = backend_runtime_params
             self._std_schema = std_schema
@@ -402,13 +402,9 @@ class MultiSchemaPool(pool_mod.FixedPool):
                 condition=lambda w: (w._last_pickled_state == state_id)
             )
             if worker._last_pickled_state != state_id:
-                print('cache miss')
                 self._release_worker(worker)
                 raise state_mod.StateNotFound()
-            else:
-                print('cache hit')
         else:
-            print('no cache')
             worker = await self._acquire_worker()
         try:
             resp = await worker.call(
@@ -429,7 +425,7 @@ class MultiSchemaPool(pool_mod.FixedPool):
         finally:
             self._release_worker(worker)
 
-    async def call(self, protocol, req_id, msg):
+    async def handle_client_call(self, protocol, req_id, msg):
         client_id = protocol.client_id
         method_name, args = pickle.loads(msg)
         try:
@@ -451,7 +447,7 @@ class MultiSchemaPool(pool_mod.FixedPool):
             else:
                 pickled = await self._request(method_name, msg)
         except Exception as ex:
-            worker_mod.prepare_exception(ex)
+            worker_proc.prepare_exception(ex)
             if debug.flags.server:
                 markup.dump(ex)
             data = (1, ex, traceback.format_exc())
@@ -493,7 +489,9 @@ class CompilerServerProtocol(asyncio.Protocol):
         for msg in self._stream.feed_data(data):
             msgview = memoryview(msg)
             req_id = amsg._uint64_unpacker(msgview[:8])[0]
-            self._loop.create_task(self._pool.call(self, req_id, msgview[8:]))
+            self._loop.create_task(
+                self._pool.handle_client_call(self, req_id, msgview[8:])
+            )
 
     @property
     def client_id(self):
@@ -513,13 +511,13 @@ class CompilerServerProtocol(asyncio.Protocol):
         )
 
 
-async def server_main(socket_path, pool_size, cache_size):
+async def server_main(socket_path, pool_size, client_schema_cache_size):
     loop = asyncio.get_running_loop()
     pool = MultiSchemaPool(
         loop=loop,
         runstate_dir=os.path.dirname(socket_path),
         pool_size=pool_size,
-        cache_size=cache_size,
+        cache_size=client_schema_cache_size,
     )
     await pool.start()
     try:

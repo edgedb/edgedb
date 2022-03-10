@@ -976,7 +976,7 @@ class RemotePool(AbstractPool):
                 lambda: amsg.HubProtocol(
                     loop=self._loop,
                     on_pid=lambda *args: self._loop.create_task(
-                        self._connection_made(*args)
+                        self._connection_made(retry, *args)
                     ),
                     on_connection_lost=self._connection_lost,
                 ),
@@ -999,7 +999,9 @@ class RemotePool(AbstractPool):
             if worker.done():
                 (await worker).close()
 
-    async def _connection_made(self, protocol, transport, _pid, version):
+    async def _connection_made(
+        self, retry, protocol, transport, _pid, version
+    ):
         if self._worker is None:
             return
         try:
@@ -1012,12 +1014,22 @@ class RemotePool(AbstractPool):
                 '__init_server__',
                 init_args_pickled,
             )
-        except BaseException:
+        except state.IncompatibleClient as ex:
             transport.abort()
             if self._worker is not None:
-                await self.start(retry=True)
+                self._worker.set_exception(ex)
+                self._worker = None
+        except BaseException as ex:
+            transport.abort()
+            if self._worker is not None:
+                if retry:
+                    await self.start(retry=True)
+                else:
+                    self._worker.set_exception(ex)
+                    self._worker = None
         else:
-            self._worker.set_result(worker)
+            if self._worker is not None:
+                self._worker.set_result(worker)
 
     def _connection_lost(self, _pid):
         if self._worker is not None:

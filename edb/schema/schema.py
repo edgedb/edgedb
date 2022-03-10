@@ -493,6 +493,23 @@ class FlatSchema(Schema):
         self._refs_to = immu.Map()
         self._generation = 0
 
+    def eq(self, other: FlatSchema) -> bool:
+        if self._id_to_data != other._id_to_data:
+            return False
+        if self._id_to_type != other._id_to_type:
+            return False
+        if self._shortname_to_id != other._shortname_to_id:
+            return False
+        if self._name_to_id != other._name_to_id:
+            return False
+        if self._globalname_to_id != other._globalname_to_id:
+            return False
+        if self._refs_to != other._refs_to:
+            return False
+        if self._generation != other._generation:
+            return False
+        return True
+
     def _replace(
         self,
         *,

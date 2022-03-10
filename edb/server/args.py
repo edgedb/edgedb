@@ -630,11 +630,16 @@ _compiler_options = [
         type=int,
         callback=_validate_compiler_pool_size,
         default=compute_default_compiler_pool_size(),
+        help=f"Number of compiler worker processes. Defaults to "
+             f"{compute_default_compiler_pool_size()}.",
     ),
     click.option(
-        "--cache-size",
+        "--client-schema-cache-size",
         type=int,
         default=100,
+        help="Number of client schemas each worker could cache at most. The "
+             "compiler server is not affected by this setting, it keeps a "
+             "pickled copy of the client schema of all active clients."
     ),
     click.argument("socket_path"),
 ]
@@ -800,6 +805,9 @@ def parse_args(**kwargs: Any):
     )
     if kwargs['compiler_pool_size'] is None:
         if kwargs['compiler_pool_mode'] == CompilerPoolMode.Remote:
+            # this reflects to a local semaphore to control concurrency,
+            # 2 means this is a small EdgeDB instance that could only issue
+            # at max 2 concurrent compile requests at a time.
             kwargs['compiler_pool_size'] = 2
         else:
             kwargs['compiler_pool_size'] = compute_default_compiler_pool_size()
