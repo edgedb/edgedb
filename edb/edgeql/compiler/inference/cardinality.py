@@ -835,7 +835,7 @@ def _is_ptr_or_self_ref(
         return (
             isinstance(srccls, s_objtypes.ObjectType)
             and (
-                env.set_types[ir_set] == srccls
+                ir_expr.path_id == result_expr.path_id
                 or (
                     (rptr := ir_set.rptr) is not None
                     and isinstance(rptr.ptrref, irast.PointerRef)
@@ -888,7 +888,7 @@ def extract_filters(
                         _ptr = left_stype.getptr(schema, sn.UnqualName('id'))
                         ptrs.append(_ptr)
                     else:
-                        while env.set_types[left] != result_stype:
+                        while left.path_id != result_set.path_id:
                             assert left.rptr is not None
                             _ptr = env.schema.get(left.rptr.ptrref.name,
                                                   type=s_pointers.Pointer)
