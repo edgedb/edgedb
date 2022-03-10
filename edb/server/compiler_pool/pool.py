@@ -22,7 +22,6 @@ from typing import *  # NoQA
 
 import asyncio
 import functools
-import hashlib
 import logging
 import os
 import os.path
@@ -377,19 +376,24 @@ class AbstractPool:
                 system_config,
             )
 
-            units, state_ = await worker.call(
+            result = await worker.call(
                 'compile',
                 *preargs,
                 *compile_args,
                 sync_state=sync_state
             )
-            worker._last_pickled_state = state_
-            return units, state_
+            worker._last_pickled_state = result[1]
+            if len(result) == 2:
+                return *result, 0
+            else:
+                return result
 
         finally:
             self._release_worker(worker)
 
-    async def compile_in_tx(self, txid, pickled_state, *compile_args):
+    async def compile_in_tx(
+        self, txid, pickled_state, state_id, *compile_args
+    ):
         # When we compile a query, the compiler returns a tuple:
         # a QueryUnit and the state the compiler is in if it's in a
         # transaction.  The state contains the information about all savepoints
@@ -430,7 +434,7 @@ class AbstractPool:
                 *compile_args
             )
             worker._last_pickled_state = new_pickled_state
-            return units, new_pickled_state
+            return units, new_pickled_state, 0
 
         finally:
             # Put the worker at the end of the queue so that the chance
@@ -1029,12 +1033,15 @@ class RemotePool(AbstractPool):
             self._sync_lock.release()
         self._semaphore.release()
 
-    async def compile_in_tx(self, txid, pickled_state, *compile_args):
+    async def compile_in_tx(
+        self, txid, pickled_state, state_id, *compile_args
+    ):
         worker = await self._acquire_worker()
         try:
             return await worker.call(
                 'compile_in_tx',
-                hashlib.sha1(pickled_state).hexdigest(),
+                state.REUSE_LAST_STATE_MARKER,
+                state_id,
                 txid,
                 *compile_args
             )
@@ -1042,6 +1049,7 @@ class RemotePool(AbstractPool):
             return await worker.call(
                 'compile_in_tx',
                 pickled_state,
+                0,
                 txid,
                 *compile_args
             )

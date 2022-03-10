@@ -21,7 +21,6 @@ from __future__ import annotations
 import asyncio
 import collections
 import functools
-import hashlib
 import logging
 import os
 import pickle
@@ -43,7 +42,14 @@ from . import state as state_mod
 
 
 _client_id_seq = 0
+_tx_state_id_seq = 0
 logger = logging.getLogger("edb.server")
+
+
+def next_tx_state_id():
+    global _tx_state_id_seq
+    _tx_state_id_seq = (_tx_state_id_seq + 1) % (2 ** 63 - 1)
+    return _tx_state_id_seq
 
 
 class PickledState(typing.NamedTuple):
@@ -369,10 +375,10 @@ class MultiSchemaPool(pool_mod.FixedPool):
             if status == 0:
                 worker.set_client_schema(client_id, client_schema)
                 if method_name == "compile":
-                    if data[0][1]:
-                        worker._last_pickled_state = hashlib.sha1(
-                            data[0][1]
-                        ).hexdigest()
+                    units, new_pickled_state = data[0]
+                    if new_pickled_state:
+                        sid = worker._last_pickled_state = next_tx_state_id()
+                        resp = pickle.dumps((0, (*data[0], sid)), -1)
             elif status == 1:
                 exc, tb = data
                 if not isinstance(exc, state_mod.FailedStateSync):
@@ -389,19 +395,20 @@ class MultiSchemaPool(pool_mod.FixedPool):
             self._release_worker(worker)
 
     async def compile_in_tx(
-        self, pickled_state, txid, *compile_args, msg=None
+        self, pickled_state, state_id, txid, *compile_args, msg=None
     ):
-        if isinstance(pickled_state, str):
+        if pickled_state == state_mod.REUSE_LAST_STATE_MARKER:
             worker = await self._acquire_worker(
-                condition=lambda w: (w._last_pickled_state == pickled_state)
+                condition=lambda w: (w._last_pickled_state == state_id)
             )
-            if worker._last_pickled_state == pickled_state:
-                pickled_state = state_mod.REUSE_LAST_STATE_MARKER
-                msg = None
-            else:
+            if worker._last_pickled_state != state_id:
+                print('cache miss')
                 self._release_worker(worker)
                 raise state_mod.StateNotFound()
+            else:
+                print('cache hit')
         else:
+            print('no cache')
             worker = await self._acquire_worker()
         try:
             resp = await worker.call(
@@ -409,9 +416,8 @@ class MultiSchemaPool(pool_mod.FixedPool):
             )
             status, *data = pickle.loads(resp)
             if status == 0:
-                worker._last_pickled_state = hashlib.sha1(
-                    data[0][1]
-                ).hexdigest()
+                state_id = worker._last_pickled_state = next_tx_state_id()
+                resp = pickle.dumps((0, (*data[0], state_id)), -1)
             return resp
         finally:
             self._release_worker(worker, put_in_front=False)
@@ -494,6 +500,8 @@ class CompilerServerProtocol(asyncio.Protocol):
         return self._client_id
 
     def reply(self, req_id, resp):
+        if self._transport is None:
+            return
         self._transport.write(
             b"".join(
                 (

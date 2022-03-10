@@ -223,7 +223,7 @@ def compile(
     return units, pickled_state
 
 
-def compile_in_tx(cstate, *args, **kwargs):
+def compile_in_tx(cstate, _, *args, **kwargs):
     global LAST_STATE
     if cstate == state.REUSE_LAST_STATE_MARKER:
         cstate = LAST_STATE
