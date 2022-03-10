@@ -13,5 +13,6 @@ Deploying EdgeDB
     digitalocean
     fly_io
     gcp
+    heroku
     docker
     bare_metal
