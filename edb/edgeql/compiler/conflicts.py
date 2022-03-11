@@ -46,6 +46,34 @@ from . import setgen
 from . import typegen
 
 
+def _get_needed_ptrs(
+    subject_typ: s_objtypes.ObjectType,
+    obj_constrs: Sequence[s_constr.Constraint],
+    initial_ptrs: Iterable[str],
+    ctx: context.ContextLevel,
+) -> Tuple[Set[str], Dict[str, qlast.Expr]]:
+    needed_ptrs = set(initial_ptrs)
+    for constr in obj_constrs:
+        subjexpr = constr.get_subjectexpr(ctx.env.schema)
+        assert subjexpr
+        needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.qlast)
+
+    wl = list(needed_ptrs)
+    ptr_anchors = {}
+    while wl:
+        p = wl.pop()
+        ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
+        if expr := ptr.get_expr(ctx.env.schema):
+            assert isinstance(expr.qlast, qlast.Expr)
+            ptr_anchors[p] = expr.qlast
+            for ref in qlutils.find_subject_ptrs(expr.qlast):
+                if ref not in needed_ptrs:
+                    wl.append(ref)
+                    needed_ptrs.add(ref)
+
+    return needed_ptrs, ptr_anchors
+
+
 def _compile_conflict_select(
     stmt: irast.MutatingStmt,
     subject_typ: s_objtypes.ObjectType,
@@ -65,24 +93,9 @@ def _compile_conflict_select(
     `cnstrs` contains the constraints to consider.
     """
     # Find which pointers we need to grab
-    needed_ptrs = set(constrs)
-    for constr in obj_constrs:
-        subjexpr = constr.get_subjectexpr(ctx.env.schema)
-        assert subjexpr
-        needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.qlast)
-
-    wl = list(needed_ptrs)
-    ptr_anchors = {}
-    while wl:
-        p = wl.pop()
-        ptr = subject_typ.getptr(ctx.env.schema, s_name.UnqualName(p))
-        if expr := ptr.get_expr(ctx.env.schema):
-            assert isinstance(expr.qlast, qlast.Expr)
-            ptr_anchors[p] = expr.qlast
-            for ref in qlutils.find_subject_ptrs(expr.qlast):
-                if ref not in needed_ptrs:
-                    wl.append(ref)
-                    needed_ptrs.add(ref)
+    needed_ptrs, ptr_anchors = _get_needed_ptrs(
+        subject_typ, obj_constrs, constrs.keys(), ctx=ctx
+    )
 
     ctx.anchors = ctx.anchors.copy()
 
@@ -175,7 +188,6 @@ def _compile_conflict_select(
         s_utils.name_to_ast_ref(subject_typ.get_name(ctx.env.schema))])
 
     for constr in obj_constrs:
-        # TODO: learn to skip irrelevant ones for UPDATEs at least?
         subjectexpr = constr.get_subjectexpr(ctx.env.schema)
         assert subjectexpr and isinstance(subjectexpr.qlast, qlast.Expr)
         lhs = qlutils.subject_paths_substitute(subjectexpr.qlast, ptr_anchors)
@@ -515,16 +527,40 @@ def compile_inheritance_conflict_selects(
         if constr.issubclass(ctx.env.schema, exclusive)
     ]
 
+    shape_ptrs = set()
+    for elem, op in stmt.subject.shape:
+        assert elem.rptr is not None
+        if op != qlast.ShapeOp.MATERIALIZE:
+            shape_ptrs.add(elem.rptr.ptrref.shortname.name)
+
     # This is a little silly, but for *this* we need to do one per
     # constraint (so that we can properly identify which constraint
     # failed in the error messages)
     entries: List[Tuple[s_constr.Constraint, ConstraintPair]] = []
     for name, (ptr, ptr_constrs) in pointers.items():
         for ptr_constr in ptr_constrs:
-            if _constr_matters(ptr_constr, ctx):
+            # For updates, we only need to emit the check if we actually
+            # modify a pointer used by the constraint. For inserts, though
+            # everything must be in play, since constraints can depend on
+            # nonexistence also.
+            if (
+                _constr_matters(ptr_constr, ctx)
+                and (
+                    isinstance(stmt, irast.InsertStmt)
+                    or (_get_needed_ptrs(typ, (), [name], ctx)[0] & shape_ptrs)
+                )
+            ):
                 entries.append((ptr_constr, ({name: (ptr, [ptr_constr])}, [])))
     for obj_constr in obj_constrs:
-        if _constr_matters(obj_constr, ctx):
+        # See note above about needed ptrs check
+        if (
+            _constr_matters(obj_constr, ctx)
+            and (
+                isinstance(stmt, irast.InsertStmt)
+                or (_get_needed_ptrs(
+                    typ, [obj_constr], (), ctx)[0] & shape_ptrs)
+            )
+        ):
             entries.append((obj_constr, ({}, [obj_constr])))
 
     # For updates, we need to pull from the actual result overlay,
@@ -566,8 +602,6 @@ def compile_inheritance_conflict_checks(
         return None
 
     assert isinstance(subject_stype, s_objtypes.ObjectType)
-    # TODO: when the conflicting statement is an UPDATE, only
-    # look at things it updated
     modified_ancestors = set()
     base_object = ctx.env.schema.get(
         'std::BaseObject', type=s_objtypes.ObjectType)

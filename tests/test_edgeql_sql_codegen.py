@@ -151,3 +151,25 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             "exclusion_violation", sql,
             "update has unnecessary conflict check"
         )
+
+    SCHEMA_constraints = r'''
+        type Foo {
+            required property name -> str;
+            property foo -> str { constraint exclusive; }
+            property bar -> str;
+            constraint exclusive on (.bar);
+            property baz -> str;
+        }
+        type Bar extending Foo;
+    '''
+
+    def test_codegen_update_no_conflict_02(self):
+        # Should have no conflict because baz has no exclusive constraints
+        sql = self._compile('''
+            update constraints::Foo set { baz := '!' }
+        ''')
+
+        self.assertNotIn(
+            "exclusion_violation", sql,
+            "update has unnecessary conflict check"
+        )
