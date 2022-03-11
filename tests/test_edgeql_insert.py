@@ -4374,6 +4374,27 @@ class TestInsert(tb.QueryTestCase):
                 "name violates exclusivity constraint"):
             await self.con.execute(query)
 
+    async def test_edgeql_insert_cross_type_conflict_18(self):
+        await self.con.execute('''
+            create type Foo {
+                create property foo -> str {
+                    create constraint exclusive on (__subject__ ?? '');
+                };
+                create property bar -> str;
+                create constraint exclusive on (.bar ?? '');
+            };
+            create type Bar extending Foo;
+        ''')
+
+        query = r'''
+            SELECT ((insert Foo), (insert Bar));
+        '''
+
+        with self.assertRaisesRegex(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute(query)
+
     async def test_edgeql_insert_update_cross_type_conflict_01a(self):
         await self.con.execute('''
             INSERT DerivedPerson { name := 'Bar' };
