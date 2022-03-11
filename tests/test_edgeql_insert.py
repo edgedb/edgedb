@@ -4457,7 +4457,7 @@ class TestInsert(tb.QueryTestCase):
         # This should be fine.
         await self.con.execute(query)
 
-    async def test_edgeql_insert_update_cross_type_conflict_05(self):
+    async def test_edgeql_insert_update_cross_type_conflict_05a(self):
         # this isn't really an insert test
         await self.con.execute('''
             INSERT Person { name := 'Foo' };
@@ -4466,6 +4466,22 @@ class TestInsert(tb.QueryTestCase):
 
         query = r'''
             UPDATE Person FILTER true SET { name := "!" };
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_05b(self):
+        # this isn't really an insert test
+        await self.con.execute('''
+            INSERT Person { name := 'Foo' };
+            INSERT DerivedPerson { name := 'Bar' };
+        ''')
+
+        query = r'''
+            WITH P := Person
+            UPDATE P FILTER true SET { name := "!" };
         '''
 
         with self.assertRaisesRegex(edgedb.ConstraintViolationError,

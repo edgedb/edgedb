@@ -572,6 +572,8 @@ def compile_inheritance_conflict_checks(
     base_object = ctx.env.schema.get(
         'std::BaseObject', type=s_objtypes.ObjectType)
 
+    subject_stype = subject_stype.get_nearest_non_derived_parent(
+        ctx.env.schema)
     subject_stypes = [subject_stype]
     # For updates, we need to also consider all descendants, because
     # those could also have interesting constraints of their own.
