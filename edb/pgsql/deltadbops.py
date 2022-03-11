@@ -348,17 +348,13 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
 
         self._constraint = constraint
 
-    def create_constr_trigger(self, table_name, constraint, proc_name):
-        cmds = []
-
+    def _get_triggers(self, table_name, constraint, proc_name='null'):
         cname = constraint.raw_constraint_name()
 
         ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
         ins_trigger = dbops.Trigger(
             name=ins_trigger_name, table_name=table_name, events=('insert', ),
             procedure=proc_name, is_constraint=True, inherit=True)
-        cr_ins_trigger = dbops.CreateTrigger(ins_trigger)
-        cmds.append(cr_ins_trigger)
 
         upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
         condition = constraint.get_trigger_condition()
@@ -367,29 +363,23 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
             name=upd_trigger_name, table_name=table_name, events=('update', ),
             procedure=proc_name, condition=condition, is_constraint=True,
             inherit=True)
-        cr_upd_trigger = dbops.CreateTrigger(upd_trigger)
-        cmds.append(cr_upd_trigger)
 
-        return cmds
+        return ins_trigger, upd_trigger
+
+    def create_constr_trigger(self, table_name, constraint, proc_name):
+        ins_trigger, upd_trigger = self._get_triggers(
+            table_name, constraint, proc_name)
+
+        return [
+            dbops.CreateTrigger(ins_trigger), dbops.CreateTrigger(upd_trigger)
+        ]
 
     def drop_constr_trigger(self, table_name, constraint):
-        cname = constraint.raw_constraint_name()
+        ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
 
-        ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
-        ins_trigger = dbops.Trigger(
-            name=ins_trigger_name, table_name=table_name, events=('insert', ),
-            procedure='null', is_constraint=True, inherit=True)
-
-        drop_ins_trigger = dbops.DropTrigger(ins_trigger)
-
-        upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
-        upd_trigger = dbops.Trigger(
-            name=upd_trigger_name, table_name=table_name, events=('update', ),
-            procedure='null', is_constraint=True, inherit=True)
-
-        drop_upd_trigger = dbops.DropTrigger(upd_trigger)
-
-        return [drop_ins_trigger, drop_upd_trigger]
+        return [
+            dbops.DropTrigger(ins_trigger), dbops.DropTrigger(upd_trigger)
+        ]
 
     def create_constr_trigger_function(self, constraint):
         proc_name = constraint.get_trigger_procname()
