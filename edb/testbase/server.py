@@ -1315,9 +1315,8 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
     default_args.update(conn_args)
 
     try:
-        admin_conn = edgedb.create_async_client(
+        admin_conn = await tconn.async_connect_test_client(
             database=edgedb_defines.EDGEDB_SUPERUSER_DB,
-            concurrency=1,
             **default_args)
     except Exception as ex:
         raise RuntimeError(
@@ -1338,9 +1337,11 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
     finally:
         await admin_conn.aclose()
 
-    dbconn = await edgedb.async_connect(database=dbname, **default_args)
+    dbconn = await tconn.async_connect_test_client(
+        database=dbname, **default_args
+    )
     try:
-        async for tx in dbconn.transaction():
+        async for tx in dbconn.retrying_transaction():
             async with tx:
                 await dbconn.execute(setup_script)
     except Exception as ex:
@@ -1394,7 +1395,7 @@ class _EdgeDBServerData(NamedTuple):
     def call_system_api(self, path: str):
         return _call_system_api(self.host, self.port, path)
 
-    async def connect(self, **kwargs: Any) -> edgedb.AsyncIOConnection:
+    async def connect(self, **kwargs: Any) -> tconn.Connection:
         conn_args = self.get_connect_args(**kwargs)
         return await tconn.async_connect_test_client(**conn_args)
 
@@ -1415,7 +1416,7 @@ class _EdgeDBServer:
         bind_addrs: Tuple[str, ...] = ('localhost',),
         bootstrap_command: Optional[str],
         auto_shutdown: bool,
-        adjacent_to: Optional[edgedb.AsyncIOConnection],
+        adjacent_to: Optional[tconn.Connection],
         max_allowed_connections: Optional[int],
         compiler_pool_size: int,
         debug: bool,
@@ -1703,7 +1704,7 @@ def start_edgedb_server(
     bootstrap_command: Optional[str]=None,
     max_allowed_connections: Optional[int]=10,
     compiler_pool_size: int=2,
-    adjacent_to: Optional[edgedb.AsyncIOConnection]=None,
+    adjacent_to: Optional[tconn.Connection]=None,
     debug: bool=False,
     backend_dsn: Optional[str] = None,
     runstate_dir: Optional[str] = None,

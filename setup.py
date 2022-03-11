@@ -46,7 +46,7 @@ CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
 
 # Dependencies needed both at build- and run-time
 COMMON_DEPS = [
-    'edgedb==0.18.1',
+    'edgedb==0.22.0',
     'parsing~=2.0',
 ]
 
@@ -94,7 +94,7 @@ TEST_DEPS = [
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
     'types-click~=7.1',
-    'types-docutils~=0.17.0',
+    'types-docutils~=0.17.0,<0.17.6',  # incomplete nodes.document.__init__
     'types-Jinja2~=2.11',
     'types-MarkupSafe~=1.1',
     'types-pkg-resources~=0.1.3',
