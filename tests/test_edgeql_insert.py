@@ -4457,7 +4457,7 @@ class TestInsert(tb.QueryTestCase):
         # This should be fine.
         await self.con.execute(query)
 
-    async def test_edgeql_insert_update_cross_type_conflict_05(self):
+    async def test_edgeql_insert_update_cross_type_conflict_05a(self):
         # this isn't really an insert test
         await self.con.execute('''
             INSERT Person { name := 'Foo' };
@@ -4466,6 +4466,22 @@ class TestInsert(tb.QueryTestCase):
 
         query = r'''
             UPDATE Person FILTER true SET { name := "!" };
+        '''
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "name violates exclusivity constraint"):
+            await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_05b(self):
+        # this isn't really an insert test
+        await self.con.execute('''
+            INSERT Person { name := 'Foo' };
+            INSERT DerivedPerson { name := 'Bar' };
+        ''')
+
+        query = r'''
+            WITH P := Person
+            UPDATE P FILTER true SET { name := "!" };
         '''
 
         with self.assertRaisesRegex(edgedb.ConstraintViolationError,
@@ -4720,6 +4736,34 @@ class TestInsert(tb.QueryTestCase):
 
         # now it should be fine
         await self.con.execute(query)
+
+    async def test_edgeql_insert_update_cross_type_conflict_13(self):
+        # ... make sure we don't try enforcing on non-exclusive constraints
+        await self.con.execute('''
+            CREATE TYPE Foo {
+                CREATE REQUIRED PROPERTY name -> str;
+                CREATE REQUIRED PROPERTY x -> int64;
+                CREATE CONSTRAINT expression on ((.x >= 0));
+            };
+            INSERT Foo { name := "bar", x := 1 };
+            INSERT Foo { name := "baz", x := 2 };
+        ''')
+
+        query1 = r'''
+            UPDATE Foo FILTER true SET { name := .name };
+        '''
+        query2 = r'''
+            UPDATE Foo FILTER true SET { x := .x + 1 };
+        '''
+
+        await self.con.execute(query1)
+        await self.con.execute(query2)
+
+        await self.con.execute('''
+            CREATE TYPE Bar EXTENDING Foo;
+        ''')
+        await self.con.execute(query1)
+        await self.con.execute(query2)
 
     async def test_edgeql_insert_and_update_01(self):
         # INSERTing something that would violate a constraint while
