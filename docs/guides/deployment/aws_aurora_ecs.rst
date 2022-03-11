@@ -87,7 +87,7 @@ your terminal:
    /ec2/v2/home#NIC:search=ec2-security-group
 
 
-.. collapsible::
+.. edb-collapsed::
 
 Manual Install with CLI
 =======================
@@ -517,7 +517,7 @@ Create an RDS Cluster
           --secret-string "$PASSWORD" \
       )"
 
-    $ DB_CLUSTER_IDENTIFIER="${NAME}-postgres-cluster" 
+    $ DB_CLUSTER_IDENTIFIER="${NAME}-postgres-cluster"
 
     $ DB_CLUSTER_ADDRESS="$( \
         aws rds create-db-cluster \

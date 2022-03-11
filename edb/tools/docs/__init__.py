@@ -75,6 +75,6 @@ def setup(app):
     sdl.setup_domain(app)
     graphql.setup_domain(app)
 
-    app.add_directive('collapsible', Collapsible)
+    app.add_directive('edb-collapsed', Collapsible)
 
     app.add_transform(ProhibitedNodeTransform)
