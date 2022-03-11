@@ -578,11 +578,18 @@ def compile_inheritance_conflict_checks(
     # For updates, we need to also consider all descendants, because
     # those could also have interesting constraints of their own.
     if isinstance(stmt, irast.UpdateStmt):
-        subject_stypes.extend(subject_stype.descendants(ctx.env.schema))
+        subject_stypes.extend(
+            desc for desc in subject_stype.descendants(ctx.env.schema)
+            if not desc.is_view(ctx.env.schema)
+        )
 
-    # N.B that for updates, the update itself will be in dml_stmts,
-    # since an update can conflict with itself if there are subtypes.
     for ir in ctx.env.dml_stmts:
+        # N.B that for updates, the update itself will be in dml_stmts,
+        # since an update can conflict with itself if there are subtypes.
+        # If there aren't subtypes, though, skip it.
+        if ir is stmt and len(subject_stypes) == 1:
+            continue
+
         typ = setgen.get_set_type(ir.subject, ctx=ctx)
         assert isinstance(typ, s_objtypes.ObjectType)
         typ = typ.get_nearest_non_derived_parent(ctx.env.schema)
@@ -590,16 +597,13 @@ def compile_inheritance_conflict_checks(
         typs = [typ]
         # As mentioned above, need to consider descendants of updates
         if isinstance(ir, irast.UpdateStmt):
-            typs.extend(typ.descendants(ctx.env.schema))
+            typs.extend(
+                desc for desc in typ.descendants(ctx.env.schema)
+                if not desc.is_view(ctx.env.schema)
+            )
 
         for typ in typs:
-            if typ.is_view(ctx.env.schema):
-                continue
-
             for subject_stype in subject_stypes:
-                if subject_stype.is_view(ctx.env.schema):
-                    continue
-
                 # If the earlier DML has a shared ancestor that isn't
                 # BaseObject and isn't (if it's an insert) the same type,
                 # then we need to see if we need a conflict select
