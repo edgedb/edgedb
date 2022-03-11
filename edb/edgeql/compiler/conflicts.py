@@ -508,8 +508,12 @@ def compile_inheritance_conflict_selects(
     beginning at the start of the statement.
     """
     pointers = _get_exclusive_ptr_constraints(typ, ctx=ctx)
-    obj_constrs = typ.get_constraints(ctx.env.schema).objects(
-        ctx.env.schema)
+    exclusive = ctx.env.schema.get('std::exclusive', type=s_constr.Constraint)
+    obj_constrs = [
+        constr for constr in
+        typ.get_constraints(ctx.env.schema).objects(ctx.env.schema)
+        if constr.issubclass(ctx.env.schema, exclusive)
+    ]
 
     # This is a little silly, but for *this* we need to do one per
     # constraint (so that we can properly identify which constraint
@@ -568,6 +572,8 @@ def compile_inheritance_conflict_checks(
     base_object = ctx.env.schema.get(
         'std::BaseObject', type=s_objtypes.ObjectType)
 
+    subject_stype = subject_stype.get_nearest_non_derived_parent(
+        ctx.env.schema)
     subject_stypes = [subject_stype]
     # For updates, we need to also consider all descendants, because
     # those could also have interesting constraints of their own.
