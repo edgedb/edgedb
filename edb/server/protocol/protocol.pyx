@@ -33,6 +33,7 @@ from edb.common import debug
 from edb.common import markup
 
 from edb.graphql import extension as graphql_ext
+from edb.wasm import wasm_ext
 
 from edb.server import args as srvargs
 from edb.server.protocol cimport binary
@@ -63,13 +64,17 @@ cdef class HttpRequest:
 
     def __cinit__(self):
         self.body = b''
+        self.headers = []
 
 
 cdef class HttpResponse:
 
     def __cinit__(self):
         self.status = HTTPStatus.OK
+
+        # TODO(tailhook) maybe None is better? This is kept for backcompat
         self.content_type = b'text/plain'
+
         self.custom_headers = {}
         self.body = b''
         self.close_connection = False
@@ -185,9 +190,11 @@ cdef class HttpProtocol:
             self.unhandled_exception(ex)
 
     def on_url(self, url: bytes):
+        self.current_request.uri = url
         self.current_request.url = httptools.parse_url(url)
 
     def on_header(self, name: bytes, value: bytes):
+        self.current_request.headers.append((name, value))
         name = name.lower()
         if name == b'content-type':
             self.current_request.content_type = value
@@ -265,9 +272,12 @@ cdef class HttpProtocol:
             return
         data = [
             b'HTTP/', req_version, b' ', resp_status, b'\r\n',
-            b'Content-Type: ', content_type, b'\r\n',
             b'Content-Length: ', f'{len(body)}'.encode(), b'\r\n',
         ]
+
+        # no content-type might be useful for 201 replies
+        if content_type is not None:
+            data.extend([b'Content-Type: ', content_type, b'\r\n'])
 
         for key, value in custom_headers.items():
             data.append(f'{key}: {value}\r\n'.encode())
@@ -421,8 +431,11 @@ cdef class HttpProtocol:
         if len(path_parts) >= 3 and path_parts[0] == 'db':
             root, dbname, extname, *args = path_parts
             db = self.server.maybe_get_db(dbname=dbname)
+
             if extname == 'edgeql':
                 extname = 'edgeql_http'
+            elif extname == 'wasm':
+                extname = 'webassembly'
 
             if db is not None and extname in db.extensions:
                 if extname == 'graphql':
@@ -437,6 +450,11 @@ cdef class HttpProtocol:
                     return
                 elif extname == 'edgeql_http':
                     await edgeql_ext.handle_request(
+                        request, response, db, args, self.server
+                    )
+                    return
+                elif extname == 'webassembly':
+                    await wasm_ext.handle_request(
                         request, response, db, args, self.server
                     )
                     return

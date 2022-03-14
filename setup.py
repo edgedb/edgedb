@@ -118,6 +118,10 @@ EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
 EDGEDBCLI_COMMIT = 'master'
 
+EDGEDBWASM_REPO = 'https://github.com/edgedb/edgedb-wasm'
+# This can be a branch, tag, or commit
+EDGEDBWASM_COMMIT = 'main'
+
 EXTRA_DEPS = {
     'test': TEST_DEPS,
     'docs': DOCS_DEPS,
@@ -373,9 +377,9 @@ def _check_rust():
             f'edgedb from source (see https://rustup.rs/)')
 
 
-def _get_edgedbcli_rev(name):
+def _get_repo_rev(repo, branch):
     output = subprocess.check_output(
-        ['git', 'ls-remote', EDGEDBCLI_REPO, name],
+        ['git', 'ls-remote', repo, branch],
         universal_newlines=True,
     ).strip()
     if not output:
@@ -407,7 +411,7 @@ def _compile_cli(build_base, build_temp):
     # The name can be a branch or tag, so we attempt to look it up
     # with ls-remote. If we don't find anything, we assume it's a
     # commit hash.
-    git_rev = _get_edgedbcli_rev(git_name)
+    git_rev = _get_repo_rev(EDGEDBCLI_REPO, git_name)
     if not git_rev:
         git_rev = git_name
 
@@ -437,6 +441,51 @@ def _compile_cli(build_base, build_temp):
 
     shutil.copy(
         rust_root / 'bin' / 'edgedb',
+        cli_dest,
+    )
+
+
+def _compile_wasm(build_base, build_temp):
+    _check_rust()
+    rust_root = build_base / 'wasm'
+    env = dict(os.environ)
+    env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'wasm')
+    git_name = env.get("EDGEDBWASM_GIT_REV")
+    if not git_name:
+        git_name = EDGEDBWASM_COMMIT
+    # The name can be a branch or tag, so we attempt to look it up
+    # with ls-remote. If we don't find anything, we assume it's a
+    # commit hash.
+    git_rev = _get_repo_rev(EDGEDBWASM_REPO, git_name)
+    if not git_rev:
+        git_rev = git_name
+
+    subprocess.run(
+        [
+            'cargo', 'install',
+            '--verbose', '--verbose',
+            '--git', EDGEDBWASM_REPO,
+            '--rev', git_rev,
+            '--bin', 'edgedb-wasm-server',
+            '--root', rust_root,
+            '--locked',
+            '--debug',
+            'edgedb-wasm-server',
+        ],
+        env=env,
+        check=True,
+    )
+
+    cli_dest = ROOT_PATH / 'edb' / 'wasm' / 'edgedb-wasm-server'
+    # Delete the target first, to avoid "Text file busy" errors during
+    # the copy if the CLI is currently running.
+    try:
+        cli_dest.unlink()
+    except FileNotFoundError:
+        pass
+
+    shutil.copy(
+        rust_root / 'bin' / 'edgedb-wasm-server',
         cli_dest,
     )
 
@@ -558,6 +607,8 @@ class develop(setuptools_develop.develop):
         patched_scripts.append('edgedb = edb.cli:rustcli')
         self.distribution.entry_points['console_scripts'] = patched_scripts
 
+        _compile_wasm(build_base, build_temp)
+
         super().run(*args, **kwargs)
 
         _compile_parsers(build_base / 'lib', inplace=True)
@@ -570,8 +621,8 @@ class ci_helper(setuptools.Command):
     description = "echo specified hash or build info for CI"
     user_options = [
         ('type=', None,
-         'one of: cli, rust, ext, parsers, postgres, bootstrap, '
-         'build_temp, build_lib'),
+         'one of: cli, wasm, rust, ext, parsers, postgres, bootstrap, '
+         'build_temp, build_lib, wasm-test'),
     ]
 
     def run(self):
@@ -620,7 +671,20 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(ext_hash).decode())
 
         elif self.type == 'cli':
-            print(_get_edgedbcli_rev(EDGEDBCLI_COMMIT) or EDGEDBCLI_COMMIT)
+            print(_get_repo_rev(EDGEDBCLI_REPO, EDGEDBCLI_COMMIT)
+                  or EDGEDBCLI_COMMIT)
+
+        elif self.type == 'wasm':
+            print(_get_repo_rev(EDGEDBWASM_REPO, EDGEDBWASM_COMMIT)
+                  or EDGEDBWASM_COMMIT)
+
+        elif self.type == 'wasm-test':
+            rust_hash = hash_dirs([
+                (pkg_dir / '../tests/wasm1', '.rs'),
+            ], extra_files=[
+                pkg_dir / '../tests/wasm1/Cargo.toml',
+            ])
+            print(binascii.hexlify(rust_hash).decode())
 
         elif self.type == 'build_temp':
             print(pathlib.Path(build.build_temp).resolve())
@@ -631,8 +695,8 @@ class ci_helper(setuptools.Command):
         else:
             raise RuntimeError(
                 f'Illegal --type={self.type}; can only be: '
-                'cli, rust, ext, postgres, bootstrap, parsers,'
-                'build_temp or build_lib'
+                'cli, wasm, rust, ext, postgres, bootstrap, parsers,'
+                'build_temp, build_lib or wasm-test'
             )
 
     def initialize_options(self):
@@ -786,6 +850,25 @@ class build_cli(setuptools.Command):
         )
 
 
+class build_wasm(setuptools.Command):
+
+    description = "build the EdgeDB WebAssembly Server"
+    user_options: List[str] = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self, *args, **kwargs):
+        build = self.get_finalized_command('build')
+        _compile_wasm(
+            pathlib.Path(build.build_base).resolve(),
+            pathlib.Path(build.build_temp).resolve(),
+        )
+
+
 class build_ui(setuptools.Command):
 
     description = "build EdgeDB UI"
@@ -844,6 +927,7 @@ COMMAND_CLASSES = {
     'develop': develop,
     'build_postgres': build_postgres,
     'build_cli': build_cli,
+    'build_wasm': build_wasm,
     'build_parsers': build_parsers,
     'build_ui': build_ui,
     'ci_helper': ci_helper,

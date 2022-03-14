@@ -1,0 +1,14 @@
+[package]
+name = "edgedb-wasm-test1"
+version = "0.1.0"
+edition = "2021"
+license = "MIT/Apache-2.0"
+description = """
+    Minimal example app for EdgeDB WebAssembly SDK
+"""
+authors = ["MagicStack Inc. <hello@magic.io>"]
+publish = false
+
+[dependencies]
+edgedb-sdk = { git="https://github.com/edgedb/edgedb-wasm" }
+once_cell = "1.9.0"

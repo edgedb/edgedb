@@ -29,6 +29,7 @@ import ipaddress
 import json
 import logging
 import os
+import pathlib
 import pickle
 import socket
 import ssl
@@ -63,6 +64,8 @@ from edb.server.protocol import binary  # type: ignore
 from edb.server import metrics
 from edb.server import pgcon
 from edb.server.pgcon import errors as pgcon_errors
+
+from edb.wasm import server as wasm
 
 from . import dbview
 
@@ -121,6 +124,8 @@ class Server(ha_base.ClusterProtocol):
     _binary_conns: collections.OrderedDict[binary.EdgeConnection, bool]
     _idle_gc_handler: asyncio.TimerHandle | None = None
     _session_idle_timeout: int | None = None
+
+    _wasm_server: wasm.WasmServer | None = None
 
     def __init__(
         self,
@@ -259,6 +264,21 @@ class Server(ha_base.ClusterProtocol):
         self._session_idle_timeout = None
 
         self._admin_ui = admin_ui
+
+    def _ensure_wasm(self, dbname: str):
+        if self._wasm_server is None:
+            runstate_dir = pathlib.Path(self._runstate_dir)
+            port = self.get_listen_port()
+            self._wasm_server = wasm.WasmServer(
+                self,
+                listen_sock=runstate_dir / '.s.wasm_ext',
+                edgedb_sock=runstate_dir / f'.s.EDGEDB.admin.{port}',
+            )
+        self._wasm_server.set_dir(
+            dbname,
+            # TODO(tailhook) is dbname always without slashes?
+            pathlib.Path(self._cluster.get_data_dir()) / 'wasm' / dbname,
+        )
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -1783,6 +1803,9 @@ class Server(ha_base.ClusterProtocol):
         obj['databases'] = dbs
 
         return obj
+
+    def wasm_socket_path(self) -> str:
+        return os.path.join(self._runstate_dir, '.s.wasm_ext')
 
 
 def _cleanup_wildcard_addrs(
