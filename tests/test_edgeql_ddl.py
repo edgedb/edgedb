@@ -8412,6 +8412,239 @@ type default::Foo {
                 INSERT Foo { x := ('1', '2') };
             """)
 
+    async def test_edgeql_ddl_constraint_check_01a(self):
+        await self.con.execute(r"""
+            create type Foo {
+                create property foo -> str;
+            };
+            create type Bar extending Foo;
+
+            insert Foo { foo := "x" };
+            insert Bar { foo := "x" };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'foo violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Foo alter property foo {
+                    create constraint exclusive
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_check_01b(self):
+        await self.con.execute(r"""
+            create type Foo {
+                create property foo -> str {create constraint exclusive;};
+            };
+            create type Bar {
+                create property foo -> str {create constraint exclusive;};
+            };
+
+            insert Foo { foo := "x" };
+            insert Bar { foo := "x" };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'foo violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Bar extending Foo;
+            """)
+
+    async def test_edgeql_ddl_constraint_check_02a(self):
+        await self.con.execute(r"""
+            create type Foo {
+                create property foo -> str;
+            };
+            create type Bar extending Foo;
+
+            insert Foo { foo := "x" };
+            insert Bar { foo := "x" };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Foo {
+                    create constraint exclusive on (.foo);
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_check_02b(self):
+        await self.con.execute(r"""
+            create type Foo {
+                create property foo -> str;
+                create constraint exclusive on (.foo);
+            };
+            create type Bar {
+                CREATE PROPERTY foo -> str;
+                create constraint exclusive on (.foo);
+            };
+
+            insert Foo { foo := "x" };
+            insert Bar { foo := "x" };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Bar extending Foo;
+            """)
+
+    async def test_edgeql_ddl_constraint_check_03a(self):
+        await self.con.execute(r"""
+            create type Foo {
+                create multi property foo -> str;
+            };
+            create type Bar extending Foo;
+
+            insert Foo { foo := "x" };
+            insert Bar { foo := "x" };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'foo violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Foo alter property foo {
+                    create constraint exclusive
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_check_03b(self):
+        await self.con.execute(r"""
+            create type Foo {
+                create multi property foo -> str {create constraint exclusive;}
+            };
+            create type Bar {
+                create multi property foo -> str {create constraint exclusive;}
+            };
+
+            insert Foo { foo := "x" };
+            insert Bar { foo := "x" };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'foo violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Bar extending Foo;
+            """)
+
+    async def test_edgeql_ddl_constraint_check_04(self):
+        await self.con.execute(r"""
+            create type Tgt;
+            create type Foo {
+                create link foo -> Tgt
+            };
+            create type Bar extending Foo;
+
+            insert Tgt;
+            insert Foo { foo := assert_single(Tgt) };
+            insert Bar { foo := assert_single(Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'foo violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Foo alter link foo {
+                    create constraint exclusive
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_check_05(self):
+        await self.con.execute(r"""
+            create type Tgt;
+            create type Foo {
+                create multi link foo -> Tgt { create property x -> str; }
+            };
+            create type Bar extending Foo;
+
+            insert Tgt;
+            insert Foo { foo := assert_single(Tgt) };
+            insert Bar { foo := assert_single(Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'foo violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Foo alter link foo {
+                    create constraint exclusive
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_check_06(self):
+        await self.con.execute(r"""
+            create type Tgt;
+            create type Foo {
+                create link foo -> Tgt { create property x -> str; }
+            };
+            create type Bar extending Foo;
+
+            insert Tgt;
+            insert Foo { foo := assert_single(Tgt { @x := "foo" }) };
+            insert Bar { foo := assert_single(Tgt { @x := "foo" }) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'x violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Foo alter link foo alter property x {
+                    create constraint exclusive
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_check_07(self):
+        await self.con.execute(r"""
+            create type Tgt;
+            create type Foo {
+                create link foo -> Tgt { create property x -> str; }
+            };
+            create type Bar extending Foo;
+
+            insert Tgt;
+            insert Foo { foo := assert_single(Tgt { @x := "foo" }) };
+            insert Bar { foo := assert_single(Tgt { @x := "foo" }) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'foo violates exclusivity constraint'):
+            await self.con.execute("""
+                alter type Foo alter link foo  {
+                    create constraint exclusive on (__subject__@x)
+                };
+            """)
+
+    async def test_edgeql_ddl_constraint_check_08(self):
+        await self.con.execute(r"""
+            create type Tgt;
+            create abstract link Lnk { create property x -> str; };
+            create type Foo {
+                create link foo extending Lnk -> Tgt;
+            };
+            create type Bar extending Foo;
+
+            insert Tgt;
+            insert Foo { foo := assert_single(Tgt { @x := "foo" }) };
+            insert Bar { foo := assert_single(Tgt { @x := "foo" }) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'x violates exclusivity constraint'):
+            await self.con.execute("""
+                alter abstract link Lnk alter property x {
+                    create constraint exclusive
+                };
+            """)
+
     async def test_edgeql_ddl_constraint_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE ConTest01 {

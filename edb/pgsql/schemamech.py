@@ -33,6 +33,7 @@ from edb.edgeql import parser as ql_parser
 from edb.edgeql.compiler import astutils as ql_astutils
 
 from edb.schema import name as s_name
+from edb.schema import pointers as s_pointers
 from edb.schema import scalars as s_scalars
 from edb.schema import utils as s_utils
 from edb.schema import types as s_types
@@ -194,10 +195,12 @@ class ConstraintMech:
                 context=source_context,
             )
         elif ref_tables:
-            subject_db_name, _ = next(iter(ref_tables.items()))
+            subject_db_name, info = next(iter(ref_tables.items()))
+            table_type = info[0][3].table_type
         else:
             subject_db_name = common.get_backend_name(
                 schema, subject, catenate=False)
+            table_type = 'ObjectType'
 
         exclusive_expr_refs = cls._get_exclusive_refs(ir)
 
@@ -205,6 +208,7 @@ class ConstraintMech:
             'subject_db_name': subject_db_name,
             'expressions': [],
             'origin_expressions': [],
+            'table_type': table_type,
         }
 
         if constraint_origin != constraint:
@@ -326,6 +330,10 @@ class SchemaDomainConstraint:
 
         return ops
 
+    def enforce_ops(self):
+        ops = dbops.CommandGroup()
+        return ops
+
 
 class SchemaTableConstraint:
     def __init__(self, subject, constraint, pg_constr_data, schema):
@@ -388,6 +396,60 @@ class SchemaTableConstraint:
             name=tabconstr.get_subject_name(quote=False), constraint=tabconstr)
 
         ops.add_command(add_constr)
+
+        return ops
+
+    def enforce_ops(self):
+        ops = dbops.CommandGroup()
+
+        tabconstr = self._table_constraint(self)
+
+        constr_name = tabconstr.constraint_name()
+        raw_constr_name = tabconstr.constraint_name(quote=False)
+
+        for expr, origin_expr in zip(
+                tabconstr._exprdata, tabconstr._origin_exprdata):
+            exprdata = expr['exprdata']
+            origin_exprdata = origin_expr['exprdata']
+            old_expr = origin_exprdata['old']
+            new_expr = exprdata['new']
+
+            schemaname, tablename = tabconstr.get_origin_table_name()
+            real_tablename = tabconstr.get_subject_name(quote=False)
+
+            errmsg = 'duplicate key value violates unique ' \
+                     'constraint {constr}'.format(constr=constr_name)
+            detail = common.quote_literal(
+                f"Key ({origin_exprdata['plain']}) already exists."
+            )
+
+            if (
+                isinstance(self._subject, s_pointers.Pointer)
+                and self._pg_constr_data['table_type'] == 'link'
+            ):
+                key = "source"
+            else:
+                key = "id"
+
+            check = dbops.Query(
+                f'''
+                SELECT
+                    edgedb.raise(
+                        NULL::text,
+                        'unique_violation',
+                        msg => '{errmsg}',
+                        "constraint" => '{raw_constr_name}',
+                        "table" => '{tablename}',
+                        "schema" => '{schemaname}',
+                        detail => {detail}
+                    )
+                FROM {common.qname(schemaname, tablename+"_t")} AS OLD
+                CROSS JOIN {common.qname(*real_tablename)} AS NEW
+                WHERE {old_expr} = {new_expr} and OLD.{key} != NEW.{key}
+                INTO _dummy_text;
+                '''
+            )
+            ops.add_command(check)
 
         return ops
 

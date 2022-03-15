@@ -219,6 +219,31 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
             raise AssertionError(f"there is no {ctxcls} in context stack")
         ctx.op.inhview_updates.add(source)
 
+    def schedule_post_inhview_update_command(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        cmd: sd.Command,
+        ctxcls: Type[sd.CommandContextToken[sd.Command]],
+    ) -> None:
+        ctx = context.get_topmost_ancestor(ctxcls)
+        if ctx is None:
+            raise AssertionError(f"there is no {ctxcls} in context stack")
+        ctx.op.post_inhview_update_commands.append(cmd)
+
+        # HACK: Abstract pointers pre-1.2 didn't have source in their
+        # views, and so the constraint enforcement we generate for
+        # them (added in 1.2) won't work. So whenever we might be
+        # generating that code, regenerate the view, so it will work
+        # on a 1.2 instance that was upgraded from 1.1.
+        # This can be cherry-picked into 1.x, then immediately
+        # removed in the main branch.
+        if (
+            isinstance(ctx.op, AlterLink)
+            and ctx.op.scls.generic(schema)
+        ):
+            ctx.op.inhview_updates.add(ctx.op.scls)
+
 
 class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
     pass
@@ -1754,6 +1779,25 @@ class ConstraintCommand(MetaCommand):
 
         return op
 
+    @classmethod
+    def enforce_constraint(
+            cls, constraint, schema, context, source_context=None):
+
+        if cls.constraint_is_effective(schema, constraint):
+            subject = constraint.get_subject(schema)
+
+            if subject is not None:
+                schemac_to_backendc = \
+                    schemamech.ConstraintMech.\
+                    schema_constraint_to_backend_constraint
+                bconstr = schemac_to_backendc(
+                    subject, constraint, schema, context,
+                    source_context)
+
+                return bconstr.enforce_ops()
+        else:
+            return dbops.CommandGroup()
+
 
 class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
     def apply(
@@ -1767,6 +1811,21 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
         op = self.create_constraint(
             constraint, schema, context, self.source_context)
         self.pgops.add(op)
+
+        # If the constraint is being added to existing data,
+        # we need to enforce it on the existing data. (This only
+        # matters when inheritance is in play and we use triggers
+        # to enforce exclusivity across tables.)
+        if (
+            (subject := constraint.get_subject(schema))
+            and isinstance(
+                subject, (s_objtypes.ObjectType, s_pointers.Pointer))
+            and not context.is_creating(subject)
+        ):
+            op = self.enforce_constraint(
+                constraint, schema, context, self.source_context)
+            self.schedule_post_inhview_update_command(
+                schema, context, op, s_sources.SourceCommandContext)
 
         return schema
 
@@ -1865,6 +1924,18 @@ class AlterConstraint(
             else:
                 op.add_command(bconstr.alter_ops(orig_bconstr))
             self.pgops.add(op)
+
+            if (
+                (subject := constraint.get_subject(schema))
+                and isinstance(
+                    subject, (s_objtypes.ObjectType, s_pointers.Pointer))
+                and not context.is_creating(subject)
+            ):
+                op = self.enforce_constraint(
+                    constraint, schema, context, self.source_context)
+                self.schedule_post_inhview_update_command(
+                    schema, context, op,
+                    s_objtypes.ObjectTypeCommandContext,)
 
         return schema
 
@@ -2399,6 +2470,7 @@ class CompositeMetaCommand(MetaCommand):
         self._multicommands = {}
         self.update_search_indexes = None
         self.inhview_updates = set()
+        self.post_inhview_update_commands = []
 
     def _get_multicommand(
             self, context, cmdtype, object_name, *,
@@ -2503,12 +2575,14 @@ class CompositeMetaCommand(MetaCommand):
                     )
                     if ptr_stor_info.column_type != pgtype:
                         return None
-                    cols.append((ptr_stor_info.column_name, alias))
+                    cols.append((ptr_stor_info.column_name, alias, True))
+                elif ptrname == sn.UnqualName('source'):
+                    cols.append(('NULL::uuid', alias, False))
                 else:
                     return None
         else:
             cols = [
-                (ptrname, alias)
+                (ptrname, alias, True)
                 for ptrname, (alias, _) in ptrnames.items()
             ]
 
@@ -2525,7 +2599,9 @@ class CompositeMetaCommand(MetaCommand):
         talias = qi(tabname[1])
 
         coltext = ',\n'.join(
-            f'{f"{talias}.{qi(col)}"} AS {qi(alias)}' for col, alias in cols
+            f'{f"{talias}.{qi(col)}"} AS {qi(alias)}' if is_col else
+            f'{col} AS {qi(alias)}'
+            for col, alias, is_col in cols
         )
 
         return textwrap.dedent(f'''\
@@ -2588,6 +2664,22 @@ class CompositeMetaCommand(MetaCommand):
             )
             ptrs['target'] = ('target', lp_info.column_type)
 
+        descendants = [
+            child for child in obj.descendants(schema)
+            if has_table(child, schema) and child not in exclude_children
+        ]
+
+        # Hackily force 'source' to appear in abstract links. We need
+        # source present in the code we generate to enforce newly
+        # created exclusive constraints across types.
+        if (
+            ptrs
+            and isinstance(obj, s_links.Link)
+            and sn.UnqualName('source') not in ptrs
+            and obj.generic(schema)
+        ):
+            ptrs[sn.UnqualName('source')] = ('source', ('uuid',))
+
         components = []
         if not exclude_self:
             components.append(
@@ -2595,8 +2687,7 @@ class CompositeMetaCommand(MetaCommand):
 
         components.extend(
             cls._get_select_from(schema, child, ptrs, pg_schema)
-            for child in obj.descendants(schema)
-            if has_table(child, schema) and child not in exclude_children
+            for child in descendants
         )
 
         query = '\nUNION ALL\n'.join(filter(None, components))
@@ -2751,6 +2842,8 @@ class CompositeMetaCommand(MetaCommand):
                 if has_table(s, schema):
                     self.alter_inhview(
                         schema, context, s, alter_ancestors=False)
+
+        self.pgops.update(self.post_inhview_update_commands)
 
 
 class IndexCommand(MetaCommand):
