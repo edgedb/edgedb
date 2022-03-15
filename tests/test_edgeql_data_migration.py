@@ -10812,3 +10812,82 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
         ''')
 
         await self.migrate('')
+
+    async def test_edgeql_migration_on_target_delete_01(self):
+        await self.migrate(
+            r"""
+                type User {
+                    multi link workspaces -> Workspace {
+                        property title -> str;
+                        on target delete allow;
+                    }
+                }
+
+                type Workspace {
+                    multi link users := .<workspaces[is User];
+                }
+            """
+        )
+
+        await self.migrate(
+            r"""
+                type User {
+                    multi link workspaces := .<users[is Workspace];
+                }
+
+                type Workspace {
+                    multi link users -> User {
+                        property title -> str;
+                        on target delete allow;
+                    }
+                }
+            """
+        )
+
+    async def test_edgeql_migration_on_target_delete_02(self):
+        await self.migrate(
+            r"""
+                type Tgt;
+                type Foo {
+                    link tgt -> Tgt {
+                        on target delete allow;
+                    }
+                }
+                type Bar extending Foo {
+                    overloaded link tgt -> Tgt {
+                        on target delete restrict;
+                    }
+                }
+            """
+        )
+
+        await self.con.execute("""
+            with module test
+            insert Bar { tgt := (insert Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'prohibited by link target policy',
+        ):
+            await self.con.execute("""
+                with module test
+                delete Tgt;
+            """)
+
+        await self.migrate(
+            r"""
+                type Tgt;
+                type Foo {
+                    link tgt -> Tgt {
+                        on target delete allow;
+                    }
+                }
+                type Bar extending Foo;
+            """
+        )
+
+        await self.con.execute("""
+            with module test
+            delete Tgt;
+        """)

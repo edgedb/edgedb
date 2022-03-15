@@ -12027,6 +12027,71 @@ type default::Foo {
             DELETE Tgt;
         """)
 
+    async def test_edgeql_ddl_link_policy_12(self):
+        await self.con.execute("""
+            create type Tgt;
+            create type Foo {
+                create link tgt -> Tgt {
+                    on target delete allow;
+                }
+            };
+            create type Bar extending Foo {
+                alter link tgt {
+                    on target delete restrict;
+                }
+            };
+        """)
+
+        # Make sure we can still delete on Foo
+        await self.con.execute("""
+            insert Foo { tgt := (insert Tgt) };
+            delete Tgt;
+        """)
+
+        await self.con.execute("""
+             insert Bar { tgt := (insert Tgt) };
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.ConstraintViolationError,
+            'prohibited by link target policy',
+        ):
+            await self.con.execute("""
+                delete Tgt;
+            """)
+
+        await self.con.execute("""
+            alter type Bar {
+                alter link tgt {
+                    reset on target delete;
+                }
+            };
+        """)
+
+        await self.con.execute("""
+            delete Tgt
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select schema::Link {name, on_target_delete, source: {name}}
+                filter .name = 'tgt';
+
+            """,
+            tb.bag([
+                {
+                    "name": "tgt",
+                    "on_target_delete": "Allow",
+                    "source": {"name": "default::Foo"}
+                },
+                {
+                    "name": "tgt",
+                    "on_target_delete": "Allow",
+                    "source": {"name": "default::Bar"}
+                }
+            ]),
+        )
+
     async def test_edgeql_ddl_dupe_link_storage_01(self):
         await self.con.execute(r"""
 
