@@ -653,7 +653,7 @@ class AlterDropInherit(DDLOperation, BasesMixin):
 
 
 class OnTargetDelete(DDLOperation):
-    cascade: qltypes.LinkTargetDeleteAction
+    cascade: typing.Optional[qltypes.LinkTargetDeleteAction]
 
 
 class SetField(DDLOperation):

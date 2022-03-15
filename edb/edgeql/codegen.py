@@ -1647,7 +1647,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.write(')')
 
     def visit_OnTargetDelete(self, node: qlast.OnTargetDelete) -> None:
-        self._write_keywords('ON TARGET DELETE ', node.cascade.to_edgeql())
+        if node.cascade is None:
+            self._write_keywords('RESET ON TARGET DELETE')
+        else:
+            self._write_keywords('ON TARGET DELETE ', node.cascade.to_edgeql())
 
     def visit_CreateObjectType(self, node: qlast.CreateObjectType) -> None:
         keywords = []

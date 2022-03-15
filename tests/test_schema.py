@@ -6886,6 +6886,34 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """
         ])
 
+    def test_schema_migrations_on_target_delete_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type User {
+                    multi link workspaces -> Workspace {
+                        property title -> str;
+                        on target delete allow;
+                    }
+                }
+
+                type Workspace {
+                    multi link users := .<workspaces[is User];
+                }
+            """,
+            r"""
+                type User {
+                    multi link workspaces := .<users[is Workspace];
+                }
+
+                type Workspace {
+                    multi link users -> User {
+                        property title -> str;
+                        on target delete allow;
+                    }
+                }
+            """
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
