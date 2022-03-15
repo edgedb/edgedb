@@ -1669,6 +1669,11 @@ class CreateConcreteLinkStmt(Nonterm):
         )
 
 
+class OnTargetDeleteResetStmt(Nonterm):
+    def reduce_RESET_ON_TARGET_DELETE(self, *kids):
+        self.val = qlast.OnTargetDelete(cascade=None)
+
+
 commands_block(
     'AlterConcreteLink',
     UsingStmt,
@@ -1693,6 +1698,7 @@ commands_block(
     AlterIndexStmt,
     DropIndexStmt,
     commondl.OnTargetDeleteStmt,
+    OnTargetDeleteResetStmt,
     opt=False
 )
 

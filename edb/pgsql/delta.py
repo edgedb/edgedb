@@ -4362,17 +4362,21 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
 
         schema = super()._alter_innards(schema, context)
 
-        otd = self.get_resolved_attribute_value(
-            'on_target_delete',
-            schema=schema,
-            context=context,
+        # We check whether otd has changed, rather than whether
+        # it is an attribute on this alter, because it might
+        # live on a nested SetOwned, for example.
+        otd_changed = (
+            link.get_on_target_delete(orig_schema) !=
+            link.get_on_target_delete(schema)
         )
-        card = self.get_resolved_attribute_value(
-            'cardinality',
-            schema=schema,
-            context=context,
+        card_changed = (
+            link.get_cardinality(orig_schema) !=
+            link.get_cardinality(schema)
         )
-        if (otd or card) and not link.is_pure_computable(schema):
+        if (
+            (otd_changed or card_changed)
+            and not link.is_pure_computable(schema)
+        ):
             self.schedule_endpoint_delete_action_update(
                 link, orig_schema, schema, context)
 
@@ -5274,6 +5278,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 if isinstance(link, s_links.Link) else None)
             target_is_affected = not (
                 (action is DA.Restrict or action is DA.DeferredRestrict)
+                and link.field_is_inherited(eff_schema, 'on_target_delete')
                 and link.get_implicit_bases(eff_schema)
             ) and isinstance(link, s_links.Link)
 
@@ -5383,6 +5388,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 # actually process this for each link.
                 if (
                     (action is DA.Restrict or action is DA.DeferredRestrict)
+                    and link.field_is_inherited(schema, 'on_target_delete')
                     and link.get_implicit_bases(schema)
                 ):
                     continue
