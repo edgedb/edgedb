@@ -1814,7 +1814,8 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
 
         # If the constraint is being added to existing data,
         # we need to enforce it on the existing data. (This only
-        # matters for
+        # matters when inheritance is in play and we use triggers
+        # to enforce exclusivity across tables.)
         if (
             (subject := constraint.get_subject(schema))
             and isinstance(
