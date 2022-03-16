@@ -15,6 +15,50 @@ We would like to thank our community for reporting issues and
 contributing fixes. You are awesome! ❤️
 
 
+1.2
+===
+
+* Add on-demand compiler pool scaling (:eql:gh:`#3550`).
+
+  Use ``--compiler-pool-mode=on_demand`` to switch to the new mode,
+  which will a spawn new compiler worker process every 3 seconds if
+  the compiling requests keep queueing up. The upper limit on the
+  number of these spawned processes is the number of CPUs. After 60
+  seconds without compiling requests, the compiler pool will scale
+  down to ``--compiler-pool-size`` with a default of ``1`` under
+  on-demand mode.
+
+* Fix an issue with default module and module aliases inside transactions
+  (:eql:gh:`#3604`).
+* Add ``reset on target delete`` to :ref:`DDL <ref_eql_ddl_links>` in
+  order to fix some migration bugs concerning links (:eql:gh:`#3611`).
+* Enforce newly created :eql:constraint:`exclusive` constraints across
+  existing data (:eql:gh:`#3613`).
+* Fix an issue with a self-referencing :eql:stmt:`update` (:eql:gh:`#3605`).
+* Fix an issue with a self-referencing :eql:stmt:`update` (:eql:gh:`#3605`).
+* Fix an issue with a constraint bug in :eql:stmt:`update` (:eql:gh:`#3603`).
+* Fix a constraint bug in :eql:stmt:`update` (:eql:gh:`#3603`).
+* Fix an SDL issue with computed links referencing each other
+  (:eql:gh:`#3499`).
+* Fix self-referencing nested mutations in GraphQL (:eql:gh:`#3470`).
+* Fix GraphQL fragments for types (:eql:gh:`#3514`).
+* Add ``in`` operator to GraphQL (:eql:gh:`#3443`).
+* Fix cardinality inference in some special cases (:eql:gh:`#3590`).
+* Fix inheritance from enum types (:eql:gh:`#3578`).
+* Fix cardinality inference bug and extend cardinality restrictions to
+  longer paths (:eql:gh:`#3566`).
+
+  Specifically, correctly infer that filtering on a long path where
+  each hop is :eql:constraint:`exclusive` produces at most one result.
+
+  For example: ``select Foo filter .bar.baz = 'key'`` should have
+  cardinality of at most one if both ``bar`` and ``baz`` have
+  ``exclusive`` constraints.
+
+* Fix issues involving scalar set identity (:eql:gh:`#3525`).
+* Fix exclusive constraints on tuple properties (:eql:gh:`#3559`).
+
+
 1.1
 ===
 
