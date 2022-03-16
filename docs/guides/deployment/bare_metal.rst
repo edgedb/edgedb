@@ -71,3 +71,28 @@ This will start the server on port 5656, and the data directory will be
 ``/var/lib/edgedb/1/data``. You can edit the unit to specify server arguments
 via the environment. The variables are largely the same as :ref:`those
 documented for Docker <ref_guides_deployment_docker_customization>`.
+
+
+Upgrading EdgeDB
+================
+
+When you want to upgrade to the newest point release upgrade the package and
+restart the ``edgedb-server-1`` unit.
+
+
+Debian/Ubuntu LTS
+-----------------
+
+.. code-block:: bash
+
+   $ sudo apt-get update && sudo apt-get install --only-upgrade edgedb-1
+   $ systemctl restart edgedb-server-1
+
+
+CentOS/RHEL 7/8
+---------------
+
+.. code-block:: bash
+
+   $ sudo yum update edgedb-1
+   $ systemctl restart edgedb-server-1
