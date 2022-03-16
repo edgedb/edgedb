@@ -1,0 +1,118 @@
+==
+v1
+==
+
+:edb-alt-title: EdgeDB v1—Nova
+
+.. image:: images/v1_nova.jpg
+    :width: 100%
+
+
+EdgeDB 1.0 was released on February 10, 2022. Read the announcement
+blog post `here <v1anno_>`_.
+
+We would like to thank our community for reporting issues and
+contributing fixes. You are awesome! ❤️
+
+
+1.2
+===
+
+* Add on-demand compiler pool scaling (:eql:gh:`#3550`).
+
+  Use ``--compiler-pool-mode=on_demand`` to switch to the new mode,
+  which will a spawn new compiler worker process every 3 seconds if
+  the compiling requests keep queueing up. The upper limit on the
+  number of these spawned processes is the number of CPUs. After 60
+  seconds without compiling requests, the compiler pool will scale
+  down to ``--compiler-pool-size`` with a default of ``1`` under
+  on-demand mode.
+
+* Fix an issue with default module and module aliases inside transactions
+  (:eql:gh:`#3604`).
+* Add ``reset on target delete`` to :ref:`DDL <ref_eql_ddl_links>` in
+  order to fix some migration bugs concerning links (:eql:gh:`#3611`).
+* Enforce newly created :eql:constraint:`exclusive` constraints across
+  existing data (:eql:gh:`#3613`).
+* Fix an issue with a self-referencing :eql:stmt:`update` (:eql:gh:`#3605`).
+* Fix an issue with a self-referencing :eql:stmt:`update` (:eql:gh:`#3605`).
+* Fix an issue with a constraint bug in :eql:stmt:`update` (:eql:gh:`#3603`).
+* Fix a constraint bug in :eql:stmt:`update` (:eql:gh:`#3603`).
+* Fix an SDL issue with computed links referencing each other
+  (:eql:gh:`#3499`).
+* Fix self-referencing nested mutations in GraphQL (:eql:gh:`#3470`).
+* Fix GraphQL fragments for types (:eql:gh:`#3514`).
+* Add ``in`` operator to GraphQL (:eql:gh:`#3443`).
+* Fix cardinality inference in some special cases (:eql:gh:`#3590`).
+* Fix inheritance from enum types (:eql:gh:`#3578`).
+* Fix cardinality inference bug and extend cardinality restrictions to
+  longer paths (:eql:gh:`#3566`).
+
+  Specifically, correctly infer that filtering on a long path where
+  each hop is :eql:constraint:`exclusive` produces at most one result.
+
+  For example: ``select Foo filter .bar.baz = 'key'`` should have
+  cardinality of at most one if both ``bar`` and ``baz`` have
+  ``exclusive`` constraints.
+
+* Fix issues involving scalar set identity (:eql:gh:`#3525`).
+* Fix exclusive constraints on tuple properties (:eql:gh:`#3559`).
+
+
+1.1
+===
+
+* Fix a migration issue with handling ``default`` on inherited
+  :ref:`links <ref_datamodel_links>` or :ref:`properties
+  <ref_datamodel_props>` (:eql:gh:`#3544`).
+* Fix a migration issue with an inherited :ref:`property
+  <ref_datamodel_props>` (:eql:gh:`#3542`).
+* Fix a migration issue with dropping a type (:eql:gh:`#3521`).
+* Fix a migration issue with changing a :ref:`link
+  <ref_datamodel_links>` from ``single`` to ``multi``
+  (:eql:gh:`#3392`).
+* Provide a more detailed message for :ref:`constraints
+  <ref_datamodel_constraints>` errors (:eql:gh:`#3522`).
+* Produce an error on an invalid regex (:eql:gh:`#3412`).
+* Produce a proper error when an expression is invalid in a certain
+  special contexts, such as ``default`` (:eql:gh:`#3494`).
+* Format the database name correctly in
+  ``DuplicateDatabaseDefinitionError`` (:eql:gh:`#3228`)
+* Fix an error when working with a composite :eql:constraint:`exclusive`
+  constraint (:eql:gh:`#3502`).
+* Correctly infer cardinality of a property on a multi link in the
+  context of the :ref:`constraint <ref_datamodel_constraints>` on that
+  link (:eql:gh:`#3536`).
+* Disable changing the concrete base of a :ref:`scalar type
+  <ref_datamodel_scalar_types>` (:eql:gh:`#3529`).
+* Avoid generating pointless self joins (:eql:gh:`#2567`).
+* Fix IPv6 address parsing (:eql:gh:`#3454`).
+* If a type has object instances, it cannot be made ``abstract``
+  (:eql:gh:`#3399`).
+* Fix an issue that sometimes caused :eql:kw:`with` block variables to
+  be unusable (:eql:gh:`#3385`).
+
+
+Pre-releases
+============
+
+EdgeDB 1.0 had a series of pre-preleases. Read the full history here:
+
+:ref:`Alpha 2 <ref_changelog_alpha2>`,
+:ref:`alpha 3 <ref_changelog_alpha3>`,
+:ref:`alpha 4 <ref_changelog_alpha4>`,
+:ref:`alpha 5 <ref_changelog_alpha5>`,
+:ref:`alpha 6 <ref_changelog_alpha6>`,
+:ref:`alpha 7 <ref_changelog_alpha7>`,
+:ref:`beta 1 <ref_changelog_beta1>`,
+:ref:`beta 2 <ref_changelog_beta2>`,
+:ref:`beta 3 <ref_changelog_beta3>`,
+:ref:`RC 1 <ref_changelog_rc1>`,
+:ref:`RC 2 <ref_changelog_rc2>`,
+:ref:`RC 3 <ref_changelog_rc3>`,
+:ref:`RC 4 <ref_changelog_rc4>`,
+:ref:`RC 5 <ref_changelog_rc5>`.
+
+
+.. _v1anno:
+    https://www.edgedb.com/blog/edgedb-1-0

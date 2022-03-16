@@ -52,6 +52,7 @@ Create link
       create property <property-name> ...
       create constraint <constraint-name> ...
       on target delete <action>
+      reset on target delete
       create index on <index-expr>
 
 
@@ -108,6 +109,11 @@ subcommands are allowed in the ``create link`` block:
     SOURCE``, ``allow``, and ``deferred restrict``. The details of
     what ``on target delete`` options mean are described in
     :ref:`this section <ref_datamodel_links>`.
+
+:eql:synopsis:`reset on target delete`
+    Reset the delete policy to either the inherited value or to the
+    default ``restrict``. The details of what ``on target delete``
+    options mean are described in :ref:`this section <ref_datamodel_links>`.
 
 :eql:synopsis:`create index on <index-expr>`
     Define a new :ref:`index <ref_datamodel_indexes>`
