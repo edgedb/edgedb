@@ -407,7 +407,7 @@ cdef class DatabaseConnectionView:
 
         key = (key, self.get_modaliases(), self.get_session_config())
 
-        if self._in_tx_with_ddl or self._in_tx_with_set:
+        if self._in_tx_with_ddl:
             query_unit = self._eql_to_compiled.get(key)
         else:
             query_unit, qu_dbver = self._db._eql_to_compiled.get(

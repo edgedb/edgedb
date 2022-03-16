@@ -464,6 +464,35 @@ class TestServerProto(tb.QueryTestCase):
                 SELECT foo::len('aaa')
             ''')
 
+    async def test_server_proto_set_reset_alias_06(self):
+        await self.con.query('START TRANSACTION')
+
+        await self.con.execute('''
+            SET MODULE test;
+        ''')
+        await self.con.query('select Tmp2')
+        await self.con.query('ROLLBACK')
+
+        with self.assertRaises(edgedb.InvalidReferenceError):
+            await self.con.query('select Tmp2')
+
+    async def test_server_proto_set_reset_alias_07(self):
+        await self.con.query('START TRANSACTION')
+
+        await self.con.execute('''
+            SET MODULE test;
+        ''')
+        await self.con.query('select Tmp2')
+
+        await self.con.execute('''
+            SET MODULE default;
+        ''')
+
+        with self.assertRaises(edgedb.InvalidReferenceError):
+            await self.con.query('select Tmp2')
+
+        await self.con.query('ROLLBACK')
+
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
