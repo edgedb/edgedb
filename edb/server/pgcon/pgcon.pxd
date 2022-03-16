@@ -100,6 +100,8 @@ cdef class PGConnection:
 
         public object pinned_by
 
+        object last_state
+
     cdef before_command(self)
 
     cdef write(self, buf)

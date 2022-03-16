@@ -65,6 +65,7 @@ from edb.server.pgproto.pgproto cimport (
 from edb.server import compiler
 from edb.server import defines
 from edb.server.cache cimport stmt_cache
+from edb.server.dbview cimport dbview
 from edb.server import pgconnparams
 from edb.server import metrics
 from edb.server.protocol cimport binary as edgecon
@@ -452,6 +453,8 @@ cdef class PGConnection:
         # Set to the error the connection has been aborted with
         # by the backend.
         self.aborted_with_error = None
+
+        self.last_state = dbview.DEFAULT_STATE
 
     @property
     def is_ssl(self):
