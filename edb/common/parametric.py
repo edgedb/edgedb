@@ -318,13 +318,13 @@ class ParametricType:
 
 class SingleParametricType(ParametricType, Generic[T]):
 
-    type: ClassVar[Type[T]]
+    type: ClassVar[Type[T]]  # type: ignore
 
 
 class KeyValueParametricType(ParametricType, Generic[T, V]):
 
-    keytype: ClassVar[Type[T]]
-    valuetype: ClassVar[Type[V]]
+    keytype: ClassVar[Type[T]]  # type: ignore
+    valuetype: ClassVar[Type[V]]  # type: ignore
 
 
 def _type_repr(obj: Any) -> str:

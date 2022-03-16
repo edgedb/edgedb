@@ -1247,7 +1247,7 @@ class CommandContext:
     def modaliases(self) -> Mapping[Optional[str], str]:
         maps = [t.modaliases for t in reversed(self.stack)]
         maps.append(self._modaliases)
-        return collections.ChainMap(*maps)
+        return collections.ChainMap(*maps)  # type: ignore
 
     @property
     def localnames(self) -> Set[str]:
@@ -1665,7 +1665,9 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
     scls: so.Object_T
     _delta_action: ClassVar[str]
-    _schema_metaclass: ClassVar[Optional[Type[so.Object_T]]] = None
+    _schema_metaclass: ClassVar[  # type: ignore
+        Optional[Type[so.Object_T]]
+    ] = None
     astnode: ClassVar[Union[Type[qlast.DDLOperation],
                             List[Type[qlast.DDLOperation]]]]
 
