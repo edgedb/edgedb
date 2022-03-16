@@ -482,6 +482,9 @@ def compile_insert_unless_conflict_on(
             raise errors.UnsupportedFeatureError(
                 'UNLESS CONFLICT can not use ELSE when constraint is from a '
                 'parent type',
+                details=(
+                    f"The existing object can't be exposed in the ELSE clause "
+                    f"because it may not have type {typ.get_name(schema)}"),
                 context=constraint_spec.context,
             )
 
