@@ -315,3 +315,19 @@ class DisableTrigger(ddl.DDLOperation):
             mod=self.__class__.__module__,
             cls=self.__class__.__name__,
             trigger=self.trigger)
+
+
+class EnableTrigger(ddl.DDLOperation):
+    def __init__(self, trigger, **kwargs):
+        super().__init__(**kwargs)
+        self.trigger = trigger
+
+    def code(self, block: base.PLBlock) -> str:
+        return (f'ALTER TABLE {qn(*self.trigger.table_name)} '
+                f'ENABLE TRIGGER {qi(self.trigger.name)}')
+
+    def __repr__(self):
+        return '<{mod}.{cls} {trigger!r}>'.format(
+            mod=self.__class__.__module__,
+            cls=self.__class__.__name__,
+            trigger=self.trigger)
