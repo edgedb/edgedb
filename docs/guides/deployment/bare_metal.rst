@@ -65,7 +65,7 @@ default. You can start the server by enabling the unit.
 
 .. code-block:: bash
 
-   $ systemctl enable --now edgedb-server-1
+   $ sudo systemctl enable --now edgedb-server-1
 
 This will start the server on port 5656, and the data directory will be
 ``/var/lib/edgedb/1/data``. You can edit the unit to specify server arguments
@@ -86,7 +86,7 @@ Debian/Ubuntu LTS
 .. code-block:: bash
 
    $ sudo apt-get update && sudo apt-get install --only-upgrade edgedb-1
-   $ systemctl restart edgedb-server-1
+   $ sudo systemctl restart edgedb-server-1
 
 
 CentOS/RHEL 7/8
@@ -95,4 +95,4 @@ CentOS/RHEL 7/8
 .. code-block:: bash
 
    $ sudo yum update edgedb-1
-   $ systemctl restart edgedb-server-1
+   $ sudo systemctl restart edgedb-server-1
