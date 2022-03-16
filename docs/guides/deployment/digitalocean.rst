@@ -198,3 +198,15 @@ You can now use the EdgeDB instance deployed on DigitalOcean as
 
    $ edgedb -I digitalocean
    edgedb>
+
+
+Upgrading EdgeDB
+================
+
+To upgrade an existing EdgeDB droplet to the latest point release, ssh into
+your droplet and run the following.
+
+.. code-block:: bash
+
+   $ apt-get update && apt-get install --only-upgrade edgedb-1
+   $ systemctl restart edgedb
