@@ -1877,8 +1877,7 @@ class Compiler:
                 if comp.requires_restart:
                     unit.config_requires_restart = True
 
-                if ctx.state.current_tx().is_implicit():
-                    unit.modaliases = ctx.state.current_tx().get_modaliases()
+                unit.modaliases = ctx.state.current_tx().get_modaliases()
 
                 if comp.config_op is not None:
                     unit.config_ops.append(comp.config_op)
