@@ -53,7 +53,7 @@ FAQ
 How does this help me?
 ^^^^^^^^^^^^^^^^^^^^^^
 
-Once you've initialize a project, your project directory is *linked* to a
+Once you've initialized a project, your project directory is *linked* to a
 particular instance. That means, you can run CLI commands without connection
 flags. For instance, ``edgedb -I my_instance migrate`` becomes simply ``edgedb
 migrate``. The CLI detects the existence of the ``edgedb.toml`` file, reads the
