@@ -1743,8 +1743,41 @@ class ConstraintCommand(MetaCommand):
             return True
 
     @classmethod
+    def fixup_base_constraint_triggers(
+        cls, constraint, orig_schema, schema, context,
+        source_context=None, *, is_delete
+    ):
+        base_schema = orig_schema if is_delete else schema
+
+        # When a constraint is added or deleted, we need to check its
+        # parents and potentially enable/disable their triggers
+        # (since we want to disable triggers on types without
+        # parents or children affected by the constraint)
+        op = dbops.CommandGroup()
+        for base in constraint.get_bases(base_schema).objects(base_schema):
+            if (
+                schema.has_object(base.id)
+                and cls.constraint_is_effective(schema, base)
+                and (base.is_independent(orig_schema)
+                     != base.is_independent(schema))
+                and not context.is_creating(base)
+                and not context.is_deleting(base)
+            ):
+                subject = base.get_subject(schema)
+                schemac_to_backendc = \
+                    schemamech.ConstraintMech.\
+                    schema_constraint_to_backend_constraint
+                bconstr = schemac_to_backendc(
+                    subject, base, schema, context, source_context)
+                op.add_command(bconstr.alter_ops(
+                    bconstr, only_modify_enabled=True))
+
+        return op
+
+    @classmethod
     def create_constraint(
             cls, constraint, schema, context, source_context=None):
+        op = dbops.CommandGroup()
         if cls.constraint_is_effective(schema, constraint):
             subject = constraint.get_subject(schema)
 
@@ -1756,9 +1789,9 @@ class ConstraintCommand(MetaCommand):
                     subject, constraint, schema, context,
                     source_context)
 
-                return bconstr.create_ops()
-        else:
-            return dbops.CommandGroup()
+                op.add_command(bconstr.create_ops())
+
+        return op
 
     @classmethod
     def delete_constraint(
@@ -1805,12 +1838,16 @@ class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
+        orig_schema = schema
         schema = super().apply(schema, context)
         constraint = self.scls
 
         op = self.create_constraint(
             constraint, schema, context, self.source_context)
         self.pgops.add(op)
+        self.pgops.add(self.fixup_base_constraint_triggers(
+            constraint, orig_schema, schema, context, self.source_context,
+            is_delete=False))
 
         # If the constraint is being added to existing data,
         # we need to enforce it on the existing data. (This only
@@ -1886,6 +1923,7 @@ class AlterConstraint(
             if not self.constraint_is_effective(orig_schema, constraint):
                 op.add_command(bconstr.create_ops())
 
+                # XXX: I don't think any of this logic is needed??
                 for child in constraint.children(schema):
                     orig_cbconstr = schemac_to_backendc(
                         child.get_subject(orig_schema),
@@ -1937,6 +1975,10 @@ class AlterConstraint(
                     schema, context, op,
                     s_objtypes.ObjectTypeCommandContext,)
 
+            self.pgops.add(self.fixup_base_constraint_triggers(
+                constraint, orig_schema, schema, context, self.source_context,
+                is_delete=False))
+
         return schema
 
 
@@ -1949,11 +1991,16 @@ class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
         delta_root_ctx = context.top()
         orig_schema = delta_root_ctx.original_schema
         constraint = schema.get(self.classname)
+
+        schema = super().apply(schema, context)
         op = self.delete_constraint(
             constraint, orig_schema, context, self.source_context)
         self.pgops.add(op)
 
-        schema = super().apply(schema, context)
+        self.pgops.add(self.fixup_base_constraint_triggers(
+            constraint, orig_schema, schema, context, self.source_context,
+            is_delete=True))
+
         return schema
 
 

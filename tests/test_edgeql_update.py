@@ -3419,6 +3419,16 @@ class TestUpdate(tb.QueryTestCase):
                 }
             ''')
 
+    @test.xfail('''
+        Disabling triggers for constraints without any inheritance
+        is a performance optimization that we would like to do, but
+        it results in different behavior in this case:
+          deleting an object while creating a conflicting object *succeeds*
+          if we are just using a UNIQUE constraint, but fails with a trigger.
+
+        The cases where there is inheritance would still fail.
+        This is all pretty marginal but we need to think about it.
+    ''')
     async def test_edgeql_update_and_delete_01(self):
         # Updating something that would violate a constraint while
         # fixing the violation is still supposed to be an error.

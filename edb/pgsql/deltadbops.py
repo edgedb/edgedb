@@ -247,6 +247,9 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         else:
             return self._type != 'check'
 
+    def can_disable_triggers(self):
+        return self._constraint.is_independent(self._schema)
+
     def __repr__(self):
         return '<{}.{} {!r} at 0x{:x}>'.format(
             self.__class__.__module__, self.__class__.__name__,
@@ -348,17 +351,13 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
 
         self._constraint = constraint
 
-    def create_constr_trigger(self, table_name, constraint, proc_name):
-        cmds = []
-
+    def _get_triggers(self, table_name, constraint, proc_name='null'):
         cname = constraint.raw_constraint_name()
 
         ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
         ins_trigger = dbops.Trigger(
             name=ins_trigger_name, table_name=table_name, events=('insert', ),
             procedure=proc_name, is_constraint=True, inherit=True)
-        cr_ins_trigger = dbops.CreateTrigger(ins_trigger)
-        cmds.append(cr_ins_trigger)
 
         upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
         condition = constraint.get_trigger_condition()
@@ -367,29 +366,38 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
             name=upd_trigger_name, table_name=table_name, events=('update', ),
             procedure=proc_name, condition=condition, is_constraint=True,
             inherit=True)
-        cr_upd_trigger = dbops.CreateTrigger(upd_trigger)
-        cmds.append(cr_upd_trigger)
 
-        return cmds
+        return ins_trigger, upd_trigger
+
+    def create_constr_trigger(self, table_name, constraint, proc_name):
+        ins_trigger, upd_trigger = self._get_triggers(
+            table_name, constraint, proc_name)
+
+        return [
+            dbops.CreateTrigger(ins_trigger), dbops.CreateTrigger(upd_trigger)
+        ]
 
     def drop_constr_trigger(self, table_name, constraint):
-        cname = constraint.raw_constraint_name()
+        ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
 
-        ins_trigger_name = common.edgedb_name_to_pg_name(cname + '_instrigger')
-        ins_trigger = dbops.Trigger(
-            name=ins_trigger_name, table_name=table_name, events=('insert', ),
-            procedure='null', is_constraint=True, inherit=True)
+        return [
+            dbops.DropTrigger(ins_trigger), dbops.DropTrigger(upd_trigger)
+        ]
 
-        drop_ins_trigger = dbops.DropTrigger(ins_trigger)
+    def enable_constr_trigger(self, table_name, constraint):
+        ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
 
-        upd_trigger_name = common.edgedb_name_to_pg_name(cname + '_updtrigger')
-        upd_trigger = dbops.Trigger(
-            name=upd_trigger_name, table_name=table_name, events=('update', ),
-            procedure='null', is_constraint=True, inherit=True)
+        return [
+            dbops.EnableTrigger(ins_trigger), dbops.EnableTrigger(upd_trigger)
+        ]
 
-        drop_upd_trigger = dbops.DropTrigger(upd_trigger)
+    def disable_constr_trigger(self, table_name, constraint):
+        ins_trigger, upd_trigger = self._get_triggers(table_name, constraint)
 
-        return [drop_ins_trigger, drop_upd_trigger]
+        return [
+            dbops.DisableTrigger(ins_trigger),
+            dbops.DisableTrigger(upd_trigger),
+        ]
 
     def create_constr_trigger_function(self, constraint):
         proc_name = constraint.get_trigger_procname()
@@ -417,13 +425,14 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
             # Create trigger function
             self.add_commands(self.create_constr_trigger_function(constraint))
 
-            # Add a (disabled) inheritable trigger on self.
-            # Trigger inheritance will propagate and maintain
-            # the trigger on current and future descendants.
             proc_name = constraint.get_trigger_procname()
             cr_trigger = self.create_constr_trigger(
                 self.name, constraint, proc_name)
             self.add_commands(cr_trigger)
+
+            if constraint.can_disable_triggers():
+                self.add_commands(
+                    self.disable_constr_trigger(self.name, constraint))
 
     def alter_constraint(self, old_constraint, new_constraint):
         if old_constraint.delegated and not new_constraint.delegated:
@@ -438,6 +447,15 @@ class AlterTableConstraintBase(dbops.AlterTableBaseMixin, dbops.CommandGroup):
             # Some other modification, drop/create
             self.drop_constraint(old_constraint)
             self.create_constraint(new_constraint)
+
+    def update_constraint_enabled(self, constraint):
+        if constraint.requires_triggers():
+            if constraint.can_disable_triggers():
+                self.add_commands(
+                    self.disable_constr_trigger(self.name, constraint))
+            else:
+                self.add_commands(
+                    self.enable_constr_trigger(self.name, constraint))
 
     def drop_constraint(self, constraint):
         if constraint.requires_triggers():
@@ -468,9 +486,13 @@ class AlterTableAddConstraint(AlterTableConstraintBase):
 
 
 class AlterTableAlterConstraint(AlterTableConstraintBase):
-    def __init__(self, name, *, constraint, new_constraint, **kwargs):
+    def __init__(
+        self, name, *, constraint, new_constraint,
+        only_modify_enabled, **kwargs
+    ):
         super().__init__(name, constraint=constraint, **kwargs)
         self._new_constraint = new_constraint
+        self._only_modify_enabled = only_modify_enabled
 
     def __repr__(self):
         return '<{}.{} {!r}>'.format(
@@ -478,7 +500,10 @@ class AlterTableAlterConstraint(AlterTableConstraintBase):
             self._constraint)
 
     def generate(self, block):
-        self.alter_constraint(self._constraint, self._new_constraint)
+        if self._only_modify_enabled:
+            self.update_constraint_enabled(self._new_constraint)
+        else:
+            self.alter_constraint(self._constraint, self._new_constraint)
         super().generate(block)
 
 

@@ -150,22 +150,11 @@ class ConstraintMech:
             exprdata=exprdata, is_multicol=is_multicol, is_trivial=is_trivial)
 
     @classmethod
-    def _get_constraint_origin(cls, schema, constraint):
-        ancestors = list(constraint.get_ancestors(schema).objects(schema))
-        origin = constraint
-        for ancestor in ancestors:
-            if ancestor.generic(schema) or ancestor.get_delegated(schema):
-                break
-            origin = ancestor
-
-        return origin
-
-    @classmethod
     def schema_constraint_to_backend_constraint(
             cls, subject, constraint, schema, context, source_context):
         assert constraint.get_subject(schema) is not None
 
-        constraint_origin = cls._get_constraint_origin(schema, constraint)
+        constraint_origin = constraint.get_constraint_origin(schema)
         if constraint_origin != constraint:
             origin_subject = constraint_origin.get_subject(schema)
         else:
@@ -315,7 +304,7 @@ class SchemaDomainConstraint:
 
         return ops
 
-    def alter_ops(self, orig_constr):
+    def alter_ops(self, orig_constr, only_modify_enabled=False):
         ops = dbops.CommandGroup()
         return ops
 
@@ -374,7 +363,7 @@ class SchemaTableConstraint:
 
         return ops
 
-    def alter_ops(self, orig_constr):
+    def alter_ops(self, orig_constr, only_modify_enabled=False):
         ops = dbops.CommandGroup()
 
         tabconstr = self._table_constraint(self)
@@ -382,7 +371,8 @@ class SchemaTableConstraint:
 
         alter_constr = deltadbops.AlterTableAlterConstraint(
             name=tabconstr.get_subject_name(quote=False),
-            constraint=orig_tabconstr, new_constraint=tabconstr)
+            constraint=orig_tabconstr, new_constraint=tabconstr,
+            only_modify_enabled=only_modify_enabled)
 
         ops.add_command(alter_constr)
 
