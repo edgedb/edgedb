@@ -113,10 +113,3 @@ Commit the changes and push to Heroku to deploy the app.
    $ git add .
    $ git commit -m "first commit"
    $ git push heroku main
-
-It is likely that EdgeDB uses more memory than the default dyno has available.
-Scale the relevant processes to an appropriately sized dyno.
-
-.. code-block:: bash
-
-   $ heroku ps:type standard-2x
