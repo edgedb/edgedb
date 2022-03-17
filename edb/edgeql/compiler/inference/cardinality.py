@@ -532,7 +532,7 @@ def _infer_set_inner(
             )
 
         source_card = infer_cardinality(
-            rptr.source, scope_tree=new_scope, ctx=ctx,
+            rptr.source, scope_tree=scope_tree, ctx=ctx,
         )
 
     # We have now inferred all of the subtrees we need to, so it is
@@ -1048,8 +1048,10 @@ def _infer_matset_cardinality(
         assert mat_set.materialized
         # set it to something to prevent recursion
         mat_set.cardinality = MANY
+        new_scope = inf_utils.get_set_scope(
+            mat_set.materialized, scope_tree, ctx=ctx)
         mat_set.cardinality = infer_cardinality(
-            mat_set.materialized, scope_tree=scope_tree, ctx=ctx,
+            mat_set.materialized, scope_tree=new_scope, ctx=ctx,
         )
 
 
