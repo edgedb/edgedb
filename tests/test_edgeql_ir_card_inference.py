@@ -962,3 +962,25 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         MANY
         """
+
+    def test_edgeql_ir_card_inference_110(self):
+        """
+        with z := (select User { asdf := .name })
+        select (
+            even := z.asdf,
+            elements := count(z)
+        )
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_card_inference_111(self):
+        """
+        with z := (select User { asdf := {.name} })
+        select (
+            even := z.asdf,
+            elements := count(z)
+        )
+% OK %
+        MANY
+        """
