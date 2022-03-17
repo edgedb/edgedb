@@ -59,9 +59,6 @@ class ScopeTreeNode:
     fenced: bool
     """Whether the subtree represents a SET OF argument."""
 
-    computable_branch: bool
-    """Whether this is a branch created to hide heads in a computable path"""
-
     unnest_fence: bool
     """Prevent unnesting in parents."""
 
@@ -86,22 +83,17 @@ class ScopeTreeNode:
     implement "semi-detached" semantics used by
     aliases declared in a WITH block."""
 
-    _gravestone: Optional[ScopeTreeNode]
-    """A pointer to the scope tree node that this was merged into."""
-
     def __init__(
         self,
         *,
         path_id: Optional[pathid.PathId]=None,
         fenced: bool=False,
-        computable_branch: bool=False,
         unique_id: Optional[int]=None,
         optional: bool=False,
     ) -> None:
         self.unique_id = unique_id
         self.path_id = path_id
         self.fenced = fenced
-        self.computable_branch = computable_branch
         self.unnest_fence = False
         self.factoring_fence = False
         self.factoring_allowlist = set()
@@ -109,18 +101,10 @@ class ScopeTreeNode:
         self.children = []
         self.namespaces = set()
         self._parent: Optional[weakref.ReferenceType[ScopeTreeNode]] = None
-        self._gravestone = None
 
     def __repr__(self) -> str:
         name = 'ScopeFenceNode' if self.fenced else 'ScopeTreeNode'
         return (f'<{name} {self.path_id!r} at {id(self):0x}>')
-
-    @property
-    def forwarded(self) -> ScopeTreeNode:
-        node = self
-        while node._gravestone:
-            node = node._gravestone
-        return node
 
     def find_dupe_unique_ids(self) -> Set[int]:
         seen = set()
@@ -143,7 +127,6 @@ class ScopeTreeNode:
     def _name(self, debug: bool) -> str:
         if self.path_id is None:
             name = (
-                ('C' if self.computable_branch else '') +
                 ('FENCE' if self.fenced else 'BRANCH')
             )
         else:
@@ -341,7 +324,7 @@ class ScopeTreeNode:
     def parent_branch(self) -> Optional[ScopeTreeNode]:
         """The nearest strict ancestor branch or fence."""
         for ancestor in self.strict_ancestors:
-            if ancestor.path_id is None and not ancestor.computable_branch:
+            if ancestor.path_id is None:
                 return ancestor
 
         return None
@@ -400,12 +383,11 @@ class ScopeTreeNode:
         *,
         optional: bool=False,
         context: Optional[pctx.ParserContext],
-    ) -> List[ScopeTreeNode]:
+    ) -> None:
         """Attach a scope subtree representing *path_id*."""
 
         subtree = parent = ScopeTreeNode(fenced=True)
         is_lprop = False
-        fences = []
 
         for prefix in reversed(list(path_id.iter_prefixes(include_ptr=True))):
             if prefix.is_ptr_path():
@@ -451,16 +433,7 @@ class ScopeTreeNode:
             if not prefix.is_type_intersection_path():
                 is_lprop = False
 
-            # Fence heads of computable paths. See discussion in
-            # compile_path.
-            if (rptr := prefix.rptr()) and rptr.is_computable:
-                fence = ScopeTreeNode(computable_branch=True)
-                fences.append(fence)
-                parent.attach_child(fence)
-                parent = fence
-
         self.attach_subtree(subtree, context=context)
-        return [fence.forwarded for fence in fences]
 
     def attach_subtree(self, node: ScopeTreeNode,
                        was_fenced: bool=False,
@@ -489,22 +462,6 @@ class ScopeTreeNode:
             desc_optional = (
                 descendant.is_optional_upto(node.parent) or self.optional)
 
-            # If descendant is covered up by one CBRANCH, it is because it
-            # was put there by a fence_pointer in attach_path. If the path
-            # exists in a similarly CBRANCH-covered way under self, we want
-            # to merge the nodes under the CBRANCH, rather than lifting it out,
-            # so as to preserve longest-prefixes on computable paths.
-            # (See test_edgeql_scope_computables_07* for an example.)
-            if (
-                visible is None
-                and (p := descendant.parent)
-                and p.computable_branch and p.parent is node
-            ):
-                visible = self.find_child(path_id, in_branches=True)
-                visible_finfo = None
-                if visible is not None:
-                    p._gravestone = visible.parent
-
             if visible is not None:
                 if visible_finfo is not None and visible_finfo.factoring_fence:
                     # This node is already present in the surrounding
@@ -526,7 +483,6 @@ class ScopeTreeNode:
                     or visible.fence not in {self, self.parent_fence}
                 )
                 descendant.remove()
-                descendant._gravestone = visible
                 descendant.optional = desc_optional
                 descendant.strip_path_namespace(dns | vns)
                 visible.fuse_subtree(
@@ -579,7 +535,6 @@ class ScopeTreeNode:
                     factor_point.attach_child(existing)
 
                     # Discard the node from the subtree being attached.
-                    current._gravestone = existing
                     existing.fuse_subtree(
                         current,
                         self_fenced=existing_fenced,
@@ -695,7 +650,6 @@ class ScopeTreeNode:
 
         for node in matching:
             node.remove()
-            node._gravestone = new
 
     def mark_as_optional(self) -> None:
         """Indicate that this scope is used as an OPTIONAL argument."""
@@ -829,7 +783,7 @@ class ScopeTreeNode:
                 (
                     in_branches
                     and child.path_id is None
-                    and (not child.fenced or child.computable_branch)
+                    and not child.fenced
                 ) or (
                     pfx_with_invariant_card
                     and child.path_id is not None
