@@ -725,9 +725,28 @@ def __infer_tuple(
         infer_multiplicity(el.val, scope_tree=scope_tree, ctx=ctx)
         for el in ir.elements
     )
+    cards = [
+        cardinality.infer_cardinality(el.val, scope_tree=scope_tree, ctx=ctx)
+        for el in ir.elements
+    ]
+
+    num_many = sum(card.is_multi() for card in cards)
+    new_els = []
+    for el, card in zip(els, cards):
+        # If more than one tuple element is many, everything has MANY
+        # multiplicity.
+        if num_many > 1:
+            el = MANY
+        # If exactly one tuple element is many, then *that* element
+        # can keep its underlying multiplicity, while everything else
+        # becomes MANY.
+        elif num_many == 1 and card.is_single():
+            el = MANY
+        new_els.append(el)
+
     return ContainerMultiplicityInfo(
         own=_max_multiplicity(els).own,
-        elements=els,
+        elements=tuple(new_els),
     )
 
 
