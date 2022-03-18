@@ -206,12 +206,6 @@ def _common_cardinality(
     return cartesian_cardinality(cards)
 
 
-def _is_singleton_type(typeref: irast.TypeRef) -> bool:
-    if typeref.material_type:
-        typeref = typeref.material_type
-    return typeref.name_hint == sn.QualName('std', 'FreeObject')
-
-
 @functools.singledispatch
 def _infer_cardinality(
     ir: irast.Base,
@@ -618,7 +612,7 @@ def _infer_set_inner(
         card = AT_MOST_ONE
     elif ir.expr is not None:
         card = expr_card
-    elif _is_singleton_type(ir.typeref):
+    elif typeutils.is_free_object(ir.typeref):
         card = ONE
     else:
         card = MANY

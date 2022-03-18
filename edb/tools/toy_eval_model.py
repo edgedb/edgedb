@@ -88,8 +88,6 @@ def bsid(n: int) -> uuid.UUID:
     return uuid.UUID(f'ffffffff-ffff-ffff-ffff-{n:012x}')
 
 
-FREE_ID = bsid(0x01)
-
 # ############# Data model
 
 Data = Any
@@ -151,6 +149,17 @@ def mk_db(
 def bslink(n: int, **kwargs: Data) -> Data:
     lprops = {'@' + k: v for k, v in kwargs.items()}
     return Obj(bsid(n), data=lprops)
+
+
+def mk_free_object(
+    shape: Optional[Dict[str, Data]]=None,
+    data: Optional[Dict[str, Data]]=None,
+) -> Obj:
+    id = uuid.uuid4()
+    base_data = {'id': id, '__type__': 'FreeObject'}
+    if data:
+        base_data.update(data)
+    return Obj(id, shape, base_data)
 
 
 # # Toy basis stuff
@@ -743,13 +752,13 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
     out = []
     for grouping, (bindings, elements) in all_groups:
         key_dict = {k.name: v for k, v in bindings.items()}
-        key_obj = Obj(FREE_ID, key_dict, key_dict)
+        key_obj = mk_free_object(key_dict, key_dict)
         group_dict = {
             'key': [key_obj],
             'elements': elements,
             'grouping': [g.name for g in grouping],
         }
-        group_obj = Obj(FREE_ID, group_dict, group_dict)
+        group_obj = mk_free_object(group_dict, group_dict)
         out.append(group_obj)
 
     return out
@@ -786,12 +795,13 @@ FREE_SHAPE_EXPR = qlast.DetachedExpr(
 @_eval.register
 def eval_Shape(node: qlast.Shape, ctx: EvalContext) -> Result:
 
-    subq_path = update_path(ctx.cur_path, node.expr)
+    expr = node.expr or FREE_SHAPE_EXPR
+
+    subq_path = update_path(ctx.cur_path, expr)
     subq_ipath = simplify_path(subq_path) if subq_path else (IPartial(),)
     qil = ctx.query_input_list + [subq_ipath]
 
     # XXX: do we need to do extra_subqs??
-    expr = node.expr or FREE_SHAPE_EXPR
     shape_vals = eval(expr, ctx=ctx)
 
     out = []
@@ -1070,6 +1080,9 @@ def eval_intersect(
 
 # This should only get called during input tuple building
 def eval_objref(name: str, ctx: EvalContext) -> Result:
+    if name == 'FreeObject':
+        return [mk_free_object()]
+
     return [
         Obj(obj["id"]) for obj in ctx.db.data.values()
         if obj["__type__"] == name
@@ -1210,8 +1223,9 @@ class PathFinder(NodeVisitor):
                 self.visit(query.using)
 
     def visit_Shape(self, shape: qlast.Shape) -> None:
-        self.visit(shape.expr)
-        with self.subquery(), self.update_path(shape.expr):
+        expr = shape.expr or FREE_SHAPE_EXPR
+        self.visit(expr)
+        with self.subquery(), self.update_path(expr):
             self.visit(shape.elements)
 
     def visit_ShapeElement(self, el: qlast.ShapeElement) -> None:
@@ -1778,9 +1792,6 @@ SCHEMA_COMPUTABLES = {
 }
 
 DB1 = mk_db([
-    # FreeObject
-    {"id": FREE_ID, "__type__": "FreeObject"},
-
     # Person
     {"id": bsid(0x10), "__type__": PersonT,
      "name": "Phil Emarg",

@@ -408,6 +408,41 @@ def new_empty_rvar(
     return rvar
 
 
+def new_free_object_rvar(
+    typeref: irast.TypeRef,
+    path_id: irast.PathId,
+    *,
+    lateral: bool=False,
+    ctx: context.CompilerContextLevel,
+) -> pgast.PathRangeVar:
+    """Create a fake source rel for a free object
+
+    We generate fake IDs for free objects. The only thing other than ids
+    that need to come from a free object is __type__, which we inject
+    in a special case way in pathctx.get_path_var.
+
+    We also have a special case in relgen.ensure_source_rvar to reuse an
+    existing value rvar instead of creating a new root rvar.
+
+    (We inject __type__ in get_path_var instead of injecting it here because
+    we don't have the pathid for it available to us here and because it
+    allows ensure_source_rvar to simply reuse a value rvar.)
+
+    """
+    with ctx.subrel() as subctx:
+        qry = subctx.rel
+
+        id_expr = pgast.FuncCall(
+            name=('edgedbext', 'uuid_generate_v4',), args=[]
+        )
+
+        pathctx.put_path_identity_var(qry, path_id, id_expr, env=ctx.env)
+        pathctx.put_path_value_var(qry, path_id, id_expr, env=ctx.env)
+        apply_volatility_ref(qry, ctx=subctx)
+
+    return rvar_for_rel(qry, typeref=typeref, lateral=lateral, ctx=ctx)
+
+
 def new_primitive_rvar(
     ir_set: irast.Set,
     *,
@@ -470,6 +505,10 @@ def new_root_rvar(
 
     if path_id is None:
         path_id = ir_set.path_id
+
+    if irtyputils.is_free_object(path_id.target):
+        return new_free_object_rvar(
+            path_id.target, path_id, lateral=lateral, ctx=ctx)
 
     narrowing = ctx.intersection_narrowing.get(ir_set)
     if narrowing is not None:

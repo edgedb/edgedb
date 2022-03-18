@@ -444,9 +444,17 @@ def ensure_source_rvar(
         rvar = relctx.maybe_get_path_rvar(
             scope_stmt, ir_set.path_id, aspect='source', ctx=ctx)
         if rvar is None:
-            rvar = relctx.new_root_rvar(ir_set, lateral=True, ctx=ctx)
-            relctx.include_rvar(
-                scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
+            if irtyputils.is_free_object(ir_set.path_id.target):
+                # Free objects don't have a real source, and
+                # generating a new fake source doesn't work because
+                # the ids don't match, so instead we call the existing
+                # value rvar a source.
+                rvar = relctx.get_path_rvar(
+                    scope_stmt, ir_set.path_id, aspect='value', ctx=ctx)
+            else:
+                rvar = relctx.new_root_rvar(ir_set, lateral=True, ctx=ctx)
+                relctx.include_rvar(
+                    scope_stmt, rvar, path_id=ir_set.path_id, ctx=ctx)
             pathctx.put_path_rvar(
                 stmt, ir_set.path_id, rvar, aspect='source', env=ctx.env)
 

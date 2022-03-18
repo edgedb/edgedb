@@ -480,3 +480,17 @@ def collapse_query(query: pgast.Query) -> pgast.BaseExpr:
         return val
     else:
         return query
+
+
+def compile_typeref(expr: irast.TypeRef) -> pgast.BaseExpr:
+    if expr.collection:
+        raise NotImplementedError()
+    else:
+        result = pgast.TypeCast(
+            arg=pgast.StringConstant(val=str(expr.id)),
+            type_name=pgast.TypeName(
+                name=('uuid',)
+            )
+        )
+
+    return result
