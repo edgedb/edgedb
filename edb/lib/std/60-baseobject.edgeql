@@ -44,7 +44,7 @@ CREATE ABSTRACT TYPE std::Object EXTENDING std::BaseObject {
         'Root object type for user-defined types';
 };
 
-CREATE ABSTRACT TYPE std::FreeObject EXTENDING std::BaseObject {
+CREATE TYPE std::FreeObject EXTENDING std::BaseObject {
     CREATE ANNOTATION std::description :=
         'Object type for free shapes';
 };
