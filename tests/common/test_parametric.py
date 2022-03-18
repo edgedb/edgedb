@@ -52,7 +52,7 @@ class ParametricTypeTests(unittest.TestCase):
             random_class_var: ClassVar[int]
             another_class_var: ClassVar[Type[str]]
             not_class_var: int
-            t: ClassVar[Type[T]]
+            t: ClassVar[Type[T]]  # type: ignore
 
         self.assertTrue(issubclass(P2[int].t, int))  # type: ignore
 

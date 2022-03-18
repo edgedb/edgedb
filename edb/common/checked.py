@@ -122,12 +122,12 @@ class FrozenCheckedList(
     def __init__(self, iterable: Iterable[T] = ()) -> None:
         super().__init__()
         self._container = [self._check_type(element) for element in iterable]
-        self._hash = -1
+        self._hash_cache = -1
 
     def __hash__(self) -> int:
-        if self._hash == -1:
-            self._hash = hash(tuple(self._container))
-        return self._hash
+        if self._hash_cache == -1:
+            self._hash_cache = hash(tuple(self._container))
+        return self._hash_cache
 
     #
     # Sequence
@@ -332,12 +332,12 @@ class FrozenCheckedSet(
     def __init__(self, iterable: Iterable[T] = ()) -> None:
         super().__init__()
         self._container = {self._check_type(element) for element in iterable}
-        self._hash = -1
+        self._hash_cache = -1
 
     def __hash__(self) -> int:
-        if self._hash == -1:
-            self._hash = hash(frozenset(self._container))
-        return self._hash
+        if self._hash_cache == -1:
+            self._hash_cache = hash(frozenset(self._container))
+        return self._hash_cache
 
     #
     # Replaced mixins of collections.abc.Set
