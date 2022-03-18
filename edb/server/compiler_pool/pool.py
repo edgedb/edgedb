@@ -185,6 +185,11 @@ class AbstractPool:
 
     @functools.lru_cache(maxsize=None)
     def _get_init_args(self):
+        init_args = self._get_init_args_uncached()
+        pickled_args = self._get_pickled_init_args(init_args)
+        return init_args, pickled_args
+
+    def _get_init_args_uncached(self):
         dbs: state.DatabasesState = immutables.Map()
         for db in self._dbindex.iter_dbs():
             dbs = dbs.set(
@@ -206,8 +211,11 @@ class AbstractPool:
             self._dbindex.get_global_schema(),
             self._dbindex.get_compilation_system_config(),
         )
+        return init_args
+
+    def _get_pickled_init_args(self, init_args):
         pickled_args = pickle.dumps(init_args, -1)
-        return init_args, pickled_args
+        return pickled_args
 
     async def start(self):
         raise NotImplementedError
@@ -999,6 +1007,25 @@ class RemotePool(AbstractPool):
             if worker.done():
                 (await worker).close()
 
+    def _get_pickled_init_args(self, init_args):
+        (
+            dbs,
+            backend_runtime_params,
+            std_schema,
+            refl_schema,
+            schema_class_layout,
+            global_schema,
+            system_config,
+        ) = init_args
+        std_args = (std_schema, refl_schema, schema_class_layout)
+        client_args = (dbs, backend_runtime_params)
+        return (
+            pickle.dumps(std_args, -1),
+            pickle.dumps(client_args, -1),
+            pickle.dumps(global_schema, -1),
+            pickle.dumps(system_config, -1),
+        )
+
     async def _connection_made(
         self, retry, protocol, transport, _pid, version
     ):
@@ -1012,6 +1039,7 @@ class RemotePool(AbstractPool):
             )
             await worker.call(
                 '__init_server__',
+                defines.EDGEDB_CATALOG_VERSION,
                 init_args_pickled,
             )
         except state.IncompatibleClient as ex:

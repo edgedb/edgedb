@@ -195,20 +195,19 @@ class MultiSchemaPool(pool_mod.FixedPool):
             schema_class_layout=None,
             **kwargs,
         )
+        self._catalog_version = None
         self._inited = asyncio.Event()
         self._cache_size = cache_size
         self._clients = {}
 
-    @functools.lru_cache(maxsize=None)
-    def _get_init_args(self):
+    def _get_init_args_uncached(self):
         init_args = (
             self._backend_runtime_params,
             self._std_schema,
             self._refl_schema,
             self._schema_class_layout,
         )
-        pickled_args = pickle.dumps(init_args, -1)
-        return init_args, pickled_args
+        return init_args
 
     async def _attach_worker(self, pid: int):
         if not self._running:
@@ -220,32 +219,34 @@ class MultiSchemaPool(pool_mod.FixedPool):
     async def _wait_ready(self):
         pass
 
-    async def _init_server(self, client_id: int, init_args_pickled: bytes):
+    async def _init_server(
+        self, client_id: int,
+        catalog_version: int,
+        init_args_pickled: tuple[bytes, bytes, bytes, bytes],
+    ):
         (
-            dbs,
-            backend_runtime_params,
-            std_schema,
-            refl_schema,
-            schema_class_layout,
-            global_schema,
-            system_config,
-        ) = pickle.loads(init_args_pickled)
-
+            std_args_pickled,
+            client_args_pickled,
+            global_schema_pickled,
+            system_config_pickled,
+        ) = init_args_pickled
+        dbs, backend_runtime_params = pickle.loads(client_args_pickled)
         if self._inited.is_set():
             logger.debug("New client %d connected.", client_id)
+            assert self._catalog_version is not None
+            if self._catalog_version != catalog_version:
+                raise state_mod.IncompatibleClient("catalog_version")
             if self._backend_runtime_params != backend_runtime_params:
                 raise state_mod.IncompatibleClient("backend_runtime_params")
-            if not self._std_schema.eq(std_schema):
-                raise state_mod.IncompatibleClient("std_schema")
-            if not self._refl_schema.eq(refl_schema):
-                raise state_mod.IncompatibleClient("refl_schema")
-            if self._schema_class_layout != schema_class_layout:
-                raise state_mod.IncompatibleClient("schema_class_layout")
         else:
+            (
+                self._std_schema,
+                self._refl_schema,
+                self._schema_class_layout,
+            ) = pickle.loads(std_args_pickled)
             self._backend_runtime_params = backend_runtime_params
-            self._std_schema = std_schema
-            self._refl_schema = refl_schema
-            self._schema_class_layout = schema_class_layout
+            assert self._catalog_version is None
+            self._catalog_version = catalog_version
             self._inited.set()
             logger.info(
                 "New client %d connected, compiler server initialized.",
@@ -263,8 +264,8 @@ class MultiSchemaPool(pool_mod.FixedPool):
                 )
                 for dbname, state in dbs.items()
             ),
-            pickle.dumps(global_schema, -1),
-            pickle.dumps(system_config, -1),
+            global_schema_pickled,
+            system_config_pickled,
             (),
         )
 
