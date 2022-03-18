@@ -7145,3 +7145,15 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             {1, 2}
         )
+
+    async def test_edgeql_select_free_object_distinct_01(self):
+        foo, bar = await self.con.query_single('''
+            select ({foo := "test"}, {bar := 1000})
+        ''')
+        self.assertNotEqual(foo.id, bar.id)
+
+    async def test_edgeql_select_free_object_distinct_02(self):
+        vals = await self.con.query('''
+            for x in {1,2,3} union { asdf := 10*x };
+        ''')
+        self.assertEqual(len(vals), len({v.id for v in vals}))

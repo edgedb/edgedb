@@ -583,17 +583,7 @@ def compile_Tuple(
 def compile_TypeRef(
         expr: irast.TypeRef, *,
         ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
-    if expr.collection:
-        raise NotImplementedError()
-    else:
-        result = pgast.TypeCast(
-            arg=pgast.StringConstant(val=str(expr.id)),
-            type_name=pgast.TypeName(
-                name=('uuid',)
-            )
-        )
-
-    return result
+    return astutils.compile_typeref(expr)
 
 
 @dispatch.compile.register(irast.FunctionCall)

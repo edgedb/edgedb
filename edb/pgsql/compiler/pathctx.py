@@ -234,6 +234,15 @@ def get_path_var(
     if found_path_var:
         return found_path_var
 
+    # Slight hack: Inject the __type__ field of a FreeObject when necessary
+    if (
+        rel_rvar is None
+        and ptrref
+        and ptrref.shortname.name == '__type__'
+        and irtyputils.is_free_object(src_path_id.target)
+    ):
+        return astutils.compile_typeref(src_path_id.target.real_material_type)
+
     if rel_rvar is None:
         raise LookupError(
             f'there is no range var for '

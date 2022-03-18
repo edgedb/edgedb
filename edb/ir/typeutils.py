@@ -26,6 +26,7 @@ import uuid
 from edb.edgeql import qltypes
 
 from edb.schema import links as s_links
+from edb.schema import name as s_name
 from edb.schema import properties as s_props
 from edb.schema import pointers as s_pointers
 from edb.schema import pseudo as s_pseudo
@@ -39,7 +40,6 @@ from . import ast as irast
 
 if TYPE_CHECKING:
 
-    from edb.schema import name as s_name
     from edb.schema import schema as s_schema
 
 
@@ -113,6 +113,12 @@ def is_json(typeref: irast.TypeRef) -> bool:
 def is_bytes(typeref: irast.TypeRef) -> bool:
     """Return True if *typeref* describes the bytes type."""
     return typeref.real_base_type.id == s_obj.get_known_type_id('std::bytes')
+
+
+def is_free_object(typeref: irast.TypeRef) -> bool:
+    if typeref.material_type:
+        typeref = typeref.material_type
+    return typeref.name_hint == s_name.QualName('std', 'FreeObject')
 
 
 def is_persistent_tuple(typeref: irast.TypeRef) -> bool:

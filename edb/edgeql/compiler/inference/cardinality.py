@@ -207,9 +207,7 @@ def _common_cardinality(
 
 
 def _is_singleton_type(typeref: irast.TypeRef) -> bool:
-    if typeref.material_type:
-        typeref = typeref.material_type
-    return typeref.name_hint == sn.QualName('std', 'FreeObject')
+    return typeutils.is_free_object(typeref)
 
 
 @functools.singledispatch
