@@ -2948,7 +2948,8 @@ class TestEdgeQLScope(tb.QueryTestCase):
         await self.assert_query_result(
             """
             WITH X1 := (Card { z := (.<deck[IS User], .<deck[IS User]@count)}),
-                 X2 := X1 { owners2 := .z.0 { count := X1.z.1 } },
+                 X2 := X1 { owners2 := assert_distinct(
+                     .z.0 { count := X1.z.1 }) },
             SELECT X2 { name, owners2: {name, count} ORDER BY .name }
             FILTER .name = 'Dwarf';
             """,
