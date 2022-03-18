@@ -1547,6 +1547,9 @@ def should_materialize(
     if not isinstance(ir, irast.Set):
         return reasons
 
+    if irtyputils.is_free_object(ir.typeref):
+        reasons.append(irast.MaterializeVolatile())
+
     typ = get_set_type(ir, ctx=ctx)
 
     # For shape elements, we need to materialize when they reference
