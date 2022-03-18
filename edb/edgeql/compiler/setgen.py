@@ -508,42 +508,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         path_sets.append(path_tip)
 
     path_tip.context = expr.context
-    # Since we are attaching the computable scopes as siblings to
-    # the subpaths they're computing, we must make sure that the
-    # actual path head is not visible from inside the computable scope.
-    #
-    # Example:
-    # type Tree {
-    #   multi link children -> Tree;
-    #   parent := .<children[IS Tree];
-    # }
-    # `SELECT Tree.parent` should generate rougly the following scope tree:
-    #
-    # (test::Tree).>parent[IS test::Tree]: {
-    #    "BRANCH": {
-    #       "(test::Tree)"
-    #    },
-    #    "FENCE": {
-    #        "ns@(test::Tree).<children": {
-    #            "(test::Tree) 0x7f30c7885d90"
-    #        }
-    #    },
-    # }
-    #
-    # Note that we use an unfenced BRANCH node to isolate the path head,
-    # to make sure it is still properly factorable.
-    # The branch insertion is handled automatically by attach_path, and
-    # we temporarily flip the branch to be a full fence for the compilation
-    # of the computable.
-    fences = pathctx.register_set_in_scope(
-        path_tip,
-        ctx=ctx,
-    )
-
-    for fence in fences:
-        fence.fenced = True
+    pathctx.register_set_in_scope(path_tip, ctx=ctx)
 
     for ir_set in computables:
+        # Compile the computables in sibling scopes to the subpaths
+        # they are computing. Note that the path head will be visible
+        # from inside the computable scope. That's fine.
+
         scope = ctx.path_scope.find_descendant(ir_set.path_id)
         if scope is None:
             scope = ctx.path_scope.find_visible(ir_set.path_id)
@@ -564,9 +535,6 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
             else:
                 path_tip = comp_ir_set
             path_sets[i] = comp_ir_set
-
-    for fence in fences:
-        fence.fenced = False
 
     return path_tip
 
