@@ -756,3 +756,17 @@ class TestEdgeQLMultiplicityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         ONE
         """
+
+    def test_edgeql_ir_mult_inference_80(self):
+        """
+        for x in {1,2} union (for y in {3, 4} union x)
+% OK %
+        MANY
+        """
+
+    def test_edgeql_ir_mult_inference_81(self):
+        """
+        for x in {1,2} union (for y in {3, 4} union y)
+% OK %
+        MANY
+        """
