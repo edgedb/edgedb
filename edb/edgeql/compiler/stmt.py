@@ -274,10 +274,7 @@ def compile_InsertQuery(
                 f'{subject_stype.get_verbosename(ctx.env.schema)}',
                 context=expr.subject.context)
 
-        if (
-            subject_stype.is_free_object_type(ctx.env.schema)
-            and not ctx.env.options.bootstrap_mode
-        ):
+        if subject_stype.is_free_object_type(ctx.env.schema):
             raise errors.QueryError(
                 f'free objects cannot be inserted',
                 context=expr.subject.context)

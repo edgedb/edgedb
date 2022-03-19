@@ -1011,16 +1011,6 @@ async def _init_defaults(schema, compiler, conn):
     return schema
 
 
-async def _populate_data(schema, compiler, conn):
-    script = '''
-        INSERT std::FreeObject;
-    '''
-
-    schema, sql = compile_bootstrap_script(compiler, schema, script)
-    await _execute_ddl(conn, sql)
-    return schema
-
-
 async def _configure(
     ctx: BootstrapContext,
     config_spec: config.Spec,
@@ -1578,7 +1568,6 @@ async def _bootstrap(ctx: BootstrapContext) -> None:
 
         schema = s_schema.FlatSchema()
         schema = await _init_defaults(schema, compiler, tpl_ctx.conn)
-        schema = await _populate_data(schema, compiler, tpl_ctx.conn)
     finally:
         if in_dev_mode:
             await ctx.conn.execute(
