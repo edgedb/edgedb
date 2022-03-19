@@ -37,6 +37,9 @@ class MultiplicityInfo:
     #: Whether this multiplicity descriptor describes
     #: part of a disjoint set.
     disjoint_union: bool = False
+    #: Whether this multiplicity descriptor represents
+    #: a freshly created free object.
+    fresh_free_object: bool = False
 
     def is_one(self) -> bool:
         return self.own.is_one()

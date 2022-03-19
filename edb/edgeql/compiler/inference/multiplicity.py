@@ -190,7 +190,7 @@ def _infer_shape(
 
             ptrref = shape_set.rptr.ptrref
             if (
-                expr_mult is MANY
+                expr_mult.is_many()
                 and shape_op is not qlast.ShapeOp.APPEND
                 and shape_op is not qlast.ShapeOp.SUBTRACT
                 and irtyputils.is_object(ptrref.out_target)
@@ -300,6 +300,14 @@ def _infer_set_inner(
         and irutils.get_path_root(ir).path_id in ctx.distinct_iterators
     ):
         path_mult = dataclasses.replace(path_mult, disjoint_union=True)
+
+    # Mark free object roots
+    if irtyputils.is_free_object(ir.typeref) and not ir.expr:
+        path_mult = dataclasses.replace(path_mult, fresh_free_object=True)
+
+    # Remove free object freshness when we see them through a binding
+    if ir.is_binding == irast.BindingKind.With and path_mult.fresh_free_object:
+        path_mult = dataclasses.replace(path_mult, fresh_free_object=False)
 
     return path_mult
 
@@ -423,7 +431,7 @@ def __infer_oper_call(
         # are actually proportional to the element-wise args in our
         # operators.
         result = _max_multiplicity(mult)
-        if result == MANY:
+        if result.is_many():
             return result
 
         # Even when arguments are of multiplicity ONE, we cannot
@@ -559,7 +567,7 @@ def _infer_for_multiplicity(
     elif itmult.is_many():
         return MANY
     else:
-        if result_mult.disjoint_union:
+        if result_mult.disjoint_union or result_mult.fresh_free_object:
             return result_mult
         else:
             return MANY
