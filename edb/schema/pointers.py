@@ -1129,6 +1129,8 @@ class PointerCommandOrFragment(
             if (
                 expr_rptr.direction is PointerDirection.Outbound
                 and expr_rptr.source.rptr is None
+                and isinstance(expr_rptr.ptrref, irast.PointerRef)
+                and schema.has_object(expr_rptr.ptrref.id)
             ):
                 new_schema, aliased_ptr = irtyputils.ptrcls_from_ptrref(
                     expr_rptr.ptrref, schema=schema

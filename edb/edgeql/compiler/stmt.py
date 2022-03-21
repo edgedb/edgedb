@@ -167,6 +167,7 @@ def compile_ForQuery(
 
         iterator_stmt = setgen.new_set_from_set(
             iterator_view, preserve_scope_ns=True, ctx=sctx)
+        iterator_view.is_visible_binding_ref = True
         stmt.iterator_stmt = iterator_stmt
 
         iterator_type = setgen.get_set_type(iterator_stmt, ctx=ctx)

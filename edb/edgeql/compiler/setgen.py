@@ -140,6 +140,8 @@ def new_set_from_set(
         expr: Optional[irast.Expr]=None,
         context: Optional[parsing.ParserContext]=None,
         is_binding: Optional[irast.BindingKind]=None,
+        is_materialized_ref: Optional[bool]=None,
+        is_visible_binding_ref: Optional[bool]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
@@ -162,6 +164,10 @@ def new_set_from_set(
         context = ir_set.context
     if is_binding is None:
         is_binding = ir_set.is_binding
+    if is_materialized_ref is None:
+        is_materialized_ref = ir_set.is_materialized_ref
+    if is_visible_binding_ref is None:
+        is_visible_binding_ref = ir_set.is_visible_binding_ref
     return new_set(
         path_id=path_id,
         path_scope_id=ir_set.path_scope_id,
@@ -170,6 +176,8 @@ def new_set_from_set(
         rptr=rptr,
         context=context,
         is_binding=is_binding,
+        is_materialized_ref=is_materialized_ref,
+        is_visible_binding_ref=is_visible_binding_ref,
         ircls=type(ir_set),
         ctx=ctx,
     )
