@@ -1124,7 +1124,7 @@ cdef class EdgeConnection:
 
         conn = await self.get_pgcon()
         try:
-            if conn.last_state is state:
+            if conn.last_state == state:
                 # the current status in conn is in sync with dbview, skip the
                 # state restoring
                 state = None
@@ -1626,7 +1626,7 @@ cdef class EdgeConnection:
         new_types = None
         conn = await self.get_pgcon()
         try:
-            if conn.last_state is state:
+            if conn.last_state == state:
                 # the current status in conn is in sync with dbview, skip the
                 # state restoring
                 state = None
@@ -1696,7 +1696,7 @@ cdef class EdgeConnection:
                 if state is not orig_state:
                     # In 3 cases the state is changed:
                     #   1. The non-tx query changed the state
-                    #   2. The state is ynced with dbview (orig_state is None)
+                    #   2. The state is synced with dbview (orig_state is None)
                     #   3. We came out from a transaction (orig_state is None)
                     conn.last_state = state
 
