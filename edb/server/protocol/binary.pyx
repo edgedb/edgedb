@@ -246,6 +246,7 @@ cdef class EdgeConnection:
         self.max_protocol = CURRENT_PROTOCOL
 
         self._pinned_pgcon = None
+        self._last_pinned_pgcon = None
         self._pinned_pgcon_in_tx = False
         self._get_pgcon_cc = 0
 
@@ -286,8 +287,10 @@ cdef class EdgeConnection:
                 return self._pinned_pgcon
             if self._pinned_pgcon is not None:
                 raise RuntimeError('there is already a pinned pgcon')
-            conn = await self.server.acquire_pgcon(self.dbname)
-            self._pinned_pgcon = conn
+            conn = await self.server.acquire_pgcon(
+                self.dbname, self._last_pinned_pgcon
+            )
+            self._pinned_pgcon = self._last_pinned_pgcon = conn
             conn.pinned_by = self
             return conn
         except Exception:
@@ -325,7 +328,7 @@ cdef class EdgeConnection:
 
     def on_aborted_pgcon(self, pgcon.PGConnection conn):
         try:
-            self._pinned_pgcon = None
+            self._pinned_pgcon = self._last_pinned_pgcon = None
 
             if not self._pgcon_released_in_connection_lost:
                 self.server.release_pgcon(self.dbname, conn, discard=True)

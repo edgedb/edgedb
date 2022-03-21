@@ -510,19 +510,20 @@ class Server(ha_base.ClusterProtocol):
     def get_compilation_system_config(self):
         return self._dbindex.get_compilation_system_config()
 
-    async def acquire_pgcon(self, dbname):
+    async def acquire_pgcon(self, dbname, preferred_pgcon=None):
         if self._pg_unavailable_msg is not None:
             raise errors.BackendUnavailableError(
                 'Postgres is not available: ' + self._pg_unavailable_msg
             )
 
         for _ in range(self._pg_pool.max_capacity + 1):
-            conn = await self._pg_pool.acquire(dbname)
+            conn = await self._pg_pool.acquire(dbname, preferred_pgcon)
             if conn.is_healthy():
                 return conn
             else:
                 logger.warning('Acquired an unhealthy pgcon; discard now.')
                 self._pg_pool.release(dbname, conn, discard=True)
+                preferred_pgcon = None
         else:
             # This is unlikely to happen, but we defer to the caller to retry
             # when it does happen

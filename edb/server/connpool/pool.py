@@ -227,6 +227,13 @@ class Block(typing.Generic[C]):
         return self.conn_stack.popleft()
 
     async def acquire(self) -> C:
+        # Yield the most recently used connection from the top of the stack,
+        # skipping the connections re-acquired through preferred_conn param
+        while self.conn_stack:
+            conn = self.conn_stack.pop()
+            if not self.conns[conn].in_use:
+                return conn
+
         # There can be a race between a waiter scheduled for to wake up
         # and a connection being stolen (due to quota being enforced,
         # for example).  In which case the waiter might get finally
@@ -271,7 +278,8 @@ class Block(typing.Generic[C]):
                         self._wakeup_next_waiter()
                     raise
 
-            # Yield the most recently used connection from the top of the stack
+            # We should've got a connection in the stack now, which is
+            # definitely not used through the preferred_conn param
             return self.conn_stack.pop()
         finally:
             self.conn_waiters_num -= 1
@@ -1048,8 +1056,19 @@ class Pool(BasePool[C]):
 
         return None, None
 
-    async def _acquire(self, dbname: str) -> C:
+    async def _acquire(
+        self, dbname: str, preferred_conn: typing.Optional[C]
+    ) -> C:
         block = self._get_block(dbname)
+
+        if (
+            not self._is_starving
+            and preferred_conn is not None
+            and block.count_waiters() == 0
+        ):
+            state = block.conns.get(preferred_conn)
+            if state is not None and not state.in_use:
+                return preferred_conn
 
         room_for_new_conns = self._cur_capacity < self._max_capacity
         block_nconns = block.count_conns()
@@ -1119,11 +1138,13 @@ class Pool(BasePool[C]):
             while (conn := block.try_steal(only_older_than)) is not None:
                 loop.create_task(self._discard_conn(block, conn))
 
-    async def acquire(self, dbname: str) -> C:
+    async def acquire(
+        self, dbname: str, preferred_conn: typing.Optional[C] = None
+    ) -> C:
         self._nacquires += 1
         self._maybe_schedule_tick()
         try:
-            conn = await self._acquire(dbname)
+            conn = await self._acquire(dbname, preferred_conn)
         finally:
             self._nacquires -= 1
 

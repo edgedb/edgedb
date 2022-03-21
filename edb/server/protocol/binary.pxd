@@ -110,6 +110,7 @@ cdef class EdgeConnection:
         object last_state
 
         pgcon.PGConnection _pinned_pgcon
+        pgcon.PGConnection _last_pinned_pgcon
         bint _pinned_pgcon_in_tx
 
         int _get_pgcon_cc
