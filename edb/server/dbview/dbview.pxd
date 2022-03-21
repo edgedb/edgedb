@@ -17,6 +17,8 @@
 #
 
 
+cdef DEFAULT_STATE
+
 cpdef enum SideEffects:
 
     SchemaChanges = 1 << 0

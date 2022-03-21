@@ -1100,9 +1100,10 @@ cdef class EdgeConnection:
         stmt_mode: str,
     ):
         cdef:
-            bytes state = None
+            bytes state = None, orig_state = None
             int i
             dbview.DatabaseConnectionView _dbview
+            pgcon.PGConnection conn
 
         units = await self._compile_script(eql, stmt_mode=stmt_mode)
         metrics.edgeql_query_compilations.inc(1.0, 'compiler')
@@ -1119,10 +1120,14 @@ cdef class EdgeConnection:
 
         _dbview = self.get_dbview()
         if not _dbview.in_tx():
-            state = _dbview.serialize_state()
+            orig_state = state = _dbview.serialize_state()
 
         conn = await self.get_pgcon()
         try:
+            if conn.last_state == state:
+                # the current status in conn is in sync with dbview, skip the
+                # state restoring
+                state = None
             for query_unit in units:
                 if self._cancelled:
                     raise ConnectionAbortedError
@@ -1160,6 +1165,10 @@ cdef class EdgeConnection:
                                         state=state if i == 0 else None)
                                     # only apply state to the first query.
                                     i += 1
+                            if state is not None:
+                                # state is restored, clear orig_state so that
+                                # we can set conn.last_state correctly later
+                                orig_state = None
 
                         if query_unit.create_db:
                             await self.server.introspect_db(
@@ -1188,6 +1197,11 @@ cdef class EdgeConnection:
                         query_unit, new_types)
                     if side_effects:
                         self.signal_side_effects(side_effects)
+                    if not _dbview.in_tx():
+                        state = _dbview.serialize_state()
+                        if state is not orig_state:
+                            # see the same comments in _execute()
+                            conn.last_state = state
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1575,8 +1589,9 @@ cdef class EdgeConnection:
     async def _execute(self, compiled: CompiledQuery, bind_args,
                        bint use_prep_stmt):
         cdef:
-            bytes state = None
+            bytes state = None, orig_state = None
             dbview.DatabaseConnectionView _dbview
+            pgcon.PGConnection conn
 
         query_unit = compiled.query_unit
         _dbview = self.get_dbview()
@@ -1607,10 +1622,14 @@ cdef class EdgeConnection:
             and not query_unit.tx_commit
             and not query_unit.tx_rollback
         ):
-            state = _dbview.serialize_state()
+            orig_state = state = _dbview.serialize_state()
         new_types = None
         conn = await self.get_pgcon()
         try:
+            if conn.last_state == state:
+                # the current status in conn is in sync with dbview, skip the
+                # state restoring
+                state = None
             _dbview.start(query_unit)
             if query_unit.create_db_template:
                 await self.server._on_before_create_db_from_template(
@@ -1637,6 +1656,10 @@ cdef class EdgeConnection:
                             state,              # =state
                             _dbview.dbver,      # =dbver
                         )
+                    if state is not None:
+                        # state is restored, clear orig_state so that we can
+                        # set conn.last_state correctly later
+                        orig_state = None
 
                 if query_unit.create_db:
                     await self.server.introspect_db(
@@ -1668,6 +1691,14 @@ cdef class EdgeConnection:
             side_effects = _dbview.on_success(query_unit, new_types)
             if side_effects:
                 self.signal_side_effects(side_effects)
+            if not _dbview.in_tx():
+                state = _dbview.serialize_state()
+                if state is not orig_state:
+                    # In 3 cases the state is changed:
+                    #   1. The non-tx query changed the state
+                    #   2. The state is synced with dbview (orig_state is None)
+                    #   3. We came out from a transaction (orig_state is None)
+                    conn.last_state = state
 
             self.write(self.make_command_complete_msg(query_unit))
         finally:
