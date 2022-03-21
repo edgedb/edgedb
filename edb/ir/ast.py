@@ -477,6 +477,11 @@ class Set(Base):
     is_binding: typing.Optional[BindingKind] = None
 
     is_materialized_ref: bool = False
+    # A ref to a visible binding (like a for iterator variable) should
+    # never need to be compiled--it should always be found. We set a
+    # flag instead of clearing expr because clearing expr can mess up
+    # card/multi inference.
+    is_visible_binding_ref: bool = False
 
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
