@@ -17,11 +17,11 @@ many-to-many.
     - ``single``
     - Yes
   * - One-to-many
-    - ``single``
-    - No
-  * - Many-to-one
     - ``multi``
     - Yes
+  * - Many-to-one
+    - ``single``
+    - No
   * - Many-to-many
     - ``multi``
     - No
