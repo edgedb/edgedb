@@ -226,7 +226,7 @@ def _infer_set(
 ) -> inf_ctx.MultiplicityInfo:
     result = _infer_set_inner(
         ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
-    ctx.inferred_multiplicity[ir, scope_tree] = result
+    ctx.inferred_multiplicity[ir, scope_tree, ctx.distinct_iterator] = result
     # The shape doesn't affect multiplicity, but requires validation.
     _infer_shape(ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
 
@@ -297,7 +297,7 @@ def _infer_set_inner(
 
     if (
         not path_mult.is_many()
-        and irutils.get_path_root(ir).path_id in ctx.distinct_iterators
+        and irutils.get_path_root(ir).path_id == ctx.distinct_iterator
     ):
         path_mult = dataclasses.replace(path_mult, disjoint_union=True)
 
@@ -535,7 +535,7 @@ def _infer_stmt_multiplicity(
             # is guaranteed to be disjoint.
             if (
                 (irutils.get_path_root(flt_expr).path_id
-                 in ctx.distinct_iterators)
+                 == ctx.distinct_iterator)
                 and not infer_multiplicity(
                     flt_expr, scope_tree=scope_tree, ctx=ctx
                 ).is_many()
@@ -558,7 +558,8 @@ def _infer_for_multiplicity(
     itmult = infer_multiplicity(itset, scope_tree=scope_tree, ctx=ctx)
 
     if itmult != MANY:
-        ctx.distinct_iterators.add(itset.path_id)
+        new_iter = itset.path_id if not ctx.distinct_iterator else None
+        ctx = ctx._replace(distinct_iterator=new_iter)
     result_mult = infer_multiplicity(ir.result, scope_tree=scope_tree, ctx=ctx)
 
     if isinstance(ir.result.expr, irast.InsertStmt):
@@ -766,7 +767,8 @@ def infer_multiplicity(
     ctx: inf_ctx.InfCtx,
 ) -> inf_ctx.MultiplicityInfo:
 
-    result = ctx.inferred_multiplicity.get((ir, scope_tree))
+    result = ctx.inferred_multiplicity.get(
+        (ir, scope_tree, ctx.distinct_iterator))
     if result is not None:
         return result
 
@@ -795,6 +797,6 @@ def infer_multiplicity(
             'set produced by expression',
             context=ir.context)
 
-    ctx.inferred_multiplicity[ir, scope_tree] = result
+    ctx.inferred_multiplicity[ir, scope_tree, ctx.distinct_iterator] = result
 
     return result
