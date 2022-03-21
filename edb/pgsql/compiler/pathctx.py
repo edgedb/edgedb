@@ -84,8 +84,8 @@ def map_path_id(
         path_id_map.items(), key=lambda kv: len(kv[0]), reverse=True)
 
     for outer_id, inner_id in sorted_map:
-        new_path_id = path_id.replace_prefix(
-            outer_id, inner_id, permissive_ptr_path=True)
+        new_path_id = irtyputils.replace_pathid_prefix(
+            path_id, outer_id, inner_id, permissive_ptr_path=True)
         if new_path_id != path_id:
             path_id = new_path_id
             break
@@ -97,7 +97,8 @@ def reverse_map_path_id(
         path_id: irast.PathId,
         path_id_map: Dict[irast.PathId, irast.PathId]) -> irast.PathId:
     for outer_id, inner_id in path_id_map.items():
-        new_path_id = path_id.replace_prefix(inner_id, outer_id)
+        new_path_id = irtyputils.replace_pathid_prefix(
+            path_id, inner_id, outer_id)
         if new_path_id != path_id:
             path_id = new_path_id
             break

@@ -917,3 +917,50 @@ def lookup_obj_ptrref(
     return ptrref_from_ptrcls(
         ptrcls=ptr, schema=schema, cache=cache, typeref_cache=typeref_cache,
     )
+
+
+def replace_pathid_prefix(
+    path_id: irast.PathId,
+    prefix: irast.PathId,
+    replacement: irast.PathId,
+    permissive_ptr_path: bool=False,
+) -> irast.PathId:
+    """Return a copy of *path_id* with *prefix* replaced by
+       *replacement*.
+
+       Example:
+
+           replace_pathid_prefix(A.b.c, A.b, X.y) == PathId(X.y.c)
+    """
+    if not path_id.startswith(prefix, permissive_ptr_path=permissive_ptr_path):
+        return path_id
+
+    result = replacement
+    # We peak into the internals because this gets somewhat
+    # pointlessly inefficient otherwise.
+    for part in path_id._path[len(prefix):]:
+        if not isinstance(part, tuple):
+            continue
+        ptrref, dir = part
+
+        # If the ptrref doesn't match the new result type, try to find
+        # the correct ptrref, up or down the hierarchy.
+        # TODO: Do we need to handle the link property case?
+        if (
+            ptrref.out_source
+            and result.target != ptrref.out_source
+        ):
+            ancptr: Optional[irast.BasePointerRef] = ptrref
+            while ancptr:
+                if new_ptrref := maybe_find_actual_ptrref(
+                    result.target, ancptr, dir=dir, material=False,
+                ):
+                    ptrref = new_ptrref
+                    break
+                ancptr = ancptr.base_ptr
+
+        if ptrref.source_ptr and permissive_ptr_path:
+            result = result.ptr_path()
+        result = result.extend(ptrref=ptrref, direction=dir)
+
+    return result
