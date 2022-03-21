@@ -601,43 +601,6 @@ class PathId:
         return base == path_id or (
             permissive_ptr_path and base.tgt_path() == path_id)
 
-    def replace_prefix(
-        self,
-        prefix: PathId,
-        replacement: PathId,
-        permissive_ptr_path: bool=False,
-    ) -> PathId:
-        """Return a copy of this ``PathId`` with *prefix* replaced by
-           *replacement*.
-
-           Example:
-
-               PathId(A.b.c).replace_prefix(A.b, X.y) == PathId(X.y.c)
-        """
-        if self.startswith(prefix, permissive_ptr_path=permissive_ptr_path):
-            prefix_len = len(prefix)
-            if prefix_len < len(self):
-                result = self.__class__(self)
-                result._path = replacement._path + self._path[prefix_len:]
-                result._norm_path = \
-                    replacement._norm_path + self._norm_path[prefix_len:]
-                result._namespace = replacement._namespace
-
-                if self._prefix is not None and len(self._prefix) > prefix_len:
-                    result._prefix = self._prefix.replace_prefix(
-                        prefix, replacement)
-                else:
-                    result._prefix = replacement._prefix
-
-                result._prefix = result._get_minimal_prefix(
-                    result._prefix)
-
-                return result
-            else:
-                return replacement
-        else:
-            return self
-
     @property
     def target(self) -> irast.TypeRef:
         """Return the type descriptor for this PathId."""

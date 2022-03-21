@@ -3212,8 +3212,7 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail('Returns tags with all users')
-    async def test_edgeql_scope_ref_outer_06(self):
+    async def test_edgeql_scope_ref_outer_06a(self):
         await self.assert_query_result(
             """
                 WITH
@@ -3228,6 +3227,43 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 B := (SELECT U FILTER .name = 'Bob'),
                 Bc := B.cards,
                 SELECT { a := A.cards.tag, b := Bc.tag };
+            """,
+            [
+                {
+                    "a": {
+                        "Alice - Imp",
+                        "Alice - Dragon",
+                        "Alice - Bog monster",
+                        "Alice - Giant turtle",
+                    },
+                    "b": {
+                        "Bob - Bog monster",
+                        "Bob - Giant turtle",
+                        "Bob - Dwarf",
+                        "Bob - Golem",
+                    }
+                }
+            ]
+        )
+
+    @test.xfail('Returns tags with all users')
+    async def test_edgeql_scope_ref_outer_06b(self):
+        # Same as above, basically, but with an extra shape on Bc
+        # that causes trouble.
+        await self.assert_query_result(
+            """
+                WITH
+                U := (
+                    SELECT User {
+                        cards := .deck {
+                            name,
+                            tag := User.name ++ " - " ++ .name,
+                        }
+                    }),
+                A := (SELECT U FILTER .name = 'Alice'),
+                B := (SELECT U FILTER .name = 'Bob'),
+                Bc := B.cards { tag2 := .tag ++ "!" },
+                SELECT { a := A.cards.tag, b := Bc.tag2 };
             """,
             [
                 {

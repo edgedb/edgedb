@@ -95,7 +95,9 @@ def _pull_path_namespace(
 
         for path_id, aspect in s_paths:
             orig_path_id = path_id
-            path_id = pathctx.reverse_map_path_id(path_id, view_path_id_map)
+            if flavor != 'packed':
+                path_id = pathctx.reverse_map_path_id(
+                    path_id, view_path_id_map)
 
             # Skip pulling paths that match the path_id_mask before or after
             # doing path id mapping. We need to look at before as well
