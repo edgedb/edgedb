@@ -44,7 +44,7 @@ the length of a string.
       constraint expression on (len(__subject__) < 25);
 
       # with built-in
-      constraint min_len_value(25);
+      constraint max_len_value(24);
     };
   }
 
