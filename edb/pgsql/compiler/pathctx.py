@@ -567,9 +567,11 @@ def is_values_relation(
 
 def maybe_get_path_var(
         rel: pgast.Query, path_id: irast.PathId, *, aspect: str,
+        flavor: str='normal',
         env: context.Environment) -> Optional[pgast.BaseExpr]:
     try:
-        return get_path_var(rel, path_id, aspect=aspect, env=env)
+        return get_path_var(
+            rel, path_id, aspect=aspect, flavor=flavor, env=env)
     except LookupError:
         return None
 
@@ -741,34 +743,27 @@ def put_rvar_path_output(
     _put_path_output_var(rvar.query, path_id, aspect, var, env=env)
 
 
+def maybe_get_rvar_path_var(
+        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
+        aspect: str, flavor: str='normal',
+        env: context.Environment) -> Optional[pgast.OutputVar]:
+    try:
+        return get_rvar_path_var(
+            rvar, path_id, aspect=aspect, flavor=flavor, env=env)
+    except LookupError:
+        return None
+
+
 def get_rvar_path_identity_var(
         rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
         env: context.Environment) -> pgast.OutputVar:
     return get_rvar_path_var(rvar, path_id, aspect='identity', env=env)
 
 
-def maybe_get_rvar_path_identity_var(
-        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
-        env: context.Environment) -> Optional[pgast.OutputVar]:
-    try:
-        return get_rvar_path_var(rvar, path_id, aspect='identity', env=env)
-    except LookupError:
-        return None
-
-
 def get_rvar_path_value_var(
         rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
         env: context.Environment) -> pgast.OutputVar:
     return get_rvar_path_var(rvar, path_id, aspect='value', env=env)
-
-
-def maybe_get_rvar_path_value_var(
-        rvar: pgast.PathRangeVar, path_id: irast.PathId, *,
-        env: context.Environment) -> Optional[pgast.OutputVar]:
-    try:
-        return get_rvar_path_var(rvar, path_id, aspect='value', env=env)
-    except LookupError:
-        return None
 
 
 def get_rvar_output_var_as_col_list(
