@@ -257,7 +257,7 @@ def include_specific_rvar(
     if not has_rvar(stmt, rvar, ctx=ctx):
         if not (
             ctx.env.external_rvars
-            and has_external_rvar(path_id, aspects, ctx=ctx)
+            and has_external_rvar(rvar, ctx=ctx)
         ):
             rel_join(stmt, rvar, ctx=ctx)
         # Make sure that the path namespace of *rvar* is mapped
@@ -301,18 +301,11 @@ def has_rvar(
 
 
 def has_external_rvar(
-    path_id: irast.PathId,
-    aspects: Iterable[str],
+    rvar: pgast.PathRangeVar,
     *,
     ctx: context.CompilerContextLevel,
 ) -> bool:
-    return (
-        bool(ctx.env.external_rvars)
-        and all(
-            (path_id, aspect) in ctx.env.external_rvars
-            for aspect in aspects
-        )
-    )
+    return rvar in ctx.env.external_rvars.values()
 
 
 def _maybe_get_path_rvar(
