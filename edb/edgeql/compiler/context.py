@@ -396,7 +396,7 @@ class ContextLevel(compiler.ContextLevel):
     type_rewrites: Dict[s_types.Type, irast.Set]
     """Access policy rewrites for schema-level types."""
 
-    aliased_views: ChainMap[s_name.Name, Optional[s_types.Type]]
+    aliased_views: ChainMap[s_name.Name, s_types.Type]
     """A dictionary of views aliased in a statement body."""
 
     must_use_views: Dict[
