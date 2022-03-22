@@ -36,8 +36,13 @@ class TestEdgeQLGroup(tb.QueryTestCase):
     SCHEMA_CARDS = os.path.join(os.path.dirname(__file__), 'schemas',
                                 'cards.esdl')
 
-    SETUP = os.path.join(os.path.dirname(__file__), 'schemas',
-                         'groups_setup.edgeql')
+    SETUP = [
+        os.path.join(os.path.dirname(__file__), 'schemas',
+                     'issues_setup.edgeql'),
+        'SET MODULE cards;',
+        os.path.join(os.path.dirname(__file__), 'schemas',
+                     'cards_setup.edgeql'),
+    ]
 
     async def test_edgeql_group_simple_01(self):
         await self.assert_query_result(
