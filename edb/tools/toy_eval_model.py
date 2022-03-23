@@ -62,8 +62,11 @@ from edb.common.compiler import SimpleCounter
 from edb import edgeql
 
 from edb.common.ast import NodeVisitor
+from edb.common.compiler import AliasGenerator
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes as ft
+from edb.edgeql import desugar_group
+
 
 from dataclasses import dataclass, replace, field
 from collections import defaultdict
@@ -79,6 +82,9 @@ import random
 import statistics
 import traceback
 import uuid
+
+
+DESUGARING_GROUP = True
 
 
 T = TypeVar('T')
@@ -445,10 +451,7 @@ def update_path(
         else:
             query = query.subject
     elif isinstance(query, qlast.ReturningMixin):
-        if (
-            isinstance(query, qlast.SelectQuery)
-            and query.result_alias is not None
-        ):
+        if query.result_alias is not None:
             return qlast.Path(steps=[
                 qlast.ObjectRef(name=query.result_alias)
             ])
@@ -716,6 +719,7 @@ def get_groups(node: qlast.GroupQuery, ctx: EvalContext) -> List[Tuple[
         # And collect all the partial path references
         for key_el in all_keys:
             if isinstance(key_el, IPtr):
+                assert not isinstance(node, qlast.InternalGroupQuery)
                 key_val = eval_ptr(val, key_el, ctx=subctx)
                 assert len(key_val) <= 1
                 keys[key_el] = key_val
@@ -754,8 +758,7 @@ def get_groups(node: qlast.GroupQuery, ctx: EvalContext) -> List[Tuple[
     return all_groups
 
 
-@_eval.register
-def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
+def direct_eval_group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
     all_groups = get_groups(node, ctx)
 
     # Now we can produce our output.
@@ -772,6 +775,55 @@ def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
         out.append(group_obj)
 
     return out
+
+
+@_eval.register
+def eval_InternalGroup(
+        node: qlast.InternalGroupQuery, ctx: EvalContext) -> Result:
+    all_groups = get_groups(node, ctx)
+
+    out = []
+    for grouping, (bindings, elements) in all_groups:
+        key_dict = {k.name: v for k, v in bindings.items()}
+        subctx = ctx
+        for k, v in key_dict.items():
+            subctx = add_alias(k, v, subctx)
+        subctx = add_alias(node.group_alias, elements, subctx)
+        if node.grouping_alias:
+            subctx = add_alias(
+                node.grouping_alias,
+                [[g.name.split('~')[0] for g in grouping]],
+                subctx)
+
+        new_qil, new = subquery_full(node.result, ctx=subctx)
+        out += new
+
+    if not out:
+        return []
+
+    # XXX: There is some duplication with SELECT here
+    subq_path = update_path(ctx.cur_path, node)
+    if node.result_alias:
+        # If there is a result alias, the body is treated as being a subquery,
+        # so it doesn't become visible.
+        for i in range(len(ctx.query_input_list), len(new_qil)):
+            new_qil[i] = ()
+    new_qil += [simplify_path(subq_path) if subq_path else (IPartial(),)]
+
+    subq_ctx = replace(ctx, cur_path=subq_path)
+    out = eval_filter(node.where, new_qil, out, ctx=subq_ctx)
+    out = eval_orderby(node.orderby or [], new_qil, out, ctx=subq_ctx)
+
+    return [row[-1] for row in out]
+
+
+@_eval.register
+def eval_Group(node: qlast.GroupQuery, ctx: EvalContext) -> Result:
+    if DESUGARING_GROUP:
+        return eval(
+            desugar_group.desugar_group(node, AliasGenerator()), ctx=ctx)
+    else:
+        return direct_eval_group(node, ctx=ctx)
 
 
 @_eval.register

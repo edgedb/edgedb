@@ -78,6 +78,12 @@ class GlobalCompilerOptions:
     #: to contain DML in the top-level shape computables.
     allow_top_level_shape_dml: bool = False
 
+    #: Is this a dev instance of the compiler
+    devmode: bool = False
+
+    #: Is the compiler running in testmode
+    testmode: bool = False
+
 
 @dataclass
 class CompilerOptions(GlobalCompilerOptions):

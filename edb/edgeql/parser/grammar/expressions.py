@@ -64,6 +64,9 @@ class ExprStmtCore(Nonterm):
     def reduce_SimpleGroup(self, *kids):
         self.val = kids[0].val
 
+    def reduce_InternalGroup(self, *kids):
+        self.val = kids[0].val
+
     def reduce_SimpleInsert(self, *kids):
         self.val = kids[0].val
 
@@ -193,12 +196,17 @@ class ByClause(Nonterm):
         self.val = kids[1].val
 
 
-class OptUsingClause(Nonterm):
+class UsingClause(Nonterm):
     def reduce_USING_AliasedExprList(self, *kids):
         self.val = kids[1].val
 
     def reduce_USING_AliasedExprList_COMMA(self, *kids):
         self.val = kids[1].val
+
+
+class OptUsingClause(Nonterm):
+    def reduce_UsingClause(self, *kids):
+        self.val = kids[0].val
 
     def reduce_empty(self, *kids):
         self.val = None
@@ -214,6 +222,37 @@ class SimpleGroup(Nonterm):
             subject_alias=kids[1].val.alias,
             using=kids[2].val,
             by=kids[3].val,
+        )
+
+
+class OptGroupingAlias(Nonterm):
+    def reduce_COMMA_Identifier(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
+class InternalGroup(Nonterm):
+    def reduce_InternalGroup(self, *kids):
+        r"%reduce FOR GROUP OptionallyAliasedExpr \
+                  UsingClause \
+                  ByClause \
+                  INTO Identifier OptGroupingAlias \
+                  UNION OptionallyAliasedExpr \
+                  OptFilterClause OptSortClause \
+        "
+        self.val = qlast.InternalGroupQuery(
+            subject=kids[2].val.expr,
+            subject_alias=kids[2].val.alias,
+            using=kids[3].val,
+            by=kids[4].val,
+            group_alias=kids[6].val,
+            grouping_alias=kids[7].val,
+            result_alias=kids[9].val.alias,
+            result=kids[9].val.expr,
+            where=kids[10].val,
+            orderby=kids[11].val,
         )
 
 

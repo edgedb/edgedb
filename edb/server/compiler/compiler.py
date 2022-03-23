@@ -588,6 +588,8 @@ class Compiler:
                     not ctx.bootstrap_mode
                     and not ctx.schema_reflection_mode
                 ),
+                testmode=self.get_config_val(ctx, '__internal_testmode'),
+                devmode=self._is_dev_instance(),
             ),
         )
 
@@ -2638,6 +2640,11 @@ class Compiler:
                     and any(elements)
                 )
             )
+
+    def _is_dev_instance(self) -> bool:
+        # Determine whether we are on a dev instance by the presence
+        # of a test schema element.
+        return bool(self._std_schema.get('cfg::TestSessionConfig', None))
 
     def get_config_val(
         self,

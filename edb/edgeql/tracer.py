@@ -947,6 +947,16 @@ def trace_Group(
                 for by_el in node.by:
                     trace(by_el, ctx=byctx)
 
+        if isinstance(node, qlast.InternalGroupQuery):
+            with alias_context(nctx, node.using) as byctx:
+                ctx.objects[sn.QualName('__alias__', node.group_alias)] = (
+                    SentinelObject)
+                if node.grouping_alias:
+                    ctx.objects[
+                        sn.QualName('__alias__', node.grouping_alias)] = (
+                            SentinelObject)
+                trace(node.result, ctx=byctx)
+
         return tip
 
 
