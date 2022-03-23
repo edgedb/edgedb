@@ -118,7 +118,7 @@ def needs_eta_expansion_expr(
     """
     if isinstance(ir, irast.SelectStmt):
         return needs_eta_expansion(
-            ir.result, is_processed=bool(ir.where or ir.orderby), ctx=ctx)
+            ir.result, has_clauses=bool(ir.where or ir.orderby), ctx=ctx)
 
     if isinstance(stype, s_types.Array):
         if isinstance(ir, irast.Array):
@@ -149,7 +149,7 @@ def needs_eta_expansion_expr(
 def needs_eta_expansion(
     ir: irast.Set,
     *,
-    is_processed: bool = False,
+    has_clauses: bool = False,
     ctx: context.ContextLevel,
 ) -> bool:
     """Determine if a set is in need of η-expansion"""
@@ -168,7 +168,7 @@ def needs_eta_expansion(
     # might be processed by a clause. This is because the pgsql side
     # will produce *either* a value or serialized for array_agg/array
     # literals.
-    if is_processed and (
+    if has_clauses and (
         (subarray := stype.find_array(ctx.env.schema))
         and subarray.contains_object(ctx.env.schema)
     ):

@@ -140,11 +140,11 @@ def contains_predicate(
     if pred(typeref):
         return True
 
-    if typeref.intersection:
+    elif typeref.intersection:
         return any(
             contains_predicate(sub, pred) for sub in typeref.intersection
         )
-    if typeref.union:
+    elif typeref.union:
         return any(
             contains_predicate(sub, pred) for sub in typeref.union
         )
