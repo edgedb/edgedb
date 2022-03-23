@@ -7149,3 +7149,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             ''',
             {1, 2}
         )
+
+    async def test_edgeql_select_shadow_computable_01(self):
+        # The thing this is testing for
+        await self.assert_query_result(
+            '''
+            SELECT User := User { name, is_elvis := User.name = 'Elvis' }
+            ORDER BY User.is_elvis
+            ''',
+            [
+                {"is_elvis": False, "name": "Yury"},
+                {"is_elvis": True, "name": "Elvis"}
+            ]
+        )
