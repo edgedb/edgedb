@@ -235,6 +235,26 @@ def compile_ForQuery(
     return result
 
 
+@dispatch.compile.register(qlast.InternalGroupQuery)
+def compile_InternalGroupQuery(
+    expr: qlast.InternalGroupQuery, *, ctx: context.ContextLevel
+) -> irast.Set:
+    # We want to disallow use of FOR GROUP except for when running
+    # a dev build. Check for the presence of a test schema element
+    # to detect whether we're on a dev build.
+    if not expr.from_desugaring and not ctx.env.schema.get(
+        'cfg::TestSessionConfig', None
+    ):
+        raise errors.UnsupportedFeatureError(
+            'FOR GROUP is an internal testing feature',
+            context=expr.context,
+        )
+
+    raise errors.UnsupportedFeatureError(
+        "'FOR GROUP' statement is not currently implemented",
+        context=expr.context)
+
+
 @dispatch.compile.register(qlast.GroupQuery)
 def compile_GroupQuery(
         expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:

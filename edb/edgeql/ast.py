@@ -482,6 +482,7 @@ class SubjectMixin(Base):
 
 class ReturningMixin(Base):
     __abstract_node__ = True
+    result_alias: typing.Optional[str] = None
     result: Expr
 
 
@@ -527,7 +528,7 @@ class Query(Statement):
 
 
 class SelectQuery(Query, ReturningMixin, SelectClauseMixin):
-    result_alias: typing.Optional[str] = None
+    pass
 
 
 class GroupingIdentList(Base):
@@ -541,15 +542,15 @@ class GroupingElement(Base):
     __abstract_node__ = True
 
 
-class GroupingSimple(Base):
+class GroupingSimple(GroupingElement):
     element: GroupingAtom
 
 
-class GroupingSets(Base):
+class GroupingSets(GroupingElement):
     sets: typing.List[GroupingElement]
 
 
-class GroupingOperation(Base):
+class GroupingOperation(GroupingElement):
     oper: str
     elements: typing.List[GroupingAtom]
 
@@ -558,6 +559,13 @@ class GroupQuery(Query, SubjectMixin):
     subject_alias: typing.Optional[str] = None
     using: typing.Optional[typing.List[AliasedExpr]]
     by: typing.List[GroupingElement]
+
+
+class InternalGroupQuery(
+        GroupQuery, ReturningMixin, FilterMixin, OrderByMixin):
+    group_alias: str
+    grouping_alias: typing.Optional[str]
+    from_desugaring: bool = False
 
 
 class InsertQuery(Query, SubjectMixin):

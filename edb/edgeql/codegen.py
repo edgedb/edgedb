@@ -353,15 +353,18 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self.visit_list(node.elements, newlines=False)
         self.write(')')
 
-    def visit_GroupQuery(self, node: qlast.GroupQuery) -> None:
+    def visit_GroupQuery(
+            self, node: qlast.GroupQuery, no_paren: bool=False) -> None:
         # need to parenthesise when GROUP appears as an expression
-        parenthesise = self._needs_parentheses(node)
+        parenthesise = self._needs_parentheses(node) and not no_paren
 
         if parenthesise:
             self.write('(')
 
         self._visit_aliases(node)
 
+        if isinstance(node, qlast.InternalGroupQuery):
+            self._write_keywords('FOR ')
         self._write_keywords('GROUP')
         self._block_ws(1)
         if node.subject_alias:
@@ -373,10 +376,42 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             self._block_ws(1)
             self.visit_list(node.using, newlines=False)
             self._block_ws(-1)
-        self._write_keywords('BY')
-        self._block_ws(1)
+        self._write_keywords('BY ')
         self.visit_list(node.by)
-        self._block_ws(-1)
+
+        if parenthesise:
+            self.write(')')
+
+    def visit_InternalGroupQuery(self, node: qlast.InternalGroupQuery) -> None:
+        parenthesise = self._needs_parentheses(node)
+        if parenthesise:
+            self.write('(')
+
+        self.visit_GroupQuery(node, no_paren=True)
+        self._block_ws(0)
+        self._write_keywords('INTO ')
+        self.write(ident_to_str(node.group_alias))
+        if node.grouping_alias:
+            self.write(', ')
+            self.write(ident_to_str(node.grouping_alias))
+        self.write(' ')
+        self._block_ws(0)
+        self._write_keywords('UNION ')
+        self.visit(node.result)
+
+        if node.where:
+            self._write_keywords(' FILTER ')
+            self.visit(node.where)
+
+        if node.orderby:
+            self._write_keywords(' ORDER BY ')
+            self.visit_list(
+                node.orderby,
+                separator=self._kw_case(' THEN'), newlines=False
+            )
+
+        if parenthesise:
+            self.write(')')
 
     def visit_ModuleAliasDecl(self, node: qlast.ModuleAliasDecl) -> None:
         if node.alias:

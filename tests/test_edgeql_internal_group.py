@@ -16,10 +16,6 @@
 # limitations under the License.
 #
 
-# ALL OF THESE TESTS USE OUT OF DATE SYNTAX.
-# They are left in as a starting point for new tests.
-
-
 import os.path
 
 from edb.testbase import server as tb
@@ -27,8 +23,8 @@ from edb.tools import test
 
 
 @test.not_implemented('GROUP statement is not yet implemented')
-class TestEdgeQLGroup(tb.QueryTestCase):
-    '''These tests are focused on using GROUP statement.'''
+class TestEdgeQLGroupInternal(tb.QueryTestCase):
+    '''These tests are focused on using the internal GROUP statement.'''
 
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'issues.esdl')
@@ -44,10 +40,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                      'cards_setup.edgeql'),
     ]
 
-    async def test_edgeql_group_simple_01(self):
+    async def test_edgeql_igroup_simple_01(self):
         await self.assert_query_result(
             r'''
-                GROUP User
+                FOR GROUP User
                 USING _ := User.name
                 BY _
                 INTO User
@@ -56,10 +52,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {4, 2},
         )
 
-    async def test_edgeql_group_simple_02(self):
+    async def test_edgeql_igroup_simple_02(self):
         await self.assert_query_result(
             r'''
-                GROUP Issue := Issue
+                FOR GROUP Issue := Issue
                 # time_estimate is {} on some Issues,
                 # but that's a valid grouping
                 USING _ := Issue.time_estimate
@@ -71,10 +67,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {3, 1},
         )
 
-    async def test_edgeql_group_simple_03(self):
+    async def test_edgeql_igroup_simple_03(self):
         await self.assert_query_result(
             r'''
-                GROUP Issue
+                FOR GROUP Issue
                 USING _ := Issue.time_estimate
                 BY _
                 INTO Issue
@@ -84,10 +80,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {3, 1},
         )
 
-    async def test_edgeql_group_simple_04(self):
+    async def test_edgeql_igroup_simple_04(self):
         await self.assert_query_result(
             r'''
-                GROUP Issue
+                FOR GROUP Issue
                 USING _ := Issue.time_estimate
                 BY _
                 INTO Issue
@@ -98,10 +94,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {3, 1},
         )
 
-    async def test_edgeql_group_simple_05(self):
+    async def test_edgeql_igroup_simple_05(self):
         await self.assert_query_result(
             r'''
-                GROUP Issue
+                FOR GROUP Issue
                 USING _ := Issue.time_estimate
                 BY _
                 INTO Issue
@@ -112,10 +108,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {2, 1},
         )
 
-    async def test_edgeql_group_simple_06(self):
+    async def test_edgeql_igroup_simple_06(self):
         await self.assert_query_result(
             r'''
-                GROUP Issue
+                FOR GROUP Issue
                 USING _ := Issue.time_estimate
                 BY _
                 INTO Issue
@@ -126,17 +122,112 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             {2, 1},
         )
 
-    async def test_edgeql_group_by_01(self):
+    async def test_edgeql_igroup_simple_07(self):
+        await self.assert_query_result(
+            r'''
+                WITH MODULE cards
+                FOR GROUP Card
+                USING _ := .cost//2
+                BY _
+                INTO Card
+                UNION count(DISTINCT Card.element);
+            ''',
+            tb.bag([3, 2, 3]),
+        )
+
+    async def test_edgeql_igroup_simple_08(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE cards
+            FOR GROUP Card
+            USING _ := .cost//2
+            BY _
+            INTO Card
+            UNION count(array_agg(Card.element));
+            ''',
+            [1, 1, 1],
+        )
+
+    @test.xfail('''
+        doing this array_agg misses shapes
+        ... but the real equivalent works
+    ''')
+    async def test_edgeql_igroup_simple_09(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE cards
+            FOR GROUP Card { name }
+            USING element := .element
+            BY element
+            INTO g
+            UNION { elements := array_agg(g) };
+            ''',
+            tb.bag([
+                {"elements": tb.bag([
+                    {"name": "Imp"}, {"name": "Dragon"}])},
+                {"elements": tb.bag([
+                    {"name": "Bog monster"}, {"name": "Giant turtle"}])},
+                {"elements": tb.bag([{"name": "Dwarf"}, {"name": "Golem"}])},
+                {"elements": tb.bag([
+                    {"name": "Sprite"},
+                    {"name": "Giant eagle"},
+                    {"name": "Djinn"}
+                ])}
+            ]),
+        )
+
+    async def test_edgeql_igroup_simple_bare_01(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE cards
+            FOR GROUP Card
+            USING element := .element
+            BY element
+            INTO g
+            UNION { elements := g };
+            ''',
+            tb.bag([
+                {"elements": [{"id": str}] * 2},
+                {"elements": [{"id": str}] * 2},
+                {"elements": [{"id": str}] * 2},
+                {"elements": [{"id": str}] * 3},
+            ]),
+        )
+
+    @test.xfail('''
+        doing this array_agg misses shapes
+        ... but the real equivalent works
+    ''')
+    async def test_edgeql_igroup_simple_bare_02(self):
+        await self.assert_query_result(
+            r'''
+            WITH MODULE cards
+            FOR GROUP Card
+            USING element := .element
+            BY element
+            INTO g
+            UNION { elements := array_agg(g) };
+            ''',
+            tb.bag([
+                {"elements": [{"id": str}] * 2},
+                {"elements": [{"id": str}] * 2},
+                {"elements": [{"id": str}] * 2},
+                {"elements": [{"id": str}] * 3},
+            ]),
+        )
+
+    async def test_edgeql_igroup_by_01(self):
         await self.assert_query_result(
             r"""
-                GROUP Issue
+                FOR GROUP Issue
                 USING B :=  Issue.status.name
                 BY B
                 INTO Issue
                 UNION (
                     sum := sum(<int64>Issue.number),
                     status := B,
-                ) ORDER BY B;
+                )
+                ORDER BY .status;
             """,
             [
                 {
@@ -150,21 +241,19 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_by_02(self):
+    async def test_edgeql_igroup_by_02(self):
         await self.assert_query_result(
             r"""
-                GROUP Issue
+                FOR GROUP Issue
                 USING B :=  Issue.status.name
                 BY B
                 INTO Issue
-                UNION _ := (
+                UNION (
                     sum := sum(<int64>Issue.number),
                     status := B,
                 )
-                FILTER
-                    _.sum > 5
-                ORDER BY
-                    B;
+                FILTER .sum > 5
+                ORDER BY .status;
             """,
             [{
                 'status': 'Closed',
@@ -172,43 +261,39 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             }],
         )
 
-    async def test_edgeql_group_result_alias_01(self):
+    async def test_edgeql_igroup_result_alias_01(self):
         await self.assert_query_result(
             r'''
-                # re-use the same "_" alias in nested scope
-                GROUP Issue
+                FOR GROUP Issue
                 USING _ :=  Issue.time_estimate
                 BY _
                 INTO Issue
                 UNION _ := (
                     count := count(Issue.status.id),
                     te := array_agg(DISTINCT Issue.time_estimate > 0),
-                ) ORDER BY
-                    _.te;
+                ) ORDER BY _.te;
             ''',
-            [{'count': 3, 'te': []}, {'count': 1, 'te': [True]}]
+            [{'count': 2, 'te': []}, {'count': 1, 'te': [True]}]
         )
 
         await self.assert_query_result(
             r'''
-                GROUP Issue
+                FOR GROUP Issue
                 USING _ :=  Issue.time_estimate
                 BY _
                 INTO Issue
                 UNION _ := (
                     count := count(Issue.status.id),
                     te := array_agg(DISTINCT Issue.time_estimate > 0),
-                ) ORDER BY
-                    _.te DESC;
+                ) ORDER BY _.te DESC;
             ''',
-            [{'count': 1, 'te': [True]}, {'count': 3, 'te': []}],
+            [{'count': 1, 'te': [True]}, {'count': 2, 'te': []}],
         )
 
-    async def test_edgeql_group_result_alias_02(self):
+    async def test_edgeql_igroup_result_alias_02(self):
         await self.assert_query_result(
             r'''
-                # re-use the same "_" alias in nested scope
-                GROUP Issue
+                FOR GROUP Issue
                 USING _ :=  Issue.time_estimate
                 BY _
                 INTO Issue
@@ -220,10 +305,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 ) ORDER BY
                     _.te DESC;
             ''',
-            [{'count': 1, 'te': [True]}, {'count': 3, 'te': []}],
+            [{'count': 1, 'te': [True]}, {'count': 2, 'te': []}],
         )
 
-    async def test_edgeql_group_nested_01(self):
+    async def test_edgeql_igroup_nested_01(self):
         await self.assert_query_result(
             r"""
                 SELECT
@@ -231,16 +316,17 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                         name := User.name,
                         issues := array_agg(
                             (
-                                GROUP UserIssue := User.<owner[IS Issue]
+                                SELECT
+                                (FOR GROUP
+                                   UserIssue := User.<owner[IS Issue]
                                 USING B :=  UserIssue.status.name
                                 BY B
                                 INTO UserIssue
                                 UNION (
                                     status := B,
                                     count := count(UserIssue),
-                                )
-                                ORDER BY
-                                    B
+                                ))
+                                ORDER BY .status
                             )
                         )
                     )
@@ -270,10 +356,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_group_returning_01(self):
+    async def test_edgeql_igroup_returning_01(self):
         await self.assert_query_result(
             r'''
-                GROUP Issue
+                FOR GROUP Issue
                 USING _ :=  Issue.time_estimate
                 BY _
                 INTO Issue
@@ -285,10 +371,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [42, 42],
         )
 
-    async def test_edgeql_group_returning_02(self):
+    async def test_edgeql_igroup_returning_02(self):
         await self.assert_query_result(
             r'''
-                GROUP Issue
+                FOR GROUP Issue
                 USING B := Issue.time_estimate
                 BY B
                 INTO Issue
@@ -300,10 +386,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             [1, 3, 42, 42],
         )
 
-    async def test_edgeql_group_returning_03(self):
+    async def test_edgeql_igroup_returning_03(self):
         await self.assert_query_result(
             r'''
-                GROUP Issue
+                FOR GROUP Issue
                 USING B := Issue.status
                 BY B
                 INTO Issue
@@ -314,7 +400,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     name,
                     nums := Issue.number
                 }
-                ORDER BY B.name;
+                ORDER BY .name;
             ''',
             [
                 {
@@ -328,10 +414,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_returning_04(self):
+    async def test_edgeql_igroup_returning_04(self):
         await self.assert_query_result(
             r'''
-                GROUP Issue
+                FOR GROUP Issue
                 USING _ := Issue.status
                 BY _
                 INTO Issue
@@ -347,8 +433,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     # status, so this FILTER is valid, although not
                     # necessarily optimal
                     FILTER Status = Issue.status
-                )
-                ORDER BY Status.name;
+                ) ORDER BY _.name;
             ''',
             [
                 {
@@ -362,19 +447,18 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_returning_05(self):
+    async def test_edgeql_igroup_returning_05(self):
         await self.assert_query_result(
             r'''
                 # a trivial group that is actually not doing anything
                 # different from a plain SELECT
                 WITH MODULE cards
-                GROUP Card
+                FOR GROUP Card
                 USING _ :=  Card.element
                 BY _
                 INTO Card
-                UNION Card.name
-                ORDER BY
-                    Card.name;
+                UNION _ := Card.name
+                ORDER BY _;
             ''',
             [
                 'Bog monster',
@@ -389,19 +473,19 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_returning_06(self):
+    async def test_edgeql_igroup_returning_06a(self):
         await self.assert_query_result(
             r'''
                 # a trivial group that is actually not doing anything
                 # different from a plain SELECT
                 WITH MODULE cards
-                GROUP Card
+                FOR GROUP Card
                 USING _ :=  Card.element
                 BY _
                 INTO Card
                 UNION Card {name}
                 ORDER BY
-                    Card.name;
+                    .name;
             ''',
             [
                 {'name': 'Bog monster'},
@@ -416,7 +500,36 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_returning_07(self):
+    async def test_edgeql_igroup_returning_06b(self):
+        await self.assert_query_result(
+            r'''
+                # a trivial group that is actually not doing anything
+                # different from a plain SELECT
+                WITH MODULE cards
+                SELECT (
+                FOR GROUP Card
+                USING _ :=  Card.element
+                BY _
+                INTO Card
+                UNION Card {name}
+                )
+                ORDER BY
+                    .name;
+            ''',
+            [
+                {'name': 'Bog monster'},
+                {'name': 'Djinn'},
+                {'name': 'Dragon'},
+                {'name': 'Dwarf'},
+                {'name': 'Giant eagle'},
+                {'name': 'Giant turtle'},
+                {'name': 'Golem'},
+                {'name': 'Imp'},
+                {'name': 'Sprite'},
+            ],
+        )
+
+    async def test_edgeql_igroup_returning_07(self):
         await self.assert_query_result(
             r'''
                 # Nominate a leader in each group from among the group.
@@ -429,7 +542,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     C2 := Card,
                     ELEMENTAL := (
                         # group cards into arrays by element
-                        GROUP Card
+                        FOR GROUP Card
                         USING _ :=  Card.element
                         BY _
                         INTO Card
@@ -503,10 +616,13 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                         {'cost': 3, 'name': 'Giant turtle'},
                     ],
                 }
-            ]
+            ],
+            # XXX: Prevent spurious successes
+            always_typenames=True,
         )
 
-    async def test_edgeql_group_returning_08(self):
+    @test.xfail('Broken when injecting types - is not a computed pointer')
+    async def test_edgeql_igroup_returning_08(self):
         await self.assert_query_result(
             r'''
                 # Nominate a leader in each group from among the group.
@@ -516,7 +632,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 WITH
                     MODULE cards,
                     ELEMENTAL := (
-                        GROUP Card
+                        FOR GROUP Card
                         USING _ :=  Card.element
                         BY _
                         INTO Card
@@ -530,7 +646,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                                 name,
                                 cost,
                                 members := (
-                                    SELECT C2 := array_unpack(X)
+                                    SELECT C2 := DISTINCT array_unpack(X)
                                     ORDER BY C2.cost
                                 )
                             }
@@ -588,20 +704,21 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                         {'cost': 3, 'name': 'Giant turtle'},
                     ],
                 }
-            ]
+            ],
+            always_typenames=True,
         )
 
-    async def test_edgeql_group_returning_09(self):
+    async def test_edgeql_igroup_returning_09(self):
         await self.assert_query_result(
             r'''
                 # Nominate a leader in each group from among the group.
                 #
                 # Same as previous tests, but refactored to take full
-                # advantage of GROUP semantics and BY aliasing.
+                # advantage of FOR GROUP semantics and BY aliasing.
                 WITH
                     MODULE cards,
                     C2 := Card
-                GROUP Card
+                FOR GROUP Card
                 USING Element :=
                         # partition cards by element
                         Card.element
@@ -674,10 +791,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_group_by_tuple_01(self):
+    async def test_edgeql_igroup_by_tuple_01(self):
         await self.assert_query_result(
             r"""
-                GROUP Issue
+                FOR GROUP Issue
                 USING B := (Issue.status.name, Issue.time_estimate)
                 # This tuple will be {} for Issues lacking
                 # time_estimate. So effectively we're expecting only 2
@@ -686,13 +803,13 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 # - ('Open', 3000)
                 BY B
                 INTO Issue
-                UNION _ := (
+                UNION (
                     sum := sum(<int64>Issue.number),
                     # don't forget to coalesce the {} or else the whole
                     # tuple will collapse
                     status := B.0 ?? '',
                     time_estimate := B.1 ?? 0
-                ) ORDER BY B;
+                ) ORDER BY .status;
             """,
             [
                 {
@@ -704,10 +821,10 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_by_multiple_01(self):
+    async def test_edgeql_igroup_by_multiple_01(self):
         await self.assert_query_result(
             r"""
-                GROUP Issue
+                FOR GROUP Issue
                 USING
                     Stat := Issue.status.name,
                     Est := Issue.time_estimate
@@ -725,24 +842,25 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     # only this one needs to be coalesced
                     time_estimate := Est ?? 0
                 ) ORDER BY _;
+
             """,
             [
                 {
-                    'status': 'Closed', 'sum': 7, 'time_estimate': 0,
+                    'status': 'Open', 'sum': 1, 'time_estimate': 3000,
                 },
                 {
                     'status': 'Open', 'sum': 2, 'time_estimate': 0,
                 },
                 {
-                    'status': 'Open', 'sum': 1, 'time_estimate': 3000,
-                }
+                    'status': 'Closed', 'sum': 7, 'time_estimate': 0,
+                },
             ],
         )
 
-    async def test_edgeql_group_by_multiple_02(self):
+    async def test_edgeql_igroup_by_multiple_02(self):
         await self.assert_query_result(
             r"""
-                GROUP Issue
+                FOR GROUP Issue
                 USING
                     Stat := Issue.status.name,
                     Est := Issue.time_estimate
@@ -752,10 +870,8 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     sum := sum(<int64>Issue.number),
                     status := Stat,
                     time_estimate := Est ?? 0
-                )
                 # ordering condition derived from the grouping parameters
-                ORDER BY Stat
-                    THEN Est > 0 EMPTY FIRST;
+                ) ORDER BY Stat THEN Est > 0;
             """,
             [
                 {
@@ -770,10 +886,11 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_by_multiple_03(self):
+    async def test_edgeql_igroup_by_multiple_03(self):
         await self.assert_query_result(
             r"""
-                GROUP Issue
+                SELECT (
+                FOR GROUP Issue
                 USING
                     Stat := Issue.status.name,
                     Est := Issue.time_estimate
@@ -785,7 +902,8 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                         <int64>Issue.number ORDER BY Issue.number),
                     status := Stat,
                     time_estimate := Est ?? 0
-                ) ORDER BY Stat THEN Est;
+                )
+                ) ORDER BY .status THEN .time_estimate;
             """,
             [
                 {
@@ -806,10 +924,11 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_by_multiple_04(self):
+    async def test_edgeql_igroup_by_multiple_04(self):
         await self.assert_query_result(
             r"""
-                GROUP Issue
+                SELECT (
+                FOR GROUP Issue
                 USING
                     Stat := Issue.status.name,
                     Est := Issue.time_estimate
@@ -823,7 +942,8 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                         <str>Issue.watchers.name ORDER BY Issue.watchers.name),
                     status := Stat,
                     time_estimate := Est ?? 0
-                ) ORDER BY Stat THEN Est;
+                )
+                ) ORDER BY .status THEN .time_estimate;
             """,
             [
                 {
@@ -847,11 +967,11 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_by_multiple_05(self):
+    async def test_edgeql_igroup_by_multiple_05(self):
         await self.assert_query_result(
             r"""
-                GROUP
-                    # define a computable in the GROUP expr
+                FOR GROUP
+                    # define a computable in the FOR GROUP expr
                     Issue := Issue {
                         less_than_four := <int64>Issue.number < 4
                     }
@@ -868,7 +988,9 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     watchers := array_agg(
                         Issue.watchers.name ORDER BY Issue.watchers.name),
                     status := Stat,
-                ) ORDER BY Stat THEN X;
+                    x := X
+                )
+                ORDER BY .status THEN .x;
             """,
             [
                 {
@@ -889,27 +1011,29 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_by_multiple_06(self):
+    async def test_edgeql_igroup_by_multiple_06(self):
         await self.assert_query_result(
             r"""
-                GROUP Issue
+                SELECT (
+                FOR GROUP Issue
                 USING
                     Stat := Issue.status.name,
                     # group by some non-trivial expression
                     X := <int64>Issue.number < 4
                 BY Stat, X
                 INTO Issue
-                UNION I := (
+                UNION (
                     numbers := array_agg(
                         <int64>Issue.number ORDER BY Issue.number),
                     watchers := count(DISTINCT Issue.watchers),
                     status := Stat,
-                ) ORDER BY
+                    cnt := count(DISTINCT Issue),
+                )) ORDER BY
                     # used a mixture of different aliases in ORDER BY
-                    Stat
-                    THEN I.watchers
+                    .status
+                    THEN .watchers
                     # should work because count evaluates to a singleton
-                    THEN count(DISTINCT Issue);
+                    THEN .cnt;
             """,
             [
                 {
@@ -930,11 +1054,12 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ],
         )
 
-    async def test_edgeql_group_by_multiple_07(self):
+    async def test_edgeql_igroup_by_multiple_07a(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE cards
-                GROUP C := Card
+                SELECT (
+                FOR GROUP C := Card
                 USING x := C.cost
                 BY x
                 INTO C
@@ -943,7 +1068,35 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                     # At this point C is a subset of Card. So the below
                     # expression should be the size of the subset in
                     # percent.
-                    100 * count(C) / count(Card)
+                    100 * count(C) // count(Card),
+                    x,
+                )) ORDER BY .2;
+            """,
+            [
+                [['Dwarf', 'Imp', 'Sprite'], 33, int],
+                [['Bog monster', 'Giant eagle'], 22, int],
+                [['Giant turtle', 'Golem'], 22, int],
+                [['Djinn'], 11, int],
+                [['Dragon'], 11, int]
+            ]
+        )
+
+    async def test_edgeql_igroup_by_multiple_07b(self):
+        # The tricky part here is the reference to Card in both parts,
+        # which are separate. XXX: Wait, is that what we want?
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                FOR GROUP Card
+                USING x := .cost
+                BY x
+                INTO C
+                UNION (
+                    array_agg(C.name ORDER BY C.name),
+                    # At this point C is a subset of Card. So the below
+                    # expression should be the size of the subset in
+                    # percent.
+                    100 * count(C) // count(Card),
                 ) ORDER BY x;
             """,
             [
@@ -955,56 +1108,19 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_group_linkproperty_simple_01(self):
-        await self.assert_query_result(
-            r"""
-                # group by link property
-                WITH MODULE cards
-                GROUP Card
-                USING B := Card.<deck[IS User]@count
-                BY B
-                INTO Card
-                UNION _ := (
-                    cards := array_agg(
-                        DISTINCT Card.name ORDER BY Card.name),
-                    count := B,
-                ) ORDER BY _.count;
-            """,
-            [
-                {
-                    'cards': ['Bog monster', 'Djinn', 'Dragon', 'Giant eagle',
-                              'Giant turtle', 'Golem'],
-                    'count': 1
-                },
-                {
-                    'cards': ['Dragon', 'Giant turtle', 'Golem', 'Imp'],
-                    'count': 2
-                },
-                {
-                    'cards': ['Bog monster', 'Dwarf', 'Giant eagle',
-                              'Giant turtle', 'Golem'],
-                    'count': 3
-                },
-                {
-                    'cards': ['Dwarf', 'Sprite'],
-                    'count': 4
-                },
-            ],
-        )
-
-    async def test_edgeql_group_linkproperty_simple_02(self):
+    async def test_edgeql_igroup_linkproperty_simple_02(self):
         await self.assert_query_result(
             r"""
                 # use link property inside a group aggregate
                 WITH MODULE cards
-                GROUP Card
+                FOR GROUP Card
                 USING El :=
                         Card.element
                 BY El
                 INTO Card
                 UNION _ := (
                     cards := array_agg(
-                        DISTINCT Card.name ORDER BY Card.name),
+                        Card.name ORDER BY Card.name),
                     element := El,
                     count := sum(Card.<deck[IS User]@count),
                 ) ORDER BY _.count;
@@ -1033,17 +1149,17 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_group_linkproperty_simple_03(self):
+    async def test_edgeql_igroup_linkproperty_simple_03(self):
         await self.assert_query_result(
             r"""
                 # group by link property
                 WITH MODULE cards
-                GROUP User
+                FOR GROUP User
                 # get the nickname that this user from Alice (if any)
-                USING B := (
+                USING B := assert_single((
                     SELECT User.<friends[IS User]@nickname
                     FILTER User.<friends[IS User].name = 'Alice'
-                )
+                ))
                 BY B
                 INTO F
                 UNION _ := (
@@ -1060,7 +1176,8 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_group_linkproperty_nested_01(self):
+    @test.xfail("linkprops - can't find scope statement")
+    async def test_edgeql_igroup_linkproperty_nested_01(self):
         await self.assert_query_result(
             r"""
                 WITH MODULE cards
@@ -1080,7 +1197,7 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                                 }
                             }
                         # grouping the cards now
-                        GROUP U.deck
+                        FOR GROUP U.deck
                         USING B :=  U.deck.element
                         BY B
                         INTO D
@@ -1131,11 +1248,12 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_group_linkproperty_multiple_01(self):
+    @test.xfail("linkprops - can't find scope statement")
+    async def test_edgeql_igroup_linkproperty_multiple_01(self):
         await self.assert_query_result(
             r"""
                 WITH
-                    MODULE cards
+                    MODULE cards,
                     U := (
                         SELECT User {
                             deck: {
@@ -1143,18 +1261,18 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                             }
                         } FILTER User.name = 'Dave'
                     )
-                GROUP
+                FOR GROUP
                     U.deck
                 USING
                     El := U.deck.element,
                     Count := U.deck.count
                 BY El, Count
                 INTO D
-                UNION _ := (
+                UNION (
                     cards := array_agg(D.name ORDER BY D.name),
                     element := El,
                     count := Count,
-                ) ORDER BY El THEN Count;
+                ) ORDER BY .element THEN .count;
             """,
             [
                 # compare to test_edgeql_props_basic01
@@ -1186,12 +1304,12 @@ class TestEdgeQLGroup(tb.QueryTestCase):
             ]
         )
 
-    async def test_edgeql_group_scalar_01(self):
+    async def test_edgeql_igroup_scalar_01a(self):
         await self.assert_query_result(
             r"""
                 WITH
                     I := <int64>Issue.number
-                GROUP I
+                FOR GROUP I
                 USING _ :=  I % 2 = 0
                 BY _
                 INTO I
@@ -1203,4 +1321,233 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 {'values': [1, 3]},
                 {'values': [2, 4]}
             ]
+        )
+
+    async def test_edgeql_igroup_scalar_01b(self):
+        await self.assert_query_result(
+            r"""
+                WITH
+                    I := <int64>Issue.number
+                FOR GROUP I
+                USING _ :=  I % 2 = 0
+                BY _
+                INTO I
+                UNION _r := (
+                    values := array_agg((SELECT _ := I ORDER BY _))
+                ) ORDER BY _r.values;
+            """,
+            [
+                {'values': [1, 3]},
+                {'values': [2, 4]}
+            ]
+        )
+
+    async def test_edgeql_igroup_to_freeobject_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                FOR GROUP Card { name }
+                USING e := .element,
+                BY e
+                INTO g UNION { z := g };
+            """,
+            tb.bag([
+                {"z": tb.bag(
+                    [{"name": "Bog monster"}, {"name": "Giant turtle"}])},
+                {"z": tb.bag(
+                    [{"name": "Imp"}, {"name": "Dragon"}])},
+                {"z": tb.bag([{"name": "Dwarf"}, {"name": "Golem"}])},
+                {"z": tb.bag([
+                    {"name": "Sprite"},
+                    {"name": "Giant eagle"},
+                    {"name": "Djinn"},
+                ])}
+            ])
+        )
+
+    async def test_edgeql_igroup_to_freeobject_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                SELECT (FOR GROUP Card { name }
+                USING e := .element,
+                BY e
+                INTO g UNION { z := g });
+            """,
+            tb.bag([
+                {"z": tb.bag(
+                    [{"name": "Bog monster"}, {"name": "Giant turtle"}])},
+                {"z": tb.bag(
+                    [{"name": "Imp"}, {"name": "Dragon"}])},
+                {"z": tb.bag([{"name": "Dwarf"}, {"name": "Golem"}])},
+                {"z": tb.bag([
+                    {"name": "Sprite"},
+                    {"name": "Giant eagle"},
+                    {"name": "Djinn"},
+                ])}
+            ])
+        )
+
+    async def test_edgeql_igroup_to_freeobject_03(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                FOR GROUP Card { name }
+                USING e := .element,
+                BY e
+                INTO g UNION { n := count(g) };
+            """,
+            tb.bag([{"n": 2}, {"n": 2}, {"n": 2}, {"n": 3}]),
+        )
+
+    async def test_edgeql_igroup_to_freeobject_04(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                SELECT (FOR GROUP Card { name }
+                USING e := .element,
+                BY e
+                INTO g UNION { n := count(g) });
+            """,
+            tb.bag([{"n": 2}, {"n": 2}, {"n": 2}, {"n": 3}]),
+        )
+
+    async def test_edgeql_using_rebind_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                FOR GROUP Card
+                USING e := .element
+                BY e
+                INTO g
+                UNION
+                (WITH z := e, SELECT z);
+            """,
+            {"Water", "Fire", "Earth", "Air"}
+        )
+
+    async def test_edgeql_using_rebind_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                FOR GROUP Card
+                USING e := .element
+                BY e
+                INTO g
+                UNION
+                { key := e } {z := .key};
+
+            """,
+            tb.bag(
+                [{"z": "Fire"}, {"z": "Water"}, {"z": "Earth"}, {"z": "Air"}]
+            )
+        )
+
+    async def test_edgeql_using_rebind_03(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                FOR GROUP Card
+                USING e := .element
+                BY e
+                INTO g
+                UNION
+                { key := { e := e } } {z := .key.e};
+
+            """,
+            tb.bag(
+                [{"z": "Fire"}, {"z": "Water"}, {"z": "Earth"}, {"z": "Air"}]
+            )
+        )
+
+    async def test_edgeql_igroup_filter_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                SELECT (FOR GROUP Card { name }
+                USING e := .element,
+                BY e
+                INTO g UNION (
+                    SELECT { key := {e := e}, z := g } FILTER e != 'Air')
+                );
+            """,
+            tb.bag([
+                {
+                    "key": {"e": "Water"},
+                    "z": tb.bag(
+                        [{"name": "Bog monster"}, {"name": "Giant turtle"}])
+                },
+                {"key": {"e": "Fire"}, "z": tb.bag([
+                    {"name": "Imp"}, {"name": "Dragon"}])},
+                {"key": {"e": "Earth"}, "z": tb.bag([
+                    {"name": "Dwarf"}, {"name": "Golem"}])}
+            ])
+        )
+
+    async def test_edgeql_igroup_filter_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                SELECT (FOR GROUP Card { name }
+                USING e := .element,
+                BY e
+                INTO g UNION (
+                    SELECT { key := {e := e}, z := g } FILTER .key.e != 'Air')
+                );
+            """,
+            tb.bag([
+                {
+                    "key": {"e": "Water"},
+                    "z": tb.bag(
+                        [{"name": "Bog monster"}, {"name": "Giant turtle"}])
+                },
+                {"key": {"e": "Fire"}, "z": tb.bag([
+                    {"name": "Imp"}, {"name": "Dragon"}])},
+                {"key": {"e": "Earth"}, "z": tb.bag([
+                    {"name": "Dwarf"}, {"name": "Golem"}])}
+            ])
+        )
+
+    async def test_edgeql_igroup_reshape_01(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                FOR GROUP Card
+                USING e := .element
+                BY e
+                INTO g
+                UNION
+                { key := e, elements := g } {
+                    element := .key,
+                    avg_cost := count(.elements),
+                };
+            """,
+            tb.bag([
+                {"avg_cost": 3, "element": "Air"},
+                {"avg_cost": 2, "element": "Earth"},
+                {"avg_cost": 2, "element": "Fire"},
+                {"avg_cost": 2, "element": "Water"},
+            ])
+        )
+
+    async def test_edgeql_igroup_reshape_02(self):
+        await self.assert_query_result(
+            r"""
+                WITH MODULE cards
+                FOR GROUP Card
+                USING e := .element
+                BY e
+                INTO g
+                UNION
+                { key := { e := e }, elements := g } {
+                    element := .key.e,
+                    avg_cost := count(.elements),
+                };
+            """,
+            tb.bag([
+                {"avg_cost": 3, "element": "Air"},
+                {"avg_cost": 2, "element": "Earth"},
+                {"avg_cost": 2, "element": "Fire"},
+                {"avg_cost": 2, "element": "Water"},
+            ])
         )
