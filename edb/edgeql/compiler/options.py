@@ -79,7 +79,7 @@ class GlobalCompilerOptions:
     allow_top_level_shape_dml: bool = False
 
     #: Is this a dev instance of the compiler
-    dev_instance: bool = False
+    devmode: bool = False
 
     #: Is the compiler running in testmode
     testmode: bool = False

@@ -589,7 +589,7 @@ class Compiler:
                     and not ctx.schema_reflection_mode
                 ),
                 testmode=self.get_config_val(ctx, '__internal_testmode'),
-                dev_instance=self._is_dev_instance(),
+                devmode=self._is_dev_instance(),
             ),
         )
 
