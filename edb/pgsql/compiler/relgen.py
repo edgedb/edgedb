@@ -1473,9 +1473,7 @@ def process_set_as_distinct(
         subrvar = relctx.rvar_for_rel(
             subqry, typeref=arg.typeref, lateral=True, ctx=subctx)
 
-    aspects = pathctx.list_path_aspects(subqry, arg.path_id, env=ctx.env)
-    relctx.include_rvar(
-        stmt, subrvar, ir_set.path_id, aspects=aspects, ctx=ctx)
+    relctx.include_rvar(stmt, subrvar, ir_set.path_id, ctx=ctx)
 
     value_var = pathctx.get_rvar_path_var(
         subrvar, ir_set.path_id, aspect='value', env=ctx.env)
@@ -2509,14 +2507,11 @@ def process_set_as_std_min_max(
 
         pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg.path_id)
 
-    aspects = pathctx.list_path_aspects(
-        newctx.rel, ir_set.path_id, env=ctx.env)
-
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
-                        pull_namespace=False, aspects=aspects, ctx=ctx)
+                        pull_namespace=False, ctx=ctx)
 
-    return new_stmt_set_rvar(ir_set, stmt, aspects=aspects, ctx=ctx)
+    return new_stmt_set_rvar(ir_set, stmt, ctx=ctx)
 
 
 def _process_set_func_with_ordinality(

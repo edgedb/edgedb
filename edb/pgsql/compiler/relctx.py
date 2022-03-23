@@ -208,10 +208,14 @@ def include_rvar(
         Compiler context.
     """
     if aspects is None:
+        aspects = ('value',)
         if path_id.is_objtype_path():
-            aspects = ('source', 'value')
-        else:
-            aspects = ('value',)
+            if isinstance(rvar, pgast.RangeSubselect):
+                if pathctx.has_path_aspect(
+                        rvar.query, path_id, aspect='source', env=ctx.env):
+                    aspects += ('source',)
+            else:
+                aspects += ('source',)
 
     return include_specific_rvar(
         stmt, rvar=rvar, path_id=path_id,
@@ -769,7 +773,8 @@ def set_to_array(
     )
 
     result = pgast.SelectStmt()
-    include_rvar(result, subrvar, path_id=path_id, ctx=ctx)
+    aspects = pathctx.list_path_aspects(subrvar.query, path_id, env=ctx.env)
+    include_rvar(result, subrvar, path_id=path_id, aspects=aspects, ctx=ctx)
 
     val: Optional[pgast.BaseExpr] = (
         pathctx.maybe_get_path_serialized_var(

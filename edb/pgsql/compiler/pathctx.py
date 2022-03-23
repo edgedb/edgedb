@@ -852,27 +852,37 @@ def maybe_get_path_rvar(
     return rvar
 
 
+def _has_path_aspect(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str) -> bool:
+    key = path_id, aspect
+    return (
+        key in stmt.path_rvar_map
+        or key in stmt.path_namespace
+        or key in stmt.path_outputs
+    )
+
+
+def has_path_aspect(
+        stmt: pgast.Query, path_id: irast.PathId, *,
+        aspect: str,
+        env: context.Environment) -> bool:
+    path_id = map_path_id(path_id, stmt.view_path_id_map)
+    return _has_path_aspect(stmt, path_id, aspect=aspect)
+
+
+ASPECTS = ('value', 'identity', 'source', 'serialized')
+
+
 def list_path_aspects(
         stmt: pgast.Query, path_id: irast.PathId, *,
         env: context.Environment) -> Set[str]:
 
     path_id = map_path_id(path_id, stmt.view_path_id_map)
-
-    aspects = set()
-
-    for rvar_path_id, aspect in stmt.path_rvar_map:
-        if path_id == rvar_path_id:
-            aspects.add(aspect)
-
-    for ns_path_id, aspect in stmt.path_namespace:
-        if path_id == ns_path_id:
-            aspects.add(aspect)
-
-    for ns_path_id, aspect in stmt.path_outputs:
-        if path_id == ns_path_id:
-            aspects.add(aspect)
-
-    return aspects
+    return {
+        aspect for aspect in ASPECTS
+        if _has_path_aspect(stmt, path_id, aspect=aspect)
+    }
 
 
 def maybe_get_path_value_rvar(
