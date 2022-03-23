@@ -3038,21 +3038,6 @@ def process_set_as_agg_expr_inner(
 
                         query.sort_clause = []
 
-                if (irtyputils.is_scalar(ir_arg.typeref)
-                        and ir_arg.typeref.base_type is not None):
-                    # Cast scalar refs to the base type in aggregate
-                    # expressions, since PostgreSQL does not create array
-                    # types for custom domains and will fail to process a
-                    # query with custom domains appearing as array
-                    # elements.
-                    #
-                    # XXX: Remove this once we switch to PostgreSQL 11,
-                    #      which supports domain type arrays.
-                    pgtype_name = pg_types.pg_type_from_ir_typeref(
-                        ir_arg.typeref.base_type)
-                    pgtype = pgast.TypeName(name=pgtype_name)
-                    arg_ref = pgast.TypeCast(arg=arg_ref, type_name=pgtype)
-
                 args.append(arg_ref)
 
         name = get_func_call_backend_name(expr, ctx=newctx)

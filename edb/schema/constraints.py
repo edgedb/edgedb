@@ -29,7 +29,6 @@ from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
 from edb.edgeql import utils as qlutils
-from edb.schema import scalars as s_scalars
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -671,6 +670,7 @@ class ConstraintCommand(
         from edb.ir import utils as ir_utils
         from . import pointers as s_pointers
         from . import links as s_links
+        from . import scalars as s_scalars
 
         bases = self.get_resolved_attribute_value(
             'bases', schema=schema, context=context,
