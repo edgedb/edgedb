@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import collections
 import functools
 from typing import *
 
@@ -85,6 +86,10 @@ def process_view(
     pathctx.register_set_in_scope(ir_set, path_scope=hackscope, ctx=ctx)
     hackscope.remove()
     ctx.path_scope.attach_subtree(hackscope)
+
+    # Make a snapshot of aliased_views that can't be mutated
+    # in any parent scopes.
+    ctx.aliased_views = collections.ChainMap(dict(ctx.aliased_views))
 
     view_scls, ir = _process_view(
         ir_set,

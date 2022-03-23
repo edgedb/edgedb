@@ -7157,3 +7157,16 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             for x in {1,2,3} union { asdf := 10*x };
         ''')
         self.assertEqual(len(vals), len({v.id for v in vals}))
+
+    async def test_edgeql_select_shadow_computable_01(self):
+        # The thing this is testing for
+        await self.assert_query_result(
+            '''
+            SELECT User := User { name, is_elvis := User.name = 'Elvis' }
+            ORDER BY User.is_elvis
+            ''',
+            [
+                {"is_elvis": False, "name": "Yury"},
+                {"is_elvis": True, "name": "Elvis"}
+            ]
+        )
