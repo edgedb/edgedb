@@ -22,7 +22,6 @@ from edb.testbase import server as tb
 from edb.tools import test
 
 
-@test.not_implemented('GROUP statement is not yet implemented')
 class TestEdgeQLGroupInternal(tb.QueryTestCase):
     '''These tests are focused on using the internal GROUP statement.'''
 
@@ -148,10 +147,6 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             [1, 1, 1],
         )
 
-    @test.xfail('''
-        doing this array_agg misses shapes
-        ... but the real equivalent works
-    ''')
     async def test_edgeql_igroup_simple_09(self):
         await self.assert_query_result(
             r'''
@@ -194,10 +189,6 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
             ]),
         )
 
-    @test.xfail('''
-        doing this array_agg misses shapes
-        ... but the real equivalent works
-    ''')
     async def test_edgeql_igroup_simple_bare_02(self):
         await self.assert_query_result(
             r'''
@@ -617,7 +608,6 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
                     ],
                 }
             ],
-            # XXX: Prevent spurious successes
             always_typenames=True,
         )
 
@@ -1083,7 +1073,7 @@ class TestEdgeQLGroupInternal(tb.QueryTestCase):
 
     async def test_edgeql_igroup_by_multiple_07b(self):
         # The tricky part here is the reference to Card in both parts,
-        # which are separate. XXX: Wait, is that what we want?
+        # which are separate.
         await self.assert_query_result(
             r"""
                 WITH MODULE cards

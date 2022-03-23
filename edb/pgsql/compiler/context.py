@@ -141,6 +141,11 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: optionality scaffolding.
     force_optional: FrozenSet[irast.PathId]
 
+    #: Paths that can be ignored when they appear as the source of a
+    # computable. This is key to optimizing away free object sources in
+    # group by aggregates.
+    skippable_sources: FrozenSet[irast.PathId]
+
     #: Specifies that references to a specific Set must be narrowed
     #: by only selecting instances of type specified by the mapping value.
     intersection_narrowing: Dict[irast.Set, irast.Set]
@@ -231,6 +236,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.disable_semi_join = frozenset()
             self.force_optional = frozenset()
+            self.skippable_sources = frozenset()
             self.intersection_narrowing = {}
 
             self.path_scope = collections.ChainMap()
@@ -267,6 +273,7 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.disable_semi_join = prevlevel.disable_semi_join
             self.force_optional = prevlevel.force_optional
+            self.skippable_sources = prevlevel.skippable_sources
             self.intersection_narrowing = prevlevel.intersection_narrowing
 
             self.path_scope = prevlevel.path_scope

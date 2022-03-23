@@ -116,6 +116,7 @@ def compile_materialized_exprs(
             # We pack optional things into arrays also, since it works.
             # TODO: use NULL?
             card = mat_set.cardinality
+            assert card != qltypes.Cardinality.UNKNOWN
             is_singleton = card.is_single() and not card.can_be_zero()
 
             old_scope = matctx.path_scope
@@ -132,7 +133,6 @@ def compile_materialized_exprs(
                 mat_qry = relctx.set_to_array(
                     path_id=mat_set.materialized.path_id,
                     query=mat_qry,
-                    materializing=True,
                     ctx=matctx)
 
             if not mat_qry.target_list[0].name:
@@ -159,7 +159,7 @@ def compile_iterator_expr(
         ctx: context.CompilerContextLevel) \
         -> pgast.PathRangeVar:
 
-    assert isinstance(iterator_expr.expr, irast.SelectStmt)
+    assert isinstance(iterator_expr.expr, (irast.GroupStmt, irast.SelectStmt))
 
     with ctx.new() as subctx:
         subctx.expr_exposed = False

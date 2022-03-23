@@ -31,6 +31,7 @@ from edb.common import context as pctx
 from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
+from edb.ir import typeutils
 
 from edb.schema import links as s_links
 from edb.schema import name as sn
@@ -163,7 +164,15 @@ def _process_view(
     is_mutation = exprtype.is_insert() or exprtype.is_update()
     is_defining_shape = ctx.expr_exposed or is_mutation
 
+    orig_ir_set = ir_set
     ir_set = setgen.ensure_set(ir_set, type_override=view_scls, ctx=ctx)
+    # Materialize based on the original base pointer.
+    # This seems like a hack.
+    if orig_ir_set.rptr and orig_ir_set.rptr.ptrref.base_ptr:
+        ctx.env.schema, root_old_ptrcls = typeutils.ptrcls_from_ptrref(
+            orig_ir_set.rptr.ptrref.base_ptr, schema=ctx.env.schema
+        )
+        setgen.maybe_materialize(root_old_ptrcls, ir_set, ctx=ctx)
 
     if view_rptr is not None and view_rptr.ptrcls is None:
         derive_ptrcls(
@@ -1430,7 +1439,7 @@ def _late_compile_view_shapes_in_set(
     #
     # This is to avoid losing subquery distinctions (in cases
     # like test_edgeql_scope_tuple_15), and generally seems more natural.
-    if (isinstance(ir_set.expr, irast.SelectStmt)
+    if (isinstance(ir_set.expr, (irast.SelectStmt, irast.GroupStmt))
             and not (ir_set.rptr and not ir_set.rptr.is_definition)
             and (setgen.get_set_type(ir_set, ctx=ctx) ==
                  setgen.get_set_type(ir_set.expr.result, ctx=ctx))):

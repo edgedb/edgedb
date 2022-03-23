@@ -254,6 +254,10 @@ class BasePointerRef(ImmutableBase):
             res.update(child.descendants())
         return res
 
+    @property
+    def real_material_ptr(self) -> BasePointerRef:
+        return self.material_ptr or self
+
     def __repr__(self) -> str:
         return f'<ir.{type(self).__name__} \'{self.name}\' at 0x{id(self):x}>'
 
@@ -876,11 +880,19 @@ class SelectStmt(FilteredStmt):
     implicit_wrapper: bool = False
 
 
-class GroupStmt(Stmt):
-    subject: Set
-    groupby: typing.List[Set]
-    result: Set
-    group_path_id: PathId
+class GroupStmt(FilteredStmt):
+    subject: Set = EmptySet()  # type: ignore
+    using: typing.Dict[str, typing.Tuple[Set, qltypes.Cardinality]] = (
+        ast.field(factory=dict))
+    by: typing.List[qlast.GroupingElement]
+    result: Set = EmptySet()  # type: ignore
+    group_binding: Set = EmptySet()  # type: ignore
+    grouping_binding: typing.Optional[Set] = None
+    orderby: typing.Optional[typing.List[SortExpr]] = None
+    # Optimization information
+    group_aggregate_sets: typing.Dict[
+        typing.Optional[Set], typing.FrozenSet[PathId]
+    ] = ast.field(factory=dict)
 
 
 class MutatingStmt(Stmt):

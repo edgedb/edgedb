@@ -28,6 +28,7 @@ import textwrap
 
 from edb import errors
 from edb.common import context as pctx
+from edb.common.typeutils import not_none
 
 from edb.ir import ast as irast
 from edb.ir import typeutils
@@ -47,6 +48,7 @@ from edb.schema import utils as s_utils
 from edb.edgeql import ast as qlast
 from edb.edgeql import utils as qlutils
 from edb.edgeql import qltypes
+from edb.edgeql import desugar_group
 
 from . import astutils
 from . import clauses
@@ -62,9 +64,21 @@ from . import typegen
 from . import conflicts
 
 
+def try_desugar(
+    expr: qlast.Query, *, ctx: context.ContextLevel
+) -> Optional[irast.Set]:
+    new_syntax = desugar_group.try_group_rewrite(expr, aliases=ctx.aliases)
+    if new_syntax:
+        return dispatch.compile(new_syntax, ctx=ctx)
+    return None
+
+
 @dispatch.compile.register(qlast.SelectQuery)
 def compile_SelectQuery(
         expr: qlast.SelectQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    if rewritten := try_desugar(expr, ctx=ctx):
+        return rewritten
+
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt()
         init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
@@ -135,6 +149,9 @@ def compile_SelectQuery(
 @dispatch.compile.register(qlast.ForQuery)
 def compile_ForQuery(
         qlstmt: qlast.ForQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    if rewritten := try_desugar(qlstmt, ctx=ctx):
+        return rewritten
+
     with ctx.subquery() as sctx:
         stmt = irast.SelectStmt(context=qlstmt.context)
         init_stmt(stmt, qlstmt, ctx=sctx, parent_ctx=ctx)
@@ -235,6 +252,32 @@ def compile_ForQuery(
     return result
 
 
+def _make_group_binding(
+    stype: s_types.Type,
+    alias: str,
+    *,
+    ctx: context.ContextLevel,
+) -> irast.Set:
+    """Make a binding for one of the "dummy" bindings used in group"""
+    binding_type = schemactx.derive_view(
+        stype,
+        derived_name=s_name.QualName('__derived__', alias),
+        preserve_shape=True, ctx=ctx)
+
+    binding_set = setgen.class_set(binding_type, ctx=ctx)
+
+    name = s_name.UnqualName(alias)
+    ctx.aliased_views[name] = binding_type
+    ctx.view_sets[binding_type] = binding_set
+    ctx.path_scope_map[binding_set] = context.ScopeInfo(
+        path_scope=ctx.path_scope,
+        binding_kind=irast.BindingKind.For,
+        pinned_path_id_ns=ctx.path_id_namespace,
+    )
+
+    return binding_set
+
+
 @dispatch.compile.register(qlast.InternalGroupQuery)
 def compile_InternalGroupQuery(
     expr: qlast.InternalGroupQuery, *, ctx: context.ContextLevel
@@ -246,18 +289,121 @@ def compile_InternalGroupQuery(
             context=expr.context,
         )
 
-    raise errors.UnsupportedFeatureError(
-        "'FOR GROUP' statement is not currently implemented",
-        context=expr.context)
+    with ctx.subquery() as sctx:
+        stmt = irast.GroupStmt(by=expr.by)
+        init_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+
+        with sctx.newscope(fenced=True) as topctx:
+            # N.B: Subject is exposed because we want any shape on the
+            # subject to be exposed on bare references to the group
+            # alias.  This is frankly pretty dodgy behavior for
+            # FOR GROUP to have but the real GROUP needs to
+            # maintain shapes, and this is the easiest way to handle
+            # that.
+            stmt.subject = compile_result_clause(
+                expr.subject,
+                result_alias=expr.subject_alias,
+                exprtype=s_types.ExprType.Group,
+                ctx=topctx)
+
+            if topctx.partial_path_prefix:
+                pathctx.register_set_in_scope(
+                    topctx.partial_path_prefix, ctx=topctx)
+
+            # compile the USING
+            assert expr.using is not None
+
+            for using_entry in expr.using:
+                # Fail on keys named 'id', since we can't put them
+                # in the output free object.
+                if using_entry.alias == 'id':
+                    raise errors.UnsupportedFeatureError(
+                        "may not name a grouping alias 'id'",
+                        context=using_entry.context,
+                    )
+                elif desugar_group.key_name(using_entry.alias) == 'id':
+                    raise errors.UnsupportedFeatureError(
+                        "may not group by a field named id",
+                        context=using_entry.expr.context,
+                        hint="try 'using id_ := .id'",
+                    )
+
+                with topctx.newscope(fenced=True) as scopectx:
+                    if scopectx.expr_exposed:
+                        scopectx.expr_exposed = context.Exposure.BINDING
+                    binding = stmtctx.declare_view(
+                        using_entry.expr,
+                        s_name.UnqualName(using_entry.alias),
+                        binding_kind=irast.BindingKind.With,
+                        path_id_namespace=scopectx.path_id_namespace,
+                        ctx=scopectx,
+                    )
+                    binding.context = using_entry.expr.context
+                    stmt.using[using_entry.alias] = (
+                        setgen.new_set_from_set(
+                            binding, preserve_scope_ns=True, ctx=sctx),
+                        qltypes.Cardinality.UNKNOWN)
+                    binding.is_visible_binding_ref = True
+
+            subject_stype = setgen.get_set_type(stmt.subject, ctx=topctx)
+            stmt.group_binding = _make_group_binding(
+                subject_stype, expr.group_alias, ctx=topctx)
+
+            # Compile the shape on the group binding, in case we need it
+            viewgen.late_compile_view_shapes(stmt.group_binding, ctx=topctx)
+
+            if expr.grouping_alias:
+                ctx.env.schema, grouping_stype = s_types.Array.create(
+                    ctx.env.schema,
+                    element_type=ctx.env.schema.get(
+                        'std::str', type=s_types.Type)
+                )
+                stmt.grouping_binding = _make_group_binding(
+                    grouping_stype, expr.grouping_alias, ctx=topctx)
+
+        # compile the output
+        # newscope because we don't want the result to get assigned the
+        # same statement scope as the subject and elements, which we
+        # need to stick in the real GROUP BY
+        with sctx.newscope(fenced=True) as bctx:
+            pathctx.register_set_in_scope(
+                stmt.group_binding, path_scope=bctx.path_scope, ctx=bctx
+            )
+            node = bctx.path_scope.find_descendant(stmt.group_binding.path_id)
+            not_none(node).is_group = True
+            for using_value, _ in stmt.using.values():
+                pathctx.register_set_in_scope(
+                    using_value, path_scope=bctx.path_scope, ctx=bctx
+                )
+
+            if stmt.grouping_binding:
+                pathctx.register_set_in_scope(
+                    stmt.grouping_binding, path_scope=bctx.path_scope, ctx=bctx
+                )
+
+            stmt.result = compile_result_clause(
+                astutils.ensure_qlstmt(expr.result),
+                result_alias=expr.result_alias,
+                ctx=bctx)
+
+            clauses.compile_where_clause(
+                stmt, expr.where, ctx=bctx)
+
+            stmt.orderby = clauses.compile_orderby_clause(
+                expr.orderby, ctx=bctx)
+
+        result = fini_stmt(stmt, expr, ctx=sctx, parent_ctx=ctx)
+
+    return result
 
 
 @dispatch.compile.register(qlast.GroupQuery)
 def compile_GroupQuery(
-        expr: qlast.Base, *, ctx: context.ContextLevel) -> irast.Set:
-
-    raise errors.UnsupportedFeatureError(
-        "'GROUP' statement is not currently implemented",
-        context=expr.context)
+        expr: qlast.GroupQuery, *, ctx: context.ContextLevel) -> irast.Set:
+    return dispatch.compile(
+        desugar_group.desugar_group(expr, ctx.aliases),
+        ctx=ctx,
+    )
 
 
 @dispatch.compile.register(qlast.InsertQuery)
@@ -1016,6 +1162,7 @@ def compile_result_clause(
         view_scls: Optional[s_types.Type]=None,
         view_rptr: Optional[context.ViewRPtr]=None,
         view_name: Optional[s_name.QualName]=None,
+        exprtype: s_types.ExprType = s_types.ExprType.Select,
         result_alias: Optional[str]=None,
         forward_rptr: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
@@ -1089,6 +1236,7 @@ def compile_result_clause(
             result_alias=result_alias,
             view_scls=view_scls,
             allow_select_shape_inject=False,
+            exprtype=exprtype,
             compile_views=ctx.stmt is ctx.toplevel_stmt,
             ctx=sctx,
             parser_context=result.context)
@@ -1151,7 +1299,6 @@ def compile_query_subject(
         (
             (
                 ctx.expr_exposed >= context.Exposure.BINDING
-                and expr_stype.is_object_type()
                 and allow_select_shape_inject
 
                 and not forward_rptr
@@ -1163,7 +1310,12 @@ def compile_query_subject(
                 and not expr_stype.is_view(ctx.env.schema)
             )
             or exprtype.is_mutation()
+            or (
+                exprtype == s_types.ExprType.Group
+                and not expr_stype.is_view(ctx.env.schema)
+            )
         )
+        and expr_stype.is_object_type()
         and shape is None
     ):
         # Force the subject to be compiled as a view in these cases:

@@ -352,7 +352,8 @@ def _find_rel_rvar(
         assert flavor == 'normal'
         var = rel.path_namespace.get((path_id, alt_aspect))
         if var is not None:
-            put_path_var(rel, path_id, var, aspect=aspect, env=env)
+            put_path_var(
+                rel, path_id, var, aspect=aspect, flavor=flavor, env=env)
             return src_aspect, None, var
 
     return src_aspect, rel_rvar, None
@@ -1086,14 +1087,15 @@ def _get_path_output(
         (src_path_id := path_id.src_path())
         and (src_rptr := src_path_id.rptr())
         and (
-            src_rptr.is_computable
-            or src_rptr.out_cardinality.is_multi()
+            src_rptr.real_material_ptr.out_cardinality.is_multi()
+            and not irtyputils.is_free_object(src_path_id.target)
         )
     ):
         # A value reference to Object.id is the same as a value
         # reference to the Object itself. (Though we want to only
         # apply this in the cases that process_set_as_path does this
-        # optimization, which means not for multi props.)
+        # optimization, which means not for multi props. We also always
+        # allow it for free objects.)
         src_path_id = path_id.src_path()
         assert src_path_id is not None
         id_output = maybe_get_path_output(rel, src_path_id,
@@ -1179,6 +1181,18 @@ def _get_path_output(
             if isinstance(ref, pgast.ColumnRef):
                 optional = ref.optional
                 is_packed_multi = ref.is_packed_multi
+
+            # group by will register a *subquery* as a path var
+            # for a packed group, and if we want to avoid losing
+            # track of whether is is multi, we need to figure that out.
+            if (
+                isinstance(ref, pgast.SelectStmt)
+                and flavor == 'packed'
+                and ref.packed_path_outputs
+                and (path_id, aspect) in ref.packed_path_outputs
+            ):
+                is_packed_multi = ref.packed_path_outputs[
+                    path_id, aspect].is_packed_multi
 
             if nullable and not allow_nullable:
                 assert isinstance(rel, pgast.SelectStmt), \

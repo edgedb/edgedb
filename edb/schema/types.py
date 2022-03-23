@@ -62,6 +62,7 @@ class ExprType(enum.IntEnum):
     Insert = enum.auto()
     Update = enum.auto()
     Delete = enum.auto()
+    Group = enum.auto()
 
     def is_update(self) -> bool:
         return self == ExprType.Update
@@ -70,7 +71,7 @@ class ExprType(enum.IntEnum):
         return self == ExprType.Insert
 
     def is_mutation(self) -> bool:
-        return self != ExprType.Select
+        return self != ExprType.Select and self != ExprType.Group
 
 
 TypeT = typing.TypeVar('TypeT', bound='Type')
