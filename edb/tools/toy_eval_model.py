@@ -671,6 +671,16 @@ def get_grouping_sets(node: qlast.GroupQuery) -> List[Tuple[ByElement, ...]]:
     ]
 
 
+def _keyify(v: Data) -> Data:
+    if isinstance(v, list):
+        v = tuple(v)
+    if isinstance(v, tuple):
+        v = tuple(_keyify(x) for x in v)
+    if isinstance(v, dict):
+        return tuple(sorted((k, _keyify(v)) for k, v in v.items()))
+    return v
+
+
 def get_groups(node: qlast.GroupQuery, ctx: EvalContext) -> List[Tuple[
     Tuple[Data, ...],
     Tuple[Dict[ByElement, Data], List[Data]]
@@ -729,9 +739,9 @@ def get_groups(node: qlast.GroupQuery, ctx: EvalContext) -> List[Tuple[
         for val, keys in vals_and_keys:
             # Prune the keys down to just this grouping set
             keys = {k: v if k in grouping_set else [] for k, v in keys.items()}
-            key = tuple(
+            key = _keyify([
                 None if not keys[k] else keys[k][0]
-                for k in grouping_set)
+                for k in grouping_set])
             groups.setdefault(key, (keys, []))[1].append(val)
 
         # We need to always output a group for the empty grouping set, if
