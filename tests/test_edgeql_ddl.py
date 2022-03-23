@@ -11113,7 +11113,8 @@ type default::Foo {
         await self.con.execute(r"""
             ALTER TYPE TestArrays {
                 ALTER PROPERTY y {
-                    SET TYPE array<c>;
+                    SET TYPE array<c> USING (
+                        <array<c>><array<str>>.y);
                 }
             };
         """)
@@ -11165,7 +11166,8 @@ type default::Foo {
         await self.con.execute(r"""
             ALTER TYPE TestArrays {
                 ALTER PROPERTY y {
-                    SET TYPE array<c>;
+                    SET TYPE array<c> USING (
+                        <array<c>><array<str>>.y);
                 }
             };
         """)

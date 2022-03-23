@@ -21,6 +21,9 @@ scalar type custom_str_t extending str {
     constraint regexp('[A-Z]+');
 }
 
+scalar type foo extending str;
+scalar type bar extending str;
+
 type Test {
     property p_bool -> bool;
     property p_str -> str;

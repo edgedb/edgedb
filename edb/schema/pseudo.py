@@ -28,7 +28,6 @@ from edb.edgeql import qltypes
 from . import delta as sd
 from . import name as sn
 from . import objects as so
-from . import scalars as s_scalars
 from . import types as s_types
 
 if TYPE_CHECKING:
@@ -135,8 +134,6 @@ class PseudoType(
         concrete_type: s_types.Type
     ) -> Optional[s_types.Type]:
         if self.is_any(schema):
-            if isinstance(concrete_type, s_scalars.ScalarType):
-                return concrete_type.get_topmost_concrete_base(schema)
             return concrete_type
         elif self.is_anytuple(schema):
             if (not concrete_type.is_tuple(schema) or

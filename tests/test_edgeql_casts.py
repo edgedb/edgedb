@@ -2474,3 +2474,17 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             ''',
             [],
         )
+
+    async def test_edgeql_casts_custom_scalars_01(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r'cannot cast'):
+            await self.con.execute("""
+                SELECT <foo><bar>'test'
+            """)
+
+    async def test_edgeql_casts_custom_scalars_02(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError, r'cannot cast'):
+            await self.con.execute("""
+                SELECT <array<foo>><array<bar>>['test']
+            """)

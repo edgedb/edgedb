@@ -777,6 +777,14 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [2],
         )
 
+    async def test_edgeql_functions_array_get_07(self):
+        await self.assert_query_result(
+            r'''
+                SELECT array_get([Issue.number], 0)
+            ''',
+            {'1', '2', '3', '4'},
+        )
+
     @test.xfail(
         "Known collation issue on Heroku Postgres",
         unless=os.getenv("EDGEDB_TEST_BACKEND_VENDOR") != "heroku-postgres"
