@@ -1155,12 +1155,6 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
 
             self.assertEqual(len(res), 4)
 
-    @test.xfail('''
-        Fails the `not ir_set.is_materialized_ref` assertion
-
-        Before that assertion the test was passing, though it was
-        also calling next() too many times.
-    ''')
     async def test_edgeql_volatility_select_nested_06e(self):
         # here we want some deduplicating to happen
         # same as above but with an extra select

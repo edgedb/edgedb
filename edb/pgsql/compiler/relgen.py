@@ -1157,6 +1157,36 @@ def _new_subquery_stmt_set_rvar(
         ir_set, stmt, aspects=aspects, ctx=ctx)
 
 
+def _lookup_set_rvar_in_source(
+        ir_set: irast.Set,
+        src_rvar: Optional[pgast.PathRangeVar], *,
+        ctx: context.CompilerContextLevel) -> Optional[pgast.PathRangeVar]:
+    if not (
+        ir_set.is_materialized_ref
+        and isinstance(src_rvar, pgast.RangeSubselect)
+    ):
+        return None
+
+    if pathctx.maybe_get_path_value_var(
+        src_rvar.subquery, ir_set.path_id, env=ctx.env
+    ):
+        return src_rvar
+
+    if packed_ref := pathctx.maybe_get_rvar_path_var(
+        src_rvar,
+        pathctx.map_path_id(
+            ir_set.path_id,
+            src_rvar.subquery.view_path_id_map,
+        ),
+        aspect='value',
+        flavor='packed',
+        env=ctx.env,
+    ):
+        return relctx.unpack_var(
+            ctx.rel, ir_set.path_id, ref=packed_ref, ctx=ctx)
+    return None
+
+
 def process_set_as_subquery(
         ir_set: irast.Set, stmt: pgast.SelectStmt, *,
         ctx: context.CompilerContextLevel) -> SetRVars:
@@ -1166,6 +1196,7 @@ def process_set_as_subquery(
 
     ir_source: Optional[irast.Set]
 
+    source_set_rvar = None
     if ir_set.rptr is not None:
         ir_source = ir_set.rptr.source
         if not is_objtype_path:
@@ -1178,7 +1209,7 @@ def process_set_as_subquery(
             source_is_visible = outer_fence.is_visible(ir_source.path_id)
 
         if source_is_visible:
-            get_set_rvar(ir_source, ctx=ctx)
+            source_set_rvar = get_set_rvar(ir_source, ctx=ctx)
             # Force a source rvar so that trivial computed pointers
             # on erroneous objects (like a bad array deref) fail.
             # (Most sensible computables will end up requiring the
@@ -1229,9 +1260,13 @@ def process_set_as_subquery(
 
         # If we are looking at a materialized computable, running
         # get_set_rvar on the source above may have made it show
-        # up. So try to lookup the rvar again, and if we find it,
-        # skip compiling the computable.
-        if ir_source and (new_rvar := _lookup_set_rvar(ir_set, ctx=ctx)):
+        # up. So try to lookup the rvar again, and try to look it up
+        # in the source_rvar itself, and if we find it, skip compiling
+        # the computable.
+        if ir_source and (new_rvar := (
+            _lookup_set_rvar(ir_set, ctx=ctx)
+            or _lookup_set_rvar_in_source(ir_set, source_set_rvar, ctx=ctx)
+        )):
             if semi_join:
                 # We need to use DISTINCT, instead of doing an actual
                 # semi-join, unfortunately: we need to extract data
