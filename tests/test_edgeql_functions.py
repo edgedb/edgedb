@@ -3067,6 +3067,14 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         )
 
+    async def test_edgeql_functions_max_04(self):
+        await self.assert_query_result(
+            r'''
+            select max(array_unpack(array_agg(User))) { name };
+            ''',
+            [{'name': str}],
+        )
+
     async def test_edgeql_functions_all_01(self):
         await self.assert_query_result(
             r'''SELECT all(<bool>{});''',
