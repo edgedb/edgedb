@@ -273,6 +273,9 @@ class Type(
     def contains_json(self, schema: s_schema.Schema) -> bool:
         return self.contains_predicate(lambda x: x.is_json(schema), schema)
 
+    def find_array(self, schema: s_schema.Schema) -> Optional[Type]:
+        return self.find_predicate(lambda x: x.is_array(), schema)
+
     def contains_array_of_tuples(self, schema: s_schema.Schema) -> bool:
         return self.contains_predicate(
             lambda x: x.is_array_of_tuples(schema), schema)

@@ -117,7 +117,8 @@ def needs_eta_expansion_expr(
     in which none of the arguments are sets that need expansion.
     """
     if isinstance(ir, irast.SelectStmt):
-        return needs_eta_expansion(ir.result, ctx=ctx)
+        return needs_eta_expansion(
+            ir.result, has_clauses=bool(ir.where or ir.orderby), ctx=ctx)
 
     if isinstance(stype, s_types.Array):
         if isinstance(ir, irast.Array):
@@ -148,6 +149,7 @@ def needs_eta_expansion_expr(
 def needs_eta_expansion(
     ir: irast.Set,
     *,
+    has_clauses: bool = False,
     ctx: context.ContextLevel,
 ) -> bool:
     """Determine if a set is in need of η-expansion"""
@@ -160,6 +162,16 @@ def needs_eta_expansion(
         return False
 
     if ALWAYS_EXPAND:
+        return True
+
+    # Object containing arrays always need to be eta expanded if they
+    # might be processed by a clause. This is because the pgsql side
+    # will produce *either* a value or serialized for array_agg/array
+    # literals.
+    if has_clauses and (
+        (subarray := stype.find_array(ctx.env.schema))
+        and subarray.contains_object(ctx.env.schema)
+    ):
         return True
 
     # If we are directly projecting an element out of a tuple, we can just

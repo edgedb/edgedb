@@ -3106,6 +3106,32 @@ class TestExpressions(tb.QueryTestCase):
             ],
         )
 
+    async def test_edgeql_expr_array_23(self):
+        await self.assert_query_result(
+            r'''
+            WITH X := [(1, 2)],
+            SELECT X FILTER X[0].0 = 1;
+            ''',
+            [[[1, 2]]],
+        )
+
+    async def test_edgeql_expr_array_24(self):
+        await self.assert_query_result(
+            r'''
+            WITH X := [(foo := 1, bar := 2)],
+            SELECT X FILTER X[0].foo = 1;
+            ''',
+            [[{"bar": 2, "foo": 1}]],
+        )
+
+    async def test_edgeql_expr_array_25(self):
+        await self.assert_query_result(
+            r'''
+            SELECT X := [(foo := 1, bar := 2)] FILTER X[0].foo = 1;
+            ''',
+            [[{"bar": 2, "foo": 1}]],
+        )
+
     async def test_edgeql_expr_coalesce_01(self):
         await self.assert_query_result(
             r'''SELECT <int64>{} ?? 4 ?? 5;''',
