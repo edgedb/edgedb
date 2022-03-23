@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-"""Desugar GROUP queries into internal IGROUP queries.
+"""Desugar GROUP queries into internal FOR GROUP queries.
 
 This code is called by both the model and the real implementation,
 though if that starts becoming a problem it should just be abandoned.
