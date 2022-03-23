@@ -2453,7 +2453,8 @@ def process_set_as_std_min_max(
 
         pathctx.put_path_id_map(newctx.rel, ir_set.path_id, ir_arg.path_id)
 
-    aspects = ('value', 'source')
+    aspects = pathctx.list_path_aspects(
+        newctx.rel, ir_set.path_id, env=ctx.env)
 
     func_rvar = relctx.new_rel_rvar(ir_set, newctx.rel, ctx=ctx)
     relctx.include_rvar(stmt, func_rvar, ir_set.path_id,
