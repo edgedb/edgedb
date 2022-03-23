@@ -752,6 +752,7 @@ class ConnectedTestCaseMixin:
                                   exp_result_json,
                                   exp_result_binary=...,
                                   *,
+                                  always_typenames=False,
                                   msg=None, sort=None, implicit_limit=0,
                                   variables=None):
         fetch_args = variables if isinstance(variables, tuple) else ()
@@ -781,7 +782,7 @@ class ConnectedTestCaseMixin:
             # The expected result is the same
             exp_result_binary = exp_result_json
 
-        typenames = random.choice([True, False])
+        typenames = random.choice([True, False]) or always_typenames
         typeids = random.choice([True, False])
 
         try:
