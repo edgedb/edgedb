@@ -118,9 +118,12 @@ def compile_materialized_exprs(
             card = mat_set.cardinality
             is_singleton = card.is_single() and not card.can_be_zero()
 
-            matctx.path_scope = matctx.path_scope.new_child()
+            old_scope = matctx.path_scope
+            matctx.path_scope = old_scope.new_child()
             for mat_id in mat_ids:
-                matctx.path_scope[mat_id] = None
+                for k in old_scope:
+                    if k.startswith(mat_id):
+                        matctx.path_scope[k] = None
             mat_qry = relgen.set_as_subquery(
                 mat_set.materialized, as_value=True, ctx=matctx
             )

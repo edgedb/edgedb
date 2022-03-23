@@ -3025,10 +3025,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ["Alice"],
         )
 
-    @test.xfail('''
-        There is no range var for...
-        Sticking a shape in the SELECT U fixes it...
-    ''')
     async def test_edgeql_scope_source_rebind_02(self):
         await self.assert_query_result(
             """
@@ -3039,6 +3035,61 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 SELECT A.tag;
             """,
             ["Alice"],
+        )
+
+    async def test_edgeql_scope_source_rebind_03(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (SELECT User {
+                    cards := (SELECT .deck FILTER random() > 0) }),
+                A := (SELECT U FILTER .name = 'Alice')
+                SELECT A {cards: {name}};
+            """,
+            [
+                {
+                    "cards": tb.bag([
+                        {"name": "Imp"},
+                        {"name": "Dragon"},
+                        {"name": "Bog monster"},
+                        {"name": "Giant turtle"}
+                    ]),
+                }
+            ]
+        )
+
+    async def test_edgeql_scope_source_rebind_04(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (for c in {'A', 'B', 'C', 'D'} union (
+                    SELECT User { name, single tag := c }
+                    FILTER .name[0] = c and random() > 0)),
+                A := (SELECT U {name} FILTER .name IN {'Alice', 'Bob'})
+                     {name },
+                SELECT A { name, tag };
+            """,
+            tb.bag([
+                {"name": "Alice", "tag": "A"},
+                {"name": "Bob", "tag": "B"},
+            ])
+        )
+
+    async def test_edgeql_scope_source_rebind_05(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (SELECT User {
+                    cards := (SELECT .deck FILTER random() > 0
+                              ORDER BY .name LIMIT 1) }),
+                A := (SELECT U FILTER .name = 'Alice')
+                SELECT A {cards: {name}};
+            """,
+            [
+                {
+                    "cards": {"name": "Bog monster"}
+                }
+            ]
         )
 
     async def test_edgeql_scope_ref_outer_01(self):
