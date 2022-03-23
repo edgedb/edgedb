@@ -242,11 +242,9 @@ def compile_InternalGroupQuery(
     # We want to disallow use of FOR GROUP except for when running
     # a dev build. Check for the presence of a test schema element
     # to detect whether we're on a dev build.
-    if not expr.from_desugaring and not ctx.env.schema.get(
-        'cfg::TestSessionConfig', None
-    ):
+    if not expr.from_desugaring and not ctx.env.options.dev_instance:
         raise errors.UnsupportedFeatureError(
-            'FOR GROUP is an internal testing feature',
+            "'FOR GROUP' is an internal testing feature",
             context=expr.context,
         )
 
