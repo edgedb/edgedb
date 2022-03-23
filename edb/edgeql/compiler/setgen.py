@@ -1563,7 +1563,7 @@ def should_materialize(
         and (vis := irutils.find_potentially_visible(
             ir, ctx.path_scope, ctx.env.scope_tree_nodes, skipped_bindings))
     ):
-        reasons.append(irast.MaterializeVisible(vis))
+        reasons.append(irast.MaterializeVisible(sets=vis))
 
     if ptrcls and ptrcls in ctx.source_map:
         reasons += ctx.source_map[ptrcls].should_materialize

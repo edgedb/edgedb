@@ -508,12 +508,23 @@ class Param:
     """IR type reference"""
 
 
-class MaterializeVolatile(typing.NamedTuple):
+class MaterializeVolatile(Base):
     pass
 
 
-class MaterializeVisible(typing.NamedTuple):
+class MaterializeVisible(Base):
+    __ast_hidden__ = {'sets'}
     sets: typing.Set[typing.Tuple[PathId, Set]]
+
+
+@markup.serializer.serializer.register(MaterializeVisible)
+def _serialize_to_markup_mat_vis(
+        ir: MaterializeVisible, *, ctx: typing.Any) -> typing.Any:
+    # We want to show the path_ids but *not* to show the full sets
+    node = ast.serialize_to_markup(ir, ctx=ctx)
+    fixed = {(x, y.path_id) for x, y in ir.sets}
+    node.add_child(label='uses', node=markup.serialize(fixed, ctx=ctx))
+    return node
 
 
 MaterializeReason = typing.Union[MaterializeVolatile, MaterializeVisible]
@@ -828,7 +839,7 @@ class MaterializedSet(Base):
 
 
 @markup.serializer.serializer.register(MaterializedSet)
-def _serialize_to_markup(
+def _serialize_to_markup_mat_set(
         ir: MaterializedSet, *, ctx: typing.Any) -> typing.Any:
     # We want to show the path_ids but *not* to show the full uses
     node = ast.serialize_to_markup(ir, ctx=ctx)
