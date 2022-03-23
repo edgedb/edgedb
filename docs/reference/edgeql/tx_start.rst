@@ -123,7 +123,7 @@ Start a serializable deferrable transaction:
   * - **See also**
   * - :ref:`Reference > EdgeQL > Commit
       <ref_eql_statements_commit_tx>`
-  * - :ref:`Reference > EdgeQL > Rollabck
+  * - :ref:`Reference > EdgeQL > Rollback
       <ref_eql_statements_rollback_tx>`
   * - :ref:`Reference > EdgeQL > Declare savepoint
       <ref_eql_statements_declare_savepoint>`
