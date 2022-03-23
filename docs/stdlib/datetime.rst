@@ -499,15 +499,11 @@ EdgeDB stores and outputs timezone-aware values in UTC.
 
 .. eql:operator:: dtminus: duration - duration -> duration
                            datetime - datetime -> duration
-                           cal::local_datetime - cal::local_datetime \
-                                -> duration
-                           local_time - local_time -> duration
-                           local_date - local_date -> duration
                            datetime - duration -> datetime
                            cal::local_datetime - duration \
                                 -> cal::local_datetime
-                           local_time - duration -> local_time
-                           local_date - duration -> local_date
+                           cal::local_time - duration -> cal::local_time
+                           cal::local_date - duration -> cal::local_date
                            duration - cal::relative_duration \
                                 -> cal::relative_duration
                            cal::relative_duration - duration\
@@ -517,8 +513,10 @@ EdgeDB stores and outputs timezone-aware values in UTC.
                            datetime - cal::relative_duration -> datetime
                            cal::local_datetime - cal::relative_duration \
                                 -> cal::local_datetime
-                           local_time - cal::relative_duration -> local_time
-                           local_date - cal::relative_duration -> local_date
+                           cal::local_time - cal::relative_duration \
+                                -> cal::local_time
+                           cal::local_date - cal::relative_duration \
+                                -> cal::local_date
 
     Time interval and date/time subtraction.
 
