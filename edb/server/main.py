@@ -205,6 +205,8 @@ async def _run_server(
             default_auth_method=args.default_auth_method,
             testmode=args.testmode,
             new_instance=new_instance,
+            admin_ui=args.admin_ui,
+            instance_name=args.instance_name,
         )
         await sc.wait_for(ss.init())
 

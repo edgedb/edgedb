@@ -32,6 +32,11 @@ jobs:
       with:
         python-version: '3.10.0'
 
+    - name: Set up Node
+      uses: actions/setup-node@v3
+      with:
+        node-version: '16'
+
     # Build virtualenv
 
     - name: Handle virtualenv
@@ -290,7 +295,7 @@ jobs:
         else
           # --no-use-pep517 because we have explicitly installed all deps
           # and don't want them to be reinstalled in an "isolated env".
-          pip install --no-use-pep517 --no-deps -e .[test,docs]
+          pip install  --verbose --no-use-pep517 --no-deps -e .[test,docs]
           rsync -av ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
         fi
 

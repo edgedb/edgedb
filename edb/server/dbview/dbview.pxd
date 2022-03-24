@@ -57,7 +57,7 @@ cdef class Database:
 
     cdef _invalidate_caches(self)
     cdef _cache_compiled_query(self, key, query_unit)
-    cdef _new_view(self, user, query_cache)
+    cdef _new_view(self, query_cache)
     cdef _remove_view(self, view)
     cdef _update_backend_ids(self, new_types)
     cdef _set_and_signal_new_user_schema(
@@ -73,7 +73,6 @@ cdef class DatabaseConnectionView:
     cdef:
         Database _db
         bint _query_cache_enabled
-        object _user
 
         object _config
 

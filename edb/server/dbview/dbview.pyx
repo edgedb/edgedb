@@ -132,8 +132,8 @@ cdef class Database:
 
         self._eql_to_compiled[key] = compiled, self.dbver
 
-    cdef _new_view(self, user, query_cache):
-        view = DatabaseConnectionView(self, user=user, query_cache=query_cache)
+    cdef _new_view(self, query_cache):
+        view = DatabaseConnectionView(self, query_cache=query_cache)
         self._views.add(view)
         return view
 
@@ -151,12 +151,10 @@ cdef class DatabaseConnectionView:
 
     _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnit]
 
-    def __init__(self, db: Database, *, user, query_cache):
+    def __init__(self, db: Database, *, query_cache):
         self._db = db
 
         self._query_cache_enabled = query_cache
-
-        self._user = user
 
         self._modaliases = DEFAULT_MODALIASES
         self._config = DEFAULT_CONFIG
@@ -364,10 +362,6 @@ cdef class DatabaseConnectionView:
     property txid:
         def __get__(self):
             return self._txid
-
-    property user:
-        def __get__(self):
-            return self._user
 
     property dbname:
         def __get__(self):
@@ -710,9 +704,9 @@ cdef class DatabaseIndex:
             await self._server._after_system_config_reset(
                 op.setting_name)
 
-    def new_view(self, dbname: str, *, user: str, query_cache: bool):
+    def new_view(self, dbname: str, *, query_cache: bool):
         db = self.get_db(dbname)
-        return (<Database>db)._new_view(user, query_cache)
+        return (<Database>db)._new_view(query_cache)
 
     def remove_view(self, view: DatabaseConnectionView):
         db = self.get_db(view.dbname)

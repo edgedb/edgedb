@@ -141,6 +141,8 @@ class Server(ha_base.ClusterProtocol):
         startup_script: Optional[srvargs.StartupScript] = None,
         backend_adaptive_ha: bool = False,
         default_auth_method: srvargs.ServerAuthMethod,
+        admin_ui: bool = False,
+        instance_name: Optional[str] = None,
     ):
         self.__loop = asyncio.get_running_loop()
         self._config_settings = config.get_settings()
@@ -201,6 +203,8 @@ class Server(ha_base.ClusterProtocol):
         self._startup_script = startup_script
         self._new_instance = new_instance
 
+        self._instance_name = instance_name
+
         # Never use `self.__sys_pgcon` directly; get it via
         # `await self._acquire_sys_pgcon()`.
         self.__sys_pgcon = None
@@ -241,6 +245,8 @@ class Server(ha_base.ClusterProtocol):
         self._idle_gc_handler = None
         self._session_idle_timeout = None
 
+        self._admin_ui = admin_ui
+
     async def _request_stats_logger(self):
         last_seen = -1
         while True:
@@ -271,6 +277,9 @@ class Server(ha_base.ClusterProtocol):
 
     def in_test_mode(self):
         return self._testmode
+
+    def is_admin_ui_enabled(self):
+        return self._admin_ui
 
     def get_pg_dbname(self, dbname: str) -> str:
         return self._cluster.get_db_name(dbname)
@@ -497,9 +506,9 @@ class Server(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.maybe_get_db(dbname)
 
-    def new_dbview(self, *, dbname, user, query_cache):
+    def new_dbview(self, *, dbname, query_cache):
         return self._dbindex.new_view(
-            dbname, user=user, query_cache=query_cache)
+            dbname, query_cache=query_cache)
 
     def remove_dbview(self, dbview):
         return self._dbindex.remove_view(dbview)

@@ -94,7 +94,7 @@ cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (0, 13)
+cdef tuple DUMP_VER_MAX = (0, 14)
 
 cdef tuple MIN_PROTOCOL = edbdef.MIN_PROTOCOL
 cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
@@ -209,7 +209,12 @@ cdef class CompiledQuery:
 @cython.final
 cdef class EdgeConnection:
 
-    def __init__(self, server, external_auth: bool = False):
+    def __init__(
+        self,
+        server,
+        external_auth: bool = False,
+        passive: bool = False
+    ):
         self._con_status = EDGECON_NEW
         self._id = server.on_binary_client_created()
         self.server = server
@@ -250,6 +255,11 @@ cdef class EdgeConnection:
         self._get_pgcon_cc = 0
 
         self._in_dump_restore = False
+
+        # In "passive" mode the protocol is instantiated to parse and execute
+        # just what's in the buffer. It cannot "wait for message". This
+        # is used to implement binary protocol over http+fetch.
+        self._passive_mode = passive
 
     def __del__(self):
         # Should not ever happen, there's a strong ref to
@@ -437,6 +447,8 @@ cdef class EdgeConnection:
     async def wait_for_message(self, *, bint report_idling):
         if self.buffer.take_message():
             return
+        if self._passive_mode:
+            raise RuntimeError('cannot wait for more messages in passive mode')
         if self._transport is None:
             # could be if the connection is lost and a coroutine
             # method is finalizing.
@@ -459,6 +471,12 @@ cdef class EdgeConnection:
             char mtype
             WriteBuffer msg_buf
             WriteBuffer buf
+
+        if self._passive_mode:
+            # XXX: This is temporary hack. We'll have to implement
+            # proper authentication for binary over HTTP soon
+            # (most likely with JWT).
+            return
 
         await self.wait_for_message(report_idling=True)
         mtype = self.buffer.get_message_type()
@@ -494,7 +512,7 @@ cdef class EdgeConnection:
                 f'accept connections'
             )
 
-        self._start_connection(database, user)
+        self._start_connection(database)
 
         # The user has already been authenticated by other means
         # (such as the ability to write to a protected socket).
@@ -621,7 +639,7 @@ cdef class EdgeConnection:
         script: str,
     ) -> None:
         conn = cls(server)
-        conn._start_connection(database, user)
+        conn._start_connection(database)
         try:
             await conn._simple_query(
                 script.encode('utf-8'),
@@ -637,10 +655,9 @@ cdef class EdgeConnection:
         finally:
             conn.close()
 
-    def _start_connection(self, database: str, user: str) -> None:
+    def _start_connection(self, database: str) -> None:
         dbv = self.server.new_dbview(
             dbname=database,
-            user=user,
             query_cache=self.query_cache_enabled,
         )
         assert type(dbv) is dbview.DatabaseConnectionView
@@ -1478,8 +1495,19 @@ cdef class EdgeConnection:
             buf.write_int16(0)  # no headers
 
         buf.write_byte(self.render_cardinality(compiled_query.query_unit))
-        buf.write_bytes(compiled_query.query_unit.in_type_id)
-        buf.write_bytes(compiled_query.query_unit.out_type_id)
+
+        if self.protocol_version >= (0, 14):
+            buf.write_bytes(compiled_query.query_unit.in_type_id)
+            buf.write_len_prefixed_bytes(
+                compiled_query.query_unit.in_type_data)
+
+            buf.write_bytes(compiled_query.query_unit.out_type_id)
+            buf.write_len_prefixed_bytes(
+                compiled_query.query_unit.out_type_data)
+        else:
+            buf.write_bytes(compiled_query.query_unit.in_type_id)
+            buf.write_bytes(compiled_query.query_unit.out_type_id)
+
         buf.end_message()
 
         self._last_anon_compiled = compiled_query
@@ -1863,6 +1891,17 @@ cdef class EdgeConnection:
                     break
 
                 if not self.buffer.take_message():
+                    if self._passive_mode:
+                        # In "passive" mode we only parse what's in the buffer
+                        # and return. If there's any unparsed (incomplete) data
+                        # in the buffer it's an error.
+                        if self.buffer._length:
+                            raise RuntimeError(
+                                'unparsed data in the read buffer')
+                        # Flush whatever data is in the internal buffer before
+                        # returning.
+                        self.flush()
+                        return
                     await self.wait_for_message(report_idling=True)
 
                 mtype = self.buffer.get_message_type()
@@ -1874,6 +1913,10 @@ cdef class EdgeConnection:
                         await self.parse()
 
                     elif mtype == b'D':
+                        if self.protocol_version >= (0, 14):
+                            raise errors.BinaryProtocolError(
+                                "Describe message (D) is not supported in "
+                                "protocols greater 0.13")
                         await self.describe()
 
                     elif mtype == b'E':
@@ -2833,3 +2876,52 @@ cdef class EdgeConnection:
                     descriptor_stack.append(desc.elements)
 
         return type_map
+
+
+@cython.final
+cdef class VirtualTransport:
+    def __init__(self):
+        self.buf = WriteBuffer.new()
+        self.closed = False
+
+    def write(self, data):
+        self.buf.write_bytes(bytes(data))
+
+    def _get_data(self):
+        return bytes(self.buf)
+
+    def is_closing(self):
+        return self.closed
+
+    def close(self):
+        self.closed = True
+
+    def abort(self):
+        self.closed = True
+
+
+async def eval_buffer(object server, str database, bytes data):
+    cdef:
+        VirtualTransport vtr
+        EdgeConnection proto
+
+    vtr = VirtualTransport()
+
+    proto = EdgeConnection(server, passive=True)
+
+    proto.connection_made(vtr)
+    if vtr.is_closing() or proto._main_task is None:
+        raise RuntimeError(
+            'cannot process the request, the server is shutting down')
+
+    try:
+        proto._start_connection(database)
+        proto.data_received(data)
+        await proto._main_task
+    except Exception as ex:
+        proto.connection_lost(ex)
+    else:
+        proto.connection_lost(None)
+
+    data = vtr._get_data()
+    return data

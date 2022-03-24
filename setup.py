@@ -428,6 +428,39 @@ def _compile_cli(build_base, build_temp):
     )
 
 
+def _build_studio(build_temp):
+    if not os.path.isdir('edgedb-studio'):
+        subprocess.run(
+            [
+                'git',
+                'clone',
+                'https://github.com/edgedb/edgedb-studio.git'
+            ],
+            check=True
+        )
+    else:
+        subprocess.run(
+            ['git', 'pull'],
+            check=True,
+            cwd='edgedb-studio'
+        )
+
+    # install deps
+    subprocess.run(['yarn'], check=True, cwd='edgedb-studio')
+
+    # run build
+    env = dict(os.environ)
+    # With CI=true (set in GH CI) `yarn build` fails if there are any
+    # warnings. We don't need this check in our build so we're disabling
+    # this behavior.
+    env['CI'] = ''
+    # env['BUILD_PATH'] = '../../build/studio'
+    subprocess.run(
+        ['yarn', 'build'], check=True, cwd='edgedb-studio/web', env=env)
+    subprocess.run(['rm', '-r', 'build/studio'])
+    subprocess.run(['cp', '-r', 'edgedb-studio/web/build', 'build/studio'])
+
+
 class build(distutils_build.build):
 
     user_options = distutils_build.build.user_options + [
@@ -483,6 +516,7 @@ class develop(setuptools_develop.develop):
         build_base = pathlib.Path(build.build_base).resolve()
 
         _compile_cli(build_base, build_temp)
+        _build_studio(build_temp)
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = []
         for s in scripts:
@@ -719,6 +753,24 @@ class build_cli(setuptools.Command):
         )
 
 
+class build_studio(setuptools.Command):
+
+    description = "build EdgeDB Studio"
+    user_options: List[str] = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self, *args, **kwargs):
+        build = self.get_finalized_command('build')
+        _build_studio(
+            pathlib.Path(build.build_temp).resolve(),
+        )
+
+
 class build_parsers(setuptools.Command):
 
     description = "build the parsers"
@@ -750,6 +802,7 @@ COMMAND_CLASSES = {
     'build_postgres': build_postgres,
     'build_cli': build_cli,
     'build_parsers': build_parsers,
+    'build_studio': build_studio,
     'ci_helper': ci_helper,
 }
 
@@ -866,6 +919,12 @@ setuptools.setup(
         setuptools_extension.Extension(
             "edb.server.protocol.notebook_ext",
             ["edb/server/protocol/notebook_ext.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        setuptools_extension.Extension(
+            "edb.server.protocol.studio_ext",
+            ["edb/server/protocol/studio_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 

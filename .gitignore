@@ -37,3 +37,4 @@ docs/_build
 /.vagga
 /.dmypy.json
 /compile_commands.json
+/edgedb-studio

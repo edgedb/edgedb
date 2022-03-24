@@ -36,6 +36,7 @@ from edb.graphql import extension as graphql_ext
 
 from edb.server import args as srvargs
 from edb.server.protocol cimport binary
+from edb.server.protocol import binary
 # Without an explicit cimport of `pgproto.debug`, we
 # can't cimport `protocol.binary` for some reason.
 from edb.server.pgproto.debug cimport PG_DEBUG
@@ -45,6 +46,7 @@ from . import metrics
 from . import server_info
 from . import notebook_ext
 from . import system_api
+from . import studio_ext
 
 
 HTTPStatus = http.HTTPStatus
@@ -99,6 +101,12 @@ cdef class HttpProtocol:
     def connection_lost(self, exc):
         self.transport = None
         self.unprocessed = None
+
+    def pause_writing(self):
+        pass
+
+    def resume_writing(self):
+        pass
 
     def eof_received(self):
         pass
@@ -185,11 +193,13 @@ cdef class HttpProtocol:
     def on_body(self, body: bytes):
         self.current_request.body = body
 
+    def on_message_begin(self):
+        self.current_request = HttpRequest()
+
     def on_message_complete(self):
         self.transport.pause_reading()
 
         req = self.current_request
-        self.current_request = HttpRequest()
 
         req.version = self.parser.get_http_version().encode()
         req.should_keep_alive = self.parser.should_keep_alive()
@@ -255,6 +265,7 @@ cdef class HttpProtocol:
 
         if debug.flags.http_inject_cors:
             data.append(b'Access-Control-Allow-Origin: *\r\n')
+            data.append(b'Access-Control-Allow-Headers: Content-Type\r\n')
             if custom_headers:
                 data.append(b'Access-Control-Expose-Headers: ' + \
                     ', '.join(custom_headers.keys()).encode() + b'\r\n')
@@ -452,6 +463,32 @@ cdef class HttpProtocol:
                     self.server,
                 )
                 return
+            if (path_parts[0] == 'admin' and
+                self.server.is_admin_ui_enabled()
+            ):
+                if path_parts[1:2] == ['protocol']:
+                    database = path_parts[2]
+
+                    out = await binary.eval_buffer(
+                        self.server,
+                        database,
+                        self.current_request.body,
+                    )
+
+                    response.body = out
+                    response.status = http.HTTPStatus.OK
+                    response.content_type = b'application/x.edgedb'
+                    response.close_connection = True
+                    return
+                else:
+                    await studio_ext.handle_request(
+                        request,
+                        response,
+                        path_parts[1:],
+                        self.server,
+                    )
+                    return
+
 
         response.body = b'Unknown path'
         response.status = http.HTTPStatus.NOT_FOUND
