@@ -63,6 +63,7 @@ class InfCtx(NamedTuple):
     ]
     singletons: FrozenSet[irast.PathId]
     distinct_iterator: Optional[irast.PathId]
+    ignore_computed_cards: bool
 
 
 def make_ctx(env: context.Environment) -> InfCtx:
@@ -72,4 +73,5 @@ def make_ctx(env: context.Environment) -> InfCtx:
         inferred_multiplicity={},
         singletons=frozenset(env.singletons),
         distinct_iterator=None,
+        ignore_computed_cards=False,
     )

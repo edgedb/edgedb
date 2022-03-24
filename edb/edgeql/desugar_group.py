@@ -33,6 +33,10 @@ from edb.common.compiler import AliasGenerator
 from edb.edgeql import ast as qlast
 
 
+def key_name(s: str) -> str:
+    return s.split('~')[0]
+
+
 def name_path(name: str) -> qlast.Path:
     return qlast.Path(steps=[qlast.ObjectRef(name=name)])
 

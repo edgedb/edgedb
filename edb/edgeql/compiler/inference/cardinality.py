@@ -600,6 +600,9 @@ def _infer_set_inner(
                     c.dir_cardinality(rptr.direction)
                     for c in rptrref.union_components
                 )
+            elif ctx.ignore_computed_cards and ir.expr:
+                rptrref_card = infer_cardinality(
+                    ir.expr, scope_tree=scope_tree, ctx=ctx)
             else:
                 rptrref_card = rptrref.dir_cardinality(rptr.direction)
 
@@ -612,7 +615,7 @@ def _infer_set_inner(
         card = AT_MOST_ONE
     elif ir.expr is not None:
         card = expr_card
-    elif typeutils.is_free_object(ir.typeref):
+    elif typeutils.is_free_object(ir.typeref) and not ir.is_binding:
         card = ONE
     else:
         card = MANY
@@ -1078,6 +1081,22 @@ def _infer_stmt_cardinality(
     return result_card
 
 
+def _infer_singleton_only(
+    part: irast.Set,
+    *,
+    scope_tree: irast.ScopeTreeNode,
+    ctx: inference_context.InfCtx,
+) -> qltypes.Cardinality:
+    new_scope = inf_utils.get_set_scope(part, scope_tree, ctx=ctx)
+    card = infer_cardinality(part, scope_tree=new_scope, ctx=ctx)
+    if card.is_multi():
+        raise errors.QueryError(
+            'possibly more than one element returned by an expression '
+            'where only singletons are allowed',
+            context=part.context)
+    return card
+
+
 @_infer_cardinality.register
 def __infer_select_stmt(
     ir: irast.SelectStmt,
@@ -1096,13 +1115,7 @@ def __infer_select_stmt(
     for part in [ir.limit, ir.offset] + [
             sort.expr for sort in (ir.orderby or ())]:
         if part:
-            new_scope = inf_utils.get_set_scope(part, scope_tree, ctx=ctx)
-            card = infer_cardinality(part, scope_tree=new_scope, ctx=ctx)
-            if card.is_multi():
-                raise errors.QueryError(
-                    'possibly more than one element returned by an expression '
-                    'where only singletons are allowed',
-                    context=part.context)
+            _infer_singleton_only(part, scope_tree=scope_tree, ctx=ctx)
 
     if ir.limit is not None:
         if (
@@ -1206,7 +1219,20 @@ def __infer_group_stmt(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    raise NotImplementedError
+    infer_cardinality(ir.subject, scope_tree=scope_tree, ctx=ctx)
+    for key, (binding, _) in ir.using.items():
+        binding_card = _infer_singleton_only(
+            binding, scope_tree=scope_tree, ctx=ctx)
+        ir.using[key] = binding, binding_card
+
+    infer_cardinality(ir.group_binding, scope_tree=scope_tree, ctx=ctx)
+
+    _infer_stmt_cardinality(ir, scope_tree=scope_tree, ctx=ctx)
+
+    for part in (ir.orderby or ()):
+        _infer_singleton_only(part.expr, scope_tree=scope_tree, ctx=ctx)
+
+    return MANY
 
 
 @_infer_cardinality.register

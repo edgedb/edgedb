@@ -48,6 +48,7 @@ from . import astutils
 from . import context
 from . import dispatch
 from . import eta_expand
+from . import group
 from . import inference
 from . import options as coptions
 from . import pathctx
@@ -233,6 +234,8 @@ def fini_expression(
     for ir_set in exprs_to_clear:
         ir_set.expr = None
 
+    group.infer_group_aggregates(ir, ctx=ctx)
+
     assert isinstance(ir, irast.Set)
     source_map = {k: v for k, v in ctx.source_map.items()
                   if isinstance(k, s_pointers.Pointer)}
@@ -302,7 +305,7 @@ def _fixup_materialized_sets(
                 elif isinstance(x, irast.MaterializeVisible):
                     # If any of the bindings that the set uses are
                     # *visible* at the definition point and *not
-                    # visible* from all use points, we need to
+                    # visible* from at least one use point, we need to
                     # materialize, to make sure that the use site sees
                     # the same value for the binding as the definition
                     # point. If it's not visible, then it's just being
@@ -315,9 +318,10 @@ def _fixup_materialized_sets(
                         for x in mat_set.use_sets
                     ]
                     for b, _ in x.sets:
-                        if parent.is_visible(b) and not all(
+                        if parent.is_visible(b, allow_group=True) and not all(
                             use_scope and use_scope.parent
-                            and use_scope.parent.is_visible(b)
+                            and use_scope.parent.is_visible(
+                                b, allow_group=True)
                             for use_scope in use_scopes
                         ):
                             good_reason = True
@@ -366,7 +370,7 @@ def _try_namespace_fix(
     if obj.path_id is None:
         return
     for prefix in obj.path_id.iter_prefixes():
-        replacement = scope.find_visible(prefix)
+        replacement = scope.find_visible(prefix, allow_group=True)
         if (
             replacement and replacement.path_id
             and replacement.path_id.namespace != obj.path_id.namespace

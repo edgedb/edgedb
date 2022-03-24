@@ -762,7 +762,7 @@ def maybe_get_scope_stmt(
 
 def set_to_array(
         path_id: irast.PathId, query: pgast.Query, *,
-        materializing: bool=False,
+        for_group_by: bool=False,
         ctx: context.CompilerContextLevel) -> pgast.Query:
     """Collapse a set into an array."""
     subrvar = pgast.RangeSubselect(
@@ -794,6 +794,22 @@ def set_to_array(
             val, path_id=path_id, env=ctx.env)
 
     pg_type = output.get_pg_type(path_id.target, ctx=ctx)
+
+    agg_filter_safe = True
+
+    if for_group_by:
+        # When doing this as part of a GROUP, the stuff being aggregated
+        # needs to actually appear *inside* of the aggregate call...
+        result.target_list = [pgast.ResTarget(val=val, ser_safe=val.ser_safe)]
+        val = result
+        try_collapse = astutils.collapse_query(val)
+        if isinstance(try_collapse, pgast.ColumnRef):
+            val = try_collapse
+        else:
+            agg_filter_safe = False
+
+        result = pgast.SelectStmt()
+
     orig_val = val
 
     if (path_id.is_array_path()
@@ -810,10 +826,18 @@ def set_to_array(
         agg_filter=(
             astutils.new_binop(orig_val, pgast.NullConstant(),
                                'IS DISTINCT FROM')
-            if orig_val.nullable else None
+            if orig_val.nullable and agg_filter_safe else None
         ),
         ser_safe=val.ser_safe,
     )
+
+    # If this is for a group by, and the body isn't just a column ref,
+    # then we need to remove NULLs after the fact.
+    if orig_val.nullable and not agg_filter_safe:
+        array_agg = pgast.FuncCall(
+            name=('array_remove',),
+            args=[array_agg, pgast.NullConstant()]
+        )
 
     agg_expr = pgast.CoalesceExpr(
         args=[

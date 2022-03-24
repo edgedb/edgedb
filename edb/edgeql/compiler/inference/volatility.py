@@ -278,7 +278,8 @@ def __infer_group_stmt(
     ir: irast.GroupStmt,
     env: context.Environment,
 ) -> InferredVolatility:
-    raise NotImplementedError
+    components = [ir.subject, ir.result] + [v for v, _ in ir.using.values()]
+    return _common_volatility(components, env)
 
 
 @_infer_volatility_inner.register

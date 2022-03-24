@@ -54,7 +54,7 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
 
     def _compile(self, source):
         qtree = self._compile_to_tree(source)
-        return pg_compiler.run_codegen(qtree)
+        return pg_compiler.run_codegen(qtree, pretty=True)
 
     def no_self_join_test(self, query, tables):
         # Issue #2567: We generate a pointless self join
@@ -172,4 +172,31 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
         self.assertNotIn(
             "exclusion_violation", sql,
             "update has unnecessary conflict check"
+        )
+
+    def test_codegen_group_simple(self):
+        tree = self._compile_to_tree('''
+        select (group Issue by .status) {
+            name := .key.status.name,
+            num := count(.elements),
+        } order by .name
+        ''')
+        child = ast_visitor.find_children(
+            tree,
+            lambda x: isinstance(x, pgast.SelectStmt) and x.group_clause,
+            terminate_early=True
+        )
+        group_sql = pg_compiler.run_codegen(child, pretty=True)
+
+        # We want no array_agg in the group - it should just be able
+        # to do a count
+        self.assertNotIn(
+            "array_agg", group_sql,
+            "group has unnecessary array_agg",
+        )
+
+        # And we want no uuid generation, which is a huge perf killer
+        self.assertNotIn(
+            "uuid_generate", group_sql,
+            "group has unnecessary uuid_generate",
         )

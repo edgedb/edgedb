@@ -733,6 +733,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_CaseExpr(self, node):
         self.write('(CASE ')
+        if node.arg:
+            self.visit(node.arg)
+            self.write(' ')
         for arg in node.args:
             self.visit(arg)
             self.new_lines = 1

@@ -30,6 +30,7 @@ from . import astutils
 from . import clauses
 from . import context
 from . import dispatch
+from . import group
 from . import dml
 from . import pathctx
 
@@ -56,6 +57,9 @@ def compile_SelectStmt(
                     dispatch.compile(binding, ctx=bctx)
 
         query = ctx.stmt
+
+        # Process materialized sets
+        clauses.compile_materialized_exprs(query, stmt, ctx=ctx)
 
         iterator_set = stmt.iterator_stmt
         last_iterator: Optional[irast.Set] = None
@@ -86,9 +90,6 @@ def compile_SelectStmt(
                         env=ctx.env,
                     )
                 last_iterator = iterator_set
-
-        # Process materialized sets
-        clauses.compile_materialized_exprs(query, stmt, ctx=ctx)
 
         # Process the result expression.
         with ctx.new() as ictx:
@@ -136,6 +137,13 @@ def compile_SelectStmt(
             stmt.limit, ctx=ctx)
 
     return query
+
+
+@dispatch.compile.register(irast.GroupStmt)
+def compile_GroupStmt(
+        stmt: irast.GroupStmt, *,
+        ctx: context.CompilerContextLevel) -> pgast.BaseExpr:
+    return group.compile_group(stmt, ctx=ctx)
 
 
 @dispatch.compile.register(irast.InsertStmt)

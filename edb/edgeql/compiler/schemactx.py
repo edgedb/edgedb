@@ -172,6 +172,10 @@ def preserve_view_shape(
             derived_name_base=derived_name_base)
         new.append((nptr, op))
     ctx.env.view_shapes[derived] = new
+    if isinstance(base, s_types.Type) and isinstance(derived, s_types.Type):
+        ctx.env.view_shapes_metadata[derived] = (
+            ctx.env.view_shapes_metadata[base]).replace()
+
     # All of the pointers should already exist, so nothing should have
     # been created.
     assert schema is ctx.env.schema

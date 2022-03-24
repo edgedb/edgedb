@@ -354,8 +354,11 @@ class FindPathScopes(ast.NodeVisitor):
         self.visit(stmt.bindings)
         if stmt.iterator_stmt:
             self.visit(stmt.iterator_stmt)
-        if isinstance(stmt, irast.MutatingStmt):
+        if isinstance(stmt, (irast.MutatingStmt, irast.GroupStmt)):
             self.visit(stmt.subject)
+        if isinstance(stmt, irast.GroupStmt):
+            for v in stmt.using.values():
+                self.visit(v)
         self.visit(stmt.result)
 
         return self.generic_visit(stmt)

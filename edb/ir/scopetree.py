@@ -59,6 +59,9 @@ class ScopeTreeNode:
     fenced: bool
     """Whether the subtree represents a SET OF argument."""
 
+    is_group: bool
+    """Whether the node reprents a GROUP binding (and so *is* multi...)."""
+
     unnest_fence: bool
     """Prevent unnesting in parents."""
 
@@ -100,6 +103,7 @@ class ScopeTreeNode:
         self.optional = optional
         self.children = []
         self.namespaces = set()
+        self.is_group = False
         self._parent: Optional[weakref.ReferenceType[ScopeTreeNode]] = None
 
     def __repr__(self) -> str:
@@ -143,6 +147,8 @@ class ScopeTreeNode:
             parts.append('no-unnest')
         if self.factoring_fence:
             parts.append('no-factor')
+        if self.is_group:
+            parts.append('group')
         parts.append(f'0x{id(self):0x}')
         return ' '.join(parts)
 
@@ -710,6 +716,8 @@ class ScopeTreeNode:
     def find_visible_ex(
         self,
         path_id: pathid.PathId,
+        *,
+        allow_group: bool=False,
     ) -> Tuple[
         Optional[ScopeTreeNode],
         Optional[FenceInfo],
@@ -753,14 +761,19 @@ class ScopeTreeNode:
                 else:
                     finfo = finfo | ans_finfo
 
+        if found and found.is_group and not allow_group:
+            found = None
         return found, finfo, namespaces
 
-    def find_visible(self, path_id: pathid.PathId) -> Optional[ScopeTreeNode]:
-        node, _, _ = self.find_visible_ex(path_id)
+    def find_visible(
+        self, path_id: pathid.PathId, *, allow_group: bool=False
+    ) -> Optional[ScopeTreeNode]:
+        node, _, _ = self.find_visible_ex(path_id, allow_group=allow_group)
         return node
 
-    def is_visible(self, path_id: pathid.PathId) -> bool:
-        return self.find_visible(path_id) is not None
+    def is_visible(
+            self, path_id: pathid.PathId, *, allow_group: bool=False) -> bool:
+        return self.find_visible(path_id, allow_group=allow_group) is not None
 
     def is_any_prefix_visible(self, path_id: pathid.PathId) -> bool:
         for prefix in reversed(list(path_id.iter_prefixes())):
@@ -900,6 +913,7 @@ class ScopeTreeNode:
             ):
                 cns: AbstractSet[str] = namespaces | dns
                 if (has_path_id(descendant)
+                        and not descendant.is_group
                         and _paths_equal(descendant.path_id, path_id, cns)):
                     points.append((
                         descendant, node, cns, finfo,
