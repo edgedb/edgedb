@@ -28,7 +28,6 @@ import re
 import shlex
 import shutil
 import textwrap
-import time
 import urllib.parse
 
 import asyncpg
@@ -664,7 +663,19 @@ class Cluster(BaseCluster):
             try:
                 conn_addr = self._get_connection_addr()
             except PostgresPidFileNotReadyError:
-                time.sleep(sleep_time)
+                try:
+                    assert self._daemon_process is not None
+                    code = await asyncio.wait_for(
+                        self._daemon_process.wait(),
+                        sleep_time
+                    )
+                except asyncio.TimeoutError:
+                    # means that the postgres process is still alive
+                    pass
+                else:
+                    # the postgres process has exited prematurely
+                    raise ClusterError(f"The backend exited with {code}")
+
                 continue
 
             try:
@@ -681,7 +692,7 @@ class Cluster(BaseCluster):
                 asyncpg.CannotConnectNowError,
                 asyncpg.PostgresConnectionError,
             ):
-                time.sleep(sleep_time)
+                await asyncio.sleep(sleep_time)
                 continue
             except asyncpg.PostgresError:
                 # Any other error other than ServerNotReadyError or
