@@ -315,3 +315,17 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
             """,
             ['aaa'],
         )
+
+    async def test_edgeql_advtypes_intersection_alias(self):
+        await self.con.execute("""
+            INSERT S { name := 'aaa', s := '' };
+            INSERT Z { name := 'lol', stw0 := S };
+        """)
+
+        await self.assert_query_result(
+            """
+            WITH X := Z.stw0
+            SELECT X { name }
+            """,
+            [{'name': 'aaa'}],
+        )

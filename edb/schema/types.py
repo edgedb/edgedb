@@ -431,7 +431,10 @@ class Type(
     ) -> TypeShell[TypeT]:
         name = typing.cast(s_name.QualName, self.get_name(schema))
 
-        if union_of := self.get_union_of(schema):
+        if (
+            (union_of := self.get_union_of(schema))
+            and not self.is_view(schema)
+        ):
             assert isinstance(self, so.QualifiedObject)
             return UnionTypeShell(
                 components=[
@@ -441,7 +444,10 @@ class Type(
                 opaque=self.get_is_opaque_union(schema),
                 schemaclass=type(self),
             )
-        elif intersection_of := self.get_intersection_of(schema):
+        elif (
+            (intersection_of := self.get_intersection_of(schema))
+            and not self.is_view(schema)
+        ):
             assert isinstance(self, so.QualifiedObject)
             return IntersectionTypeShell(
                 components=[
