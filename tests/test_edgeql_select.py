@@ -6288,6 +6288,34 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         assert len(res) == 100
 
+    async def test_edgeql_select_big_unions(self):
+        res = await self.con.query("""
+            SELECT (
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,) union
+                 (1,) union (1,) union (1,) union (1,) union (1,)
+            );
+        """)
+
+        assert len(res) == 100
+
     async def test_edgeql_select_shape_on_scalar(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,

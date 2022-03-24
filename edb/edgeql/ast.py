@@ -287,6 +287,7 @@ class BinOp(Expr):
     left: Expr
     op: str
     right: Expr
+    rebalanced: bool = False
 
 
 class SetConstructorOp(BinOp):
