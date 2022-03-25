@@ -71,10 +71,57 @@ def compile_Path(
     return stmt.maybe_add_view(setgen.compile_path(expr, ctx=ctx), ctx=ctx)
 
 
+def _balance(
+    elements: Sequence[qlast.Expr],
+    ctor: Callable[
+        [qlast.Expr, qlast.Expr, Optional[ctx_utils.ParserContext]],
+        qlast.Expr
+    ],
+    context: Optional[ctx_utils.ParserContext],
+) -> qlast.Expr:
+    mid = len(elements) // 2
+    ls, rs = elements[:mid], elements[mid:]
+    ls_context = rs_context = None
+    if len(ls) > 1 and ls[0].context and ls[-1].context:
+        ls_context = ctx_utils.merge_context([
+            ls[0].context, ls[-1].context])
+    if len(rs) > 1 and rs[0].context and rs[-1].context:
+        rs_context = ctx_utils.merge_context([
+            rs[0].context, rs[-1].context])
+
+    return ctor(
+        (
+            _balance(ls, ctor, ls_context)
+            if len(ls) > 1 else ls[0]
+        ),
+        (
+            _balance(rs, ctor, rs_context)
+            if len(rs) > 1 else rs[0]
+        ),
+        context,
+    )
+
+
+REBALANCED_OPS = {'UNION'}
+REBALANCE_THRESHOLD = 10
+
+
 @dispatch.compile.register(qlast.SetConstructorOp)
 @dispatch.compile.register(qlast.BinOp)
 def compile_BinOp(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
+    # Rebalance some associative operations to avoid deeply nested ASTs
+    if expr.op in REBALANCED_OPS and not expr.rebalanced:
+        elements = collect_binop(expr)
+        # Don't bother rebalancing small groups
+        if len(elements) >= REBALANCE_THRESHOLD:
+            balanced = _balance(
+                elements,
+                lambda l, r, c: qlast.BinOp(
+                    left=l, right=r, op=expr.op, rebalanced=True, context=c),
+                expr.context
+            )
+            return dispatch.compile(balanced, ctx=ctx)
 
     op_node = func.compile_operator(
         expr, op_name=expr.op, qlargs=[expr.left, expr.right], ctx=ctx)
@@ -150,32 +197,11 @@ def compile_Set(
             # Turn it into a tree of UNIONs so we only blow up the nesting
             # depth logarithmically.
             # TODO: Introduce an N-ary operation that handles the whole thing?
-            mid = len(elements) // 2
-            ls, rs = elements[:mid], elements[mid:]
-            ls_context = rs_context = None
-            if len(ls) > 1 and ls[0].context and ls[-1].context:
-                ls_context = ctx_utils.merge_context([
-                    ls[0].context, ls[-1].context])
-            if len(rs) > 1 and rs[0].context and rs[-1].context:
-                rs_context = ctx_utils.merge_context([
-                    rs[0].context, rs[-1].context])
-
-            bigunion = qlast.SetConstructorOp(
-                left=(
-                    qlast.Set(
-                        elements=ls,
-                        context=ls_context,
-                    )
-                    if len(ls) > 1 else ls[0]
-                ),
-                right=(
-                    qlast.Set(
-                        elements=rs,
-                        context=rs_context,
-                    )
-                    if len(rs) > 1 else rs[0]
-                ),
-                context=expr.context,
+            bigunion = _balance(
+                elements,
+                lambda l, r, c: qlast.SetConstructorOp(
+                    left=l, right=r, context=c),
+                expr.context
             )
             return dispatch.compile(bigunion, ctx=ctx)
     else:
@@ -662,6 +688,20 @@ def flatten_set(expr: qlast.Set) -> List[qlast.Expr]:
     for el in expr.elements:
         if isinstance(el, qlast.Set):
             elements.extend(flatten_set(el))
+        else:
+            elements.append(el)
+
+    return elements
+
+
+def collect_binop(expr: qlast.BinOp) -> List[qlast.Expr]:
+    elements = []
+
+    stack = [expr.left, expr.right]
+    while stack:
+        el = stack.pop()
+        if isinstance(el, qlast.BinOp) and el.op == expr.op:
+            stack.extend([el.left, el.right])
         else:
             elements.append(el)
 
