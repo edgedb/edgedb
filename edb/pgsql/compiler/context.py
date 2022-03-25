@@ -124,6 +124,11 @@ class CompilerContextLevel(compiler.ContextLevel):
     #: directly exposed to the output of the statement.
     expr_exposed: Optional[bool]
 
+    #: A hack that indicates a tuple element that should be treated as
+    #: exposed. This enables us to treat 'bar' in (foo, bar).1 as exposed,
+    #: which eta-expansion and some casts rely on.
+    expr_exposed_tuple_cheat: Optional[irast.TupleElement]
+
     #: Expression to use to force SQL expression volatility in this context
     #: (Delayed with a lambda to avoid inserting it when not used.)
     volatility_ref: Tuple[
@@ -226,6 +231,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.materializing = frozenset()
 
             self.expr_exposed = None
+            self.expr_exposed_tuple_cheat = None
             self.volatility_ref = ()
             self.current_insert_path_id = None
 
@@ -262,6 +268,7 @@ class CompilerContextLevel(compiler.ContextLevel):
             self.materializing = prevlevel.materializing
 
             self.expr_exposed = prevlevel.expr_exposed
+            self.expr_exposed_tuple_cheat = prevlevel.expr_exposed_tuple_cheat
             self.volatility_ref = prevlevel.volatility_ref
             self.current_insert_path_id = prevlevel.current_insert_path_id
 

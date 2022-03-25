@@ -163,7 +163,8 @@ def compile_cast(
         elif (orig_stype.issubclass(ctx.env.schema, json_t)
               and isinstance(new_stype, s_types.Tuple)):
             return _cast_json_to_tuple(
-                ir_set, orig_stype, new_stype, srcctx=srcctx, ctx=ctx)
+                ir_set, orig_stype, new_stype, cardinality_mod,
+                srcctx=srcctx, ctx=ctx)
 
         return _compile_cast(
             ir_expr, orig_stype, new_stype, cardinality_mod=cardinality_mod,
@@ -395,13 +396,36 @@ def _find_cast(
 def _cast_json_to_tuple(
         ir_set: irast.Set,
         orig_stype: s_types.Type,
-        new_stype: s_types.Tuple, *,
+        new_stype: s_types.Tuple,
+        cardinality_mod: Optional[qlast.CardinalityModifier],
+        *,
         srcctx: Optional[parsing.ParserContext],
         ctx: context.ContextLevel) -> irast.Set:
 
     with ctx.new() as subctx:
         subctx.anchors = subctx.anchors.copy()
         source_path = subctx.create_anchor(ir_set, 'a')
+
+        # Top-level json->tuple casts should produce an empty set on
+        # null inputs, but error on missing fields or null
+        # subelements, so filter out json nulls directly here to
+        # distinguish those cases.
+        if cardinality_mod != qlast.CardinalityModifier.Required:
+            pathctx.register_set_in_scope(ir_set, ctx=subctx)
+
+            check = qlast.FunctionCall(
+                func=('__std__', 'json_typeof'), args=[source_path]
+            )
+            filtered = qlast.SelectQuery(
+                result=source_path,
+                where=qlast.BinOp(
+                    left=check,
+                    op='!=',
+                    right=qlast.StringConstant(value='null'),
+                )
+            )
+            filtered_ir = dispatch.compile(filtered, ctx=subctx)
+            source_path = subctx.create_anchor(filtered_ir, 'a')
 
         # TODO: try using jsonb_to_record instead of a bunch of
         # json_get calls and see if that is faster.
@@ -547,8 +571,6 @@ def _cast_array(
         return _cast_to_ir(
             ir_set, el_cast, orig_stype, new_stype, ctx=ctx)
     else:
-        pathctx.register_set_in_scope(ir_set, ctx=ctx)
-
         with ctx.new() as subctx:
             subctx.anchors = subctx.anchors.copy()
             source_path = subctx.create_anchor(ir_set, 'a')
@@ -590,10 +612,17 @@ def _cast_array(
                 ],
             )
 
+            # Force the elements to be correlated with whatever the
+            # anchor was. (Doing it this way ensures a NULL check,
+            # and just registering it in the scope would not.)
+            correlated_elements = astutils.extend_path(
+                qlast.Tuple(elements=[source_path, elements]), '1'
+            )
+
             if el_type.contains_json(subctx.env.schema):
                 subctx.inhibit_implicit_limit = True
 
-            array_ir = dispatch.compile(elements, ctx=subctx)
+            array_ir = dispatch.compile(correlated_elements, ctx=subctx)
             assert isinstance(array_ir, irast.Set)
 
             if direct_cast is not None:

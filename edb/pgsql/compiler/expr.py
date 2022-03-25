@@ -204,6 +204,21 @@ def compile_BooleanConstant(
     )
 
 
+def _json_to_json_array_cast(
+        arg: pgast.BaseExpr, res: pgast.BaseExpr) -> pgast.BaseExpr:
+
+    return pgast.CaseExpr(
+        arg=pgast.FuncCall(name=('jsonb_typeof',), args=[arg]),
+        args=[
+            pgast.CaseWhen(
+                expr=pgast.StringConstant(val='null'),
+                result=pgast.NullConstant()
+            )
+        ],
+        defresult=res,
+    )
+
+
 @dispatch.compile.register(irast.TypeCast)
 def compile_TypeCast(
         expr: irast.TypeCast, *,
@@ -239,6 +254,13 @@ def compile_TypeCast(
 
     else:
         raise errors.UnsupportedFeatureError('cast not supported')
+
+    # HACK: the cast from json to array<json> in the stdlib produces
+    # an error on the 'null' case when it ought to return an empty
+    # set. Since we can't make stdlib changes in point releases,
+    # fix up the code on the compiler side.
+    if str(expr.cast_name) == 'std::std|cast@std|json@array<std||json>':
+        res = _json_to_json_array_cast(pg_expr, res)
 
     if expr.cardinality_mod is qlast.CardinalityModifier.Required:
         res = pgast.FuncCall(
