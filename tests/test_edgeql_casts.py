@@ -2335,6 +2335,42 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r"""SELECT <tuple<json, json>> to_json('[3000]')"""
             )
 
+    async def test_edgeql_casts_json_13(self):
+        await self.assert_query_result(
+            r'''
+                select <array<json>>to_json('null')
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <array<str>>to_json('null')
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <array<int64>>json_get(to_json('{}'), 'foo')
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <tuple<str>>to_json('null')
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <tuple<json>>to_json('null')
+            ''',
+            [],
+        )
+
     async def test_edgeql_casts_assignment_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""

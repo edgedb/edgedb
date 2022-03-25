@@ -1803,6 +1803,7 @@ def process_set_as_tuple(
     assert isinstance(expr, irast.Tuple)
 
     with ctx.new() as subctx:
+        subctx.expr_exposed_tuple_cheat = None
         elements = []
 
         ttypes = {}
@@ -1819,7 +1820,10 @@ def process_set_as_tuple(
             # We compile in a subrel *solely* so that we can map
             # each element individually. It would be nice to have
             # a way to do this that doesn't actually affect the output!
-            with ctx.subrel() as newctx:
+            with subctx.subrel() as newctx:
+                if element is ctx.expr_exposed_tuple_cheat:
+                    newctx.expr_exposed = True
+
                 if path_id != element.val.path_id:
                     pathctx.put_path_id_map(
                         newctx.rel, path_id, element.val.path_id)
@@ -1889,15 +1893,21 @@ def process_set_as_tuple_indirection(
     with ctx.new() as subctx:
         # Usually the LHS is is not exposed, but when we are directly
         # projecting from an explicit tuple, and the result is a
-        # collection, keep it exposed. This behavior is needed for our
+        # collection, arrange to have the element we are projecting
+        # treated as exposed. This behavior is needed for our
         # eta-expansion of arrays to work, since it generates that
         # idiom in a place where it needs the output to be exposed.
-        if not (
-            not tuple_set.is_binding
+        subctx.expr_exposed = False
+        if (
+            ctx.expr_exposed
+            and not tuple_set.is_binding
             and isinstance(tuple_set.expr, irast.Tuple)
             and ir_set.path_id.is_collection_path()
         ):
-            subctx.expr_exposed = False
+            for el in tuple_set.expr.elements:
+                if el.name == rptr.ptrref.shortname.name:
+                    subctx.expr_exposed_tuple_cheat = el
+                    break
         rvar = get_set_rvar(tuple_set, ctx=subctx)
 
         # Check if unpack_rvar has found our answer for us.
