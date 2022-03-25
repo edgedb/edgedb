@@ -94,7 +94,7 @@ TEST_DEPS = [
     # mypy stub packages; when updating, you can use mypy --install-types
     # to install stub packages and then pip freeze to read out the specifier
     'types-click~=7.1',
-    'types-docutils~=0.17.0',
+    'types-docutils==0.17.4',
     'types-Jinja2~=2.11',
     'types-MarkupSafe~=1.1',
     'types-pkg-resources~=0.1.3',
