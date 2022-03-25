@@ -112,7 +112,7 @@ def compile_BinOp(
         expr: qlast.BinOp, *, ctx: context.ContextLevel) -> irast.Set:
     # Rebalance some associative operations to avoid deeply nested ASTs
     if expr.op in REBALANCED_OPS and not expr.rebalanced:
-        elements = collect_binop(expr, expr.op)
+        elements = collect_binop(expr)
         # Don't bother rebalancing small groups
         if len(elements) >= REBALANCE_THRESHOLD:
             balanced = _balance(
@@ -694,16 +694,15 @@ def flatten_set(expr: qlast.Set) -> List[qlast.Expr]:
     return elements
 
 
-def collect_binop(expr: qlast.Expr, op: str) -> List[qlast.Expr]:
+def collect_binop(expr: qlast.BinOp) -> List[qlast.Expr]:
     elements = []
 
-    def _go(expr: qlast.Expr) -> None:
-        if isinstance(expr, qlast.BinOp) and expr.op == op:
-            _go(expr.left)
-            _go(expr.right)
+    stack = [expr.left, expr.right]
+    while stack:
+        el = stack.pop()
+        if isinstance(el, qlast.BinOp) and el.op == expr.op:
+            stack.extend([el.left, el.right])
         else:
-            elements.append(expr)
-
-    _go(expr)
+            elements.append(el)
 
     return elements
