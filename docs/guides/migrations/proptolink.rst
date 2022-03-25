@@ -101,18 +101,18 @@ And then edit the ``00003.edgeql`` file to create and update objects:
       CREATE MIGRATION m1iztxroh3ifoeqmvxncy77whnaei6tp5j3sewyxtrfysronjkxgga
           ONTO m1uttd6f7fpiwiwikhdh6qyijb6pcji747ccg2cyt5357i3wsj3l3q
       {
-    +     insert default::NewClass {
-    +         name := 'Warrior',
-    +         skills := {'punch', 'kick', 'run', 'jump'},
-    +     };
-    +     insert default::NewClass {
-    +         name := 'Scholar',
-    +         skills := {'read', 'write', 'analyze', 'refine'},
-    +     };
-    +     insert default::NewClass {
-    +         name := 'Rogue',
-    +         skills := {'impress', 'sing', 'steal', 'run', 'jump'},
-    +     };
+    +    insert default::NewClass {
+    +        name := 'Warrior',
+    +        skills := {'punch', 'kick', 'run', 'jump'},
+    +    };
+    +    insert default::NewClass {
+    +        name := 'Scholar',
+    +        skills := {'read', 'write', 'analyze', 'refine'},
+    +    };
+    +    insert default::NewClass {
+    +        name := 'Rogue',
+    +        skills := {'impress', 'sing', 'steal', 'run', 'jump'},
+    +    };
     +
     +    update default::Character
     +    set {

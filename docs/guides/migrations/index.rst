@@ -13,6 +13,7 @@ Migrations
     backlink
     proptype
     proptolink
+    reqlink
 
 
 
