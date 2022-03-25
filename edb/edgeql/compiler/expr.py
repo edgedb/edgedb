@@ -696,6 +696,7 @@ def flatten_set(expr: qlast.Set) -> List[qlast.Expr]:
 
 def collect_binop(expr: qlast.Expr, op: str) -> List[qlast.Expr]:
     elements = []
+
     def _go(expr: qlast.Expr) -> None:
         if isinstance(expr, qlast.BinOp) and expr.op == op:
             _go(expr.left)
