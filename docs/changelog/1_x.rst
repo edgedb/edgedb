@@ -35,7 +35,6 @@ contributing fixes. You are awesome! ❤️
 * Enforce newly created :eql:constraint:`exclusive` constraints across
   existing data (:eql:gh:`#3613`).
 * Fix an issue with a self-referencing :eql:stmt:`update` (:eql:gh:`#3605`).
-* Fix an issue with a self-referencing :eql:stmt:`update` (:eql:gh:`#3605`).
 * Fix an issue with a constraint bug in :eql:stmt:`update` (:eql:gh:`#3603`).
 * Fix a constraint bug in :eql:stmt:`update` (:eql:gh:`#3603`).
 * Fix an SDL issue with computed links referencing each other
