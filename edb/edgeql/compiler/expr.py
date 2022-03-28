@@ -200,7 +200,7 @@ def compile_Set(
             bigunion = _balance(
                 elements,
                 lambda l, r, c: qlast.SetConstructorOp(
-                    left=l, right=r, context=c),
+                    left=l, right=r, rebalanced=True, context=c),
                 expr.context
             )
             return dispatch.compile(bigunion, ctx=ctx)
@@ -697,11 +697,11 @@ def flatten_set(expr: qlast.Set) -> List[qlast.Expr]:
 def collect_binop(expr: qlast.BinOp) -> List[qlast.Expr]:
     elements = []
 
-    stack = [expr.left, expr.right]
+    stack = [expr.right, expr.left]
     while stack:
         el = stack.pop()
         if isinstance(el, qlast.BinOp) and el.op == expr.op:
-            stack.extend([el.left, el.right])
+            stack.extend([el.right, el.left])
         else:
             elements.append(el)
 

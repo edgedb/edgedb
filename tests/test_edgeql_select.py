@@ -6316,6 +6316,25 @@ class TestEdgeQLSelect(tb.QueryTestCase):
 
         assert len(res) == 100
 
+    async def test_edgeql_select_set_literal_in_order(self):
+        # *Technically speaking*, we don't necessarily promise
+        # semantically that a set literal's elements be returned in
+        # order. In practice, we want to, though.
+
+        # Test for a range of lengths
+        for n in (2, 4, 10, 25):
+            s = list(range(n))
+            await self.assert_query_result(
+                f"SELECT {set(s)}",
+                s
+            )
+
+            us = ' union '.join(str(i) for i in s)
+            await self.assert_query_result(
+                f"SELECT {us}",
+                s
+            )
+
     async def test_edgeql_select_shape_on_scalar(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
