@@ -10392,6 +10392,23 @@ type default::Foo {
                 }
             """)
 
+    async def test_edgeql_ddl_index_04(self):
+        with self.assertRaisesRegex(
+            edgedb.SchemaDefinitionError,
+            r"index expressions must be immutable"
+        ):
+            await self.con.execute(r"""
+                create function f(s: str) -> str {
+                    set volatility := "stable";
+                    using (s)
+                };
+
+                create type Bar {
+                    create property x -> str;
+                    create index on (f(.x));
+                };
+            """)
+
     async def test_edgeql_ddl_errors_01(self):
         await self.con.execute('''
             CREATE TYPE Err1 {
