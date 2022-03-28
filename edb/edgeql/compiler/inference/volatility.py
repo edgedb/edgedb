@@ -170,7 +170,7 @@ def __infer_set(
         ])
 
     if ir.is_binding:
-        vol = STABLE
+        vol = IMMUTABLE
 
     return vol
 
