@@ -140,3 +140,50 @@ The truth tables are as follows:
 +-------+-------+---------------+--------------+--------------+
 | false | false |   false       |   false      |   true       |
 +-------+-------+---------------+--------------+--------------+
+
+
+----------
+
+
+It is important to understand the difference between using
+``and``/``or`` vs :eql:func:`all`/:eql:func:`any`. This difference is
+in how they handle ``{}``. Both ``and`` and ``or`` operators apply to
+the cross-product of their operands. Thus if any of the operands are
+``{}``, the result is also ``{}`` for ``and`` and ``or``.
+
+The :eql:func:`all` and :eql:func:`any` are generalized to apply to
+sets of values, including ``{}``. Thus they have the following truth
+table:
+
++-------+-------+-----------------+-----------------+
+|   a   |   b   | ``all({a, b})`` | ``any({a, b})`` |
++=======+=======+=================+=================+
+| true  | true  |   true          |   true          |
++-------+-------+-----------------+-----------------+
+| true  | false |   false         |   true          |
++-------+-------+-----------------+-----------------+
+| {}    | true  |   true          |   true          |
++-------+-------+-----------------+-----------------+
+| {}    | false |   false         |   false         |
++-------+-------+-----------------+-----------------+
+| false | true  |   false         |   true          |
++-------+-------+-----------------+-----------------+
+| false | false |   false         |   false         |
++-------+-------+-----------------+-----------------+
+| true  | {}    |   true          |   true          |
++-------+-------+-----------------+-----------------+
+| false | {}    |   false         |   false         |
++-------+-------+-----------------+-----------------+
+| {}    | {}    |   true          |   false         |
++-------+-------+-----------------+-----------------+
+
+Since :eql:func:`all` and :eql:func:`any` apply to sets as a whole,
+missing values (represented by ``{}``) are just that - missing. They
+don't affect the overall result.
+
+To understand the last line in the above truth table it's useful to
+remember that ``all({a, b}) = all(a) and all(b)`` and ``any({a, b}) =
+any(a) or any(b)``.
+
+For more customized handling of ``{}`` the :eql:op:`?? <coalesce>`
+should be used.
