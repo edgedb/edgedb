@@ -144,11 +144,21 @@ def __infer_set(
     ir: irast.Set,
     env: context.Environment,
 ) -> InferredVolatility:
-    if ir.rptr is not None:
+    vol: InferredVolatility
+    if ir.path_id in env.singletons:
+        vol = IMMUTABLE
+    elif ir.rptr is not None:
         src_vol = _infer_volatility(ir.rptr.source, env)
         # If source is an object, then a pointer reference implies
         # a table scan, and so we can assume STABLE at the minimum.
-        if irtyputils.is_object(ir.rptr.source.typeref):
+        #
+        # A single dereference of a singleton path can be IMMUTABLE,
+        # though, which we need in order to enforce that indexes
+        # don't call STABLE functions.
+        if (
+            irtyputils.is_object(ir.rptr.source.typeref)
+            and ir.rptr.source.path_id not in env.singletons
+        ):
             vol = _max_volatility((src_vol, STABLE))
         else:
             vol = src_vol
