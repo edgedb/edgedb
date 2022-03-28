@@ -3065,6 +3065,35 @@ class TestInsert(tb.QueryTestCase):
             [],
         )
 
+    async def test_edgeql_insert_unless_conflict_23(self):
+        # Test that scoping of default parameters doesn't get messed up
+        obj1 = await self.con.query_single('''
+            insert DerivedPerson { sub_key := "foo" };
+        ''')
+        obj2 = await self.con.query_single('''
+            insert DerivedPerson {
+                name := "new",
+                sub_key := <str>json_get(
+                    to_json('{ "sub_key": "foo"}'), 'sub_key')
+            }
+            unless conflict on .sub_key else (select DerivedPerson);
+        ''')
+        self.assertEqual(obj1.id, obj2.id)
+
+        obj3 = await self.con.query('''
+            with
+              raw_data := to_json('[{"sub_key": "foo"}]')
+            for item in json_array_unpack(raw_data) union (
+                insert DerivedPerson {
+                    name := "new",
+                    sub_key := <str>json_get(item, 'sub_key')
+                }
+                unless conflict on .sub_key else (select DerivedPerson)
+            );
+        ''')
+        self.assertEqual(len(obj3), 1)
+        self.assertEqual(obj1.id, tuple(obj3)[0].id)
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             SELECT (

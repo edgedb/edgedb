@@ -133,10 +133,13 @@ def _compile_conflict_select(
                     error, context=parser_context
                 )
 
+            # We want to use the same path_scope_id as the original
+            elem_set = setgen.ensure_set(elem.expr, ctx=ctx)
+            elem_set.path_scope_id = elem.path_scope_id
+
             # FIXME: The wrong thing will definitely happen if there are
             # volatile entries here
-            ptr_anchors[name] = ctx.create_anchor(
-                setgen.ensure_set(elem.expr, ctx=ctx), name)
+            ptr_anchors[name] = ctx.create_anchor(elem_set, name)
 
     if for_inheritance and not ptrs_in_shape:
         return None
