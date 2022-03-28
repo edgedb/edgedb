@@ -312,6 +312,12 @@ class IndexCommand(
                     f'the index expression where only singletons '
                     f'are allowed')
 
+            if expr.irast.volatility != qltypes.Volatility.Immutable:
+                raise errors.SchemaDefinitionError(
+                    f'index expressions must be immutable',
+                    context=value.qlast.context,
+                )
+
             return expr
         else:
             return super().compile_expr_field(
