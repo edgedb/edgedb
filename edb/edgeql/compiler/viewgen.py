@@ -536,12 +536,11 @@ def _normalize_view_ptr_expr(
     ptrname = lexpr.ptr.name
 
     compexpr: Optional[qlast.Expr] = shape_el.compexpr
-    if compexpr is None and is_mutation and shape_el.elements:
-        # Short shape form in INSERT or UPDATE, e.g
-        #     INSERT Foo { bar: Spam { name := 'name' }}
-        # is prohibited.
-        raise errors.EdgeQLSyntaxError(
-            "unexpected ':'", context=steps[-1].context)
+    if compexpr is None and is_mutation:
+        raise errors.QueryError(
+            "mutation queries must specify values with ':='",
+            context=steps[-1].context,
+        )
 
     ptrcls: Optional[s_pointers.Pointer]
 
