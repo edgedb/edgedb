@@ -68,6 +68,15 @@ class TestInsert(tb.QueryTestCase):
                 };
             ''')
 
+    async def test_edgeql_insert_fail_4(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            r"mutation queries must specify values with ':='",
+        ):
+            await self.con.execute('''
+                INSERT Person { name };
+            ''')
+
     async def test_edgeql_insert_simple_01(self):
         await self.con.execute(r"""
             INSERT InsertTest {
