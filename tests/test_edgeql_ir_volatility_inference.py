@@ -135,3 +135,24 @@ class TestEdgeQLVolatilityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         Volatile
         """
+
+    def test_edgeql_ir_volatility_inference_09(self):
+        """
+        with X := 1 select X
+% OK %
+        Immutable
+        """
+
+    def test_edgeql_ir_volatility_inference_10(self):
+        """
+        with X := User select X
+% OK %
+        Stable
+        """
+
+    def test_edgeql_ir_volatility_inference_11(self):
+        """
+        with X := random() select X
+% OK %
+        Volatile
+        """
