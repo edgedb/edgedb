@@ -3396,8 +3396,9 @@ class TestUpdate(tb.QueryTestCase):
 
     async def test_edgeql_update_subnavigate_01(self):
         with self.assertRaisesRegex(
-                edgedb.EdgeQLSyntaxError,
-                "unexpected ':'"):
+            edgedb.QueryError,
+            r"mutation queries must specify values with ':='",
+        ):
             await self.con.execute('''
                 UPDATE UpdateTest
                 SET {
