@@ -241,8 +241,12 @@ CREATE CAST FROM std::json TO anytuple {
 CREATE CAST FROM std::json TO array<json> {
     SET volatility := 'Immutable';
     USING SQL $$
-        SELECT array_agg(j)
-        FROM jsonb_array_elements(val) AS j
+    SELECT CASE jsonb_typeof(val)
+    WHEN 'null' THEN NULL
+    ELSE
+        (SELECT array_agg(j)
+         FROM jsonb_array_elements(val) AS j)
+    END
     $$;
 };
 
