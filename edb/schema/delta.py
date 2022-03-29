@@ -2021,7 +2021,11 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                         assert isinstance(value, s_expr.Expression)
                         # Strip the "compiled" out of the expression
                         value = s_expr.Expression.not_compiled(value)
-                        if fixer:
+                        # We don't run the fixer on inherited fields because
+                        # they can't have changed (and because running it
+                        # on inherited constraint finalexprs breaks
+                        # the extra parens in it...)
+                        if fixer and not ref.field_is_inherited(schema, fn):
                             with obj_cmd.new_context(schema, context, obj):
                                 value = fixer(
                                     schema, cmd_create, fn, context, value)

@@ -1912,7 +1912,12 @@ class AlterPointer(
 
         assert isinstance(expression.irast, irast.Statement)
         target = expression.irast.stype
-        self.set_attribute_value('target', target)
+        self.set_attribute_value(
+            'target',
+            target,
+            inherited=pointer.field_is_inherited(schema, 'target'),
+            computed=pointer.field_is_computed(schema, 'target'),
+        )
 
 
 class DeletePointer(
