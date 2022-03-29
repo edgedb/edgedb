@@ -442,6 +442,35 @@ def new_free_object_rvar(
     return rvar_for_rel(qry, typeref=typeref, lateral=lateral, ctx=ctx)
 
 
+def _deep_copy_primitive_rvar_path_var(
+    orig_id: irast.PathId, new_id: irast.PathId,
+    rvar: pgast.PathRangeVar, *,
+    env: context.Environment
+) -> None:
+    """Copy one identity path to another in a primitive rvar.
+
+    The trickiness here is because primitive rvars might have an
+    overlay stack, which means if they are joined on, it might be
+    using _lateral_union_join, which requires every component of
+    the union to have all the path bonds.
+    """
+
+    def _copy_id(component: pgast.Query) -> None:
+        rref = pathctx.get_path_var(
+            component, orig_id, aspect='identity', env=env)
+        pathctx.put_path_var(
+            component, new_id, rref, aspect='identity',
+            env=env)
+
+    if isinstance(rvar, pgast.RangeSubselect):
+        astutils.for_each_query_in_set(rvar.query, _copy_id)
+    else:
+        rref = pathctx.get_path_output(
+            rvar.query, orig_id, aspect='identity', env=env)
+        pathctx.put_rvar_path_output(
+            rvar, new_id, aspect='identity', var=rref, env=env)
+
+
 def new_primitive_rvar(
     ir_set: irast.Set,
     *,
@@ -490,23 +519,8 @@ def new_primitive_rvar(
             # to use _lateral_union_join; this means that all of the
             # path bonds need to be valid on each *subquery*, so we
             # need to set them up in each subquery.
-            def _flip_id(component: pgast.Query) -> None:
-                rref = pathctx.get_path_var(
-                    component, flipped_id, aspect='identity', env=ctx.env)
-                assert prefix_path_id
-                pathctx.put_path_var(
-                    component, prefix_path_id, rref, aspect='identity',
-                    env=ctx.env)
-
-            if isinstance(set_rvar, pgast.RangeSubselect):
-                astutils.for_each_query_in_set(set_rvar.query, _flip_id)
-            else:
-                rref = pathctx.get_path_output(
-                    set_rvar.query, flipped_id, aspect='identity', env=ctx.env)
-                pathctx.put_rvar_path_output(
-                    set_rvar, prefix_path_id,
-                    aspect='identity', var=rref, env=ctx.env)
-
+            _deep_copy_primitive_rvar_path_var(
+                flipped_id, prefix_path_id, set_rvar, env=ctx.env)
             pathctx.put_rvar_path_bond(set_rvar, prefix_path_id)
 
     return set_rvar
