@@ -733,10 +733,10 @@ def _compile_set_in_singleton_mode(
                 name=[ptr_stor_info.column_name],
                 nullable=node.rptr.dir_cardinality.can_be_zero())
         else:
-            colref = pgast.ColumnRef(
-                name=[
-                    common.edgedb_name_to_pg_name(str(node.typeref.id))
-                ]
-            )
+            name = [common.edgedb_name_to_pg_name(str(node.typeref.id))]
+            if node.path_id.is_objtype_path():
+                name.append('id')
+
+            colref = pgast.ColumnRef(name=name)
 
         return colref
