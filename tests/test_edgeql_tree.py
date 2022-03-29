@@ -1065,3 +1065,31 @@ class TestTree(tb.QueryTestCase):
                 },
             ],
         )
+
+    async def test_edgeql_tree_update_09(self):
+        # A trivial update that accesses children
+        await self.assert_query_result(
+            r"""
+                select (update Tree filter .val = "00" set { }) {
+                    children: {val}
+                }
+            """,
+            [{"children": [{"val": "000"}]}],
+        )
+
+    async def test_edgeql_tree_update_10(self):
+        # A real update that accesses children
+        await self.assert_query_result(
+            r"""
+               select (
+                    update Tree filter .val = {"0", "00"}
+                    set { parent := {} }
+               ) {
+                   val, children: {val} order by .val
+               } order by .val;
+            """,
+            [
+                {"children": [{"val": "01"}, {"val": "02"}], "val": "0"},
+                {"children": [{"val": "000"}], "val": "00"}
+            ]
+        )
