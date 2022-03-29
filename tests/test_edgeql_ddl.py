@@ -8412,6 +8412,25 @@ type default::Foo {
                 INSERT Foo { x := ('1', '2') };
             """)
 
+    async def test_edgeql_ddl_constraint_17(self):
+        await self.con.execute(r"""
+            create type Post {
+                create link original -> Post;
+                create constraint expression ON ((.original != __subject__));
+            };
+        """)
+
+        await self.con.execute("""
+            insert Post;
+        """)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                r'invalid Post'):
+            await self.con.execute("""
+                update Post set { original := Post };
+            """)
+
     async def test_edgeql_ddl_constraint_check_01a(self):
         await self.con.execute(r"""
             create type Foo {
