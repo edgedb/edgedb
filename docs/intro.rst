@@ -16,7 +16,8 @@ How to read the docs
 
 The sidebar is broken up into a number of main sections.
 
-- :ref:`Guides`
+.. - :ref:`Guides`
+
 1. Go through the :ref:`quickstart <ref_quickstart>`. It is the simplest way to set up EdgeDB on your machine, learn the basics of schema, and write a couple queries.
 2. Go through the :ref:`Schema <ref_datamodel_index>` docs in order, up to :ref:`Constraints <ref_datamodel_constraints>`. This will give you a full understanding of EdgeDB's type system and how to declare your schema. The last few pages (aliases, annotations, functions, etc) are more advanced; you can skip them for now.
 3. Go through the :ref:`EdgeQL <ref_datamodel_index>` docs in order. This section assumes you have some familiarity with the Schema docs already. Each page is written as an accessible guide.   up to :ref:`Constraints <ref_datamodel_constraints>`. This will give you a full understanding of how to model data in EdgeDB. The last few pages (aliases, annotations, functions, etc) are more advanced; you can skip them for now.
