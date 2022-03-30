@@ -41,10 +41,10 @@ the length of a string.
   type User {
     required property username -> str {
       # as custom constraint
-      constraint expression on (len(__subject__) < 25);
+      constraint expression on (len(__subject__) <= 25);
 
       # with built-in
-      constraint min_len_value(25);
+      constraint max_len_value(25);
     };
   }
 

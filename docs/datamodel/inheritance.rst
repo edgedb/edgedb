@@ -56,7 +56,7 @@ types out of combinations of more basic types.
     property last_name -> str;
   }
 
-  abstract type Email {
+  abstract type HasEmail {
     property email -> str;
   }
 
