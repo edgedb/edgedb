@@ -183,13 +183,14 @@ class ConsulProtocol(asyncio.Protocol):
 
     def on_message_complete(self):
         try:
-            payload = json.loads(b"".join(self._buffers))[0]
-            last_modify_index = payload["ModifyIndex"]
-            cluster_data = json.loads(base64.b64decode(payload["Value"]))
-            self._consul_backend.on_cluster_data(cluster_data)
-            if self._last_modify_index != last_modify_index:
-                self._last_modify_index = last_modify_index
-                self.request()
+            if self._parser.get_status_code() == 200:
+                payload = json.loads(b"".join(self._buffers))[0]
+                last_modify_index = payload["ModifyIndex"]
+                cluster_data = json.loads(base64.b64decode(payload["Value"]))
+                self._consul_backend.on_cluster_data(cluster_data)
+                if self._last_modify_index != last_modify_index:
+                    self._last_modify_index = last_modify_index
+                    self.request()
         finally:
             self._buffers.clear()
 
