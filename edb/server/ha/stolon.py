@@ -16,14 +16,17 @@
 # limitations under the License.
 #
 
+from __future__ import annotations
+from typing import *
+
 import asyncio
 import base64
 import functools
 import json
 import logging
+import random
 import ssl
 import urllib.parse
-from typing import *
 
 import httptools
 
@@ -42,14 +45,14 @@ class StolonBackend(base.HABackend):
         self._protocol = None
         self._watching = False
         self._cluster_protocol = None
+        self._retry_attempt = 0
 
     async def get_cluster_consensus(self) -> Tuple[str, int]:
         if self._master_addr is None:
             started_by_us = await self.start_watching()
             try:
                 assert self._waiter is None
-                loop = asyncio.get_running_loop()
-                self._waiter = loop.create_future()
+                self._waiter = asyncio.get_running_loop().create_future()
                 await self._waiter
             finally:
                 if started_by_us:
@@ -72,6 +75,15 @@ class StolonBackend(base.HABackend):
                 raise
         return False
 
+    async def retry_watching(self, cluster_protocol=None):
+        self._retry_attempt += 1
+        delay = min(
+            5,
+            (2 ** self._retry_attempt) * 0.1 + random.randrange(100) * 0.001,
+        )
+        await asyncio.sleep(delay)
+        await self.start_watching(cluster_protocol)
+
     def stop_watching(self):
         self._watching = False
         self._cluster_protocol = None
@@ -91,6 +103,9 @@ class StolonBackend(base.HABackend):
         raise NotImplementedError
 
     def on_cluster_data(self, data):
+        # Successful Consul response, reset retry backoff
+        self._retry_attempt = 0
+
         cluster_status = data.get("cluster", {}).get("status", {})
         master_db = cluster_status.get("master")
         cluster_phase = cluster_status.get("phase")
@@ -137,22 +152,11 @@ class StolonBackend(base.HABackend):
         if self._watching:
             cluster_protocol = self._cluster_protocol
             self.stop_watching()
-            loop = asyncio.get_running_loop()
-            loop.create_task(
-                self.start_watching(cluster_protocol)
-            ).add_done_callback(
-                self._start_watching_cb
-            )
+            asyncio.create_task(self.retry_watching(cluster_protocol))
         else:
             waiter, self._stop_waiter = self._stop_waiter, None
             if waiter is not None:
                 waiter.set_result(None)
-
-    def _start_watching_cb(self, fut: asyncio.Task):
-        try:
-            fut.result()
-        except BaseException:
-            raise
 
 
 class ConsulProtocol(asyncio.Protocol):
@@ -203,7 +207,7 @@ class ConsulProtocol(asyncio.Protocol):
             )
         )
         if self._last_modify_index is not None:
-            uri += f"?wait=0s&index={self._last_modify_index}"
+            uri += f"?index={self._last_modify_index}"
         self._transport.write(
             f"GET {uri} HTTP/1.1\r\n"
             f"Host: {self._consul_backend._host}\r\n"
@@ -223,8 +227,7 @@ class ConsulBackend(StolonBackend):
         self._ssl = ssl
 
     async def _start_watching(self):
-        loop = asyncio.get_running_loop()
-        tr, pr = await loop.create_connection(
+        _, pr = await asyncio.get_running_loop().create_connection(
             functools.partial(ConsulProtocol, self),
             self._host,
             self._port,
