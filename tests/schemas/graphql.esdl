@@ -55,6 +55,7 @@ type User extending NamedObject {
     link profile -> Profile;
     # a link pointing to an abstract type
     multi link favorites -> NamedObject;
+    multi link fav_users := .favorites[is User];
 }
 
 alias SettingAlias := Setting {

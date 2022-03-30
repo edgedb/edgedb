@@ -662,7 +662,14 @@ class GQLCoreSchema:
                 # Aliased types ignore their ancestors in order to
                 # allow all their fields appear properly in the
                 # filters.
-                if not tgt.is_view(self.edb_schema):
+                #
+                # If the target is not a view, but this is computed,
+                # so we cannot later override it, thus we can use the
+                # type as is.
+                if (
+                    not tgt.is_view(self.edb_schema) and
+                    not ptr.is_pure_computable(self.edb_schema)
+                ):
                     # We want to look at the pointer lineage because that
                     # will be reflected into GraphQL interface that is
                     # being extended and the type cannot be changed.
