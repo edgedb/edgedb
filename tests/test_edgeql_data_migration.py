@@ -10891,3 +10891,30 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
             with module test
             delete Tgt;
         """)
+
+    async def test_edgeql_migration_rename_with_stuff_01(self):
+        await self.migrate(
+            r"""
+                type Base {
+                        property x -> str;
+                        property xbang := .x ++ "!";
+                }
+
+                type NamedObject extending Base {
+                        required property foo -> str;
+                }
+            """
+        )
+
+        await self.migrate(
+            r"""
+                type Base {
+                        property x -> str;
+                        property xbang := .x ++ "!";
+                }
+
+                type ReNamedObject extending Base {
+                        required property foo -> str;
+                }
+            """
+        )
