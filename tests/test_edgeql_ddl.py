@@ -5386,6 +5386,132 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             []
         )
 
+    async def test_edgeql_ddl_global_01(self):
+        INTRO_Q = '''
+            select schema::Global {
+                required, typ := .target.name, default }
+            filter .name = 'default::foo';
+        '''
+
+        await self.con.execute(r"""
+            create global foo -> str;
+        """)
+
+        await self.assert_query_result(
+            INTRO_Q,
+            [{
+                "required": False,
+                "typ": "std::str",
+                "default": None,
+            }]
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"required globals must have a default",
+        ):
+            await self.con.execute("""
+                alter global foo set required;
+            """)
+
+        await self.con.execute(r"""
+            drop global foo;
+            create required global foo -> str { set default := "" };
+        """)
+
+        await self.assert_query_result(
+            INTRO_Q,
+            [{
+                "required": True,
+                "typ": "std::str",
+                "default": "''",
+            }]
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"default expression is of invalid type",
+        ):
+            await self.con.execute("""
+                alter global foo set type array<uuid>;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"required globals must have a default",
+        ):
+            await self.con.execute("""
+                alter global foo reset default;
+            """)
+
+        await self.con.execute("""
+            alter global foo set optional;
+            alter global foo reset default;
+            alter global foo set type array<int64>;
+        """)
+
+        await self.assert_query_result(
+            INTRO_Q,
+            [{
+                "required": False,
+                "typ": "array<std::int64>",
+                "default": None,
+            }]
+        )
+
+    async def test_edgeql_ddl_global_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            "non-computed globals may not be multi",
+        ):
+            await self.con.execute("""
+                create multi global foo -> str;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"possibly more than one element returned",
+        ):
+            await self.con.execute("""
+                create global foo -> str {
+                    set default := {"foo", "bar"}
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"possibly no elements returned",
+        ):
+            await self.con.execute("""
+                create required global foo -> str {
+                    set default := (select "foo" filter false)
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"non-computed globals may not have have object type",
+        ):
+            await self.con.execute("""
+                create global foo -> Object;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"non-computed globals may not have have object type",
+        ):
+            await self.con.execute("""
+                create global foo -> array<Object>;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"has a volatile default expression, which is not allowed",
+        ):
+            await self.con.execute("""
+                create global foo -> float64 { set default := random(); };
+            """)
+
     async def test_edgeql_ddl_property_computable_01(self):
         await self.con.execute('''\
             CREATE TYPE CompProp;

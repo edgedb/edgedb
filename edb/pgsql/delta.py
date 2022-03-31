@@ -43,7 +43,7 @@ from edb.schema import expr as s_expr
 from edb.schema import expraliases as s_aliases
 from edb.schema import extensions as s_exts
 from edb.schema import functions as s_funcs
-from edb.schema import globals as s_globals  # noqa
+from edb.schema import globals as s_globals
 from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
 from edb.schema import properties as s_props
@@ -642,6 +642,38 @@ class AlterAlias(
 class DeleteAlias(
     ExprAliasCommand,
     adapts=s_aliases.DeleteAlias,
+):
+    pass
+
+
+class GlobalCommand(MetaCommand):
+    pass
+
+
+class CreateGlobal(
+    GlobalCommand,
+    adapts=s_globals.CreateGlobal,
+):
+    pass
+
+
+class RenameGlobal(
+    GlobalCommand,
+    adapts=s_globals.RenameGlobal,
+):
+    pass
+
+
+class AlterGlobal(
+    GlobalCommand,
+    adapts=s_globals.AlterGlobal,
+):
+    pass
+
+
+class DeleteGlobal(
+    GlobalCommand,
+    adapts=s_globals.DeleteGlobal,
 ):
     pass
 
