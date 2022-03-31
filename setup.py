@@ -546,7 +546,7 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(ext_hash).decode())
 
         elif self.type == 'cli':
-            print(_get_edgedbcli_rev())
+            print(EDGEDBCLI_COMMIT)
 
         elif self.type == 'build_temp':
             print(pathlib.Path(build.build_temp).resolve())
