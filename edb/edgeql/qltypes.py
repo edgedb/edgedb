@@ -206,6 +206,7 @@ class SchemaObjectClass(s_enum.StrEnum):
     EXTENSION = 'EXTENSION'
     EXTENSION_PACKAGE = 'EXTENSION PACKAGE'
     FUNCTION = 'FUNCTION'
+    GLOBAL = 'GLOBAL'
     INDEX = 'INDEX'
     LINK = 'LINK'
     MIGRATION = 'MIGRATION'
