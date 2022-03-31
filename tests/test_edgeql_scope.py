@@ -3546,11 +3546,11 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
-    @test.xfail("still breaks with a computed link")
-    async def test_edgeql_select_outer_rebind_02(self):
+    async def test_edgeql_select_outer_rebind_02a(self):
         await self.assert_query_result(
             r'''
             select Card {
+              name,
               owners := (
                 with
                   U := (
@@ -3565,6 +3565,27 @@ class TestEdgeQLScope(tb.QueryTestCase):
             } FILTER .name = 'Djinn';
             ''',
             [{"name": "Djinn", "owners": [{"n": "Carol"}, {"n": "Dave"}]}]
+        )
+
+    async def test_edgeql_select_outer_rebind_02b(self):
+        await self.assert_query_result(
+            r'''
+            select Card {
+              name,
+              foo := (
+                with
+                  U := (
+                    select Card.<deck[IS User] {
+                      n := Card.<deck[IS User].name
+                    }
+                  )
+                select U {
+                  n
+                } order by .name
+              )
+            } FILTER .name = 'Djinn';
+            ''',
+            [{"name": "Djinn", "foo": [{"n": "Carol"}, {"n": "Dave"}]}]
         )
 
     async def test_edgeql_select_outer_rebind_03(self):
@@ -3625,6 +3646,64 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 {"avatar": {
                     "name": "Djinn", "retag": "Djinn-Wow", "t2": "Wow"}}
             ]
+        )
+
+    async def test_edgeql_select_outer_rebind_05(self):
+        await self.assert_query_result(
+            r'''
+            SELECT User {
+              name,
+              avatar := (
+                WITH
+                  nemesis := User.avatar,
+                  nemesis_mod := (FOR nem IN {nemesis} UNION (
+                    WITH
+                      name_len := std::len(nem.name)
+                    SELECT nem {
+                      name_len := name_len
+                    }
+                  ))
+                SELECT nemesis_mod {
+                  name,
+                  single nameLen := nemesis_mod.name_len,
+                  single nameLen2 := nemesis_mod.name_len
+                }
+              )
+            }
+            FILTER .name = 'Alice';
+            ''',
+            [
+                {
+                    "avatar": {"name": "Dragon", "nameLen": 6, "nameLen2": 6},
+                    "name": "Alice"
+                }
+            ]
+        )
+
+    async def test_edgeql_select_outer_rebind_06(self):
+        # hm, not really an outer rebind anymore!
+        await self.assert_query_result(
+            r'''
+            for User in (select User filter .name = 'Alice') union (
+              (
+                WITH
+                  nemesis := User.avatar,
+                  nemesis_mod := (FOR nem IN {nemesis} UNION (
+                    WITH
+                      name_len := std::len(nem.name)
+                    SELECT nem {
+                      name_len := name_len
+                    }
+                  ))
+                SELECT nemesis_mod {
+                  name,
+                  single nameLen := nemesis_mod.name_len,
+                  single nameLen2 := nemesis_mod.name_len
+                }
+              )
+            );
+            ''',
+            [{"name": "Dragon", "nameLen": 6, "nameLen2": 6}]
         )
 
     async def test_edgeql_scope_for_with_computable_01(self):
