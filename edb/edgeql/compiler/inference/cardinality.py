@@ -512,6 +512,10 @@ def _infer_set_inner(
     if rptr is not None:
         rptrref = rptr.ptrref
 
+        source_card = infer_cardinality(
+            rptr.source, scope_tree=scope_tree, ctx=ctx,
+        )
+
         ctx.env.schema, ptrcls = typeutils.ptrcls_from_ptrref(
             rptrref, schema=ctx.env.schema)
         if ir.expr:
@@ -524,10 +528,6 @@ def _infer_set_inner(
                 scope_tree=scope_tree,
                 ctx=ctx,
             )
-
-        source_card = infer_cardinality(
-            rptr.source, scope_tree=scope_tree, ctx=ctx,
-        )
 
     # We have now inferred all of the subtrees we need to, so it is
     # safe to return.
