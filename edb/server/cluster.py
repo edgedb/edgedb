@@ -195,7 +195,11 @@ class BaseCluster:
         if status_w is not None:
             status_w.close()
 
-        await self._wait_for_server(timeout=wait, status_sock=status_r)
+        try:
+            await self._wait_for_server(timeout=wait, status_sock=status_r)
+        except Exception:
+            self._daemon_process.kill()
+            raise
 
     def stop(self, wait: int = 60) -> None:
         if (self._daemon_process is not None and
@@ -295,7 +299,7 @@ class BaseCluster:
         query: str,
         wait_until_available: str = "0s",
     ) -> int:
-        return subprocess.call(
+        return subprocess.run(
             [
                 "edgedb",
                 "--host",
@@ -309,12 +313,13 @@ class BaseCluster:
                 edgedb_defines.EDGEDB_SUPERUSER_DB,
                 "--wait-until-available",
                 wait_until_available,
-                "-c",
+                "query",
                 query,
             ],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.STDOUT,
-        )
+            check=True,
+        ).returncode
 
     async def set_test_config(self) -> None:
         self._admin_query(f'''
