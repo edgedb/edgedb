@@ -298,7 +298,7 @@ class BaseCluster:
         return subprocess.call(
             [
                 "edgedb",
-                "--host",
+                "--unix-path",
                 str(self._runstate_dir),
                 "--port",
                 str(self._effective_port),
