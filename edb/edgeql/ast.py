@@ -269,6 +269,10 @@ class DetachedExpr(Expr):  # DETACHED Expr
     expr: Expr
 
 
+class GlobalExpr(Expr):  # GLOBAL Name
+    name: ObjectRef
+
+
 class Index(Base):
     index: Expr
 
@@ -1016,6 +1020,27 @@ class AlterAlias(AlterObject, AliasCommand):
 
 
 class DropAlias(DropObject, AliasCommand):
+    pass
+
+
+class GlobalCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.GLOBAL)
+
+
+class CreateGlobal(CreateObject, GlobalCommand):
+    is_required: typing.Optional[bool] = None
+    target: typing.Optional[typing.Union[Expr, TypeExpr]]
+    cardinality: typing.Optional[qltypes.SchemaCardinality]
+
+
+class AlterGlobal(AlterObject, GlobalCommand):
+    pass
+
+
+class DropGlobal(DropObject, GlobalCommand):
     pass
 
 

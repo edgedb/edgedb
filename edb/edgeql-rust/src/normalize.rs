@@ -130,7 +130,9 @@ pub fn normalize<'x>(text: &'x str)
             format!("${}", var_idx + num)
         }
     };
+    let mut last_was_set = false;
     for tok in &tokens {
+        let mut is_set = false;
         match tok.kind {
             Kind::IntConst
             // Don't replace `.12` because this is a tuple access
@@ -211,7 +213,11 @@ pub fn normalize<'x>(text: &'x str)
             }
             Kind::Keyword
             if (matches!(&(&tok.value[..].to_uppercase())[..],
-                "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START"))
+                         "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START")
+                || (last_was_set &&
+                    matches!(&(&tok.value[..].to_uppercase())[..],
+                             "GLOBAL"))
+            )
             => {
                 let processed_source = serialize_tokens(&tokens);
                 return Ok(Entry {
@@ -224,8 +230,14 @@ pub fn normalize<'x>(text: &'x str)
                     first_arg: None,
                 });
             }
+            Kind::Keyword
+            if (matches!(&(&tok.value[..].to_uppercase())[..], "SET")) => {
+                is_set = true;
+                rewritten_tokens.push(tok.clone());
+            }
             _ => rewritten_tokens.push(tok.clone()),
         }
+        last_was_set = is_set;
     }
     let processed_source = serialize_tokens(&rewritten_tokens[..]);
     return Ok(Entry {

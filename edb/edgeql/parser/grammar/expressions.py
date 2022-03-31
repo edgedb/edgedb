@@ -1002,6 +1002,7 @@ class Expr(Nonterm):
     # | Expr UNION Expr | Expr UNION Expr
     # | DISTINCT Expr
     # | DETACHED Expr
+    # | GLOBAL Name
     # | EXISTS Expr
 
     def reduce_BaseAtomicExpr(self, *kids):
@@ -1021,6 +1022,9 @@ class Expr(Nonterm):
 
     def reduce_DETACHED_Expr(self, *kids):
         self.val = qlast.DetachedExpr(expr=kids[1].val)
+
+    def reduce_GLOBAL_NodeName(self, *kids):
+        self.val = qlast.GlobalExpr(name=kids[1].val)
 
     def reduce_Expr_IndirectionEl(self, *kids):
         expr = kids[0].val

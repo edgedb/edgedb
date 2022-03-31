@@ -77,3 +77,16 @@ class ConfigStmt(Nonterm):
     def reduce_CONFIGURE_ConfigScope_ConfigOp(self, *kids):
         self.val = kids[2].val
         self.val.scope = kids[1].val
+
+    def reduce_SET_GLOBAL_NodeName_ASSIGN_Expr(self, *kids):
+        self.val = qlast.ConfigSet(
+            name=kids[2].val,
+            expr=kids[4].val,
+            scope=qltypes.ConfigScope.GLOBAL,
+        )
+
+    def reduce_RESET_GLOBAL_NodeName(self, *kids):
+        self.val = qlast.ConfigReset(
+            name=kids[2].val,
+            scope=qltypes.ConfigScope.GLOBAL,
+        )
