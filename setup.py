@@ -115,7 +115,7 @@ RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be either a tag or a commit
-EDGEDBCLI_COMMIT = '87cb7e08452f37b97e95475df43006fa6131c0bf'
+EDGEDBCLI_COMMIT = '5a3e8af64576acb2a873794f09e8f6a295e4855a'
 
 EXTRA_DEPS = {
     'test': TEST_DEPS,
