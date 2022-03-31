@@ -3,6 +3,7 @@ name = "edgeql-parser"
 version = "0.1.0"
 license = "MIT/Apache-2.0"
 authors = ["MagicStack Inc. <hello@magic.io>"]
+rust-version = "1.59"
 edition = "2018"
 
 [dependencies]

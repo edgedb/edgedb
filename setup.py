@@ -111,7 +111,7 @@ BUILD_DEPS = [
     'wheel',  # needed by PyYAML and immutables, refs pypa/pip#5865
 ] + COMMON_DEPS
 
-RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst
+RUST_VERSION = '1.59.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
 # This can be a branch, tag, or commit
