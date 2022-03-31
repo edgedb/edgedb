@@ -37,6 +37,7 @@ from edb.schema import ddl as s_ddl
 from edb.schema import functions as s_func
 from edb.schema import links as s_links
 from edb.schema import properties as s_props
+from edb.schema import modules as s_mod
 from edb.schema import name as s_name
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
@@ -803,6 +804,13 @@ def compile_DescribeStmt(
             itemclass = objref.itemclass
 
             if itemclass is qltypes.SchemaObjectClass.MODULE:
+                if not ctx.env.schema.get_global(
+                        s_mod.Module, objref.name, None):
+                    raise errors.InvalidReferenceError(
+                        f"module '{objref.name}' does not exist",
+                        context=objref.context,
+                    )
+
                 modules.append(s_utils.ast_ref_to_unqualname(objref))
             else:
                 itemtype: Optional[Type[s_obj.Object]] = None
@@ -892,6 +900,13 @@ def compile_DescribeStmt(
                 # otherwise raise the recorded exception.
                 if not items and last_exc:
                     raise last_exc
+
+                if not items:
+                    raise errors.InvalidReferenceError(
+                        f"{str(itemclass).lower()} '{objref.name}' "
+                        f"does not exist",
+                        context=objref.context,
+                    )
 
             verbose = ql.options.get_flag('VERBOSE')
 

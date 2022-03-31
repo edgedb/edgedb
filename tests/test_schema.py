@@ -8445,6 +8445,55 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             explicit_modules=True,
         )
 
+    def test_schema_describe_missing_01(self):
+        with self.assertRaisesRegex(
+                errors.InvalidReferenceError, "function 'lol' does not exist"):
+
+            self._assert_describe(
+                """
+                # nothing, whatever
+                """,
+
+                'describe function lol',
+
+                """
+                # we'll error instead of checking this
+                """,
+            )
+
+    def test_schema_describe_missing_02(self):
+        with self.assertRaisesRegex(
+                errors.InvalidReferenceError, "module 'lol' does not exist"):
+
+            self._assert_describe(
+                """
+                # nothing, whatever
+                """,
+
+                'describe module lol',
+
+                """
+                # we'll error instead of checking this
+                """,
+            )
+
+    def test_schema_describe_missing_03(self):
+        with self.assertRaisesRegex(
+                errors.InvalidReferenceError,
+                "object type 'std::lol' does not exist"):
+
+            self._assert_describe(
+                """
+                # nothing, whatever
+                """,
+
+                'describe type lol',
+
+                """
+                # we'll error instead of checking this
+                """,
+            )
+
 
 class TestCreateMigration(tb.BaseSchemaTest):
 
