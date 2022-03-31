@@ -114,6 +114,7 @@ BUILD_DEPS = [
 RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
+EDGEDBCLI_COMMIT = '87cb7e08452f37b97e95475df43006fa6131c0bf'
 
 EXTRA_DEPS = {
     'test': TEST_DEPS,
@@ -394,6 +395,8 @@ def _compile_cli(build_base, build_temp):
     env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
     git_rev = env.get("EDGEDBCLI_GIT_REV")
     if not git_rev:
+        git_rev = EDGEDBCLI_COMMIT
+    elif git_rev == 'master':
         git_rev = _get_edgedbcli_rev()
 
     subprocess.run(
