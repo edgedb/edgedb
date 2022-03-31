@@ -8,16 +8,16 @@ edition = "2018"
 [dependencies]
 combine = "3.8"
 thiserror = "1.0.11"
-num-bigint = "0.3.0"
+num-bigint = "0.4.3"
 num-traits = "0.2.11"
 edb-graphql-parser = { git="https://github.com/edgedb/graphql-parser" }
 
 [dependencies.cpython]
-version = "0.5.1"
+version = "0.7.0"
 features = ["extension-module"]
 
 [dev-dependencies]
-pretty_assertions = "0.6.1"
+pretty_assertions = "1.2.0"
 
 [lib]
 crate-type = ["lib", "cdylib"]

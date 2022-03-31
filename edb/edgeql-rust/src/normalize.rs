@@ -5,7 +5,7 @@ use edgeql_parser::position::Pos;
 use edgeql_parser::helpers::unquote_string;
 use num_bigint::{BigInt, ToBigInt};
 use bigdecimal::BigDecimal;
-use blake2::{Blake2b, Digest};
+use blake2::{Blake2b512, Digest};
 use crate::tokenizer::{CowToken};
 use crate::float;
 
@@ -81,7 +81,8 @@ fn scan_vars<'x, 'y: 'x, I>(tokens: I) -> Option<(bool, usize)>
 
 fn hash(text: &str) -> [u8; 64] {
     let mut result = [0u8; 64];
-    result.copy_from_slice(Blake2b::digest(text.as_bytes()).as_slice());
+    result.copy_from_slice(&Blake2b512::new_with_prefix(text.as_bytes())
+                           .finalize());
     return result;
 }
 
