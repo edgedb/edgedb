@@ -486,17 +486,18 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 scope_set = scoped_set(scope_set, ctx=subctx)
 
         # We compile computables under namespaces, but we need to have
-        # the source of the computable *not* under that namespace (and
-        # potentially with the source's expr/rptr/etc?), so we need to
-        # do some remapping.
+        # the source of the computable *not* under that namespace,
+        # so we need to do some remapping.
         if mapped := get_view_map_remapping(path_tip.path_id, ctx):
             path_tip = new_set_from_set(
                 path_tip,
                 path_id=mapped.path_id,
                 preserve_scope_ns=True,
-                expr=mapped.expr,
-                rptr=mapped.rptr,
                 ctx=ctx)
+            # If we are remapping a source path, then we know that
+            # the path is visible, so we shouldn't recompile it
+            # if it is a computable path.
+            is_computable = False
 
         if is_computable:
             computables.append(path_tip)
@@ -1561,7 +1562,9 @@ def should_materialize(
     if (
         materialize_visible
         and (vis := irutils.find_potentially_visible(
-            ir, ctx.path_scope, ctx.env.scope_tree_nodes, skipped_bindings))
+            ir,
+            ctx.env.scope_tree_nodes[not_none(ir.path_scope_id)],
+            ctx.env.scope_tree_nodes, skipped_bindings))
     ):
         reasons.append(irast.MaterializeVisible(sets=vis))
 

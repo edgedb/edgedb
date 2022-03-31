@@ -341,9 +341,10 @@ class FindPathScopes(ast.NodeVisitor):
     This is set up so that another visitor could inherit from it,
     override process_set, and also collect the scope tree info.
     """
-    def __init__(self) -> None:
+    def __init__(self, init_scope: Optional[int]=None) -> None:
         super().__init__()
-        self.path_scope_ids: List[Optional[int]] = [None]
+        self.path_scope_ids: List[Optional[int]] = [init_scope]
+        self.use_scopes: Dict[irast.Set, Optional[int]] = {}
         self.scopes: Dict[irast.Set, Optional[int]] = {}
 
     def visit_Stmt(self, stmt: irast.Stmt) -> Any:
@@ -365,6 +366,7 @@ class FindPathScopes(ast.NodeVisitor):
 
     def visit_Set(self, node: irast.Set) -> Any:
         val = self.path_scope_ids[-1]
+        self.use_scopes[node] = val
         if node.path_scope_id:
             self.path_scope_ids.append(node.path_scope_id)
         if not node.is_binding:
@@ -394,9 +396,16 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
     skip_hidden = True
     extra_skips = frozenset(['materialized_sets'])
 
-    def __init__(self, to_skip: AbstractSet[irast.PathId]) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        to_skip: AbstractSet[irast.PathId],
+        scope: irast.ScopeTreeNode,
+        scope_tree_nodes: Mapping[int, irast.ScopeTreeNode],
+    ) -> None:
+        super().__init__(init_scope=scope.unique_id)
         self.to_skip = to_skip
+        self.orig_scope = scope
+        self.scope_tree_nodes = scope_tree_nodes
 
     def combine_field_results(self, xs: Any) -> Set[irast.Set]:
         out = set()
@@ -410,7 +419,18 @@ class FindPotentiallyVisibleVisitor(FindPathScopes):
 
     def process_set(self, node: irast.Set) -> Set[irast.Set]:
         if node.path_id in self.to_skip:
-            return set()
+            # We only skip nodes in to_skip if their use site is
+            # underneath our original binding site. This prevents us
+            # from skipping references to them embedded in outside
+            # WITH bindings.
+            if (
+                (psid := self.use_scopes[node]) is not None
+                and (
+                    self.orig_scope in
+                    self.scope_tree_nodes[psid].ancestors
+                )
+            ):
+                return set()
 
         results = [{node}]
         results.append(self.visit(node.rptr))
@@ -438,7 +458,8 @@ def find_potentially_visible(
 ) -> Set[Tuple[irast.PathId, irast.Set]]:
     """Find all "potentially visible" sets referenced."""
     # TODO: Make this caching.
-    visitor = FindPotentiallyVisibleVisitor(to_skip=to_skip)
+    visitor = FindPotentiallyVisibleVisitor(
+        to_skip=to_skip, scope=scope, scope_tree_nodes=scope_tree_nodes)
     visible_sets = cast(Set[irast.Set], visitor.visit(stmt))
 
     visible_paths = set()
