@@ -139,7 +139,7 @@ mod test {
     fn test_str() {
         assert_eq!(check("create type X { \"} "),
             "1:17: tokenizer error: \
-                Unexpected `unterminated string, quoted by `\"``");
+                Unexpected unterminated string, quoted by `\"`");
     }
 }
 
