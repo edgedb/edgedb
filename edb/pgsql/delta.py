@@ -43,6 +43,7 @@ from edb.schema import expr as s_expr
 from edb.schema import expraliases as s_aliases
 from edb.schema import extensions as s_exts
 from edb.schema import functions as s_funcs
+from edb.schema import globals as s_globals  # noqa
 from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
 from edb.schema import properties as s_props

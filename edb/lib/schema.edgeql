@@ -418,6 +418,13 @@ CREATE TYPE schema::Cast
     CREATE PROPERTY allow_assignment -> std::bool;
 };
 
+CREATE TYPE schema::Global EXTENDING schema::AnnotationSubject {
+    CREATE LINK target -> schema::Type;
+    CREATE PROPERTY required -> std::bool;
+    CREATE PROPERTY cardinality -> schema::Cardinality;
+    CREATE PROPERTY expr -> std::str;
+    CREATE PROPERTY default -> std::str;
+};
 
 CREATE TYPE schema::Migration
     EXTENDING schema::AnnotationSubject
