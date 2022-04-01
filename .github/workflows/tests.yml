@@ -496,6 +496,13 @@ jobs:
         rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
 
     # Run the test
+    #
+    - name: Check
+      env:
+        SHARD: ${{ matrix.shard }}
+      run: |
+        edgedb --version
+        echo test | edgedb --password-from-stdin || echo No problem
 
     - name: Test
       env:
