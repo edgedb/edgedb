@@ -89,16 +89,16 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v4-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Handle cached Rust extensions
       uses: actions/cache@v2
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
         restore-keys: |
-          edb-rust-v3-
+          edb-rust-v4-
 
     - name: Handle cached Cython extensions
       uses: actions/cache@v2
@@ -201,9 +201,9 @@ jobs:
       if: steps.ext-cache.outputs.cache-hit != 'true'
       with:
         path: ${{ env.BUILD_TEMP }}/edb
-        key: edb-ext-build-v3-${{ hashFiles('.tmp/ext_cache_key.txt') }}
+        key: edb-ext-build-v4-${{ hashFiles('.tmp/ext_cache_key.txt') }}
         restore-keys: |
-          edb-ext-build-v3-
+          edb-ext-build-v4-
 
     - name: Build Cython extensions
       env:
@@ -428,14 +428,14 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v4-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v2
@@ -561,14 +561,14 @@ jobs:
       id: cli-cache
       with:
         path: build/cli
-        key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+        key: edb-cli-v4-${{ env.EDGEDBCLI_GIT_REV }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
       id: rust-cache
       with:
         path: build/rust_extensions
-        key: edb-rust-v3-${{ hashFiles('.tmp/rust_cache_key.txt') }}
+        key: edb-rust-v4-${{ hashFiles('.tmp/rust_cache_key.txt') }}
 
     - name: Restore cached Cython extensions
       uses: actions/cache@v2
