@@ -788,13 +788,13 @@ class FixedPool(BasePool):
 
 @srvargs.CompilerPoolMode.OnDemand.assign_implementation
 class SimpleAdaptivePool(BasePool):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *, pool_size, **kwargs):
+        super().__init__(pool_size=1, **kwargs)
         self._worker_transports = {}
         self._expected_num_workers = 0
         self._scale_up_handle = None
         self._scale_down_handle = None
-        self._max_num_workers = srvargs.compute_default_compiler_pool_size()
+        self._max_num_workers = pool_size
 
     async def _start(self):
         async with taskgroup.TaskGroup() as g:

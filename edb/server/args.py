@@ -106,29 +106,6 @@ class CompilerPoolMode(enum.StrEnum):
         self.pool_class = cls
         return cls
 
-    def compute_default_pool_size(self):
-        if self.value == self.Fixed:
-            return compute_default_compiler_pool_size()
-        else:
-            return 1
-
-
-class OptionWithDynamicHelp(click.Option):
-    def __init__(self, *args, help_func, **kwargs):
-        self._help = None
-        self._help_func = help_func
-        super().__init__(*args, **kwargs)
-
-    def _get_help(self):
-        if self._help:
-            return self._help
-        return self._help_func()
-
-    def _set_help(self, value):
-        self._help = value
-
-    help = property(_get_help, _set_help)  # type: ignore
-
 
 class ServerConfig(NamedTuple):
 
@@ -291,7 +268,7 @@ def adjust_testmode_max_connections(max_conns):
 
 
 def _validate_compiler_pool_size(ctx, param, value):
-    if value is not None and value < defines.BACKEND_COMPILER_POOL_SIZE_MIN:
+    if value < defines.BACKEND_COMPILER_POOL_SIZE_MIN:
         raise click.BadParameter(
             f'the minimum value for the compiler pool size option '
             f'is {defines.BACKEND_COMPILER_POOL_SIZE_MIN}')
@@ -469,16 +446,8 @@ _server_options = [
         callback=_validate_max_backend_connections),
     click.option(
         '--compiler-pool-size', type=int,
-        callback=_validate_compiler_pool_size,
-        cls=OptionWithDynamicHelp,
-        help_func=lambda:
-            'Specify the size of the compiler pool. Defaults to ' +
-            ', or '.join(
-                f'{mode.compute_default_pool_size()} for "{mode.value}" '
-                f'mode'
-                for mode in CompilerPoolMode.__members__.values()
-            ) + '.',
-    ),
+        default=compute_default_compiler_pool_size(),
+        callback=_validate_compiler_pool_size),
     click.option(
         '--compiler-pool-mode',
         type=click.Choice(
@@ -488,8 +457,8 @@ _server_options = [
         default=CompilerPoolMode.Fixed.value,
         help='Choose a mode for the compiler pool to scale. "fixed" means the '
              'pool will not scale and sticks to --compiler-pool-size, while '
-             '"on_demand" means the pool will maintain at least '
-             '--compiler-pool-size workers and automatically scales up and '
+             '"on_demand" means the pool will maintain at least 1 worker and '
+             'automatically scale up (to --compiler-pool-size workers ) and '
              'down to the demand. Default to "fixed".',
     ),
     click.option(
@@ -792,10 +761,6 @@ def parse_args(**kwargs: Any):
     kwargs['compiler_pool_mode'] = CompilerPoolMode(
         kwargs['compiler_pool_mode']
     )
-    if not kwargs['compiler_pool_size']:
-        kwargs['compiler_pool_size'] = kwargs[
-            'compiler_pool_mode'
-        ].compute_default_pool_size()
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
