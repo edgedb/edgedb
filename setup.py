@@ -428,13 +428,15 @@ def _compile_cli(build_base, build_temp):
     )
 
 
-def _build_studio(build_temp):
-    if not os.path.isdir('edgedb-studio'):
+def _build_studio(build_base, build_temp):
+    studio_root = build_base / 'edgedb-studio'
+    if not studio_root.exists():
         subprocess.run(
             [
                 'git',
                 'clone',
-                'https://github.com/edgedb/edgedb-studio.git'
+                'https://github.com/edgedb/edgedb-studio.git',
+                studio_root
             ],
             check=True
         )
@@ -442,11 +444,20 @@ def _build_studio(build_temp):
         subprocess.run(
             ['git', 'pull'],
             check=True,
-            cwd='edgedb-studio'
+            cwd=studio_root
         )
 
+    # Matching the path logic of 'buildmeta.get_shared_data_dir_path()'
+    if env_shared_dir := os.environ.get("EDGEDB_BUILD_SHARED_DIR"):
+        dest = pathlib.Path(env_shared_dir) / 'studio'
+    else:
+        dest = build_base / 'cache' / 'studio'
+
+    if dest.exists():
+        shutil.rmtree(dest)
+
     # install deps
-    subprocess.run(['yarn'], check=True, cwd='edgedb-studio')
+    subprocess.run(['yarn'], check=True, cwd=studio_root)
 
     # run build
     env = dict(os.environ)
@@ -454,11 +465,14 @@ def _build_studio(build_temp):
     # warnings. We don't need this check in our build so we're disabling
     # this behavior.
     env['CI'] = ''
-    # env['BUILD_PATH'] = '../../build/studio'
     subprocess.run(
-        ['yarn', 'build'], check=True, cwd='edgedb-studio/web', env=env)
-    subprocess.run(['rm', '-r', 'build/studio'])
-    subprocess.run(['cp', '-r', 'edgedb-studio/web/build', 'build/studio'])
+        ['yarn', 'build'],
+        check=True,
+        cwd=studio_root / 'web',
+        env=env
+    )
+
+    shutil.copytree(studio_root / 'web' / 'build', dest)
 
 
 class build(distutils_build.build):
@@ -516,7 +530,7 @@ class develop(setuptools_develop.develop):
         build_base = pathlib.Path(build.build_base).resolve()
 
         _compile_cli(build_base, build_temp)
-        _build_studio(build_temp)
+        _build_studio(build_base, build_temp)
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = []
         for s in scripts:
@@ -767,6 +781,7 @@ class build_studio(setuptools.Command):
     def run(self, *args, **kwargs):
         build = self.get_finalized_command('build')
         _build_studio(
+            pathlib.Path(build.build_base).resolve(),
             pathlib.Path(build.build_temp).resolve(),
         )
 

@@ -25,12 +25,14 @@ import mimetypes
 
 import immutables
 
+from edb import buildmeta
 from edb import errors
 
 from edb.common import debug
 from edb.common import markup
 
-STATIC_FILES_DIR = 'build/studio'
+
+STATIC_FILES_DIR = str(buildmeta.get_shared_data_dir_path() / 'studio')
 
 static_files = dict()
 
