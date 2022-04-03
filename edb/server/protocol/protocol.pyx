@@ -37,6 +37,7 @@ from edb.graphql import extension as graphql_ext
 from edb.server import args as srvargs
 from edb.server.protocol cimport binary
 from edb.server.protocol import binary
+from edb.server import defines as edbdef
 # Without an explicit cimport of `pgproto.debug`, we
 # can't cimport `protocol.binary` for some reason.
 from edb.server.pgproto.debug cimport PG_DEBUG
@@ -50,6 +51,12 @@ from . import studio_ext
 
 
 HTTPStatus = http.HTTPStatus
+
+PROTO_MIME = (
+    f'application/x.edgedb.'
+    f'v_{edbdef.CURRENT_PROTOCOL[0]}_{edbdef.CURRENT_PROTOCOL[1]}'
+    f'.binary'
+).encode()
 
 
 cdef class HttpRequest:
@@ -430,7 +437,23 @@ cdef class HttpProtocol:
                     await edgeql_ext.handle_request(
                         request, response, db, args, self.server
                     )
-                    return
+
+            elif (
+                db is not None and
+                extname == 'admin_binary_http' and
+                self.server.is_admin_ui_enabled()
+            ):
+                out = await binary.eval_buffer(
+                    self.server,
+                    dbname,
+                    self.current_request.body,
+                )
+
+                response.body = out
+                response.status = http.HTTPStatus.OK
+                response.content_type = PROTO_MIME
+                response.close_connection = True
+                return
 
         elif path_parts:
             if path_parts[0] == 'server':
@@ -463,31 +486,14 @@ cdef class HttpProtocol:
                     self.server,
                 )
                 return
-            if (path_parts[0] == 'admin' and
-                self.server.is_admin_ui_enabled()
-            ):
-                if path_parts[1:2] == ['protocol']:
-                    database = path_parts[2]
-
-                    out = await binary.eval_buffer(
-                        self.server,
-                        database,
-                        self.current_request.body,
-                    )
-
-                    response.body = out
-                    response.status = http.HTTPStatus.OK
-                    response.content_type = b'application/x.edgedb'
-                    response.close_connection = True
-                    return
-                else:
-                    await studio_ext.handle_request(
-                        request,
-                        response,
-                        path_parts[1:],
-                        self.server,
-                    )
-                    return
+            if path_parts[0] == 'ui' and self.server.is_admin_ui_enabled():
+                await studio_ext.handle_request(
+                    request,
+                    response,
+                    path_parts[1:],
+                    self.server,
+                )
+                return
 
 
         response.body = b'Unknown path'

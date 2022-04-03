@@ -39,11 +39,15 @@ static_files = dict()
 for dirpath, _, filenames in os.walk(STATIC_FILES_DIR):
     for filename in filenames:
         fullpath = os.path.join(dirpath, filename)
+
         mimetype = mimetypes.guess_type(filename)[0]
+        if mimetype is None:
+            mimetype = 'application/octet-stream'
+
         with open(fullpath, 'rb') as f:
             static_files[os.path.relpath(fullpath, STATIC_FILES_DIR)] = (
                 f.read(),
-                mimetype.encode() if mimetype is not None else b'application/octet-stream'
+                mimetype.encode()
             )
 
 async def handle_request(
