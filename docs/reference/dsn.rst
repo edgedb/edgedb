@@ -45,9 +45,6 @@ variable containing the value).
   * - **Plain param**
     - **File param**
     - **Environment param**
-  * - ``port``
-    - ``port_file``
-    - ``port_env``
   * - ``host``
     - ``host_file``
     - ``host_env``
