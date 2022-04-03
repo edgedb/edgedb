@@ -429,6 +429,8 @@ def _compile_cli(build_base, build_temp):
 
 
 def _build_studio(build_base, build_temp):
+    from edb import buildmeta
+
     studio_root = build_base / 'edgedb-studio'
     if not studio_root.exists():
         subprocess.run(
@@ -447,12 +449,7 @@ def _build_studio(build_base, build_temp):
             cwd=studio_root
         )
 
-    # Matching the path logic of 'buildmeta.get_shared_data_dir_path()'
-    if env_shared_dir := os.environ.get("EDGEDB_BUILD_SHARED_DIR"):
-        dest = pathlib.Path(env_shared_dir) / 'studio'
-    else:
-        dest = build_base / 'cache' / 'studio'
-
+    dest = buildmeta.get_shared_data_dir_path() / 'studio'
     if dest.exists():
         shutil.rmtree(dest)
 
@@ -525,12 +522,16 @@ class build(distutils_build.build):
 class develop(setuptools_develop.develop):
 
     def run(self, *args, **kwargs):
+        from edb.common import devmode
+
+        # buildmeta path resolution needs this
+        devmode.enable_dev_mode()
+
         build = self.get_finalized_command('build')
         build_temp = pathlib.Path(build.build_temp).resolve()
         build_base = pathlib.Path(build.build_base).resolve()
 
         _compile_cli(build_base, build_temp)
-        _build_studio(build_base, build_temp)
         scripts = self.distribution.entry_points['console_scripts']
         patched_scripts = []
         for s in scripts:
@@ -544,6 +545,7 @@ class develop(setuptools_develop.develop):
 
         _compile_parsers(build_base / 'lib', inplace=True)
         _compile_postgres(build_base)
+        _build_studio(build_base, build_temp)
 
 
 class ci_helper(setuptools.Command):

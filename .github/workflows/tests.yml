@@ -295,7 +295,7 @@ jobs:
         else
           # --no-use-pep517 because we have explicitly installed all deps
           # and don't want them to be reinstalled in an "isolated env".
-          pip install  --verbose --no-use-pep517 --no-deps -e .[test,docs]
+          pip install --no-use-pep517 --no-deps -e .[test,docs]
           rsync -av ./edgedb_server.egg-info/ $VIRTUAL_ENV/edgedb_server.egg-info/
         fi
 
