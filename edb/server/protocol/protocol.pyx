@@ -437,6 +437,7 @@ cdef class HttpProtocol:
                     await edgeql_ext.handle_request(
                         request, response, db, args, self.server
                     )
+                    return
 
             elif (
                 db is not None and
