@@ -123,6 +123,8 @@ cdef class EdgeConnection:
 
         bint _in_dump_restore
 
+        bint _passive_mode
+
     cdef inline dbview.DatabaseConnectionView get_dbview(self)
 
     cdef interpret_backend_error(self, exc)
@@ -158,10 +160,9 @@ cdef class EdgeConnection:
 
     cdef uint64_t _parse_implicit_limit(self, bytes v) except <uint64_t>-1
 
-
+\
 @cython.final
-cdef class Timer:
+cdef class VirtualTransport:
     cdef:
-        dict _durations
-        dict _last_report_timestamp
-        int _threshold_seconds
+        WriteBuffer buf
+        bint closed

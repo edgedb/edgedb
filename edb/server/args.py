@@ -154,6 +154,8 @@ class ServerConfig(NamedTuple):
 
     backend_capability_sets: BackendCapabilitySets
 
+    admin_ui: bool
+
 
 class PathPath(click.Path):
     name = 'path'
@@ -599,7 +601,15 @@ _server_options = [
     ),
     click.option(
         '--version', is_flag=True,
-        help='Show the version and exit.')
+        help='Show the version and exit.'),
+    click.option(
+        '--admin-ui',
+        type=click.Choice(
+            ['enabled', 'disabled'],
+            case_sensitive=True,
+        ),
+        default='disabled',
+        help='Enable admin UI.'),
 ]
 
 
@@ -900,6 +910,8 @@ def parse_args(**kwargs: Any):
     kwargs['backend_capability_sets'] = (
         kwargs.pop('backend_capabilities') or BackendCapabilitySets([], [])
     )
+
+    kwargs['admin_ui'] = kwargs['admin_ui'] == 'enabled'
 
     return ServerConfig(
         startup_script=startup_script,

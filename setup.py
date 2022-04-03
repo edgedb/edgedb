@@ -428,6 +428,50 @@ def _compile_cli(build_base, build_temp):
     )
 
 
+def _build_studio(build_base, build_temp):
+    from edb import buildmeta
+
+    studio_root = build_base / 'edgedb-studio'
+    if not studio_root.exists():
+        subprocess.run(
+            [
+                'git',
+                'clone',
+                'https://github.com/edgedb/edgedb-studio.git',
+                studio_root
+            ],
+            check=True
+        )
+    else:
+        subprocess.run(
+            ['git', 'pull'],
+            check=True,
+            cwd=studio_root
+        )
+
+    dest = buildmeta.get_shared_data_dir_path() / 'studio'
+    if dest.exists():
+        shutil.rmtree(dest)
+
+    # install deps
+    subprocess.run(['yarn'], check=True, cwd=studio_root)
+
+    # run build
+    env = dict(os.environ)
+    # With CI=true (set in GH CI) `yarn build` fails if there are any
+    # warnings. We don't need this check in our build so we're disabling
+    # this behavior.
+    env['CI'] = ''
+    subprocess.run(
+        ['yarn', 'build'],
+        check=True,
+        cwd=studio_root / 'web',
+        env=env
+    )
+
+    shutil.copytree(studio_root / 'web' / 'build', dest)
+
+
 class build(distutils_build.build):
 
     user_options = distutils_build.build.user_options + [
@@ -478,6 +522,11 @@ class build(distutils_build.build):
 class develop(setuptools_develop.develop):
 
     def run(self, *args, **kwargs):
+        from edb.common import devmode
+
+        # buildmeta path resolution needs this
+        devmode.enable_dev_mode()
+
         build = self.get_finalized_command('build')
         build_temp = pathlib.Path(build.build_temp).resolve()
         build_base = pathlib.Path(build.build_base).resolve()
@@ -496,6 +545,7 @@ class develop(setuptools_develop.develop):
 
         _compile_parsers(build_base / 'lib', inplace=True)
         _compile_postgres(build_base)
+        _build_studio(build_base, build_temp)
 
 
 class ci_helper(setuptools.Command):
@@ -719,6 +769,25 @@ class build_cli(setuptools.Command):
         )
 
 
+class build_studio(setuptools.Command):
+
+    description = "build EdgeDB Studio"
+    user_options: List[str] = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self, *args, **kwargs):
+        build = self.get_finalized_command('build')
+        _build_studio(
+            pathlib.Path(build.build_base).resolve(),
+            pathlib.Path(build.build_temp).resolve(),
+        )
+
+
 class build_parsers(setuptools.Command):
 
     description = "build the parsers"
@@ -750,6 +819,7 @@ COMMAND_CLASSES = {
     'build_postgres': build_postgres,
     'build_cli': build_cli,
     'build_parsers': build_parsers,
+    'build_studio': build_studio,
     'ci_helper': ci_helper,
 }
 
@@ -866,6 +936,12 @@ setuptools.setup(
         setuptools_extension.Extension(
             "edb.server.protocol.notebook_ext",
             ["edb/server/protocol/notebook_ext.pyx"],
+            extra_compile_args=EXT_CFLAGS,
+            extra_link_args=EXT_LDFLAGS),
+
+        setuptools_extension.Extension(
+            "edb.server.protocol.studio_ext",
+            ["edb/server/protocol/studio_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
