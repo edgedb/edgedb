@@ -22,6 +22,7 @@ from __future__ import annotations
 import functools
 
 from edb.edgeql import ast as qlast
+from edb.edgeql import qltypes
 
 
 @functools.singledispatch
@@ -156,7 +157,13 @@ def _sess_reset_alias(ql):
 
 @get_status.register(qlast.ConfigOp)
 def _sess_set_config(ql):
-    return f'CONFIGURE {ql.scope}'.encode('ascii')
+    if ql.scope == qltypes.ConfigScope.GLOBAL:
+        if isinstance(ql, qlast.ConfigSet):
+            return b'SET GLOBAL'
+        else:
+            return b'RESET GLOBAL'
+    else:
+        return f'CONFIGURE {ql.scope}'.encode('ascii')
 
 
 @get_status.register(qlast.DescribeStmt)

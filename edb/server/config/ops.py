@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 
+import base64
 import dataclasses
 import json
 from typing import *
@@ -68,7 +69,7 @@ class Operation(NamedTuple):
     setting_name: str
     value: Union[str, int, bool, Collection[Union[str, int, bool, None]], None]
 
-    def get_setting(self, spec: spec.Spec):
+    def get_setting(self, spec: spec.Spec) -> spec.Setting:
         try:
             return spec[self.setting_name]
         except KeyError:
@@ -114,18 +115,30 @@ class Operation(NamedTuple):
                 raise errors.ConfigurationError(
                     f'invalid value type for the {setting.name!r} setting')
 
+    def coerce_global_value(
+            self, *, allow_missing: bool = False) -> Optional[bytes]:
+        if allow_missing and self.value is None:
+            return None
+        else:
+            assert isinstance(self.value, str)
+            return base64.b64decode(self.value)
+
     def apply(self, spec: spec.Spec, storage: SettingsMap) -> SettingsMap:
 
-        setting = self.get_setting(spec)
         allow_missing = (
             self.opcode is OpCode.CONFIG_REM
             or self.opcode is OpCode.CONFIG_RESET
         )
 
-        value = self.coerce_value(setting, allow_missing=allow_missing)
+        if self.scope != qltypes.ConfigScope.GLOBAL:
+            setting = self.get_setting(spec)
+            value = self.coerce_value(setting, allow_missing=allow_missing)
+        else:
+            setting = None
+            value = self.coerce_global_value(allow_missing=allow_missing)
 
         if self.opcode is OpCode.CONFIG_SET:
-            if issubclass(setting.type, types.ConfigType):
+            if setting and issubclass(setting.type, types.ConfigType):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE SET on a non-primitive '
                     f'configuration parameter: {self.setting_name}'
@@ -134,7 +147,7 @@ class Operation(NamedTuple):
             storage = self._set_value(storage, value)
 
         elif self.opcode is OpCode.CONFIG_RESET:
-            if issubclass(setting.type, types.ConfigType):
+            if setting and issubclass(setting.type, types.ConfigType):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE RESET on a non-primitive '
                     f'configuration parameter: {self.setting_name}'
@@ -146,6 +159,7 @@ class Operation(NamedTuple):
                 pass
 
         elif self.opcode is OpCode.CONFIG_ADD:
+            assert setting
             if not issubclass(setting.type, types.ConfigType):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE SET += on a primitive '
@@ -178,6 +192,7 @@ class Operation(NamedTuple):
             storage = self._set_value(storage, new_value)
 
         elif self.opcode is OpCode.CONFIG_REM:
+            assert setting
             if not issubclass(setting.type, types.ConfigType):
                 raise errors.InternalServerError(
                     f'unexpected CONFIGURE SET -= on a primitive '
@@ -206,6 +221,8 @@ class Operation(NamedTuple):
             source = 'database'
         elif self.scope is qltypes.ConfigScope.SESSION:
             source = 'session'
+        elif self.scope is qltypes.ConfigScope.GLOBAL:
+            source = 'global'
         else:
             raise AssertionError(f'unexpected config scope: {self.scope}')
 

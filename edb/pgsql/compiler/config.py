@@ -24,7 +24,10 @@ from edb.ir import ast as irast
 
 from edb.edgeql import qltypes
 
+from edb.schema import casts as s_casts
+
 from edb.pgsql import ast as pgast
+from edb.pgsql import common
 
 from . import astutils
 from . import context
@@ -119,7 +122,8 @@ def compile_ConfigSet(
                 ),
             ],
         )
-    elif op.scope is qltypes.ConfigScope.SESSION:
+    elif op.scope in (qltypes.ConfigScope.SESSION, qltypes.ConfigScope.GLOBAL):
+        flag = 'G' if op.scope is qltypes.ConfigScope.GLOBAL else 'C'
         result = pgast.InsertStmt(
             relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
@@ -135,7 +139,7 @@ def compile_ConfigSet(
                             ),
                             val,
                             pgast.StringConstant(
-                                val='C',
+                                val=flag,
                             ),
                         ]
                     )
@@ -166,6 +170,32 @@ def compile_ConfigSet(
                 ],
             ),
         )
+
+        if op.scope is qltypes.ConfigScope.GLOBAL:
+            result_row = pgast.RowExpr(
+                args=[
+                    pgast.StringConstant(val='SET'),
+                    pgast.StringConstant(val=str(op.scope)),
+                    pgast.StringConstant(val=op.name),
+                    val,
+                ]
+            )
+
+            build_array = pgast.FuncCall(
+                name=('jsonb_build_array',),
+                args=result_row.args,
+                null_safe=True,
+                ser_safe=True,
+            )
+
+            result = pgast.SelectStmt(
+                ctes=[pgast.CommonTableExpr(
+                    name='ins',
+                    query=result,
+                )],
+                target_list=[pgast.ResTarget(val=build_array)],
+            )
+
     elif op.scope is qltypes.ConfigScope.DATABASE:
         result = pgast.InsertStmt(
             relation=pgast.RelRangeVar(
@@ -334,7 +364,7 @@ def compile_ConfigReset(
             ),
         )
 
-    elif op.scope is qltypes.ConfigScope.SESSION:
+    elif op.scope in (qltypes.ConfigScope.SESSION, qltypes.ConfigScope.GLOBAL):
         stmt = pgast.DeleteStmt(
             relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
@@ -447,7 +477,7 @@ def _compile_config_value(
         expr = op.expr
 
     with ctx.new() as subctx:
-        if op.backend_setting:
+        if op.backend_setting or op.scope == qltypes.ConfigScope.GLOBAL:
             output_format = context.OutputFormat.NATIVE
         else:
             output_format = context.OutputFormat.JSONB
@@ -483,6 +513,29 @@ def _compile_config_value(
                 if op.cardinality is qltypes.SchemaCardinality.Many:
                     val = output.aggregate_json_output(
                         val, expr, env=ctx.env)
+
+    # For globals, we need to output the binary encoding so that we
+    # can just hand it back to the server. We abuse `record_send` to
+    # act as a generic `_send` function
+    if op.scope is qltypes.ConfigScope.GLOBAL:
+        val = pgast.FuncCall(
+            name=('substring',),
+            args=[
+                pgast.FuncCall(
+                    name=('record_send',),
+                    args=[pgast.RowExpr(args=[val])],
+                ),
+                # The first twelve bytes are header, the rest is the
+                # encoding of the actual element
+                pgast.NumericConstant(val="13"),
+            ],
+        )
+        cast_name = s_casts.get_cast_fullname_from_names(
+            'std', 'std::bytes', 'std::json')
+        val = pgast.FuncCall(
+            name=common.get_cast_backend_name(cast_name, aspect='function'),
+            args=[val],
+        )
 
     if op.backend_setting and op.scope is qltypes.ConfigScope.INSTANCE:
         assert isinstance(val, pgast.SelectStmt) and len(val.target_list) == 1

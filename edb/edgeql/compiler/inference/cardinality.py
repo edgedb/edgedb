@@ -245,8 +245,22 @@ def __infer_config_set(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    return infer_cardinality(
+    card = infer_cardinality(
         ir.expr, scope_tree=scope_tree, ctx=ctx)
+    if ir.required and card.can_be_zero():
+        raise errors.QueryError(
+            f"possibly an empty set returned for "
+            f"a global declared as 'required'",
+            context=ir.context,
+        )
+    if ir.cardinality.is_single() and not card.is_single():
+        raise errors.QueryError(
+            f"possibly more than one element returned for "
+            f"a global declared as 'single'",
+            context=ir.context,
+        )
+
+    return card
 
 
 @_infer_cardinality.register
