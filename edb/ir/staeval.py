@@ -433,6 +433,11 @@ def evaluate_config_set(
         ir: irast.ConfigSet,
         schema: s_schema.Schema) -> Any:
 
+    if ir.scope == qltypes.ConfigScope.GLOBAL:
+        raise UnsupportedExpressionError(
+            'SET GLOBAL is not supported by static eval'
+        )
+
     value = evaluate_to_python_val(ir.expr, schema)
     if ir.cardinality is qltypes.SchemaCardinality.Many:
         if value is None:

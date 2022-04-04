@@ -119,6 +119,8 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     # * 'B': a session-level config setting that's implemented by setting
     #   a corresponding Postgres config setting.
     #
+    # * 'G': a global variable, its value base64 encoded
+    #
     # * 'A': a module alias.
     #
     # * 'R': a "variable=value" record.
@@ -130,7 +132,8 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
             name text NOT NULL,
             value jsonb NOT NULL,
             type text NOT NULL CHECK(
-                type = 'C' OR type = 'A' OR type = 'R' OR type = 'B'),
+                type = 'C' OR type = 'A' OR type = 'R' OR type = 'B' OR
+                type = 'G'),
             UNIQUE(name, type)
         );
 

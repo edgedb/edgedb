@@ -75,6 +75,7 @@ cdef class DatabaseConnectionView:
         bint _query_cache_enabled
 
         object _config
+        object _globals
 
         object _db_config_temp
         object _db_config_dbver
@@ -87,6 +88,7 @@ cdef class DatabaseConnectionView:
 
         object _txid
         object _in_tx_config
+        object _in_tx_globals
         object _in_tx_db_config
         object _in_tx_user_schema_pickled
         object _in_tx_user_schema
@@ -107,8 +109,8 @@ cdef class DatabaseConnectionView:
     cdef _invalidate_local_cache(self)
     cdef _reset_tx_state(self)
 
-    cdef rollback_tx_to_savepoint(self, spid, modaliases, config)
-    cdef recover_aliases_and_config(self, modaliases, config)
+    cdef rollback_tx_to_savepoint(self, spid, modaliases, config, globals)
+    cdef recover_aliases_and_config(self, modaliases, config, globals)
     cdef abort_tx(self)
 
     cpdef in_tx(self)
@@ -125,6 +127,9 @@ cdef class DatabaseConnectionView:
 
     cpdef get_session_config(self)
     cdef set_session_config(self, new_conf)
+
+    cpdef get_globals(self)
+    cdef set_globals(self, new_globals)
 
     cdef update_database_config(self)
     cdef get_database_config(self)

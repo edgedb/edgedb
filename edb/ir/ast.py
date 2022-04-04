@@ -953,6 +953,7 @@ class ConfigCommand(Command, Expr):
 class ConfigSet(ConfigCommand):
 
     expr: Set
+    required: bool
     backend_expr: typing.Optional[Set] = None
 
 

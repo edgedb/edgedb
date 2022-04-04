@@ -34,6 +34,7 @@ from edb.ir import staeval as ireval
 from edb.ir import statypes as statypes
 from edb.ir import typeutils as irtyputils
 
+from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
@@ -54,6 +55,7 @@ class SettingInfo(NamedTuple):
     param_name: str
     param_type: s_types.Type
     cardinality: qltypes.SchemaCardinality
+    required: bool
     requires_restart: bool
     backend_setting: str | None
     affects_compilation: bool
@@ -83,7 +85,11 @@ def compile_ConfigSet(
                 param_val, param_type, srcctx=None, ctx=ctx)
 
     try:
-        val = ireval.evaluate_to_python_val(param_val, schema=ctx.env.schema)
+        if expr.scope != qltypes.ConfigScope.GLOBAL:
+            val = ireval.evaluate_to_python_val(
+                param_val, schema=ctx.env.schema)
+        else:
+            val = None
     except ireval.UnsupportedExpressionError as e:
         raise errors.QueryError(
             f'non-constant expression in CONFIGURE {expr.scope} SET',
@@ -101,6 +107,7 @@ def compile_ConfigSet(
     config_set = irast.ConfigSet(
         name=info.param_name,
         cardinality=info.cardinality,
+        required=info.required,
         scope=expr.scope,
         requires_restart=info.requires_restart,
         backend_setting=info.backend_setting,
@@ -263,9 +270,32 @@ def _validate_config_object(
             _validate_config_object(element, scope=scope, ctx=ctx)
 
 
+def _validate_global_op(
+        expr: qlast.ConfigOp, *,
+        ctx: context.ContextLevel) -> SettingInfo:
+    glob = ctx.env.get_track_schema_object(
+        s_utils.ast_ref_to_name(expr.name), expr.name,
+        modaliases=ctx.modaliases, type=s_globals.Global)
+    assert isinstance(glob, s_globals.Global)
+
+    param_type = glob.get_target(ctx.env.schema)
+    assert param_type
+
+    return SettingInfo(param_name=str(glob.get_name(ctx.env.schema)),
+                       param_type=param_type,
+                       cardinality=glob.get_cardinality(ctx.env.schema),
+                       required=glob.get_required(ctx.env.schema),
+                       requires_restart=False,
+                       backend_setting=None,
+                       affects_compilation=False)
+
+
 def _validate_op(
         expr: qlast.ConfigOp, *,
         ctx: context.ContextLevel) -> SettingInfo:
+
+    if expr.scope == qltypes.ConfigScope.GLOBAL:
+        return _validate_global_op(expr, ctx=ctx)
 
     if expr.name.module and expr.name.module != 'cfg':
         raise errors.QueryError(
@@ -375,6 +405,7 @@ def _validate_op(
     return SettingInfo(param_name=name,
                        param_type=cfg_type,
                        cardinality=cardinality,
+                       required=False,
                        requires_restart=requires_restart,
                        backend_setting=backend_setting,
                        affects_compilation=affects_compilation)
