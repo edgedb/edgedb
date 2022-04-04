@@ -13,6 +13,9 @@ Known limitations
   ``List`` or ``Object`` depending on whether they are unnamed or
   named, respectively. However, inserting or updating tuples is
   not yet supported.
+  
+- :ref:`Link properties<ref_datamodel_link_properties>` are not reflected, as
+  GraphQL has no such concept. 
 
 - Every non-abstract EdgeDB object type is simultaneously an interface
   and an object in terms of the GraphQL type system, which means that for
