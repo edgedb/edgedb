@@ -781,6 +781,11 @@ class build_studio(setuptools.Command):
         pass
 
     def run(self, *args, **kwargs):
+        from edb.common import devmode
+
+        # buildmeta path resolution needs this
+        devmode.enable_dev_mode()
+
         build = self.get_finalized_command('build')
         _build_studio(
             pathlib.Path(build.build_base).resolve(),
