@@ -32,7 +32,7 @@ from edb.common import debug
 from edb.common import markup
 
 
-STATIC_FILES_DIR = str(buildmeta.get_shared_data_dir_path() / 'studio')
+STATIC_FILES_DIR = str(buildmeta.get_shared_data_dir_path() / 'ui')
 
 static_files = dict()
 

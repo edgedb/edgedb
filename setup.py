@@ -428,17 +428,17 @@ def _compile_cli(build_base, build_temp):
     )
 
 
-def _build_studio(build_base, build_temp):
+def _build_ui(build_base, build_temp):
     from edb import buildmeta
 
-    studio_root = build_base / 'edgedb-studio'
-    if not studio_root.exists():
+    ui_root = build_base / 'edgedb-studio'
+    if not ui_root.exists():
         subprocess.run(
             [
                 'git',
                 'clone',
                 'https://github.com/edgedb/edgedb-studio.git',
-                studio_root
+                ui_root,
             ],
             check=True
         )
@@ -446,15 +446,15 @@ def _build_studio(build_base, build_temp):
         subprocess.run(
             ['git', 'pull'],
             check=True,
-            cwd=studio_root
+            cwd=ui_root,
         )
 
-    dest = buildmeta.get_shared_data_dir_path() / 'studio'
+    dest = buildmeta.get_shared_data_dir_path() / 'ui'
     if dest.exists():
         shutil.rmtree(dest)
 
     # install deps
-    subprocess.run(['yarn'], check=True, cwd=studio_root)
+    subprocess.run(['yarn'], check=True, cwd=ui_root)
 
     # run build
     env = dict(os.environ)
@@ -465,11 +465,11 @@ def _build_studio(build_base, build_temp):
     subprocess.run(
         ['yarn', 'build'],
         check=True,
-        cwd=studio_root / 'web',
+        cwd=ui_root / 'web',
         env=env
     )
 
-    shutil.copytree(studio_root / 'web' / 'build', dest)
+    shutil.copytree(ui_root / 'web' / 'build', dest)
 
 
 class build(distutils_build.build):
@@ -549,7 +549,7 @@ class develop(setuptools_develop.develop):
 
         _compile_parsers(build_base / 'lib', inplace=True)
         _compile_postgres(build_base)
-        _build_studio(build_base, build_temp)
+        _build_ui(build_base, build_temp)
 
 
 class ci_helper(setuptools.Command):
@@ -773,9 +773,9 @@ class build_cli(setuptools.Command):
         )
 
 
-class build_studio(setuptools.Command):
+class build_ui(setuptools.Command):
 
-    description = "build EdgeDB Studio"
+    description = "build EdgeDB UI"
     user_options: List[str] = []
 
     def initialize_options(self):
@@ -795,7 +795,7 @@ class build_studio(setuptools.Command):
             devmode.enable_dev_mode()
 
         build = self.get_finalized_command('build')
-        _build_studio(
+        _build_ui(
             pathlib.Path(build.build_base).resolve(),
             pathlib.Path(build.build_temp).resolve(),
         )
@@ -832,7 +832,7 @@ COMMAND_CLASSES = {
     'build_postgres': build_postgres,
     'build_cli': build_cli,
     'build_parsers': build_parsers,
-    'build_studio': build_studio,
+    'build_ui': build_ui,
     'ci_helper': ci_helper,
 }
 
@@ -953,8 +953,8 @@ setuptools.setup(
             extra_link_args=EXT_LDFLAGS),
 
         setuptools_extension.Extension(
-            "edb.server.protocol.studio_ext",
-            ["edb/server/protocol/studio_ext.pyx"],
+            "edb.server.protocol.ui_ext",
+            ["edb/server/protocol/ui_ext.pyx"],
             extra_compile_args=EXT_CFLAGS,
             extra_link_args=EXT_LDFLAGS),
 
