@@ -94,6 +94,9 @@ class Global(
     def is_computable(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_expr(schema))
 
+    def needs_present_arg(self, schema: s_schema.Schema) -> bool:
+        return bool(self.get_default(schema)) and not self.get_required(schema)
+
 
 class GlobalCommandContext(
     sd.ObjectCommandContext[so.Object],

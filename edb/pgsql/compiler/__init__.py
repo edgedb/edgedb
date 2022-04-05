@@ -60,12 +60,14 @@ def compile_ir_to_sql_tree(
     try:
         # Transform to sql tree
         query_params = []
+        query_globals = []
         type_rewrites = {}
 
         singletons = []
         if isinstance(ir_expr, irast.Statement):
             scope_tree = ir_expr.scope_tree
             query_params = list(ir_expr.params)
+            query_globals = list(ir_expr.globals)
             type_rewrites = ir_expr.type_rewrites
             singletons = ir_expr.singletons
             ir_expr = ir_expr.expr
@@ -111,7 +113,7 @@ def compile_ir_to_sql_tree(
         ctx.expr_exposed = True
         for sing in singletons:
             ctx.path_scope[sing] = ctx.rel
-        clauses.populate_argmap(query_params, ctx=ctx)
+        clauses.populate_argmap(query_params, query_globals, ctx=ctx)
 
         qtree = dispatch.compile(ir_expr, ctx=ctx)
         if isinstance(ir_expr, irast.Set) and not singleton_mode:

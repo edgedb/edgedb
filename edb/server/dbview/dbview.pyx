@@ -448,6 +448,7 @@ cdef class DatabaseConnectionView:
             self._in_tx = True
             self._txid = query_unit.tx_id
             self._in_tx_config = self._config
+            self._in_tx_globals = self._globals
             self._in_tx_db_config = self._db.db_config
             self._in_tx_modaliases = self._modaliases
             self._in_tx_user_schema = self._db.user_schema

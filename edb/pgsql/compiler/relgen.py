@@ -531,6 +531,9 @@ def can_omit_optional_wrapper(
             ctx=ctx,
         )
 
+    if isinstance(ir_set.expr, irast.Parameter):
+        return True
+
     return bool(
         ir_set.expr is None
         and not ir_set.path_id.is_objtype_path()
