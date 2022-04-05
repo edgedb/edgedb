@@ -13111,6 +13111,21 @@ type default::Foo {
                 };
             """)
 
+    async def test_edgeql_ddl_uuid_array_01(self):
+        await self.con.execute(r"""
+            create type Foo {
+                create property uuid_array_prop -> array<uuid>
+            }
+        """)
+
+        await self.assert_query_result(
+            r"""
+                select schema::Property {target: {name}}
+                filter .name = 'uuid_array_prop';
+            """,
+            [{'target': {'name': 'array<std::uuid>'}}]
+        )
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
