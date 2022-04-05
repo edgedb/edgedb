@@ -114,8 +114,8 @@ BUILD_DEPS = [
 RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
-# This can be either a tag or a commit
-EDGEDBCLI_COMMIT = '87cb7e08452f37b97e95475df43006fa6131c0bf'
+# This can be a branch, tag, or commit
+EDGEDBCLI_COMMIT = 'master'
 
 EXTRA_DEPS = {
     'test': TEST_DEPS,
@@ -553,7 +553,7 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(ext_hash).decode())
 
         elif self.type == 'cli':
-            print(EDGEDBCLI_COMMIT)
+            print(_get_edgedbcli_rev(EDGEDBCLI_COMMIT) or EDGEDBCLI_COMMIT)
 
         elif self.type == 'build_temp':
             print(pathlib.Path(build.build_temp).resolve())
