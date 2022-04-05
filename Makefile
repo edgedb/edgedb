@@ -19,8 +19,8 @@ docs:
 postgres:
 	python setup.py build_postgres
 
-studio:
-	python setup.py build_studio
+ui:
+	python setup.py build_ui
 
 pygments:
 	out=$$(edb gen-meta-grammars edgeql) && \
