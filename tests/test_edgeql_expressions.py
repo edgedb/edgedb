@@ -4949,6 +4949,13 @@ aa \
             {True}
         )
 
+    async def test_edgeql_typeop_09(self):
+        await self.assert_query_result(
+            r'''SELECT (INTROSPECT TYPEOF 1e100n).name ++ "!" ++ <str>$test''',
+            ['std::bigint!?'],
+            variables={'test': '?'},
+        )
+
     async def test_edgeql_assert_single_01(self):
         await self.con.execute("""
             INSERT User {

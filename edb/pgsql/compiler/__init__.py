@@ -111,6 +111,8 @@ def compile_ir_to_sql_tree(
         ctx.expr_exposed = True
         for sing in singletons:
             ctx.path_scope[sing] = ctx.rel
+        clauses.populate_argmap(query_params, ctx=ctx)
+
         qtree = dispatch.compile(ir_expr, ctx=ctx)
         if isinstance(ir_expr, irast.Set) and not singleton_mode:
             assert isinstance(qtree, pgast.Query)

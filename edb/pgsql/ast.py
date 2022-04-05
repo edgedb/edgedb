@@ -429,13 +429,15 @@ class NullRelation(ReturningQuery):
     where_clause: typing.Optional[BaseExpr] = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class Param:
     #: postgres' variable index
     index: int
 
     #: whether parameter is required
     required: bool
+
+    used: bool = False
 
 
 class Query(ReturningQuery):

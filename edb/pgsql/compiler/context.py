@@ -24,7 +24,6 @@ from typing import *
 
 import collections
 import contextlib
-import itertools
 import enum
 import uuid
 
@@ -78,9 +77,6 @@ class CompilerContextLevel(compiler.ContextLevel):
 
     #: mapping of named args to position
     argmap: Dict[str, pgast.Param]
-
-    #: next argument number for named arguments
-    next_argument: Iterator[int]
 
     #: whether compiling in singleton expression mode
     singleton_mode: bool
@@ -220,7 +216,6 @@ class CompilerContextLevel(compiler.ContextLevel):
 
             self.env = env
             self.argmap = collections.OrderedDict()
-            self.next_argument = itertools.count(1)
 
             self.singleton_mode = False
 
@@ -258,7 +253,6 @@ class CompilerContextLevel(compiler.ContextLevel):
         else:
             self.env = prevlevel.env
             self.argmap = prevlevel.argmap
-            self.next_argument = prevlevel.next_argument
 
             self.singleton_mode = prevlevel.singleton_mode
 

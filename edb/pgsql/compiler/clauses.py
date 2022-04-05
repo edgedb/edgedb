@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from typing import *
 
+import itertools
 import random
 
 from edb.edgeql import qltypes
@@ -361,18 +362,11 @@ def fini_toplevel(
         # Adding unused parameters into a CTE
         targets = []
         for param in ctx.env.query_params:
-            if param.name in argmap:
+            pgparam = argmap[param.name]
+            if pgparam.used:
                 continue
-            if param.name.isdecimal():
-                idx = int(param.name) + 1
-            else:
-                idx = len(argmap) + 1
-            argmap[param.name] = pgast.Param(
-                index=idx,
-                required=param.required,
-            )
             targets.append(pgast.ResTarget(val=pgast.TypeCast(
-                arg=pgast.ParamRef(number=idx),
+                arg=pgast.ParamRef(number=pgparam.index),
                 type_name=pgast.TypeName(
                     name=pg_types.pg_type_from_ir_typeref(param.ir_type)
                 )
@@ -384,3 +378,25 @@ def fini_toplevel(
                     query=pgast.SelectStmt(target_list=targets)
                 )
             )
+
+
+def populate_argmap(
+    params: List[irast.Param],
+    *,
+    ctx: context.CompilerContextLevel,
+) -> None:
+    next_argument = itertools.count(1)
+    for param in params:
+        if ctx.env.use_named_params and not param.name.isdecimal():
+            continue
+
+        if param.name.startswith('__edb_arg_'):
+            index = int(param.name[10:]) + 1
+        elif param.name.isdecimal():
+            index = int(param.name) + 1
+        else:
+            index = next(next_argument)
+        ctx.argmap[param.name] = pgast.Param(
+            index=index,
+            required=param.required,
+        )
