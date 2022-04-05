@@ -24,7 +24,9 @@ Linux or macOS.  Windows is not currently supported.
 * Perl 5.8.3 or later;
 * Zlib (zlibg1-dev on Ubuntu);
 * Readline dev package;
-* Libuuid dev package.
+* Libuuid dev package;
+* nodejs;
+* yarn.
 
 .. zlib, readline and libuuid are required to build postgres. Should be removed
    when custom postgres build is no longer needed.
