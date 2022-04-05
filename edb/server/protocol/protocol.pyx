@@ -60,7 +60,9 @@ PROTO_MIME = (
 
 
 cdef class HttpRequest:
-    pass
+
+    def __cinit__(self):
+        self.body = b''
 
 
 cdef class HttpResponse:
@@ -198,7 +200,7 @@ cdef class HttpProtocol:
                 self.current_request.accept = value
 
     def on_body(self, body: bytes):
-        self.current_request.body = body
+        self.current_request.body += body
 
     def on_message_begin(self):
         self.current_request = HttpRequest()
