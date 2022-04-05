@@ -134,6 +134,11 @@ fn test_schema() {
 }
 
 #[test]
+fn test_function() {
+    test_statement(b"drop function foo(s: str); ", 26);
+}
+
+#[test]
 fn empty() {
     assert!(is_empty(""));
     assert!(is_empty(" "));

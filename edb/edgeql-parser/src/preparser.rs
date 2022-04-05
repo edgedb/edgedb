@@ -53,14 +53,16 @@ pub fn full_statement(data: &[u8], continuation: Option<Continuation>)
                     // rb'something' -- skip `b` but match on quote
                     iter.next();
                 };
-                match iter.next() {
+                match iter.peek() {
                     None => {
                         return Err(Continuation {
                             position: idx,
                             braces: braces_buf,
                         });
                     }
-                    Some((_, end @ (b'\'' | b'"'))) => {
+                    Some((_, start @ (b'\'' | b'"'))) => {
+                        let end = *start;
+                        iter.next();
                         while let Some((_, b)) = iter.next() {
                             if b == end {
                                 continue 'outer;
