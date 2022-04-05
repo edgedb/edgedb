@@ -114,8 +114,6 @@ BUILD_DEPS = [
 RUST_VERSION = '1.53.0'  # Also update docs/internal/dev.rst
 
 EDGEDBCLI_REPO = 'https://github.com/edgedb/edgedb-cli'
-# This can be either a tag or a commit
-EDGEDBCLI_COMMIT = '87cb7e08452f37b97e95475df43006fa6131c0bf'
 
 EXTRA_DEPS = {
     'test': TEST_DEPS,
@@ -368,13 +366,11 @@ def _check_rust():
             f'edgedb from source (see https://rustup.rs/)')
 
 
-def _get_edgedbcli_rev(name):
+def _get_edgedbcli_rev():
     output = subprocess.check_output(
-        ['git', 'ls-remote', EDGEDBCLI_REPO, name],
+        ['git', 'ls-remote', EDGEDBCLI_REPO, 'master'],
         universal_newlines=True,
-    ).strip()
-    if not output:
-        return None
+    )
     rev, _ = output.split()
     return rev
 
@@ -396,15 +392,9 @@ def _compile_cli(build_base, build_temp):
     env = dict(os.environ)
     env['CARGO_TARGET_DIR'] = str(build_temp / 'rust' / 'cli')
     env['PSQL_DEFAULT_PATH'] = build_base / 'postgres' / 'install' / 'bin'
-    git_name = env.get("EDGEDBCLI_GIT_REV")
-    if not git_name:
-        git_name = EDGEDBCLI_COMMIT
-    # The name can be a branch or tag, so we attempt to look it up
-    # with ls-remote. If we don't find anything, we assume it's a
-    # commit hash.
-    git_rev = _get_edgedbcli_rev(git_name)
+    git_rev = env.get("EDGEDBCLI_GIT_REV")
     if not git_rev:
-        git_rev = git_name
+        git_rev = _get_edgedbcli_rev()
 
     subprocess.run(
         [
@@ -607,7 +597,7 @@ class ci_helper(setuptools.Command):
             print(binascii.hexlify(ext_hash).decode())
 
         elif self.type == 'cli':
-            print(EDGEDBCLI_COMMIT)
+            print(_get_edgedbcli_rev())
 
         elif self.type == 'build_temp':
             print(pathlib.Path(build.build_temp).resolve())
