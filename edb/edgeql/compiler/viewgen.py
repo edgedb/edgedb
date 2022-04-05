@@ -405,9 +405,7 @@ def _setup_shape_source(cur_set: irast.Set, ctx: context.ContextLevel) -> None:
                 ptrref=not_none(sub_set.path_id.rptr()),
                 is_definition=True,
             )
-            sub_set = setgen.new_set_from_set(
-                sub_set, preserve_scope_ns=True,
-                rptr=sub_rptr, ctx=ctx)
+            sub_set = setgen.new_set_from_set(sub_set, rptr=sub_rptr, ctx=ctx)
             sub_rptr.target = sub_set
             ptr_shape.append((sub_set, sub_op))
         cur_set.shape = tuple(ptr_shape)
