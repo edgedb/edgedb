@@ -2356,7 +2356,7 @@ class CreateCollectionType(
     def canonicalize_attributes(
         self,
         schema: s_schema.Schema,
-        context: CommandContext,
+        context: sd.CommandContext,
     ) -> s_schema.Schema:
         # Even if we create a collection while setting up internal
         # things, we don't mark it internal, since something visible
