@@ -411,8 +411,35 @@ def normalize_GroupQuery(
     raise AssertionError(f'normalize: cannot handle {node!r}')
 
 
+def _normalize_objref(
+    ref: qlast.ObjectRef,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    localnames: AbstractSet[str] = frozenset(),
+) -> None:
+    if not ref.module and ref.name not in localnames:
+        obj = schema.get(
+            ref.name,
+            default=None,
+            module_aliases=modaliases,
+        )
+        if obj is not None:
+            name = obj.get_name(schema)
+            assert isinstance(name, sn.QualName)
+            ref.module = name.module
+        elif None in modaliases:
+            # Even if the name was not resolved in the
+            # schema it may be the name of the object
+            # being defined, as such the default module
+            # should be used. Names that must be ignored
+            # (like aliases and parameters) have already
+            # been filtered by the localnames.
+            ref.module = modaliases[None]
+
+
 @normalize.register
-def compile_Path(
+def normalize_Path(
     node: qlast.Path,
     *,
     schema: s_schema.Schema,
@@ -430,24 +457,12 @@ def compile_Path(
             )
         elif isinstance(step, qlast.ObjectRef):
             # This is a specific path root, resolve it.
-            if not step.module and step.name not in localnames:
-                obj = schema.get(
-                    step.name,
-                    default=None,
-                    module_aliases=modaliases,
-                )
-                if obj is not None:
-                    name = obj.get_name(schema)
-                    assert isinstance(name, sn.QualName)
-                    step.module = name.module
-                elif None in modaliases:
-                    # Even if the name was not resolved in the
-                    # schema it may be the name of the object
-                    # being defined, as such the default module
-                    # should be used. Names that must be ignored
-                    # (like aliases and parameters) have already
-                    # been filtered by the localnames.
-                    step.module = modaliases[None]
+            _normalize_objref(
+                step,
+                schema=schema,
+                modaliases=modaliases,
+                localnames=localnames,
+            )
 
 
 @normalize.register
@@ -531,3 +546,19 @@ def compile_TypeName(
                 modaliases=modaliases,
                 localnames=localnames,
             )
+
+
+@normalize.register
+def normalize_GlobalExpr(
+    node: qlast.GlobalExpr,
+    *,
+    schema: s_schema.Schema,
+    modaliases: Mapping[Optional[str], str],
+    localnames: AbstractSet[str] = frozenset(),
+) -> None:
+    _normalize_objref(
+        node.name,
+        schema=schema,
+        modaliases=modaliases,
+        localnames=localnames,
+    )
