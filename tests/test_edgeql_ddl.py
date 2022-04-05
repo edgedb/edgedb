@@ -5571,6 +5571,95 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 create global foo -> float64 { set default := random(); };
             """)
 
+    async def test_edgeql_ddl_global_03(self):
+        await self.con.execute("""
+            create global foo -> str;
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"global variables cannot be referenced from constraint"
+        ):
+            await self.con.execute("""
+                create type X {
+                    create property foo -> str {
+                        create constraint expression on (
+                            __subject__ != global foo)
+                    }
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"global variables cannot be referenced from index"
+        ):
+            await self.con.execute("""
+                create type X {
+                    create index on (global foo);
+                }
+            """)
+
+        await self.con.execute("""
+            create type X;
+        """)
+
+        # We can't set a default that uses a global when creating a new
+        # pointer, since it would need to run *now* and populate the data
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"globals may not be used when converting/populating data "
+            r"in migrations"
+        ):
+            await self.con.execute("""
+                alter type X {
+                    create property foo -> str {
+                        set default := (global foo);
+                    }
+                };
+            """)
+
+        await self.con.execute("""
+            set global foo := "test"
+        """)
+        # But we *can* do it when creating a brand new type
+        await self.con.execute("""
+            create type Y {
+                create property foo -> str {
+                    set default := (global foo);
+                }
+            };
+        """)
+        await self.con.query("""
+            insert Y;
+        """)
+        await self.assert_query_result(
+            r'''
+                select Y.foo
+            ''',
+            ['test']
+        )
+
+        # And when adding a default to an existing column
+        await self.con.execute("""
+            alter type X {
+                create property foo -> str;
+            };
+            alter type X {
+                alter property foo {
+                    set default := (global foo);
+                }
+            };
+        """)
+        await self.con.query("""
+            insert X;
+        """)
+        await self.assert_query_result(
+            r'''
+                select X.foo
+            ''',
+            ['test']
+        )
+
     async def test_edgeql_ddl_property_computable_01(self):
         await self.con.execute('''\
             CREATE TYPE CompProp;

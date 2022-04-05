@@ -317,6 +317,7 @@ def compile_ast_fragment_to_ir(
         dml_exprs=ctx.env.dml_exprs,
         views={},
         params=[],
+        globals=[],
         # These values are nonsensical, but ideally the caller does not care
         cardinality=qltypes.Cardinality.UNKNOWN,
         multiplicity=qltypes.Multiplicity.ZERO,

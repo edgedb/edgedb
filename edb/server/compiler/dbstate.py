@@ -91,6 +91,8 @@ class Query(BaseQuery):
     in_type_id: bytes
     in_type_args: Optional[List[Param]] = None
 
+    globals: Optional[List[str]] = None
+
     is_transactional: bool = True
     has_dml: bool = False
     single_unit: bool = False
@@ -246,6 +248,7 @@ class QueryUnit:
     in_type_data: bytes = sertypes.NULL_TYPE_DESC
     in_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
     in_type_args: Optional[List[Param]] = None
+    globals: Optional[List[str]] = None
 
     # Set only when this unit contains a CONFIGURE INSTANCE command.
     system_config: bool = False

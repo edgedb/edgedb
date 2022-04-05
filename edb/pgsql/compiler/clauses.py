@@ -382,6 +382,7 @@ def fini_toplevel(
 
 def populate_argmap(
     params: List[irast.Param],
+    globals: List[irast.Global],
     *,
     ctx: context.CompilerContextLevel,
 ) -> None:
@@ -400,3 +401,13 @@ def populate_argmap(
             index=index,
             required=param.required,
         )
+    for param in globals:
+        ctx.argmap[param.name] = pgast.Param(
+            index=len(ctx.argmap) + 1,
+            required=param.required,
+        )
+        if param.has_present_arg:
+            ctx.argmap[param.name + "present__"] = pgast.Param(
+                index=len(ctx.argmap) + 1,
+                required=True,
+            )

@@ -62,6 +62,8 @@ class TestServerProto(tb.QueryTestCase):
         CREATE SCALAR TYPE RGB
             EXTENDING enum<'RED', 'BLUE', 'GREEN'>;
 
+        CREATE GLOBAL glob -> int64;
+
         # Used by is_testmode_on() to ensure that config modifications
         # persist correctly when set inside and outside of (potentially
         # failing) transaction blocks.
@@ -492,6 +494,28 @@ class TestServerProto(tb.QueryTestCase):
             await self.con.query('select Tmp2')
 
         await self.con.query('ROLLBACK')
+
+    async def test_server_proto_set_global_01(self):
+        await self.con.query('set global glob := 0')
+        self.assertEqual(await self.con.query_single('select global glob'), 0)
+
+        await self.con.query('START TRANSACTION')
+        self.assertEqual(await self.con.query_single('select global glob'), 0)
+        await self.con.query('set global glob := 1')
+        self.assertEqual(await self.con.query_single('select global glob'), 1)
+
+        await self.con.query('DECLARE SAVEPOINT a1')
+        await self.con.query('set global glob := 2')
+        self.assertEqual(await self.con.query_single('select global glob'), 2)
+        await self.con.query('ROLLBACK TO SAVEPOINT a1')
+
+        self.assertEqual(await self.con.query_single('select global glob'), 1)
+
+        await self.con.query('ROLLBACK')
+
+        self.assertEqual(await self.con.query_single('select global glob'), 0)
+
+        await self.con.query('reset global glob')
 
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):

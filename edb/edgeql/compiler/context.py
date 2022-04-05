@@ -150,6 +150,10 @@ class Environment:
     """A mapping of query parameters to their types.  Gets populated during
     the compilation."""
 
+    query_globals: Dict[s_name.QualName, irast.Global]
+    """A mapping of query globals.  Gets populated during
+    the compilation."""
+
     set_types: Dict[irast.Set, s_types.Type]
     """A dictionary of all Set instances and their schema types."""
 
@@ -255,6 +259,7 @@ class Environment:
         self.path_scope = path_scope
         self.schema_view_cache = {}
         self.query_parameters = {}
+        self.query_globals = {}
         self.set_types = {}
         self.type_origins = {}
         self.inferred_types = {}

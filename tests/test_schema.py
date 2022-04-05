@@ -5745,6 +5745,21 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_globals_use_01(self):
+        self._assert_migration_equivalence([r"""
+            global current -> uuid;
+            type Foo {
+                 property name -> str;
+            };
+            alias CurFoo := (select Foo filter .id = global current)
+        """, r"""
+            global current_foo -> uuid;
+            type Foo {
+                 property name -> str;
+            };
+            alias CurFoo := (select Foo filter .id = global current_foo)
+        """])
+
     # NOTE: array<str>, array<int16>, array<json> already exist in std
     # schema, so it's better to use array<float32> or some other
     # non-typical scalars in tests as a way of testing a collection

@@ -35,10 +35,13 @@ from edb.ir import typeutils as irtyputils
 
 from edb.schema import abc as s_abc
 from edb.schema import constraints as s_constr
+from edb.schema import globals as s_globals
+from edb.schema import indexes as s_indexes
 from edb.schema import name as sn
 from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import types as s_types
+from edb.schema import utils as s_utils
 
 from edb.edgeql import ast as qlast
 
@@ -455,6 +458,54 @@ def compile_UnaryOp(
         pass
 
     return result
+
+
+@dispatch.compile.register(qlast.GlobalExpr)
+def compile_GlobalExpr(
+        expr: qlast.GlobalExpr, *, ctx: context.ContextLevel) -> irast.Set:
+    glob = ctx.env.get_track_schema_object(
+        s_utils.ast_ref_to_name(expr.name), expr.name,
+        modaliases=ctx.modaliases, type=s_globals.Global)
+    assert isinstance(glob, s_globals.Global)
+
+    assert not glob.is_computable(ctx.env.schema), "computable not implemented"
+
+    objctx = ctx.env.options.schema_object_context
+    if objctx in (s_constr.Constraint, s_indexes.Index):
+        typname = objctx.get_schema_class_displayname()
+        raise errors.SchemaDefinitionError(
+            f'global variables cannot be referenced from {typname}',
+            context=expr.context)
+
+    default = glob.get_default(ctx.env.schema)
+
+    param_set, present_set = setgen.get_global_param_sets(glob, ctx=ctx)
+
+    if default and not present_set:
+        # If we have a default value and the global is required,
+        # then we can use the param being {} as a signal to use
+        # the default.
+        with ctx.new() as subctx:
+            subctx.anchors = subctx.anchors.copy()
+            main_param = subctx.create_anchor(param_set, 'a')
+            param_set = func.compile_operator(
+                expr, op_name='std::??',
+                qlargs=[main_param, default.qlast], ctx=subctx)
+    elif default and present_set:
+        # ... but if {} is a valid value for the global, we need to
+        # stick in an extra parameter to indicate whether to use
+        # the default.
+        with ctx.new() as subctx:
+            subctx.anchors = subctx.anchors.copy()
+            main_param = subctx.create_anchor(param_set, 'a')
+
+            present_param = subctx.create_anchor(present_set, 'p')
+
+            param_set = func.compile_operator(
+                expr, op_name='std::IF',
+                qlargs=[main_param, present_param, default.qlast], ctx=subctx)
+
+    return param_set
 
 
 @dispatch.compile.register(qlast.TypeCast)

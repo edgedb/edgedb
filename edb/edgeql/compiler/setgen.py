@@ -37,6 +37,7 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
+from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
@@ -1595,3 +1596,59 @@ def should_materialize_type(
             reasons += should_materialize_type(sub, ctx=ctx)
 
     return reasons
+
+
+def get_global_param(
+        glob: s_globals.Global, * , ctx: context.ContextLevel) -> irast.Global:
+    name = glob.get_name(ctx.env.schema)
+
+    if name not in ctx.env.query_globals:
+        param_name = f'__edb_global_{len(ctx.env.query_globals)}__'
+
+        target = glob.get_target(ctx.env.schema)
+        assert target
+        target_typeref = typegen.type_to_typeref(target, env=ctx.env)
+
+        ctx.env.query_globals[name] = irast.Global(
+            name=param_name,
+            required=False,
+            schema_type=target,
+            ir_type=target_typeref,
+            global_name=name,
+            has_present_arg=glob.needs_present_arg(ctx.env.schema),
+        )
+
+    return ctx.env.query_globals[name]
+
+
+def get_global_param_sets(
+    glob: s_globals.Global, *, ctx: context.ContextLevel
+) -> Tuple[irast.Set, Optional[irast.Set]]:
+    param = get_global_param(glob, ctx=ctx)
+    default = glob.get_default(ctx.env.schema)
+
+    param_set = ensure_set(
+        irast.Parameter(
+            name=param.name,
+            required=param.required and not bool(default),
+            typeref=param.ir_type,
+            is_global=True,
+        ),
+        ctx=ctx,
+    )
+    if glob.needs_present_arg(ctx.env.schema):
+        present_set = ensure_set(
+            irast.Parameter(
+                name=param.name + "present__",
+                required=True,
+                typeref=typegen.type_to_typeref(
+                    ctx.env.schema.get('std::bool', type=s_types.Type),
+                    env=ctx.env),
+                is_global=True,
+            ),
+            ctx=ctx,
+        )
+    else:
+        present_set = None
+
+    return param_set, present_set

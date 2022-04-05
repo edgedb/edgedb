@@ -3946,6 +3946,18 @@ class PointerMetaCommand(MetaCommand):
 
             ir = conv_expr.irast
 
+        if params := irutils.get_parameters(ir):
+            param = list(params)[0]
+            if param.is_global:
+                problem = 'globals'
+            else:
+                problem = 'parameters'
+            raise errors.UnsupportedFeatureError(
+                f'{problem} may not be used when converting/populating '
+                f'data in migrations',
+                context=self.source_context,
+            )
+
         expr_is_nullable = conv_expr.cardinality.can_be_zero()
 
         refs = irutils.get_longest_paths(ir.expr)
