@@ -23,6 +23,7 @@ include "./consts.pxi"
 import asyncio
 import collections
 import http
+import logging
 import ssl
 import urllib.parse
 
@@ -57,6 +58,9 @@ PROTO_MIME = (
     f'v_{edbdef.CURRENT_PROTOCOL[0]}_{edbdef.CURRENT_PROTOCOL[1]}'
     f'.binary'
 ).encode()
+
+
+logger = logging.getLogger('edb.server')
 
 
 cdef class HttpRequest:
@@ -121,6 +125,8 @@ cdef class HttpProtocol:
     def data_received(self, data):
         if self.first_data_call:
             self.first_data_call = False
+
+            logger.debug("initial data: %s", data)
 
             # Detect if the client is speaking TLS in the "first" data using
             # the SSL library. This is not the official handshake as we only
