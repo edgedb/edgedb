@@ -522,10 +522,14 @@ class build(distutils_build.build):
 class develop(setuptools_develop.develop):
 
     def run(self, *args, **kwargs):
+        from edb import buildmeta
         from edb.common import devmode
 
-        # buildmeta path resolution needs this
-        devmode.enable_dev_mode()
+        try:
+            buildmeta.get_build_metadata_value("SHARED_DATA_DIR")
+        except buildmeta.MetadataError:
+            # buildmeta path resolution needs this
+            devmode.enable_dev_mode()
 
         build = self.get_finalized_command('build')
         build_temp = pathlib.Path(build.build_temp).resolve()
@@ -781,10 +785,14 @@ class build_studio(setuptools.Command):
         pass
 
     def run(self, *args, **kwargs):
+        from edb import buildmeta
         from edb.common import devmode
 
-        # buildmeta path resolution needs this
-        devmode.enable_dev_mode()
+        try:
+            buildmeta.get_build_metadata_value("SHARED_DATA_DIR")
+        except buildmeta.MetadataError:
+            # buildmeta path resolution needs this
+            devmode.enable_dev_mode()
 
         build = self.get_finalized_command('build')
         _build_studio(
