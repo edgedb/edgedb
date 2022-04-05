@@ -421,7 +421,14 @@ class Compiler:
                         text=sql,
                     )
 
-                    cf = pg_dbops.CreateFunction(func, or_replace=True)
+                    # We drop first instead of using or_replace, in case
+                    # something about the arguments changed.
+                    df = pg_dbops.DropFunction(
+                        name=func.name, args=func.args, if_exists=True
+                    )
+                    df.generate(block)
+
+                    cf = pg_dbops.CreateFunction(func)
                     cf.generate(block)
 
                     cache_mm[eql_hash] = argnames

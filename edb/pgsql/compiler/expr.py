@@ -128,22 +128,9 @@ def compile_Parameter(
             nullable=not expr.required,
         )
     else:
-        try:
-            index = ctx.argmap[expr.name].index
-        except KeyError:
-            if expr.name in ctx.argmap:
-                index = ctx.argmap[expr.name].index
-            else:
-                if expr.name.startswith('__edb_arg_'):
-                    index = int(expr.name[10:]) + 1
-                elif is_decimal:
-                    index = int(expr.name) + 1
-                else:
-                    index = next(ctx.next_argument)
-                ctx.argmap[expr.name] = pgast.Param(
-                    index=index,
-                    required=expr.required,
-                )
+        index = ctx.argmap[expr.name].index
+        ctx.argmap[expr.name].used = True
+
         result = pgast.ParamRef(number=index, nullable=not expr.required)
 
     return pgast.TypeCast(

@@ -169,8 +169,9 @@ class CreateOrReplaceFunction(ddl.DDLOperation, FunctionOperation):
 class DropFunction(ddl.DDLOperation, FunctionOperation):
     def __init__(
             self, name, args, *,
+            if_exists=False,
             has_variadic=False, conditions=None, neg_conditions=None):
-        self.conditional = False
+        self.conditional = if_exists
         if conditions:
             c = []
             for cond in conditions:
