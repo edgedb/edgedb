@@ -28,15 +28,15 @@ Then create a new migration and apply it using
 :ref:`ref_cli_edgedb_migration_create` and
 :ref:`ref_cli_edgedb_migrate`, respectively.
 
-``http://127.0.0.1:<instance-port>/db/<database-name>/graphql`` will
-expose GraphQL API. Check the credentials file for your instance at
-``<edgedb_config_dir>/credentials`` to find out which port the instance is
-using. Run ``edgedb info`` to see the path to ``<edgedb_config_dir>`` on your
-machine.
+Accessing via HTTP:
 
-``http://127.0.0.1:<instance-port>/db/<database-name>/graphql/explore``
-will bring up a `GraphiQL`_ interface to EdgeDB. This interface can be
-used to try out queries and explore the GraphQL capabilities.
+* ``http://127.0.0.1:<instance-port>/db/<database-name>/graphql`` will
+  expose GraphQL API.  Run ```edgedb instance list`` to find the port number
+  of the instance;
+
+* ``http://127.0.0.1:<instance-port>/db/<database-name>/graphql/explore``
+  will bring up a `GraphiQL`_ interface to EdgeDB. This interface can be
+  used to try out queries and explore the GraphQL capabilities.
 
 .. toctree::
     :maxdepth: 2
