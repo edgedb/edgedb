@@ -2353,7 +2353,16 @@ class CreateCollectionType(
     CollectionTypeCommand[CollectionTypeT],
     sd.CreateObject[CollectionTypeT],
 ):
-    pass
+    def canonicalize_attributes(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        # Even if we create a collection while setting up internal
+        # things, we don't mark it internal, since something visible
+        # might use it later.
+        self.set_attribute_value('internal', False)
+        return super().canonicalize_attributes(schema, context)
 
 
 class AlterCollectionType(
