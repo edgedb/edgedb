@@ -479,6 +479,7 @@ def define_alias(
                 'expr': expr,
                 'alias_is_persistent': True,
                 'expr_type': s_types.ExprType.Select,
+                'from_alias': True,
             },
         )
         derived_delta.add(ct)
