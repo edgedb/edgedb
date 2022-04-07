@@ -422,9 +422,17 @@ def _compile_cli(build_base, build_temp):
         check=True,
     )
 
+    cli_dest = ROOT_PATH / 'edb' / 'cli' / 'edgedb'
+    # Delete the target first, to avoid "Text file busy" errors during
+    # the copy if the CLI is currently running.
+    try:
+        cli_dest.unlink()
+    except FileNotFoundError:
+        pass
+
     shutil.copy(
         rust_root / 'bin' / 'edgedb',
-        ROOT_PATH / 'edb' / 'cli' / 'edgedb',
+        cli_dest,
     )
 
 
