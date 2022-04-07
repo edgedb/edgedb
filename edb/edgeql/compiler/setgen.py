@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import *
 
 import contextlib
+import enum
 
 from edb import errors
 
@@ -131,14 +132,21 @@ def get_set_type(
     return ctx.env.set_types[ir_set]
 
 
+class KeepCurrentT(enum.Enum):
+    KeepCurrent = 0
+
+
+KeepCurrent: Final = KeepCurrentT.KeepCurrent
+
+
 def new_set_from_set(
         ir_set: irast.Set, *,
         merge_current_ns: bool=False,
-        path_scope_id: Optional[int | Literal['']]='',
+        path_scope_id: Optional[int | KeepCurrentT]=KeepCurrent,
         path_id: Optional[irast.PathId]=None,
         stype: Optional[s_types.Type]=None,
-        rptr: Optional[irast.Pointer | Literal['']]='',
-        expr: Optional[irast.Expr | Literal['']]='',
+        rptr: Optional[irast.Pointer | KeepCurrentT]=KeepCurrent,
+        expr: Optional[irast.Expr | KeepCurrentT]=KeepCurrent,
         context: Optional[parsing.ParserContext]=None,
         is_binding: Optional[irast.BindingKind]=None,
         is_materialized_ref: Optional[bool]=None,
@@ -158,11 +166,11 @@ def new_set_from_set(
         path_id = path_id.merge_namespace(ctx.path_id_namespace)
     if stype is None:
         stype = get_set_type(ir_set, ctx=ctx)
-    if path_scope_id == '':
+    if path_scope_id == KeepCurrent:
         path_scope_id = ir_set.path_scope_id
-    if rptr == '':
+    if rptr == KeepCurrent:
         rptr = ir_set.rptr
-    if expr == '':
+    if expr == KeepCurrent:
         expr = ir_set.expr
     if context is None:
         context = ir_set.context
