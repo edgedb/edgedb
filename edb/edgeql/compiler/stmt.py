@@ -183,8 +183,7 @@ def compile_ForQuery(
                 ctx=ectx,
             )
 
-        iterator_stmt = setgen.new_set_from_set(
-            iterator_view, preserve_scope_ns=True, ctx=sctx)
+        iterator_stmt = setgen.new_set_from_set(iterator_view, ctx=sctx)
         iterator_view.is_visible_binding_ref = True
         stmt.iterator_stmt = iterator_stmt
 
@@ -341,8 +340,7 @@ def compile_InternalGroupQuery(
                     )
                     binding.context = using_entry.expr.context
                     stmt.using[using_entry.alias] = (
-                        setgen.new_set_from_set(
-                            binding, preserve_scope_ns=True, ctx=sctx),
+                        setgen.new_set_from_set(binding, ctx=sctx),
                         qltypes.Cardinality.UNKNOWN)
                     binding.is_visible_binding_ref = True
 

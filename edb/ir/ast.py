@@ -467,6 +467,8 @@ class Set(Base):
 
     __ast_frozen_fields__ = frozenset({'typeref'})
 
+    # N.B: Make sure to add new fields to setgen.new_set_from_set!
+
     path_id: PathId
     path_scope_id: typing.Optional[int] = None
     typeref: TypeRef

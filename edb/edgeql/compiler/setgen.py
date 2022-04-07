@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import *
 
 import contextlib
+import enum
 
 from edb import errors
 
@@ -131,13 +132,21 @@ def get_set_type(
     return ctx.env.set_types[ir_set]
 
 
+class KeepCurrentT(enum.Enum):
+    KeepCurrent = 0
+
+
+KeepCurrent: Final = KeepCurrentT.KeepCurrent
+
+
 def new_set_from_set(
         ir_set: irast.Set, *,
-        preserve_scope_ns: bool=False,
+        merge_current_ns: bool=False,
+        path_scope_id: Optional[int | KeepCurrentT]=KeepCurrent,
         path_id: Optional[irast.PathId]=None,
         stype: Optional[s_types.Type]=None,
-        rptr: Optional[irast.Pointer]=None,
-        expr: Optional[irast.Expr]=None,
+        rptr: Optional[irast.Pointer | KeepCurrentT]=KeepCurrent,
+        expr: Optional[irast.Expr | KeepCurrentT]=KeepCurrent,
         context: Optional[parsing.ParserContext]=None,
         is_binding: Optional[irast.BindingKind]=None,
         is_materialized_ref: Optional[bool]=None,
@@ -145,20 +154,23 @@ def new_set_from_set(
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
-    The new Set inherits source Set's scope, schema item, expression,
-    and, if *preserve_scope_ns* is set, path_id.  If *preserve_scope_ns*
-    is False, the new Set's path_id will be namespaced with the currently
-    active scope namespace.
+    The new Set inherits source everything from the old set that
+    is not overriden.
+
+    If *merge_current_ns* is set, the new Set's path_id will be
+    namespaced with the currently active scope namespace.
     """
     if path_id is None:
         path_id = ir_set.path_id
-    if not preserve_scope_ns:
+    if merge_current_ns:
         path_id = path_id.merge_namespace(ctx.path_id_namespace)
     if stype is None:
         stype = get_set_type(ir_set, ctx=ctx)
-    if rptr is None:
+    if path_scope_id == KeepCurrent:
+        path_scope_id = ir_set.path_scope_id
+    if rptr == KeepCurrent:
         rptr = ir_set.rptr
-    if expr is None:
+    if expr == KeepCurrent:
         expr = ir_set.expr
     if context is None:
         context = ir_set.context
@@ -170,7 +182,7 @@ def new_set_from_set(
         is_visible_binding_ref = ir_set.is_visible_binding_ref
     return new_set(
         path_id=path_id,
-        path_scope_id=ir_set.path_scope_id,
+        path_scope_id=path_scope_id,
         stype=stype,
         expr=expr,
         rptr=rptr,
@@ -267,8 +279,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 refnode = anchors.get(step.name)
 
             if refnode is not None:
-                path_tip = new_set_from_set(
-                    refnode, preserve_scope_ns=True, ctx=ctx)
+                path_tip = new_set_from_set(refnode, ctx=ctx)
             else:
                 stype = schemactx.get_schema_type(
                     step,
@@ -301,8 +312,8 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                     view_scope_info = ctx.path_scope_map[view_set]
                     path_tip = new_set_from_set(
                         view_set,
-                        preserve_scope_ns=(
-                            view_scope_info.pinned_path_id_ns is not None
+                        merge_current_ns=(
+                            view_scope_info.pinned_path_id_ns is None
                         ),
                         is_binding=view_scope_info.binding_kind,
                         ctx=ctx,
@@ -490,10 +501,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
         # so we need to do some remapping.
         if mapped := get_view_map_remapping(path_tip.path_id, ctx):
             path_tip = new_set_from_set(
-                path_tip,
-                path_id=mapped.path_id,
-                preserve_scope_ns=True,
-                ctx=ctx)
+                path_tip, path_id=mapped.path_id, ctx=ctx)
             # If we are remapping a source path, then we know that
             # the path is visible, so we shouldn't recompile it
             # if it is a computable path.
@@ -1112,14 +1120,12 @@ def ensure_set(
     stype = get_set_type(ir_set, ctx=ctx)
 
     if type_override is not None and stype != type_override:
-        ir_set = new_set_from_set(
-            ir_set, stype=type_override, preserve_scope_ns=True, ctx=ctx)
+        ir_set = new_set_from_set(ir_set, stype=type_override, ctx=ctx)
 
         stype = type_override
 
     if srcctx is not None:
-        ir_set = new_set_from_set(
-            ir_set, preserve_scope_ns=True, context=srcctx, ctx=ctx)
+        ir_set = new_set_from_set(ir_set, context=srcctx, ctx=ctx)
 
     if (isinstance(ir_set, irast.EmptySet)
             and (stype is None or stype.is_any(ctx.env.schema))
@@ -1165,8 +1171,7 @@ def fixup_computable_source_set(
     if source_scls.is_view(ctx.env.schema):
         source_set_stype = source_scls.peel_view(ctx.env.schema)
         source_set = new_set_from_set(
-            source_set, stype=source_set_stype,
-            preserve_scope_ns=True, ctx=ctx)
+            source_set, stype=source_set_stype, ctx=ctx)
         source_set.shape = ()
         if source_set.rptr is not None:
             source_rptrref = source_set.rptr.ptrref
@@ -1322,6 +1327,7 @@ def computable_ptr_set(
 
     comp_ir_set = new_set_from_set(
         comp_ir_set, path_id=result_path_id, rptr=rptr, context=srcctx,
+        merge_current_ns=True,
         ctx=ctx)
 
     rptr.target = comp_ir_set
@@ -1352,7 +1358,6 @@ def _get_schema_computed_ctx(
             remapped_source = new_set_from_set(
                 rptr.source,
                 rptr=rptr.source.rptr,
-                preserve_scope_ns=True,
                 ctx=ctx,
             )
             key = inner_path_id.strip_namespace(inner_path_id.namespace)
@@ -1485,8 +1490,7 @@ def _get_computable_ctx(
                 inner_path_id = remap_path_id(inner_path_id, remapctx)
 
             remapped_source = new_set_from_set(
-                rptr.source, rptr=rptr.source.rptr,
-                preserve_scope_ns=True, ctx=ctx)
+                rptr.source, rptr=rptr.source.rptr, ctx=ctx)
             update_view_map(inner_path_id, remapped_source, ctx=subctx)
 
             yield subctx
