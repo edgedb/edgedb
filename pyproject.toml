@@ -3,7 +3,7 @@
 # ========================
 [tool.black]
 line-length = 79
-target-version = ["py39"]
+target-version = ["py310"]
 
 
 # ========================
@@ -11,7 +11,7 @@ target-version = ["py39"]
 # ========================
 
 [tool.mypy]
-python_version = "3.9"
+python_version = "3.10"
 plugins = "edb/tools/mypy/plugin.py"
 follow_imports = "normal"
 ignore_missing_imports = true

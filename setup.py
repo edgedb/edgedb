@@ -910,7 +910,7 @@ def _version():
 setuptools.setup(
     version=_version(),
     setup_requires=BUILD_DEPS,
-    python_requires='>=3.9.0',
+    python_requires='>=3.10.0',
     name='edgedb-server',
     description='EdgeDB Server',
     author='MagicStack Inc.',
