@@ -76,7 +76,7 @@ CREATE TYPE schema::PseudoType EXTENDING schema::Type;
 
 ALTER TYPE schema::Type {
     CREATE PROPERTY expr -> std::str;
-    CREATE PROPERTY from_alias := EXISTS(.expr);
+    CREATE PROPERTY from_alias -> bool;
     # Backwards compatibility.
     CREATE PROPERTY is_from_alias := .from_alias;
 };

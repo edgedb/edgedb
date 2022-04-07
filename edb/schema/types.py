@@ -104,6 +104,13 @@ class Type(
         ExprType,
         default=None, compcoef=0.909)
 
+    # True for views.  This should always match the value of
+    # `bool(expr_type)`, but can be exported in the introspection
+    # schema without revealing weird internals.
+    from_alias = so.SchemaField(
+        bool,
+        default=False, compcoef=1.0)
+
     # True for aliases defined by CREATE ALIAS, false for local
     # aliases in queries.
     alias_is_persistent = so.SchemaField(
@@ -153,6 +160,7 @@ class Type(
 
         derived_attrs['name'] = name
         derived_attrs['bases'] = so.ObjectList.create(schema, [self])
+        derived_attrs['from_alias'] = bool(derived_attrs.get('expr_type'))
 
         cmd = sd.get_object_delta_command(
             objtype=type(self),
@@ -350,7 +358,7 @@ class Type(
             f'{type(self)} does not support to_nonpolymorphic()')
 
     def is_view(self, schema: s_schema.Schema) -> bool:
-        return self.get_expr_type(schema) is not None
+        return self.get_from_alias(schema)
 
     def castable_to(
         self,
