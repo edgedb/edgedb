@@ -1567,6 +1567,7 @@ class Compiler:
 
         sql = (sql_text.encode(),)
 
+        single_unit = False
         if ql.scope is qltypes.ConfigScope.SESSION:
             config_op = ireval.evaluate_to_config_op(ir, schema=schema)
 
@@ -1593,6 +1594,7 @@ class Compiler:
                 # op will be produced by the compiler as json.
                 config_op = None
 
+            single_unit = True
         else:
             raise AssertionError(f'unexpected configuration scope: {ql.scope}')
 
@@ -1601,6 +1603,7 @@ class Compiler:
             is_backend_setting=is_backend_setting,
             config_scope=ql.scope,
             requires_restart=requires_restart,
+            single_unit=single_unit,
             config_op=config_op,
         )
 
@@ -1806,10 +1809,6 @@ class Compiler:
                 if comp.global_schema is not None:
                     unit.global_schema = pickle.dumps(comp.global_schema, -1)
 
-                if comp.single_unit:
-                    units.append(unit)
-                    unit = None
-
             elif isinstance(comp, dbstate.TxControlQuery):
                 unit.sql += comp.sql
                 unit.cacheable = comp.cacheable
@@ -1833,10 +1832,6 @@ class Compiler:
                     unit.tx_rollback = True
                 elif comp.action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
                     unit.tx_savepoint_rollback = True
-
-                if comp.single_unit:
-                    units.append(unit)
-                    unit = None
 
             elif isinstance(comp, dbstate.MigrationControlQuery):
                 unit.sql += comp.sql
@@ -1863,16 +1858,11 @@ class Compiler:
                 elif comp.tx_action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
                     unit.tx_savepoint_rollback = True
 
-                if comp.single_unit:
-                    units.append(unit)
-                    unit = None
-
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql += comp.sql
 
                 if comp.config_scope is qltypes.ConfigScope.INSTANCE:
-                    if (not ctx.state.current_tx().is_implicit() or
-                            statements_len > 1):
+                    if not ctx.state.current_tx().is_implicit():
                         raise errors.QueryError(
                             'CONFIGURE INSTANCE cannot be executed in a '
                             'transaction block')
@@ -1898,6 +1888,10 @@ class Compiler:
 
             else:  # pragma: no cover
                 raise errors.InternalServerError('unknown compile state')
+
+            if comp.single_unit:
+                units.append(unit)
+                unit = None
 
         if unit is not None:
             units.append(unit)

@@ -416,22 +416,6 @@ class TestServerConfig(tb.QueryTestCase):
         with self.assertRaisesRegex(
                 edgedb.QueryError,
                 'cannot be executed in a transaction block'):
-            await self.con.execute('''
-                CONFIGURE SESSION SET __internal_no_const_folding := false;
-                CONFIGURE INSTANCE SET __internal_testvalue := 1;
-            ''')
-
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'cannot be executed in a transaction block'):
-            await self.con.execute('''
-                CONFIGURE INSTANCE SET __internal_testvalue := 1;
-                CONFIGURE SESSION SET __internal_no_const_folding := false;
-            ''')
-
-        with self.assertRaisesRegex(
-                edgedb.QueryError,
-                'cannot be executed in a transaction block'):
             async with self.con.transaction():
                 await self.con.query('''
                     CONFIGURE INSTANCE SET __internal_testvalue := 1;
@@ -947,6 +931,38 @@ class TestServerConfig(tb.QueryTestCase):
             await self.con.execute('''
                 CONFIGURE INSTANCE RESET multiprop;
             ''')
+
+    async def test_server_proto_configure_08(self):
+        # Test instance settings in multi-statement blocks
+        await self.con.execute('''
+            CONFIGURE SESSION SET __internal_no_const_folding := true;
+            CONFIGURE INSTANCE SET __internal_testvalue := 1;
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT (
+                cfg::Config.__internal_no_const_folding,
+                cfg::Config.__internal_testvalue,
+            )
+            ''',
+            [[True, 1]],
+        )
+
+        await self.con.execute('''
+            CONFIGURE INSTANCE SET __internal_testvalue := 0;
+            CONFIGURE SESSION SET __internal_no_const_folding := false;
+        ''')
+
+        await self.assert_query_result(
+            '''
+            SELECT (
+                cfg::Config.__internal_no_const_folding,
+                cfg::Config.__internal_testvalue,
+            )
+            ''',
+            [[False, 0]],
+        )
 
     async def test_server_proto_configure_describe_system_config(self):
         try:

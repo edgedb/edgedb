@@ -64,13 +64,14 @@ class MigrationAction(enum.IntEnum):
     REJECT_PROPOSED = 6
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class BaseQuery:
 
     sql: Tuple[bytes, ...]
+    single_unit: bool = False
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class NullQuery(BaseQuery):
 
     sql: Tuple[bytes, ...] = tuple()
@@ -78,7 +79,7 @@ class NullQuery(BaseQuery):
     has_dml: bool = False
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class Query(BaseQuery):
 
     sql_hash: bytes
@@ -93,20 +94,18 @@ class Query(BaseQuery):
 
     is_transactional: bool = True
     has_dml: bool = False
-    single_unit: bool = False
     cacheable: bool = True
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class SimpleQuery(BaseQuery):
 
     sql: Tuple[bytes, ...]
     is_transactional: bool = True
     has_dml: bool = False
-    single_unit: bool = False
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class SessionStateQuery(BaseQuery):
 
     config_scope: Optional[qltypes.ConfigScope] = None
@@ -114,17 +113,15 @@ class SessionStateQuery(BaseQuery):
     requires_restart: bool = False
     config_op: Optional[config.Operation] = None
     is_transactional: bool = True
-    single_unit: bool = False
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class DDLQuery(BaseQuery):
 
     user_schema: s_schema.FlatSchema
     global_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
     is_transactional: bool = True
-    single_unit: bool = False
     create_db: Optional[str] = None
     drop_db: Optional[str] = None
     create_db_template: Optional[str] = None
@@ -132,7 +129,7 @@ class DDLQuery(BaseQuery):
     ddl_stmt_id: Optional[str] = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class TxControlQuery(BaseQuery):
 
     action: TxAction
@@ -140,14 +137,13 @@ class TxControlQuery(BaseQuery):
 
     modaliases: Optional[immutables.Map]
     is_transactional: bool = True
-    single_unit: bool = False
 
     user_schema: Optional[s_schema.FlatSchema] = None
     global_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class MigrationControlQuery(BaseQuery):
 
     action: MigrationAction
@@ -156,7 +152,6 @@ class MigrationControlQuery(BaseQuery):
 
     modaliases: Optional[immutables.Map]
     is_transactional: bool = True
-    single_unit: bool = False
 
     user_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
