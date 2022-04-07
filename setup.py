@@ -56,6 +56,7 @@ RUNTIME_DEPS = [
     'immutables>=0.16',
     'uvloop~=0.16.0',
 
+    'acme~=1.26.0',
     'click~=7.1',
     'cryptography~=35.0',
     'graphql-core~=3.1.5',

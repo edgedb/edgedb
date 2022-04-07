@@ -59,6 +59,7 @@ from edb.server import defines
 from edb.server import protocol
 from edb.server.ha import base as ha_base
 from edb.server.ha import adaptive as adaptive_ha
+from edb.server.protocol import acme_v2
 from edb.server.protocol import binary  # type: ignore
 from edb.server import metrics
 from edb.server import pgcon
@@ -1344,16 +1345,21 @@ class Server(ha_base.ClusterProtocol):
     async def _start_server(
         self, host: str, port: int
     ) -> Optional[asyncio.AbstractServer]:
+        print('start server')
+        acme = acme_v2.issue_certificate('edgedb.fmoor.me', self)
         proto_factory = lambda: protocol.HttpProtocol(
             self,
             self._sslctx,
             binary_endpoint_security=self._binary_endpoint_security,
             http_endpoint_security=self._http_endpoint_security,
+            acme=acme,
         )
 
         try:
-            return await self.__loop.create_server(
+            r = await self.__loop.create_server(
                 proto_factory, host=host, port=port)
+            acme.start()
+            return r
         except Exception as e:
             logger.warning(
                 f"could not create listen socket for '{host}:{port}': {e}"
@@ -1456,7 +1462,8 @@ class Server(ha_base.ClusterProtocol):
         tls_key_file,
         tls_cert_newly_generated,
     ):
-        assert self._sslctx is None
+        print('init tls')
+        # assert self._sslctx is None
         tls_password_needed = False
 
         def _tls_private_key_password():
@@ -1614,6 +1621,13 @@ class Server(ha_base.ClusterProtocol):
                 return self.__loop.create_task(coro)
             else:
                 return self._task_group.create_task(coro)
+        else:
+            # Hint: add `if server._accept_new_tasks` before `.create_task()`
+            raise RuntimeError("task cannot be created at this time")
+
+    def create_task_later(self, delay, callback):
+        if self._accept_new_tasks:
+            return self.__loop.call_later(delay, callback)
         else:
             # Hint: add `if server._accept_new_tasks` before `.create_task()`
             raise RuntimeError("task cannot be created at this time")

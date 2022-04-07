@@ -48,6 +48,7 @@ cdef class HttpProtocol:
     cdef public object server
 
     cdef:
+        object acme
         object loop
         object parser
         object transport
