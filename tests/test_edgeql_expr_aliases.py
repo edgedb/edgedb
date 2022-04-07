@@ -1070,6 +1070,15 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             }]
         )
 
+        await self.assert_query_result(
+            r"""
+                select schema::Pointer {name, target: {from_alias}}
+                filter .name = 'winner'
+                and .source.name = 'default::AwardAlias'
+            """,
+            [{"name": "winner", "target": {"from_alias": True}}]
+        )
+
     async def test_edgeql_aliases_backlinks_01(self):
         async with self.assertRaisesRegexTx(
             edgedb.InvalidReferenceError,
