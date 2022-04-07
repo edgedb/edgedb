@@ -76,7 +76,8 @@ CREATE TYPE schema::PseudoType EXTENDING schema::Type;
 
 ALTER TYPE schema::Type {
     CREATE PROPERTY expr -> std::str;
-    CREATE PROPERTY from_alias := EXISTS(.expr);
+    CREATE PROPERTY expr_type -> int64;
+    CREATE PROPERTY from_alias := EXISTS(.expr_type);
     # Backwards compatibility.
     CREATE PROPERTY is_from_alias := .from_alias;
 };
