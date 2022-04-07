@@ -109,7 +109,7 @@ class Type(
     # schema without revealing weird internals.
     from_alias = so.SchemaField(
         bool,
-        default=False, compcoef=0.909)
+        default=False, compcoef=1.0)
 
     # True for aliases defined by CREATE ALIAS, false for local
     # aliases in queries.
