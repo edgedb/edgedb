@@ -75,6 +75,10 @@ class Annotation(NamedObject):
     pass
 
 
+class Global(NamedObject):
+    pass
+
+
 class Type(NamedObject):
     def is_scalar(self) -> bool:
         return False
@@ -485,6 +489,18 @@ def trace_Detached(
 ) -> Optional[ObjectLike]:
     # DETACHED works with partial paths same as its inner expression.
     return trace(node.expr, ctx=ctx)
+
+
+@trace.register
+def trace_Global(
+        node: qlast.GlobalExpr, *, ctx: TracerContext) -> Optional[ObjectLike]:
+    refname = ctx.get_ref_name(node.name)
+    if refname in ctx.objects:
+        ctx.refs.add(refname)
+        tip = ctx.objects[refname]
+    else:
+        tip = ctx.schema.get(refname)
+    return tip
 
 
 @trace.register

@@ -5372,6 +5372,115 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_global_01(self):
+        """
+        CREATE GLOBAL Foo := (SELECT User);
+        """
+
+    def test_edgeql_syntax_ddl_global_02(self):
+        """
+        CREATE GLOBAL foo -> str;
+        """
+
+    def test_edgeql_syntax_ddl_global_03(self):
+        """
+        CREATE GLOBAL Foo {
+            USING (SELECT User);
+        };
+
+        ALTER GLOBAL Foo
+            USING (SELECT Person);
+
+        DROP GLOBAL Foo;
+
+% OK %
+
+        CREATE GLOBAL Foo := (SELECT User);
+
+        ALTER GLOBAL Foo
+            USING (SELECT Person);
+
+        DROP GLOBAL Foo;
+        """
+
+    def test_edgeql_syntax_ddl_global_04(self):
+        """
+        CREATE GLOBAL foo -> str {
+            SET DEFAULT := '20';
+            CREATE ANNOTATION title := 'foo';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_global_05(self):
+        """
+        CREATE REQUIRED GLOBAL foo -> str {
+            CREATE ANNOTATION title := 'foo';
+            SET default := 'lol';
+        };
+        """
+
+    def test_edgeql_syntax_ddl_global_06(self):
+        """
+        ALTER GLOBAL foo {
+            set default := '10';
+            using (20);
+            reset default;
+            rename to bar;
+            set required;
+            set single;
+            reset cardinality;
+            reset optionality;
+            reset expression;
+            set type int64;
+            create annotation title := 'foo';
+            alter annotation title := 'foo';
+            drop annotation title;
+        };
+        """
+    def test_edgeql_syntax_ddl_global_07(self):
+        """
+        CREATE GLOBAL test::foo -> str;
+        """
+
+    def test_edgeql_syntax_global_01(self):
+        """
+        select global bar;
+        """
+
+    def test_edgeql_syntax_global_02(self):
+        """
+        select (global bar + 1);
+        """
+
+    def test_edgeql_syntax_global_03(self):
+        """
+        select (global bar);
+
+% OK %
+
+        select global bar;
+        """
+
+    def test_edgeql_syntax_config_global_01(self):
+        """
+        set global foo := 10;
+        """
+
+    def test_edgeql_syntax_config_global_02(self):
+        """
+        set global test::foo := 10;
+        """
+
+    def test_edgeql_syntax_config_global_03(self):
+        """
+        reset global foo;
+        """
+
+    def test_edgeql_syntax_config_global_04(self):
+        """
+        reset global test::foo;
+        """
+
     def test_edgeql_syntax_ddl_empty_01(self):
         """
         CREATE TYPE Foo { };

@@ -1673,3 +1673,42 @@ abstract property test::foo {
         """
 annotation test::foo;
         """
+
+    def test_eschema_syntax_global_1(self):
+        """
+        module test {
+            global foo -> str;
+        };
+        """
+
+    def test_eschema_syntax_global_2(self):
+        """
+        global test::foo -> str;
+        """
+
+    def test_eschema_syntax_global_3(self):
+        """
+        module test {
+            optional global foo := 1;
+        };
+        """
+
+    def test_eschema_syntax_global_4(self):
+        """
+        module test {
+            required global foo -> str {
+                default := "lol";
+                annotation title := "foo";
+            };
+        };
+        """
+
+    def test_eschema_syntax_global_5(self):
+        """
+        module test {
+            required global foo {
+                using (50);
+                annotation title := "foo";
+            };
+        };
+        """

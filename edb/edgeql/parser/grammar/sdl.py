@@ -84,6 +84,9 @@ class SDLBlockStatement(Nonterm):
     def reduce_FunctionDeclaration(self, *kids):
         self.val = kids[0].val
 
+    def reduce_GlobalDeclaration(self, *kids):
+        self.val = kids[0].val
+
 
 # these statements have no {} block
 class SDLShortStatement(Nonterm):
@@ -113,6 +116,9 @@ class SDLShortStatement(Nonterm):
         self.val = kids[0].val
 
     def reduce_FunctionDeclarationShort(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_GlobalDeclarationShort(self, *kids):
         self.val = kids[0].val
 
 
@@ -1066,4 +1072,107 @@ class FunctionDeclarationShort(Nonterm, commondl.ProcessFunctionBlockMixin):
             returning=kids[5].val,
             returning_typemod=kids[4].val,
             **self._process_function_body(kids[6]),
+        )
+
+
+#
+# Globals
+#
+
+sdl_commands_block(
+    'CreateGlobal',
+    Using,
+    SetField,
+    SetAnnotation,
+)
+
+
+class GlobalDeclaration(Nonterm):
+    def _extract_target(self, target, cmds, context, *, overloaded=False):
+        if target:
+            return target, cmds
+
+        for cmd in cmds:
+            if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
+                if target is not None:
+                    raise errors.EdgeQLSyntaxError(
+                        f'computed global with more than one expression',
+                        context=context)
+                target = cmd.value
+
+        if not overloaded and target is None:
+            raise errors.EdgeQLSyntaxError(
+                f'computed property without expression',
+                context=context)
+
+        return target, cmds
+
+    def reduce_CreateGlobalQuals(self, *kids):
+        """%reduce
+            PtrQuals GLOBAL NodeName
+            OptPtrTarget CreateGlobalSDLCommandsBlock
+        """
+        target, cmds = self._extract_target(
+            kids[3].val, kids[4].val, kids[1].context)
+        self.val = qlast.CreateGlobal(
+            name=kids[2].val,
+            is_required=kids[0].val.required,
+            cardinality=kids[0].val.cardinality,
+            target=target,
+            commands=cmds,
+        )
+
+    def reduce_CreateGlobal(self, *kids):
+        """%reduce
+            GLOBAL NodeName
+            OptPtrTarget CreateGlobalSDLCommandsBlock
+        """
+        target, cmds = self._extract_target(
+            kids[2].val, kids[3].val, kids[0].context)
+        self.val = qlast.CreateGlobal(
+            name=kids[1].val,
+            target=target,
+            commands=cmds,
+        )
+
+
+class GlobalDeclarationShort(Nonterm):
+    def reduce_CreateRegularGlobalShortQuals(self, *kids):
+        """%reduce
+            PtrQuals GLOBAL NodeName PtrTarget
+        """
+        self.val = qlast.CreateGlobal(
+            name=kids[2].val,
+            is_required=kids[0].val.required,
+            cardinality=kids[0].val.cardinality,
+            target=kids[3].val,
+        )
+
+    def reduce_CreateRegularGlobalShort(self, *kids):
+        """%reduce
+            GLOBAL NodeName PtrTarget
+        """
+        self.val = qlast.CreateGlobal(
+            name=kids[1].val,
+            target=kids[2].val,
+        )
+
+    def reduce_CreateComputedGlobalShortQuals(self, *kids):
+        """%reduce
+            PtrQuals GLOBAL NodeName ASSIGN Expr
+        """
+        self.val = qlast.CreateGlobal(
+            name=kids[2].val,
+            is_required=kids[0].val.required,
+            cardinality=kids[0].val.cardinality,
+            target=kids[4].val,
+        )
+
+    def reduce_CreateComputedGlobalShort(self, *kids):
+        """%reduce
+            GLOBAL NodeName ASSIGN Expr
+        """
+        self.val = qlast.CreateGlobal(
+            name=kids[1].val,
+            target=kids[3].val,
         )

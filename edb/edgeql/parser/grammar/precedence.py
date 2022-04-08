@@ -151,6 +151,10 @@ class P_DETACHED(Precedence, assoc='right', tokens=('DETACHED',)):
     pass
 
 
+class P_GLOBAL(Precedence, assoc='right', tokens=('GLOBAL',)):
+    pass
+
+
 class P_DOUBLECOLON(Precedence, assoc='left', tokens=('DOUBLECOLON',)):
     pass
 

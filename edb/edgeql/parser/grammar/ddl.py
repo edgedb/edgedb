@@ -189,6 +189,15 @@ class InnerDDLStmt(Nonterm):
     def reduce_AlterCastStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_CreateGlobalStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_AlterGlobalStmt(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_DropGlobalStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_DropCastStmt(self, *kids):
         self.val = kids[0].val
 
@@ -2510,10 +2519,114 @@ class DropCastStmt(Nonterm):
             to_type=kids[5].val,
         )
 
+#
+# CREATE GLOBAL
+#
+
+
+commands_block(
+    'CreateGlobal',
+    UsingStmt,
+    SetFieldStmt,
+    CreateAnnotationValueStmt,
+)
+
+
+class CreateGlobalStmt(Nonterm):
+    def reduce_CreateRegularGlobal(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals GLOBAL NodeName
+            ARROW FullTypeExpr
+            OptCreateGlobalCommandsBlock
+        """
+        self.val = qlast.CreateGlobal(
+            name=kids[3].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=kids[5].val,
+            commands=kids[6].val,
+        )
+
+    def reduce_CreateComputableGlobal(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals GLOBAL NodeName ASSIGN Expr
+        """
+        self.val = qlast.CreateGlobal(
+            name=kids[3].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=kids[5].val,
+        )
+
+    def reduce_CreateComputableGlobalWithUsing(self, *kids):
+        """%reduce
+            CREATE OptPtrQuals GLOBAL NodeName
+            OptCreateConcretePropertyCommandsBlock
+        """
+        cmds = kids[4].val
+        target = None
+
+        for cmd in cmds:
+            if isinstance(cmd, qlast.SetField) and cmd.name == 'expr':
+                if target is not None:
+                    raise EdgeQLSyntaxError(
+                        f'computed global with more than one expression',
+                        context=kids[3].context)
+                target = cmd.value
+
+        if target is None:
+            raise EdgeQLSyntaxError(
+                f'computed global without expression',
+                context=kids[3].context)
+
+        self.val = qlast.CreateGlobal(
+            name=kids[3].val,
+            is_required=kids[1].val.required,
+            cardinality=kids[1].val.cardinality,
+            target=target,
+            commands=cmds,
+        )
+
+
+commands_block(
+    'AlterGlobal',
+    UsingStmt,
+    RenameStmt,
+    SetFieldStmt,
+    ResetFieldStmt,
+    CreateAnnotationValueStmt,
+    AlterAnnotationValueStmt,
+    DropAnnotationValueStmt,
+    SetPointerTypeStmt,
+    SetCardinalityStmt,
+    SetRequiredStmt,
+    opt=False
+)
+
+
+class AlterGlobalStmt(Nonterm):
+    def reduce_AlterGlobal(self, *kids):
+        r"""%reduce \
+            ALTER GLOBAL NodeName \
+            AlterGlobalCommandsBlock \
+        """
+        self.val = qlast.AlterGlobal(
+            name=kids[2].val,
+            commands=kids[3].val
+        )
+
+
+class DropGlobalStmt(Nonterm):
+    def reduce_DropGlobal(self, *kids):
+        r"""%reduce DROP GLOBAL NodeName"""
+        self.val = qlast.DropGlobal(
+            name=kids[2].val
+        )
 
 #
 # MIGRATIONS
 #
+
 
 class MigrationStmt(Nonterm):
 
