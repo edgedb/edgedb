@@ -124,7 +124,7 @@ class GlobalCommand(
             )
         elif (self.get_local_attribute_value('expr')) is not None:
             raise errors.SchemaDefinitionError(
-                "computable globals are not yet implemented",
+                "computed globals are not yet implemented",
                 context=self.source_context,
             )
 
