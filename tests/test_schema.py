@@ -5732,6 +5732,19 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_globals_01(self):
+        self._assert_migration_equivalence([r"""
+            global foo -> str;
+        """, r"""
+            required global foo -> str {
+                default := "test";
+            }
+        """, r"""
+            required global foo -> int64 {
+                default := 0;
+            }
+        """])
+
     # NOTE: array<str>, array<int16>, array<json> already exist in std
     # schema, so it's better to use array<float32> or some other
     # non-typical scalars in tests as a way of testing a collection
