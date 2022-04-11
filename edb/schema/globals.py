@@ -119,7 +119,7 @@ class GlobalCommand(
 
         if isinstance(target_ref, s_pointers.ComputableRef):
             raise errors.SchemaDefinitionError(
-                "computable globals are not yet implemented",
+                "computed globals are not yet implemented",
                 context=self.source_context,
             )
         elif (self.get_local_attribute_value('expr')) is not None:
