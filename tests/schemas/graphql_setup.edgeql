@@ -84,6 +84,7 @@ INSERT Person {
         name := 'Bob profile',
         value := 'special',
     }),
+    favorites := {UserGroup, User}
 };
 
 WITH MODULE other

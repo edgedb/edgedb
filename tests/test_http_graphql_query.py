@@ -579,6 +579,43 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
         self.assertTrue(len(res) > 0,
                         'querying "BaseObject" returned no results')
 
+    def test_graphql_functional_query_21(self):
+        # test filtering by nested object
+        self.assert_graphql_query_result(r"""
+            query {
+                User(filter: {name: {eq: "Bob"}}) {
+                    name
+                    fav_users(order: {name: {dir: ASC}}) {
+                        name
+                        # only present in User
+                        active
+                        score
+                    }
+                }
+            }
+        """, {
+            'User': [{
+                'name': 'Bob',
+                'fav_users': [
+                    {
+                        'name': 'Alice',
+                        'active': True,
+                        'score': 5,
+                    },
+                    {
+                        'name': 'Jane',
+                        'active': True,
+                        'score': 1.23,
+                    },
+                    {
+                        'name': 'John',
+                        'active': True,
+                        'score': 3.14,
+                    },
+                ]
+            }],
+        })
+
     def test_graphql_functional_alias_01(self):
         self.assert_graphql_query_result(
             r"""
