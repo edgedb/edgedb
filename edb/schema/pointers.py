@@ -1868,9 +1868,15 @@ class AlterPointer(
                 # and this is no longer a computable.
                 self.set_attribute_value('computable', False)
                 computed_fields = pointer.get_computed_fields(schema)
-                if 'required' in computed_fields:
+                if (
+                    'required' in computed_fields
+                    and not self.has_attribute_value('required')
+                ):
                     self.set_attribute_value('required', None)
-                if 'cardinality' in computed_fields:
+                if (
+                    'cardinality' in computed_fields
+                    and not self.has_attribute_value('cardinality')
+                ):
                     self.set_attribute_value('cardinality', None)
 
             # Clear the placeholder value for 'expr'.
