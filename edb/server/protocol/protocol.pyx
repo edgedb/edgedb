@@ -127,7 +127,12 @@ cdef class HttpProtocol:
         if self.first_data_call:
             self.first_data_call = False
 
-            is_alpn_challenge = acme_v2.is_tls_alpn_01_challenge(data)
+            is_alpn_challenge = False
+            # only check if a new connection is an ACME challenge if we started
+            # one.
+            if self.acme_challenge:
+                is_alpn_challenge = acme_v2.is_tls_alpn_01_challenge(data)
+
             # Detect if the client is speaking TLS in the "first" data using
             # the SSL library. This is not the official handshake as we only
             # need to know "is_tls"; the first data is used again for the true
@@ -136,6 +141,7 @@ cdef class HttpProtocol:
             is_tls = True
             try:
                 if is_alpn_challenge:
+                    print('answering alpn challenge')
                     self.sslctx = self.acme_challenge.sslctx()
 
                 outgoing = ssl.MemoryBIO()
@@ -159,12 +165,14 @@ cdef class HttpProtocol:
                 self.server.create_task(self._start_tls(), interruptable=True)
                 if is_alpn_challenge:
                     async def finalize():
-                        # give some time for letsencrypt to verify us
+                        # give some time for Let's Encrypt to verify us
                         await asyncio.sleep(5)
 
                         if await self.acme_challenge.finalize():
+                            print('finalized')
                             # inti_tls() asserts that _sslctx is None
                             # maybe remove the assertion?
+                            self.acme_challenge = None
                             self.server._sslctx = None
                             self.server.init_tls(
                                 'cert.pem',

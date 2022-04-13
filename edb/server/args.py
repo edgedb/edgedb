@@ -43,6 +43,8 @@ MIB = 1024 * 1024
 RAM_MIB_PER_CONN = 100
 TLS_CERT_FILE_NAME = "edbtlscert.pem"
 TLS_KEY_FILE_NAME = "edbprivkey.pem"
+ACME_ACCOUNT_KEY_FILE_NAME = "acme.account.key.pem"  # todo: better name?
+ACME_REGISTRATION_FILE = "acme.registration.json"  # todo: better name?
 
 
 logger = logging.getLogger('edb.server')
@@ -81,6 +83,7 @@ class ServerTlsCertMode(enum.StrEnum):
 
     RequireFile = "require_file"
     SelfSigned = "generate_self_signed"
+    AcmeV2 = "acme_v2"
 
 
 class ServerAuthMethod(enum.StrEnum):
@@ -144,6 +147,10 @@ class ServerConfig(NamedTuple):
     tls_cert_file: Optional[pathlib.Path]
     tls_key_file: Optional[pathlib.Path]
     tls_cert_mode: ServerTlsCertMode
+    acme_account_key_file: Optional[pathlib.Path]
+    acme_registration_file: Optional[pathlib.Path]
+    acme_account_email: Optional[str]
+    tls_host: Optional[str]
 
     default_auth_method: ServerAuthMethod
     security: ServerSecurityMode
@@ -533,6 +540,40 @@ _server_options = [
         help='DEPRECATED.\n\n'
              'Use --tls-cert-mode=generate_self_signed instead.'),
     click.option(
+        '--acme-account-key-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_ACME_ACCOUNT_KEY_FILE",
+        help='Specifies a path to a file containing the ACME account key '
+             'in PEM format. If the file does not exist and the '
+             '--tls-cert-mode option is set to "acme_v2", the account key '
+             'will be automatically created in the specified path.'),
+    click.option(
+        '--acme-registration-file',
+        type=PathPath(),
+        envvar="EDGEDB_SERVER_ACME_REGISTRATION_FILE",
+        help='Specifies a path to a file containing the ACME registration '
+             'in JSON format. If the file does not exist and the '
+             '--tls-cert-mode option is set to "acme_v2", a new account will '
+             'be registered and the registration will be recorded in the '
+             'specified path.'
+    ),
+    click.option(
+        '--acme-account-email',
+        type=str,
+        envvar="EDGEDB_SERVER_ACME_ACCOUNT_EMAIL",
+        # todo email could be read from the registration file
+        help='Specifies the email to use for ACME account registration.',
+    ),
+    click.option(
+        '--tls-host',
+        type=str,
+        envvar="EDGEDB_SERVER_TLS_HOST",
+        # todo add support for ip addresses
+        # todo maybe this should default to the bind address?
+        help='Specifies the domain name to use when generating TLS '
+             'certificates.'
+    ),
+    click.option(
         '--binary-endpoint-security',
         envvar="EDGEDB_SERVER_BINARY_ENDPOINT_SECURITY",
         type=click.Choice(
@@ -822,7 +863,31 @@ def parse_args(**kwargs: Any):
         kwargs['tls_cert_file'] = tls_cert_file
         kwargs['tls_key_file'] = tls_key_file
 
-    if not kwargs['bootstrap_only'] and not self_signing:
+    if kwargs['tls_cert_mode'] == 'acme_v2':
+        # todo: maybe crude email address validation?
+        if not kwargs['acme_account_email']:
+            abort('When --tls-cert-mode=acme_v2, '
+                  '--acme-account-email must also be set.')
+        # todo: maybe crude domain/ip validation?
+        if not kwargs['tls_host']:
+            abort('When --tls-cert-mode=acme_v2, '
+                  '--tls-host must also be set.')
+    else:
+        if kwargs['acme_account_key_file']:
+            abort('--acme-account-key-file may only be set when '
+                  '--tls-cert-mode=acme_v2')
+        if kwargs['acme_registration_file']:
+            abort('--acme-registration-file may only be set when '
+                  '--tls-cert-mode=acme_v2')
+        if kwargs['acme_account_email']:
+            abort('--acme-account-email may only be set when '
+                  '--tls-cert-mode=acme_v2')
+        if kwargs['tls_host']:
+            abort('--tls-host may only be set when '
+                  '--tls-cert-mode=acme_v2')
+
+    if not kwargs['bootstrap_only'] and not self_signing and not \
+            kwargs['tls_cert_mode'] is ServerTlsCertMode.AcmeV2:
         if not kwargs['tls_cert_file'].exists():
             abort(
                 f"TLS certificate file \"{kwargs['tls_cert_file']}\""

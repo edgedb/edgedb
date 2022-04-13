@@ -207,11 +207,19 @@ async def _run_server(
             new_instance=new_instance,
             admin_ui=args.admin_ui,
             instance_name=args.instance_name,
+            tls_cert_mode=args.tls_cert_mode,
+            tls_cert_file=args.tls_cert_file,
+            tls_key_file=args.tls_key_file,
+            acme_account_key_file=args.acme_account_key_file,
+            acme_registration_file=args.acme_registration_file,
+            acme_account_email=args.acme_account_email,
+            tls_host=args.tls_host,
         )
         await sc.wait_for(ss.init())
 
         tls_cert_newly_generated = False
-        if args.tls_cert_mode is srvargs.ServerTlsCertMode.SelfSigned:
+        if args.tls_cert_mode is srvargs.ServerTlsCertMode.SelfSigned \
+                or args.tls_cert_mode is srvargs.ServerTlsCertMode.AcmeV2:
             assert args.tls_cert_file is not None
             if not args.tls_cert_file.exists():
                 assert args.tls_key_file is not None
@@ -222,8 +230,7 @@ async def _run_server(
                 )
                 tls_cert_newly_generated = True
 
-        ss.init_tls(
-            args.tls_cert_file, args.tls_key_file, tls_cert_newly_generated)
+        ss.init_tls(tls_cert_newly_generated)
 
         if args.bootstrap_only:
             if args.startup_script and new_instance:
@@ -530,6 +537,18 @@ async def run_server(
                                     '<runstate>', int_runstate_dir)
                             )
                         )
+
+                    if args.tls_cert_mode is srvargs.ServerTlsCertMode.AcmeV2:
+                        if not args.acme_account_key_file:
+                            directory = args.tls_key_file.parent
+                            args = args._replace(
+                                acme_account_key_file=directory
+                                / srvargs.ACME_ACCOUNT_KEY_FILE_NAME)
+                        if not args.acme_registration_file:
+                            directory = args.acme_account_key_file.parent
+                            args = args._replace(
+                                acme_registration_file=directory
+                                / srvargs.ACME_REGISTRATION_FILE)
 
                     await _run_server(
                         cluster,

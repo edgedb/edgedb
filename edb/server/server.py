@@ -29,6 +29,7 @@ import ipaddress
 import json
 import logging
 import os
+import pathlib
 import pickle
 import socket
 import ssl
@@ -144,6 +145,13 @@ class Server(ha_base.ClusterProtocol):
         default_auth_method: srvargs.ServerAuthMethod,
         admin_ui: bool = False,
         instance_name: Optional[str] = None,
+        tls_cert_mode: str,
+        tls_cert_file: pathlib.Path,
+        tls_key_file: pathlib.Path,
+        acme_account_key_file: Optional[pathlib.Path],
+        acme_registration_file: Optional[pathlib.Path],
+        acme_account_email: Optional[str],
+        tls_host: Optional[str],
     ):
         self.__loop = asyncio.get_running_loop()
         self._config_settings = config.get_settings()
@@ -231,7 +239,6 @@ class Server(ha_base.ClusterProtocol):
 
         self._task_group = None
         self._stop_evt = asyncio.Event()
-        self._tls_cert_file = None
         self._tls_cert_newly_generated = False
         self._sslctx = None
 
@@ -247,6 +254,14 @@ class Server(ha_base.ClusterProtocol):
         self._session_idle_timeout = None
 
         self._admin_ui = admin_ui
+
+        self._tls_cert_mode = tls_cert_mode
+        self._tls_cert_file = tls_cert_file
+        self._tls_key_file = tls_key_file
+        self._acme_account_key_file = acme_account_key_file
+        self._acme_registration_file = acme_registration_file
+        self._acme_account_email = acme_account_email
+        self._tls_host = tls_host
 
     async def _request_stats_logger(self):
         last_seen = -1
@@ -1345,16 +1360,27 @@ class Server(ha_base.ClusterProtocol):
     async def _start_server(
         self, host: str, port: int
     ) -> Optional[asyncio.AbstractServer]:
-        acme = acme_v2.Client(
-            domain=acme_v2.DOMAIN,
-            email=acme_v2.EMAIL,
-            account_key_filename='account.private.key.pem',
-            registration_filename='registration.json',
-            domain_key_filename='domain.private.key.pem',
-            cert_filename='cert.pem',
-            challenge_cert_filename='challenge.cert.pem',
-        )
-        acme_challenge = await acme.new_challenge()
+        # todo schedule renewal every 60 days
+        acme_challenge = None
+        print('tls_cert_mode', self._tls_cert_mode)
+        if self._tls_cert_mode == 'acme_v2':
+            # todo only create client if configured
+            print('creating client')
+            print(self._acme_account_key_file)
+            print(self._acme_registration_file)
+            acme = acme_v2.Client(
+                domain=self._tls_host,
+                email=self._acme_account_email,
+                acme_account_key_file=self._acme_account_key_file,
+                registration_filename=self._acme_registration_file,
+                domain_key_filename=self._tls_key_file,
+                cert_filename=self._tls_cert_file,
+
+                # todo
+                challenge_cert_filename='challenge.cert.pem',
+            )
+            print('creating challenge')
+            acme_challenge = await acme.new_challenge()
         proto_factory = lambda: protocol.HttpProtocol(
             self,
             self._sslctx,
@@ -1366,7 +1392,11 @@ class Server(ha_base.ClusterProtocol):
         try:
             r = await self.__loop.create_server(
                 proto_factory, host=host, port=port)
-            await acme_challenge.start()
+            if acme_challenge:
+                # todo maybe log error if challenge is not completed within
+                # some timeout?
+                print('starting challenge')
+                await acme_challenge.start()
             return r
         except Exception as e:
             logger.warning(
@@ -1464,12 +1494,7 @@ class Server(ha_base.ClusterProtocol):
 
         return servers, port, addrs
 
-    def init_tls(
-        self,
-        tls_cert_file,
-        tls_key_file,
-        tls_cert_newly_generated,
-    ):
+    def init_tls(self, tls_cert_newly_generated):
         assert self._sslctx is None
         tls_password_needed = False
 
@@ -1481,8 +1506,8 @@ class Server(ha_base.ClusterProtocol):
         sslctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         try:
             sslctx.load_cert_chain(
-                tls_cert_file,
-                tls_key_file,
+                self._tls_cert_file,
+                self._tls_key_file,
                 password=_tls_private_key_password,
             )
         except ssl.SSLError as e:
@@ -1500,7 +1525,7 @@ class Server(ha_base.ClusterProtocol):
                             "the password using environment variable: "
                             "EDGEDB_SERVER_TLS_PRIVATE_KEY_PASSWORD"
                         ) from e
-                elif tls_key_file is None:
+                elif self._tls_key_file is None:
                     raise StartupError(
                         "Cannot load TLS certificates - have you specified "
                         "the private key file using the `--tls-key-file` "
@@ -1522,7 +1547,6 @@ class Server(ha_base.ClusterProtocol):
 
         sslctx.set_alpn_protocols(['edgedb-binary', 'http/1.1'])
         self._sslctx = sslctx
-        self._tls_cert_file = str(tls_cert_file)
         self._tls_cert_newly_generated = tls_cert_newly_generated
 
     async def _stop_servers(self, servers):
@@ -1567,7 +1591,7 @@ class Server(ha_base.ClusterProtocol):
             ri = {
                 "port": self._listen_port,
                 "runstate_dir": str(self._runstate_dir),
-                "tls_cert_file": self._tls_cert_file,
+                "tls_cert_file": str(self._tls_cert_file),
             }
             print(f'\nEDGEDB_SERVER_DATA:{json.dumps(ri)}\n', flush=True)
 
@@ -1578,7 +1602,7 @@ class Server(ha_base.ClusterProtocol):
                 "socket_dir": str(self._runstate_dir),
                 "main_pid": os.getpid(),
                 "tenant_id": self._tenant_id,
-                "tls_cert_file": self._tls_cert_file,
+                "tls_cert_file": str(self._tls_cert_file),
                 "tls_cert_newly_generated": self._tls_cert_newly_generated,
             }
             status_sink(f'READY={json.dumps(status)}')

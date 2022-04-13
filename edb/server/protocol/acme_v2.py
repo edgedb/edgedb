@@ -6,6 +6,7 @@ import functools
 import http
 import json
 import os
+import pathlib
 import ssl
 from typing import *
 
@@ -23,10 +24,8 @@ from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509 import oid
 
-EMAIL = 'wifiv35446@procowork.com'
 USER_AGENT = 'edgedb'
 DIRECTORY = 'https://acme-staging-v02.api.letsencrypt.org/directory'
-DOMAIN = 'edgedb.fmoor.me'
 KEY_SIZE = 4096
 
 
@@ -98,7 +97,7 @@ def is_tls_alpn_01_challenge(data):
         return False
 
 
-def get_private_key(filename: str) -> rsa.RSAPrivateKey:
+def get_private_key(filename: pathlib.Path) -> rsa.RSAPrivateKey:
     try:
         with open(filename, 'rb') as f:
             key = serialization.load_pem_private_key(f.read(), password=None)
@@ -132,6 +131,7 @@ def gen_challenge_response_cert(
     response: challenges.TLSALPN01Response,
     domain_key: crypto.PKey,
     filename: str,
+    domain: str,
 ) -> crypto.X509:
     """Generate a self signed certificate for TLSALPN01 validation.
 
@@ -142,13 +142,13 @@ def gen_challenge_response_cert(
     cert = crypto.X509()
     cert.set_serial_number(int(binascii.hexlify(os.urandom(16)), 16))
     cert.set_version(2)
-    cert.get_subject().CN = DOMAIN
+    cert.get_subject().CN = domain
     cert.set_issuer(cert.get_subject())
     cert.add_extensions([
         crypto.X509Extension(
             b'subjectAltName',
             critical=False,
-            value=b'DNS:' + DOMAIN.encode('utf-8'),
+            value=b'DNS:' + domain.encode('utf-8'),
         ),
         crypto.X509Extension(
             b'1.3.6.1.5.5.7.1.31',
@@ -176,18 +176,18 @@ class Client:
         *,
         domain: str,
         email: str,
-        account_key_filename: str,
-        registration_filename: str,
-        domain_key_filename: str,
-        cert_filename: str,
-        challenge_cert_filename: str,
+        acme_account_key_file: pathlib.Path,
+        registration_filename: pathlib.Path,
+        domain_key_filename: pathlib.Path,
+        cert_filename: pathlib.Path,
+        challenge_cert_filename: pathlib.Path,
     ):
         self._email = email
         self._domain = domain
         self._challenge_cert_filename = challenge_cert_filename
         self._cert_filename = cert_filename
         self._domain_key_filename = domain_key_filename
-        self._account_key_filename = account_key_filename
+        self._acme_account_key_file = acme_account_key_file
         self._registration_filename = registration_filename
 
         self._session = aiohttp.ClientSession(
@@ -267,7 +267,7 @@ class Client:
         directory = await self._get_directory()
         url = directory['newAccount']
         payload = messages.NewRegistration.from_data(
-            email=EMAIL,
+            email=self._email,
             terms_of_service_agreed=True,
         )
 
@@ -289,7 +289,7 @@ class Client:
 
     @functools.cached_property
     def _account_key(self):
-        return josepy.JWKRSA(key=get_private_key(self._account_key_filename))
+        return josepy.JWKRSA(key=get_private_key(self._acme_account_key_file))
 
     @functools.cached_property
     def _domain_key(self):
@@ -381,6 +381,7 @@ class Client:
             response,
             crypto.PKey.from_cryptography_key(self._domain_key),
             self._challenge_cert_filename,
+            self._domain,
         )
 
     async def _answer_challenge(
