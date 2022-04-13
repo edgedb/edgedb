@@ -1922,7 +1922,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         with self.assertRaisesRegex(
             edgedb.UnsupportedFeatureError,
             "default value for property 'x' of link 'asdf' of object type "
-            "'default::Bar' is too complicated for a link property default"
+            "'default::Bar' is too complicated; "
+            "link property defaults must not depend on database contents"
         ):
             await self.con.execute('''
                 create type Bar {

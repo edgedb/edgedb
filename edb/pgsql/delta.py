@@ -4636,7 +4636,8 @@ class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
                         raise errors.UnsupportedFeatureError(
                             f'default value for '
                             f'{prop.get_verbosename(schema, with_parent=True)}'
-                            f' is too complicated for a link property default',
+                            f' is too complicated; link property defaults '
+                            f'must not depend on database contents',
                             context=self.source_context)
 
                     cols = self.get_columns(
