@@ -153,6 +153,8 @@ def ast_objref_to_type_shell(
         sourcectx=ref.context,
     )
 
+    from edb.common.markup import dump
+    dump(name, lanme, marker='utils.py:156')
     return s_types.TypeShell(
         name=name,
         origname=lname,

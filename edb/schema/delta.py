@@ -2865,12 +2865,22 @@ class CreateObject(ObjectCommand[so.Object_T], Generic[so.Object_T]):
         schema: s_schema.Schema,
         context: CommandContext,
     ) -> s_schema.Schema:
+
+        from edb.common.markup import dump
+        dump(self, marker='delta.py:2869')
+
         self._validate_legal_command(schema, context)
 
         schema = self.apply_prerequisites(schema, context)
 
         if not context.canonical:
             schema = self.populate_ddl_identity(schema, context)
+
+            # dump(
+            #     schema.get('__derived__::default|Bar@view~1', default=None),
+            #     marker='delta.py:2891'
+            # )
+
             schema = self.canonicalize_attributes(schema, context)
             self.update_field_status(schema, context)
             self.validate_create(schema, context)

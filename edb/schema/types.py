@@ -466,6 +466,15 @@ class Type(
                 schemaclass=type(self),
             )
         else:
+
+            from edb.common.markup import dump
+            dump(name, marker='types.py:470')
+            # if str(name) == '__derived__::default|Bar@view~1':
+            #     dump(
+            #         schema.get('__derived__::default|Bar@view~1', default=None),
+            #         marker='types.py:476'
+            #     )
+
             return TypeShell(
                 name=name,
                 schemaclass=type(self),
@@ -2573,6 +2582,13 @@ def materialize_type_in_attribute(
 
     if isinstance(type_ref, TypeShell):
         try:
+            print('AAA:!!!!!!!!!!!!!!!!!!!!!!!', flush=True)
+            from edb.common.markup import dump
+            dump(
+                schema.get(type_ref.name),
+                marker='types.py:2581'
+            )
+
             type_ref.resolve(schema)
         except errors.InvalidReferenceError as e:
             refname = type_ref.get_refname(schema)

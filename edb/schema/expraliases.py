@@ -177,6 +177,9 @@ class AliasCommand(
         is_alter: bool = False,
         parser_context: Optional[parsing.ParserContext] = None,
     ) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type], s_expr.Expression]:
+
+        print('AAA: _handle_alias_op', flush=True)
+
         ir = compile_alias_expr(
             expr.qlast,
             classname,
@@ -518,6 +521,10 @@ def define_alias(
 
     result = sd.CommandGroup()
     result.update(derived_delta.get_subcommands())
+
+    from edb.common.markup import dump
+    dump(classname, marker='expraliases.py:522')
+
     type_shell = s_types.TypeShell(
         name=classname,
         origname=classname,

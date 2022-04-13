@@ -219,6 +219,11 @@ def derive_view(
     elif isinstance(stype, (s_objtypes.ObjectType, s_scalars.ScalarType)):
         existing = ctx.env.schema.get(
             derived_name, default=None, type=type(stype))
+
+        # if str(derived_name) == '__derived__::default|Bar@view~1':
+        #     from edb.common.markup import dump
+        #     dump(existing, marker='schemactx.py:224')
+
         if existing is not None:
             if ctx.recompiling_schema_alias:
                 # When recompiling schema alias, we, essentially
@@ -240,6 +245,13 @@ def derive_view(
                 preserve_path_id=preserve_path_id,
                 attrs=attrs,
             )
+
+            from edb.common.markup import dump
+            dump(
+                ctx.env.schema.get(derived_name, default=None, type=type(stype)),
+                marker='schemactx.py:249'
+            )
+            dump(ctx.env.schema, marker='schemactx.py:250')
 
         if (not stype.generic(ctx.env.schema)
                 and isinstance(derived, s_objtypes.ObjectType)):

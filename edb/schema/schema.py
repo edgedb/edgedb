@@ -1307,6 +1307,12 @@ class FlatSchema(Schema):
             default=default,
         )
 
+        # if str(name) == '__derived__::default|Bar@view~1':
+        #     from edb.common.markup import dump
+        #     dump(name, marker='schema.py:1310')
+        #     dump(default, marker='schema.py:1311')
+        #     dump(self, marker='schema.py:1312')
+
         if obj is not so.NoDefault:
             # We do our own type check, instead of using get_by_id's, so
             # we can produce a user-facing error message.
@@ -1852,6 +1858,9 @@ class ChainedSchema(Schema):
             label=label,
             sourcectx=sourcectx,
         )
+
+        print('AAA:-------------------------', flush=True)
+
         if obj is None:
             return self._base_schema.get(
                 name,

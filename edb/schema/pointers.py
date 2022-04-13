@@ -1065,6 +1065,12 @@ class PointerCommandOrFragment(
                 computed=True,
             )
 
+        from edb.common.markup import dump
+        dump(
+            schema.get('__derived__::default|Bar@view~1', default=None),
+            marker='pointers.py:1068'
+        )
+
         schema = s_types.materialize_type_in_attribute(
             schema, context, self, 'target')
 
@@ -1103,6 +1109,9 @@ class PointerCommandOrFragment(
             field=Pointer.get_field('expr'),
             value=s_expr.Expression.from_ast(expr, schema, context.modaliases),
         )
+        # We just potentially compiled a derived view, so we need to
+        # update the schema.
+        schema = expression.irast.schema
 
         assert isinstance(expression.irast, irast.Statement)
         base = None
