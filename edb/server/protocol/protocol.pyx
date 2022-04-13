@@ -86,10 +86,9 @@ cdef class HttpProtocol:
         external_auth: bool=False,
         binary_endpoint_security = None,
         http_endpoint_security = None,
-        acme = None,
+        acme_challenge = None,
     ):
-        print('HttpProtocol init')
-        self.acme = acme
+        self.acme_challenge = acme_challenge
         self.loop = server.get_loop()
         self.server = server
         self.transport = None
@@ -125,9 +124,7 @@ cdef class HttpProtocol:
         pass
 
     def data_received(self, data):
-        print('data received')
         if self.first_data_call:
-            print('first data')
             self.first_data_call = False
 
             is_alpn_challenge = acme_v2.is_tls_alpn_01_challenge(data)
@@ -139,8 +136,7 @@ cdef class HttpProtocol:
             is_tls = True
             try:
                 if is_alpn_challenge:
-                    print('TLS-ALPN-01 challenge')
-                    self.sslctx = self.acme.sslctx()
+                    self.sslctx = self.acme_challenge.sslctx()
 
                 outgoing = ssl.MemoryBIO()
                 incoming = ssl.MemoryBIO()
@@ -150,7 +146,6 @@ cdef class HttpProtocol:
             except ssl.SSLWantReadError:
                 pass
             except ssl.SSLError as e:
-                print(e)
                 is_tls = False
 
             self.is_tls = is_tls
@@ -163,7 +158,20 @@ cdef class HttpProtocol:
                 )
                 self.server.create_task(self._start_tls(), interruptable=True)
                 if is_alpn_challenge:
-                    self.server.create_task_later(5, self.acme.finalize)
+                    async def finalize():
+                        # give some time for letsencrypt to verify us
+                        await asyncio.sleep(5)
+
+                        if await self.acme_challenge.finalize():
+                            # inti_tls() asserts that _sslctx is None
+                            # maybe remove the assertion?
+                            self.server._sslctx = None
+                            self.server.init_tls(
+                                'cert.pem',
+                                'domain.private.key.pem',
+                                tls_cert_newly_generated=True,
+                            )
+                    self.server.create_task(finalize(), interruptable=True)
                 return
 
             # In case when we're talking to a non-TLS client, keep using the
