@@ -38,7 +38,7 @@ Start transaction
 
     # where <transaction-mode> is one of:
 
-    isolation { serializable | repeatable read }
+    isolation serializable
     read write | read only
     deferrable | not deferrable
 
@@ -69,13 +69,6 @@ The :eql:synopsis:`<transaction-mode>` can be one of the following:
     occurred for any serial (one-at-a-time) execution of those
     transactions, one of them will be rolled back with a
     serialization_failure error.
-
-:eql:synopsis:`isolation repeatable read`
-    All statements of the current transaction can only see data
-    committed before the first query or data-modification statement
-    was executed in this transaction.
-
-    This is the default.
 
 :eql:synopsis:`read write`
     Sets the transaction access mode to read/write.
