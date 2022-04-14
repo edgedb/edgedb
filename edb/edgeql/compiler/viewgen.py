@@ -150,11 +150,11 @@ def _process_view(
             )
 
         generated_name = f'{source_name}__{ptr_name}'
-    elif needs_real_name and ctx.env.actually_toplevel_result_view_name:
+    elif needs_real_name and ctx.env.alias_result_view_name:
         # If this is a persistent schema expression but we aren't just
         # obviously sitting on an rptr (e.g CREATE ALIAS V := (Foo { x }, 10)),
         # we create a name like __V__Foo__2.
-        source_name = ctx.env.actually_toplevel_result_view_name.name
+        source_name = ctx.env.alias_result_view_name.name
         type_name = stype.get_name(ctx.env.schema).name
         generated_name = f'__{source_name}__{type_name}'
 

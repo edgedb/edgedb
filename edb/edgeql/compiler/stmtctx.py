@@ -69,7 +69,11 @@ def init_context(
             name=s_name.UnqualName('__derived__'),
         )
 
-    env = context.Environment(schema=schema, options=options)
+    env = context.Environment(
+        schema=schema,
+        options=options,
+        alias_result_view_name=options.result_view_name,
+    )
     ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
     _ = context.CompilerContext(initial=ctx)
 
@@ -98,7 +102,6 @@ def init_context(
 
     ctx.derived_target_module = options.derived_target_module
     ctx.toplevel_result_view_name = options.result_view_name
-    ctx.env.actually_toplevel_result_view_name = options.result_view_name
     ctx.implicit_id_in_shapes = options.implicit_id_in_shapes
     ctx.implicit_tid_in_shapes = options.implicit_tid_in_shapes
     ctx.implicit_tname_in_shapes = options.implicit_tname_in_shapes

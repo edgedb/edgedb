@@ -232,7 +232,7 @@ class Environment:
     compiled_stmts: Dict[qlast.Statement, irast.Stmt]
     """A mapping of from input edgeql to compiled IR"""
 
-    actually_toplevel_result_view_name: Optional[s_name.QualName]
+    alias_result_view_name: Optional[s_name.QualName]
     """The name of a view being defined as an alias."""
 
     def __init__(
@@ -240,6 +240,7 @@ class Environment:
         *,
         schema: s_schema.Schema,
         path_scope: Optional[irast.ScopeTreeNode] = None,
+        alias_result_view_name: Optional[s_name.QualName] = None,
         options: Optional[GlobalCompilerOptions] = None,
     ) -> None:
         if options is None:
@@ -274,7 +275,7 @@ class Environment:
         self.scope_tree_nodes = weakref.WeakValueDictionary()
         self.materialized_sets = {}
         self.compiled_stmts = {}
-        self.actually_toplevel_result_view_name = None
+        self.alias_result_view_name = alias_result_view_name
 
     def add_schema_ref(
             self, sobj: s_obj.Object, expr: Optional[qlast.Base]) -> None:
