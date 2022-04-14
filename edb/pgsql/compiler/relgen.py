@@ -1355,6 +1355,7 @@ def process_set_as_membership_expr(
         # then use the ANY/ALL array comparison operator directly,
         # since that has a higher chance of using the indexes.
         right_expr = right_arg.expr
+        needs_coalesce = False
         if (
             isinstance(right_expr, irast.FunctionCall)
             and str(right_expr.func_shortname) == 'std::array_unpack'
@@ -1362,6 +1363,7 @@ def process_set_as_membership_expr(
         ):
             is_array_unpack = True
             right_arg = right_expr.args[0].expr
+            needs_coalesce = right_expr.args[0].cardinality.can_be_zero()
         else:
             is_array_unpack = False
 
@@ -1412,6 +1414,13 @@ def process_set_as_membership_expr(
                 ],
                 ctx=ctx,
             )
+
+            # A NULL argument to the array variant will produce NULL, so we
+            # need to coalesce if that is possible.
+            if needs_coalesce:
+                empty_val = str(negated).upper()
+                set_expr = pgast.CoalesceExpr(args=[
+                    set_expr, pgast.BooleanConstant(val=empty_val)])
 
             pathctx.put_path_value_var_if_not_exists(
                 stmt, ir_set.path_id, set_expr, env=ctx.env)

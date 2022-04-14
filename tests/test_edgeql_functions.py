@@ -527,6 +527,16 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         )
 
+        await self.assert_query_result(
+            r'''SELECT 2 IN array_unpack(<array<int64>>{});''',
+            [False],
+        )
+
+        await self.assert_query_result(
+            r'''SELECT 2 NOT IN array_unpack(<array<int64>>{});''',
+            [True],
+        )
+
     async def test_edgeql_functions_enumerate_01(self):
         await self.assert_query_result(
             r'''SELECT [10, 20];''',
