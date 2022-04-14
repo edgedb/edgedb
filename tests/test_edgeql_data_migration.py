@@ -4084,7 +4084,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             }],
         )
 
-    async def test_edgeql_migration_eq_18(self):
+    async def test_edgeql_migration_eq_18a(self):
         await self.migrate(r"""
             type Base {
                 property name := 'computable'
@@ -4120,6 +4120,84 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 'name': 'something',
             }, {
                 'name': 'something',
+            }],
+        )
+
+    async def test_edgeql_migration_eq_18b(self):
+        await self.migrate(r"""
+            type Base {
+                property name := 'computable'
+            }
+        """)
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            INSERT Base;
+        """)
+
+        await self.migrate(r"""
+            type Base {
+                # change a property from a computable to regular with a default
+                property name -> str {
+                    default := <str>count(Object)
+                }
+            }
+        """)
+
+        # Insert a new object, this one should have a new default name.
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    name,
+                } ORDER BY .name EMPTY LAST;
+            """,
+            [{
+                'name': str,
+            }, {
+                'name': str,
+            }],
+        )
+
+    async def test_edgeql_migration_eq_18c(self):
+        await self.migrate(r"""
+            type Base {
+                property name := 'computable'
+            }
+        """)
+        await self.con.execute(r"""
+            SET MODULE test;
+
+            INSERT Base;
+        """)
+
+        await self.migrate(r"""
+            type Base {
+                # change a property from a computable to regular with a default
+                required property name -> str {
+                    default := <str>count(Object)
+                }
+            }
+        """)
+
+        # Insert a new object, this one should have a new default name.
+        await self.con.execute(r"""
+            INSERT Base;
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Base {
+                    name,
+                } ORDER BY .name EMPTY LAST;
+            """,
+            [{
+                'name': str,
+            }, {
+                'name': str,
             }],
         )
 

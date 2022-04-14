@@ -1876,6 +1876,65 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 INSERT TestDefault06;
             """)
 
+    async def test_edgeql_ddl_default_07(self):
+        await self.con.execute(r"""
+            CREATE TYPE Foo;
+            INSERT Foo;
+
+            alter type Foo {
+                create required property name -> str {
+                    set default := 'something'
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo.name;
+            """,
+            {'something'},
+        )
+
+    async def test_edgeql_ddl_default_08(self):
+        await self.con.execute(r"""
+            CREATE TYPE Foo;
+            INSERT Foo;
+
+            alter type Foo {
+                create required multi property name -> str {
+                    set default := 'something'
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            r"""
+                SELECT Foo.name;
+            """,
+            {'something'},
+        )
+
+    async def test_edgeql_ddl_default_09(self):
+        await self.con.execute(r"""
+            CREATE TYPE Foo;
+        """)
+
+        with self.assertRaisesRegex(
+            edgedb.UnsupportedFeatureError,
+            "default value for property 'x' of link 'asdf' of object type "
+            "'default::Bar' is too complicated; "
+            "link property defaults must not depend on database contents"
+        ):
+            await self.con.execute('''
+                create type Bar {
+                    create link asdf -> Foo {
+                        create property x -> int64 {
+                            set default := count(Object)
+                        }
+                    }
+                };
+            ''')
+
     async def test_edgeql_ddl_default_circular(self):
         await self.con.execute(r"""
             CREATE TYPE TestDefaultCircular {
@@ -13224,18 +13283,20 @@ type default::Foo {
                 alter type Foo set abstract;
             """)
 
-    async def test_edgeql_ddl_no_type_intro_in_default(self):
-        with self.assertRaisesRegex(
-                edgedb.UnsupportedFeatureError,
-                r"type introspection not supported in simple expressions"):
-            await self.con.execute(r"""
-                create scalar type Foo extending sequence;
-                create type Project {
-                    create required property number -> Foo {
-                        set default := sequence_next(introspect Foo);
-                    }
-                };
-            """)
+    async def test_edgeql_no_type_intro_in_default(self):
+        await self.con.execute(r"""
+            create scalar type Foo extending sequence;
+            create type Project {
+                create required property number -> Foo {
+                    set default := sequence_next(introspect Foo);
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            insert Project;
+            insert Project;
+        """)
 
     async def test_edgeql_ddl_uuid_array_01(self):
         await self.con.execute(r"""

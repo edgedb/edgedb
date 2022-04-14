@@ -3251,12 +3251,8 @@ class PointerMetaCommand(MetaCommand):
         default_value = None
 
         if default is not None:
-            if isinstance(default, s_expr.Expression):
-                default_value = schemamech.ptr_default_to_col_default(
-                    schema, ptr, default)
-            else:
-                default_value = common.quote_literal(
-                    str(default))
+            default_value = schemamech.ptr_default_to_col_default(
+                schema, ptr, default)
         elif (tgt := ptr.get_target(schema)) and tgt.issubclass(
                 schema, schema.get('std::sequence')):
             # TODO: replace this with a generic scalar type default
@@ -3288,6 +3284,7 @@ class PointerMetaCommand(MetaCommand):
                         pointer.get_required(schema)
                         and not pointer.is_pure_computable(schema)
                         and not sets_required
+                        and not (pointer.get_default(schema) and not default)
                     ) or (
                         ptr_stor_info.table_type == 'link'
                         and not pointer.is_link_property(schema)
@@ -3482,9 +3479,25 @@ class PointerMetaCommand(MetaCommand):
         source_ctx = self.get_referrer_context_or_die(context)
         source_op = source_ctx.op
 
+        alter_table = None
+        if not ptr_table or is_lprop:
+            alter_table = source_op.get_alter_table(
+                schema,
+                context,
+                manual=True,
+            )
+            alter_table.add_operation(
+                dbops.AlterTableAlterColumnNull(
+                    column_name=ptr_stor_info.column_name,
+                    null=not new_required,
+                )
+            )
+
         # Ignore optionality changes resulting from the creation of
         # an overloaded pointer as there is no data yet.
         if isinstance(source_op, sd.CreateObject):
+            if alter_table:
+                self.pgops.add(alter_table)
             return
 
         ops = dbops.CommandGroup()
@@ -3601,18 +3614,7 @@ class PointerMetaCommand(MetaCommand):
                 if is_required:
                     ops.add_command(dbops.Query(check_qry))
 
-        if not ptr_table or is_lprop:
-            alter_table = source_op.get_alter_table(
-                schema,
-                context,
-                manual=True,
-            )
-            alter_table.add_operation(
-                dbops.AlterTableAlterColumnNull(
-                    column_name=ptr_stor_info.column_name,
-                    null=not new_required,
-                )
-            )
+        if alter_table:
             ops.add_command(alter_table)
 
         self.pgops.add(ops)
@@ -4166,6 +4168,10 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
             ptr_stor_info = types.get_pointer_storage_info(
                 link, resolve_type=False, schema=schema)
 
+            fills_required = any(
+                x.fill_expr for x in
+                self.get_subcommands(
+                    type=s_pointers.AlterPointerLowerCardinality))
             sets_required = bool(
                 self.get_subcommands(
                     type=s_pointers.AlterPointerLowerCardinality))
@@ -4224,10 +4230,17 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
                     s_objtypes.ObjectTypeCommandContext,
                 )
 
+            if (
+                (default := link.get_default(schema))
+                and not link.is_pure_computable(schema)
+                and not fills_required
+            ):
+                self._alter_pointer_optionality(
+                    schema, schema, context, fill_expr=default)
             # If we're creating a required multi pointer without a SET
             # REQUIRED USING inside, run the alter_pointer_optionality
             # path to produce an error if there is existing data.
-            if (
+            elif (
                 link.get_cardinality(schema).is_multi()
                 and link.get_required(schema)
                 and not link.is_pure_computable(schema)
@@ -4589,9 +4602,14 @@ class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
             ptr_stor_info = types.get_pointer_storage_info(
                 prop, resolve_type=False, schema=schema)
 
+            fills_required = any(
+                x.fill_expr for x in
+                self.get_subcommands(
+                    type=s_pointers.AlterPointerLowerCardinality))
             sets_required = bool(
                 self.get_subcommands(
                     type=s_pointers.AlterPointerLowerCardinality))
+
             if (
                 not isinstance(src.scls, s_objtypes.ObjectType)
                 or ptr_stor_info.table_type == 'ObjectType'
@@ -4609,6 +4627,18 @@ class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
 
                     default_value = self.get_pointer_default(
                         prop, schema, context)
+
+                    if (
+                        isinstance(src.scls, s_links.Link)
+                        and not default_value
+                        and prop.get_default(schema)
+                    ):
+                        raise errors.UnsupportedFeatureError(
+                            f'default value for '
+                            f'{prop.get_verbosename(schema, with_parent=True)}'
+                            f' is too complicated; link property defaults '
+                            f'must not depend on database contents',
+                            context=self.source_context)
 
                     cols = self.get_columns(
                         prop, schema, default_value, sets_required)
@@ -4635,10 +4665,17 @@ class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
                     s_sources.SourceCommandContext,
                 )
 
+            if (
+                (default := prop.get_default(schema))
+                and not prop.is_pure_computable(schema)
+                and not fills_required
+            ):
+                self._alter_pointer_optionality(
+                    schema, schema, context, fill_expr=default)
             # If we're creating a required multi pointer without a SET
             # REQUIRED USING inside, run the alter_pointer_optionality
             # path to produce an error if there is existing data.
-            if (
+            elif (
                 prop.get_cardinality(schema).is_multi()
                 and prop.get_required(schema)
                 and not prop.is_pure_computable(schema)
