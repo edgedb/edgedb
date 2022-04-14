@@ -1347,8 +1347,6 @@ class Compiler:
             ctx.state.start_tx()
 
             sql = 'START TRANSACTION'
-            # N.B: Currently we ignore the isolation level. We should
-            # remove it if we keep it this way.
             if ql.access is not None:
                 sql += f' {ql.access.value}'
             if ql.deferrable is not None:

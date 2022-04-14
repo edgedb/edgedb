@@ -66,7 +66,6 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "release",
     "rename",
     "required",
-    "repeatable",
     "reset",
     "restrict",
     "role",
