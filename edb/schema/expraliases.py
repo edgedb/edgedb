@@ -516,24 +516,6 @@ def define_alias(
 
     type_cmd.set_attribute_value('expr', expr)
 
-    # The deltas created for the expr_aliases via
-    # as_create_delta/delta_objects are already complete. What's more,
-    # canonicalizing them again can introduce incorrect changes: since
-    # the alias types are created by the compiler with
-    # inheritance_refdicts={'pointers'}, they are missing all
-    # inherited refs except for pointers (notably, constraints).
-    #
-    # If the delta includes a rebase, canonicalizing that will add
-    # back in those things---so mark everything as canonical to
-    # avoid that.
-    #
-    # Except that the collection operations we generated above came
-    # from shells, and are missing things that they need to be
-    # complete.
-    for op in derived_delta.get_subcommands(type=sd.ObjectCommand):
-        if not issubclass(op.get_schema_metaclass(), s_types.Collection):
-            op.canonical = True
-
     result = sd.CommandGroup()
     result.update(derived_delta.get_subcommands())
     type_shell = s_types.TypeShell(
