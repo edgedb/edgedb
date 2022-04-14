@@ -941,6 +941,7 @@ def _extract_op(stack: Sequence[sd.Command]) -> List[sd.Command]:
             ddl_identity=stack_op.ddl_identity,
             aux_object_data=stack_op.aux_object_data,
             annotations=stack_op.annotations,
+            canonical=stack_op.canonical,
             orig_cmd_type=type(stack_op),
         )
         parent_op.add(alter_delta)

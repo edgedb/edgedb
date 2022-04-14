@@ -8119,6 +8119,14 @@ type default::Foo {
                 }
             """)
 
+    async def test_edgeql_ddl_alias_10(self):
+        await self.con.execute(r"""
+            create type Foo;
+            create type Bar;
+            create alias X := Foo { bar := Bar { z := 1 } };
+            alter alias X using (Bar);
+        """)
+
     async def test_edgeql_ddl_inheritance_alter_01(self):
         await self.con.execute(r"""
             CREATE TYPE InhTest01 {

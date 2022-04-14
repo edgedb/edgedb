@@ -122,8 +122,9 @@ def _process_view(
 ) -> Tuple[s_objtypes.ObjectType, irast.Set]:
     path_id = ir_set.path_id
 
-    if (view_name is None and ctx.env.options.schema_view_mode
-            and view_rptr is not None):
+    needs_real_name = view_name is None and ctx.env.options.schema_view_mode
+    generated_name = None
+    if needs_real_name and view_rptr is not None:
         # Make sure persistent schema expression aliases have properly formed
         # names as opposed to the usual mangled form of the ephemeral
         # aliases.  This is needed for introspection readability, as well
@@ -148,7 +149,20 @@ def _process_view(
                 'neither ptrcls_name, not ptrcls'
             )
 
-        name = f'{source_name}__{ptr_name}'
+        generated_name = f'{source_name}__{ptr_name}'
+    elif needs_real_name and ctx.env.alias_result_view_name:
+        # If this is a persistent schema expression but we aren't just
+        # obviously sitting on an rptr (e.g CREATE ALIAS V := (Foo { x }, 10)),
+        # we create a name like __V__Foo__2.
+        source_name = ctx.env.alias_result_view_name.name
+        type_name = stype.get_name(ctx.env.schema).name
+        generated_name = f'__{source_name}__{type_name}'
+
+    if generated_name:
+        # If there are multiple, we want to stick a number on, but we'd
+        # like to skip the number if there aren't.
+        name = ctx.aliases.get(
+            generated_name).replace('~1', '').replace('~', '__')
         view_name = sn.QualName(
             module=ctx.derived_target_module or '__derived__',
             name=name,

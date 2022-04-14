@@ -434,7 +434,7 @@ def define_alias(
         colltype_shell = ref.as_shell(new_schema)
         # not "new_schema", because that already contains this
         # collection type.
-        derived_delta.add(colltype_shell.as_create_delta(schema))
+        derived_delta.add(colltype_shell.as_create_delta(new_schema))
 
     if prev_expr is not None:
         assert old_schema is not None
@@ -473,7 +473,7 @@ def define_alias(
         ct = vt.as_shell(new_schema).as_create_delta(
             # not "new_schema", to ensure the nested collection types
             # are picked up properly.
-            schema,
+            new_schema,
             view_name=classname,
             attrs={
                 'expr': expr,

@@ -312,6 +312,7 @@ class ObjectType(
                 schema,
                 sd.DeleteObject,
                 if_unused=True,
+                if_exists=True,
             )
         else:
             return None

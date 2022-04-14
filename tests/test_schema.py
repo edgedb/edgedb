@@ -6343,7 +6343,11 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             };
         """])
 
-    @test.xfail('''Trips a SchemaError''')
+    @test.xfail('''
+        Trips a SchemaError in the initial migration accessing a missing type
+
+        The type produces from the default is a view type not in the schema
+    ''')
     def test_schema_migrations_equivalence_rename_alias_02(self):
         self._assert_migration_equivalence([r"""
             type Note {

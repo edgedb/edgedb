@@ -10108,8 +10108,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
             ''')
 
     @test.xfail('''
-        edgedb.errors.InvalidReferenceError: scalar type 'test::Alias'
-        does not exist
+        Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_01(self):
         await self.migrate(r'''
@@ -10204,9 +10203,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         )
 
     @test.xfail('''
-        The second migration check produces the following issue:
-
-        No more "proposed", but not "completed" either.
+        Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_03(self):
         await self.migrate(r'''
@@ -10265,11 +10262,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         )
 
     @test.xfail('''
-        The migration works, but then the query produces this error
-        (implying that the migration didn't update the type of the computable).
-
-        edgedb.errors.InvalidValueError: invalid input syntax for type
-        std::int64: "alias"
+        Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_04(self):
         # Same as the previous test, but using a single DDL command to
@@ -10326,8 +10319,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InvalidReferenceError: object type 'test::Alias'
-        does not exist
+        Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_05(self):
         await self.migrate(r'''
@@ -10369,9 +10361,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         )
 
     @test.xfail('''
-        The second migration check produces the following issue:
-
-        No more "proposed", but not "completed" either.
+        Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_06(self):
         await self.migrate(r'''
@@ -10435,8 +10425,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         )
 
     @test.xfail('''
-        edgedb.errors.InvalidReferenceError: object type 'test::Fuz'
-        does not exist
+        Referring to alias unsupported from computable
     ''')
     async def test_edgeql_migration_alias_07(self):
         await self.migrate(r'''
@@ -10528,6 +10517,50 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
                 },
             ],
         )
+
+    async def test_edgeql_migration_alias_08(self):
+        await self.migrate(r'''
+            type Foo;
+            type Bar;
+            alias X := Foo;
+        ''')
+
+        await self.migrate(r'''
+            type Foo;
+            type Bar;
+            alias X := Bar;
+        ''')
+
+        await self.migrate(r'''
+            type Foo;
+            type Bar;
+            alias X := 30;
+        ''')
+
+        await self.migrate(r'''
+            type Foo;
+            type Bar;
+            alias X := (Bar { z := 10 }, 30);
+        ''')
+
+        # delete it
+        await self.migrate(r'''
+            type Foo;
+            type Bar;
+        ''')
+
+    async def test_edgeql_migration_alias_09(self):
+        await self.migrate(r'''
+            type Foo;
+            type Bar;
+            alias X := Foo { bar := Bar { z := 1 } };
+        ''')
+
+        await self.migrate(r'''
+            type Foo;
+            type Bar;
+            alias X := Bar;
+        ''')
 
     async def test_edgeql_migration_tuple_01(self):
         await self.migrate(r'''

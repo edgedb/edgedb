@@ -69,7 +69,11 @@ def init_context(
             name=s_name.UnqualName('__derived__'),
         )
 
-    env = context.Environment(schema=schema, options=options)
+    env = context.Environment(
+        schema=schema,
+        options=options,
+        alias_result_view_name=options.result_view_name,
+    )
     ctx = context.ContextLevel(None, context.ContextSwitchMode.NEW, env=env)
     _ = context.CompilerContext(initial=ctx)
 
