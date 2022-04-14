@@ -241,8 +241,28 @@ def derive_view(
                 attrs=attrs,
             )
 
-        if (not stype.generic(ctx.env.schema)
-                and isinstance(derived, s_objtypes.ObjectType)):
+        if (
+            stype.is_view(ctx.env.schema)
+            # XXX: Previously, the main check here was just for
+            # (not stype.generic(...)). generic isn't really the
+            # right way to figure out if something is a view, since
+            # some aliases will be generic. On changing it to is_view
+            # instead, though, two GROUP BY tests that grouped
+            # on the result of a group broke
+            # (test_edgeql_group_by_group_by_03{a,b}).
+            #
+            # It's probably a bug that this matters in that case, and
+            # it is an accident that group bindings are named in such
+            # a way that they count as being generic, but for now
+            # preserve that behavior.
+            and not (
+                stype.generic(ctx.env.schema)
+                and (view_ir := ctx.view_sets.get(stype))
+                and (scope_info := ctx.path_scope_map.get(view_ir))
+                and scope_info.binding_kind
+            )
+            and isinstance(derived, s_objtypes.ObjectType)
+        ):
             assert isinstance(stype, s_objtypes.ObjectType)
             scls_pointers = stype.get_pointers(ctx.env.schema)
             derived_own_pointers = derived.get_pointers(ctx.env.schema)

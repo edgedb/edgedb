@@ -423,12 +423,14 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
             if fn in ownfields:
                 qual = "REQUIRED" if field.required else "OPTIONAL"
+                otd = " { ON TARGET DELETE ALLOW }" if field.weak_ref else ""
                 if ptr is None:
                     schema = _run_ddl(
                         f'''
                             ALTER TYPE {rschema_name} {{
                                 CREATE {qual}
-                                {storage.ptrkind} {fn} -> {storage.ptrtype};
+                                {storage.ptrkind} {fn} -> {storage.ptrtype}
+                                {otd};
                             }}
                         ''',
                         schema=schema,

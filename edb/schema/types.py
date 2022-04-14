@@ -130,6 +130,26 @@ class Type(
         int,
         default=None, inheritable=False)
 
+    def compare(
+        self,
+        other: so.Object,
+        *,
+        our_schema: s_schema.Schema,
+        their_schema: s_schema.Schema,
+        context: so.ComparisonContext,
+    ) -> float:
+        # We need to be able to compare objects and scalars, in some places
+        if (
+            isinstance(other, Type)
+            and not isinstance(other, self.__class__)
+            and not isinstance(self, other.__class__)
+        ):
+            return 0.0
+
+        return super().compare(
+            other,
+            our_schema=our_schema, their_schema=their_schema, context=context)
+
     def is_blocking_ref(
         self, schema: s_schema.Schema, reference: so.Object
     ) -> bool:
@@ -1450,8 +1470,7 @@ class ArrayTypeShell(CollectionTypeShell[Array_T_co]):
             )
 
         el = self.subtype
-        if (isinstance(el, CollectionTypeShell)
-                and schema.get_by_id(el.get_id(schema), None) is None):
+        if isinstance(el, CollectionTypeShell):
             cmd.add(el.as_create_delta(schema))
 
         ca.set_attribute_value('name', ca.classname)

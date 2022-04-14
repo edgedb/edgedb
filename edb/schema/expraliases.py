@@ -434,7 +434,7 @@ def define_alias(
         colltype_shell = ref.as_shell(new_schema)
         # not "new_schema", because that already contains this
         # collection type.
-        derived_delta.add(colltype_shell.as_create_delta(schema))
+        derived_delta.add(colltype_shell.as_create_delta(new_schema))
 
     if prev_expr is not None:
         assert old_schema is not None
@@ -473,7 +473,7 @@ def define_alias(
         ct = vt.as_shell(new_schema).as_create_delta(
             # not "new_schema", to ensure the nested collection types
             # are picked up properly.
-            schema,
+            new_schema,
             view_name=classname,
             attrs={
                 'expr': expr,
@@ -515,6 +515,24 @@ def define_alias(
                 'view Create/Alter command')
 
     type_cmd.set_attribute_value('expr', expr)
+
+    # The deltas created for the expr_aliases via
+    # as_create_delta/delta_objects are already complete. What's more,
+    # canonicalizing them again can introduce incorrect changes: since
+    # the alias types are created by the compiler with
+    # inheritance_refdicts={'pointers'}, they are missing all
+    # inherited refs except for pointers (notably, constraints).
+    #
+    # If the delta includes a rebase, canonicalizing that will add
+    # back in those things---so mark everything as canonical to
+    # avoid that.
+    #
+    # Except that the collection operations we generated above came
+    # from shells, and are missing things that they need to be
+    # complete.
+    for op in derived_delta.get_subcommands(type=sd.ObjectCommand):
+        if not issubclass(op.get_schema_metaclass(), s_types.Collection):
+            op.canonical = True
 
     result = sd.CommandGroup()
     result.update(derived_delta.get_subcommands())
