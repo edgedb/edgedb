@@ -5614,11 +5614,9 @@ aa';
         """
         START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY, DEFERRABLE;
         START TRANSACTION ISOLATION SERIALIZABLE, READ ONLY;
-        START TRANSACTION ISOLATION REPEATABLE READ, READ ONLY;
         START TRANSACTION READ ONLY, DEFERRABLE;
         START TRANSACTION READ ONLY, NOT DEFERRABLE;
         START TRANSACTION READ WRITE, NOT DEFERRABLE;
-        START TRANSACTION ISOLATION REPEATABLE READ, READ WRITE;
         START TRANSACTION READ WRITE;
         """
 
@@ -5627,7 +5625,7 @@ aa';
                   line=2, col=51)
     def test_edgeql_syntax_transaction_03(self):
         """
-        START TRANSACTION ISOLATION SERIALIZABLE, ISOLATION REPEATABLE READ;
+        START TRANSACTION ISOLATION SERIALIZABLE, ISOLATION SERIALIZABLE;
         """
 
     @tb.must_fail(errors.EdgeQLSyntaxError,
@@ -5644,6 +5642,13 @@ aa';
     def test_edgeql_syntax_transaction_05(self):
         """
         START TRANSACTION READ WRITE, DEFERRABLE, READ ONLY;
+        """
+
+    def test_edgeql_syntax_transaction_06(self):
+        """
+        START TRANSACTION READ WRITE, NOT DEFERRABLE, ISOLATION SERIALIZABLE;
+% OK %
+        START TRANSACTION ISOLATION SERIALIZABLE, READ WRITE, NOT DEFERRABLE;
         """
 
     def test_edgeql_syntax_describe_01(self):
