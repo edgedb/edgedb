@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://www.edgedb.com">
-    <img src="https://i.imgur.com/H2Jio0X.png">
+    <img src="https://www.edgedb.com/github_banner.png">
   </a>
 </p>
 
