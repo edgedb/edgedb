@@ -37,7 +37,9 @@ from edb.ir import ast as irast
 from edb.ir import typeutils as irtyputils
 from edb.ir import utils as irutils
 
+from edb.schema import constraints as s_constr
 from edb.schema import globals as s_globals
+from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
 from edb.schema import name as s_name
 from edb.schema import objtypes as s_objtypes
@@ -1622,7 +1624,8 @@ def get_global_param(
 
 
 def get_global_param_sets(
-    glob: s_globals.Global, *, ctx: context.ContextLevel
+    glob: s_globals.Global, *, ctx: context.ContextLevel,
+    is_implicit_global: bool=False,
 ) -> Tuple[irast.Set, Optional[irast.Set]]:
     param = get_global_param(glob, ctx=ctx)
     default = glob.get_default(ctx.env.schema)
@@ -1632,7 +1635,7 @@ def get_global_param_sets(
             name=param.name,
             required=param.required and not bool(default),
             typeref=param.ir_type,
-            is_global=True,
+            is_implicit_global=is_implicit_global,
         ),
         ctx=ctx,
     )
@@ -1644,7 +1647,7 @@ def get_global_param_sets(
                 typeref=typegen.type_to_typeref(
                     ctx.env.schema.get('std::bool', type=s_types.Type),
                     env=ctx.env),
-                is_global=True,
+                is_implicit_global=is_implicit_global,
             ),
             ctx=ctx,
         )
@@ -1652,3 +1655,150 @@ def get_global_param_sets(
         present_set = None
 
     return param_set, present_set
+
+
+def get_func_global_json_arg(
+    *, ctx: context.ContextLevel
+) -> irast.Set:
+    return ensure_set(
+        irast.Parameter(
+            name='__edb_json_globals__',
+            required=True,
+            typeref=typegen.type_to_typeref(
+                ctx.env.schema.get('std::json', type=s_types.Type),
+                env=ctx.env)
+        ),
+        ctx=ctx,
+    )
+
+
+def get_func_global_param_sets(
+    glob: s_globals.Global, *,
+    ctx: context.ContextLevel,
+) -> Tuple[qlast.Expr, Optional[qlast.Expr]]:
+    # NB: updates ctx anchors
+    param = get_global_param(glob, ctx=ctx)
+
+    with ctx.new() as subctx:
+        name = str(glob.get_name(ctx.env.schema))
+
+        glob_set = get_func_global_json_arg(ctx=ctx)
+        glob_anchor = qlast.FunctionCall(
+            func=('__std__', 'json_get'),
+            args=[
+                subctx.create_anchor(glob_set, 'a'),
+                qlast.StringConstant(value=str(name)),
+            ],
+        )
+
+        target = glob.get_target(ctx.env.schema)
+        assert target
+        type = typegen.type_to_ql_typeref(target, ctx=ctx)
+        main_set = qlast.TypeCast(expr=glob_anchor, type=type)
+
+        if param.has_present_arg:
+            present_set = qlast.UnaryOp(
+                op='EXISTS',
+                operand=glob_anchor,
+            )
+        else:
+            present_set = None
+
+    return main_set, present_set
+
+
+def get_globals_as_json(
+    globs: Sequence[s_globals.Global], *,
+    ctx: context.ContextLevel,
+    srcctx: Optional[parsing.ParserContext],
+) -> irast.Set:
+    """Build a json object that contains the values of `globs`
+
+    The format of the object is simply
+       {"<glob name 1>": <json>glob_val_1, ...},
+    where values that are unset or set to {} are represented as null,
+    with one catch:
+       for globals that need "present" arguments (that is, optional globals
+       with default values), we need to distinguish between the global
+       being unset and being set to {}. In that case, we represent being
+       set to {} with null and being unset by omitting it from the object.
+    """
+    # TODO: arrange to compute this once per query, in a CTE or some such?
+
+    objctx = ctx.env.options.schema_object_context
+    if globs and objctx in (s_constr.Constraint, s_indexes.Index):
+        typname = objctx.get_schema_class_displayname()
+        # XXX: or should we pass in empty globals, in this situation?
+        raise errors.SchemaDefinitionError(
+            f'functions that reference global variables cannot be called '
+            f'from {typname}',
+            context=srcctx)
+
+    null_expr = qlast.FunctionCall(
+        func=('__std__', 'to_json'),
+        args=[qlast.StringConstant(value="null")],
+    )
+
+    with ctx.new() as subctx:
+        subctx.anchors = subctx.anchors.copy()
+        normal_els = []
+        full_objs = []
+
+        json_type = qlast.TypeName(maintype=qlast.ObjectRef(
+            module='__std__', name='json'))
+
+        for glob in globs:
+            param, present = get_global_param_sets(
+                glob, is_implicit_global=True, ctx=ctx)
+            # The name of the global isn't syntactically a valid identifier
+            # for a namedtuple element but nobody can stop us!
+            name = str(glob.get_name(ctx.env.schema))
+
+            main_param = subctx.create_anchor(param, 'a')
+            tuple_el = qlast.TupleElement(
+                name=qlast.ObjectRef(name=name),
+                val=qlast.BinOp(
+                    op='??',
+                    left=qlast.TypeCast(expr=main_param, type=json_type),
+                    right=null_expr,
+                )
+            )
+
+            if not present:
+                # For normal globals, just stick the element in the tuple.
+                normal_els.append(tuple_el)
+            else:
+                # For globals with a present arg, we conditionally
+                # construct a one-element object if it is present
+                # and an empty object if it is not. These are
+                # be combined using ++.
+                present_param = subctx.create_anchor(present, 'a')
+                tup = qlast.TypeCast(
+                    expr=qlast.NamedTuple(elements=[tuple_el]),
+                    type=json_type,
+                )
+
+                full_objs.append(qlast.IfElse(
+                    condition=present_param,
+                    if_expr=tup,
+                    else_expr=qlast.FunctionCall(
+                        func=('__std__', 'to_json'),
+                        args=[qlast.StringConstant(value="{}")],
+                    )
+                ))
+
+        full_expr: qlast.Expr
+        if not normal_els and not full_objs:
+            full_expr = null_expr
+        else:
+
+            simple_obj = None
+            if normal_els or not full_objs:
+                simple_obj = qlast.TypeCast(
+                    expr=qlast.NamedTuple(elements=normal_els),
+                    type=json_type,
+                )
+
+            full_expr = astutils.extend_binop(simple_obj, *full_objs, op='++')
+
+        return dispatch.compile(full_expr, ctx=subctx)

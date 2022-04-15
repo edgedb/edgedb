@@ -5660,6 +5660,76 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ['test']
         )
 
+    async def test_edgeql_ddl_global_04(self):
+        # mostly the same as _03 but with functions
+        await self.con.execute("""
+            create global foo -> str;
+            create function gfoo() -> optional str using (global foo)
+        """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"functions that reference global variables cannot be called "
+            r"from constraint"
+        ):
+            await self.con.execute("""
+                create type X {
+                    create property foo -> str {
+                        create constraint expression on (
+                            __subject__ != gfoo())
+                    }
+                }
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"functions that reference global variables cannot be called "
+            r"from index"
+        ):
+            await self.con.execute("""
+                create type X {
+                    create index on (gfoo());
+                }
+            """)
+
+        await self.con.execute("""
+            create type X;
+        """)
+
+        # We can't set a default that uses a global when creating a new
+        # pointer, since it would need to run *now* and populate the data
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"functions that reference globals may not be used when "
+            r"converting/populating data in migrations"
+        ):
+            await self.con.execute("""
+                alter type X {
+                    create property foo -> str {
+                        set default := (gfoo());
+                    }
+                };
+            """)
+
+    async def test_edgeql_ddl_global_05(self):
+        await self.con.execute("""
+            create global foo -> str;
+            create function gfoo() -> optional str using ("test");
+            create function gbar() -> optional str using (gfoo());
+        """)
+        await self.con.execute("""
+            set global foo := "!!"
+        """)
+        # test that when we alter a function definition, functions
+        # that depend on it get updated
+        await self.con.execute("""
+            alter function gfoo() using (global foo)
+        """)
+        await self.assert_query_result(
+            r'''select gbar()''',
+            ["!!"],
+        )
+
     async def test_edgeql_ddl_property_computable_01(self):
         await self.con.execute('''\
             CREATE TYPE CompProp;

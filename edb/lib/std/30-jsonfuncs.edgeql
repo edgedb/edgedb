@@ -74,7 +74,6 @@ std::json_get(
     $$;
 };
 
-
 CREATE INFIX OPERATOR
 std::`=` (l: std::json, r: std::json) -> std::bool {
     CREATE ANNOTATION std::identifier := 'eq';

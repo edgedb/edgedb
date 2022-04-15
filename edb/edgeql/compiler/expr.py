@@ -479,7 +479,13 @@ def compile_GlobalExpr(
 
     default = glob.get_default(ctx.env.schema)
 
-    param_set, present_set = setgen.get_global_param_sets(glob, ctx=ctx)
+    param_set: qlast.Expr | irast.Set
+    present_set: qlast.Expr | irast.Set | None
+    if ctx.env.options.func_params is None:
+        param_set, present_set = setgen.get_global_param_sets(glob, ctx=ctx)
+    else:
+        param_set, present_set = setgen.get_func_global_param_sets(
+            glob, ctx=ctx)
 
     if default and not present_set:
         # If we have a default value and the global is required,
@@ -487,7 +493,7 @@ def compile_GlobalExpr(
         # the default.
         with ctx.new() as subctx:
             subctx.anchors = subctx.anchors.copy()
-            main_param = subctx.create_anchor(param_set, 'a')
+            main_param = subctx.maybe_create_anchor(param_set, 'glob')
             param_set = func.compile_operator(
                 expr, op_name='std::??',
                 qlargs=[main_param, default.qlast], ctx=subctx)
@@ -497,13 +503,15 @@ def compile_GlobalExpr(
         # the default.
         with ctx.new() as subctx:
             subctx.anchors = subctx.anchors.copy()
-            main_param = subctx.create_anchor(param_set, 'a')
+            main_param = subctx.maybe_create_anchor(param_set, 'glob')
 
-            present_param = subctx.create_anchor(present_set, 'p')
+            present_param = subctx.maybe_create_anchor(present_set, 'present')
 
             param_set = func.compile_operator(
                 expr, op_name='std::IF',
                 qlargs=[main_param, present_param, default.qlast], ctx=subctx)
+    elif not isinstance(param_set, irast.Set):
+        param_set = dispatch.compile(param_set, ctx=ctx)
 
     return param_set
 

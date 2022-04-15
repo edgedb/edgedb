@@ -534,6 +534,22 @@ def can_omit_optional_wrapper(
     if isinstance(ir_set.expr, irast.Parameter):
         return True
 
+    # Our base json casts should all preserve nullity (instead of
+    # turning it into an empty set), so allow passing through those
+    # cases. This is mainly an optimization for passing globals to
+    # functions, where we need to convert a bunch of optoinal params
+    # to json.
+    if (
+        isinstance(ir_set.expr, irast.TypeCast)
+        and irtyputils.is_scalar(ir_set.expr.expr.typeref)
+        and irtyputils.is_json(ir_set.expr.to_type)
+    ):
+        return can_omit_optional_wrapper(
+            ir_set.expr.expr,
+            relctx.get_scope(ir_set.expr.expr, ctx=ctx) or new_scope,
+            ctx=ctx,
+        )
+
     return bool(
         ir_set.expr is None
         and not ir_set.path_id.is_objtype_path()
@@ -2817,6 +2833,11 @@ def _compile_call_args(
     assert isinstance(expr, irast.Call)
 
     args = []
+
+    if isinstance(expr, irast.FunctionCall) and expr.global_args:
+        for glob_arg in expr.global_args:
+            arg_ref = dispatch.compile(glob_arg, ctx=ctx)
+            args.append(output.output_as_value(arg_ref, env=ctx.env))
 
     for ir_arg, typemod in zip(expr.args, expr.params_typemods):
         arg_ref = dispatch.compile(ir_arg.expr, ctx=ctx)

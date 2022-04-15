@@ -655,6 +655,9 @@ def __infer_func_call(
 
     ret_lower_bound, ret_upper_bound = _card_to_bounds(return_card)
 
+    for glob_arg in (ir.global_args or ()):
+        infer_cardinality(glob_arg, scope_tree=scope_tree, ctx=ctx)
+
     if ir.preserves_optionality or ir.preserves_upper_cardinality:
         # This is a generic aggregate function which preserves the
         # optionality and/or upper cardinality of its generic

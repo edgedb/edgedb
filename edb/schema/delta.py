@@ -1928,16 +1928,20 @@ class ObjectCommand(Command, Generic[so.Object_T]):
         self,
         schema: s_schema.Schema,
         context: CommandContext,
+        *,
         action: str,
         fixer: Optional[
             Callable[[s_schema.Schema, ObjectCommand[so.Object], str,
                       CommandContext, s_expr.Expression],
                      s_expr.Expression]
         ]=None,
+        extra_refs: Optional[Dict[so.Object, List[str]]]=None,
         metadata_only: bool=True,
     ) -> s_schema.Schema:
         scls = self.scls
         expr_refs = s_expr.get_expr_referrers(schema, scls)
+        if extra_refs:
+            expr_refs.update(extra_refs)
 
         if expr_refs:
             try:
