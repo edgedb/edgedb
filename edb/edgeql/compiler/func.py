@@ -248,6 +248,8 @@ def compile_FunctionCall(
     else:
         tuple_path_ids = []
 
+    global_args = get_globals(expr, matched_call, candidates=funcs, ctx=ctx)
+
     fcall = irast.FunctionCall(
         args=final_args,
         func_shortname=func_name,
@@ -273,6 +275,7 @@ def compile_FunctionCall(
         func_initial_value=func_initial_value,
         tuple_path_ids=tuple_path_ids,
         impl_is_strict=func.get_impl_is_strict(env.schema),
+        global_args=global_args,
     )
 
     ir_set = setgen.ensure_set(fcall, typehint=rtype, path_id=path_id, ctx=ctx)
@@ -731,6 +734,42 @@ def compile_func_call_args(
         kwargs[aname] = (arg_type, arg_ir)
 
     return args, kwargs
+
+
+def get_globals(
+    expr: qlast.FunctionCall,
+    bound_call: polyres.BoundCall,
+    candidates: Sequence[s_func.Function],
+    *, ctx: context.ContextLevel,
+) -> List[irast.Set]:
+    assert isinstance(bound_call.func, s_func.Function)
+
+    func_language = bound_call.func.get_language(ctx.env.schema)
+    if func_language is not qlast.Language.EdgeQL:
+        return []
+
+    schema = ctx.env.schema
+
+    globs = set()
+    if bound_call.func.get_params(schema).has_objects(schema):
+        # We look at all the candidates since it might be used in a
+        # subtype's overload.
+        # TODO: be careful and only do this in the needed cases
+        for func in candidates:
+            globs.update(set(func.get_used_globals(schema).objects(schema)))
+    else:
+        globs.update(bound_call.func.get_used_globals(schema).objects(schema))
+
+    if ctx.env.options.func_params is None:
+        glob_set = setgen.get_globals_as_json(
+            tuple(globs), ctx=ctx, srcctx=expr.context)
+    else:
+        # Make sure that we properly track the globals we use
+        for glob in globs:
+            setgen.get_global_param(glob, ctx=ctx)
+        glob_set = setgen.get_func_global_json_arg(ctx=ctx)
+
+    return [glob_set]
 
 
 def finalize_args(

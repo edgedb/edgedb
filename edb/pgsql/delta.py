@@ -839,6 +839,11 @@ class FunctionCommand(MetaCommand):
         has_inlined_defaults = func.has_inlined_defaults(schema)
 
         args = []
+
+        func_language = func.get_language(schema)
+        if func_language is ql_ast.Language.EdgeQL:
+            args.append(('__edb_json_globals__', ('jsonb'), None))
+
         if has_inlined_defaults:
             args.append(('__defaults_mask__', ('bytea',), None))
 
@@ -3949,7 +3954,10 @@ class PointerMetaCommand(MetaCommand):
         if params := irutils.get_parameters(ir):
             param = list(params)[0]
             if param.is_global:
-                problem = 'globals'
+                if param.is_implicit_global:
+                    problem = 'functions that reference globals'
+                else:
+                    problem = 'globals'
             else:
                 problem = 'parameters'
             raise errors.UnsupportedFeatureError(
@@ -3957,7 +3965,6 @@ class PointerMetaCommand(MetaCommand):
                 f'data in migrations',
                 context=self.source_context,
             )
-
         expr_is_nullable = conv_expr.cardinality.can_be_zero()
 
         refs = irutils.get_longest_paths(ir.expr)

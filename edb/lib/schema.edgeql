@@ -388,12 +388,23 @@ ALTER TYPE schema::ObjectType {
 };
 
 
+CREATE TYPE schema::Global EXTENDING schema::AnnotationSubject {
+    CREATE LINK target -> schema::Type;
+    CREATE PROPERTY required -> std::bool;
+    CREATE PROPERTY cardinality -> schema::Cardinality;
+    CREATE PROPERTY expr -> std::str;
+    CREATE PROPERTY default -> std::str;
+};
+
+
 CREATE TYPE schema::Function
     EXTENDING schema::CallableObject, schema::VolatilitySubject
 {
     CREATE PROPERTY preserves_optionality -> std::bool {
         SET default := false;
     };
+
+    CREATE MULTI LINK used_globals EXTENDING schema::ordered -> schema::Global;
 };
 
 
@@ -416,14 +427,6 @@ CREATE TYPE schema::Cast
     CREATE LINK to_type -> schema::Type;
     CREATE PROPERTY allow_implicit -> std::bool;
     CREATE PROPERTY allow_assignment -> std::bool;
-};
-
-CREATE TYPE schema::Global EXTENDING schema::AnnotationSubject {
-    CREATE LINK target -> schema::Type;
-    CREATE PROPERTY required -> std::bool;
-    CREATE PROPERTY cardinality -> schema::Cardinality;
-    CREATE PROPERTY expr -> std::str;
-    CREATE PROPERTY default -> std::str;
 };
 
 CREATE TYPE schema::Migration

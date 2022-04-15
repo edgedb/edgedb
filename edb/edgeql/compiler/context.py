@@ -735,6 +735,14 @@ class ContextLevel(compiler.ContextLevel):
             steps=[qlast.ObjectRef(name=alias)],
         )
 
+    def maybe_create_anchor(
+        self, ir: Union[irast.Set, qlast.Expr], name: str='v',
+    ) -> qlast.Expr:
+        if isinstance(ir, irast.Set):
+            return self.create_anchor(ir, name)
+        else:
+            return ir
+
 
 class CompilerContext(compiler.CompilerContext[ContextLevel]):
     ContextLevelClass = ContextLevel

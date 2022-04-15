@@ -660,7 +660,13 @@ class Parameter(ImmutableExpr):
     name: str
     required: bool
     typeref: TypeRef
-    is_global: bool = False
+    # None means not a global. Otherwise, whether this is an implicitly
+    # created global for a function call.
+    is_implicit_global: typing.Optional[bool] = None
+
+    @property
+    def is_global(self) -> bool:
+        return self.is_implicit_global is not None
 
 
 class TupleElement(ImmutableBase):
@@ -790,6 +796,9 @@ class FunctionCall(Call):
     # Set to the type of the variadic parameter of the bound function
     # (or None, if the function has no variadic parameters.)
     variadic_param_type: typing.Optional[TypeRef] = None
+
+    # Additional arguments representing global variables
+    global_args: typing.Optional[typing.List[Set]] = None
 
 
 class OperatorCall(Call):

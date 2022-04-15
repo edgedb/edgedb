@@ -40,6 +40,7 @@ from . import abc as s_abc
 from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
+from . import globals as s_globals
 from . import name as sn
 from . import objects as so
 from . import referencing
@@ -1168,6 +1169,11 @@ class Function(
     data_safe=True,
 ):
 
+    used_globals = so.SchemaField(
+        so.ObjectList[s_globals.Global],
+        coerce=True, compcoef=0.0, default=so.DEFAULT_CONSTRUCTOR,
+        inheritable=False)
+
     # A backend_name that is shared between all overloads of the same
     # function, to make them independent from the actual name.
     backend_name = so.SchemaField(
@@ -1586,6 +1592,10 @@ class FunctionCommand(
                             f'{str(ir.volatility).lower()}',
                     context=body.qlast.context,
                 )
+
+        globs = [schema.get(glob.global_name, type=s_globals.Global)
+                 for glob in ir.globals]
+        self.set_attribute_value('used_globals', globs)
 
         return expr
 
@@ -2019,6 +2029,9 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
         schema = super()._alter_begin(schema, context)
         scls = self.scls
 
+        if context.canonical:
+            return schema
+
         if self.has_attribute_value("fallback"):
             overloaded_funcs = schema.get_functions(
                 self.scls.get_shortname(schema), ())
@@ -2032,14 +2045,35 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                     f'function is allowed',
                     context=self.source_context)
 
-        # If volatility changed, propagate that to referring exprs
-        if not self.has_attribute_value("volatility"):
+        # If volatility or nativecode changed, propagate that to
+        # referring exprs
+        if not (
+            self.has_attribute_value("volatility")
+            or self.has_attribute_value("nativecode")
+        ):
             return schema
+
+        # We also need to propagate changes to "parent"
+        # overloads. This is mainly so they can get the proper global
+        # variables updated.
+        extra_refs: Optional[Dict[so.Object, List[str]]] = None
+        if (overloaded := scls.find_object_param_overloads(schema)):
+            ov_funcs, ov_idx = overloaded
+            cur_type = (
+                scls.get_params(schema).objects(schema)[ov_idx].
+                get_type(schema)
+            )
+            extra_refs = {
+                f: ['nativecode'] for f in ov_funcs
+                if (f_type := f.get_params(schema).objects(schema)[ov_idx].
+                    get_type(schema))
+                and f_type != cur_type and cur_type.issubclass(schema, f_type)
+            }
 
         vn = scls.get_verbosename(schema, with_parent=True)
         schema = self._propagate_if_expr_refs(
-            schema, context, metadata_only=False,
-            action=f'alter the volatility of {vn}')
+            schema, context, metadata_only=False, extra_refs=extra_refs,
+            action=f'alter the definition of {vn}')
 
         return schema
 

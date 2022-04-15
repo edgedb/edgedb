@@ -42,10 +42,24 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             create global cur_card -> str {
                 set default := 'Dragon'
             };
+            create global banned_cards -> array<str>;
 
             create alias CurUser := (
                 select User filter .name = global cur_user);
 
+            create function get_current_user() -> OPTIONAL User using (
+                select User filter .name = global cur_user
+            );
+
+            create function get_all_vars() -> tuple<str, str, str> using (
+                (global cur_user ?? "", global def_cur_user,
+                 global cur_card ?? "")
+            );
+
+            create function get_current_legal_cards() -> SET OF Card using (
+                select get_current_user().deck
+                filter .name not in array_unpack(global banned_cards)
+            );
         '''
     ]
 
@@ -143,4 +157,171 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             [
                 {'name': 'Bob'}
             ]
+        )
+
+    async def test_edgeql_globals_05(self):
+        await self.con.execute('''
+            set global cur_user := "Bob";
+        ''')
+
+        await self.assert_query_result(
+            r'''select get_current_user() { name }''',
+            [
+                {'name': 'Bob'}
+            ]
+        )
+
+    async def test_edgeql_globals_06(self):
+        await self.con.execute('''
+            set global cur_user := "Alice";
+        ''')
+        await self.con.execute('''
+            set global banned_cards := ["Dragon"];
+        ''')
+
+        await self.assert_query_result(
+            r'''select get_current_legal_cards().name''',
+            {"Imp", "Bog monster", "Giant turtle"},
+        )
+
+    async def test_edgeql_globals_07(self):
+        await self.con.execute('''
+            set global def_cur_user := "Bob";
+        ''')
+        await self.con.execute('''
+            set global cur_user := "Alice";
+        ''')
+        await self.con.execute('''
+            set global banned_cards := ["Dragon"];
+        ''')
+
+        await self.con.execute('''
+            alter function get_current_user() using (
+                select User filter .name = global def_cur_user
+            );
+        ''')
+
+        await self.assert_query_result(
+            r'''select get_current_legal_cards().name''',
+            {"Dwarf", "Bog monster", "Golem", "Giant turtle"}
+        )
+
+    async def test_edgeql_globals_08(self):
+        await self.assert_query_result(
+            r'''select get_all_vars()''',
+            [["", "Alice", "Dragon"]],
+        )
+
+        await self.con.execute('''
+            set global cur_card := "Imp";
+        ''')
+
+        await self.assert_query_result(
+            r'''select get_all_vars()''',
+            [["", "Alice", "Imp"]],
+        )
+
+        await self.con.execute('''
+            set global cur_user := "Bob";
+        ''')
+
+        await self.assert_query_result(
+            r'''select get_all_vars()''',
+            [["Bob", "Alice", "Imp"]],
+        )
+
+        await self.con.execute('''
+            set global def_cur_user := "Carol";
+        ''')
+
+        await self.assert_query_result(
+            r'''select get_all_vars()''',
+            [["Bob", "Carol", "Imp"]],
+        )
+
+        await self.con.execute('''
+            set global cur_card := {};
+        ''')
+
+        await self.assert_query_result(
+            r'''select get_all_vars()''',
+            [["Bob", "Carol", ""]],
+        )
+
+    async def test_edgeql_globals_09(self):
+        # Test that overloaded functions work
+        await self.con.execute('''
+            create function is_active(x: Named) -> bool using (false);
+            create function is_active(x: User) -> bool using (
+                select x.name ?= global cur_user);
+            create function is_active(x: Card) -> bool using (
+                select x.name not in array_unpack(global banned_cards));
+            create function is_active2(x: Named) -> bool using (is_active(x));
+        ''')
+
+        await self.con.execute('''
+            set global cur_user := "Bob";
+        ''')
+        await self.con.execute('''
+            set global banned_cards := ["Dragon"];
+        ''')
+
+        results = tb.bag([
+            {"active": True, "name": "Imp"},
+            {"active": False, "name": "Dragon"},
+            {"active": True, "name": "Bog monster"},
+            {"active": True, "name": "Giant turtle"},
+            {"active": True, "name": "Dwarf"},
+            {"active": True, "name": "Golem"},
+            {"active": True, "name": "Sprite"},
+            {"active": True, "name": "Giant eagle"},
+            {"active": False, "name": "Alice"},
+            {"active": True, "name": "Bob"},
+            {"active": False, "name": "Carol"},
+            {"active": False, "name": "Dave"},
+            {"active": True, "name": "Djinn"},
+            {"active": False, "name": "1st"},
+            {"active": False, "name": "2nd"},
+            {"active": False, "name": "3rd"},
+        ])
+
+        await self.assert_query_result(
+            r'''
+                select Named { name, required active := is_active(Named) }
+            ''',
+            results
+        )
+        await self.assert_query_result(
+            r'''
+                select Named { name, required active := is_active2(Named) }
+            ''',
+            results
+        )
+
+        # swap the function to use def_cur_user and make sure it still works
+        await self.con.execute('''
+            alter function is_active(x: User) using (
+                select x.name = global def_cur_user);
+        ''')
+
+        await self.con.execute('''
+            set global cur_user := "Carol";
+        ''')
+        await self.con.execute('''
+            set global def_cur_user := "Bob";
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                select Named { name, required active := is_active(Named) }
+            ''',
+            results
+        )
+
+        # An indirect call, to make sure it gets update that way
+        await self.assert_query_result(
+            r'''
+                select Named { name, required active := is_active2(Named) }
+            ''',
+            results
         )

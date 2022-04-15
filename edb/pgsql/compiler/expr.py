@@ -314,7 +314,10 @@ def _compile_call_args(
     expr: irast.Call, *,
     ctx: context.CompilerContextLevel
 ) -> List[pgast.BaseExpr]:
-    args = [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
+    args = []
+    if isinstance(expr, irast.FunctionCall) and expr.global_args:
+        args += [dispatch.compile(arg, ctx=ctx) for arg in expr.global_args]
+    args += [dispatch.compile(a.expr, ctx=ctx) for a in expr.args]
     for ref, ir_arg, typemod in zip(args, expr.args, expr.params_typemods):
         if (
             not expr.impl_is_strict
