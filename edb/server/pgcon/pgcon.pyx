@@ -987,6 +987,7 @@ cdef class PGConnection:
             bytes stmt_name
             bint store_stmt = 0
             bint parse = 1
+            bint state_sync = 0
 
             bint has_result = query.cardinality is not CARD_NO_RESULT
 
@@ -998,6 +999,13 @@ cdef class PGConnection:
 
         if state is not None:
             self._build_apply_state_req(state, out)
+            if query.tx_id:
+                # This query has START TRANSACTION in it.
+                # Restoring state must be performed in a separate
+                # implicit transaction (otherwise START TRANSACTION DEFERRABLE)
+                # would fail. Hence - inject a SYNC after a state restore step.
+                state_sync = 1
+                out.write_bytes(SYNC_MESSAGE)
 
         if use_prep_stmt:
             stmt_name = query.sql_hash
@@ -1068,6 +1076,12 @@ cdef class PGConnection:
         try:
             if state is not None:
                 await self._parse_apply_state_resp(state)
+                if state_sync:
+                    await self.wait_for_sync()
+                    # Every call to `wait_for_sync()` resets
+                    # `waiting_for_sync` to False; so set it back to True
+                    # as it was before this `try` block.
+                    self.waiting_for_sync = True
 
             buf = None
             while True:
