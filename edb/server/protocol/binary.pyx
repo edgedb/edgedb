@@ -1644,12 +1644,7 @@ cdef class EdgeConnection:
                 self.maybe_release_pgcon(conn)
             return
 
-        if (
-            not _dbview.in_tx()
-            and not query_unit.tx_id
-            and not query_unit.tx_commit
-            and not query_unit.tx_rollback
-        ):
+        if not _dbview.in_tx():
             orig_state = state = _dbview.serialize_state()
         new_types = None
         conn = await self.get_pgcon()
