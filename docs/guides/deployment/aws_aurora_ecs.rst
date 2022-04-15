@@ -1,8 +1,10 @@
 .. _ref_guide_deployment_aws_aurora_ecs:
 
-=====================
-On AWS Aurora and ECS
-=====================
+===
+AWS
+===
+
+:edb-alt-title:  Deploying EdgeDB to AWS
 
 In this guide we show how to deploy EdgeDB on AWS using Amazon Aurora and
 Elastic Container Service.
@@ -17,7 +19,6 @@ Prerequisites
 .. _awscli-install:
    https://docs.aws.amazon.com
    /cli/latest/userguide/getting-started-install.html
-
 
 Quick Install with CloudFormation
 =================================
@@ -515,7 +516,7 @@ Create an RDS Cluster
           --secret-string "$PASSWORD" \
       )"
 
-    $ DB_CLUSTER_IDENTIFIER="${NAME}-postgres-cluster" 
+    $ DB_CLUSTER_IDENTIFIER="${NAME}-postgres-cluster"
 
     $ DB_CLUSTER_ADDRESS="$( \
         aws rds create-db-cluster \

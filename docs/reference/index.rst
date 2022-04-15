@@ -20,7 +20,6 @@ Reference
     dump_format
     backend_ha
     configuration
-    dev
     protocol/index
     admin/index
 

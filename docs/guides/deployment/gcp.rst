@@ -1,8 +1,10 @@
 .. _ref_guide_deployment_gcp:
 
-=======================================
-On Google Cloud Platform and Kubernetes
-=======================================
+============
+Google Cloud
+============
+
+:edb-alt-title: Deploying EdgeDB to Google Cloud
 
 In this guide we show how to deploy EdgeDB on GCP using Cloud SQL and
 Kubernetes.

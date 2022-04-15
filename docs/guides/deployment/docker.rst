@@ -4,6 +4,8 @@
 Docker
 ======
 
+:edb-alt-title: Deploying EdgeDB with Docker
+
 When to use the `edgedb/edgedb`_ Docker image
 =============================================
 

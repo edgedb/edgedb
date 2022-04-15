@@ -1,9 +1,9 @@
 .. _ref_guide_deployment:
 
 
-================
-Deploying EdgeDB
-================
+==========
+Deployment
+==========
 
 .. toctree::
     :maxdepth: 1

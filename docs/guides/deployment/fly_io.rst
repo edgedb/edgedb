@@ -1,10 +1,12 @@
 .. _ref_guide_deployment_fly_io:
 
-=========
-On Fly.io
-=========
+======
+Fly.io
+======
 
-In this guide we show how to deploy EdgeDB to Fly.io using a Fly.io
+:edb-alt-title: Deploying EdgeDB to Fly.io
+
+In this guide we show how to deploy EdgeDB using a [Fly.io](https://fly.io)
 PostgreSQL cluster as the backend.
 
 
