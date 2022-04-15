@@ -1905,6 +1905,45 @@ class TestServerProto(tb.QueryTestCase):
                 CREATE DATABASE t1;
             ''')
 
+    async def test_server_proto_tx_21(self):
+        # Test that the Postgres connection state is restored
+        # in a separate implicit transaction from where a
+        # START TRANSACTION is called.
+        #
+        # If state is restored in the same implicit transaction
+        # (between SYNCs) with starting a new DEFERRABLE transaction
+        # Postgres would complain that the transaction has already
+        # been started and it's too late to change it to DEFERRABLE.
+        #
+        # This test starts a separate cluster with a limited backend
+        # connections pool size, sets some session config aiming to
+        # set it on all backend connections in the pool, and then tries
+        # to run a transaction on a brand new EdgeDB connection.
+        # When that connection gets a PG connection from the backend pool,
+        # it must restore the state to "default". If it fails to inject
+        # a "SYNC" between state reset and "START TRANSACTION" this
+        # test would fail.
+
+        async with tb.start_edgedb_server(max_allowed_connections=4) as sd:
+            for _ in range(8):
+                con1 = await sd.connect()
+                try:
+                    await con1.query('SET ALIAS foo AS MODULE default')
+                finally:
+                    await con1.aclose()
+
+            con2 = await sd.connect()
+            try:
+                await con2.query('START TRANSACTION READ ONLY, DEFERRABLE')
+            finally:
+                await con2.aclose()
+
+            con2 = await sd.connect()
+            try:
+                await con2.execute('START TRANSACTION READ ONLY, DEFERRABLE')
+            finally:
+                await con2.aclose()
+
 
 class TestServerProtoMigration(tb.QueryTestCase):
 
