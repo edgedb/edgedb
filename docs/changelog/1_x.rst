@@ -15,6 +15,68 @@ We would like to thank our community for reporting issues and
 contributing fixes. You are awesome! ❤️
 
 
+1.3
+===
+
+* Fix a multiplicity computation bug for tuples (:eql:gh:`#3632``)
+
+* Fix a multiplicity issue with doubly nested loops (:eql:gh:`#3636`)
+
+* Fix a bug involving computable shadowing (:eql:gh:`#3652`)
+
+* Make replace_prefix change PointerRefs to make types line up
+  (:eql:gh:`#3642`)
+
+* Search the source_rvar for materialized refs (:eql:gh:`#3657`)
+
+* Fix min/max when no source aspect is present (:eql:gh:`#3664`)
+
+* Don't create UnionTypeShell for views of unions (:eql:gh:`#3670`)
+
+* Fix a collection of json casting bugs (:eql:gh:`#3676`)
+
+* ha/stolon: Don't attempt to parse unsuccessful Consul responses
+  (:eql:gh:`#3698`)
+
+* ha/stolon: Add exponential backoff on unsuccessful Consul KV responses
+  (:eql:gh:`#3699`)
+
+* Make sure the sets in conflict clauses are have correct scope
+  (:eql:gh:`#3686`)
+
+* Produce an error instead of malformed SQL on ``insert foo { name }``
+  (:eql:gh:`#3687`)
+
+* Don't treat everything with a binding as STABLE (:eql:gh:`#3689`)
+
+* Check that index expressions are immutable (:eql:gh:`#3690`)
+
+* Fix fetching computed propery of UNION of same type (:eql:gh:`#3691`)
+
+* Fix references to ``__subject__`` in object constraints (:eql:gh:`#3695`)
+
+* Fix unions of DML overlays on reverse inline pointers (:eql:gh:`#3694`)
+
+* Fix some inheritance issues with renames and expr refs (:eql:gh:`#3696`)
+
+* Fix a card inference bug when dealing with computables (:eql:gh:`#3628`)
+
+* Fix a collection of nested shape path reference issues (:eql:gh:`#3700`)
+
+* Produce a proper error on ``describe`` of nonexisting function, module
+  (:eql:gh:`#3701`)
+
+* Pin the version of edgedb-cli that we use
+  (:eql:gh:`#3705`)
+
+* Fix ``[NOT] IN array_unpack(foo)`` when foo is empty (:eql:gh:`#3752`)
+
+* Inject ``SYNC`` between state restore & ``START TRANSACTION`` in
+  [execute] flow. (:eql:gh:`#3749``)
+
+* Fail if local Postgres cluster fails to start
+
+
 1.2
 ===
 
