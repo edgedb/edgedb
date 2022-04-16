@@ -279,7 +279,6 @@ def _validate_global_op(
     assert isinstance(glob, s_globals.Global)
 
     param_type = glob.get_target(ctx.env.schema)
-    assert param_type
 
     return SettingInfo(param_name=str(glob.get_name(ctx.env.schema)),
                        param_type=param_type,

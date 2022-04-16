@@ -1608,7 +1608,6 @@ def get_global_param(
         param_name = f'__edb_global_{len(ctx.env.query_globals)}__'
 
         target = glob.get_target(ctx.env.schema)
-        assert target
         target_typeref = typegen.type_to_typeref(target, env=ctx.env)
 
         ctx.env.query_globals[name] = irast.Global(
@@ -1692,7 +1691,6 @@ def get_func_global_param_sets(
         )
 
         target = glob.get_target(ctx.env.schema)
-        assert target
         type = typegen.type_to_ql_typeref(target, ctx=ctx)
         main_set = qlast.TypeCast(expr=glob_anchor, type=type)
 

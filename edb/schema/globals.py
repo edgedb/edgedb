@@ -47,7 +47,6 @@ class Global(
 
     target = so.SchemaField(
         s_types.Type,
-        default=None,
         compcoef=0.85,
         special_ddl_syntax=True,
     )
