@@ -389,7 +389,9 @@ ALTER TYPE schema::ObjectType {
 
 
 CREATE TYPE schema::Global EXTENDING schema::AnnotationSubject {
-    CREATE LINK target -> schema::Type;
+    CREATE REQUIRED LINK target -> schema::Type {
+        ON TARGET DELETE DEFERRED RESTRICT;
+    };
     CREATE PROPERTY required -> std::bool;
     CREATE PROPERTY cardinality -> schema::Cardinality;
     CREATE PROPERTY expr -> std::str;
