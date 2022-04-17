@@ -24,6 +24,6 @@ guide!
     relations
     link_properties
     migrations/index
-    introspection/index
+    introspection/index</ref_quickstart>
     cheatsheet/index
     deployment/index
