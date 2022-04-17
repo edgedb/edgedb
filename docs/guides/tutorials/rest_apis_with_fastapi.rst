@@ -510,7 +510,7 @@ Take a look at the ``app/events.py`` file to see how the ``PUT /events`` and ``D
 
 
 Browse the endpoints using the native OpenAPI docs
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 FastAPI automatically generates OpenAPI schema from the API endpoints and uses those to build the API docs. While the ``uvicorn`` server is running, go to your browser and head over to `http://localhost:5000/docs <http://locahost:5000/docs>`_. You should see an API navigator like this:
 
