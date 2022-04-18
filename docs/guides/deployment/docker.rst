@@ -107,26 +107,22 @@ With a ``docker-compose.yaml`` containing:
          EDGEDB_SERVER_SECURITY: insecure_dev_mode
        volumes:
          - "./dbschema:/dbschema"
-         - "./credentials:/root/.config/edgedb/credentials"
        ports:
-         - "5656"
-
-And ``credentials/local_dev.json`` containing:
-
-.. code-block:: json
-
-   {
-     "port": 5656,
-     "user": "edgedb",
-     "tls_security": "insecure"
-   }
+         - "5656:5656"
 
 Once there is a :ref:`schema <ref_datamodel_index>` in ``dbschema/`` a
 migration can be created with:
 
 .. code-block:: bash
 
-   $ docker-compose exec edgedb edgedb -I local_dev migration create
+   $ edgedb --tls-security=insecure -P 5656 migration create
+
+alternatively, if you don't have the EdgeDB CLI installed on your host
+machine, you can use the CLI bundled with the server container:
+
+.. code-block:: bash
+
+   $ docker-compose exec edgedb edgedb --tls-security=insecure migration create
 
 
 .. _ref_guides_deployment_docker_customization:
