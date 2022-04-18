@@ -514,22 +514,22 @@ Browse the endpoints using the native OpenAPI doc
 
 FastAPI automatically generates OpenAPI schema from the API endpoints and uses those to build the API docs. While the ``uvicorn`` server is running, go to your browser and head over to `http://localhost:5000/docs <http://locahost:5000/docs>`_. You should see an API navigator like this:
 
-.. image:: https://user-images.githubusercontent.com/30027932/163730215-ddd4d870-ec64-41bb-8284-6aaa73353bec.png
-  :width: 600
+.. image:: https://user-images.githubusercontent.com/30027932/163834402-1bb766d0-a2c4-4fdf-8b0b-9af2ff47a969.png
+  :width: 800
   :alt: FastAPI docs navigator
 
 The doc allows you to play with the APIs interactively. Let's try to make a request to the ``PUT /events``. Click on the API that you want to try and then click on the **Try it out** button. You can do it in the UI as follows:
 
 
-.. image:: https://user-images.githubusercontent.com/30027932/163731004-5222e785-7f3d-47d3-b33a-beaccdd65b74.png
-  :width: 600
+.. image:: https://user-images.githubusercontent.com/30027932/163834413-afc2303b-0d8f-46b6-a682-8e3b895042fc.png
+  :width: 800
   :align: center
   :alt: FastAPI docs PUT events API
 
 Clicking the **execute** button will make the request and return the following payload:
 
 
-.. image:: https://user-images.githubusercontent.com/30027932/163731082-aadbc873-25f4-4df6-bff6-a9f23b352a08.png
-  :width: 600
+.. image:: https://user-images.githubusercontent.com/30027932/163834421-203675b7-a1a0-47c6-b425-2ef1b3bfc9d8.png
+  :width: 800
   :align: center
   :alt: FastAPI docs PUT events API
