@@ -10540,6 +10540,12 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.migrate(r'''
             type Foo;
             type Bar;
+            alias X := "30";
+        ''')
+
+        await self.migrate(r'''
+            type Foo;
+            type Bar;
             alias X := (Bar { z := 10 }, 30);
         ''')
 
