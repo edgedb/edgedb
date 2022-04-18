@@ -588,7 +588,7 @@ class RebaseScalarType(
             self.validate_scalar_bases(schema, context)
 
             new_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
-            if old_concrete != new_concrete:
+            if old_concrete != new_concrete and not scls.is_view(schema):
                 raise errors.SchemaError(
                     f'cannot change concrete base of a scalar type')
 
