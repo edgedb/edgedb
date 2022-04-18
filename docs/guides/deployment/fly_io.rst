@@ -6,9 +6,8 @@ Fly.io
 
 :edb-alt-title: Deploying EdgeDB to Fly.io
 
-In this guide we show how to deploy EdgeDB using a [Fly.io](https://fly.io)
-PostgreSQL cluster as the backend.
-
+In this guide we show how to deploy EdgeDB using a `Fly.io <https://fly.io>`_
+PostgreSQL cluster as the backend. The deployment consists of two apps: one running Postgres and the other running EdgeDB.
 
 Prerequisites
 =============
@@ -23,8 +22,8 @@ Provision a Fly.io app for EdgeDB
 =================================
 
 Every Fly.io app must have a globally unique name, including service VMs like
-Postgres and EdgeDB.  Here we assume the name for the EdgeDB app is
-"myorg-edgedb", which you would need to replace with a name of your choosing.
+Postgres and EdgeDB. Pick a name and assign it to the ``EDB_APP`` Here we assume the name for the EdgeDB app is
+``myorg-edgedb``, which you would need to replace with a name of your choosing.
 
 .. code-block:: bash
 
@@ -32,20 +31,27 @@ Postgres and EdgeDB.  Here we assume the name for the EdgeDB app is
     $ flyctl apps create --name $EDB_APP
     New app created: myorg-edgedb
 
-Now, let's secure the pending EdgeDB instance with a strong password:
+
+Now let's use the ``read`` command to securely assign a value to the
+``PASSWORD`` environment variable.
 
 .. code-block:: bash
 
-    $ read -s EDGEDB_PASSWORD
-    <enter-password>
-    $ flyctl secrets set EDGEDB_PASSWORD="$EDGEDB_PASSWORD" -a $EDB_APP
+   $ echo -n "> " && read -s PASSWORD
+
+Now we can let's secure the pending EdgeDB instance with a strong password:
+
+.. code-block:: bash
+
+    $ flyctl secrets set PASSWORD="$PASSWORD" -a $EDB_APP
     Secrets are staged for the first deployment
 
-There are a couple more environment variables we need to set:
+Now let's assign this password to a Fly `secret <https://fly.io/docs/reference/secrets/>`_, plus a few other secrets that we'll need. There are a couple more environment variables we need to set:
 
 .. code-block:: bash
 
     $ flyctl secrets set \
+        PASSWORD="$PASSWORD" \
         EDGEDB_SERVER_BACKEND_DSN_ENV=DATABASE_URL \
         EDGEDB_SERVER_TLS_CERT_MODE=generate_self_signed \
         EDGEDB_SERVER_PORT=8080 \
@@ -171,7 +177,7 @@ running and then run ``edgedb instance link``:
 
 .. code-block:: bash
 
-   $ echo $EDGEDB_PASSWORD | edgedb instance link \
+   $ echo $PASSWORD | edgedb instance link \
         --trust-tls-cert \
         --host $EDB_APP.internal \
         --port 8080 \

@@ -97,10 +97,19 @@ CloudFormation option above.
 Create a VPC
 ------------
 
-.. code-block:: bash
+For convenience, assign a deployment name and region to environment variables.
+The ``NAME`` variable will be used as prefix for all the resources created
+throughout the process. It should only contain alphanumeric characters and
+hyphens.
 
-    $ read -p "Deployment Name: " NAME
+.. code-block::
+
+    $ NAME=your-deployment-name
     $ REGION=us-west-2
+
+Then create the VPC.
+
+.. code-block:: bash
 
     $ VPC_ID=$( \
         aws ec2 create-vpc \
@@ -503,9 +512,17 @@ Create an RDS Security Group
 Create an RDS Cluster
 ---------------------
 
+
+Use the ``read`` command to securely assign a value to the
+``PASSWORD`` environment variable.
+
 .. code-block:: bash
 
-    $ read -rsp "Password: " PASSWORD
+   $ echo -n "> " && read -s PASSWORD
+
+Then use this password to create an AWS `secret <https://aws.amazon.com/secrets-manager/>`_.
+
+.. code-block:: bash
 
     $ PASSWORD_ARN="$( \
         aws secretsmanager create-secret \

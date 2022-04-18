@@ -1,8 +1,6 @@
-============
-Contributing
-============
-
-:edb-alt-title: Contributing to EdgeDB
+=================
+Developing EdgeDB
+=================
 
 This section describes how to build EdgeDB locally, how to use its
 internal tools, and how to contribute to it.
@@ -18,7 +16,7 @@ Linux or macOS.  Windows is not currently supported.
 
 * GNU make version 3.80 or newer;
 * C compiler (GCC or clang);
-* Rust compiler and Cargo 1.53 or later;
+* Rust compiler and Cargo 1.59 or later;
 * autotools;
 * Python 3.10 dev package;
 * Bison 1.875 or later;
@@ -26,7 +24,9 @@ Linux or macOS.  Windows is not currently supported.
 * Perl 5.8.3 or later;
 * Zlib (zlibg1-dev on Ubuntu);
 * Readline dev package;
-* Libuuid dev package.
+* Libuuid dev package;
+* nodejs 14 or later;
+* yarn 1.
 
 .. zlib, readline and libuuid are required to build postgres. Should be removed
    when custom postgres build is no longer needed.
@@ -53,11 +53,11 @@ Python "venv" with all dependencies and commands installed into it.
 
       $ git clone --recursive https://github.com/edgedb/edgedb.git
 
-#. Create a Python 3.9 virtual environment and activate it:
+#. Create a Python 3.10 virtual environment and activate it:
 
    .. code-block:: bash
 
-      $ python3.9 -m venv edgedb-dev
+      $ python3.10 -m venv edgedb-dev
       $ source edgedb-dev/bin/activate
 
 #. Build edgedb (the build will take a while):
