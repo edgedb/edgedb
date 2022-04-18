@@ -1,10 +1,10 @@
 .. _ref_guide_rest_apis_with_fastapi:
 
-=====================================
-Build REST APIs with EdgeDB & FastAPI
-=====================================
+===============================
+REST APIs with EdgeDB & FastAPI
+===============================
 
-EdgeDB can help you quickly build REST APIs in Python without having to deal with the rigmarole of using ORM libraries to effectively communicate with your database. Here, we'll be using `FastAPI <https://fastapi.tiangolo.com/>`_ to expose the API endpoints and EdgeDB to store the content.
+EdgeDB can help you quickly build REST APIs in Python without getting into the rigmarole of using ORM libraries to handle your data effectively. Here, we'll be using `FastAPI <https://fastapi.tiangolo.com/>`_ to expose the API endpoints and EdgeDB to store the content.
 
 We'll build a simple event management system where you'll be able to fetch, create, update, and delete *event hosts* and *events* via RESTful API endpoints.
 
@@ -509,8 +509,8 @@ That'll return:
 Take a look at the ``app/events.py`` file to see how the ``PUT /events`` and ``DELETE /events`` endpoints are constructed.
 
 
-Browse the endpoints using the native OpenAPI docs
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Browse the endpoints using the native OpenAPI doc
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 FastAPI automatically generates OpenAPI schema from the API endpoints and uses those to build the API docs. While the ``uvicorn`` server is running, go to your browser and head over to `http://localhost:5000/docs <http://locahost:5000/docs>`_. You should see an API navigator like this:
 
