@@ -1945,13 +1945,7 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         self,
         schema_text: str,
         multi_module: bool = False,
-        *,
-        base_schema: Optional[s_schema.Schema] = None,
     ) -> s_schema.Schema:
-
-        if base_schema is None:
-            base_schema = self.schema
-
         if multi_module:
             migration_text = f'''
                 START MIGRATION TO {{
@@ -2046,14 +2040,6 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
         # different evolution branches.
         base_schema = self.load_schema('')
 
-        cur_schema = base_schema
-        for migration in migrations:
-            # Validate that each migration step is self-consistent.
-            cur_schema = self._assert_migration_consistency(
-                migration,
-                base_schema=cur_schema,
-            )
-
         # Evolve a schema in a series of migrations.
         multi_migration = base_schema
         for i, state in enumerate(migrations):
@@ -2069,7 +2055,8 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             '''
 
             # Jump to the current schema state directly from base.
-            cur_state = self.run_ddl(base_schema, mig_text, 'test')
+            cur_state = self._assert_migration_consistency(state)
+
             # Perform incremental migration.
             multi_migration = self.run_ddl(multi_migration, mig_text, 'test')
 
