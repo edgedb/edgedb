@@ -40,6 +40,7 @@ from . import objtypes as s_objtypes
 from . import ordering as s_ordering
 from . import pseudo as s_pseudo
 from . import schema as s_schema
+from . import types as s_types
 from . import version as s_ver
 
 
@@ -294,7 +295,13 @@ def delta_schemas(
                         obj: so.Object,
                     ) -> bool:
                         assert isinstance(obj, so.DerivableObject)
-                        return obj.generic(schema)
+                        return (
+                            obj.generic(schema)
+                            or (
+                                isinstance(obj, s_types.Type)
+                                and obj.get_from_global(schema)
+                            )
+                        )
                     filters.append(_only_generic)
                 incl_modules = included_modules
 

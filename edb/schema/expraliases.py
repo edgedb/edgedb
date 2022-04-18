@@ -67,47 +67,74 @@ class AliasCommandContext(
     pass
 
 
-class AliasCommand(
-    sd.QualifiedObjectCommand[Alias],
-    context_class=AliasCommandContext,
+class AliasLikeCommand(
+    sd.QualifiedObjectCommand[so.QualifiedObject_T],
 ):
+    """Common code for "alias-likes": that is, aliases and globals
+
+    Aliases and computed globals behave extremely similarly, except
+    for a few annoying differences that need to be handled in the
+    subclasses with appropriate overloads:
+      * In aliases, the type field name is 'type', while for computed
+        globals it is 'target'. This annoying discrepency is because
+        computed globals also share a bunch of code paths with pointers,
+        which use 'target', and so there needed to be a mismatch on one
+        of the sides. Handled by overloading TYPE_FIELD_NAME.
+      * For aliases, it is the generated view type that gets the real
+        name and the alias that gets the mangled one. For globals,
+        the real global needs to get the real name, so that the name
+        does not depend on whether it is computed or not.
+        This is handled by overloading _get_alias_name, which computes
+        the name of the alias type (and _classname_from_ast).
+      * Also aliases *always* are alias-like, while globals only are when
+        computed. This is handled by overloading _is_alias.
+
+    Computed globals also have explicit 'required' and 'cardinality' fields,
+    which are managed explicitly in the globals code.
+    """
+
+    TYPE_FIELD_NAME = ''
 
     @classmethod
-    def _classname_from_ast(cls,
-                            schema: s_schema.Schema,
-                            astnode: qlast.NamedDDL,
-                            context: sd.CommandContext
-                            ) -> sn.QualName:
-        type_name = super()._classname_from_ast(schema, astnode, context)
+    def _get_alias_name(cls, type_name: sn.QualName) -> sn.QualName:
+        raise NotImplementedError
+
+    @classmethod
+    def _is_alias(
+            cls, obj: so.QualifiedObject_T, schema: s_schema.Schema) -> bool:
+        raise NotImplementedError
+
+    # Generic code
+
+    def _delete_alias_type(
+        self,
+        scls: so.QualifiedObject_T,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> sd.DeleteObject[s_types.Type]:
+        alias_type = self.get_type(scls, schema)
+        drop_type = alias_type.init_delta_command(
+            schema, sd.DeleteObject)
+        subcmds = drop_type._canonicalize(schema, context, alias_type)
+        drop_type.update(subcmds)
+        return drop_type
+
+    @classmethod
+    def get_type(
+        cls, obj: so.QualifiedObject_T, schema: s_schema.Schema
+    ) -> s_types.Type:
+        obj = obj.get_field_value(schema, cls.TYPE_FIELD_NAME)
+        assert isinstance(obj, s_types.Type)
+        return obj
+
+    @classmethod
+    def _mangle_name(cls, type_name: sn.QualName) -> sn.QualName:
         base_name = type_name
-        quals = ('alias',)
+        quals = (cls.get_schema_metaclass().get_schema_class_displayname(),)
         pnn = sn.get_specialized_name(base_name, str(type_name), *quals)
         name = sn.QualName(name=pnn, module=type_name.module)
         assert isinstance(name, sn.QualName)
         return name
-
-    def compile_expr_field(
-        self,
-        schema: s_schema.Schema,
-        context: sd.CommandContext,
-        field: so.Field[Any],
-        value: s_expr.Expression,
-        track_schema_ref_exprs: bool=False,
-    ) -> s_expr.Expression:
-        assert field.name == 'expr'
-        classname = sn.shortname_from_fullname(self.classname)
-        assert isinstance(classname, sn.QualName), \
-            "expected qualified name"
-        return type(value).compiled(
-            value,
-            schema=schema,
-            options=qlcompiler.CompilerOptions(
-                derived_target_module=classname.module,
-                modaliases=context.modaliases,
-                in_ddl_context_name='alias definition',
-                track_schema_ref_exprs=track_schema_ref_exprs,
-            ),
-        )
 
     def get_dummy_expr_field_value(
         self,
@@ -203,32 +230,80 @@ class AliasCommand(
             prev_expr = s_expr.Expression.from_ir(
                 prev_expr, prev_ir, schema=schema)
 
+        is_global = (self.get_schema_metaclass().
+                     get_schema_class_displayname() == 'global')
         cmd, type_shell = define_alias(
             expr=expr,
             prev_expr=prev_expr,
             classname=classname,
             schema=schema,
+            is_global=is_global,
             parser_context=parser_context,
         )
 
         return cmd, type_shell, expr
 
 
-class CreateAlias(
-    AliasCommand,
-    sd.CreateObject[Alias],
+class AliasCommand(
+    AliasLikeCommand[Alias],
+    context_class=AliasCommandContext,
 ):
-    astnode = qlast.CreateAlias
+    TYPE_FIELD_NAME = 'type'
 
+    @classmethod
+    def _get_alias_name(cls, type_name: sn.QualName) -> sn.QualName:
+        alias_name = sn.shortname_from_fullname(type_name)
+        assert isinstance(alias_name, sn.QualName), "expected qualified name"
+        return alias_name
+
+    @classmethod
+    def _is_alias(cls, obj: Alias, schema: s_schema.Schema) -> bool:
+        return True
+
+    @classmethod
+    def _classname_from_ast(cls,
+                            schema: s_schema.Schema,
+                            astnode: qlast.NamedDDL,
+                            context: sd.CommandContext
+                            ) -> sn.QualName:
+        type_name = super()._classname_from_ast(schema, astnode, context)
+        return cls._mangle_name(type_name)
+
+    def compile_expr_field(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        field: so.Field[Any],
+        value: s_expr.Expression,
+        track_schema_ref_exprs: bool=False,
+    ) -> s_expr.Expression:
+        assert field.name == 'expr'
+        classname = sn.shortname_from_fullname(self.classname)
+        assert isinstance(classname, sn.QualName), \
+            "expected qualified name"
+        return type(value).compiled(
+            value,
+            schema=schema,
+            options=qlcompiler.CompilerOptions(
+                derived_target_module=classname.module,
+                modaliases=context.modaliases,
+                in_ddl_context_name='alias definition',
+                track_schema_ref_exprs=track_schema_ref_exprs,
+            ),
+        )
+
+
+class CreateAliasLike(
+    AliasLikeCommand[so.QualifiedObject_T],
+    sd.CreateObject[so.QualifiedObject_T],
+):
     def _create_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not context.canonical:
-            alias_name = sn.shortname_from_fullname(self.classname)
-            assert isinstance(alias_name, sn.QualName), \
-                "expected qualified name"
+        if not context.canonical and self.get_attribute_value('expr'):
+            alias_name = self._get_alias_name(self.classname)
             type_cmd, type_shell, expr = self._handle_alias_op(
                 expr=self.get_attribute_value('expr'),
                 classname=alias_name,
@@ -237,28 +312,34 @@ class CreateAlias(
                 parser_context=self.get_attribute_source_context('expr'),
             )
             self.add_prerequisite(type_cmd)
+            self.set_attribute_value('expr', expr)
             self.set_attribute_value(
-                'expr',
-                expr,
-            )
-            self.set_attribute_value(
-                'type',
-                type_shell,
-            )
+                self.TYPE_FIELD_NAME, type_shell, computed=True)
 
         return super()._create_begin(schema, context)
 
 
-class RenameAlias(AliasCommand, sd.RenameObject[Alias]):
+class CreateAlias(
+    CreateAliasLike[Alias],
+    AliasCommand,
+):
+    astnode = qlast.CreateAlias
+
+
+class RenameAliasLike(
+    AliasLikeCommand[so.QualifiedObject_T],
+    sd.RenameObject[so.QualifiedObject_T],
+):
 
     def _alter_begin(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        if not context.canonical:
-            new_alias_name = sn.shortname_from_fullname(self.new_name)
-            alias_type = self.scls.get_type(schema)
+        if not context.canonical and self._is_alias(self.scls, schema):
+            assert isinstance(self.new_name, sn.QualName)
+            new_alias_name = self._get_alias_name(self.new_name)
+            alias_type = self.get_type(self.scls, schema)
             alter_cmd = alias_type.init_delta_command(schema, sd.AlterObject)
             rename_cmd = alias_type.init_delta_command(
                 schema,
@@ -271,12 +352,14 @@ class RenameAlias(AliasCommand, sd.RenameObject[Alias]):
         return super()._alter_begin(schema, context)
 
 
-class AlterAlias(
-    AliasCommand,
-    sd.AlterObject[Alias],
-):
-    astnode = qlast.AlterAlias
+class RenameAlias(RenameAliasLike[Alias], AliasCommand):
+    pass
 
+
+class AlterAliasLike(
+    AliasLikeCommand[so.QualifiedObject_T],
+    sd.AlterObject[so.QualifiedObject_T],
+):
     def _alter_begin(
         self,
         schema: s_schema.Schema,
@@ -284,29 +367,22 @@ class AlterAlias(
     ) -> s_schema.Schema:
         if not context.canonical and not self.metadata_only:
             expr = self.get_attribute_value('expr')
+            is_alias = self._is_alias(self.scls, schema)
             if expr:
-                alias_name = sn.shortname_from_fullname(self.classname)
-                assert isinstance(alias_name, sn.QualName), \
-                    "expected qualified name"
+                alias_name = self._get_alias_name(self.classname)
                 type_cmd, type_shell, expr = self._handle_alias_op(
                     expr=expr,
                     classname=alias_name,
                     schema=schema,
                     context=context,
-                    is_alter=True,
+                    is_alter=is_alias,
                     parser_context=self.get_attribute_source_context('expr'),
                 )
                 self.add_prerequisite(type_cmd)
 
+                self.set_attribute_value('expr', expr)
                 self.set_attribute_value(
-                    'expr',
-                    expr,
-                )
-
-                self.set_attribute_value(
-                    'type',
-                    type_shell,
-                )
+                    self.TYPE_FIELD_NAME, type_shell, computed=True)
 
                 # Clear out the type field in the schema *now*,
                 # before we call the parent _alter_begin, which will
@@ -315,31 +391,42 @@ class AlterAlias(
                 # the type has to be done as a prereq, since it needs
                 # to precede the creation of the replacement type
                 # with the same name.)
-                schema = schema.unset_obj_field(self.scls, 'type')
+                schema = schema.unset_obj_field(
+                    self.scls, self.TYPE_FIELD_NAME)
+            elif not expr and is_alias and self.has_attribute_value('expr'):
+                self.add(self._delete_alias_type(self.scls, schema, context))
 
         return super()._alter_begin(schema, context)
 
 
-class DeleteAlias(
+class AlterAlias(
+    AlterAliasLike[Alias],
     AliasCommand,
-    sd.DeleteObject[Alias],
 ):
-    astnode = qlast.DropAlias
+    astnode = qlast.AlterAlias
 
+
+class DeleteAliasLike(
+    AliasLikeCommand[so.QualifiedObject_T],
+    sd.DeleteObject[so.QualifiedObject_T],
+):
     def _canonicalize(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
-        scls: Alias,
+        scls: so.QualifiedObject_T,
     ) -> List[sd.Command]:
         ops = super()._canonicalize(schema, context, scls)
-        alias_type = self.scls.get_type(schema)
-        drop_type = alias_type.init_delta_command(
-            schema, sd.DeleteObject)
-        subcmds = drop_type._canonicalize(schema, context, alias_type)
-        drop_type.update(subcmds)
-        ops.append(drop_type)
+        if self._is_alias(scls, schema):
+            ops.append(self._delete_alias_type(scls, schema, context))
         return ops
+
+
+class DeleteAlias(
+    DeleteAliasLike[Alias],
+    AliasCommand,
+):
+    astnode = qlast.DropAlias
 
 
 def compile_alias_expr(
@@ -393,6 +480,7 @@ def define_alias(
     prev_expr: Optional[s_expr.Expression] = None,
     classname: sn.QualName,
     schema: s_schema.Schema,
+    is_global: bool,
     parser_context: Optional[parsing.ParserContext] = None,
 ) -> Tuple[sd.Command, s_types.TypeShell[s_types.Type]]:
     from edb.ir import ast as irast
@@ -415,6 +503,8 @@ def define_alias(
         elif prev_expr is not None or not schema.has_object(vt.id):
             new_schema = vt.set_field_value(
                 new_schema, 'alias_is_persistent', True)
+            new_schema = vt.set_field_value(
+                new_schema, 'from_global', is_global)
 
             expr_aliases.append(vt)
 
