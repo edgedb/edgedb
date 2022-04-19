@@ -23,7 +23,7 @@ on-screen instructions:
 
 .. code-block:: bash
 
-    $ curl --proto '=https' -sSf1 https://sh.edgedb.com | sh
+    $ curl --proto '=https' --tlsv1.2 -sSf https://sh.edgedb.com | sh
 
 For Windows, the installation script is:
 
@@ -89,7 +89,6 @@ tool:
 .. code-block:: bash
 
    $ edgedb instance destroy <instance_name>
-   $ edgedb server uninstall --version=<ver>
 
 To list instances and server versions use the following commands
 respectively:
