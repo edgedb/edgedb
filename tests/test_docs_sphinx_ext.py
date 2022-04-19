@@ -437,18 +437,15 @@ class TestEqlConstraint(unittest.TestCase, BaseDomainTest):
         out = self.build(src, format='xml')
         x = requests_xml.XML(xml=out)
 
-        constr = x.xpath('//desc[@desctype="constraint"]')
-        self.assertEqual(len(constr), 1)
-        constr = constr[0]
-        sig = constr.xpath('//desc_signature')[0]
+        sig = x.xpath('//desc[@desctype="constraint"]/desc_signature')[0]
 
         self.assertEqual(
-            sig.xpath('@eql-signature'),
-            ['std::len_value on (len(<std::str>__subject__))'])
+            sig.attrs['eql-signature'],
+            'std::len_value on (len(<std::str>__subject__))')
 
         self.assertEqual(
-            sig.xpath('@eql-subjexpr'),
-            ['len(<std::str>__subject__)'])
+            sig.attrs['eql-subjexpr'],
+            'len(<std::str>__subject__)')
 
 
 @unittest.skipIf(requests_xml is None, 'requests-xml package is not installed')
