@@ -91,12 +91,23 @@ Updating
   filter .name = "Bob"
   set {
     friends += (
-      select detached Person {
+      select .friends {
         @strength := 3.7
       }
       filter .name = "Alice"
     )
   };
+
+The example updates the ``@strength`` property of Bob's friends link to 
+Alice to 3.7.
+
+In the context of multi links the += operator works like an an insert/update 
+operator.
+
+To update one or more links in a multi link, you can select from the current
+linked objects, as the example does. Use a ``detached`` selection if you 
+want to insert/update a wider selection of linked objects instead. 
+
 
 Querying
 --------
