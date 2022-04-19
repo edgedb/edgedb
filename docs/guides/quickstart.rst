@@ -78,8 +78,8 @@ up your first EdgeDB instance. You should see something like this:
   > Y
 
   Specify the name of EdgeDB instance to use with this
-  project [default: quickstart]:
-  > quickstart
+  project [default: edgedb]:
+  > edgedb
 
   How would you like to run EdgeDB for this project?
   1. Local (native package)
@@ -89,8 +89,8 @@ up your first EdgeDB instance. You should see something like this:
 
   Checking EdgeDB versions...
   Specify the version of EdgeDB to use with this project
-  [default: 1.0-rc.4]:
-  > 1.0-rc.4
+  [default: 1.2]:
+  > 1.2
   ┌─────────────────────┬───────────────────────────────────────────────┐
   │ Project directory   │ ~/path/to/quickstart                          │
   │ Project config      │ ~/path/to/quickstart/edgedb.toml              │
