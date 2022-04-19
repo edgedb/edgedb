@@ -34,6 +34,7 @@ extensions = [
     'edb.tools.docs',
     'sphinxcontrib.asyncio',
     'sphinx.ext.intersphinx',
+    'sphinx_code_tabs',
 ]
 
 intersphinx_mapping = {'python': ('https://docs.python.org/3', None)}
