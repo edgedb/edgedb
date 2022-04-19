@@ -71,6 +71,7 @@ DOCS_DEPS = [
     'Pygments~=2.10.0',
     'Sphinx~=4.2.0',
     'sphinxcontrib-asyncio~=0.3.0',
+    'sphinx-code-tabs',
 ]
 
 TEST_DEPS = [
