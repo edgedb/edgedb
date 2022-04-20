@@ -38,16 +38,36 @@ from . import properties
 from . import name as sn
 from . import objects as so
 from . import pointers
+from . import policies as s_policies
 from . import schema as s_schema
 from . import sources
 from . import types as s_types
 from . import utils
 
 
+class AccessPolicySubject(so.Object):
+    # AccessPolicySubject being its own class (instead of inlined into
+    # ObjectType) is mostly done as a hack, to allow us to ensure that
+    # access_policies comes later in the refdicts list than pointers
+    # does, so that pointers are always created before access policies
+    # when creating an inherited type.
+    access_policies_refs = so.RefDict(
+        attr='access_policies',
+        requires_explicit_overloaded=True,
+        backref_attr='subject',
+        ref_cls=s_policies.AccessPolicy)
+
+    access_policies = so.SchemaField(
+        so.ObjectIndexByUnqualifiedName[s_policies.AccessPolicy],
+        inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
+        default=so.DEFAULT_CONSTRUCTOR)
+
+
 class ObjectType(
     s_types.InheritingType,
     sources.Source,
     constraints.ConsistencySubject,
+    AccessPolicySubject,
     s_abc.ObjectType,
     qlkind=qltypes.SchemaObjectClass.TYPE,
     data_safe=False,
