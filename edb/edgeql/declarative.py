@@ -754,6 +754,26 @@ def trace_ConcreteConstraint(
 
 
 @trace_dependencies.register
+def trace_AccessPolicy(
+    node: qlast.CreateAccessPolicy,
+    *,
+    ctx: DepTraceContext,
+) -> None:
+    exprs = [ExprDependency(expr=node.expr)]
+    if node.condition:
+        exprs.append(ExprDependency(expr=node.condition))
+
+    _register_item(
+        node,
+        deps=set(),
+        hard_dep_exprs=exprs,
+        source=ctx.depstack[-1][1],
+        subject=ctx.depstack[-1][1],
+        ctx=ctx,
+    )
+
+
+@trace_dependencies.register
 def trace_Index(
     node: qlast.CreateIndex,
     *,
@@ -1038,16 +1058,19 @@ def _register_item(
                         for vdep in vdeps:
                             deps |= ctx.defdeps.get(vdep, set())
 
-                    elif (isinstance(decl, qlast.CreateConcretePointer)
-                          and isinstance(decl.target, qlast.Expr)):
-                        # If the declaration is a computable
-                        # pointer, we need to include the possible
-                        # constraints for every dependency that it
-                        # lists. This is so that any other
-                        # links/props that this computable uses
-                        # has all of their constraints defined
-                        # before the computable and the
-                        # cardinality can be inferred correctly.
+                    elif (
+                        isinstance(decl, (
+                            qlast.CreateConcretePointer, qlast.CreateGlobal))
+                        and isinstance(decl.target, qlast.Expr)
+                    ) or isinstance(decl, qlast.CreateAccessPolicy):
+                        # If the declaration is a computable pointer/global
+                        # or access policy, we need to include the
+                        # possible constraints for every dependency
+                        # that it lists. This is so that any other
+                        # links/props that this computable uses has
+                        # all of their constraints defined before the
+                        # computable and the cardinality can be
+                        # inferred correctly.
                         cdeps = {dep} | ctx.ancestors.get(dep, set())
                         for cdep in cdeps:
                             deps |= ctx.constraints.get(cdep, set())

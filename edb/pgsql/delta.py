@@ -46,6 +46,7 @@ from edb.schema import functions as s_funcs
 from edb.schema import globals as s_globals
 from edb.schema import indexes as s_indexes
 from edb.schema import links as s_links
+from edb.schema import policies as s_policies
 from edb.schema import properties as s_props
 from edb.schema import migrations as s_migrations
 from edb.schema import modules as s_mod
@@ -679,6 +680,45 @@ class AlterGlobal(
 class DeleteGlobal(
     GlobalCommand,
     adapts=s_globals.DeleteGlobal,
+):
+    pass
+
+
+class AccessPolicyCommand(MetaCommand):
+    pass
+
+
+class CreateAccessPolicy(
+    AccessPolicyCommand,
+    adapts=s_policies.CreateAccessPolicy,
+):
+    pass
+
+
+class RenameAccessPolicy(
+    AccessPolicyCommand,
+    adapts=s_policies.RenameAccessPolicy,
+):
+    pass
+
+
+class RebaseAccessPolicy(
+    AccessPolicyCommand,
+    adapts=s_policies.RebaseAccessPolicy,
+):
+    pass
+
+
+class AlterAccessPolicy(
+    AccessPolicyCommand,
+    adapts=s_policies.AlterAccessPolicy,
+):
+    pass
+
+
+class DeleteAccessPolicy(
+    AccessPolicyCommand,
+    adapts=s_policies.DeleteAccessPolicy,
 ):
     pass
 

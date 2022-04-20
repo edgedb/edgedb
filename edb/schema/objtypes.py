@@ -443,7 +443,8 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext[ObjectType],
                                constraints.ConsistencySubjectCommandContext,
                                s_anno.AnnotationSubjectCommandContext,
                                links.LinkSourceCommandContext,
-                               properties.PropertySourceContext):
+                               properties.PropertySourceContext,
+                               s_policies.AccessPolicySourceCommandContext):
     pass
 
 

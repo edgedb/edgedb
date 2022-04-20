@@ -5445,6 +5445,115 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             []
         )
 
+    async def test_edgeql_ddl_policies_01(self):
+        await self.con.execute(r"""
+            create required global filtering -> bool { set default := false };
+            create global cur -> str;
+
+            create type User {
+                create required property name -> str;
+                create access policy all_on allow all using (true);
+                create access policy filtering
+                    when (global filtering)
+                    deny read write using (.name ?!= global cur);
+            };
+            create type Bot extending User;
+        """)
+
+        await self.assert_query_result(
+            '''
+                select schema::AccessPolicy {
+                    name, condition, expr, action, access_kind,
+                    sname := .subject.name, root := not exists .bases };
+
+            ''',
+            tb.bag([
+                {
+                    "access_kind": ["All"],
+                    "action": "Allow",
+                    "condition": None,
+                    "expr": "true",
+                    "name": "all_on",
+                    "sname": "default::User",
+                    "root": True,
+                },
+                {
+                    "access_kind": ["Read", "Write"],
+                    "action": "Deny",
+                    "condition": "global default::filtering",
+                    "expr": "(.name ?!= global default::cur)",
+                    "name": "filtering",
+                    "sname": "default::User",
+                    "root": True,
+                },
+                {
+                    "access_kind": ["All"],
+                    "action": "Allow",
+                    "condition": None,
+                    "expr": "true",
+                    "name": "all_on",
+                    "sname": "default::Bot",
+                    "root": False,
+                },
+                {
+                    "access_kind": ["Read", "Write"],
+                    "action": "Deny",
+                    "condition": "global default::filtering",
+                    "expr": "(.name ?!= global default::cur)",
+                    "name": "filtering",
+                    "sname": "default::Bot",
+                    "root": False,
+                },
+            ])
+        )
+
+    async def test_edgeql_ddl_policies_02(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"when expression.* is of invalid type",
+        ):
+            await self.con.execute("""
+                create type X {
+                    create access policy test
+                        when (1)
+                        allow all using (true);
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"using expression.* is of invalid type",
+        ):
+            await self.con.execute("""
+                create type X {
+                    create access policy test
+                        allow all using (1);
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"possibly an empty set returned",
+        ):
+            await self.con.execute("""
+                create type X {
+                    create property x -> str;
+                    create access policy test
+                        allow all using (.x not like '%redacted%');
+                };
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"possibly more than one element returned",
+        ):
+            await self.con.execute("""
+                create type X {
+                    create access policy test
+                        allow all using ({true, false});
+                };
+            """)
+
     async def test_edgeql_ddl_global_01(self):
         INTRO_Q = '''
             select schema::Global {
