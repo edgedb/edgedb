@@ -11,13 +11,19 @@ a semicolon and press "ENTER".
     db> select 5;
     {5}
 
-Alternatively, you can run the query without a semicolon with ⌥-Enter on macOS
+Alternatively, you can run the query without a semicolon with esc+return on macOS
 or Alt-Enter on Windows/Linux.
 
 .. code-block:: edgeql-repl
 
     db> select 5
     {5}
+
+.. tip::
+
+    This esc+return or Alt-Enter trick is also very useful when your cursor is in
+    the middle of a long query and you want to run it directly without moving the
+    cursor to the end of the query.
 
 
 ----------
