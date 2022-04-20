@@ -217,7 +217,25 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
         ctx = context.get_topmost_ancestor(ctxcls)
         if ctx is None:
             raise AssertionError(f"there is no {ctxcls} in context stack")
-        ctx.op.inhview_updates.add(source)
+        ctx.op.inhview_updates.add((source, True))
+        for anc in source.get_ancestors(schema).objects(schema):
+            ctx.op.inhview_updates.add((anc, False))
+
+    def schedule_inhview_source_update(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        ptr: s_pointers.Pointer,
+        ctxcls: Type[sd.CommandContextToken[sd.Command]],
+    ) -> None:
+        ctx = context.get_topmost_ancestor(ctxcls)
+        if ctx is None:
+            raise AssertionError(f"there is no {ctxcls} in context stack")
+
+        ctx.op.inhview_updates.add((ptr.get_source(schema), True))
+        for anc in ptr.get_ancestors(schema).objects(schema):
+            if src := anc.get_source(schema):
+                ctx.op.inhview_updates.add((src, False))
 
     def schedule_post_inhview_update_command(
         self,
@@ -2875,11 +2893,9 @@ class CompositeMetaCommand(MetaCommand):
         context: sd.CommandContext,
     ) -> None:
         if self.inhview_updates:
-            to_recreate = self.inhview_updates
-            to_alter = set(itertools.chain.from_iterable(
-                s.get_ancestors(schema).objects(schema)
-                for s in self.inhview_updates
-            )) - to_recreate
+            to_recreate = {k for k, r in self.inhview_updates if r}
+            to_alter = {
+                k for k, _ in self.inhview_updates if k not in to_recreate}
 
             for s in to_recreate:
                 self.recreate_inhview(
@@ -3383,8 +3399,8 @@ class PointerMetaCommand(MetaCommand):
                 dt = dbops.DropTable(name=otabname, conditions=[condition])
                 self.pgops.add(dt)
 
-            self.schedule_inhview_update(
-                schema, context, source_op.scls,
+            self.schedule_inhview_source_update(
+                schema, context, ptr,
                 s_objtypes.ObjectTypeCommandContext,)
         else:
             # Moving from source table to pointer table.
@@ -4184,10 +4200,17 @@ class LinkMetaCommand(CompositeMetaCommand, PointerMetaCommand):
                 ci = dbops.CreateIndex(pg_index)
                 self.pgops.add(ci)
 
+                self.schedule_inhview_source_update(
+                    schema,
+                    context,
+                    link,
+                    s_objtypes.ObjectTypeCommandContext,
+                )
+            else:
                 self.schedule_inhview_update(
                     schema,
                     context,
-                    source,
+                    link,
                     s_objtypes.ObjectTypeCommandContext,
                 )
 
@@ -4595,10 +4618,10 @@ class PropertyMetaCommand(CompositeMetaCommand, PointerMetaCommand):
 
                     self.pgops.add(alter_table)
 
-                self.schedule_inhview_update(
+                self.schedule_inhview_source_update(
                     schema,
                     context,
-                    src.op.scls,
+                    prop,
                     s_sources.SourceCommandContext,
                 )
 
@@ -5313,19 +5336,24 @@ class UpdateEndpointDeleteActions(MetaCommand):
                         modifications = True
                         affected_sources.add(current_source)
 
+            if not eff_schema.has_object(link.id):
+                continue
+
             # If our link has a restrict policy, we don't need to update
             # the target on changes to inherited links.
             # Most importantly, this optimization lets us avoid updating
             # the triggers for every schema::Type subtype every time a
             # new object type is created containing a __type__ link.
-            if not eff_schema.has_object(link.id):
-                continue
             action = (
                 link.get_on_target_delete(eff_schema)
                 if isinstance(link, s_links.Link) else None)
             target_is_affected = not (
                 (action is DA.Restrict or action is DA.DeferredRestrict)
-                and link.field_is_inherited(eff_schema, 'on_target_delete')
+                and (
+                    link.field_is_inherited(eff_schema, 'on_target_delete')
+                    or link.get_explicit_field_value(
+                        eff_schema, 'on_target_delete', None) is None
+                )
                 and link.get_implicit_bases(eff_schema)
             ) and isinstance(link, s_links.Link)
 
