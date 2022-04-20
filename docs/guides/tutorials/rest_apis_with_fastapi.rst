@@ -530,7 +530,6 @@ Take a look at how the POST API is built:
 
 
 .. code-block:: python
-
     # fastapi-crud/app/events.py
 
     from __future__ import annotations
