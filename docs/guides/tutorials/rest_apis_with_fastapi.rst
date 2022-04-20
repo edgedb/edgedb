@@ -33,7 +33,7 @@ the dependencies with this command:
 
 .. code-block:: bash
 
-    pip install edgedb fastapi httpx[cli] uvicorn
+    $ pip install edgedb fastapi httpx[cli] uvicorn
 
 
 Initialize the database
