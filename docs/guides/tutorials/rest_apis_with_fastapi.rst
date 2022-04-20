@@ -313,7 +313,7 @@ in the database. The POST endpoint can be built similarly:
     async def post_user(user: RequestData) -> ResponseData:
         try:
             (created_user,) = await client.query(
-                """"
+                """
                 WITH
                     new_user := (INSERT User {name := <str>$name})
                 SELECT new_user {
