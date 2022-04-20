@@ -232,19 +232,6 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
             raise AssertionError(f"there is no {ctxcls} in context stack")
         ctx.op.post_inhview_update_commands.append(cmd)
 
-        # HACK: Abstract pointers pre-1.2 didn't have source in their
-        # views, and so the constraint enforcement we generate for
-        # them (added in 1.2) won't work. So whenever we might be
-        # generating that code, regenerate the view, so it will work
-        # on a 1.2 instance that was upgraded from 1.1.
-        # This can be cherry-picked into 1.x, then immediately
-        # removed in the main branch.
-        if (
-            isinstance(ctx.op, AlterLink)
-            and ctx.op.scls.generic(schema)
-        ):
-            ctx.op.inhview_updates.add(ctx.op.scls)
-
 
 class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
     pass
