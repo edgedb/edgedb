@@ -1712,3 +1712,53 @@ annotation test::foo;
             };
         };
         """
+
+    def test_eschema_syntax_policy_1(self):
+        """
+        module test {
+            type Foo {
+                access policy test
+                allow all
+                using (true);
+            };
+        };
+        """
+
+    def test_eschema_syntax_policy_2(self):
+        """
+        module test {
+            type Foo {
+                access policy test
+                allow read write
+                using (1 + 2 = 3);
+            };
+        };
+        """
+
+    def test_eschema_syntax_policy_3(self):
+        """
+        module test {
+            type Foo {
+                access policy test
+                when (true)
+                deny all
+                using (true) {
+                   annotation title := 'foo';
+                };
+                property x -> str;
+            };
+        };
+        """
+
+    def test_eschema_syntax_policy_4(self):
+        """
+        module test {
+            type Foo {
+                access policy test
+                when (true)
+                deny all
+                using (true);
+                property x -> str;
+            };
+        };
+        """

@@ -209,6 +209,7 @@ class DescribeLanguage(s_enum.StrEnum):
 
 class SchemaObjectClass(s_enum.StrEnum):
 
+    ACCESS_POLICY = 'ACCESS_POLICY'
     ALIAS = 'ALIAS'
     ANNOTATION = 'ANNOTATION'
     ARRAY_TYPE = 'ARRAY TYPE'

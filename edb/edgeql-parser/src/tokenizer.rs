@@ -953,7 +953,6 @@ pub fn is_keyword(s: &str) -> bool {
         | "notify"
         | "prepare"
         | "partition"
-        | "policy"
         | "raise"
         | "refresh"
         | "reindex"

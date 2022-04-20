@@ -1405,6 +1405,40 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self._visit_DropObject(node, 'CONSTRAINT', after_name=after_name)
 
+    def visit_CreateAccessPolicy(
+        self,
+        node: qlast.CreateAccessPolicy
+    ) -> None:
+        def after_name() -> None:
+            if node.condition:
+                self._block_ws(1)
+                self._write_keywords('WHEN ')
+                self.write('(')
+                self.visit(node.condition)
+                self.write(')')
+                self._block_ws(-1)
+            self._block_ws(1)
+            self._write_keywords(str(node.action) + ' ')
+            for kind in node.access_kind:
+                self._write_keywords(str(kind) + ' ')
+            self._write_keywords('USING ')
+            self.write('(')
+            self.visit(node.expr)
+            self.write(')')
+
+        keywords = []
+        keywords.extend(['ACCESS', 'POLICY'])
+        self._visit_CreateObject(node, *keywords, after_name=after_name)
+        # This is left hanging from after_name, so that subcommands
+        # get double indented
+        self.indentation -= 1
+
+    def visit_AlterAccessPolicy(self, node: qlast.AlterAccessPolicy) -> None:
+        self._visit_AlterObject(node, 'ACCESS POLICY')
+
+    def visit_DropAccessPolicy(self, node: qlast.DropAccessPolicy) -> None:
+        self._visit_DropObject(node, 'ACCESS POLICY')
+
     def visit_CreateScalarType(self, node: qlast.CreateScalarType) -> None:
         keywords = []
         if node.abstract:

@@ -919,6 +919,48 @@ class ConcreteLinkShort(Nonterm):
 
 
 #
+# Access Policies
+#
+sdl_commands_block(
+    'CreateAccessPolicy',
+    SetAnnotation)
+
+
+class AccessPolicyDeclarationBlock(Nonterm):
+    def reduce_CreateAccessPolicy(self, *kids):
+        """%reduce
+            ACCESS POLICY ShortNodeName
+            OptWhenBlock AccessPolicyAction AccessKindList
+            USING LPAREN Expr RPAREN
+            CreateAccessPolicySDLCommandsBlock
+        """
+        self.val = qlast.CreateAccessPolicy(
+            name=kids[2].val,
+            condition=kids[3].val,
+            action=kids[4].val,
+            access_kind=kids[5].val,
+            expr=kids[8].val,
+            commands=kids[10].val,
+        )
+
+
+class AccessPolicyDeclarationShort(Nonterm):
+    def reduce_CreateAccessPolicy(self, *kids):
+        """%reduce
+            ACCESS POLICY ShortNodeName
+            OptWhenBlock AccessPolicyAction AccessKindList
+            USING LPAREN Expr RPAREN
+        """
+        self.val = qlast.CreateAccessPolicy(
+            name=kids[2].val,
+            condition=kids[3].val,
+            action=kids[4].val,
+            access_kind=kids[5].val,
+            expr=kids[8].val,
+        )
+
+
+#
 # Object Types
 #
 
@@ -934,6 +976,8 @@ sdl_commands_block(
     ConcreteConstraintShort,
     IndexDeclarationBlock,
     IndexDeclarationShort,
+    AccessPolicyDeclarationBlock,
+    AccessPolicyDeclarationShort,
 )
 
 
