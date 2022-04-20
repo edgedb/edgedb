@@ -641,7 +641,10 @@ _compiler_options = [
              "compiler server is not affected by this setting, it keeps a "
              "pickled copy of the client schema of all active clients."
     ),
-    click.argument("socket_path"),
+    click.option(
+        "--socket-path",
+        required=True,
+    ),
 ]
 
 
