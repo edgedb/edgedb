@@ -16,12 +16,12 @@ endpoints.
 Prerequisites
 =============
 
-Before we start, make sure you've :ref:`installed <ref_admin_install>` EdgeDB
-and EdgeDB-CLI. In this tutorial, we'll use Python 3.10 and take advantage of
-the asynchronous I/O paradigm to communicate with the database more
-efficiently. A working version of this tutorial can be found
-`here <https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_
-on GitHub.
+Before we start, make sure you've :ref:`installed <ref_admin_install>` the
+``edgedb`` command line tool. In this tutorial, we'll use Python 3.10 and take
+advantage of the asynchronous I/O paradigm to communicate with the database
+more efficiently. A working version of this tutorial can be found
+`on Github
+<https://github.com/edgedb/edgedb-examples/tree/main/fastapi-crud>`_.
 
 
 Install the dependencies
@@ -39,8 +39,8 @@ the dependencies with this command:
 Initialize the database
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Now, let's create a new EdgeDB instance for this project. From the root
-directory, run:
+Now, let's create a new EdgeDB instance for this project. From the project's
+root directory, run:
 
 .. code-block:: bash
 
@@ -56,7 +56,7 @@ You should see the following prompts on your console:
     > fastapi_crud
 
     Do you want to start instance automatically on login? [y/n]
-    > n
+    > y
     Checking EdgeDB versions...
 
 Once you've answered the prompts, a new EdgeDB instance called ``fastapi_crud``
@@ -96,11 +96,14 @@ while maintaining their relationships.
 
 EdgeDB allows us to declaratively define the structure of the entities. If
 you've worked with SQLAlchemy or Django ORM, you might refer to these
-declarative schema definitions as *models*. By default, EdgeDB CLI looks for
-these schema definitions in the ``dbschema/default.esdl`` module. You can also
-create new modules in this directory and call the types from one module to
-another. However, for now, we'll define our entities in the ``default.esdl``
-module. This is how our datatypes look:
+declarative schema definitions as *models*. In EdgeDB we call them
+"object types".
+
+By default, EdgeDB CLI looks for these schema definitions in the
+``dbschema/default.esdl`` module. You can also create new modules in this
+directory and call the types from one module to another. However, for now,
+we'll define our entities in the ``default.esdl`` module. This is how our
+datatypes look:
 
 .. code-block:: esdl
 
@@ -109,6 +112,7 @@ module. This is how our datatypes look:
     module default {
     abstract type Auditable {
       property created_at -> datetime {
+        readonly := true;
         default := datetime_current();
       }
     }
@@ -131,15 +135,15 @@ module. This is how our datatypes look:
     }
     }
 
-Here, we've defined an abstracted type called ``Auditable`` to take advantage of
-EdgeDB's polymorphic type system. This allows us to add a ``created_at``
+Here, we've defined an abstracted type called ``Auditable`` to take advantage
+of EdgeDB's polymorphic type system. This allows us to add a ``created_at``
 property to multiple types without repeating ourselves. Also, abstract types
 don't have any concrete footprints in the database as they don't hold any
 actual data. Their only job is to propagate properties, links, and constraints
 to the types that extend them.
 
-The ``User`` type extends ``Auditable`` and inherits the ``created_at`` property
-as a result. This property is auto-filled by the abstract type via the ``datetime_current`` function. The datetime is saved as a UTC timestamp. Along
+The ``User`` type extends ``Auditable`` and inherits the ``created_at``
+property as a result. This property is auto-filled by the abstract type via the ``datetime_current`` function. The datetime is saved as a UTC timestamp. Along
 with the inherited type, the user type also defines a concrete required
 property called ``name``. We impose two constraints on this property—names
 should be unique and they can't be longer than 50 characters.
@@ -166,13 +170,10 @@ looks as follows:
     ├── main.py
     └── users.py
 
-The ``user.py`` and ``event.py``
-
-
-
-modules contain the code to build the ``User`` and ``Event`` APIs respectively.
-The ``main.py`` module then registers all the endpoints and exposes them to the
-`uvicorn <https://www.uvicorn.org>`_ webserver.
+The ``user.py`` and ``event.py`` modules contain the code to build the ``User``
+and ``Event`` APIs respectively. The ``main.py`` module then registers all the
+endpoints and exposes them to the `uvicorn <https://www.uvicorn.org>`_
+webserver.
 
 
 User APIs
@@ -186,7 +187,6 @@ code in FastAPI:
 .. code-block:: python
 
     # fastapi-crud/app/users.py
-
     from __future__ import annotations
 
     import datetime
@@ -247,7 +247,6 @@ module:
 .. code-block:: python
 
     # fastapi-crud/app/main.py
-
     from __future__ import annotations
 
     from fastapi import FastAPI
@@ -309,9 +308,13 @@ in the database. The POST endpoint can be built similarly:
     async def post_user(user: RequestData) -> ResponseData:
         try:
             (created_user,) = await client.query(
-                """SELECT (
-                    INSERT User {name:=<str>$name})
-                    {name, created_at};
+                """"
+                WITH
+                    new_user := (INSERT User {name := <str>$name})
+                SELECT new_user {
+                    name,
+                    created_at
+                };
                 """,
                 name=user.name,
             )
@@ -322,7 +325,9 @@ in the database. The POST endpoint can be built similarly:
                 "error": f"Username '{user.name}' already exists,"
                 },
             )
-        response = ResponseData(name=created_user.name, created_at=created_user.created_at)
+        response = ResponseData(
+            name=created_user.name, created_at=created_user.created_at
+        )
         return response
 
 In the above snippet, we ingest data with the shape dictated by the
@@ -370,14 +375,17 @@ It can be built like this:
 .. code-block:: python
 
     # fastapi-crud/app/users.py
+    ...
     @router.put("/users")
-    async def put_user(user: RequestData, filter_name: str) -> Iterable[ResponseData]:
+    async def put_user(
+        user: RequestData, filter_name: str
+    ) -> Iterable[ResponseData]:
         try:
             updated_users = await client.query(
                 """
                 SELECT (
                     UPDATE User FILTER .name=<str>$filter_name
-                    SET {name:=<str>$name}
+                        SET {name:=<str>$name}
                 ) {name, created_at};
                 """,
                 name=user.name,
@@ -389,8 +397,9 @@ It can be built like this:
                 detail={"error": f"Username '{filter_name}' already exists."},
             )
         response = (
-            ResponseData(name=user.name, created_at=user.created_at)
-            for user in updated_users
+            ResponseData(
+                name=user.name, created_at=user.created_at
+            ) for user in updated_users
         )
         return response
 
@@ -446,6 +455,7 @@ looks similar to the ones you've already seen:
 .. code-block:: python
 
     # fastapi-crud/app/users.py
+    ...
     @router.delete("/users")
     async def delete_user(name: str) -> Iterable[ResponseData]:
         try:
@@ -463,8 +473,10 @@ looks similar to the ones you've already seen:
             )
 
         response = (
-            ResponseData(name=deleted_user.name, created_at=deleted_user.created_at)
-            for deleted_user in deleted_users
+            ResponseData(
+                name=deleted_user.name,
+                created_at=deleted_user.created_at
+            ) for deleted_user in deleted_users
         )
 
         return response
@@ -542,7 +554,9 @@ Take a look at how the POST API is built:
                     name:=name,
                     address:=address,
                     schedule:=<datetime>schedule,
-                    host:=assert_single((SELECT DETACHED User FILTER .name=host_name))
+                    host:=assert_single((
+                        SELECT DETACHED User FILTER .name=host_name
+                    ))
                 }) {name, address, schedule, host: {name}};
                 """,
                 name=event.name,
@@ -556,7 +570,8 @@ Take a look at how the POST API is built:
                 status_code=HTTPStatus.BAD_REQUEST,
                 detail={
                     "error": "Invalid datetime format. "
-                    "Datetime string must look like this: '2010-12-27T23:59:59-07:00'",
+                    "Datetime string must look like this: "
+                    "'2010-12-27T23:59:59-07:00'",
                 },
             )
 
@@ -570,7 +585,8 @@ Take a look at how the POST API is built:
             name=created_event.name,
             address=created_event.address,
             schedule=created_event.schedule,
-            host=Host(name=created_event.host.name) if created_event.host else None,
+            host=Host(name=created_event.host.name)
+                if created_event.host else None,
         )
 
 Like the ``POST /users`` API, here, the incoming and outgoing shape of the data
@@ -643,8 +659,12 @@ your browser and head over to
 API navigator like this:
 
 .. image:: https://user-images.githubusercontent.com/30027932/163834402-1bb766d0-a2c4-4fdf-8b0b-9af2ff47a969.png
-  :width: 800
-  :alt: FastAPI docs navigator
+    :alt: FastAPI docs navigator
+    :height: 500px
+    :width: 650px
+    :align: center
+    :scale: 250 %
+
 
 The doc allows you to play with the APIs interactively. Let's try to make a
 request to the ``PUT /events``. Click on the API that you want to try and then
@@ -652,15 +672,20 @@ click on the **Try it out** button. You can do it in the UI as follows:
 
 
 .. image:: https://user-images.githubusercontent.com/30027932/163834413-afc2303b-0d8f-46b6-a682-8e3b895042fc.png
-  :width: 800
-  :align: center
-  :alt: FastAPI docs PUT events API
+    :alt: FastAPI docs PUT events API
+    :height: 500px
+    :width: 650px
+    :align: center
+    :scale: 250 %
+
 
 Clicking the **execute** button will make the request and return the following
 payload:
 
 
 .. image:: https://user-images.githubusercontent.com/30027932/163834421-203675b7-a1a0-47c6-b425-2ef1b3bfc9d8.png
-  :width: 800
-  :align: center
-  :alt: FastAPI docs PUT events API
+    :alt: FastAPI docs PUT events API
+    :height: 500px
+    :width: 650px
+    :align: center
+    :scale: 250 %
