@@ -1743,6 +1743,64 @@ class DropConcreteLinkStmt(Nonterm):
 
 
 #
+# CREATE GLOBAL
+#
+
+commands_block(
+    'CreateAccessPolicy',
+    CreateAnnotationValueStmt,
+)
+
+
+class CreateAccessPolicyStmt(Nonterm):
+    def reduce_CreateAccessPolicy(self, *kids):
+        """%reduce
+            CREATE ACCESS POLICY UnqualifiedPointerName
+            OptWhenBlock AccessPolicyAction AccessKindList
+            USING LPAREN Expr RPAREN
+            OptCreateAccessPolicyCommandsBlock
+        """
+        self.val = qlast.CreateAccessPolicy(
+            name=kids[3].val,
+            condition=kids[4].val,
+            action=kids[5].val,
+            access_kind=kids[6].val,
+            expr=kids[9].val,
+            commands=kids[11].val,
+        )
+
+
+commands_block(
+    'AlterAccessPolicy',
+    CreateAnnotationValueStmt,
+    AlterAnnotationValueStmt,
+    DropAnnotationValueStmt,
+    RenameStmt,
+    opt=False
+)
+
+
+class AlterAccessPolicyStmt(Nonterm):
+    def reduce_AlterAccessPolicy(self, *kids):
+        r"""%reduce \
+            ALTER ACCESS POLICY UnqualifiedPointerName \
+            AlterGlobalCommandsBlock \
+        """
+        self.val = qlast.AlterAccessPolicy(
+            name=kids[3].val,
+            commands=kids[4].val
+        )
+
+
+class DropAccessPolicyStmt(Nonterm):
+    def reduce_DropAccessPolicy(self, *kids):
+        r"""%reduce DROP ACCESS POLICY UnqualifiedPointerName"""
+        self.val = qlast.DropAccessPolicy(
+            name=kids[3].val
+        )
+
+
+#
 # CREATE TYPE
 #
 
@@ -1759,6 +1817,8 @@ commands_block(
     AlterConcreteConstraintStmt,
     CreateIndexStmt,
     AlterIndexStmt,
+    CreateAccessPolicyStmt,
+    AlterAccessPolicyStmt,
 )
 
 
@@ -1813,6 +1873,9 @@ commands_block(
     CreateIndexStmt,
     AlterIndexStmt,
     DropIndexStmt,
+    CreateAccessPolicyStmt,
+    AlterAccessPolicyStmt,
+    DropAccessPolicyStmt,
     opt=False
 )
 

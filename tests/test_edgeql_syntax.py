@@ -5481,6 +5481,53 @@ aa';
         reset global test::foo;
         """
 
+    def test_edgeql_syntax_ddl_policy_01(self):
+        """
+        create type Foo {
+            create access policy test
+            allow all
+            using (true);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_policy_02(self):
+        """
+        create type Foo {
+            create access policy test
+            allow read write
+            using (true);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_policy_03(self):
+        """
+        alter type Foo {
+            create access policy test
+            when (true)
+            deny all
+            using (true) {
+                create annotation title := 'foo';
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_policy_04(self):
+        """
+        alter type Foo {
+            alter access policy test {
+                rename to bar;
+                create annotation title := 'foo';
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_policy_05(self):
+        """
+        alter type Foo {
+            drop access policy test;
+        };
+        """
+
     def test_edgeql_syntax_ddl_empty_01(self):
         """
         CREATE TYPE Foo { };

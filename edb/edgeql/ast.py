@@ -1160,6 +1160,28 @@ class DropAnnotationValue(AnnotationCommand, DropObject):
     pass
 
 
+class AccessPolicyCommand(ObjectDDL):
+
+    __abstract_node__ = True
+    object_class: qltypes.SchemaObjectClass = (
+        qltypes.SchemaObjectClass.ACCESS_POLICY)
+
+
+class CreateAccessPolicy(CreateObject, AccessPolicyCommand):
+    condition: typing.Optional[Expr]
+    action: qltypes.AccessPolicyAction
+    access_kind: typing.List[qltypes.AccessKind]
+    expr: Expr
+
+
+class AlterAccessPolicy(AlterObject, AccessPolicyCommand):
+    pass
+
+
+class DropAccessPolicy(DropObject, AccessPolicyCommand):
+    pass
+
+
 class Language(s_enum.StrEnum):
     SQL = 'SQL'
     EdgeQL = 'EDGEQL'

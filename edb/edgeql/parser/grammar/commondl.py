@@ -441,6 +441,42 @@ class OnTargetDeleteStmt(Nonterm):
             cascade=qltypes.LinkTargetDeleteAction.DeferredRestrict)
 
 
+class OptWhenBlock(Nonterm):
+    def reduce_WHEN_LPAREN_Expr_RPAREN(self, *kids):
+        self.val = kids[2].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
+class AccessKind(Nonterm):
+
+    def reduce_ALL(self, *kids):
+        self.val = qltypes.AccessKind.All
+
+    def reduce_READ(self, *kids):
+        self.val = qltypes.AccessKind.Read
+
+    def reduce_WRITE(self, *kids):
+        self.val = qltypes.AccessKind.Write
+
+    def reduce_DELETE(self, *kids):
+        self.val = qltypes.AccessKind.Delete
+
+
+class AccessKindList(parsing.ListNonterm, element=AccessKind):
+    pass
+
+
+class AccessPolicyAction(Nonterm):
+
+    def reduce_ALLOW(self, *kids):
+        self.val = qltypes.AccessPolicyAction.Allow
+
+    def reduce_DENY(self, *kids):
+        self.val = qltypes.AccessPolicyAction.Deny
+
+
 class ExtensionVersion(Nonterm):
 
     def reduce_VERSION_BaseStringConstant(self, *kids):
