@@ -1428,16 +1428,17 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         keywords = []
         keywords.extend(['ACCESS', 'POLICY'])
-        self._visit_CreateObject(node, *keywords, after_name=after_name)
+        self._visit_CreateObject(
+            node, *keywords, after_name=after_name, unqualified=True)
         # This is left hanging from after_name, so that subcommands
         # get double indented
         self.indentation -= 1
 
     def visit_AlterAccessPolicy(self, node: qlast.AlterAccessPolicy) -> None:
-        self._visit_AlterObject(node, 'ACCESS POLICY')
+        self._visit_AlterObject(node, 'ACCESS POLICY', unqualified=True)
 
     def visit_DropAccessPolicy(self, node: qlast.DropAccessPolicy) -> None:
-        self._visit_DropObject(node, 'ACCESS POLICY')
+        self._visit_DropObject(node, 'ACCESS POLICY', unqualified=True)
 
     def visit_CreateScalarType(self, node: qlast.CreateScalarType) -> None:
         keywords = []

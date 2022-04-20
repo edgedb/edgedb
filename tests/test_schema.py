@@ -5719,6 +5719,41 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_policies_01(self):
+        self._assert_migration_equivalence([r"""
+            type X {
+                required property x -> str;
+                access policy test
+                    allow all using (.x not like '%redacted%');
+            };
+        """, r"""
+            type X {
+                required property x -> str;
+                access policy asdf
+                    allow all using (.x not like '%redacted%');
+            };
+        """, r"""
+            type X {
+                required property x -> str;
+                access policy asdf
+                    when (true)
+                    allow all using (.x not like '%redacted%');
+            };
+        """])
+
+    def test_schema_migrations_equivalence_policies_02(self):
+        self._assert_migration_equivalence([r"""
+            type Foo {
+                access policy asdf
+                allow all using ((select Bar filter .name = 'X').b ?? false);
+            }
+            type Bar {
+                required property name -> str;
+                property b -> bool;
+                   constraint exclusive on (.name);
+            };
+        """])
+
     def test_schema_migrations_equivalence_globals_01(self):
         self._assert_migration_equivalence([r"""
             global foo -> str;
