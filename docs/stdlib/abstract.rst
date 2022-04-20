@@ -1,7 +1,7 @@
 .. _ref_std_abstract_types:
 
 ==============
-Abstract types
+Abstract Types
 ==============
 
 These types are used in definitions of polymorphic (generic) functions

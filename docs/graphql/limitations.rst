@@ -1,7 +1,7 @@
 .. _ref_graphql_limitations:
 
 =================
-Known limitations
+Known Limitations
 =================
 
 - Due to the differences between EdgeQL and GraphQL syntax
