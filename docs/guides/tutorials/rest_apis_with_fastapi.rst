@@ -44,11 +44,13 @@ root directory, run:
 
 .. code-block:: bash
 
-    edgedb project init
+    $ edgedb project init
+
 
 You should see the following prompts on your console:
 
 ::
+
     Initializing project...
 
     Specify the name of EdgeDB instance to use with this project
@@ -59,12 +61,10 @@ You should see the following prompts on your console:
     > y
     Checking EdgeDB versions...
 
+
 Once you've answered the prompts, a new EdgeDB instance called ``fastapi_crud``
-will be created. Start the server with the following command:
+will be created and started.
 
-.. code-block:: bash
-
-    edgedb instance start fastapi_crud
 
 Connect to the database
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -73,12 +73,13 @@ Let's test that we can connect to the newly started instance. To do so, run:
 
 .. code-block:: bash
 
-    edgedb instance start fastapi_crud
+    $ edgedb -I fastapi_crud
 
 You should be connected to the database instance and able to see a prompt
 similar to this:
 
 ::
+
     EdgeDB 1.2+5aecabc (repl 1.1.1+5bb8bad)
     Type \help for help, \quit to quit.
     edgedb>
@@ -164,6 +165,7 @@ The API endpoints are defined in the ``app`` directory. The directory structure
 looks as follows:
 
 ::
+
     app
     ├── __init__.py
     ├── events.py
@@ -226,8 +228,10 @@ code in FastAPI:
                 name=name,
             )
         response = (
-            ResponseData(name=user.name,
-            created_at=user.created_at) for user in users
+            ResponseData(
+                name=user.name,
+                created_at=user.created_at
+            ) for user in users
         )
         return response
 
@@ -274,7 +278,7 @@ To test the endpoint, go to the ``fastapi-crud`` directory and run:
 
 .. code-block:: bash
 
-    uvicorn app.main:fast_api --port 5000 --reload
+    $ uvicorn app.main:fast_api --port 5000 --reload
 
 This will start a ``uvicorn`` server and you'll be able to start making
 requests against it. Earlier, we installed the
@@ -283,11 +287,12 @@ test our API. While the ``uvicorn`` server is running, on a new console, run:
 
 .. code-block:: bash
 
-    httpx -m GET http://localhost:5000/users
+    $ httpx -m GET http://localhost:5000/users
 
 You'll see the following output on the console:
 
 ::
+
     HTTP/1.1 200 OK
     date: Sat, 16 Apr 2022 22:58:11 GMT
     server: uvicorn
@@ -326,7 +331,8 @@ in the database. The POST endpoint can be built similarly:
                 },
             )
         response = ResponseData(
-            name=created_user.name, created_at=created_user.created_at
+            name=created_user.name,
+            created_at=created_user.created_at,
         )
         return response
 
@@ -339,7 +345,8 @@ To test it out, make a request as follows:
 
 .. code-block:: bash
 
-    httpx -m POST http://localhost:5000/users --json '{"name" : "Jonathan Harker"}'
+    $ httpx -m POST http://localhost:5000/users \
+            --json '{"name" : "Jonathan Harker"}'
 
 
 The output should look similar to this:
@@ -394,7 +401,9 @@ It can be built like this:
         except edgedb.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail={"error": f"Username '{filter_name}' already exists."},
+                detail={
+                "error": f"Username '{filter_name}' already exists."
+                },
             )
         response = (
             ResponseData(
@@ -411,8 +420,9 @@ of ``Jonathan Harker`` to ``Dr. Van Helsing``.
 
 .. code-block:: bash
 
-    httpx -m PUT http://localhost:5000/users -p 'filter_name' 'Jonathan Harker' \
-          --json '{"name" : "Dr. Van Helsing"}'
+    $ httpx -m PUT http://localhost:5000/users \
+            -p 'filter_name' 'Jonathan Harker' \
+            --json '{"name" : "Dr. Van Helsing"}'
 
 This will return:
 
@@ -432,8 +442,9 @@ endpoint will throw an HTTP 400 (bad request) error:
 
 .. code-block:: bash
 
-    httpx -m PUT http://localhost:5000/users -p 'filter_name' 'Count Dracula' \
-          --json '{"name" : "Dr. Van Helsing"}'
+    $ httpx -m PUT http://localhost:5000/users \
+            -p 'filter_name' 'Count Dracula' \
+            --json '{"name" : "Dr. Van Helsing"}'
 
 This returns:
 
@@ -469,7 +480,10 @@ looks similar to the ones you've already seen:
         except edgedb.errors.ConstraintViolationError:
             raise HTTPException(
                 status_code=HTTPStatus.BAD_REQUEST,
-                detail={"error": "User attached to an event. Cannot delete."},
+                detail={
+                    "error": "User attached to an event. "
+                    "Cannot delete."
+                },
             )
 
         response = (
@@ -484,11 +498,12 @@ looks similar to the ones you've already seen:
 This endpoint will simply delete the requested user if the user isn't attached
 to any event. If the targeted object is attached to an event, the API will
 throw an HTTP 400 (bad request) error and refuse to delete the object. To
-delete ```Count Dracula``, on your console, run:
+delete ``Count Dracula``, on your console, run:
 
 .. code-block:: bash
 
-    httpx -m DELETE http://localhost:5000/users -p 'name' 'Count Dracula'
+    $ httpx -m DELETE http://localhost:5000/users \
+            -p 'name' 'Count Dracula'
 
 That'll return:
 
@@ -545,21 +560,21 @@ Take a look at how the POST API is built:
     async def post_event(event: RequestData) -> ResponseData:
         try:
             (created_event,) = await client.query(
-                """
-                WITH name:=<str>$name, address:=<str>$address,
-                schedule:=<str>$schedule, host_name:=<str>$host_name
+            """
+            WITH name:=<str>$name, address:=<str>$address,
+            schedule:=<str>$schedule, host_name:=<str>$host_name
 
-                SELECT (
-                    INSERT Event {
-                    name:=name,
-                    address:=address,
-                    schedule:=<datetime>schedule,
-                    host:=assert_single((
-                        SELECT DETACHED User FILTER .name=host_name
-                    ))
-                }) {name, address, schedule, host: {name}};
-                """,
-                name=event.name,
+            SELECT (
+                INSERT Event {
+                name:=name,
+                address:=address,
+                schedule:=<datetime>schedule,
+                host:=assert_single((
+                    SELECT DETACHED User FILTER .name=host_name
+                ))
+            }) {name, address, schedule, host: {name}};
+            """,
+            name=event.name,
                 address=event.address,
                 schedule=event.schedule,
                 host_name=event.host_name,
@@ -585,8 +600,9 @@ Take a look at how the POST API is built:
             name=created_event.name,
             address=created_event.address,
             schedule=created_event.schedule,
-            host=Host(name=created_event.host.name)
-                if created_event.host else None,
+            host=Host(
+                name=created_event.host.name
+            ) if created_event.host else None,
         )
 
 Like the ``POST /users`` API, here, the incoming and outgoing shape of the data
@@ -604,8 +620,8 @@ Here's how you'd create an event:
 
 .. code-block:: bash
 
-    httpx -m POST http://localhost:5000/events \
-          --json '{"name":"Resuscitation", "address":"Britain", "schedule":"1889-07-27T23:59:59-07:00", "host_name":"Mina Murray"}'
+    $ httpx -m POST http://localhost:5000/events \
+            --json '{"name":"Resuscitation", "address":"Britain", "schedule":"1889-07-27T23:59:59-07:00", "host_name":"Mina Murray"}'
 
 That'll return:
 
@@ -628,7 +644,8 @@ parameter with the GET API as follows:
 
 .. code-block:: bash
 
-    httpx -m GET http://localhost:5000/events -p 'name' 'Resuscitation'
+    $ httpx -m GET http://localhost:5000/events \
+            -p 'name' 'Resuscitation'
 
 That'll return:
 
