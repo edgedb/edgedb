@@ -8127,6 +8127,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                       schema::Type,
                       schema::Source
             {
+                CREATE MULTI LINK access_policies
+                  EXTENDING schema::reference -> schema::AccessPolicy {
+                    ON TARGET DELETE ALLOW;
+                    CREATE CONSTRAINT std::exclusive;
+                };
                 CREATE MULTI LINK intersection_of -> schema::ObjectType;
                 CREATE MULTI LINK union_of -> schema::ObjectType;
                 CREATE PROPERTY compound_type := (
@@ -8152,6 +8157,11 @@ class TestDescribe(tb.BaseSchemaLoadTest):
                     schema::Type,
                     schema::Source
             {
+                multi link access_policies
+                  extending schema::reference -> schema::AccessPolicy {
+                    on target delete allow;
+                    constraint std::exclusive;
+                };
                 multi link intersection_of -> schema::ObjectType;
                 multi link links := (.pointers[IS schema::Link]);
                 multi link properties := (

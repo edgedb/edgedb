@@ -40,6 +40,12 @@ CREATE SCALAR TYPE schema::ParameterKind
 CREATE SCALAR TYPE schema::TypeModifier
     EXTENDING enum<SetOfType, OptionalType, SingletonType>;
 
+CREATE SCALAR TYPE schema::AccessPolicyAction
+    EXTENDING enum<Allow, Deny>;
+
+CREATE SCALAR TYPE schema::AccessKind
+    EXTENDING enum<All, Read, Write, `Delete`>;
+
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
@@ -251,6 +257,11 @@ CREATE ABSTRACT TYPE schema::Pointer
 };
 
 
+CREATE TYPE schema::AccessPolicy
+    EXTENDING
+        schema::InheritingObject, schema::AnnotationSubject;
+
+
 ALTER TYPE schema::Source {
     CREATE MULTI LINK pointers EXTENDING schema::reference -> schema::Pointer {
         CREATE CONSTRAINT std::exclusive;
@@ -351,11 +362,25 @@ CREATE TYPE schema::ObjectType
 ALTER TYPE schema::ObjectType {
     CREATE MULTI LINK union_of -> schema::ObjectType;
     CREATE MULTI LINK intersection_of -> schema::ObjectType;
+    CREATE MULTI LINK access_policies
+            EXTENDING schema::reference -> schema::AccessPolicy {
+        CREATE CONSTRAINT std::exclusive;
+        ON TARGET DELETE ALLOW;
+    };
     CREATE PROPERTY compound_type := (
         EXISTS .union_of OR EXISTS .intersection_of
     );
     # Backwards compatibility.
     CREATE PROPERTY is_compound_type := .compound_type;
+};
+
+
+ALTER TYPE schema::AccessPolicy {
+  CREATE REQUIRED LINK subject -> schema::ObjectType;
+  CREATE REQUIRED PROPERTY access_kind -> array<schema::AccessKind>;
+  CREATE PROPERTY condition -> std::str;
+  CREATE REQUIRED PROPERTY action -> schema::AccessPolicyAction;
+  CREATE REQUIRED PROPERTY expr -> std::str;
 };
 
 
