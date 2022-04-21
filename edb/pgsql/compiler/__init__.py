@@ -89,7 +89,7 @@ def compile_ir_to_sql_tree(
             output_format=output_format,
             expected_cardinality_one=expected_cardinality_one,
             use_named_params=use_named_params,
-            query_params=query_params,
+            query_params=list(tuple(query_params) + tuple(query_globals)),
             type_rewrites=type_rewrites,
             ignore_object_shapes=ignore_shapes,
             explicit_top_cast=explicit_top_cast,
