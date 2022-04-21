@@ -5549,14 +5549,34 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+        # This is fine though
+        await self.con.execute("""
+            create type X {
+                create access policy test
+                    allow all using ({true, false});
+            };
+        """)
+
+    async def test_edgeql_ddl_policies_03(self):
         async with self.assertRaisesRegexTx(
             edgedb.SchemaDefinitionError,
-            r"possibly more than one element returned",
+            r"dependency cycle between access policies of object type "
+            r"'default::Bar' and object type 'default::Foo'"
         ):
             await self.con.execute("""
-                create type X {
-                    create access policy test
-                        allow all using ({true, false});
+                CREATE TYPE Bar {
+                    CREATE REQUIRED PROPERTY b -> bool;
+                };
+                CREATE TYPE Foo {
+                    CREATE LINK bar -> Bar;
+                    CREATE REQUIRED PROPERTY b -> bool;
+                    CREATE ACCESS POLICY redact
+                        ALLOW ALL USING ((.bar.b ?? false));
+                };
+                ALTER TYPE Bar {
+                    CREATE LINK foo -> Foo;
+                    CREATE ACCESS POLICY redact
+                        ALLOW ALL USING ((.foo.b ?? false));
                 };
             """)
 

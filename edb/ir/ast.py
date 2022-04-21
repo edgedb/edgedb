@@ -489,6 +489,9 @@ class Set(Base):
     # card/multi inference.
     is_visible_binding_ref: bool = False
 
+    # Whether to force this to not select subtypes
+    skip_subtypes: bool = False
+
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'
 
@@ -581,7 +584,7 @@ class Statement(Command):
     scope_tree: ScopeTreeNode
     source_map: typing.Dict[s_pointers.Pointer, ComputableInfo]
     dml_exprs: typing.List[qlast.Base]
-    type_rewrites: typing.Dict[uuid.UUID, Set]
+    type_rewrites: typing.Dict[typing.Tuple[uuid.UUID, bool], Set]
     singletons: typing.List[PathId]
 
 
@@ -931,6 +934,17 @@ class MutatingStmt(Stmt):
     # Conflict checks that we should manually raise constraint violations
     # for.
     conflict_checks: typing.Optional[typing.List[OnConflictClause]] = None
+    # Access policy checks that we should raise errors on
+    write_policy_exprs: typing.Dict[
+        uuid.UUID, PolicyExpr] = ast.field(factory=dict)
+    # Access policy checks that we should filter on
+    read_policy_exprs: typing.Dict[
+        uuid.UUID, PolicyExpr] = ast.field(factory=dict)
+
+
+class PolicyExpr(Base):
+    expr: Set
+    cardinality: qltypes.Cardinality = qltypes.Cardinality.UNKNOWN
 
 
 class OnConflictClause(Base):

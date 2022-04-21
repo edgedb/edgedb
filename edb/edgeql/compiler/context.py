@@ -403,8 +403,13 @@ class ContextLevel(compiler.ContextLevel):
     view_sets: Dict[s_types.Type, irast.Set]
     """A dictionary of IR expressions for views declared in the query."""
 
-    type_rewrites: Dict[s_types.Type, irast.Set]
-    """Access policy rewrites for schema-level types."""
+    type_rewrites: Dict[
+        Tuple[s_types.Type, bool], irast.Set | None | Literal[True]]
+    """Access policy rewrites for schema-level types.
+
+    None indicates no rewrite, True indicates a compound type
+    that had rewrites in its components.
+    """
 
     aliased_views: ChainMap[s_name.Name, s_types.Type]
     """A dictionary of views aliased in a statement body."""

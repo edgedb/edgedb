@@ -1105,6 +1105,14 @@ def _infer_stmt_cardinality(
     _infer_matset_cardinality(
         ir.materialized_sets, scope_tree=scope_tree, ctx=ctx)
 
+    if isinstance(ir, irast.MutatingStmt):
+        pctx = ctx._replace(singletons=ctx.singletons | {ir.result.path_id})
+        for pol in [
+            *ir.read_policy_exprs.values(), *ir.write_policy_exprs.values()
+        ]:
+            pol.cardinality = infer_cardinality(
+                pol.expr, scope_tree=scope_tree, ctx=pctx)
+
     return result_card
 
 
@@ -1206,6 +1214,8 @@ def __infer_insert_stmt(
             else_card = infer_cardinality(
                 ir.on_conflict.else_ir, scope_tree=scope_tree, ctx=ctx)
             card = max_cardinality((card, else_card))
+            if ir.write_policy_exprs:
+                card = _bounds_to_card(CB_ZERO, _card_to_bounds(card).upper)
 
         return card
 

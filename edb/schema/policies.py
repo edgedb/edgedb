@@ -23,6 +23,7 @@ from typing import *
 from edb import errors
 
 from edb.common import checked
+from edb.common import topological
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
@@ -31,12 +32,16 @@ from edb.edgeql import qltypes
 from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
+from . import links as s_links
 from . import name as sn
 from . import objects as so
 from . import referencing
 from . import schema as s_schema
 from . import sources as s_sources
 from . import types as s_types
+
+if TYPE_CHECKING:
+    from . import objtypes as s_objtypes
 
 
 class AccessPolicy(
@@ -147,15 +152,10 @@ class AccessPolicyCommand(
             )
             assert isinstance(expression.irast, irast.Statement)
 
-            zero = expression.irast.cardinality.can_be_zero()
-            if zero or expression.irast.cardinality.is_multi():
+            if expression.irast.cardinality.can_be_zero():
                 srcctx = self.get_attribute_source_context(field)
-                if zero:
-                    problem = 'an empty set'
-                else:
-                    problem = 'more than one element'
                 raise errors.SchemaDefinitionError(
-                    f'possibly {problem} returned by {vname} '
+                    f'possibly an empty set returned by {vname} '
                     f'expression for the {pol_name} ',
                     context=srcctx
                 )
@@ -253,6 +253,83 @@ class AccessPolicyCommand(
         ref = super()._deparse_name(schema, context, name)
         ref.module = ''
         return ref
+
+    def validate_object(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> None:
+        from . import objtypes as s_objtypes
+        subject = self.scls.get_subject(schema)
+        assert isinstance(subject, s_objtypes.ObjectType)
+
+        try:
+            check_type_policy_ordering(subject, schema)
+        except topological.CycleError as e:
+            assert e.item is not None
+            assert e.path is not None
+
+            item_vn = e.item.get_verbosename(schema, with_parent=True)
+            # Recursion involving more than one schema object.
+            rec_vn = e.path[-1].get_verbosename(
+                schema, with_parent=True)
+            # Sort for output determinism
+            vn1, vn2 = sorted([rec_vn, item_vn])
+            msg = (
+                f'dependency cycle between access policies of {vn1} and {vn2}'
+            )
+            raise errors.InvalidDefinitionError(msg) from e
+
+
+def get_type_policy_deps(
+    stype: s_objtypes.ObjectType,
+    schema: s_schema.Schema,
+) -> Set[s_objtypes.ObjectType]:
+    from . import objtypes as s_objtypes
+
+    typs: Set[s_objtypes.ObjectType] = set()
+    for pol in stype.get_access_policies(schema).objects(schema):
+        objs: List[s_objtypes.ObjectType] = []
+        if (condition := pol.get_condition(schema)) and condition.refs:
+            objs.extend(condition.refs.objects(schema))
+        if (expr := pol.get_expr(schema)) and expr.refs:
+            objs.extend(expr.refs.objects(schema))
+
+        for obj in objs:
+            if isinstance(obj, s_objtypes.ObjectType):
+                typs.add(obj)
+                typs.update(stype.get_union_of(schema).objects(schema))
+                typs.update(stype.get_intersection_of(schema).objects(schema))
+            elif isinstance(obj, s_links.Link):
+                if tgt := obj.get_target(schema):
+                    typs.add(tgt)
+
+    typs.discard(stype)
+
+    typs.update({x for typ in typs for x in typ.descendants(schema)})
+
+    return typs
+
+
+def check_type_policy_ordering(
+    stype: s_objtypes.ObjectType,
+    schema: s_schema.Schema,
+) -> None:
+    graph = {}
+
+    # Trace out the graph of things we depend on
+    wl = [stype]
+    while wl:
+        obj = wl.pop()
+        deps = get_type_policy_deps(obj, schema)
+        graph[obj] = topological.DepGraphEntry(
+            item=obj,
+            deps=deps,
+            extra=False,
+        )
+        wl.extend([dep for dep in deps if dep not in graph])
+
+    topological.sort(graph)
 
 
 class CreateAccessPolicy(

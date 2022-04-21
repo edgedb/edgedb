@@ -155,7 +155,9 @@ def fini_expression(
 
     # Infer cardinalities of type rewrites
     for rw in ctx.type_rewrites.values():
-        inference.infer_cardinality(rw, scope_tree=ctx.path_scope, ctx=inf_ctx)
+        if isinstance(rw, irast.Set):
+            inference.infer_cardinality(
+                rw, scope_tree=ctx.path_scope, ctx=inf_ctx)
 
     # ConfigSet and ConfigReset don't like being part of a Set
     if isinstance(ir.expr, (irast.ConfigSet, irast.ConfigReset)):
@@ -268,7 +270,10 @@ def fini_expression(
             t for t in (ctx.env.schema_refs | ctx.env.created_schema_objects)
             if isinstance(t, s_types.Collection) and t != expr_type
         ),
-        type_rewrites={s.typeref.id: s for s in ctx.type_rewrites.values()},
+        type_rewrites={
+            (typ.id, not skip_subtypes): s
+            for (typ, skip_subtypes), s in ctx.type_rewrites.items()
+            if isinstance(s, irast.Set)},
         dml_exprs=ctx.env.dml_exprs,
         singletons=ctx.env.singletons,
     )
@@ -457,6 +462,9 @@ def compile_anchor(
     show_as_anchor = True
 
     if isinstance(anchor, s_types.Type):
+        # Anchors should not receive type rewrites; we are already
+        # evaluating in their context.
+        ctx.type_rewrites[anchor, False] = None
         step = setgen.class_set(anchor, ctx=ctx)
 
     elif (isinstance(anchor, s_pointers.Pointer) and
@@ -464,6 +472,7 @@ def compile_anchor(
         src = anchor.get_source(ctx.env.schema)
         if src is not None:
             assert isinstance(src, s_objtypes.ObjectType)
+            ctx.type_rewrites[src, False] = None
             path = setgen.extend_path(
                 setgen.class_set(src, ctx=ctx),
                 anchor,
@@ -474,6 +483,7 @@ def compile_anchor(
             ptrcls = schemactx.derive_dummy_ptr(anchor, ctx=ctx)
             src = ptrcls.get_source(ctx.env.schema)
             assert isinstance(src, s_types.Type)
+            ctx.type_rewrites[src, False] = None
             path = setgen.extend_path(
                 setgen.class_set(src, ctx=ctx),
                 ptrcls,

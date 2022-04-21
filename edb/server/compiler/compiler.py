@@ -595,6 +595,8 @@ class Compiler:
                     not ctx.bootstrap_mode
                     and not ctx.schema_reflection_mode
                 ),
+                apply_user_access_policies=self.get_config_val(
+                    ctx, 'apply_access_policies'),
                 testmode=self.get_config_val(ctx, '__internal_testmode'),
                 devmode=self._is_dev_instance(),
             ),

@@ -484,7 +484,8 @@ def new_primitive_rvar(
     typeref = ir_set.typeref
     dml_source = irutils.get_nearest_dml_stmt(ir_set)
     set_rvar = range_for_typeref(
-        typeref, path_id, lateral=lateral, dml_source=dml_source, ctx=ctx)
+        typeref, path_id, lateral=lateral, dml_source=dml_source,
+        include_descendants=not ir_set.skip_subtypes, ctx=ctx)
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
     rptr = ir_set.rptr
@@ -1357,23 +1358,25 @@ def range_for_material_objtype(
 
     relation: Union[pgast.Relation, pgast.CommonTableExpr]
 
+    key = (typeref.id, include_descendants)
     if (
-        (rewrite := ctx.env.type_rewrites.get(typeref.id)) is not None
-        and typeref.id not in ctx.pending_type_ctes
+        (rewrite := ctx.env.type_rewrites.get(key)) is not None
+        and key not in ctx.pending_type_ctes
         and not for_mutation
     ):
 
-        if (type_cte := ctx.type_ctes.get(typeref.id)) is None:
+        if (type_cte := ctx.type_ctes.get(key)) is None:
             with ctx.newrel() as sctx:
-                sctx.pending_type_ctes.add(typeref.id)
+                sctx.pending_type_ctes.add(key)
                 sctx.pending_query = sctx.rel
+                sctx.volatility_ref = ()
                 dispatch.visit(rewrite, ctx=sctx)
                 type_cte = pgast.CommonTableExpr(
                     name=ctx.env.aliases.get('t'),
                     query=sctx.rel,
                     materialized=False,
                 )
-                ctx.type_ctes[typeref.id] = type_cte
+                ctx.type_ctes[key] = type_cte
 
         with ctx.subrel() as sctx:
             cte_rvar = pgast.RelRangeVar(
@@ -1414,7 +1417,6 @@ def range_for_material_objtype(
         rvar = pgast.RelRangeVar(
             relation=relation,
             typeref=typeref,
-            include_inherited=include_descendants,
             alias=pgast.Alias(
                 aliasname=env.aliases.get(typeref.name_hint.name)
             )
@@ -1708,7 +1710,6 @@ def table_from_ptrref(
         schema_object_id=sobj_id,
         typeref=typeref,
         relation=relation,
-        include_inherited=include_descendants,
         alias=pgast.Alias(
             aliasname=ctx.env.aliases.get(ptrref.shortname.name)
         )

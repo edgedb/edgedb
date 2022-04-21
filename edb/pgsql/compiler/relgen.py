@@ -857,7 +857,7 @@ def process_set_as_path_type_intersection(
     if (not source_is_visible
             and ir_source.rptr is not None
             and not ir_source.path_id.is_type_intersection_path()
-            and not ir_source.rptr.ptrref.is_computable
+            and not ir_source.expr
             and (
                 ptrref.is_subtype
                 or pg_types.get_ptrref_storage_info(

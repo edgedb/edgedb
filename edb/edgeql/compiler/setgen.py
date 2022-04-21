@@ -83,8 +83,13 @@ def new_set(
     Absolutely all ir.Set instances must be created using this
     constructor.
     """
+
+    skip_subtypes: bool = kwargs.get('skip_subtypes', False)
+    rw_key = (stype, skip_subtypes)
+
+    # TODO: dump all this, turn it into access policies
     if (
-        stype not in ctx.type_rewrites
+        rw_key not in ctx.type_rewrites
         and isinstance(stype, s_objtypes.ObjectType)
         and ctx.env.options.apply_query_rewrites
         and (filters := stype.get_access_policy_filters(ctx.env.schema))
@@ -102,10 +107,18 @@ def new_set(
             subctx.expr_exposed = context.Exposure.UNEXPOSED
             subctx.path_scope = subctx.env.path_scope.root
             # Put a placeholder to prevent recursion.
-            subctx.type_rewrites[stype] = irast.Set()  # type: ignore
+            subctx.type_rewrites[rw_key] = None
             filtered_set = dispatch.compile(qry, ctx=subctx)
             assert isinstance(filtered_set, irast.Set)
-            subctx.type_rewrites[stype] = filtered_set
+            subctx.type_rewrites[rw_key] = filtered_set
+
+    if (
+        rw_key not in ctx.type_rewrites
+        and isinstance(stype, s_objtypes.ObjectType)
+        and ctx.env.options.apply_query_rewrites
+    ):
+        from . import policies
+        policies.try_type_rewrite(stype, skip_subtypes=skip_subtypes, ctx=ctx)
 
     typeref = typegen.type_to_typeref(stype, env=ctx.env)
     ir_set = ircls(typeref=typeref, **kwargs)
@@ -154,6 +167,7 @@ def new_set_from_set(
         is_binding: Optional[irast.BindingKind]=None,
         is_materialized_ref: Optional[bool]=None,
         is_visible_binding_ref: Optional[bool]=None,
+        skip_subtypes: Optional[bool]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
@@ -183,6 +197,8 @@ def new_set_from_set(
         is_materialized_ref = ir_set.is_materialized_ref
     if is_visible_binding_ref is None:
         is_visible_binding_ref = ir_set.is_visible_binding_ref
+    if skip_subtypes is None:
+        skip_subtypes = ir_set.skip_subtypes
     return new_set(
         path_id=path_id,
         path_scope_id=path_scope_id,
@@ -193,6 +209,7 @@ def new_set_from_set(
         is_binding=is_binding,
         is_materialized_ref=is_materialized_ref,
         is_visible_binding_ref=is_visible_binding_ref,
+        skip_subtypes=skip_subtypes,
         ircls=type(ir_set),
         ctx=ctx,
     )
@@ -435,7 +452,7 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
                 assert path_tip.rptr is not None
                 ptrcls = typegen.ptrcls_from_ptrref(
                     path_tip.rptr.ptrref, ctx=ctx)
-                if _is_computable_ptr(ptrcls, ctx=ctx):
+                if _is_computable_ptr(ptrcls, direction, ctx=ctx):
                     is_computable = True
 
         elif isinstance(step, qlast.TypeIntersection):
@@ -781,7 +798,7 @@ def extend_path(
     )
 
     target_set.rptr = ptr
-    is_computable = _is_computable_ptr(ptrcls, ctx=ctx)
+    is_computable = _is_computable_ptr(ptrcls, direction, ctx=ctx)
     if not ignore_computable and is_computable:
         target_set = computable_ptr_set(
             ptr,
@@ -793,20 +810,46 @@ def extend_path(
     return target_set
 
 
+def needs_rewrite_existence_assertion(
+    ptrcls: s_pointers.PointerLike,
+    direction: PtrDir,
+    *,
+    ctx: context.ContextLevel,
+) -> bool:
+    """Determines if we need to inject an assert_exists for a pointer
+
+    Required pointers to types with access policies need to have an
+    assert_exists added
+    """
+
+    return bool(
+        ptrcls.get_required(ctx.env.schema)
+        and direction == PtrDir.Outbound
+        and (target := ptrcls.get_target(ctx.env.schema))
+        and ctx.type_rewrites.get((target, False))
+        and ptrcls.get_shortname(ctx.env.schema).name != '__type__'
+    )
+
+
 def is_injected_computable_ptr(
     ptrcls: s_pointers.PointerLike,
+    direction: PtrDir,
     *,
     ctx: context.ContextLevel,
 ) -> bool:
     return (
         ctx.env.options.apply_query_rewrites
         and ptrcls not in ctx.disable_shadowing
-        and bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
+        and (
+            bool(ptrcls.get_schema_reflection_default(ctx.env.schema))
+            or needs_rewrite_existence_assertion(ptrcls, direction, ctx=ctx)
+        )
     )
 
 
 def _is_computable_ptr(
     ptrcls: s_pointers.PointerLike,
+    direction: PtrDir,
     *,
     ctx: context.ContextLevel,
 ) -> bool:
@@ -819,7 +862,7 @@ def _is_computable_ptr(
 
     return (
         ptrcls.is_pure_computable(ctx.env.schema)
-        or is_injected_computable_ptr(ptrcls, ctx=ctx)
+        or is_injected_computable_ptr(ptrcls, direction, ctx=ctx)
     )
 
 
@@ -1034,11 +1077,13 @@ def type_intersection_set(
 def class_set(
         stype: s_types.Type, *,
         path_id: Optional[irast.PathId]=None,
+        skip_subtypes: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
 
     if path_id is None:
         path_id = pathctx.get_path_id(stype, ctx=ctx)
-    return new_set(path_id=path_id, stype=stype, ctx=ctx)
+    return new_set(
+        path_id=path_id, stype=stype, skip_subtypes=skip_subtypes, ctx=ctx)
 
 
 def expression_set(
@@ -1216,35 +1261,48 @@ def computable_ptr_set(
         comp_expr = ptrcls.get_expr(ctx.env.schema)
         schema_qlexpr: Optional[qlast.Expr] = None
         if comp_expr is None and ctx.env.options.apply_query_rewrites:
+            assert isinstance(ptrcls, s_pointers.Pointer)
+            ptrcls_n = ptrcls.get_shortname(ctx.env.schema).name
+            path = qlast.Path(
+                steps=[
+                    qlast.Source(),
+                    qlast.Ptr(
+                        ptr=qlast.ObjectRef(name=ptrcls_n),
+                        direction=s_pointers.PointerDirection.Outbound,
+                        type=(
+                            'property'
+                            if ptrcls.is_link_property(ctx.env.schema)
+                            else None
+                        )
+                    )
+                ],
+            )
+
             schema_deflt = ptrcls.get_schema_reflection_default(ctx.env.schema)
             if schema_deflt is not None:
-                assert isinstance(ptrcls, s_pointers.Pointer)
-                ptrcls_n = ptrcls.get_shortname(ctx.env.schema).name
                 schema_qlexpr = qlast.BinOp(
-                    left=qlast.Path(
-                        steps=[
-                            qlast.Source(),
-                            qlast.Ptr(
-                                ptr=qlast.ObjectRef(name=ptrcls_n),
-                                direction=s_pointers.PointerDirection.Outbound,
-                                type=(
-                                    'property'
-                                    if ptrcls.is_link_property(ctx.env.schema)
-                                    else None
-                                )
-                            )
-                        ],
-                    ),
+                    left=path,
                     right=qlparser.parse_fragment(schema_deflt),
                     op='??',
                 )
 
-                # Is this is a view, we want to shadow the underlying
-                # ptrcls, since otherwise we will generate this default
-                # code *twice*.
-                if rptr.ptrref.base_ptr:
-                    ptrcls_to_shadow = typegen.ptrcls_from_ptrref(
-                        rptr.ptrref.base_ptr, ctx=ctx)
+            if needs_rewrite_existence_assertion(
+                    ptrcls, PtrDir.Outbound, ctx=ctx):
+                # Wrap it in a dummy select so that we can't optimize away
+                # the assert_exists.
+                # TODO: do something less bad
+                arg = qlast.SelectQuery(
+                    result=path, where=qlast.BooleanConstant(value='true'))
+                schema_qlexpr = qlast.FunctionCall(
+                    func=('__std__', 'assert_exists'), args=[arg]
+                )
+
+            # Is this is a view, we want to shadow the underlying
+            # ptrcls, since otherwise we will generate this default
+            # code *twice*.
+            if rptr.ptrref.base_ptr:
+                ptrcls_to_shadow = typegen.ptrcls_from_ptrref(
+                    rptr.ptrref.base_ptr, ctx=ctx)
 
         if schema_qlexpr is None:
             if comp_expr is None:
