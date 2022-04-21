@@ -210,7 +210,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT count(DISTINCT (FOR x in {1,2} UNION (
-                    uuid_generate_v1mc())));
+                    uuid_generate_v4())));
             ''',
             [2],
         )
@@ -270,7 +270,7 @@ class TestEdgeQLVolatility(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
                 SELECT count(DISTINCT (FOR x in {(),()} UNION (
-                    uuid_generate_v1mc())));
+                    uuid_generate_v4())));
             ''',
             [2],
         )

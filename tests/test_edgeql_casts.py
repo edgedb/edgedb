@@ -320,7 +320,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
 
         await self.assert_query_result(
             r'''
-                WITH U := uuid_generate_v1mc()
+                WITH U := uuid_generate_v4()
                 SELECT <uuid><uuid>U = U;
             ''',
             [True],
