@@ -21,9 +21,15 @@ or Alt-Enter on Windows/Linux.
 
 .. tip::
 
-    This esc+return or Alt-Enter trick is also very useful when your cursor is in
+    The Alt-Enter / ESC+Return trick is also very useful when your cursor is in
     the middle of a long query and you want to run it directly without moving the
     cursor to the end of the query.
+    
+    macOS terminals allow you to configure the left Option key to act as ESC+,
+    which makes Alt-Enter also work on macOS:
+    
+    * in iTerm: Settings → Profiles → Keys → Let Option key: ESC+
+    * in Terminal.app: Settings → Profiles → Keyboard → Use Option as Meta key
 
 
 ----------
