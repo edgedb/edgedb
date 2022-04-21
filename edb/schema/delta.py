@@ -2158,8 +2158,6 @@ class ObjectCommand(Command, Generic[so.Object_T]):
 
         if isinstance(name, sn.QualName):
             nname = sn.shortname_from_fullname(name)
-            if not isinstance(nname, sn.QualName):
-                breakpoint()
             assert isinstance(nname, sn.QualName), \
                 "expected qualified name"
             ref = qlast.ObjectRef(
