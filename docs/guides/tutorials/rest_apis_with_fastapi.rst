@@ -1,8 +1,10 @@
 .. _ref_guide_rest_apis_with_fastapi:
 
-===============================
-REST APIs with EdgeDB & FastAPI
-===============================
+=======
+FastAPI
+=======
+
+:alt-edb-title: Building a REST API with EdgeDB and FastAPI
 
 EdgeDB can help you quickly build REST APIs in Python without getting into the
 rigmarole of using ORM libraries to handle your data effectively. Here, we'll
@@ -10,7 +12,7 @@ be using `FastAPI <https://fastapi.tiangolo.com/>`_ to expose the API endpoints
 and EdgeDB to store the content.
 
 We'll build a simple event management system where you'll be able to fetch,
-create, update, and delete *event hosts* and *events* via RESTful API
+create, update, and delete *events* and *event hosts* via RESTful API
 endpoints.
 
 Prerequisites
@@ -28,29 +30,32 @@ Install the dependencies
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
 To follow along, clone the repository and head over to the ``fastapi-crud``
-directory. Create a Python 3.10 virtual environment, activate it, and install
+directory.
+
+
+.. code-block:: bash
+
+    $ git@github.com:edgedb/edgedb-examples.git
+    $ cd edgedb-examples/fastapi-crud
+
+Create a Python 3.10 virtual environment, activate it, and install
 the dependencies with this command:
 
 .. code-block:: bash
 
+    $ python -m venv myvenv
+    $ source myvenv/bin/activate
     $ pip install edgedb fastapi httpx[cli] uvicorn
 
 
 Initialize the database
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Now, let's create a new EdgeDB instance for this project. From the project's
-root directory, run:
+Now, let's initialize an EdgeDB project. From the project's root directory:
 
 .. code-block:: bash
 
     $ edgedb project init
-
-
-You should see the following prompts on your console:
-
-::
-
     Initializing project...
 
     Specify the name of EdgeDB instance to use with this project
@@ -60,7 +65,6 @@ You should see the following prompts on your console:
     Do you want to start instance automatically on login? [y/n]
     > y
     Checking EdgeDB versions...
-
 
 Once you've answered the prompts, a new EdgeDB instance called ``fastapi_crud``
 will be created and started.
@@ -73,19 +77,18 @@ Let's test that we can connect to the newly started instance. To do so, run:
 
 .. code-block:: bash
 
-    $ edgedb -I fastapi_crud
+    $ edgedb
 
 You should be connected to the database instance and able to see a prompt
 similar to this:
 
 ::
 
-    EdgeDB 1.2+5aecabc (repl 1.1.1+5bb8bad)
+    EdgeDB 1.x (repl 1.x)
     Type \help for help, \quit to quit.
     edgedb>
 
-You can start writing queries here. However, we haven't talked about the shape
-of our data yet.
+You can start writing queries here. However, the database is currently schemaless. Let's start designing out data model.
 
 Schema design
 =============
@@ -100,63 +103,58 @@ you've worked with SQLAlchemy or Django ORM, you might refer to these
 declarative schema definitions as *models*. In EdgeDB we call them
 "object types".
 
-By default, EdgeDB CLI looks for these schema definitions in the
-``dbschema/default.esdl`` module. You can also create new modules in this
-directory and call the types from one module to another. However, for now,
-we'll define our entities in the ``default.esdl`` module. This is how our
-datatypes look:
+The schema lives inside ``.esdl`` files in the ``dbschema`` directory. It's
+common to declare the entire schema in a single file
+``dbschema/default.esdl``. This is how our datatypes look:
 
 .. code-block:: esdl
 
     # dbschema/default.esdl
 
     module default {
-    abstract type Auditable {
-      property created_at -> datetime {
-        readonly := true;
-        default := datetime_current();
+      abstract type Auditable {
+        property created_at -> datetime {
+          readonly := true;
+          default := datetime_current();
+        }
+      }
+
+      type User extending Auditable {
+        required property name -> str {
+          constraint exclusive;
+          constraint max_len_value(50);
+        };
+      }
+
+      type Event extending Auditable {
+        required property name -> str {
+          constraint exclusive;
+          constraint max_len_value(50);
+        }
+        property address -> str;
+        property schedule -> datetime;
+        link host -> User;
       }
     }
 
-    type User extending Auditable {
-      required property name -> str {
-        constraint exclusive;
-        constraint max_len_value(50);
-      };
-    }
-
-    type Event extending Auditable {
-      required property name -> str {
-        constraint exclusive;
-        constraint max_len_value(50);
-      }
-      property address -> str;
-      property schedule -> datetime;
-      link host -> User;
-    }
-    }
-
-Here, we've defined an abstracted type called ``Auditable`` to take advantage
-of EdgeDB's polymorphic type system. This allows us to add a ``created_at``
-property to multiple types without repeating ourselves. Also, abstract types
-don't have any concrete footprints in the database as they don't hold any
+Here, we've defined an ``abstract`` type called ``Auditable`` to take advantage
+of EdgeDB's schema mixin system. This allows us to add a ``created_at``
+property to multiple types without repeating ourselves. Abstract types
+don't have any concrete footprints in the database, as they don't hold any
 actual data. Their only job is to propagate properties, links, and constraints
 to the types that extend them.
 
 The ``User`` type extends ``Auditable`` and inherits the ``created_at``
-property as a result. This property is auto-filled by the abstract type via the ``datetime_current`` function. The datetime is saved as a UTC timestamp. Along
-with the inherited type, the user type also defines a concrete required
-property called ``name``. We impose two constraints on this property—names
-should be unique and they can't be longer than 50 characters.
+property as a result. This property is auto-filled via the
+``datetime_current`` function. Along with the inherited type, the user type
+also defines a concrete required property called ``name``. We impose two
+constraints on this property: names should be unique and shorter than 50
+characters.
 
-Similar to the ``User`` type, we define an ``Event`` type that extends the
-``Auditable`` abstract type. An event will also have a ``name`` property and a
-few additional concrete properties like ``address`` and ``schedule``. While
-``address`` holds string data, ``schedule`` expects the incoming data to be
-formatted as datetime. An ``Event`` can also have an optional link to a
-``User``. This user here represents the host of an event. Currently, we're only
-allowing a single host to be attached to an event.
-
+We also define an ``Event`` type that extends the
+``Auditable`` abstract type. It also contains some additional concrete
+properties and links: ``address``, ``schedule``, and an optional link called
+``host`` that corresponds to a ``User``.
 
 Build the API endpoints
 =======================
@@ -181,8 +179,8 @@ webserver.
 User APIs
 ^^^^^^^^^^
 
-Since the ``User`` type is simpler among the two, we'll start with that. Let's
-create a ``GET users/`` endpoint so that we can start looking at the user
+Since the ``User`` type is simpler, we'll start with that. Let's
+create a ``GET /users`` endpoint so that we can see the ``User``
 objects saved in the database. You can create the API with a couple of lines of
 code in FastAPI:
 
@@ -224,7 +222,7 @@ code in FastAPI:
         else:
             users = await client.query(
             """SELECT User {name, created_at}
-                FILTER User.name=<str>$name""",
+                FILTER User.name = <str>$name""",
                 name=name,
             )
         response = (
@@ -237,9 +235,8 @@ code in FastAPI:
 
 The ``APIRouter`` instance does the actual work of exposing the API. We also
 create an async EdgeDB client instance to communicate with the database. By
-default, this API will return a list of users but you can also filter the
-objects by name. Since names are unique in this case, it guarantees that you'll
-get a single object in return whenever you filter by a name.
+default, this API will return a list of users, but you can also filter the
+objects by name.
 
 In the ``get_users`` function, we perform asynchronous queries via the
 ``edgedb`` client and serialize the returned data with the ``ResponseData``
@@ -282,8 +279,11 @@ To test the endpoint, go to the ``fastapi-crud`` directory and run:
 
 This will start a ``uvicorn`` server and you'll be able to start making
 requests against it. Earlier, we installed the
-`HTTPx <https://www.python-httpx.org/>`_ client library to make HTTP requests programmatically. It also comes with a neat command-line tool that we'll use to
-test our API. While the ``uvicorn`` server is running, on a new console, run:
+`HTTPx <https://www.python-httpx.org/>`_ client library to make HTTP requests
+programmatically. It also comes with a neat command-line tool that we'll use to
+test our API.
+
+While the ``uvicorn`` server is running, on a new console, run:
 
 .. code-block:: bash
 
@@ -301,8 +301,8 @@ You'll see the following output on the console:
 
     []
 
-Our request yielded an empty list because the database doesn't have any object
-at this point. Let's create the ``POST /users`` endpoint to start saving users
+Our request yielded an empty list because the database is currently empty.
+Let's create the ``POST /users`` endpoint to start saving users
 in the database. The POST endpoint can be built similarly:
 
 .. code-block:: python
@@ -472,7 +472,7 @@ looks similar to the ones you've already seen:
         try:
             deleted_users = await client.query(
                 """SELECT (
-                    DELETE User FILTER .name=<str>$name
+                    DELETE User FILTER .name = <str>$name
                 ) {name, created_at};
                 """,
                 name=name,
@@ -561,17 +561,17 @@ Take a look at how the POST API is built:
         try:
             (created_event,) = await client.query(
             """
-            WITH name:=<str>$name, address:=<str>$address,
-            schedule:=<str>$schedule, host_name:=<str>$host_name
-
+            WITH
+                name := <str>$name,
+                address := <str>$address,
+                schedule := <str>$schedule,
+                host_name := <str>$host_name
             SELECT (
                 INSERT Event {
-                name:=name,
-                address:=address,
-                schedule:=<datetime>schedule,
-                host:=assert_single((
-                    SELECT DETACHED User FILTER .name=host_name
-                ))
+                name := name,
+                address := address,
+                schedule := <datetime>schedule,
+                host := (SELECT User FILTER .name = host_name)
             }) {name, address, schedule, host: {name}};
             """,
             name=event.name,
@@ -606,7 +606,8 @@ Take a look at how the POST API is built:
         )
 
 Like the ``POST /users`` API, here, the incoming and outgoing shape of the data
-is defined by the ``RequestData`` and ``ResponseData``models respectively. The ``post_events`` function asynchronously inserts the data into the database and
+is defined by the ``RequestData`` and ``ResponseData``models respectively. The
+``post_events`` function asynchronously inserts the data into the database and
 returns the fields defined in the ``SELECT`` statement. EdgeQL allows us to
 perform insertion and selection of data fields at the same time. The exception
 handling logic validates the shape of the incoming data. For example, just as
@@ -616,7 +617,6 @@ same. Also, the field ``schedule`` accepts data as an
 to do so will incur an HTTP 400 (bad request) error.
 
 Here's how you'd create an event:
-
 
 .. code-block:: bash
 

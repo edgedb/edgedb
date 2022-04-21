@@ -23,8 +23,8 @@ guide!
     projects
     relations
     link_properties
+    tutorials/index
     migrations/index
     introspection/index
     cheatsheet/index
     deployment/index
-    tutorials/index
