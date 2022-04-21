@@ -45,7 +45,7 @@ the dependencies with this command:
 
     $ python -m venv myvenv
     $ source myvenv/bin/activate
-    $ pip install edgedb fastapi httpx[cli] uvicorn
+    $ pip install edgedb fastapi 'httpx[cli]' uvicorn
 
 
 Initialize the database
@@ -107,7 +107,7 @@ The schema lives inside ``.esdl`` files in the ``dbschema`` directory. It's
 common to declare the entire schema in a single file
 ``dbschema/default.esdl``. This is how our datatypes look:
 
-.. code-block:: esdl
+.. code-block:: sdl
 
     # dbschema/default.esdl
 
