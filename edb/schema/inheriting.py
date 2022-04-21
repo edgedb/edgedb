@@ -203,12 +203,26 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
         ancestors = set(self.scls.get_ancestors(schema).objects(schema))
         for base in bases.objects(schema) + (self.scls,):
-            base_refs: so.ObjectIndexBase[
+            base_refs: Dict[
                 sn.Name,
                 s_referencing.ReferencedInheritingObject,
-            ] = base.get_field_value(schema, attr)
+            ] = dict(base.get_field_value(schema, attr).items(schema))
 
-            for k, v in base_refs.items(schema):
+            # Pointers can reference each other if they are computed,
+            # and if they are processed in the wrong order,
+            # recompiling expressions in inherit_field can break, so
+            # we need to sort them by cross refs.
+            # Since inherit_fields doesn't recompile expressions
+            # in transient derivations, we skip the sorting there.
+            if not context.transient_derivation:
+                rev_refs = {v: k for k, v in base_refs.items()}
+                base_refs = {
+                    rev_refs[v]: v
+                    for v in reversed(
+                        sd.sort_by_cross_refs(schema, base_refs.values()))
+                }
+
+            for k, v in base_refs.items():
                 if not v.should_propagate(schema):
                     continue
                 if base == self.scls and not v.get_owned(schema):
