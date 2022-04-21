@@ -13,10 +13,10 @@ We'll start with this schema:
 .. code-block:: sdl
 
     type Event {
-        required property name -> str;
-        link prev -> Event;
+      required property name -> str;
+      link prev -> Event;
 
-        # ... more properties and links
+      # ... more properties and links
     }
 
 We specify a ``prev`` link because that will make adding a new
@@ -58,10 +58,10 @@ define it as a computed link by using :ref:`backlink
 .. code-block:: sdl
 
     type Event {
-        required property name -> str;
+      required property name -> str;
 
-        link prev -> Event;
-        link next := .<prev[is Event];
+      link prev -> Event;
+      link next := .<prev[is Event];
     }
 
 The migration is straightforward enough:
@@ -114,12 +114,12 @@ we're interested in building event chains, not trees.
 .. code-block:: sdl
 
     type Event {
-        required property name -> str;
+      required property name -> str;
 
-        link prev -> Event {
-            constraint exclusive;
-        };
-        link next := .<prev[is Event];
+      link prev -> Event {
+        constraint exclusive;
+      };
+      link next := .<prev[is Event];
     }
 
 Since the ``next`` link is computed, the migration should not need any

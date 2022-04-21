@@ -15,7 +15,7 @@ We'll start with a fairly simple schema:
 .. code-block:: sdl
 
     type User {
-        property name -> str;
+      property name -> str;
     }
 
 At this stage we don't think that this property needs to be unique or
@@ -41,7 +41,7 @@ file:
 .. code-block:: sdl
 
     type User {
-        required property name -> str;
+      required property name -> str;
     }
 
 Next we try to migrate:
@@ -71,9 +71,9 @@ avoid confusion or to use them as reliable human-readable identifiers
 .. code-block:: sdl
 
     type User {
-        required property name -> str {
-            constraint exclusive;
-        }
+      required property name -> str {
+        constraint exclusive;
+      }
     }
 
 Now we proceed with the migration:
