@@ -5730,6 +5730,114 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ["!!"],
         )
 
+    async def test_edgeql_ddl_global_06(self):
+        INTRO_Q = '''
+            select schema::Global {
+                required, cardinality, typ := .target.name,
+                req_comp := contains(.computed_fields, 'required'),
+                card_comp := contains(.computed_fields, 'cardinality'),
+                computed := exists .expr,
+            }
+            filter .name = 'default::foo';
+        '''
+        await self.con.execute('''
+            create global foo := 10;
+        ''')
+
+        await self.assert_query_result(
+            INTRO_Q,
+            [{
+                "computed": True,
+                "card_comp": True,
+                "req_comp": True,
+                "required": True,
+                "cardinality": "One",
+                "typ": "default::foo",
+            }]
+        )
+
+        await self.con.execute('''
+            drop global foo;
+            create optional multi global foo := 10;
+        ''')
+
+        await self.assert_query_result(
+            INTRO_Q,
+            [{
+                "computed": True,
+                "card_comp": False,
+                "req_comp": False,
+                "required": False,
+                "cardinality": "Many",
+                "typ": "default::foo",
+            }]
+        )
+
+        await self.con.execute('''
+            alter global foo reset optionality;
+        ''')
+
+        await self.assert_query_result(
+            INTRO_Q,
+            [{
+                "computed": True,
+                "card_comp": False,
+                "req_comp": True,
+                "required": True,
+                "cardinality": "Many",
+                "typ": "default::foo",
+            }]
+        )
+
+        await self.con.execute('''
+            alter global foo {
+                reset cardinality;
+                reset expression;
+                set type str;
+            };
+        ''')
+
+        await self.assert_query_result(
+            INTRO_Q,
+            [{
+                "computed": False,
+                "card_comp": False,
+                "req_comp": False,
+                "required": False,
+                "cardinality": "One",
+                "typ": "std::str",
+            }]
+        )
+
+    async def test_edgeql_ddl_global_07(self):
+        await self.con.execute('''
+            create global foo := <str>Object.id
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"possibly an empty set returned",
+        ):
+            await self.con.execute("""
+                alter global foo set required;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"possibly more than one element returned",
+        ):
+            await self.con.execute("""
+                alter global foo set single;
+            """)
+
+        async with self.assertRaisesRegexTx(
+            edgedb.UnsupportedFeatureError,
+            r"cannot specify a type and an expression for a global",
+        ):
+            await self.con.execute("""
+                alter global foo set type str;
+            """)
+
     async def test_edgeql_ddl_property_computable_01(self):
         await self.con.execute('''\
             CREATE TYPE CompProp;

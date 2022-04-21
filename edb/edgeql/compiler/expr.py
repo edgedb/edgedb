@@ -468,7 +468,10 @@ def compile_GlobalExpr(
         modaliases=ctx.modaliases, type=s_globals.Global)
     assert isinstance(glob, s_globals.Global)
 
-    assert not glob.is_computable(ctx.env.schema), "computable not implemented"
+    if glob.is_computable(ctx.env.schema):
+        obj_ref = s_utils.name_to_ast_ref(
+            glob.get_target(ctx.env.schema).get_name(ctx.env.schema))
+        return dispatch.compile(qlast.Path(steps=[obj_ref]), ctx=ctx)
 
     objctx = ctx.env.options.schema_object_context
     if objctx in (s_constr.Constraint, s_indexes.Index):

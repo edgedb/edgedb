@@ -111,6 +111,13 @@ class Type(
         bool,
         default=False, compcoef=1.0)
 
+    # True when from a global. The purpose of this is to ensure that
+    # the types from globals and aliases can't be migrated between
+    # each other.
+    from_global = so.SchemaField(
+        bool,
+        default=False, compcoef=0.2)
+
     # True for aliases defined by CREATE ALIAS, false for local
     # aliases in queries.
     alias_is_persistent = so.SchemaField(
@@ -798,7 +805,10 @@ class RenameType(sd.RenameObject[TypeT]):
         *,
         parent_node: Optional[qlast.DDLOperation] = None,
     ) -> Optional[qlast.DDLOperation]:
-        if self.maybe_get_object_aux_data('is_compound_type'):
+        if (
+            self.maybe_get_object_aux_data('is_compound_type')
+            or self.scls.is_view(schema)
+        ):
             return None
         else:
             return super()._get_ast(schema, context, parent_node=parent_node)

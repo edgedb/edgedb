@@ -5732,6 +5732,36 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_globals_02(self):
+        self._assert_migration_equivalence([r"""
+            global foo -> str;
+        """, r"""
+            global foo -> str {
+                default := "test";
+            }
+        """, r"""
+            global foo := "test";
+        """, r"""
+            global foo := 10;
+        """, r"""
+            global bar := 10;
+        """, r"""
+            required global bar := 10;
+        """, r"""
+            required multi global bar := 10;
+        """, r"""
+            global bar -> str;
+        """])
+
+    def test_schema_migrations_equivalence_globals_03(self):
+        self._assert_migration_equivalence([r"""
+            global foo := 20;
+        """, r"""
+            alias foo := 20;
+        """, r"""
+            global foo := 20;
+        """])
+
     def test_schema_migrations_equivalence_globals_use_01(self):
         self._assert_migration_equivalence([r"""
             global current -> uuid;

@@ -44,7 +44,10 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
             };
             create global banned_cards -> array<str>;
 
-            create alias CurUser := (
+            create alias ACurUser := (
+                select User filter .name = global cur_user);
+
+            create global CurUser := (
                 select User filter .name = global cur_user);
 
             create function get_current_user() -> OPTIONAL User using (
@@ -144,7 +147,12 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
 
     async def test_edgeql_globals_04(self):
         await self.assert_query_result(
-            r'''select CurUser { name }''',
+            r'''select ACurUser { name }''',
+            []
+        )
+
+        await self.assert_query_result(
+            r'''select global CurUser { name }''',
             []
         )
 
@@ -153,7 +161,14 @@ class TestEdgeQLGlobals(tb.QueryTestCase):
         ''')
 
         await self.assert_query_result(
-            r'''select CurUser { name }''',
+            r'''select ACurUser { name }''',
+            [
+                {'name': 'Bob'}
+            ]
+        )
+
+        await self.assert_query_result(
+            r'''select global CurUser { name }''',
             [
                 {'name': 'Bob'}
             ]

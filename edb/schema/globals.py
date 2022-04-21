@@ -29,6 +29,8 @@ from edb.edgeql import qltypes
 from . import annos as s_anno
 from . import delta as sd
 from . import expr as s_expr
+from . import expraliases as s_expraliases
+from . import name as sn
 from . import objects as so
 from . import types as s_types
 from . import utils
@@ -105,30 +107,79 @@ class GlobalCommandContext(
 
 
 class GlobalCommand(
-    sd.QualifiedObjectCommand[Global],
+    s_expraliases.AliasLikeCommand[Global],
     context_class=GlobalCommandContext,
 ):
+    TYPE_FIELD_NAME = 'target'
+
+    @classmethod
+    def _get_alias_name(cls, type_name: sn.QualName) -> sn.QualName:
+        return cls._mangle_name(type_name)
+
+    @classmethod
+    def _is_alias(cls, obj: Global, schema: s_schema.Schema) -> bool:
+        return obj.is_computable(schema)
+
+    def _check_expr(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        from edb.ir import ast as irast
+
+        expression = self.get_attribute_value('expr')
+        assert isinstance(expression, s_expr.Expression)
+        assert isinstance(expression.irast, irast.Statement)
+
+        required, card = expression.irast.cardinality.to_schema_value()
+
+        spec_required: Optional[bool] = (
+            self.get_specified_attribute_value('required', schema, context))
+        spec_card: Optional[qltypes.SchemaCardinality] = (
+            self.get_specified_attribute_value('cardinality', schema, context))
+
+        glob_name = self.get_verbosename()
+
+        if spec_required and not required:
+            srcctx = self.get_attribute_source_context('target')
+            raise errors.SchemaDefinitionError(
+                f'possibly an empty set returned by an '
+                f'expression for the computed '
+                f'{glob_name} '
+                f"explicitly declared as 'required'",
+                context=srcctx
+            )
+
+        if (
+            spec_card is qltypes.SchemaCardinality.One
+            and card is not qltypes.SchemaCardinality.One
+        ):
+            srcctx = self.get_attribute_source_context('target')
+            raise errors.SchemaDefinitionError(
+                f'possibly more than one element returned by an '
+                f'expression for the computed '
+                f'{glob_name} '
+                f"explicitly declared as 'single'",
+                context=srcctx
+            )
+
+        if spec_card is None:
+            self.set_attribute_value('cardinality', card, computed=True)
+
+        if spec_required is None:
+            self.set_attribute_value('required', required, computed=True)
+
+        return schema
+
     def canonicalize_attributes(
         self,
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> s_schema.Schema:
-        from . import pointers as s_pointers
-
         schema = super().canonicalize_attributes(schema, context)
-        target_ref = self.get_local_attribute_value('target')
-        inf_target_ref: Optional[s_types.TypeShell[s_types.Type]]
 
-        if isinstance(target_ref, s_pointers.ComputableRef):
-            raise errors.SchemaDefinitionError(
-                "computed globals are not yet implemented",
-                context=self.source_context,
-            )
-        elif (self.get_local_attribute_value('expr')) is not None:
-            raise errors.SchemaDefinitionError(
-                "computed globals are not yet implemented",
-                context=self.source_context,
-            )
+        if self.get_attribute_value('expr'):
+            schema = self._check_expr(schema, context)
 
         schema = s_types.materialize_type_in_attribute(
             schema, context, self, 'target')
@@ -144,7 +195,6 @@ class GlobalCommand(
         is_computable = scls.is_computable(schema)
 
         target = scls.get_target(schema)
-        assert target is not None
 
         if not is_computable:
             if (
@@ -261,8 +311,8 @@ class GlobalCommand(
 
 
 class CreateGlobal(
+    s_expraliases.CreateAliasLike[Global],
     GlobalCommand,
-    sd.CreateObject[Global],
 ):
     astnode = qlast.CreateGlobal
 
@@ -335,12 +385,18 @@ class CreateGlobal(
             s_types.TypeShell[s_types.Type], s_pointers.ComputableRef]
 
         if isinstance(astnode.target, qlast.TypeExpr):
-            target_ref = utils.ast_to_type_shell(
+            type_ref = utils.ast_to_type_shell(
                 astnode.target,
                 metaclass=s_types.Type,
                 modaliases=context.modaliases,
                 schema=schema,
             )
+            cmd.set_attribute_value(
+                'target',
+                type_ref,
+                source_context=astnode.target.context,
+            )
+
         else:
             # computable
             qlcompiler.normalize(
@@ -348,33 +404,99 @@ class CreateGlobal(
                 schema=schema,
                 modaliases=context.modaliases
             )
-            target_ref = s_pointers.ComputableRef(astnode.target)
+            cmd.set_attribute_value(
+                'expr',
+                s_expr.Expression.from_ast(
+                    astnode.target, schema, context.modaliases,
+                    context.localnames,
+                ),
+            )
 
-        cmd.set_attribute_value(
-            'target',
-            target_ref,
-            source_context=astnode.target.context,
-        )
+        if (
+            cmd.has_attribute_value('expr')
+            and cmd.has_attribute_value('target')
+        ):
+            raise errors.UnsupportedFeatureError(
+                "cannot specify a type and an expression for a global",
+                context=astnode.context,
+            )
 
         return cmd
 
 
 class RenameGlobal(
+    s_expraliases.RenameAliasLike[Global],
     GlobalCommand,
-    sd.RenameObject[Global],
 ):
     pass
 
 
 class AlterGlobal(
+    s_expraliases.AlterAliasLike[Global],
     GlobalCommand,
-    sd.AlterObject[Global],
 ):
     astnode = qlast.AlterGlobal
 
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        if not context.canonical:
+            old_expr = self.scls.get_expr(schema)
+            has_expr = self.has_attribute_value('expr')
+            clears_expr = has_expr and not self.get_attribute_value('expr')
+
+            # Force reconsideration of the expression if cardinality
+            # or required is changed.
+            if (
+                (
+                    self.has_attribute_value('cardinality')
+                    or self.has_attribute_value('required')
+                )
+                and not has_expr
+                and old_expr
+            ):
+                self.set_attribute_value(
+                    'expr',
+                    s_expr.Expression.not_compiled(old_expr)
+                )
+
+            # Produce an error when setting a type on something with
+            # an expression
+            if (
+                self.has_attribute_value('target')
+                and (
+                    (self.scls.get_expr(schema) or has_expr)
+                    and not clears_expr
+                )
+            ):
+                raise errors.UnsupportedFeatureError(
+                    "cannot specify a type and an expression for a global",
+                    context=self.source_context,
+                )
+
+            if clears_expr and old_expr:
+                # If the expression was explicitly set to None,
+                # that means that `RESET EXPRESSION` was executed
+                # and this is no longer a computable.
+                computed_fields = self.scls.get_computed_fields(schema)
+                if (
+                    'required' in computed_fields
+                    and not self.has_attribute_value('required')
+                ):
+                    self.set_attribute_value('required', None)
+                if (
+                    'cardinality' in computed_fields
+                    and not self.has_attribute_value('cardinality')
+                ):
+                    self.set_attribute_value('cardinality', None)
+
+        return super()._alter_begin(schema, context)
+
 
 class DeleteGlobal(
+    s_expraliases.DeleteAliasLike[Global],
     GlobalCommand,
-    sd.DeleteObject[Global],
 ):
     astnode = qlast.DropGlobal
