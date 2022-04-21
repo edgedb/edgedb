@@ -786,8 +786,8 @@ container in it.
 Create a local link to the new EdgeDB instance
 ----------------------------------------------
 
-To access the EdgeDB instance you've just provisioned on AWS from your local
-machine run ``edgedb instance link``:
+Create an local alias to the remote EdgeDB instance with ``edgedb instance
+link``:
 
 .. code-block:: bash
 
@@ -804,3 +804,5 @@ machine run ``edgedb instance link``:
             | [0].Association.PublicIp" \
         )" \
         aws
+
+You can now open a REPL to this instance
