@@ -22,8 +22,8 @@ on Windows/Linux, or Esc+Return on macOS.
 .. tip::
 
     The Alt-Enter / ESC+Return trick is also very useful when your cursor is in
-    the middle of a long query and you want to run it directly without moving the
-    cursor to the end of the query.
+    the middle of a long query and you want to run it directly without moving 
+    the cursor to the end of the query.
     
     macOS terminals allow you to configure the left Option key to act as ESC+,
     which makes Alt-Enter also work on macOS:
