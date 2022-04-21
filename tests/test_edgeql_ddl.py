@@ -5834,6 +5834,17 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             };
         ''')
 
+    async def test_edgeql_ddl_property_computable_add_dep(self):
+        # Make sure things don't get messed up when we add new dependencies
+        await self.con.execute('''
+            create type A {
+                create property foo := "!";
+                create property bar -> str;
+            };
+            alter type A alter property foo using (.bar);
+            create type B extending A;
+        ''')
+
     async def test_edgeql_ddl_property_computable_bad_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,
