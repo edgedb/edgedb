@@ -11,8 +11,8 @@ a semicolon and press "ENTER".
     db> select 5;
     {5}
 
-Alternatively, you can run the query without a semicolon with esc+return on macOS
-or Alt-Enter on Windows/Linux.
+Alternatively, you can run the query without a semicolon by hitting Alt-Enter 
+on Windows/Linux, or Esc+Return on macOS.
 
 .. code-block:: edgeql-repl
 
