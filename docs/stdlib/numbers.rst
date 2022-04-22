@@ -79,6 +79,30 @@ Mathematical functions
 
 .. include:: math_funcops_table.rst
 
+Bitwise functions
+-----------------
+
+.. list-table::
+  :class: funcoptable
+
+  * - :eql:func:`bit_and`
+    - :eql:func-desc:`bit_and`
+
+  * - :eql:func:`bit_or`
+    - :eql:func-desc:`bit_or`
+
+  * - :eql:func:`bit_xor`
+    - :eql:func-desc:`bit_xor`
+
+  * - :eql:func:`bit_not`
+    - :eql:func-desc:`bit_not`
+
+  * - :eql:func:`bit_lshift`
+    - :eql:func-desc:`bit_lshift`
+
+  * - :eql:func:`bit_rshift`
+    - :eql:func-desc:`bit_rshift`
+
 String parsing
 --------------
 
@@ -544,6 +568,169 @@ from :eql:type:`str` and :eql:type:`json`.
 
         db> select random();
         {0.62649393780157}
+
+
+----------
+
+
+.. eql:function:: std::bit_and(l: int16, r: int16) -> int16
+                  std::bit_and(l: int32, r: int32) -> int32
+                  std::bit_and(l: int64, r: int64) -> int64
+
+    Bitwise AND operator for 2 intergers.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_and(17, 3);
+        {1}
+
+
+----------
+
+
+.. eql:function:: std::bit_or(l: int16, r: int16) -> int16
+                  std::bit_or(l: int32, r: int32) -> int32
+                  std::bit_or(l: int64, r: int64) -> int64
+
+    Bitwise OR operator for 2 intergers.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_or(17, 3);
+        {19}
+
+
+----------
+
+
+.. eql:function:: std::bit_xor(l: int16, r: int16) -> int16
+                  std::bit_xor(l: int32, r: int32) -> int32
+                  std::bit_xor(l: int64, r: int64) -> int64
+
+    Bitwise exclusive OR operator for 2 intergers.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_xor(17, 3);
+        {18}
+
+
+----------
+
+
+.. eql:function:: std::bit_not(r: int16) -> int16
+                  std::bit_not(r: int32) -> int32
+                  std::bit_not(r: int64) -> int64
+
+    Bitwise negation operator for 2 intergers.
+
+    Bitwise negation for integers ends up similar to mathematical negation
+    because typically the signed integers use "two's complement"
+    representation. In this represenation mathematical negation is achieved by
+    aplying bitwise negation and adding ``1``.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_not(17);
+        {-18}
+        db> select -17 = bit_not(17) + 1;
+        {true}
+
+
+----------
+
+
+.. eql:function:: std::bit_lshift(val: int16, n: int64) -> int16
+                  std::bit_lshift(val: int32, n: int64) -> int32
+                  std::bit_lshift(val: int64, n: int64) -> int64
+
+    Bitwise left-shift operator for intergers.
+
+    The integer *val* is shifted by *n* bits to the left. The rightmost added
+    bits are all ``0``. Shifting an integer by a number of bits larger than
+    the bit size of the integer results in ``0``.
+
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_lshift(123, 2);
+        {492}
+        db> select bit_lshift(123, 65);
+        {0}
+
+    It is possible to affect the sign bit by left-shifting an integer.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_lshift(123, 60);
+        {-5764607523034234880}
+
+    In general left-shifting an integer in small increments produces the same
+    result as shifting it in one step.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_lshift(bit_lshift(123, 1), 3);
+        {1968}
+        db> select bit_lshift(123, 4);
+        {1968}
+
+    It is an error to attempt to shift by a negative number of bits.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_lshift(123, -2);
+        edgedb error: InvalidValueError: bit_lshift(): cannot shift by
+        negative amount
+
+
+----------
+
+
+.. eql:function:: std::bit_rshift(val: int16, n: int64) -> int16
+                  std::bit_rshift(val: int32, n: int64) -> int32
+                  std::bit_rshift(val: int64, n: int64) -> int64
+
+    Bitwise arithemtic right-shift operator for intergers.
+
+    The integer *val* is shifted by *n* bits to the right. In the arithmetic
+    right-shift the sign is preserved. This means that the leftmost added bits
+    are ``1`` or ``0`` depending on the sign bit. Shifting an integer by a
+    number of bits larger than the bit size of the integer results in ``0``
+    for positive numbers and ``-1`` for negative numbers.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_rshift(123, 2);
+        {30}
+        db> select bit_rshift(123, 65);
+        {0}
+        db> select bit_rshift(-123, 2);
+        {-31}
+        db> select bit_rshift(-123, 65);
+        {-1}
+
+    In general right-shifting an integer in small increments produces the same
+    result as shifting it in one step.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_rshift(bit_rshift(123, 1), 3);
+        {7}
+        db> select bit_rshift(123, 4);
+        {7}
+        db> select bit_rshift(bit_rshift(-123, 1), 3);
+        {-8}
+        db> select bit_rshift(-123, 4);
+        {-8}
+
+    It is an error to attempt to shift by a negative number of bits.
+
+    .. code-block:: edgeql-repl
+
+        db> select bit_rshift(123, -2);
+        edgedb error: InvalidValueError: bit_rshift(): cannot shift by
+        negative amount
 
 
 ------------
