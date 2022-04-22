@@ -88,7 +88,8 @@ similar to this:
     Type \help for help, \quit to quit.
     edgedb>
 
-You can start writing queries here. However, the database is currently schemaless. Let's start designing out data model.
+You can start writing queries here. However, the database is currently
+schemaless. Let's start designing out data model.
 
 Schema design
 =============
@@ -621,7 +622,12 @@ Here's how you'd create an event:
 .. code-block:: bash
 
     $ httpx -m POST http://localhost:5000/events \
-            --json '{"name":"Resuscitation", "address":"Britain", "schedule":"1889-07-27T23:59:59-07:00", "host_name":"Mina Murray"}'
+            --json '{
+                      "name":"Resuscitation",
+                      "address":"Britain",
+                      "schedule":"1889-07-27T23:59:59-07:00",
+                      "host_name":"Mina Murray"
+                    }'
 
 That'll return:
 
