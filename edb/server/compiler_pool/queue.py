@@ -51,7 +51,8 @@ class WorkerQueue(typing.Generic[W]):
     async def acquire(
         self,
         *,
-        condition: typing.Optional[_AcquireCondition[W]]=None
+        condition: typing.Optional[_AcquireCondition[W]]=None,
+        weighter=None,
     ) -> W:
         # There can be a race between a waiter scheduled for to wake up
         # and a worker being stolen (due to quota being enforced,
@@ -89,11 +90,24 @@ class WorkerQueue(typing.Generic[W]):
                     self._wakeup_next_waiter()
                 raise
 
-        if condition is not None and len(self._queue) > 1:
-            for w in self._queue:
-                if condition(w):
-                    self._queue.remove(w)
-                    return w
+        if len(self._queue) > 1:
+            if condition is not None:
+                for w in self._queue:
+                    if condition(w):
+                        self._queue.remove(w)
+                        return w
+            elif weighter is not None:
+                rv = self._queue[0]
+                weight = weighter(rv)
+                it = iter(self._queue)
+                next(it)  # skip the first
+                for w in it:
+                    new_weight = weighter(w)
+                    if new_weight > weight:
+                        weight = new_weight
+                        rv = w
+                self._queue.remove(rv)
+                return rv
 
         return self._queue.popleft()
 

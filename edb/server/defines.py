@@ -23,6 +23,7 @@ from edb import buildmeta
 
 
 EDGEDB_PORT = 5656
+EDGEDB_REMOTE_COMPILER_PORT = 5660
 EDGEDB_SUPERGROUP = 'edgedb_supergroup'
 EDGEDB_SUPERUSER = 'edgedb'
 EDGEDB_TEMPLATE_DB = '__edgedbtpl__'

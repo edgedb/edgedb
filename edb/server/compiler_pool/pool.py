@@ -51,7 +51,7 @@ PROCESS_INITIAL_RESPONSE_TIMEOUT: float = 60.0
 KILL_TIMEOUT: float = 10.0
 ADAPTIVE_SCALE_UP_WAIT_TIME: float = 3.0
 ADAPTIVE_SCALE_DOWN_WAIT_TIME: float = 60.0
-WORKER_MOD: str = __name__.rpartition('.')[0] + '.worker'
+WORKER_PKG: str = __name__.rpartition('.')[0] + '.'
 
 
 logger = logging.getLogger("edb.server")
@@ -69,13 +69,12 @@ def _pickle_memoized(schema):
     return pickle.dumps(schema, -1)
 
 
-class Worker:
+class BaseWorker:
 
     _dbs: state.DatabasesState
 
     def __init__(
         self,
-        manager,
         dbs: state.DatabasesState,
         backend_runtime_params: pgparams.BackendRuntimeParams,
         std_schema,
@@ -83,12 +82,8 @@ class Worker:
         schema_class_layout,
         global_schema,
         system_config,
-        server,
-        pid
     ):
         self._dbs = dbs
-        self._pid = pid
-
         self._backend_runtime_params = backend_runtime_params
         self._std_schema = std_schema
         self._refl_schema = refl_schema
@@ -97,24 +92,9 @@ class Worker:
         self._system_config = system_config
         self._last_pickled_state = None
 
-        self._manager = manager
-        self._server = server
         self._con = None
         self._last_used = time.monotonic()
         self._closed = False
-
-    async def _attach(self, init_args_pickled: bytes):
-        self._manager._stats_spawned += 1
-
-        self._con = self._server.get_by_pid(self._pid)
-
-        await self.call(
-            '__init_worker__',
-            init_args_pickled,
-        )
-
-    def get_pid(self):
-        return self._pid
 
     async def call(self, method_name, *args, sync_state=None):
         assert not self._closed
@@ -147,6 +127,29 @@ class Worker:
             exc.__formatted_error__ = data[0]
             raise exc
 
+
+class Worker(BaseWorker):
+    def __init__(self, manager, server, pid, *args):
+        super().__init__(*args)
+
+        self._pid = pid
+        self._last_pickled_state = None
+        self._manager = manager
+        self._server = server
+
+    async def _attach(self, init_args_pickled: bytes):
+        self._manager._stats_spawned += 1
+
+        self._con = self._server.get_by_pid(self._pid)
+
+        await self.call(
+            '__init_worker__',
+            init_args_pickled,
+        )
+
+    def get_pid(self):
+        return self._pid
+
     def close(self):
         if self._closed:
             return
@@ -160,22 +163,17 @@ class Worker:
             pass
 
 
-class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
-
-    _workers_queue: queue.WorkerQueue[Worker]
-    _workers: Dict[int, Worker]
-
+class AbstractPool:
     def __init__(
         self,
         *,
         loop,
-        runstate_dir,
         dbindex,
         backend_runtime_params: pgparams.BackendRuntimeParams,
         std_schema,
         refl_schema,
         schema_class_layout,
-        pool_size,
+        **kwargs,
     ):
         self._loop = loop
         self._dbindex = dbindex
@@ -185,64 +183,13 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
         self._refl_schema = refl_schema
         self._schema_class_layout = schema_class_layout
 
-        self._runstate_dir = runstate_dir
-
-        self._poolsock_name = os.path.join(self._runstate_dir, 'ipc')
-        assert len(self._poolsock_name) <= (
-            defines.MAX_RUNSTATE_DIR_PATH
-            + defines.MAX_UNIX_SOCKET_PATH_LENGTH
-            + 1
-        ), "pool IPC socket length exceeds maximum allowed"
-
-        assert pool_size >= 1
-        self._pool_size = pool_size
-        self._workers = {}
-
-        self._server = amsg.Server(self._poolsock_name, loop, self)
-        self._ready_evt = asyncio.Event()
-
-        self._running = None
-
-        self._stats_spawned = 0
-        self._stats_killed = 0
-
-    def is_running(self):
-        return bool(self._running)
-
-    async def _attach_worker(self, pid: int, init_args, init_args_pickled):
-        if not self._running:
-            return
-        worker = Worker(  # type: ignore
-            self,
-            *init_args,
-            self._server,
-            pid,
-        )
-        await worker._attach(init_args_pickled)
-        self._report_worker(worker)
-
-        self._workers[pid] = worker
-        self._workers_queue.release(worker)
-        self._worker_attached()
-
-        logger.debug("started compiler worker process (PID %s)", pid)
-        if (
-            not self._ready_evt.is_set()
-            and len(self._workers) == self._pool_size
-        ):
-            logger.info(
-                f"started {self._pool_size} compiler worker "
-                f"process{'es' if self._pool_size > 1 else ''}",
-            )
-            self._ready_evt.set()
-
-        return worker
-
-    def _worker_attached(self):
-        pass
-
     @functools.lru_cache(maxsize=None)
     def _get_init_args(self):
+        init_args = self._get_init_args_uncached()
+        pickled_args = self._get_pickled_init_args(init_args)
+        return init_args, pickled_args
+
+    def _get_init_args_uncached(self):
         dbs: state.DatabasesState = immutables.Map()
         for db in self._dbindex.iter_dbs():
             dbs = dbs.set(
@@ -264,112 +211,22 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
             self._dbindex.get_global_schema(),
             self._dbindex.get_compilation_system_config(),
         )
+        return init_args
+
+    def _get_pickled_init_args(self, init_args):
         pickled_args = pickle.dumps(init_args, -1)
-        return init_args, pickled_args
+        return pickled_args
 
-    def worker_connected(self, pid, version):
-        logger.debug("Worker with PID %s connected, sending init args.", pid)
-        args, pickled_args = self._get_init_args()
-        self._loop.create_task(
-            self._attach_worker(pid, args, pickled_args)
-        )
-        metrics.compiler_process_spawns.inc()
-        metrics.current_compiler_processes.inc()
+    async def start(self):
+        raise NotImplementedError
 
-    def worker_disconnected(self, pid):
-        logger.debug("Worker with PID %s disconnected.", pid)
-        self._workers.pop(pid, None)
-        metrics.current_compiler_processes.dec()
+    async def stop(self):
+        raise NotImplementedError
 
     def get_template_pid(self):
         return None
 
-    async def start(self):
-        if self._running is not None:
-            raise RuntimeError(
-                'the compiler pool has already been started once')
-
-        self._workers_queue = queue.WorkerQueue(self._loop)
-
-        await self._server.start()
-        self._running = True
-
-        await self._start()
-
-        await asyncio.wait_for(
-            self._ready_evt.wait(),
-            PROCESS_INITIAL_RESPONSE_TIMEOUT
-        )
-
-    async def _create_compiler_process(self, numproc=None, version=0):
-        # Create a new compiler process. When numproc is None, a single
-        # standalone compiler worker process is started; if numproc is an int,
-        # a compiler template process will be created, which will then fork
-        # itself into `numproc` actual worker processes and run as a supervisor
-
-        env = _ENV
-        if debug.flags.server:
-            env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
-
-        cmdline = [sys.executable]
-        if sys.flags.isolated:
-            cmdline.append('-I')
-
-        cmdline.extend([
-            '-m', WORKER_MOD,
-            '--sockname', self._poolsock_name,
-            '--version-serial', str(version),
-        ])
-        if numproc:
-            cmdline.extend([
-                '--numproc', str(numproc),
-            ])
-
-        transport, _ = await self._loop.subprocess_exec(
-            lambda: self,
-            *cmdline,
-            env=env,
-            stdin=subprocess.DEVNULL,
-            stdout=None,
-            stderr=None,
-        )
-        return transport
-
-    async def _start(self):
-        raise NotImplementedError
-
-    async def stop(self):
-        if not self._running:
-            return
-        self._running = False
-
-        await self._server.stop()
-        self._server = None
-
-        self._workers_queue = queue.WorkerQueue(self._loop)
-        self._workers.clear()
-
-        await self._stop()
-
-    async def _stop(self):
-        raise NotImplementedError
-
-    def _report_worker(self, worker: Worker, *, action: str = "spawn"):
-        action = action.capitalize()
-        if not action.endswith("e"):
-            action += "e"
-        action += "d"
-        log_metrics.info(
-            "%s a compiler worker with PID %d; pool=%d;"
-            + " spawned=%d; killed=%d",
-            action,
-            worker.get_pid(),
-            len(self._workers),
-            self._stats_spawned,
-            self._stats_killed,
-        )
-
-    def _compute_compile_preargs(
+    async def _compute_compile_preargs(
         self,
         worker,
         dbname,
@@ -499,18 +356,11 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
 
         return preargs, callback
 
-    async def _acquire_worker(self, *, condition=None):
-        while (
-            worker := await self._workers_queue.acquire(condition=condition)
-        ).get_pid() not in self._workers:
-            # The worker was disconnected; skip to the next one.
-            pass
-        return worker
+    async def _acquire_worker(self, *, condition=None, weighter=None):
+        raise NotImplementedError
 
-    def _release_worker(self, worker):
-        # Skip disconnected workers
-        if worker.get_pid() in self._workers:
-            self._workers_queue.release(worker)
+    def _release_worker(self, worker, *, put_in_front: bool = True):
+        raise NotImplementedError
 
     async def compile(
         self,
@@ -524,7 +374,7 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
     ):
         worker = await self._acquire_worker()
         try:
-            preargs, sync_state = self._compute_compile_preargs(
+            preargs, sync_state = await self._compute_compile_preargs(
                 worker,
                 dbname,
                 user_schema,
@@ -534,19 +384,24 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
                 system_config,
             )
 
-            units, state_ = await worker.call(
+            result = await worker.call(
                 'compile',
                 *preargs,
                 *compile_args,
                 sync_state=sync_state
             )
-            worker._last_pickled_state = state_
-            return units, state_
+            worker._last_pickled_state = result[1]
+            if len(result) == 2:
+                return *result, 0
+            else:
+                return result
 
         finally:
             self._release_worker(worker)
 
-    async def compile_in_tx(self, txid, pickled_state, *compile_args):
+    async def compile_in_tx(
+        self, txid, pickled_state, state_id, *compile_args
+    ):
         # When we compile a query, the compiler returns a tuple:
         # a QueryUnit and the state the compiler is in if it's in a
         # transaction.  The state contains the information about all savepoints
@@ -587,14 +442,14 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
                 *compile_args
             )
             worker._last_pickled_state = new_pickled_state
-            return units, new_pickled_state
+            return units, new_pickled_state, 0
 
         finally:
             # Put the worker at the end of the queue so that the chance
             # of reusing it later (and maximising the chance of
             # the w._last_pickled_state is pickled_state` check returning
             # `True` is higher.
-            self._workers_queue.release(worker, put_in_front=False)
+            self._release_worker(worker, put_in_front=False)
 
     async def compile_notebook(
         self,
@@ -608,7 +463,7 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
     ):
         worker = await self._acquire_worker()
         try:
-            preargs, sync_state = self._compute_compile_preargs(
+            preargs, sync_state = await self._compute_compile_preargs(
                 worker,
                 dbname,
                 user_schema,
@@ -655,7 +510,7 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
     ):
         worker = await self._acquire_worker()
         try:
-            preargs, sync_state = self._compute_compile_preargs(
+            preargs, sync_state = await self._compute_compile_preargs(
                 worker,
                 dbname,
                 user_schema,
@@ -708,8 +563,199 @@ class BasePool(amsg.ServerProtocol, asyncio.SubprocessProtocol):
             self._release_worker(worker)
 
 
+class BaseLocalPool(
+    AbstractPool, amsg.ServerProtocol, asyncio.SubprocessProtocol
+):
+
+    _worker_class = Worker
+    _worker_mod = "worker"
+    _workers_queue: queue.WorkerQueue[Worker]
+    _workers: Dict[int, Worker]
+
+    def __init__(
+        self,
+        *,
+        runstate_dir,
+        pool_size,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+
+        self._runstate_dir = runstate_dir
+
+        self._poolsock_name = os.path.join(self._runstate_dir, 'ipc')
+        assert len(self._poolsock_name) <= (
+            defines.MAX_RUNSTATE_DIR_PATH
+            + defines.MAX_UNIX_SOCKET_PATH_LENGTH
+            + 1
+        ), "pool IPC socket length exceeds maximum allowed"
+
+        assert pool_size >= 1
+        self._pool_size = pool_size
+        self._workers = {}
+
+        self._server = amsg.Server(self._poolsock_name, self._loop, self)
+        self._ready_evt = asyncio.Event()
+
+        self._running = None
+
+        self._stats_spawned = 0
+        self._stats_killed = 0
+
+    def is_running(self):
+        return bool(self._running)
+
+    async def _attach_worker(self, pid: int):
+        if not self._running:
+            return
+        logger.debug("Sending init args to worker with PID %s.", pid)
+        init_args, init_args_pickled = self._get_init_args()
+        worker = self._worker_class(  # type: ignore
+            self,
+            self._server,
+            pid,
+            *init_args,
+        )
+        await worker._attach(init_args_pickled)
+        self._report_worker(worker)
+
+        self._workers[pid] = worker
+        self._workers_queue.release(worker)
+        self._worker_attached()
+
+        logger.debug("started compiler worker process (PID %s)", pid)
+        if (
+            not self._ready_evt.is_set()
+            and len(self._workers) == self._pool_size
+        ):
+            logger.info(
+                f"started {self._pool_size} compiler worker "
+                f"process{'es' if self._pool_size > 1 else ''}",
+            )
+            self._ready_evt.set()
+
+        return worker
+
+    def _worker_attached(self):
+        pass
+
+    def worker_connected(self, pid, version):
+        logger.debug("Worker with PID %s connected.", pid)
+        self._loop.create_task(self._attach_worker(pid))
+        metrics.compiler_process_spawns.inc()
+        metrics.current_compiler_processes.inc()
+
+    def worker_disconnected(self, pid):
+        logger.debug("Worker with PID %s disconnected.", pid)
+        self._workers.pop(pid, None)
+        metrics.current_compiler_processes.dec()
+
+    async def start(self):
+        if self._running is not None:
+            raise RuntimeError(
+                'the compiler pool has already been started once')
+
+        self._workers_queue = queue.WorkerQueue(self._loop)
+
+        await self._server.start()
+        self._running = True
+
+        await self._start()
+
+        await self._wait_ready()
+
+    async def _wait_ready(self):
+        await asyncio.wait_for(
+            self._ready_evt.wait(),
+            PROCESS_INITIAL_RESPONSE_TIMEOUT
+        )
+
+    async def _create_compiler_process(self, numproc=None, version=0):
+        # Create a new compiler process. When numproc is None, a single
+        # standalone compiler worker process is started; if numproc is an int,
+        # a compiler template process will be created, which will then fork
+        # itself into `numproc` actual worker processes and run as a supervisor
+
+        env = _ENV
+        if debug.flags.server:
+            env = {'EDGEDB_DEBUG_SERVER': '1', **_ENV}
+
+        cmdline = [sys.executable]
+        if sys.flags.isolated:
+            cmdline.append('-I')
+
+        cmdline.extend([
+            '-m', WORKER_PKG + self._worker_mod,
+            '--sockname', self._poolsock_name,
+            '--version-serial', str(version),
+        ])
+        if numproc:
+            cmdline.extend([
+                '--numproc', str(numproc),
+            ])
+
+        transport, _ = await self._loop.subprocess_exec(
+            lambda: self,
+            *cmdline,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=None,
+            stderr=None,
+        )
+        return transport
+
+    async def _start(self):
+        raise NotImplementedError
+
+    async def stop(self):
+        if not self._running:
+            return
+        self._running = False
+
+        await self._server.stop()
+        self._server = None
+
+        self._workers_queue = queue.WorkerQueue(self._loop)
+        self._workers.clear()
+
+        await self._stop()
+
+    async def _stop(self):
+        raise NotImplementedError
+
+    def _report_worker(self, worker: Worker, *, action: str = "spawn"):
+        action = action.capitalize()
+        if not action.endswith("e"):
+            action += "e"
+        action += "d"
+        log_metrics.info(
+            "%s a compiler worker with PID %d; pool=%d;"
+            + " spawned=%d; killed=%d",
+            action,
+            worker.get_pid(),
+            len(self._workers),
+            self._stats_spawned,
+            self._stats_killed,
+        )
+
+    async def _acquire_worker(self, *, condition=None, weighter=None):
+        while (
+            worker := await self._workers_queue.acquire(
+                condition=condition, weighter=weighter
+            )
+        ).get_pid() not in self._workers:
+            # The worker was disconnected; skip to the next one.
+            pass
+        return worker
+
+    def _release_worker(self, worker, *, put_in_front: bool = True):
+        # Skip disconnected workers
+        if worker.get_pid() in self._workers:
+            self._workers_queue.release(worker, put_in_front=put_in_front)
+
+
 @srvargs.CompilerPoolMode.Fixed.assign_implementation
-class FixedPool(BasePool):
+class FixedPool(BaseLocalPool):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._template_transport = None
@@ -787,7 +833,7 @@ class FixedPool(BasePool):
 
 
 @srvargs.CompilerPoolMode.OnDemand.assign_implementation
-class SimpleAdaptivePool(BasePool):
+class SimpleAdaptivePool(BaseLocalPool):
     def __init__(self, *, pool_size, **kwargs):
         super().__init__(pool_size=1, **kwargs)
         self._worker_transports = {}
@@ -807,7 +853,7 @@ class SimpleAdaptivePool(BasePool):
         for transport in transports.values():
             await transport._wait()
 
-    async def _acquire_worker(self, *, condition=None):
+    async def _acquire_worker(self, *, condition=None, weighter=None):
         if (
             self._running and
             self._scale_up_handle is None
@@ -826,13 +872,15 @@ class SimpleAdaptivePool(BasePool):
         if self._scale_down_handle is not None:
             self._scale_down_handle.cancel()
             self._scale_down_handle = None
-        return await super()._acquire_worker(condition=condition)
+        return await super()._acquire_worker(
+            condition=condition, weighter=weighter
+        )
 
-    def _release_worker(self, worker):
+    def _release_worker(self, worker, *, put_in_front: bool = True):
         if self._scale_down_handle is not None:
             self._scale_down_handle.cancel()
             self._scale_down_handle = None
-        super()._release_worker(worker)
+        super()._release_worker(worker, put_in_front=put_in_front)
         if (
             self._running and
             self._workers_queue.count_waiters() == 0 and
@@ -907,6 +955,158 @@ class SimpleAdaptivePool(BasePool):
             worker.close()
 
 
+class RemoteWorker(BaseWorker):
+    def __init__(self, con, *args):
+        super().__init__(*args)
+        self._con = con
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        self._con.abort()
+
+
+@srvargs.CompilerPoolMode.Remote.assign_implementation
+class RemotePool(AbstractPool):
+    def __init__(self, *, address, pool_size, **kwargs):
+        super().__init__(**kwargs)
+        self._pool_addr = address
+        self._worker = None
+        self._sync_lock = asyncio.Lock()
+        self._semaphore = asyncio.BoundedSemaphore(pool_size)
+
+    async def start(self, retry=False):
+        if self._worker is None:
+            self._worker = self._loop.create_future()
+        try:
+            await self._loop.create_connection(
+                lambda: amsg.HubProtocol(
+                    loop=self._loop,
+                    on_pid=lambda *args: self._loop.create_task(
+                        self._connection_made(retry, *args)
+                    ),
+                    on_connection_lost=self._connection_lost,
+                ),
+                *self._pool_addr,
+            )
+        except Exception:
+            if not retry:
+                raise
+            if self._worker is not None:
+                self._loop.call_later(1, lambda: self._loop.create_task(
+                    self.start(retry=True)
+                ))
+        else:
+            if not retry:
+                await self._worker
+
+    async def stop(self):
+        if self._worker is not None:
+            worker, self._worker = self._worker, None
+            if worker.done():
+                (await worker).close()
+
+    def _get_pickled_init_args(self, init_args):
+        (
+            dbs,
+            backend_runtime_params,
+            std_schema,
+            refl_schema,
+            schema_class_layout,
+            global_schema,
+            system_config,
+        ) = init_args
+        std_args = (std_schema, refl_schema, schema_class_layout)
+        client_args = (dbs, backend_runtime_params)
+        return (
+            pickle.dumps(std_args, -1),
+            pickle.dumps(client_args, -1),
+            pickle.dumps(global_schema, -1),
+            pickle.dumps(system_config, -1),
+        )
+
+    async def _connection_made(
+        self, retry, protocol, transport, _pid, version
+    ):
+        if self._worker is None:
+            return
+        try:
+            init_args, init_args_pickled = self._get_init_args()
+            worker = RemoteWorker(
+                amsg.HubConnection(transport, protocol, self._loop, version),
+                *init_args,
+            )
+            await worker.call(
+                '__init_server__',
+                defines.EDGEDB_CATALOG_VERSION,
+                init_args_pickled,
+            )
+        except state.IncompatibleClient as ex:
+            transport.abort()
+            if self._worker is not None:
+                self._worker.set_exception(ex)
+                self._worker = None
+        except BaseException as ex:
+            transport.abort()
+            if self._worker is not None:
+                if retry:
+                    await self.start(retry=True)
+                else:
+                    self._worker.set_exception(ex)
+                    self._worker = None
+        else:
+            if self._worker is not None:
+                self._worker.set_result(worker)
+
+    def _connection_lost(self, _pid):
+        if self._worker is not None:
+            self._worker = self._loop.create_future()
+            self._loop.create_task(self.start(retry=True))
+
+    async def _acquire_worker(self, *, condition=None, cmp=None):
+        await self._semaphore.acquire()
+        return await self._worker
+
+    def _release_worker(self, worker, *, put_in_front: bool = True):
+        if self._sync_lock.locked():
+            self._sync_lock.release()
+        self._semaphore.release()
+
+    async def compile_in_tx(
+        self, txid, pickled_state, state_id, *compile_args
+    ):
+        worker = await self._acquire_worker()
+        try:
+            return await worker.call(
+                'compile_in_tx',
+                state.REUSE_LAST_STATE_MARKER,
+                state_id,
+                txid,
+                *compile_args
+            )
+        except state.StateNotFound:
+            return await worker.call(
+                'compile_in_tx',
+                pickled_state,
+                0,
+                txid,
+                *compile_args
+            )
+        finally:
+            self._release_worker(worker)
+
+    async def _compute_compile_preargs(self, *args):
+        preargs, callback = await super()._compute_compile_preargs(*args)
+        if callback:
+            del preargs, callback
+            await self._sync_lock.acquire()
+            preargs, callback = await super()._compute_compile_preargs(*args)
+            if not callback:
+                self._sync_lock.release()
+        return preargs, callback
+
+
 async def create_compiler_pool(
     *,
     runstate_dir: str,
@@ -917,8 +1117,9 @@ async def create_compiler_pool(
     refl_schema,
     schema_class_layout,
     pool_class=FixedPool,
-) -> BasePool:
-    assert issubclass(pool_class, BasePool)
+    **kwargs,
+) -> AbstractPool:
+    assert issubclass(pool_class, AbstractPool)
     loop = asyncio.get_running_loop()
     pool = pool_class(
         loop=loop,
@@ -929,6 +1130,7 @@ async def create_compiler_pool(
         refl_schema=refl_schema,
         schema_class_layout=schema_class_layout,
         dbindex=dbindex,
+        **kwargs,
     )
 
     await pool.start()

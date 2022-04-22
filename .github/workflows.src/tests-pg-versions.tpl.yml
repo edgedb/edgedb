@@ -33,9 +33,14 @@ jobs:
          - ''
          - 'NOCREATEDB NOCREATEROLE'
          - 'CREATEDB NOCREATEROLE'
+        remote-compiler: [ '' ]
         include:
           - postgres-version: 14
             single-mode: ''
+            remote-compiler: ''
+          - postgres-version: 14
+            single-mode: ''
+            remote-compiler: 'remote-compiler'
     services:
       postgres:
         image: postgres:${{ matrix.postgres-version }}-alpine
@@ -83,6 +88,10 @@ jobs:
           export EDGEDB_TEST_BACKEND_DSN=postgres://singles:test@localhost/singles
         else
           export EDGEDB_TEST_BACKEND_DSN=postgres://postgres:postgres@localhost/postgres
+        fi
+        if [[ "${{ matrix.remote-compiler }}" ]]; then
+          edgedb-server compiler /tmp/edb-compiler --pool-size 2 &
+          export EDGEDB_TEST_REMOTE_COMPILER=/tmp/edb-compiler
         fi
         edb server --bootstrap-only --backend-dsn=$EDGEDB_TEST_BACKEND_DSN --testmode
         if [[ "${{ matrix.single-mode }}" == *"NOCREATEDB"* ]]; then

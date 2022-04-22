@@ -193,6 +193,7 @@ async def _run_server(
             max_backend_connections=args.max_backend_connections,
             compiler_pool_size=args.compiler_pool_size,
             compiler_pool_mode=args.compiler_pool_mode,
+            compiler_pool_addr=args.compiler_pool_addr,
             nethosts=args.bind_addresses,
             netport=args.port,
             auto_shutdown_after=args.auto_shutdown_after,
@@ -581,7 +582,6 @@ def bump_rlimit_nofile() -> None:
 
 
 def server_main(**kwargs):
-    logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
     exceptions.install_excepthook()
 
     bump_rlimit_nofile()
@@ -611,11 +611,13 @@ def server_main(**kwargs):
             asyncio.run(run_server(server_args))
 
 
-@click.command(
+@click.group(
     'EdgeDB Server',
+    invoke_without_command=True,
     context_settings=dict(help_option_names=['-h', '--help']))
 @srvargs.server_options
-def main(version=False, **kwargs):
+@click.pass_context
+def main(ctx, version=False, **kwargs):
     if kwargs.get('testmode') and 'EDGEDB_TEST_CATALOG_VERSION' in os.environ:
         buildmeta.EDGEDB_CATALOG_VERSION = int(
             os.environ['EDGEDB_TEST_CATALOG_VERSION']
@@ -623,7 +625,17 @@ def main(version=False, **kwargs):
     if version:
         print(f"edgedb-server, version {buildmeta.get_version()}")
         sys.exit(0)
-    server_main(**kwargs)
+    logsetup.setup_logging(kwargs['log_level'], kwargs['log_to'])
+    if ctx.invoked_subcommand is None:
+        server_main(**kwargs)
+
+
+@main.command()
+@srvargs.compiler_options
+def compiler(**kwargs):
+    from edb.server.compiler_pool import server as compiler_server
+
+    asyncio.run(compiler_server.server_main(**kwargs))
 
 
 def main_dev():

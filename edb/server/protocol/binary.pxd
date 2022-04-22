@@ -108,6 +108,7 @@ cdef class EdgeConnection:
         tuple max_protocol
 
         object last_state
+        int last_state_id
 
         pgcon.PGConnection _pinned_pgcon
         bint _pinned_pgcon_in_tx

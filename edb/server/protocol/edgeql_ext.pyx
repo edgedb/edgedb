@@ -132,7 +132,7 @@ async def handle_request(
 async def compile(db, server, bytes query):
     compiler_pool = server.get_compiler_pool()
 
-    units, _ = await compiler_pool.compile(
+    units, _, _ = await compiler_pool.compile(
         db.name,
         db.user_schema,
         server.get_global_schema(),

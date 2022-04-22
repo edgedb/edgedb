@@ -93,7 +93,8 @@ class TestAmsg(tbs.TestCase):
             await server.start()
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    sys.executable, "-m", pool.WORKER_MOD,
+                    sys.executable,
+                    "-m", pool.WORKER_PKG + pool.BaseLocalPool._worker_mod,
                     "--sockname", sock_name,
                     "--numproc", str(num_proc),
                     "--version-serial", "1",
@@ -411,6 +412,7 @@ class TestCompilerPool(tbs.TestCase):
                 await asyncio.gather(*(pool_.compile_in_tx(
                     context.state.current_tx().id,
                     pickle.dumps(context.state),
+                    0,
                     edgeql.Source.from_string('SELECT 123'),
                     edbcompiler.IoFormat.BINARY,
                     False, 101, False, True, 'single', (0, 12), True

@@ -42,4 +42,12 @@ class FailedStateSync(Exception):
     pass
 
 
+class StateNotFound(Exception):
+    pass
+
+
+class IncompatibleClient(Exception):
+    pass
+
+
 REUSE_LAST_STATE_MARKER = b'REUSE_LAST_STATE_MARKER'

@@ -97,6 +97,7 @@ class BackendCapabilitySets(NamedTuple):
 class CompilerPoolMode(enum.StrEnum):
     Fixed = "fixed"
     OnDemand = "on_demand"
+    Remote = "remote"
 
     def __init__(self, name):
         self.pool_class = None
@@ -133,6 +134,7 @@ class ServerConfig(NamedTuple):
     max_backend_connections: Optional[int]
     compiler_pool_size: int
     compiler_pool_mode: CompilerPoolMode
+    compiler_pool_addr: str
     echo_runtime_info: bool
     emit_server_status: str
     temp_dir: bool
@@ -270,11 +272,24 @@ def adjust_testmode_max_connections(max_conns):
 
 
 def _validate_compiler_pool_size(ctx, param, value):
-    if value < defines.BACKEND_COMPILER_POOL_SIZE_MIN:
+    if value is not None and value < defines.BACKEND_COMPILER_POOL_SIZE_MIN:
         raise click.BadParameter(
             f'the minimum value for the compiler pool size option '
             f'is {defines.BACKEND_COMPILER_POOL_SIZE_MIN}')
     return value
+
+
+def _validate_host_port(ctx, param, value):
+    if value is None:
+        return None
+    address = value.split(":", 1)
+    if len(address) == 1:
+        return address[0], defines.EDGEDB_REMOTE_COMPILER_PORT
+    else:
+        try:
+            return address[0], int(address[1])
+        except ValueError:
+            raise click.BadParameter(f'port must be int: {address[1]}')
 
 
 def compute_default_compiler_pool_size() -> int:
@@ -448,7 +463,6 @@ _server_options = [
         callback=_validate_max_backend_connections),
     click.option(
         '--compiler-pool-size', type=int,
-        default=compute_default_compiler_pool_size(),
         callback=_validate_compiler_pool_size),
     click.option(
         '--compiler-pool-mode',
@@ -462,6 +476,13 @@ _server_options = [
              '"on_demand" means the pool will maintain at least 1 worker and '
              'automatically scale up (to --compiler-pool-size workers ) and '
              'down to the demand. Default to "fixed".',
+    ),
+    click.option(
+        '--compiler-pool-addr',
+        callback=_validate_host_port,
+        help=f'Specify the host[:port] of the compiler pool to connect to, '
+             f'only used if --compiler-pool-mode=remote. Default host is '
+             f'localhost, port is {defines.EDGEDB_REMOTE_COMPILER_PORT}',
     ),
     click.option(
         '--echo-runtime-info', type=bool, default=False, is_flag=True,
@@ -619,6 +640,48 @@ def server_options(func):
     return func
 
 
+_compiler_options = [
+    click.option(
+        "--pool-size",
+        type=int,
+        callback=_validate_compiler_pool_size,
+        default=compute_default_compiler_pool_size(),
+        help=f"Number of compiler worker processes. Defaults to "
+             f"{compute_default_compiler_pool_size()}.",
+    ),
+    click.option(
+        "--client-schema-cache-size",
+        type=int,
+        default=100,
+        help="Number of client schemas each worker could cache at most. The "
+             "compiler server is not affected by this setting, it keeps a "
+             "pickled copy of the client schema of all active clients."
+    ),
+    click.option(
+        '-I', '--listen-addresses', type=str, multiple=True,
+        default=('localhost',),
+        help='IP addresses to listen on, specify multiple times for more than '
+             'one address to listen on. Default: localhost',
+    ),
+    click.option(
+        '-P', '--listen-port', type=PortType(),
+        help=f'Port to listen on. '
+             f'Default: {defines.EDGEDB_REMOTE_COMPILER_PORT}',
+    ),
+    click.option(
+        '--runstate-dir', type=PathPath(), default=None,
+        help="Directory to store UNIX domain socket file for IPC, a temporary "
+             "directory will be used if not specified.",
+    ),
+]
+
+
+def compiler_options(func):
+    for option in reversed(_compiler_options):
+        func = option(func)
+    return func
+
+
 def parse_args(**kwargs: Any):
     kwargs['bind_addresses'] = kwargs.pop('bind_address')
 
@@ -771,6 +834,22 @@ def parse_args(**kwargs: Any):
     kwargs['compiler_pool_mode'] = CompilerPoolMode(
         kwargs['compiler_pool_mode']
     )
+    if kwargs['compiler_pool_size'] is None:
+        if kwargs['compiler_pool_mode'] == CompilerPoolMode.Remote:
+            # this reflects to a local semaphore to control concurrency,
+            # 2 means this is a small EdgeDB instance that could only issue
+            # at max 2 concurrent compile requests at a time.
+            kwargs['compiler_pool_size'] = 2
+        else:
+            kwargs['compiler_pool_size'] = compute_default_compiler_pool_size()
+    if kwargs['compiler_pool_mode'] == CompilerPoolMode.Remote:
+        if kwargs['compiler_pool_addr'] is None:
+            kwargs['compiler_pool_addr'] = (
+                "localhost", defines.EDGEDB_REMOTE_COMPILER_PORT
+            )
+    elif kwargs['compiler_pool_addr'] is not None:
+        abort('--compiler-pool-addr is only meaningful '
+              'under --compiler-pool-mode=remote')
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:
