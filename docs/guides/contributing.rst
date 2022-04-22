@@ -25,8 +25,8 @@ Linux or macOS.  Windows is not currently supported.
 * Zlib (zlibg1-dev on Ubuntu);
 * Readline dev package;
 * Libuuid dev package;
-* nodejs 14 or later;
-* yarn 1.
+* Node.js 14 or later;
+* Yarn 1
 
 .. zlib, readline and libuuid are required to build postgres. Should be removed
    when custom postgres build is no longer needed.
