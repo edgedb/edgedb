@@ -71,6 +71,12 @@ String
     * - :eql:func:`str_repeat`
       - :eql:func-desc:`str_repeat`
 
+    * - :eql:func:`str_replace`
+      - :eql:func-desc:`str_replace`
+
+    * - :eql:func:`str_reverse`
+      - :eql:func-desc:`str_reverse`
+
     * - :eql:func:`str_split`
       - Split a string into an array using a delimiter.
 
@@ -471,8 +477,42 @@ String
 ----------
 
 
-.. eql:function:: std::str_split(s: std::str, delimiter: std::str) \
-                                 -> array<std::str>
+.. eql:function:: std::str_replace(s: str, old: str, new: str) -> str
+
+    Replace all occurrences of *old* substring with the *new* one.
+
+    Given a string *s* find all non-overlapping occurrences of the substring
+    *old* and replace them with the substring *new*.
+
+    .. code-block:: edgeql-repl
+
+        db> select str_replace('hello world', 'h', 'H');
+        {'Hello world'}
+        db> select str_replace('hello world', 'l', '[L]');
+        {'he[L][L]o wor[L]d'}
+        db> select str_replace('hello world', 'o', '😄');
+        {'hell😄 w😄rld'}
+
+
+----------
+
+
+.. eql:function:: std::str_reverse(string: str) -> str
+
+    Reverse the order of the characters in the string.
+
+    .. code-block:: edgeql-repl
+
+        db> select str_reverse('Hello world');
+        {'dlrow olleH'}
+        db> select str_reverse('Hello 👋 world 😄');
+        {'😄 dlrow 👋 olleH'}
+
+
+----------
+
+
+.. eql:function:: std::str_split(s: str, delimiter: str) -> array<str>
 
     :index: split str_split explode
 

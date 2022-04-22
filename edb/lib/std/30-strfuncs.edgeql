@@ -344,3 +344,24 @@ std::str_split(s: std::str, delimiter: std::str) -> array<std::str>
         );
     $$;
 };
+
+
+CREATE FUNCTION
+std::str_replace(s: std::str, old: std::str, new: std::str) -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Given a string, find a matching substring and replace all its \
+        occurrences with a new substring.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'replace';
+};
+
+
+CREATE FUNCTION
+std::str_reverse(s: std::str) -> std::str
+{
+    CREATE ANNOTATION std::description :=
+        'Reverse the order of the characters in the string.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'reverse';
+};
