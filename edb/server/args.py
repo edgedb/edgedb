@@ -279,6 +279,19 @@ def _validate_compiler_pool_size(ctx, param, value):
     return value
 
 
+def _validate_host_port(ctx, param, value):
+    if value is None:
+        return None
+    address = value.split(":", 1)
+    if len(address) == 1:
+        return address[0], defines.EDGEDB_REMOTE_COMPILER_PORT
+    else:
+        try:
+            return address[0], int(address[1])
+        except ValueError:
+            raise click.BadParameter(f'port must be int: {address[1]}')
+
+
 def compute_default_compiler_pool_size() -> int:
     total_mem = psutil.virtual_memory().total
     total_mem_mb = total_mem // MIB
@@ -466,7 +479,10 @@ _server_options = [
     ),
     click.option(
         '--compiler-pool-addr',
-        type=str,
+        callback=_validate_host_port,
+        help=f'Specify the host[:port] of the compiler pool to connect to, '
+             f'only used if --compiler-pool-mode=remote. Default host is '
+             f'localhost, port is {defines.EDGEDB_REMOTE_COMPILER_PORT}',
     ),
     click.option(
         '--echo-runtime-info', type=bool, default=False, is_flag=True,
@@ -642,8 +658,20 @@ _compiler_options = [
              "pickled copy of the client schema of all active clients."
     ),
     click.option(
-        "--socket-path",
-        required=True,
+        '-I', '--listen-addresses', type=str, multiple=True,
+        default=('localhost',),
+        help='IP addresses to listen on, specify multiple times for more than '
+             'one address to listen on. Default: localhost',
+    ),
+    click.option(
+        '-P', '--listen-port', type=PortType(),
+        help=f'Port to listen on. '
+             f'Default: {defines.EDGEDB_REMOTE_COMPILER_PORT}',
+    ),
+    click.option(
+        '--runstate-dir', type=PathPath(), default=None,
+        help="Directory to store UNIX domain socket file for IPC, a temporary "
+             "directory will be used if not specified.",
     ),
 ]
 
@@ -816,7 +844,12 @@ def parse_args(**kwargs: Any):
             kwargs['compiler_pool_size'] = compute_default_compiler_pool_size()
     if kwargs['compiler_pool_mode'] == CompilerPoolMode.Remote:
         if kwargs['compiler_pool_addr'] is None:
-            abort('--compiler-pool-mode=remote requires --compiler-pool-addr')
+            kwargs['compiler_pool_addr'] = (
+                "localhost", defines.EDGEDB_REMOTE_COMPILER_PORT
+            )
+    elif kwargs['compiler_pool_addr'] is not None:
+        abort('--compiler-pool-addr is only meaningful '
+              'under --compiler-pool-mode=remote')
 
     if kwargs['temp_dir']:
         if kwargs['data_dir']:

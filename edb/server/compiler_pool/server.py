@@ -24,6 +24,7 @@ import functools
 import logging
 import os
 import pickle
+import tempfile
 import time
 import traceback
 import typing
@@ -35,6 +36,7 @@ from edb.common import debug
 from edb.common import markup
 
 from .. import args as srvargs
+from .. import defines
 from . import amsg
 from . import pool as pool_mod
 from . import worker_proc
@@ -512,28 +514,58 @@ class CompilerServerProtocol(asyncio.Protocol):
         )
 
 
-async def server_main(socket_path, pool_size, client_schema_cache_size):
-    loop = asyncio.get_running_loop()
-    pool = MultiSchemaPool(
-        loop=loop,
-        runstate_dir=os.path.dirname(socket_path),
-        pool_size=pool_size,
-        cache_size=client_schema_cache_size,
-    )
-    await pool.start()
+async def server_main(
+    listen_addresses,
+    listen_port,
+    pool_size,
+    client_schema_cache_size,
+    runstate_dir,
+):
+    if listen_port is None:
+        listen_port = defines.EDGEDB_REMOTE_COMPILER_PORT
+    if runstate_dir is None:
+        temp_runstate_dir = tempfile.TemporaryDirectory(prefix='edbcompiler-')
+        runstate_dir = temp_runstate_dir.name
+        logger.debug("Using temporary runstate dir: %s", runstate_dir)
+    else:
+        temp_runstate_dir = None
+        runstate_dir = str(runstate_dir)
     try:
-        server = await loop.create_unix_server(
-            lambda: CompilerServerProtocol(pool, loop),
-            socket_path,
-            start_serving=False,
+        loop = asyncio.get_running_loop()
+        pool = MultiSchemaPool(
+            loop=loop,
+            runstate_dir=runstate_dir,
+            pool_size=pool_size,
+            cache_size=client_schema_cache_size,
         )
+        await pool.start()
         try:
-            await server.serve_forever()
+            server = await loop.create_server(
+                lambda: CompilerServerProtocol(pool, loop),
+                listen_addresses,
+                listen_port,
+                start_serving=False,
+            )
+            if len(listen_addresses) == 1:
+                logger.info(
+                    "Listening on %s:%s", listen_addresses[0], listen_port
+                )
+            else:
+                logger.info(
+                    "Listening on [%s]:%s",
+                    ",".join(listen_addresses),
+                    listen_port,
+                )
+            try:
+                await server.serve_forever()
+            finally:
+                server.close()
+                await server.wait_closed()
         finally:
-            server.close()
-            await server.wait_closed()
+            await pool.stop()
     finally:
-        await pool.stop()
+        if temp_runstate_dir is not None:
+            temp_runstate_dir.cleanup()
 
 
 @click.command()

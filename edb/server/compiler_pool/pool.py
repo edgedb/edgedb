@@ -971,7 +971,7 @@ class RemoteWorker(BaseWorker):
 class RemotePool(AbstractPool):
     def __init__(self, *, address, pool_size, **kwargs):
         super().__init__(**kwargs)
-        self._socket_path = address
+        self._pool_addr = address
         self._worker = None
         self._sync_lock = asyncio.Lock()
         self._semaphore = asyncio.BoundedSemaphore(pool_size)
@@ -980,7 +980,7 @@ class RemotePool(AbstractPool):
         if self._worker is None:
             self._worker = self._loop.create_future()
         try:
-            await self._loop.create_unix_connection(
+            await self._loop.create_connection(
                 lambda: amsg.HubProtocol(
                     loop=self._loop,
                     on_pid=lambda *args: self._loop.create_task(
@@ -988,7 +988,7 @@ class RemotePool(AbstractPool):
                     ),
                     on_connection_lost=self._connection_lost,
                 ),
-                self._socket_path,
+                *self._pool_addr,
             )
         except Exception:
             if not retry:
