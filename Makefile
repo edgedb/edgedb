@@ -33,6 +33,7 @@ casts:
 
 
 build:
+	find edb -name '*.pyx' | xargs touch
 	pip install -Ue .[docs,test]
 
 
