@@ -385,7 +385,7 @@ def get_union_type(
 
     ctx.env.schema, union, created = s_utils.ensure_union_type(
         ctx.env.schema, types,
-        opaque=opaque, preserve_derived=preserve_derived)
+        opaque=opaque, preserve_derived=preserve_derived, transient=True)
 
     if created:
         ctx.env.created_schema_objects.add(union)
@@ -408,7 +408,7 @@ def get_intersection_type(
 ) -> s_types.Type:
 
     ctx.env.schema, intersection, created = s_utils.ensure_intersection_type(
-        ctx.env.schema, types)
+        ctx.env.schema, types, transient=True)
 
     if created:
         ctx.env.created_schema_objects.add(intersection)
@@ -546,6 +546,8 @@ def get_union_pointer(
     source: s_sources.Source,
     direction: s_pointers.PointerDirection,
     components: Iterable[s_pointers.Pointer],
+    opaque: bool = False,
+    modname: Optional[str] = None,
     ctx: context.ContextLevel,
 ) -> s_pointers.Pointer:
 
@@ -555,6 +557,9 @@ def get_union_pointer(
         source,
         direction=direction,
         components=components,
+        opaque=opaque,
+        modname=modname,
+        transient=True,
     )
 
     ctx.env.created_schema_objects.add(ptr)

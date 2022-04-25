@@ -865,6 +865,7 @@ def ensure_union_type(
     opaque: bool = False,
     module: Optional[str] = None,
     preserve_derived: bool = False,
+    transient: bool = False,
 ) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
     from edb.schema import objtypes as s_objtypes
@@ -942,6 +943,7 @@ def ensure_union_type(
             components=objtypes,
             opaque=opaque,
             module=module,
+            transient=transient,
         )
 
     return schema, uniontype, created
@@ -990,6 +992,7 @@ def ensure_intersection_type(
     schema: s_schema.Schema,
     types: Iterable[s_types.Type],
     *,
+    transient: bool = False,
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, s_types.Type, bool]:
 
@@ -1038,6 +1041,7 @@ def ensure_intersection_type(
             schema,
             components=cast(Iterable[s_objtypes.ObjectType], components_list),
             module=module,
+            transient=transient,
         )
 
 
