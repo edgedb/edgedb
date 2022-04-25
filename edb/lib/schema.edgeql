@@ -432,6 +432,7 @@ CREATE TYPE schema::Function
     };
 
     CREATE MULTI LINK used_globals EXTENDING schema::ordered -> schema::Global;
+    CREATE PROPERTY backend_name -> std::uuid;
 };
 
 
