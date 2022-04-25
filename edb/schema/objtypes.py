@@ -342,6 +342,7 @@ def get_or_create_union_type(
     schema: s_schema.Schema,
     components: Iterable[ObjectType],
     *,
+    transient: bool = False,
     opaque: bool = False,
     module: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, ObjectType, bool]:
@@ -367,6 +368,7 @@ def get_or_create_union_type(
                 is_opaque_union=opaque,
                 abstract=True,
             ),
+            transient=transient,
         )
 
         if not opaque:
@@ -386,6 +388,7 @@ def get_or_create_intersection_type(
     components: Iterable[ObjectType],
     *,
     module: Optional[str] = None,
+    transient: bool = False,
 ) -> Tuple[s_schema.Schema, ObjectType, bool]:
 
     name = s_types.get_intersection_type_name(
@@ -407,6 +410,7 @@ def get_or_create_intersection_type(
                 intersection_of=so.ObjectSet.create(schema, components),
                 abstract=True,
             ),
+            transient=transient,
         )
 
         ptrs_dict = collections.defaultdict(list)
@@ -425,6 +429,7 @@ def get_or_create_intersection_type(
                     ptrname=pn,
                     source=objtype,
                     components=set(ptrs),
+                    transient=transient,
                 )
             else:
                 ptr = ptrs[0]

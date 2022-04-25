@@ -2677,6 +2677,7 @@ def get_or_create_union_pointer(
     direction: PointerDirection,
     components: Iterable[Pointer],
     *,
+    transient: bool = False,
     opaque: bool = False,
     modname: Optional[str] = None,
 ) -> Tuple[s_schema.Schema, Pointer]:
@@ -2721,8 +2722,8 @@ def get_or_create_union_pointer(
 
     target: s_types.Type
 
-    schema, target = utils.get_union_type(
-        schema, targets, opaque=opaque, module=modname)
+    schema, target, _ = utils.ensure_union_type(
+        schema, targets, opaque=opaque, module=modname, transient=transient)
 
     cardinality = qltypes.SchemaCardinality.One
     for component in components:
@@ -2752,6 +2753,7 @@ def get_or_create_union_pointer(
             'cardinality': cardinality,
             'required': required,
         },
+        transient=transient,
     )
 
     if isinstance(result, s_sources.Source):
@@ -2787,6 +2789,7 @@ def get_or_create_intersection_pointer(
     source: s_objtypes.ObjectType,
     components: Iterable[Pointer], *,
     modname: Optional[str] = None,
+    transient: bool = False,
 ) -> Tuple[s_schema.Schema, Pointer]:
 
     components = list(components)
@@ -2818,6 +2821,7 @@ def get_or_create_intersection_pointer(
             'intersection_of': so.ObjectSet.create(schema, components),
             'cardinality': cardinality,
         },
+        transient=transient,
     )
 
     return schema, result

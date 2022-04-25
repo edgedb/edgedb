@@ -691,14 +691,14 @@ def resolve_ptr(
                     )
 
             opaque = not far_endpoints
-            ctx.env.schema, ptr = s_pointers.get_or_create_union_pointer(
-                ctx.env.schema,
+            ptr = schemactx.get_union_pointer(
                 ptrname=s_name.UnqualName(pointer_name),
                 source=near_endpoint,
                 direction=direction,
                 components=concrete_ptrs,
                 opaque=opaque,
                 modname=ctx.derived_target_module,
+                ctx=ctx,
             )
 
     if ptr is not None:
