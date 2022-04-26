@@ -39,7 +39,7 @@ directory.
     $ cd edgedb-examples/fastapi-crud
 
 Create a Python 3.10 virtual environment, activate it, and install
-the dependencies with this command:
+the dependencies with this command. On Linux/macOS:
 
 .. code-block:: bash
 
@@ -47,6 +47,13 @@ the dependencies with this command:
     $ source myvenv/bin/activate
     $ pip install edgedb fastapi 'httpx[cli]' uvicorn
 
+
+.. note::
+
+    This commands will differ for Windows/Powershell users; `this guide
+    <https://realpython.com/python-virtual-environments-a-primer/>`_ provides
+    instructions for working with virtual environments across a range of OSes,
+    including Windows.
 
 Initialize the database
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -697,7 +704,6 @@ click on the **Try it out** button. You can do it in the UI as follows:
 
 Clicking the **execute** button will make the request and return the following
 payload:
-
 
 .. image::
     https://www.edgedb.com/docs/tutorials/fastapi/put_result.png
