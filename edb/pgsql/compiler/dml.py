@@ -1959,35 +1959,6 @@ def process_link_values(
 
             dispatch.visit(ir_expr, ctx=input_rel_ctx)
 
-            if (
-                isinstance(ir_expr.expr, irast.Stmt)
-                and ir_expr.expr.iterator_stmt is not None
-            ):
-                # The link value is computaed by a FOR expression,
-                # check if the statement is a DML statement, and if so,
-                # pull the iterator scope so that link property expressions
-                # have the correct context.
-                inner_iterator_cte = None
-                inner_iterator_path_id = ir_expr.expr.iterator_stmt.path_id
-                for cte in (input_rel_ctx.toplevel_stmt.ctes or ()):
-                    if cte.query.path_id == inner_iterator_path_id:
-                        inner_iterator_cte = cte
-                        break
-                if inner_iterator_cte is not None:
-                    inner_iterator_rvar = relctx.rvar_for_rel(
-                        inner_iterator_cte, lateral=True, ctx=subrelctx)
-
-                    relctx.include_rvar(
-                        input_rel,
-                        inner_iterator_rvar,
-                        path_id=inner_iterator_path_id,
-                        ctx=subrelctx,
-                    )
-
-                    input_rel_ctx.path_scope[inner_iterator_path_id] = (
-                        input_rel
-                    )
-
     input_stmt: pgast.Query = input_rel
 
     input_rvar = pgast.RangeSubselect(
