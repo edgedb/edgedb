@@ -681,13 +681,10 @@ your browser and head over to
 `http://localhost:5000/docs <http://locahost:5000/docs>`_. You should see an
 API navigator like this:
 
-.. image::
-    https://user-images.githubusercontent.com/30027932/
-    \163834402-1bb766d0-a2c4-4fdf-8b0b-9af2ff47a969.png
+.. image:: ../../images/fastapi-crud/doc-navigator.jpg
     :alt: FastAPI docs navigator
-    :height: 500px
+    :height: 300px
     :width: 650px
-    :align: center
     :scale: 250 %
 
 
@@ -696,13 +693,10 @@ request to the ``PUT /events``. Click on the API that you want to try and then
 click on the **Try it out** button. You can do it in the UI as follows:
 
 
-.. image::
-    https://user-images.githubusercontent.com/30027932/
-    \163834413-afc2303b-0d8f-46b6-a682-8e3b895042fc.png
+.. image:: ../../images/fastapi-crud/events-put-request.jpg
     :alt: FastAPI docs PUT events API
-    :height: 500px
+    :height: 300px
     :width: 650px
-    :align: center
     :scale: 250 %
 
 
@@ -710,11 +704,8 @@ Clicking the **execute** button will make the request and return the following
 payload:
 
 
-.. image::
-    https://user-images.githubusercontent.com/30027932/
-    \163834421-203675b7-a1a0-47c6-b425-2ef1b3bfc9d8.png
+.. image:: ../../images/fastapi-crud/events-put-response.jpg
     :alt: FastAPI docs PUT events API
-    :height: 500px
+    :height: 300px
     :width: 650px
-    :align: center
     :scale: 250 %
