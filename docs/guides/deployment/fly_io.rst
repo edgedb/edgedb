@@ -39,12 +39,6 @@ Now let's use the ``read`` command to securely assign a value to the
 
    $ echo -n "> " && read -s PASSWORD
 
-Now we can let's secure the pending EdgeDB instance with a strong password:
-
-.. code-block:: bash
-
-    $ flyctl secrets set PASSWORD="$PASSWORD" -a $EDB_APP
-    Secrets are staged for the first deployment
 
 Now let's assign this password to a Fly `secret <https://fly.io/docs/reference/secrets/>`_, plus a few other secrets that we'll need. There are a couple more environment variables we need to set:
 
@@ -168,11 +162,31 @@ skip this step).
       | tr -d '\r' | flyctl secrets import -a $EDB_APP
 
 
-Create a local link to the new EdgeDB instance
-==============================================
+Connecting to the instance
+==========================
 
-To access the EdgeDB instance you've just provisioned on Fly.io from your
-local machine first make sure you have the `Private Network VPN <vpn_>`_ up and
+Inside your Fly.io app
+----------------------
+
+
+If you've followed this guide, you should have two Fly applications, one running Postgres and the other running EdgeDB. Take the name of your EdgeDB app (it should be stored in the ``$EDB_APP`` environment variable) and append ".internal". Fly uses this `synthetic TLD <private
+networking <https://fly.io/docs/reference/private-networking/>` to simplify inter-app communication.
+
+First, take the name of your EdgeDB app (it should be stored in the ``$EDB_APP`` environment variable) and append ".internal". Fly uses this synthetic TLD to simplify inter-app communication. Ex: ``myorg-edgedb.internal``. This is the hostname you will use.
+
+Set this  your other Fly-hosted apps (say, where you're hosting your API server), set the following environment variables:
+
+- ``EDGEDB_HOST``:
+
+
+- ``
+
+
+
+From your local machine
+-----------------------
+
+To access the EdgeDB instance from local development machine/laptop, install the  have the `Private Network VPN <vpn_>`_ up and
 running and then run ``edgedb instance link``:
 
 .. code-block:: bash
