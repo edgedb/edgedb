@@ -106,6 +106,11 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             SELECT (Issue, opt_test(0, <str>Issue.time_estimate))
         ''')
 
+    def test_codegen_elide_optional_wrapper_05(self):
+        self.no_optional_test('''
+            select Owned { z := .owner.name ?= <optional str>$0 }
+        ''')
+
     def test_codegen_order_by_not_subquery_01(self):
         sql = self._compile_to_tree('''
             select User order by .name

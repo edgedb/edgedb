@@ -637,6 +637,16 @@ def _infer_set_inner(
     if force_single:
         card = _bounds_to_card(_card_to_bounds(card).lower, CB_ONE)
 
+    # If this node is an optional argument bound at this location,
+    # but it can't actually be zero, clear the optionality to avoid
+    # subpar codegen.
+    if (
+        (node := scope_tree.find_child(ir.path_id)) is not None
+        and node.optional
+        and not card.can_be_zero()
+    ):
+        node.optional = False
+
     return card
 
 
