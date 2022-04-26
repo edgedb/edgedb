@@ -2807,6 +2807,38 @@ class TestUpdate(tb.QueryTestCase):
                 ) FILTER false;
             """)
 
+    async def test_edgeql_insert_multi_required_01(self):
+        await self.con.execute("""
+            insert MultiRequiredTest {
+              name := "___",
+              prop := "!",
+              tags := (
+                for i in {(x := "90"), (x := "240")}
+                union (
+                  insert Tag {
+                    name := i.x,
+                  }
+                )
+              ),
+            };
+        """)
+
+    async def test_edgeql_insert_multi_required_02(self):
+        await self.con.execute("""
+            insert MultiRequiredTest {
+              name := "___",
+              prop := "!",
+              tags := (
+                for i in {"90", "240"}
+                union (
+                  insert Tag {
+                    name := i,
+                  }
+                )
+              ),
+            };
+        """)
+
     async def test_edgeql_subtract_badness_01(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
