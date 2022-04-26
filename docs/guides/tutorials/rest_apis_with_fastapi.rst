@@ -682,39 +682,24 @@ your browser and head over to
 API navigator like this:
 
 .. image::
-    https://user-images.githubusercontent.com/30027932/
-    \163834402-1bb766d0-a2c4-4fdf-8b0b-9af2ff47a969.png
+    https://www.edgedb.com/docs/tutorials/fastapi/openapi.png
     :alt: FastAPI docs navigator
-    :height: 500px
-    :width: 650px
-    :align: center
-    :scale: 250 %
-
+    :width: 100%
 
 The doc allows you to play with the APIs interactively. Let's try to make a
 request to the ``PUT /events``. Click on the API that you want to try and then
 click on the **Try it out** button. You can do it in the UI as follows:
 
-
 .. image::
-    https://user-images.githubusercontent.com/30027932/
-    \163834413-afc2303b-0d8f-46b6-a682-8e3b895042fc.png
+    https://www.edgedb.com/docs/tutorials/fastapi/put.png
     :alt: FastAPI docs PUT events API
-    :height: 500px
-    :width: 650px
-    :align: center
-    :scale: 250 %
-
+    :width: 100%
 
 Clicking the **execute** button will make the request and return the following
 payload:
 
 
 .. image::
-    https://user-images.githubusercontent.com/30027932/
-    \163834421-203675b7-a1a0-47c6-b425-2ef1b3bfc9d8.png
-    :alt: FastAPI docs PUT events API
-    :height: 500px
-    :width: 650px
-    :align: center
-    :scale: 250 %
+    https://www.edgedb.com/docs/tutorials/fastapi/put_result.png
+    :alt: FastAPI docs PUT events API result
+    :width: 100%
