@@ -12,8 +12,8 @@ Let's start with this schema:
 .. code-block:: sdl
 
     type Character {
-        required property name -> str;
-        required property description -> str;
+      required property name -> str;
+      required property description -> str;
     }
 
 We edit the schema file and perform our first migration:
@@ -49,8 +49,8 @@ first we just rename the property to reflect that:
 .. code-block:: sdl
 
     type Character {
-        required property name -> str;
-        required property class -> str;
+      required property name -> str;
+      required property class -> str;
     }
 
 The migration gives us this:
@@ -140,8 +140,8 @@ to make sure that we don't accidentally use some invalid value for it.
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
     type Character {
-        required property name -> str;
-        required property class -> CharacterClass;
+      required property name -> str;
+      required property class -> CharacterClass;
     }
 
 Fortunately, we've already updated the ``class`` strings to match the

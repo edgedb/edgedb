@@ -14,8 +14,8 @@ Let's start with this schema:
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
     type Character {
-        required property name -> str;
-        required property class -> CharacterClass;
+      required property name -> str;
+      required property class -> CharacterClass;
     }
 
 We edit the schema file and perform our first migration:
@@ -57,14 +57,14 @@ the old and the new "class" information to begin with:
     scalar type CharacterClass extending enum<warrior, scholar, rogue>;
 
     type NewClass {
-        required property name -> str;
-        multi property skills -> str;
+      required property name -> str;
+      multi property skills -> str;
     }
 
     type Character {
-        required property name -> str;
-        required property class -> CharacterClass;
-        link new_class -> NewClass;
+      required property name -> str;
+      required property class -> CharacterClass;
+      link new_class -> NewClass;
     }
 
 We update the schema file and migrate to the new state:
@@ -101,18 +101,18 @@ And then edit the ``00003.edgeql`` file to create and update objects:
       CREATE MIGRATION m1iztxroh3ifoeqmvxncy77whnaei6tp5j3sewyxtrfysronjkxgga
           ONTO m1uttd6f7fpiwiwikhdh6qyijb6pcji747ccg2cyt5357i3wsj3l3q
       {
-    +     insert default::NewClass {
-    +         name := 'Warrior',
-    +         skills := {'punch', 'kick', 'run', 'jump'},
-    +     };
-    +     insert default::NewClass {
-    +         name := 'Scholar',
-    +         skills := {'read', 'write', 'analyze', 'refine'},
-    +     };
-    +     insert default::NewClass {
-    +         name := 'Rogue',
-    +         skills := {'impress', 'sing', 'steal', 'run', 'jump'},
-    +     };
+    +    insert default::NewClass {
+    +        name := 'Warrior',
+    +        skills := {'punch', 'kick', 'run', 'jump'},
+    +    };
+    +    insert default::NewClass {
+    +        name := 'Scholar',
+    +        skills := {'read', 'write', 'analyze', 'refine'},
+    +    };
+    +    insert default::NewClass {
+    +        name := 'Rogue',
+    +        skills := {'impress', 'sing', 'steal', 'run', 'jump'},
+    +    };
     +
     +    update default::Character
     +    set {
@@ -183,13 +183,13 @@ property and ``CharacterClass`` :eql:type:`enum`:
 .. code-block:: sdl
 
     type NewClass {
-        required property name -> str;
-        multi property skills -> str;
+      required property name -> str;
+      multi property skills -> str;
     }
 
     type Character {
-        required property name -> str;
-        link new_class -> NewClass;
+      required property name -> str;
+      link new_class -> NewClass;
     }
 
 The migration tools should have no trouble detecting the things we
@@ -216,13 +216,13 @@ the "new" components, so that they become ``class`` link and
 .. code-block:: sdl
 
     type CharacterClass {
-        required property name -> str;
-        multi property skills -> str;
+      required property name -> str;
+      multi property skills -> str;
     }
 
     type Character {
-        required property name -> str;
-        link class -> CharacterClass;
+      required property name -> str;
+      link class -> CharacterClass;
     }
 
 The migration tools pick up the changes without any issues again. It

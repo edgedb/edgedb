@@ -13,6 +13,7 @@ Migrations
     backlink
     proptype
     proptolink
+    reqlink
 
 
 
@@ -77,17 +78,17 @@ file(s) can be directly modified to reflect changes to your schema.
     }
 
     type BlogPost {
-  -    required property title -> str;
-  +    property title -> str;
+  -   required property title -> str;
+  +   property title -> str;
 
-  +    property upvotes -> int64;
+  +   property upvotes -> int64;
 
       required link author -> User;
     }
 
-  +   type Comment {
-  +     required property content -> str;
-  +   }
+  + type Comment {
+  +   required property content -> str;
+  + }
 
 2. Generate a migration
 ^^^^^^^^^^^^^^^^^^^^^^^
