@@ -26,6 +26,7 @@ change the password.
 
 .. image:: images/do-btn-blue.svg
    :target: 1-click-button_
+   :width: 200px
 
 .. _1-click-button:
    https://marketplace.digitalocean.com/apps/edgedb?refcode=f0b0d77b5d49
