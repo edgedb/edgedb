@@ -4,7 +4,7 @@
 FastAPI
 =======
 
-:alt-edb-title: Building a REST API with EdgeDB and FastAPI
+:alt-edb-title: Building REST APIs with EdgeDB and FastAPI
 
 EdgeDB can help you quickly build REST APIs in Python without getting into the
 rigmarole of using ORM libraries to handle your data effectively. Here, we'll
@@ -35,7 +35,7 @@ directory.
 
 .. code-block:: bash
 
-    $ git@github.com:edgedb/edgedb-examples.git
+    $ git clone git@github.com:edgedb/edgedb-examples.git
     $ cd edgedb-examples/fastapi-crud
 
 Create a Python 3.10 virtual environment, activate it, and install
