@@ -88,13 +88,6 @@ ALTER TYPE schema::Type {
 };
 
 
-ALTER TYPE std::BaseObject {
-    CREATE REQUIRED LINK __type__ -> schema::Type {
-        SET readonly := True;
-    };
-};
-
-
 CREATE ABSTRACT LINK schema::reference {
     CREATE PROPERTY owned -> std::bool;
     # Backwards compatibility.
@@ -357,6 +350,13 @@ CREATE TYPE schema::ObjectType
     EXTENDING
         schema::InheritingObject, schema::ConsistencySubject,
         schema::AnnotationSubject, schema::Type, schema::Source;
+
+
+ALTER TYPE std::BaseObject {
+    CREATE REQUIRED LINK __type__ -> schema::ObjectType {
+        SET readonly := True;
+    };
+};
 
 
 ALTER TYPE schema::ObjectType {
