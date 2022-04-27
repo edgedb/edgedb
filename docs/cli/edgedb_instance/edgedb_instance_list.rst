@@ -23,7 +23,7 @@ registered EdgeDB instances and some relevant information about them
 Options
 =======
 
-:cli:synopsis:`-extended`
+:cli:synopsis:`--extended`
     Output more debug info about each instance.
 
 :cli:synopsis:`-j, --json`
