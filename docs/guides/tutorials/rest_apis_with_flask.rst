@@ -763,7 +763,8 @@ Take a look at the ``app/movies.py`` file to see how the ``PUT /movies`` and
 Conclusion
 ==========
 
-While builing REST APIs, EdgeDB client allows you to leverage EdgeDB with any microframework of your choice. Whether it's
+While builing REST APIs, EdgeDB client allows you to leverage EdgeDB with any
+microframework of your choice. Whether it's
 `FastAPI <https://fastapi.tiangolo.com>`_,
 `Flask <https://flask.palletsprojects.com>`_,
 `AIOHTTP <https://docs.aiohttp.org/en/stable>`_,
