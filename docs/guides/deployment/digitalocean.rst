@@ -30,7 +30,10 @@ DigitalOcean to deploy an EdgeDB instance.
 .. _1-click-button:
    https://marketplace.digitalocean.com/apps/edgedb?refcode=f0b0d77b5d49
 
-By default, the admin password is ``edgedbpassword``; let's change that to something more secure. First, find your droplet's IP address on the `DigitalOcean dashboard <https://cloud.digitalocean.com/droplets>`_ and assign it to an environment variable ``IP``.
+By default, the admin password is ``edgedbpassword``; let's change that to
+something more secure. First, find your droplet's IP address on the
+`DigitalOcean dashboard <https://cloud.digitalocean.com/droplets>`_ and assign
+it to an environment variable ``IP``.
 
 .. _DigitalOcean: https://cloud.digitalocean.com/droplets?
 .. _here: edgedb-install_
@@ -39,7 +42,8 @@ By default, the admin password is ``edgedbpassword``; let's change that to somet
 
    $ IP=<your-droplet-ip>
 
-Then use the ``read`` command to securely assign a value to the ``PASSWORD`` environment variable.
+Then use the ``read`` command to securely assign a value to the ``PASSWORD``
+environment variable.
 
 .. code-block:: bash
 
