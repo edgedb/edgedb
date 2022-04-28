@@ -77,7 +77,7 @@ Then create a Postgres Flexible server.
    If you get an error saying ``"Specified server name is already used.""``
    change the value of ``PG_SERVER_NAME`` and rerun the command.
 
-Allow other Azure services access to the postgres instance.
+Allow other Azure services access to the Postgres instance.
 
 .. code-block:: bash
 
