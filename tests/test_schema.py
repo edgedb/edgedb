@@ -7216,7 +7216,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             type test::Child extending test::Parent, test::Parent2 {
                 annotation test::anno := 'annotated';
                 index on (.foo);
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 overloaded single link foo extending test::f -> test::Foo {
@@ -7240,7 +7240,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Child extending test::Parent, test::Parent2 {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 overloaded single link foo extending test::f -> test::Foo {
@@ -7381,7 +7381,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Foo {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 required single property id -> std::uuid {
@@ -7398,7 +7398,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Foo {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 required single property id -> std::uuid {
@@ -7416,7 +7416,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Bar extending test::Foo {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 required single property id -> std::uuid {
@@ -7466,7 +7466,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             """
             type test::User extending test::HasImage {
                 index on (__subject__.image);
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 required single property id -> std::uuid {
@@ -7482,7 +7482,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::User extending test::HasImage {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 required single property id -> std::uuid {
@@ -7506,7 +7506,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             '''
             abstract type test::HasImage {
                 index on (__subject__.image);
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 required single property id -> std::uuid {
@@ -7521,7 +7521,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             abstract type test::HasImage {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 required single property id -> std::uuid {
@@ -7620,7 +7620,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::UniqueName {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 optional single link translated_label
@@ -7640,7 +7640,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             '''
             type test::UniqueName {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 optional single link translated_label
@@ -8260,7 +8260,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Foo {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 optional single link bar -> std::Object {
@@ -8319,7 +8319,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
 
             """
             type test::Object {
-                required single link __type__ -> schema::Type {
+                required single link __type__ -> schema::ObjectType {
                     readonly := true;
                 };
                 required single property id -> std::uuid {
@@ -8331,7 +8331,7 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             # The following builtins are masked by the above:
 
             # abstract type std::Object extending std::BaseObject {
-            #     required single link __type__ -> schema::Type {
+            #     required single link __type__ -> schema::ObjectType {
             #         readonly := true;
             #     };
             #     required single property id -> std::uuid {
