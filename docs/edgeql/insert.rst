@@ -84,27 +84,9 @@ You can only ``insert`` instances of concrete (non-abstract) object types.
 Inserting links
 ---------------
 
-EdgeQL's composable syntax makes link insertion painless.
-
-.. code-block:: edgeql-repl
-
-  db> insert Villain {
-  ...   name := "Doc Ock",
-  ...   nemesis := (select Hero filter .name = "Spider-Man")
-  ... };
-
-To assign to the ``Villain.nemesis`` link, we're using a *subquery*. This
-subquery is executed and resolves to a singleton set of type ``Hero``, which is
-assignable to ``nemesis``.
-
-.. note::
-
-  Note that the inner ``insert Hero`` statement is wrapped in parentheses; this
-  is required for all subqueries in EdgeQL.
-
-This works with ``multi`` links too. Below, we insert "Avengers: Endgame" and
-include all known heroes and villains as ``characters`` (which is basically
-true).
+EdgeQL's composable syntax makes link insertion painless. Below, we insert
+"Avengers: Endgame" and include all known heroes and villains as
+``characters`` (which is basically true).
 
 .. code-block:: edgeql-repl
 
@@ -121,6 +103,38 @@ true).
   ...   )
   ... };
   {default::Movie {id: 9b1cf9e6-3e95-11ec-95a2-138eeb32759c}}
+
+To assign to the ``Movie.characters`` link, we're using a *subquery*. This
+subquery is executed and resolves to a singleton set of type ``Person``, which
+is assignable to ``characters``.  Note that the inner ``select Person``
+statement is wrapped in parentheses; this is required for all subqueries in
+EdgeQL.
+
+Now let's assign to a *single link*.
+
+.. code-block:: edgeql-repl
+
+  db> insert Villain {
+  ...   name := "Doc Ock",
+  ...   nemesis := (select Hero filter .name = "Spider-Man")
+  ... };
+
+
+This query is valid because the inner subquery is guaranteed to return at most
+one ``Hero`` object, due to the uniqueness constraint on ``Hero.name``. If you
+are filtering on a non-exclusive property, use ``assert_single`` to guarantee
+that the subquery will return zero or one results. If more than one result is
+returned, this query will fail at runtime.
+
+.. code-block:: edgeql-repl
+
+  db> insert Villain {
+  ...   name := "Doc Ock",
+  ...   nemesis := assert_single((
+  ...     select Hero
+  ...     filter .secret_identity = "Peter B. Parker"
+  ...   ))
+  ... };
 
 
 .. _ref_eql_insert_nested:
@@ -160,8 +174,6 @@ Now lets write a nested insert for a ``multi`` link.
   ... };
   {default::Movie {id: af706c7c-3e98-11ec-abb3-4bbf3f18a61a}}
 
-
-
 We are using :ref:`set literal syntax <ref_eql_set_constructor>` to construct a
 set literal containing several ``select`` and ``insert`` subqueries. This set
 contains a mix of ``Hero`` and ``Villain`` objects; since these are both
@@ -169,7 +181,7 @@ subtypes of ``Person`` (the expected type of ``Movie.characters``), this is
 valid.
 
 You also can't *assign* to a computed property or link; these fields don't
-actually exist in the database;
+actually exist in the database.
 
 .. code-block:: edgeql-repl
 

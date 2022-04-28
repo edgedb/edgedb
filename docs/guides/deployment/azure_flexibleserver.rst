@@ -1,12 +1,15 @@
 .. _ref_guide_deployment_azure_flexibleserver:
 
-================================
-On Azure Postgres FlexibleServer
-================================
+=====
+Azure
+=====
 
-In this guide we show how to deploy EdgeDB on Azure using Postgres
-FlexibleServer as the backend.
+:edb-alt-title: Deploying EdgeDB to Azure
 
+In this guide we show how to deploy EdgeDB using Azure's `Postgres
+Flexible Server
+<https://docs.microsoft.com/en-us/azure/postgresql/flexible-server>`_ as the
+backend.
 
 Prerequisites
 =============
@@ -22,7 +25,7 @@ Prerequisites
 Provision an EdgeDB instance
 ============================
 
-Login to your azure account.
+Login to your Microsoft Azure account.
 
 .. code-block:: bash
 
@@ -41,15 +44,24 @@ Provision a PostgreSQL server.
 
    If you already have a database provisioned you can skip this step.
 
-.. note::
-
-   If you get an error saying ``Specified server name is already used.`` change
-   the server name and rerun the command.
+For convenience, assign a value to the ``PG_SERVER_NAME`` environment
+variable; we'll use this variable in multiple later commands.
 
 .. code-block:: bash
 
    $ PG_SERVER_NAME=postgres-for-edgedb
-   $ read -rsp "Password: " PASSWORD
+
+Use the ``read`` command to securely assign a value to the ``PASSWORD``
+environment variable.
+
+.. code-block:: bash
+
+   $ echo -n "> " && read -s PASSWORD
+
+Then create a Postgres Flexible server.
+
+.. code-block:: bash
+
    $ az postgres flexible-server create \
        --resource-group $GROUP \
        --name $PG_SERVER_NAME \
@@ -60,7 +72,12 @@ Provision a PostgreSQL server.
        --version 12 \
        --yes
 
-Allow other azure services access to the postgres instance.
+.. note::
+
+   If you get an error saying ``"Specified server name is already used.""``
+   change the value of ``PG_SERVER_NAME`` and rerun the command.
+
+Allow other Azure services access to the Postgres instance.
 
 .. code-block:: bash
 

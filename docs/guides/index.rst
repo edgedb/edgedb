@@ -15,8 +15,7 @@ guide!
 
 
 .. toctree::
-    :maxdepth: 3
-    :hidden:
+    :maxdepth: 1
 
     quickstart
     installation
@@ -24,7 +23,8 @@ guide!
     relations
     link_properties
     tutorials/index
+    deployment/index
     migrations/index
     introspection/index
     cheatsheet/index
-    deployment/index
+    contributing

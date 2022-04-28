@@ -1,8 +1,10 @@
 .. _ref_guide_deployment_aws_aurora_ecs:
 
-=====================
-On AWS Aurora and ECS
-=====================
+===
+AWS
+===
+
+:edb-alt-title:  Deploying EdgeDB to AWS
 
 In this guide we show how to deploy EdgeDB on AWS using Amazon Aurora and
 Elastic Container Service.
@@ -17,7 +19,6 @@ Prerequisites
 .. _awscli-install:
    https://docs.aws.amazon.com
    /cli/latest/userguide/getting-started-install.html
-
 
 Quick Install with CloudFormation
 =================================
@@ -96,10 +97,19 @@ CloudFormation option above.
 Create a VPC
 ------------
 
-.. code-block:: bash
+For convenience, assign a deployment name and region to environment variables.
+The ``NAME`` variable will be used as prefix for all the resources created
+throughout the process. It should only contain alphanumeric characters and
+hyphens.
 
-    $ read -p "Deployment Name: " NAME
+.. code-block::
+
+    $ NAME=your-deployment-name
     $ REGION=us-west-2
+
+Then create the VPC.
+
+.. code-block:: bash
 
     $ VPC_ID=$( \
         aws ec2 create-vpc \
@@ -502,9 +512,18 @@ Create an RDS Security Group
 Create an RDS Cluster
 ---------------------
 
+
+Use the ``read`` command to securely assign a value to the
+``PASSWORD`` environment variable.
+
 .. code-block:: bash
 
-    $ read -rsp "Password: " PASSWORD
+   $ echo -n "> " && read -s PASSWORD
+
+Then use this password to create an AWS `secret
+<https://aws.amazon.com/secrets-manager/>`_.
+
+.. code-block:: bash
 
     $ PASSWORD_ARN="$( \
         aws secretsmanager create-secret \
@@ -515,7 +534,7 @@ Create an RDS Cluster
           --secret-string "$PASSWORD" \
       )"
 
-    $ DB_CLUSTER_IDENTIFIER="${NAME}-postgres-cluster" 
+    $ DB_CLUSTER_IDENTIFIER="${NAME}-postgres-cluster"
 
     $ DB_CLUSTER_ADDRESS="$( \
         aws rds create-db-cluster \
@@ -768,8 +787,8 @@ container in it.
 Create a local link to the new EdgeDB instance
 ----------------------------------------------
 
-To access the EdgeDB instance you've just provisioned on AWS from your local
-machine run ``edgedb instance link``:
+Create an local alias to the remote EdgeDB instance with ``edgedb instance
+link``:
 
 .. code-block:: bash
 
@@ -786,3 +805,5 @@ machine run ``edgedb instance link``:
             | [0].Association.PublicIp" \
         )" \
         aws
+
+You can now open a REPL to this instance

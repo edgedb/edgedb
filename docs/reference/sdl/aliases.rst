@@ -7,7 +7,6 @@ Expression Aliases
 This section describes the SDL declarations pertaining to
 :ref:`expression aliases <ref_datamodel_aliases>`.
 
-
 Example
 -------
 

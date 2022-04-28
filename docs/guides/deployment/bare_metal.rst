@@ -4,6 +4,8 @@
 Bare Metal
 ==========
 
+:edb-alt-title: Deploying EdgeDB to a Bare Metal Server
+
 In this guide we show how to deploy EdgeDB to bare metal using your system's
 package manager and systemd.
 

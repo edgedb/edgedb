@@ -1,14 +1,15 @@
 .. _ref_guide_deployment_digitalocean:
 
-===============
-On DigitalOcean
-===============
+============
+DigitalOcean
+============
+
+:edb-alt-title: Deploying EdgeDB to DigitalOcean
 
 In this guide we show how to deploy EdgeDB to DigitalOcean either with a
 One-click Deploy option or a
 :ref:`managed PostgreSQL <ref_guide_deployment_digitalocean_managed>`
 database as the backend.
-
 
 One-click Deploy
 ++++++++++++++++
@@ -20,9 +21,7 @@ Prerequisites
 * DigitalOcean account
 
 Click the button below and follow the droplet creation workflow on
-DigitalOcean. Once deployed you will have an EdgeDB instance running. The
-default admin password is ``edgedbpassword``. We strongly recommend that you
-change the password.
+DigitalOcean to deploy an EdgeDB instance.
 
 .. image:: images/do-btn-blue.svg
    :target: 1-click-button_
@@ -31,16 +30,29 @@ change the password.
 .. _1-click-button:
    https://marketplace.digitalocean.com/apps/edgedb?refcode=f0b0d77b5d49
 
-To change the password run the following. You will find your droplet ip address
-on digitalocean_.
+By default, the admin password is ``edgedbpassword``; let's change that to
+something more secure. First, find your droplet's IP address on the
+`DigitalOcean dashboard <https://cloud.digitalocean.com/droplets>`_ and assign
+it to an environment variable ``IP``.
 
-.. _digitalocean: https://cloud.digitalocean.com/droplets?
+.. _DigitalOcean: https://cloud.digitalocean.com/droplets?
 .. _here: edgedb-install_
 
 .. code-block:: bash
 
    $ IP=<your-droplet-ip>
-   $ read -sp "Password: " PASSWORD
+
+Then use the ``read`` command to securely assign a value to the ``PASSWORD``
+environment variable.
+
+.. code-block:: bash
+
+   $ echo -n "> " && read -s PASSWORD
+
+Use these variables to change the password for the default role ``edgedb``.
+
+.. code-block:: bash
+
    $ printf edgedbpassword | edgedb query \
          --host $IP \
          --password-from-stdin \
@@ -150,7 +162,7 @@ Set the superuser password.
 
 .. code-block:: bash
 
-   $ read -srp "Admin password: " PASSWORD
+   $ echo -n "> " && read -s PASSWORD
 
    $ edgedb -H $IP --tls-security insecure query \
          "alter role edgedb set password := '$PASSWORD'"

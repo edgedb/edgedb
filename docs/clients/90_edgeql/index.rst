@@ -21,11 +21,19 @@ Then create a new migration and apply it using
 :ref:`ref_cli_edgedb_migration_create` and
 :ref:`ref_cli_edgedb_migrate`, respectively.
 
-``http://127.0.0.1:<instance-port>/db/<database-name>/edgeql`` will
-expose EdgeQL API. Check the credentials file for your instance at
-``<edgedb_config_dir>/credentials`` to find out which port the instance is
-using. Run ``edgedb info`` to see the path to ``<edgedb_config_dir>`` on your
-machine.
+Your instance can now receive EdgeQL queries over HTTP at
+``http://<hostname>:<port>/db/<database-name>/edgeql``.
+
+In development:
+
+- The ``hostname`` will be ``localhost``
+- Find the ``port`` by running ``edgedb instance list``. This will print a
+  table of all EdgeDB instances on your machine, including their associated
+  port number.
+- In most cases, ``database_name`` will be ``edgedb``. An EdgeDB *instance*
+  can contain multiple databases. On initialization, a default database called
+  ``edgedb`` is created; all queries are executed against this database unless
+  otherwise specified.
 
 .. toctree::
     :maxdepth: 2

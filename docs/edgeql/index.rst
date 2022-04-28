@@ -66,14 +66,11 @@ to write deep, performant queries that traverse links, no ``JOINs`` required.
 readily composable; queries can be cleanly nested without worrying about
 Cartesian explosion.
 
-
 .. note::
 
   For a detailed writeup on the design of SQL, see `We Can Do Better Than SQL
   </blog/we-can-do-better-than-sql#lack-of-orthogonality>`_ on the EdgeDB
   blog.
-
-
 
 Follow along
 ------------
