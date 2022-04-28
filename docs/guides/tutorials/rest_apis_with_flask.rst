@@ -6,7 +6,8 @@ Flask
 
 :alt-edb-title: Building REST APIs with EdgeDB and Flask
 
-EdgeDB Python client makes it easy to integrate EdgeDB into your preferred web development stack. In this tutorial, we'll see how you can quickly start
+EdgeDB Python client makes it easy to integrate EdgeDB into your preferred web
+development stack. In this tutorial, we'll see how you can quickly start
 building RESTful APIs with `Flask <https://flask.palletsprojects.com>`_ and
 EdgeDB.
 
@@ -109,34 +110,34 @@ This is how our datatypes look:
     module default {
     abstract type Auditable {
       property created_at -> datetime {
-      readonly := true;
-      default := datetime_current();
+        readonly := true;
+        default := datetime_current();
       }
     }
 
     type Actor extending Auditable {
       required property name -> str {
-      constraint max_len_value(50);
+        constraint max_len_value(50);
       }
       property age -> int16 {
-      constraint min_value(0);
-      constraint max_value(100);
+        constraint min_value(0);
+        constraint max_value(100);
       }
       property height -> int16 {
-      constraint min_value(0);
-      constraint max_value(300);
+        constraint min_value(0);
+        constraint max_value(300);
       }
     }
 
     type Movie extending Auditable {
       required property name -> str {
-      constraint max_len_value(50);
+        constraint max_len_value(50);
       }
       property year -> int16{
-      constraint min_value(1850);
+        constraint min_value(1850);
       };
       multi link actors -> Actor;
-    }
+      }
     }
 
 Here, we've defined an ``abstract`` type called ``Auditable`` to take advantage
@@ -757,3 +758,17 @@ That'll return:
 
 Take a look at the ``app/movies.py`` file to see how the ``PUT /movies`` and
 ``DELETE /movies`` endpoints are constructed similarly.
+
+
+Conclusion
+==========
+
+While builing REST APIs, EdgeDB client allows you to leverage EdgeDB with any microframework of your choice. Whether it's
+`FastAPI <https://fastapi.tiangolo.com>`_,
+`Flask <https://flask.palletsprojects.com>`_,
+`AIOHTTP <https://docs.aiohttp.org/en/stable>`_,
+`Starlette <https://www.starlette.io>`_,
+or `Tornado <https://www.tornadoweb.org/en/stable>`_,
+the core workflow is quite similar to the one demonstrated above; you'll query
+and serialize data with the client and then return the payload for your
+framework to process.
