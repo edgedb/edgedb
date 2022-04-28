@@ -7,8 +7,9 @@ Azure
 :edb-alt-title: Deploying EdgeDB to Azure
 
 In this guide we show how to deploy EdgeDB using Azure's `Postgres
-Flexible Server <https://docs.microsoft.com/en-us/azure/postgresql/flexible-server>`_
-as the backend.
+Flexible Server
+<https://docs.microsoft.com/en-us/azure/postgresql/flexible-server>`_ as the
+backend.
 
 Prerequisites
 =============
@@ -43,7 +44,8 @@ Provision a PostgreSQL server.
 
    If you already have a database provisioned you can skip this step.
 
-For convenience, assign a value to the ``PG_SERVER_NAME`` environment variable; we'll use this variable in multiple later commands.
+For convenience, assign a value to the ``PG_SERVER_NAME`` environment
+variable; we'll use this variable in multiple later commands.
 
 .. code-block:: bash
 
