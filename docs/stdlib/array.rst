@@ -10,7 +10,6 @@ Arrays store expressions of the *same type* in an ordered list.
 
 .. _ref_std_array_constructor:
 
-
 Constructing arrays
 ^^^^^^^^^^^^^^^^^^^
 
