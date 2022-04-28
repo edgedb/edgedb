@@ -88,7 +88,7 @@ similar to this:
     edgedb>
 
 You can start writing queries here. However, the database is currently
-schemaless. Let's start designing the data model.
+empty. Let's start designing the data model.
 
 Schema design
 =============
