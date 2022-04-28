@@ -520,7 +520,8 @@ Use the ``read`` command to securely assign a value to the
 
    $ echo -n "> " && read -s PASSWORD
 
-Then use this password to create an AWS `secret <https://aws.amazon.com/secrets-manager/>`_.
+Then use this password to create an AWS `secret
+<https://aws.amazon.com/secrets-manager/>`_.
 
 .. code-block:: bash
 

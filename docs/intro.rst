@@ -17,7 +17,6 @@ How to read the docs
 
 The sidebar is broken up into a number of main sections.
 
-
 1. Go through the :ref:`quickstart <ref_quickstart>`. It is the simplest way
    to set up EdgeDB on your machine, learn the basics of schema, and write a
    couple queries.

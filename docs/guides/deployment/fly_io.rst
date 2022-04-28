@@ -267,5 +267,4 @@ with ``-I fly``; for example, to apply migrations:
 
    $ edgedb -I fly migrate
 
-
 .. _vpn: https://fly.io/docs/reference/private-networking/#private-network-vpn
