@@ -29,14 +29,15 @@ Make sure you are logged into google cloud.
 Create a project
 ================
 
-Set the ``PROJECT`` environment variable to the project name you'd like to use. Google Cloud only allow letters, numbers, and hyphens.
+Set the ``PROJECT`` environment variable to the project name you'd like to
+use. Google Cloud only allow letters, numbers, and hyphens.
 
 .. code-block:: bash
 
    $ PROJECT=edgedb
 
-
-Then create a project with this name. Skip this step if your project already exists.
+Then create a project with this name. Skip this step if your project already
+exists.
 
 .. code-block:: bash
 
@@ -92,7 +93,8 @@ Create an empty Kubernetes cluster inside your project.
 Configure service account
 =========================
 
-Create a new service account, configure it's permissions, and generate a ``credentials.json`` file.
+Create a new service account, configure it's permissions, and generate a
+``credentials.json`` file.
 
 .. code-block:: bash
 
@@ -108,7 +110,8 @@ Create a new service account, configure it's permissions, and generate a ``crede
    $ gcloud iam service-accounts keys create credentials.json \
        --iam-account=${MEMBER}
 
-Then use this ``credentials.json`` to authenticate the Kubernetes CLI tool ``kubectl``.
+Then use this ``credentials.json`` to authenticate the Kubernetes CLI tool
+``kubectl``.
 
 .. code-block:: bash
 
@@ -197,9 +200,8 @@ Get the public-facing IP address of your database.
 .. code-block:: bash
 
     $ kubectl get service
-    NAME         TYPE           CLUSTER-IP     EXTERNAL-IP     PORT(S)          AGE
-    edgedb       LoadBalancer   <internal IP>  XX.XXX.XXX.XXX  5656:30841/TCP   3m43s
-    kubernetes   ClusterIP      <internal IP>  <none>          443/TCP          59m
+    NAME         TYPE           CLUSTER-IP  EXTERNAL-IP   PORT(S)
+    edgedb       LoadBalancer   <ip>        <ip>          5656:30841/TCP
 
 
 Copy and paste the ``EXTERNAL-IP`` associated with the service named
@@ -211,7 +213,9 @@ Copy and paste the ``EXTERNAL-IP`` associated with the service named
     $ EDGEDB_IP=<copy IP address here>
     $ EDGEDB_DSN="edgedb://edgedb:${PASSWORD}@${EDGEDB_IP}"
 
-To print the final DSN, you can ``echo`` it. Note that you should only run this command on a computer you trust, like a personal laptop or sandboxed environment.
+To print the final DSN, you can ``echo`` it. Note that you should only run
+this command on a computer you trust, like a personal laptop or sandboxed
+environment.
 
 .. code-block:: bash
 
@@ -230,7 +234,8 @@ To test it, try opening a REPL:
 In development
 --------------
 
-To make this instance easier to work with during local development, create an alias using ``edgedb instance link``.
+To make this instance easier to work with during local development, create an
+alias using ``edgedb instance link``.
 
 .. code-block:: bash
 

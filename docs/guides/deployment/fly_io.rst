@@ -241,7 +241,8 @@ From your local machine
 
 To access the EdgeDB instance from local development machine/laptop, install
 the Wireguard `VPN <vpn_>`_ and create a tunnel, as described on Fly's
-`Private Networking <https://fly.io/docs/reference/private-networking/#private-network-vpn>`_
+`Private Networking
+<https://fly.io/docs/reference/private-networking/#private-network-vpn>`_
 docs.
 
 Once it's up and running, use ``edgedb instance link`` to create a local
