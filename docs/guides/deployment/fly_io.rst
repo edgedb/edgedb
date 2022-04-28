@@ -109,7 +109,8 @@ Then create a new PostgreSQL cluster. This may take a few minutes to complete.
         Hostname:    myorg-postgres.internal
         Proxy Port:  5432
         PG Port: 5433
-    Save your credentials in a secure place, you won't be able to see them again!
+    Save your credentials in a secure place, you won't be able to see them
+    again!
     Monitoring Deployment
     ...
     --> v0 deployed successfully
