@@ -61,13 +61,13 @@ instance list``.
 .. code-block:: bash
 
   $ edgedb instance list
-  ┌────────┬──────────────┬────────────────────────────┬──────────────────────┬─────────────┐
-  │ Kind   │ Name         │ Port                       │ Version              │ Status      │
-  ├────────┼──────────────┼────────────────────────────┼──────────────────────┼─────────────┤
-  │ local  │ inst1        │ 10700                      │ 1.3+804c096          │ running    │
-  │ local  │ inst2        │ 10702                      │ 1.3+804c096          │ running     │
-  │ local  │ inst3        │ 10703                      │ 1.3+804c096          │ running    │
-  └────────┴──────────────┴────────────────────────────┴──────────────────────┴─────────────┘
+  ┌────────┬──────────────┬──────────┬───────────────┬─────────────┐
+  │ Kind   │ Name         │ Port     │ Version       │ Status      │
+  ├────────┼──────────────┼──────────┼───────────────┼─────────────┤
+  │ local  │ inst1        │ 10700    │ 1.x           │ running     │
+  │ local  │ inst2        │ 10702    │ 1.x           │ running     │
+  │ local  │ inst3        │ 10703    │ 1.x           │ running     │
+  └────────┴──────────────┴──────────┴───────────────┴─────────────┘
 
 To execute a GraphQL query against the instance named ``inst2``, we would send
 an HTTP request to ``http://localhost:10702/db/edgedb/graphql``.
@@ -116,13 +116,17 @@ submit the following JSON-encoded form with the necessary fields.
   $ curl \
       -H "Content-Type: application/json" \
       -X POST http://localhost:10787/db/edgedb/graphql \
-      -d '{ "query": "query getMovie($title: String!) { Movie(filter: {title:{eq: $title}}) { id title }}", "variables": { "title": "The Batman" }}'
-  {"data":{"Movie" : [{"id" : "7cff4074-a0d1-11ec-981e-3365bee3c7e3", "title" : "The Batman"}]}}
+      -d '<query here>'
+  {"data": {...}}
+
+.. { "query": "query getMovie($title: String!) { Movie(filter: {title:{
+.. eq: $title}}) { id title }}", "variables": { "title": "The Batman" }}
 
 GET request
 ^^^^^^^^^^^
 
-When using ``GET`` requests, the values for ``query``, ``variables``, etc. should be passed as query paramters in the URL.
+When using ``GET`` requests, the values for ``query``, ``variables``, etc.
+should be passed as query paramters in the URL.
 
 .. code-block:: bash
 
@@ -130,10 +134,13 @@ When using ``GET`` requests, the values for ``query``, ``variables``, etc. shoul
       -H application/x-www-form-urlencoded \
       -X GET http://localhost:10787/db/edgedb/graphql \
       -G \
-      --data-urlencode 'query=query getMovie($title: String!) { Movie(filter: {title:{eq: $title}}) { id title }}' \
-      --data-urlencode 'variables={ "title": "The Batman" }'
-  {"data":{"Movie" : [{"id" : "7cff4074-a0d1-11ec-981e-3365bee3c7e3", "title" : "The Batman"}]}}
+      --data-urlencode 'query=<query here>' \
+      --data-urlencode 'variables={ "my_var": "some value" }'
+  {"data": {...}}
 
+.. --data-urlencode 'query=query getMovie($title: String!) { Movie(filter:
+.. {title:{eq: $title}}) { id title }}' \
+.. --data-urlencode 'variables={ "title": "The Batman" }'
 
 Response format
 ^^^^^^^^^^^^^^^

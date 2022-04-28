@@ -120,7 +120,11 @@ Now let's assign to a *single link*.
   ... };
 
 
-This query is valid because the inner subquery is guaranteed to return at most 1 ``Hero`` object, due to the uniqueness constraint on ``Hero.name``. If you are filtering on a non-exclusive property, use ``assert_single`` to guarantee that the subquery will return zero or one results. If more than one result is returned, this query will fail at runtime.
+This query is valid because the inner subquery is guaranteed to return at most
+one ``Hero`` object, due to the uniqueness constraint on ``Hero.name``. If you
+are filtering on a non-exclusive property, use ``assert_single`` to guarantee
+that the subquery will return zero or one results. If more than one result is
+returned, this query will fail at runtime.
 
 .. code-block:: edgeql-repl
 
