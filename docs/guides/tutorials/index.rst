@@ -8,5 +8,7 @@ Tutorials
 .. toctree::
     :maxdepth: 1
 
+    nextjs
     rest_apis_with_fastapi
     rest_apis_with_flask
+
