@@ -1405,6 +1405,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         self._visit_DropObject(node, 'CONSTRAINT', after_name=after_name)
 
+    def _format_access_kinds(self, kinds: List[qltypes.AccessKind]) -> str:
+        if kinds == list(qltypes.AccessKind):
+            return 'all'
+        skinds = ', '.join(str(kind).lower() for kind in kinds)
+        skinds = skinds.replace("update", "update ")
+        skinds = skinds.replace("update read, update write", "update")
+        return skinds
+
     def visit_CreateAccessPolicy(
         self,
         node: qlast.CreateAccessPolicy
@@ -1419,8 +1427,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self._block_ws(-1)
             self._block_ws(1)
             self._write_keywords(str(node.action) + ' ')
-            for kind in node.access_kind:
-                self._write_keywords(str(kind) + ' ')
+            if node.access_kinds:
+                self._write_keywords(
+                    self._format_access_kinds(node.access_kinds) + ' ')
             self._write_keywords('USING ')
             self.write('(')
             self.visit(node.expr)

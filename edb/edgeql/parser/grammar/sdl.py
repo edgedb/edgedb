@@ -938,7 +938,7 @@ class AccessPolicyDeclarationBlock(Nonterm):
             name=kids[2].val,
             condition=kids[3].val,
             action=kids[4].val,
-            access_kind=kids[5].val,
+            access_kinds=[y for x in kids[5].val for y in x],
             expr=kids[8].val,
             commands=kids[10].val,
         )
@@ -955,7 +955,7 @@ class AccessPolicyDeclarationShort(Nonterm):
             name=kids[2].val,
             condition=kids[3].val,
             action=kids[4].val,
-            access_kind=kids[5].val,
+            access_kinds=[y for x in kids[5].val for y in x],
             expr=kids[8].val,
         )
 

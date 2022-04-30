@@ -194,10 +194,11 @@ class AccessPolicyAction(s_enum.StrEnum):
 
 
 class AccessKind(s_enum.StrEnum):
-    All = 'All'
-    Read = 'Read'
-    Write = 'Write'
+    Select = 'Select'
+    UpdateRead = 'UpdateRead'
+    UpdateWrite = 'UpdateWrite'
     Delete = 'Delete'
+    Insert = 'Insert'
 
 
 class DescribeLanguage(s_enum.StrEnum):
