@@ -5494,7 +5494,7 @@ aa';
         """
         create type Foo {
             create access policy test
-            allow read write
+            allow select, update write
             using (true);
         };
         """

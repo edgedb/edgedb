@@ -44,7 +44,7 @@ CREATE SCALAR TYPE schema::AccessPolicyAction
     EXTENDING enum<Allow, Deny>;
 
 CREATE SCALAR TYPE schema::AccessKind
-    EXTENDING enum<All, Read, Write, `Delete`>;
+    EXTENDING enum<`Select`, UpdateRead, UpdateWrite, `Delete`, `Insert`>;
 
 
 # Base type for all schema entities.
@@ -377,7 +377,8 @@ ALTER TYPE schema::ObjectType {
 
 ALTER TYPE schema::AccessPolicy {
   CREATE REQUIRED LINK subject -> schema::ObjectType;
-  CREATE REQUIRED PROPERTY access_kind -> array<schema::AccessKind>;
+  CREATE REQUIRED PROPERTY _access_kinds -> array<schema::AccessKind>;
+  CREATE PROPERTY access_kinds := array_unpack(._access_kinds);
   CREATE PROPERTY condition -> std::str;
   CREATE REQUIRED PROPERTY action -> schema::AccessPolicyAction;
   CREATE REQUIRED PROPERTY expr -> std::str;

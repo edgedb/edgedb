@@ -452,19 +452,30 @@ class OptWhenBlock(Nonterm):
 class AccessKind(Nonterm):
 
     def reduce_ALL(self, *kids):
-        self.val = qltypes.AccessKind.All
+        self.val = list(qltypes.AccessKind)
 
-    def reduce_READ(self, *kids):
-        self.val = qltypes.AccessKind.Read
+    def reduce_SELECT(self, *kids):
+        self.val = [qltypes.AccessKind.Select]
 
-    def reduce_WRITE(self, *kids):
-        self.val = qltypes.AccessKind.Write
+    def reduce_UPDATE(self, *kids):
+        self.val = [
+            qltypes.AccessKind.UpdateRead, qltypes.AccessKind.UpdateWrite]
+
+    def reduce_UPDATE_READ(self, *kids):
+        self.val = [qltypes.AccessKind.UpdateRead]
+
+    def reduce_UPDATE_WRITE(self, *kids):
+        self.val = [qltypes.AccessKind.UpdateWrite]
+
+    def reduce_INSERT(self, *kids):
+        self.val = [qltypes.AccessKind.Insert]
 
     def reduce_DELETE(self, *kids):
-        self.val = qltypes.AccessKind.Delete
+        self.val = [qltypes.AccessKind.Delete]
 
 
-class AccessKindList(parsing.ListNonterm, element=AccessKind):
+class AccessKindList(parsing.ListNonterm, element=AccessKind,
+                     separator=tokens.T_COMMA):
     pass
 
 

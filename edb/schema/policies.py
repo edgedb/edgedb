@@ -67,7 +67,7 @@ class AccessPolicy(
         special_ddl_syntax=True,
     )
 
-    access_kind = so.SchemaField(
+    _access_kinds = so.SchemaField(
         checked.FrozenCheckedList[qltypes.AccessKind],
         coerce=True,
         compcoef=0.1,
@@ -97,6 +97,11 @@ class AccessPolicy(
     ) -> sn.QualName:
         shortname = self.get_shortname(schema)
         return sn.QualName(module='__', name=shortname.name)
+
+    def get_access_kinds(
+        self, schema: s_schema.Schema
+    ) -> checked.FrozenCheckedList[qltypes.AccessKind]:
+        return self.get__access_kinds(schema)
 
 
 class AccessPolicyCommandContext(
@@ -262,10 +267,15 @@ class CreateAccessPolicy(
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
         if (
-            field in ('expr', 'condition', 'action', 'access_kind')
+            field in ('expr', 'condition', 'action')
             and issubclass(astnode, qlast.CreateAccessPolicy)
         ):
             return field
+        elif (
+            field == '_access_kinds'
+            and issubclass(astnode, qlast.CreateAccessPolicy)
+        ):
+            return 'access_kinds'
         else:
             return super().get_ast_attr_for_field(field, astnode)
 
@@ -301,7 +311,7 @@ class CreateAccessPolicy(
         )
 
         cmd.set_attribute_value('action', astnode.action)
-        cmd.set_attribute_value('access_kind', astnode.access_kind)
+        cmd.set_attribute_value('_access_kinds', astnode.access_kinds)
 
         return cmd
 

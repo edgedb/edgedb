@@ -1729,7 +1729,7 @@ annotation test::foo;
         module test {
             type Foo {
                 access policy test
-                allow read write
+                allow select, update, insert
                 using (1 + 2 = 3);
             };
         };

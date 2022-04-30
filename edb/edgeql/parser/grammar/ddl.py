@@ -1764,7 +1764,7 @@ class CreateAccessPolicyStmt(Nonterm):
             name=kids[3].val,
             condition=kids[4].val,
             action=kids[5].val,
-            access_kind=kids[6].val,
+            access_kinds=[y for x in kids[6].val for y in x],
             expr=kids[9].val,
             commands=kids[11].val,
         )

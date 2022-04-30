@@ -5455,7 +5455,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 create access policy all_on allow all using (true);
                 create access policy filtering
                     when (global filtering)
-                    deny read write using (.name ?!= global cur);
+                    deny select, delete using (.name ?!= global cur);
             };
             create type Bot extending User;
         """)
@@ -5463,13 +5463,16 @@ class TestEdgeQLDDL(tb.DDLTestCase):
         await self.assert_query_result(
             '''
                 select schema::AccessPolicy {
-                    name, condition, expr, action, access_kind,
+                    name, condition, expr, action, access_kinds,
                     sname := .subject.name, root := not exists .bases };
 
             ''',
             tb.bag([
                 {
-                    "access_kind": ["All"],
+                    "access_kinds": [
+                        "Select", "UpdateRead", "UpdateWrite", "Delete",
+                        "Insert"
+                    ],
                     "action": "Allow",
                     "condition": None,
                     "expr": "true",
@@ -5478,7 +5481,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "root": True,
                 },
                 {
-                    "access_kind": ["Read", "Write"],
+                    "access_kinds": ["Select", "Delete"],
                     "action": "Deny",
                     "condition": "global default::filtering",
                     "expr": "(.name ?!= global default::cur)",
@@ -5487,7 +5490,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "root": True,
                 },
                 {
-                    "access_kind": ["All"],
+                    "access_kinds": [
+                        "Select", "UpdateRead", "UpdateWrite", "Delete",
+                        "Insert"
+                    ],
                     "action": "Allow",
                     "condition": None,
                     "expr": "true",
@@ -5496,7 +5502,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "root": False,
                 },
                 {
-                    "access_kind": ["Read", "Write"],
+                    "access_kinds": ["Select", "Delete"],
                     "action": "Deny",
                     "condition": "global default::filtering",
                     "expr": "(.name ?!= global default::cur)",
