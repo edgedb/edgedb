@@ -565,14 +565,10 @@ cdef class EdgeConnection:
             b'suggested_pool_concurrency',
             str(self.server.get_suggested_client_pool_size()).encode()
         )
-
-        if self.protocol_version >= (0, 13):
-            # Protocol 0.12 and earlier assumes that Setting messages
-            # store UTF-8 data.
-            self.write_status(
-                b'system_config',
-                self.server.get_report_config_data()
-            )
+        self.write_status(
+            b'system_config',
+            self.server.get_report_config_data()
+        )
 
         self.write(self.sync_status())
 
@@ -1063,14 +1059,6 @@ cdef class EdgeConnection:
         else:
             return 'done', query_unit
 
-    def version_check(self, feature: str, minimum_version: Tuple[int, int]):
-        if self.protocol_version < minimum_version:
-            raise errors.BinaryProtocolError(
-                f'{feature} is supported since protocol '
-                f'{minimum_version[0]}.{minimum_version[1]}, current is '
-                f'{self.protocol_version[0]}.{self.protocol_version[1]}'
-            )
-
     async def simple_query(self):
         cdef:
             WriteBuffer msg
@@ -1081,7 +1069,6 @@ cdef class EdgeConnection:
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_ALLOW_CAPABILITIES:
-                    self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
@@ -1379,7 +1366,7 @@ cdef class EdgeConnection:
             bytes eql
             dict headers
             uint64_t implicit_limit = 0
-            bint inline_typeids = self.protocol_version <= (0, 8)
+            bint inline_typeids = False
             uint64_t allow_capabilities = ALL_CAPABILITIES
             bint inline_typenames = False
             bint inline_objectids = True
@@ -1391,16 +1378,12 @@ cdef class EdgeConnection:
                 if k == QUERY_HEADER_IMPLICIT_LIMIT:
                     implicit_limit = self._parse_implicit_limit(v)
                 elif k == QUERY_HEADER_IMPLICIT_TYPEIDS:
-                    self.version_check("IMPLICIT_TYPEIDS header", (0, 9))
                     inline_typeids = parse_boolean(v, "IMPLICIT_TYPEIDS")
                 elif k == QUERY_HEADER_IMPLICIT_TYPENAMES:
-                    self.version_check("IMPLICIT_TYPENAMES header", (0, 9))
                     inline_typenames = parse_boolean(v, "IMPLICIT_TYPENAMES")
                 elif k == QUERY_HEADER_ALLOW_CAPABILITIES:
-                    self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
                 elif k == QUERY_HEADER_EXPLICIT_OBJECTIDS:
-                    self.version_check("EXPLICIT_OBJECTIDS header", (0, 10))
                     inline_objectids = not parse_boolean(v, "EXPLICIT_OBJECTIDS")
                 else:
                     raise errors.BinaryProtocolError(
@@ -1498,15 +1481,12 @@ cdef class EdgeConnection:
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
 
-        if self.protocol_version >= (0, 9):
-            buf.write_int16(1)
-            buf.write_int16(SERVER_HEADER_CAPABILITIES)
-            buf.write_int32(sizeof(uint64_t))
-            buf.write_int64(<int64_t>(
-                <uint64_t>compiled_query.query_unit.capabilities
-            ))
-        else:
-            buf.write_int16(0)  # no headers
+        buf.write_int16(1)
+        buf.write_int16(SERVER_HEADER_CAPABILITIES)
+        buf.write_int32(sizeof(uint64_t))
+        buf.write_int64(<int64_t>(
+            <uint64_t>compiled_query.query_unit.capabilities
+        ))
 
         buf.write_byte(self.render_cardinality(compiled_query.query_unit))
 
@@ -1535,13 +1515,10 @@ cdef class EdgeConnection:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
-        if self.protocol_version >= (0, 9):
-            msg.write_int16(1)
-            msg.write_int16(SERVER_HEADER_CAPABILITIES)
-            msg.write_int32(sizeof(uint64_t))
-            msg.write_int64(<int64_t>(<uint64_t>query.query_unit.capabilities))
-        else:
-            msg.write_int16(0)  # no headers
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(<int64_t>(<uint64_t>query.query_unit.capabilities))
 
         msg.write_byte(self.render_cardinality(query.query_unit))
 
@@ -1562,13 +1539,10 @@ cdef class EdgeConnection:
 
         msg = WriteBuffer.new_message(b'C')
 
-        if self.protocol_version >= (0, 9):
-            msg.write_int16(1)
-            msg.write_int16(SERVER_HEADER_CAPABILITIES)
-            msg.write_int32(sizeof(uint64_t))
-            msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
-        else:
-            msg.write_int16(0)
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
 
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
@@ -1750,7 +1724,6 @@ cdef class EdgeConnection:
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_ALLOW_CAPABILITIES:
-                    self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
@@ -2087,10 +2060,6 @@ cdef class EdgeConnection:
         if (isinstance(exc, errors.EdgeDBError) and
                 type(exc) is not errors.EdgeDBError):
             exc_code = exc.get_code()
-
-            if self.protocol_version < (0, 10):
-                exc_code = ERROR_CODES_PRE_0_10.get(exc_code, exc_code)
-
             fields.update(exc._attrs)
 
         internal_error_code = errors.InternalServerError.get_code()
@@ -2240,7 +2209,6 @@ cdef class EdgeConnection:
             ssize_t in_len
             ssize_t i
             const char *data
-            has_reserved = self.protocol_version >= (0, 8)
 
         assert cpython.PyBytes_CheckExact(bind_args)
         frb_init(
@@ -2253,24 +2221,21 @@ cdef class EdgeConnection:
 
         # number of elements in the tuple
         # for empty tuple it's okay to send zero-length arguments
-        if self.protocol_version >= (0, 12):
-            is_null_type = \
-                query.query_unit.in_type_id == sertypes.NULL_TYPE_ID.bytes
-            if frb_get_len(&in_buf) == 0:
-                if not is_null_type:
-                    raise errors.ProtocolError(
-                        f"insufficient data for type-id "
-                        f"{query.query_unit.in_type_id}")
-                recv_args = 0
-            else:
-                if is_null_type:
-                    raise errors.ProtocolError(
-                        "absence of query arguments must be encoded with a "
-                        "'zero' type "
-                        "(id: 00000000-0000-0000-0000-000000000000, "
-                        "encoded with zero bytes)")
-                recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
+        is_null_type = \
+            query.query_unit.in_type_id == sertypes.NULL_TYPE_ID.bytes
+        if frb_get_len(&in_buf) == 0:
+            if not is_null_type:
+                raise errors.ProtocolError(
+                    f"insufficient data for type-id "
+                    f"{query.query_unit.in_type_id}")
+            recv_args = 0
         else:
+            if is_null_type:
+                raise errors.ProtocolError(
+                    "absence of query arguments must be encoded with a "
+                    "'zero' type "
+                    "(id: 00000000-0000-0000-0000-000000000000, "
+                    "encoded with zero bytes)")
             recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
         decl_args = len(query.query_unit.in_type_args or ())
 
@@ -2294,8 +2259,7 @@ cdef class EdgeConnection:
 
         if query.query_unit.in_type_args:
             for param in query.query_unit.in_type_args:
-                if has_reserved:
-                    frb_read(&in_buf, 4)  # reserved
+                frb_read(&in_buf, 4)  # reserved
                 in_len = hton.unpack_int32(frb_read(&in_buf, 4))
                 out_buf.write_int32(in_len)
 
