@@ -13,7 +13,10 @@
     <img src="https://github.com/edgedb/edgedb/workflows/Tests/badge.svg?event=push&branch=master" />
   </a>
   <a href="https://github.com/edgedb/edgedb/blob/master/LICENSE">
-    <img src="https://img.shields.io/badge/license-Apache%202.0-blue" />
+    <img alt="license" src="https://img.shields.io/badge/license-Apache%202.0-blue" />
+  </a>
+  <a href="https://discord.gg/umUueND6ag">
+    <img alt="discord" src="https://img.shields.io/discord/841451783728529451?color=5865F2&label=discord&logo=discord&logoColor=8a9095">
   </a>
   <br />
   <br />
