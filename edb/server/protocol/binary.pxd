@@ -73,7 +73,6 @@ cdef class CompiledQuery:
     cdef public bytes extra_blob
 
 
-@cython.final
 cdef class EdgeConnection:
 
     cdef:
@@ -167,3 +166,6 @@ cdef class VirtualTransport:
     cdef:
         WriteBuffer buf
         bint closed
+
+
+include "binary_v0.pxd"

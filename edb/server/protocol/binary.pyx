@@ -207,7 +207,6 @@ cdef class CompiledQuery:
         self.extra_blob = extra_blob
 
 
-@cython.final
 cdef class EdgeConnection:
 
     def __init__(
@@ -626,31 +625,6 @@ cdef class EdgeConnection:
             self.flush()
 
         return params
-
-    @classmethod
-    async def run_script(
-        cls,
-        server,
-        database: str,
-        user: str,
-        script: str,
-    ) -> None:
-        conn = cls(server)
-        conn._start_connection(database)
-        try:
-            await conn._simple_query(
-                script.encode('utf-8'),
-                ALL_CAPABILITIES,
-                'all',
-            )
-        except pgerror.BackendError as e:
-            exc = conn.interpret_backend_error(e)
-            if isinstance(exc, errors.EdgeDBError):
-                raise exc from None
-            else:
-                raise exc
-        finally:
-            conn.close()
 
     def _start_connection(self, database: str) -> None:
         dbv = self.server.new_dbview(
@@ -2904,7 +2878,7 @@ async def eval_buffer(object server, str database, bytes data):
 
     vtr = VirtualTransport()
 
-    proto = EdgeConnection(server, passive=True)
+    proto = new_edge_connection(server, passive=True)
 
     proto.connection_made(vtr)
     if vtr.is_closing() or proto._main_task is None:
@@ -2922,3 +2896,39 @@ async def eval_buffer(object server, str database, bytes data):
 
     data = vtr._get_data()
     return data
+
+
+include "binary_v0.pyx"
+
+
+def new_edge_connection(
+    server,
+    external_auth: bool = False,
+    passive: bool = False,
+):
+    return EdgeConnectionBackwardsCompatible(server, external_auth, passive)
+
+
+async def run_script(
+    server,
+    database: str,
+    user: str,
+    script: str,
+) -> None:
+    conn = new_edge_connection(server)
+    conn._start_connection(database)
+    try:
+        await conn._simple_query(
+            script.encode('utf-8'),
+            ALL_CAPABILITIES,
+            'all',
+        )
+    except pgerror.BackendError as e:
+        exc = conn.interpret_backend_error(e)
+        if isinstance(exc, errors.EdgeDBError):
+            raise exc from None
+        else:
+            raise exc
+    finally:
+        conn.close()
+
