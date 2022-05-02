@@ -95,9 +95,10 @@ cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (0, 14)
+cdef tuple DUMP_VER_MAX = (1, 0)
 
 cdef tuple MIN_PROTOCOL = edbdef.MIN_PROTOCOL
+cdef tuple MAX_LEGACY_PROTOCOL = edbdef.MAX_LEGACY_PROTOCOL
 cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
 
 cdef object logger = logging.getLogger('edb.server')
@@ -248,6 +249,7 @@ cdef class EdgeConnection:
         self.started_idling_at = 0.0
 
         self.protocol_version = CURRENT_PROTOCOL
+        self.min_protocol = MIN_PROTOCOL
         self.max_protocol = CURRENT_PROTOCOL
 
         self._pinned_pgcon = None
@@ -466,17 +468,9 @@ cdef class EdgeConnection:
 
         self.server.on_binary_client_after_idling(self)
 
-    async def auth(self):
+    async def do_handshake(self):
         cdef:
             char mtype
-            WriteBuffer msg_buf
-            WriteBuffer buf
-
-        if self._passive_mode:
-            # XXX: This is temporary hack. We'll have to implement
-            # proper authentication for binary over HTTP soon
-            # (most likely with JWT).
-            return
 
         await self.wait_for_message(report_idling=True)
         mtype = self.buffer.get_message_type()
@@ -484,7 +478,13 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected initial message: "{chr(mtype)}", expected "V"')
 
-        params = await self.do_handshake()
+        params = await self._do_handshake()
+        return params
+
+    async def auth(self, params):
+        cdef:
+            WriteBuffer msg_buf
+            WriteBuffer buf
 
         user = params.get('user')
         if not user:
@@ -573,7 +573,7 @@ cdef class EdgeConnection:
 
         self.flush()
 
-    async def do_handshake(self):
+    async def _do_handshake(self):
         cdef:
             uint16_t major
             uint16_t minor
@@ -601,8 +601,8 @@ cdef class EdgeConnection:
 
         self.protocol_version = major, minor
         negotiate = nexts > 0
-        if self.protocol_version < MIN_PROTOCOL:
-            target_proto = MIN_PROTOCOL
+        if self.protocol_version < self.min_protocol:
+            target_proto = self.min_protocol
             negotiate = True
         elif self.protocol_version > self.max_protocol:
             target_proto = self.max_protocol
@@ -1464,17 +1464,13 @@ cdef class EdgeConnection:
 
         buf.write_byte(self.render_cardinality(compiled_query.query_unit))
 
-        if self.protocol_version >= (0, 14):
-            buf.write_bytes(compiled_query.query_unit.in_type_id)
-            buf.write_len_prefixed_bytes(
-                compiled_query.query_unit.in_type_data)
+        buf.write_bytes(compiled_query.query_unit.in_type_id)
+        buf.write_len_prefixed_bytes(
+            compiled_query.query_unit.in_type_data)
 
-            buf.write_bytes(compiled_query.query_unit.out_type_id)
-            buf.write_len_prefixed_bytes(
-                compiled_query.query_unit.out_type_data)
-        else:
-            buf.write_bytes(compiled_query.query_unit.in_type_id)
-            buf.write_bytes(compiled_query.query_unit.out_type_id)
+        buf.write_bytes(compiled_query.query_unit.out_type_id)
+        buf.write_len_prefixed_bytes(
+            compiled_query.query_unit.out_type_data)
 
         buf.end_message()
 
@@ -1520,33 +1516,6 @@ cdef class EdgeConnection:
 
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
-
-    async def describe(self):
-        cdef:
-            char rtype
-            WriteBuffer msg
-
-        self.reject_headers()
-
-        rtype = self.buffer.read_byte()
-        if rtype == b'T':
-            # describe "type id"
-            stmt_name = self.buffer.read_len_prefixed_bytes()
-
-            if stmt_name:
-                raise errors.UnsupportedFeatureError(
-                    'prepared statements are not yet supported')
-            else:
-                if self._last_anon_compiled is None:
-                    raise errors.TypeSpecNotFoundError(
-                        'no prepared anonymous statement found')
-
-                msg = self.make_describe_msg(self._last_anon_compiled)
-                self.write(msg)
-
-        else:
-            raise errors.BinaryProtocolError(
-                f'unsupported "describe" message mode {chr(rtype)!r}')
 
     async def _execute_system_config(self, query_unit, conn):
         if query_unit.sql:
@@ -1803,36 +1772,51 @@ cdef class EdgeConnection:
 
         self.flush()
 
+    async def legacy_main(self, params):
+        raise NotImplementedError
+
     async def main(self):
         cdef:
             char mtype
             bint flush_sync_on_error
+            bint is_legacy
 
-        try:
-            await self.auth()
-        except Exception as ex:
-            if self._transport is not None:
-                # If there's no transport it means that the connection
-                # was aborted, in which case we don't really care about
-                # reporting the exception.
+        if not self._passive_mode:
+            # XXX: This is temporary hack. We'll have to implement
+            # proper authentication for binary over HTTP soon
+            # (most likely with JWT).
 
-                self.write_error(ex)
-                self.close()
+            try:
+                params = await self.do_handshake()
+                is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
+                if not is_legacy:
+                    await self.auth(params)
+            except Exception as ex:
+                if self._transport is not None:
+                    # If there's no transport it means that the connection
+                    # was aborted, in which case we don't really care about
+                    # reporting the exception.
 
-                if not isinstance(ex, (errors.ProtocolError,
-                                       errors.AuthenticationError)):
-                    self.loop.call_exception_handler({
-                        'message': (
-                            'unhandled error in edgedb protocol while '
-                            'accepting new connection'
-                        ),
-                        'exception': ex,
-                        'protocol': self,
-                        'transport': self._transport,
-                        'task': self._main_task,
-                    })
+                    self.write_error(ex)
+                    self.close()
 
-            return
+                    if not isinstance(ex, (errors.ProtocolError,
+                                           errors.AuthenticationError)):
+                        self.loop.call_exception_handler({
+                            'message': (
+                                'unhandled error in edgedb protocol while '
+                                'accepting new connection'
+                            ),
+                            'exception': ex,
+                            'protocol': self,
+                            'transport': self._transport,
+                            'task': self._main_task,
+                        })
+
+                return
+
+            if is_legacy:
+                return await self.legacy_main(params)
 
         self.authed = True
         self.server.on_binary_client_authed(self)
@@ -1869,11 +1853,9 @@ cdef class EdgeConnection:
                         await self.parse()
 
                     elif mtype == b'D':
-                        if self.protocol_version >= (0, 14):
-                            raise errors.BinaryProtocolError(
-                                "Describe message (D) is not supported in "
-                                "protocols greater 0.13")
-                        await self.describe()
+                        raise errors.BinaryProtocolError(
+                            "Describe message (D) is not supported in "
+                            "protocols greater 0.13")
 
                     elif mtype == b'E':
                         await self.execute()

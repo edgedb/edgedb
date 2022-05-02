@@ -105,6 +105,7 @@ cdef class EdgeConnection:
 
         tuple protocol_version
         tuple max_protocol
+        tuple min_protocol
 
         object last_state
         int last_state_id

@@ -637,7 +637,9 @@ class PrepareComplete(ServerMessage):
     headers = Headers
     cardinality = EnumOf(UInt8, Cardinality, 'Result cardinality.')
     input_typedesc_id = UUID('Argument data descriptor ID.')
+    input_typedesc = Bytes('Argument data descriptor.')
     output_typedesc_id = UUID('Result data descriptor ID.')
+    output_typedesc = Bytes('Output data descriptor.')
 
 
 class ProtocolExtension(Struct):
