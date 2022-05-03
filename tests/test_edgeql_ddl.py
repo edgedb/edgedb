@@ -5464,8 +5464,8 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             '''
                 select schema::AccessPolicy {
                     name, condition, expr, action, access_kinds,
-                    sname := .subject.name, root := not exists .bases };
-
+                    sname := .subject.name, root := not exists .bases }
+                filter .sname like 'default::%'
             ''',
             tb.bag([
                 {

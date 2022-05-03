@@ -25,7 +25,6 @@ import collections
 
 from edb.edgeql import ast as qlast
 from edb.edgeql import qltypes
-from edb.edgeql import parser as qlparser
 
 from . import abc as s_abc
 from . import annos as s_anno
@@ -96,25 +95,6 @@ class ObjectType(
     @classmethod
     def get_schema_class_displayname(cls) -> str:
         return 'object type'
-
-    def get_access_policy_filters(
-        self,
-        schema: s_schema.Schema,
-    ) -> Optional[s_expr.ExpressionList]:
-        if (
-            self.get_name(schema).module in {'schema', 'sys'}
-            and self.issubclass(schema,
-                                schema.get('schema::Object', type=ObjectType))
-        ):
-            return s_expr.ExpressionList([
-                s_expr.Expression.from_ast(
-                    qlparser.parse('NOT .internal'),
-                    schema=schema,
-                    modaliases={},
-                )
-            ])
-        else:
-            return None
 
     def is_object_type(self) -> bool:
         return True
