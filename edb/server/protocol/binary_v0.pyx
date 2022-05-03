@@ -170,7 +170,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         await self.legacy_describe()
 
                     elif mtype == b'E':
-                        await self.execute()
+                        await self.legacy_execute()
 
                     elif mtype == b'O':
                         await self.legacy_optimistic_execute()
@@ -406,3 +406,44 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         )
 
         return eql, query_req, stmt_name
+
+    async def legacy_execute(self):
+        cdef:
+            WriteBuffer bound_args_buf
+            uint64_t allow_capabilities = ALL_CAPABILITIES
+
+        headers = self.parse_headers()
+        if headers:
+            for k, v in headers.items():
+                if k == QUERY_HEADER_ALLOW_CAPABILITIES:
+                    allow_capabilities = parse_capabilities_header(v)
+                else:
+                    raise errors.BinaryProtocolError(
+                        f'unexpected message header: {k}'
+                    )
+
+        stmt_name = self.buffer.read_len_prefixed_bytes()
+        bind_args = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
+        query_unit = None
+
+        if self.debug:
+            self.debug_print('EXECUTE')
+
+        if stmt_name:
+            raise errors.UnsupportedFeatureError(
+                'prepared statements are not yet supported')
+        else:
+            if self._last_anon_compiled is None:
+                raise errors.BinaryProtocolError(
+                    'no prepared anonymous statement found')
+
+            compiled = self._last_anon_compiled
+
+        if compiled.query_unit.capabilities & ~allow_capabilities:
+            raise compiled.query_unit.capabilities.make_error(
+                allow_capabilities,
+                errors.DisabledCapabilityError,
+            )
+
+        await self._execute(compiled, bind_args, False)

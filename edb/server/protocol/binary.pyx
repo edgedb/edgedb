@@ -1666,7 +1666,6 @@ cdef class EdgeConnection:
                         f'unexpected message header: {k}'
                     )
 
-        stmt_name = self.buffer.read_len_prefixed_bytes()
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
         query_unit = None
@@ -1674,15 +1673,11 @@ cdef class EdgeConnection:
         if self.debug:
             self.debug_print('EXECUTE')
 
-        if stmt_name:
-            raise errors.UnsupportedFeatureError(
-                'prepared statements are not yet supported')
-        else:
-            if self._last_anon_compiled is None:
-                raise errors.BinaryProtocolError(
-                    'no prepared anonymous statement found')
+        if self._last_anon_compiled is None:
+            raise errors.BinaryProtocolError(
+                'no prepared anonymous statement found')
 
-            compiled = self._last_anon_compiled
+        compiled = self._last_anon_compiled
 
         if compiled.query_unit.capabilities & ~allow_capabilities:
             raise compiled.query_unit.capabilities.make_error(

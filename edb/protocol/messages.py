@@ -764,7 +764,6 @@ class Execute(ClientMessage):
     mtype = MessageType('E')
     message_length = MessageLength
     headers = Headers
-    statement_name = Bytes('Prepared statement name.')
     arguments = Bytes('Encoded argument data.')
 
 
