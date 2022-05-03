@@ -93,7 +93,7 @@ class Index(tables.InheritableTableObject):
             exprs = [qi(c) for c in self.columns]
 
         # TODO: Make NULLs behavior configurable
-        expr = ', '.join(f'{e} NULLS FIRST' for e in exprs)
+        expr = ', '.join(f'({e}) NULLS FIRST' for e in exprs)
 
         code = '''
             CREATE {unique} INDEX {name}
