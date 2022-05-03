@@ -537,6 +537,19 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         )
 
+        await self.assert_query_result(
+            r'''SELECT 1n IN array_unpack([1n]);''',
+            [True],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select 1n in array_unpack(
+                    <array<bigint>><array<str>>to_json('["1"]'))
+            ''',
+            [True],
+        )
+
     async def test_edgeql_functions_enumerate_01(self):
         await self.assert_query_result(
             r'''SELECT [10, 20];''',
