@@ -726,20 +726,6 @@ class Prepare(ClientMessage):
     command = String('Command text.')
 
 
-class DescribeAspect(enum.Enum):
-
-    DATA_DESCRIPTION = 0x54
-
-
-class DescribeStatement(ClientMessage):
-
-    mtype = MessageType('D')
-    message_length = MessageLength
-    headers = Headers
-    aspect = EnumOf(UInt8, DescribeAspect, 'Aspect to describe.')
-    statement_name = Bytes('The name of the statement.')
-
-
 class Dump(ClientMessage):
 
     mtype = MessageType('>')

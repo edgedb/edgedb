@@ -147,7 +147,9 @@ cdef class EdgeConnection:
     cdef WriteBuffer recode_bind_args(self,
         bytes bind_args, CompiledQuery compiled)
 
-    cdef WriteBuffer make_describe_msg(self, CompiledQuery query)
+    cdef WriteBuffer make_command_data_description_msg(
+        self, CompiledQuery query
+    )
     cdef WriteBuffer make_command_complete_msg(self, query_unit)
 
     cdef inline reject_headers(self)

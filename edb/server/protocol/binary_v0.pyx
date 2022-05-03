@@ -90,7 +90,9 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     raise errors.TypeSpecNotFoundError(
                         'no prepared anonymous statement found')
 
-                msg = self.make_describe_msg(self._last_anon_compiled)
+                msg = self.make_command_data_description_msg(
+                    self._last_anon_compiled
+                )
                 self.write(msg)
 
         else:
@@ -333,7 +335,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
 
-            self.write(self.make_describe_msg(compiled))
+            self.write(self.make_command_data_description_msg(compiled))
 
             if self._cancelled:
                 raise ConnectionAbortedError

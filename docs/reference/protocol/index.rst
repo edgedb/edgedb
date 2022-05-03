@@ -285,15 +285,8 @@ messages:
     execution.  The server responds with a
     :ref:`ref_protocol_msg_prepare_complete` message containing the
     unique identifier of the statement
-    :ref:`type descriptor <ref_proto_typedesc>`.  The client may then
-    send a :ref:`ref_protocol_msg_describe_statement` if it requires the
-    type descriptor data.
-
-:ref:`ref_protocol_msg_describe_statement`
-    Asks the server to return the type descriptor data for a prepared
-    statement.  This message is only valid following the receipt of
-    :ref:`ref_protocol_msg_prepare_complete`.  The server responds with
-    a :ref:`ref_protocol_msg_command_data_description` message.
+    :ref:`type descriptor <ref_proto_typedesc>`, as well as the type descriptor
+    data.
 
 :ref:`ref_protocol_msg_execute`
     Execute a previously prepared command.  The server responds with

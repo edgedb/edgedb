@@ -72,9 +72,6 @@ Messages
     * - :ref:`ref_protocol_msg_client_handshake`
       - Initial client connection handshake.
 
-    * - :ref:`ref_protocol_msg_describe_statement`
-      - Describe a previously prepared statement.
-
     * - :ref:`ref_protocol_msg_dump`
       - Initiate database backup
 
@@ -285,20 +282,6 @@ Known headers:
   explicitly list id properties.
 
 .. eql:struct:: edb.protocol.enums.Cardinality
-
-
-.. _ref_protocol_msg_describe_statement:
-
-DescribeStatement
-=================
-
-Sent by: client.
-
-Format:
-
-.. eql:struct:: edb.protocol.DescribeStatement
-
-.. eql:struct:: edb.protocol.DescribeAspect
 
 
 .. _ref_protocol_msg_dump:

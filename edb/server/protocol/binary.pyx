@@ -1473,7 +1473,9 @@ cdef class EdgeConnection:
 
     #############
 
-    cdef WriteBuffer make_describe_msg(self, CompiledQuery query):
+    cdef WriteBuffer make_command_data_description_msg(
+        self, CompiledQuery query
+    ):
         cdef:
             WriteBuffer msg
 
@@ -1738,7 +1740,7 @@ cdef class EdgeConnection:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
 
-            self.write(self.make_describe_msg(compiled))
+            self.write(self.make_command_data_description_msg(compiled))
 
             if self._cancelled:
                 raise ConnectionAbortedError

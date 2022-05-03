@@ -6,7 +6,7 @@ Type descriptors
 
 This section describes how type information for query input and results
 is encoded.  Specifically, this is needed to decode the server response to
-the :ref:`ref_protocol_msg_describe_statement` message.
+the :ref:`ref_protocol_msg_prepare` message.
 
 The type descriptor is essentially a list of type information *blocks*:
 
