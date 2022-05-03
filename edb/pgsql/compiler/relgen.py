@@ -1289,16 +1289,19 @@ def process_set_as_membership_expr(
         newctx.expr_exposed = False
         left_out = dispatch.compile(left_arg, ctx=newctx)
 
-        right_arg = irutils.unwrap_set(right_arg)
+        orig_right_arg = right_arg
+        unwrapped_right_arg = irutils.unwrap_set(right_arg)
         # If the right operand of [NOT] IN is an array_unpack call,
         # then use the ANY/ALL array comparison operator directly,
         # since that has a higher chance of using the indexes.
-        right_expr = right_arg.expr
+        right_expr = unwrapped_right_arg.expr
         needs_coalesce = False
+
         if (
             isinstance(right_expr, irast.FunctionCall)
             and str(right_expr.func_shortname) == 'std::array_unpack'
             and not right_expr.args[0].cardinality.is_multi()
+            and (not expr.sql_operator or len(expr.sql_operator) <= 1)
         ):
             is_array_unpack = True
             right_arg = right_expr.args[0].expr
@@ -1309,6 +1312,11 @@ def process_set_as_membership_expr(
         left_is_row_expr = astutils.is_row_expr(left_out)
 
         with newctx.subrel() as _, _.newscope() as subctx:
+            if is_array_unpack:
+                relctx.update_scope(orig_right_arg, subctx.rel, ctx=subctx)
+                relctx.update_scope(
+                    unwrapped_right_arg, subctx.rel, ctx=subctx)
+
             dispatch.compile(right_arg, ctx=subctx)
             right_rel = subctx.rel
             right_out = pathctx.get_path_value_var(
