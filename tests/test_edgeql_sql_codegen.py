@@ -205,3 +205,15 @@ class TestEdgeQLSQLCodegen(tb.BaseEdgeQLCompilerTest):
             "uuid_generate", group_sql,
             "group has unnecessary uuid_generate",
         )
+
+    def test_codegen_in_array_unpack_no_dupe(self):
+        sql = self._compile('''
+            select 1 in array_unpack(
+                <array<int64>><array<str>>to_json('["1"]'))
+        ''')
+
+        count = sql.count('["1"]')
+        self.assertEqual(
+            count,
+            1,
+            f"argument needlessly duplicated")
