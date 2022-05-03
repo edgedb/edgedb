@@ -745,14 +745,6 @@ class Flush(ClientMessage):
     message_length = MessageLength
 
 
-class Execute(ClientMessage):
-
-    mtype = MessageType('E')
-    message_length = MessageLength
-    headers = Headers
-    arguments = Bytes('Encoded argument data.')
-
-
 class Restore(ClientMessage):
 
     mtype = MessageType('<')

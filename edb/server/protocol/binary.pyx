@@ -1468,6 +1468,7 @@ cdef class EdgeConnection:
         buf.end_message()
 
         self._last_anon_compiled = compiled_query
+        self._last_anon_compiled_hash = hash(query_req)
 
         self.write(buf)
 
@@ -1653,42 +1654,6 @@ cdef class EdgeConnection:
         finally:
             self.maybe_release_pgcon(conn)
 
-    async def execute(self):
-        cdef:
-            WriteBuffer bound_args_buf
-            uint64_t allow_capabilities = ALL_CAPABILITIES
-
-        headers = self.parse_headers()
-        if headers:
-            for k, v in headers.items():
-                if k == QUERY_HEADER_ALLOW_CAPABILITIES:
-                    allow_capabilities = parse_capabilities_header(v)
-                else:
-                    raise errors.BinaryProtocolError(
-                        f'unexpected message header: {k}'
-                    )
-
-        bind_args = self.buffer.read_len_prefixed_bytes()
-        self.buffer.finish_message()
-        query_unit = None
-
-        if self.debug:
-            self.debug_print('EXECUTE')
-
-        if self._last_anon_compiled is None:
-            raise errors.BinaryProtocolError(
-                'no prepared anonymous statement found')
-
-        compiled = self._last_anon_compiled
-
-        if compiled.query_unit.capabilities & ~allow_capabilities:
-            raise compiled.query_unit.capabilities.make_error(
-                allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
-
-        await self._execute(compiled, bind_args, False)
-
     async def optimistic_execute(self):
         cdef:
             WriteBuffer bound_args_buf
@@ -1700,8 +1665,6 @@ cdef class EdgeConnection:
             bytes out_tid
             bytes bound_args
 
-        self._last_anon_compiled = None
-
         query, query_req = self.parse_prepare_query_part()
 
         in_tid = self.buffer.read_bytes(16)
@@ -1709,24 +1672,34 @@ cdef class EdgeConnection:
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
-        query_unit = self.get_dbview().lookup_compiled_query(query_req)
-        if query_unit is None:
-            if self.debug:
-                self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
-
-            compiled = await self._parse(query, query_req)
-            self._last_anon_compiled = compiled
+        if (
+            self._last_anon_compiled is not None and
+            hash(query_req) == self._last_anon_compiled_hash
+        ):
+            compiled = self._last_anon_compiled
             query_unit = compiled.query_unit
-            if self._cancelled:
-                raise ConnectionAbortedError
         else:
-            compiled = CompiledQuery(
-                query_unit=query_unit,
-                first_extra=query_req.source.first_extra(),
-                extra_count=query_req.source.extra_count(),
-                extra_blob=query_req.source.extra_blob(),
-            )
-            self._last_anon_compiled = compiled
+            self._last_anon_compiled = None
+            query_unit = self.get_dbview().lookup_compiled_query(query_req)
+            if query_unit is None:
+                if self.debug:
+                    self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
+
+                compiled = await self._parse(query, query_req)
+                self._last_anon_compiled = compiled
+                self._last_anon_compiled_hash = hash(query_req)
+                query_unit = compiled.query_unit
+                if self._cancelled:
+                    raise ConnectionAbortedError
+            else:
+                compiled = CompiledQuery(
+                    query_unit=query_unit,
+                    first_extra=query_req.source.first_extra(),
+                    extra_count=query_req.source.extra_count(),
+                    extra_blob=query_req.source.extra_blob(),
+                )
+                self._last_anon_compiled = compiled
+                self._last_anon_compiled_hash = hash(query_req)
 
         if query_unit.capabilities & ~query_req.allow_capabilities:
             raise query_unit.capabilities.make_error(
@@ -1748,6 +1721,12 @@ cdef class EdgeConnection:
 
         if self.debug:
             self.debug_print('OPTIMISTIC EXECUTE', query)
+
+        # Clear the _last_anon_compiled so that the next OptimisticExecute - if
+        # identical - will always lookup in the cache and honor the `cacheable`
+        # flag to compile the query again. Put it another way, this is the
+        # legacy Execute of the "anonymous" prepared statement.
+        self._last_anon_compiled = None
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
         await self._execute(
@@ -1848,7 +1827,9 @@ cdef class EdgeConnection:
                             "protocols greater 0.13")
 
                     elif mtype == b'E':
-                        await self.execute()
+                        raise errors.BinaryProtocolError(
+                            "Legacy Execute message (E) is not supported in "
+                            "protocols greater 1.0")
 
                     elif mtype == b'O':
                         await self.optimistic_execute()

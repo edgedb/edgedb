@@ -75,9 +75,6 @@ Messages
     * - :ref:`ref_protocol_msg_dump`
       - Initiate database backup
 
-    * - :ref:`ref_protocol_msg_execute`
-      - Execute a prepared statement.
-
     * - :ref:`ref_protocol_msg_execute_script`
       - Execute an EdgeQL script.
 
@@ -339,22 +336,6 @@ Format:
 
 .. eql:struct:: edb.protocol.Flush
 
-
-.. _ref_protocol_msg_execute:
-
-Execute
-=======
-
-Sent by: client.
-
-Format:
-
-.. eql:struct:: edb.protocol.Execute
-
-Known headers:
-
-* 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
-  capabilities allowed for this query.  See RFC1004_ for more information.
 
 .. _ref_protocol_msg_restore:
 

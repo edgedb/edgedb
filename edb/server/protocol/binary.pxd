@@ -96,6 +96,7 @@ cdef class EdgeConnection:
         object _main_task
 
         CompiledQuery _last_anon_compiled
+        int _last_anon_compiled_hash
         WriteBuffer _write_buf
 
         bint debug

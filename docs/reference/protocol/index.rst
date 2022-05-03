@@ -288,11 +288,6 @@ messages:
     :ref:`type descriptor <ref_proto_typedesc>`, as well as the type descriptor
     data.
 
-:ref:`ref_protocol_msg_execute`
-    Execute a previously prepared command.  The server responds with
-    zero or more :ref:`ref_protocol_msg_data` messages, followed by
-    a :ref:`ref_protocol_msg_command_complete`.
-
 :ref:`ref_protocol_msg_optimistic_execute`
     Execute the provided command text directly, assuming prior knowledge
     of the :ref:`type descriptor <ref_proto_typedesc>` data.  This allows
@@ -306,7 +301,8 @@ messages:
     If type descriptors mismatch, server sends
     :ref:`ref_protocol_msg_command_data_description`. And this statement
     becomes currently prepared statement. The client is expected to
-    adjust the request data and send :ref:`ref_protocol_msg_execute`.
+    adjust the request data and send
+    :ref:`ref_protocol_msg_optimistic_execute` again.
 
 
 Implicit Transactions
