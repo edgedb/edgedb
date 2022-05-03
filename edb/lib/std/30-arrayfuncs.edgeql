@@ -42,6 +42,41 @@ std::array_unpack(array: array<anytype>) -> SET OF anytype
 
 
 CREATE FUNCTION
+std::array_fill(val: anytype, n: std::int64) -> array<anytype>
+{
+    CREATE ANNOTATION std::description :=
+        'Return an array filled with the given value repeated \
+         as many times as specified.';
+    SET volatility := 'Immutable';
+    # Postgres uses integer (int4) as the second argument. There is a maximum
+    # array size, however. So when we get an `n` value greater than maximum
+    # int4, we just truncate it to the maximum and let Postgres produce its
+    # error.
+    USING SQL $$
+    SELECT array_fill(
+        val,
+        ARRAY[(CASE WHEN n > 2147483647 THEN 2147483647 ELSE n END)::int4]
+    )
+    $$;
+};
+
+
+CREATE FUNCTION
+std::array_replace(
+    array: array<anytype>,
+    old: anytype,
+    new: anytype
+) -> array<anytype>
+{
+    CREATE ANNOTATION std::description :=
+        'Replace each array element equal to the second argument \
+         with the third argument.';
+    SET volatility := 'Immutable';
+    USING SQL FUNCTION 'array_replace';
+};
+
+
+CREATE FUNCTION
 std::array_get(
     array: array<anytype>,
     idx: std::int64,

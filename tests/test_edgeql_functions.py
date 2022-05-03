@@ -550,6 +550,156 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
             [True],
         )
 
+    async def test_edgeql_functions_array_fill_01(self):
+        await self.assert_query_result(
+            r'''select array_fill(0, 5);''',
+            [[0] * 5],
+        )
+
+        await self.assert_query_result(
+            r'''select array_fill('n/a', 5);''',
+            [['n/a'] * 5],
+        )
+
+        await self.assert_query_result(
+            r'''
+                with
+                    date0 := <cal::local_date>'2022-05-01',
+                    date1 := <cal::local_date>'2022-05-01'
+                select array_fill(date0, 5) =
+                    [date1, date1, date1, date1, date1];
+            ''',
+            [True],
+        )
+
+    @test.xfail("""
+        edb.errors.InternalServerError: return type record[] is not supported
+        for SQL functions
+    """)
+    async def test_edgeql_functions_array_fill_02(self):
+        await self.assert_query_result(
+            r'''select array_fill((1, 'hello'), 5);''',
+            [[(1, 'hello')] * 5],
+        )
+
+    @test.xfail("""
+        edb.errors.InternalServerError: return type record[] is not supported
+        for SQL functions
+    """)
+    async def test_edgeql_functions_array_fill_03(self):
+        await self.assert_query_result(
+            r'''select array_fill((a := 1, b := 'hello'), 5);''',
+            # This is not strictly equivalent in Python, but the resulting
+            # array should be equal by value.
+            [[{'a': 1, 'b': 'hello'}] * 5],
+        )
+
+    async def test_edgeql_functions_array_fill_04(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "array size exceeds the maximum allowed"
+        ):
+            async with self.con.transaction():
+                await self.con.query(r'select array_fill(0, 2147480000);')
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "array size exceeds the maximum allowed"
+        ):
+            async with self.con.transaction():
+                await self.con.query(r'select array_fill(0, 2147483647);')
+
+        with self.assertRaisesRegex(
+            edgedb.InvalidValueError,
+            "array size exceeds the maximum allowed"
+        ):
+            async with self.con.transaction():
+                await self.con.query(r'select array_fill(0, 12147480000);')
+
+    async def test_edgeql_functions_array_replace_01(self):
+        await self.assert_query_result(
+            r'''select array_replace([1, 1, 2, 3, 5], 1, 99);''',
+            [[99, 99, 2, 3, 5]],
+        )
+
+        await self.assert_query_result(
+            r'''select array_replace([1, 1, 2, 3, 5], 6, 99);''',
+            [[1, 1, 2, 3, 5]],
+        )
+
+    async def test_edgeql_functions_array_replace_02(self):
+        await self.assert_query_result(
+            r'''select array_replace(['h', 'e', 'l', 'l', 'o'], 'l', 'L');''',
+            [['h', 'e', 'L', 'L', 'o']],
+        )
+
+        await self.assert_query_result(
+            r'''select array_replace(['h', 'e', 'l', 'l', 'o'], 'z', '!');''',
+            [['h', 'e', 'l', 'l', 'o']],
+        )
+
+    async def test_edgeql_functions_array_replace_03(self):
+        await self.assert_query_result(
+            r'''
+            select array_replace(
+                [(0, 'a'), (10, 'b'), (3, 'hello'), (0, 'a')],
+                (0, 'a'), (99, '!')
+            );
+            ''',
+            [[(99, '!'), (10, 'b'), (3, 'hello'), (99, '!')]],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select array_replace(
+                [(0, 'a'), (10, 'b'), (3, 'hello'), (0, 'a')],
+                (1, 'a'), (99, '!')
+            );
+            ''',
+            [[(0, 'a'), (10, 'b'), (3, 'hello'), (0, 'a')]],
+        )
+
+    async def test_edgeql_functions_array_replace_04(self):
+        await self.assert_query_result(
+            r'''
+            select array_replace(
+                [
+                    (a := 0, b := 'a'),
+                    (a := 10, b := 'b'),
+                    (a := 3, b := 'hello'),
+                    (a := 0, b := 'a')
+                ],
+                (a := 0, b := 'a'), (a := 99, b := '!')
+            );
+            ''',
+            [[
+                {"a": 99, "b": "!"},
+                {"a": 10, "b": "b"},
+                {"a": 3, "b": "hello"},
+                {"a": 99, "b": "!"}
+            ]],
+        )
+
+        await self.assert_query_result(
+            r'''
+            select array_replace(
+                [
+                    (a := 0, b := 'a'),
+                    (a := 10, b := 'b'),
+                    (a := 3, b := 'hello'),
+                    (a := 0, b := 'a')
+                ],
+                (a := 1, b := 'a'), (a := 99, b := '!')
+            );
+            ''',
+            [[
+                {"a": 0, "b": "a"},
+                {"a": 10, "b": "b"},
+                {"a": 3, "b": "hello"},
+                {"a": 0, "b": "a"}
+            ]],
+        )
+
     async def test_edgeql_functions_enumerate_01(self):
         await self.assert_query_result(
             r'''SELECT [10, 20];''',

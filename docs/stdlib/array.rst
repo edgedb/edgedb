@@ -80,6 +80,12 @@ Functions and operators
     * - :eql:func:`array_join`
       - Render an array to a string.
 
+    * - :eql:func:`array_fill`
+      - :eql:func-desc:`array_fill`
+
+    * - :eql:func:`array_replace`
+      - :eql:func-desc:`array_replace`
+
     * - :eql:func:`array_agg`
       - :eql:func-desc:`array_agg`
 
@@ -285,3 +291,42 @@ Reference
 
         db> select to_str(['one', 'two', 'three'], ', ');
         {'one, two, three'}
+
+
+----------
+
+
+.. eql:function:: std::array_fill(val: anytype, n: int64) -> array<anytype>
+
+    :index: fill
+
+    Make a new array of specified size and filled with specified value.
+
+    Create anarray of size *n* where every element has the value *val*.
+
+    .. code-block:: edgeql-repl
+
+        db> select array_fill(0, 5);
+        {[0, 0, 0, 0, 0]}
+        db> select array_fill('n/a', 3);
+        {['n/a', 'n/a', 'n/a']}
+
+
+----------
+
+
+.. eql:function:: std::array_replace(array: array<anytype>, \
+                                     old: anytype, \
+                                     new: anytype) \
+                  -> array<anytype>
+
+    Return an array where all occurrences of a particualr value are replaced.
+
+    Return an array where every *old* value is replaced with *new*.
+
+    .. code-block:: edgeql-repl
+
+        db> select array_replace([1, 1, 2, 3, 5], 1, 99);
+        {[99, 99, 2, 3, 5]}
+        db> select array_replace(['h', 'e', 'l', 'l', 'o'], 'l', 'L');
+        {['h', 'e', 'L', 'L', 'o']}
