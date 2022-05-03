@@ -19,4 +19,4 @@
 
 @cython.final
 cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
-    pass
+    cdef legacy_parse_prepare_query_part(self, bint account_for_stmt_name)

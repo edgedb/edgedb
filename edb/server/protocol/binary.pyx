@@ -1334,7 +1334,7 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unknown output mode "{repr(mode)[2:-1]}"')
 
-    cdef parse_prepare_query_part(self, parse_stmt_name: bint):
+    cdef parse_prepare_query_part(self):
         cdef:
             object io_format
             bytes eql
@@ -1344,7 +1344,6 @@ cdef class EdgeConnection:
             uint64_t allow_capabilities = ALL_CAPABILITIES
             bint inline_typenames = False
             bint inline_objectids = True
-            bytes stmt_name = b''
 
         headers = self.parse_headers()
         if headers:
@@ -1369,12 +1368,6 @@ cdef class EdgeConnection:
             self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
         )
 
-        if parse_stmt_name:
-            stmt_name = self.buffer.read_len_prefixed_bytes()
-            if stmt_name:
-                raise errors.UnsupportedFeatureError(
-                    'prepared statements are not yet supported')
-
         eql = self.buffer.read_len_prefixed_bytes()
         if not eql:
             raise errors.BinaryProtocolError('empty query')
@@ -1393,7 +1386,7 @@ cdef class EdgeConnection:
             allow_capabilities=allow_capabilities,
         )
 
-        return eql, query_req, stmt_name
+        return eql, query_req
 
 
     cdef inline reject_headers(self):
@@ -1450,7 +1443,7 @@ cdef class EdgeConnection:
 
         self._last_anon_compiled = None
 
-        eql, query_req, stmt_name = self.parse_prepare_query_part(True)
+        eql, query_req = self.parse_prepare_query_part()
         compiled_query = await self._parse(eql, query_req)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
@@ -1712,7 +1705,7 @@ cdef class EdgeConnection:
 
         self._last_anon_compiled = None
 
-        query, query_req, _ = self.parse_prepare_query_part(False)
+        query, query_req = self.parse_prepare_query_part()
 
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)

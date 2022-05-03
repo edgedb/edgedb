@@ -132,7 +132,7 @@ cdef class EdgeConnection:
 
     cdef parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
-    cdef parse_prepare_query_part(self, bint account_for_stmt_name)
+    cdef parse_prepare_query_part(self)
     cdef char render_cardinality(self, query_unit) except -1
 
     cdef write(self, WriteBuffer buf)

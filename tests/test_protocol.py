@@ -131,7 +131,6 @@ class TestProtocol(ProtocolTestCase):
                 headers=[],
                 io_format=protocol.IOFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
-                statement_name=b'',
                 command='SEL ECT 1',
             )
         )
@@ -152,7 +151,6 @@ class TestProtocol(ProtocolTestCase):
                 headers=[],
                 io_format=protocol.IOFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
-                statement_name=b'',
                 command='SELECT 1',
             ),
             protocol.Flush()

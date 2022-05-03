@@ -38,7 +38,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
         self._last_anon_compiled = None
 
-        eql, query_req, stmt_name = self.parse_prepare_query_part(True)
+        eql, query_req, stmt_name = self.legacy_parse_prepare_query_part(True)
         compiled_query = await self._parse(eql, query_req)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
@@ -173,7 +173,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         await self.execute()
 
                     elif mtype == b'O':
-                        await self.optimistic_execute()
+                        await self.legacy_optimistic_execute()
 
                     elif mtype == b'Q':
                         flush_sync_on_error = True
@@ -281,3 +281,128 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                 # It might have already been cleaned up, but abort() is
                 # safe to be called on a closed connection.
                 self.abort()
+
+    async def legacy_optimistic_execute(self):
+        cdef:
+            WriteBuffer bound_args_buf
+
+            bytes query
+            QueryRequestInfo query_req
+
+            bytes in_tid
+            bytes out_tid
+            bytes bound_args
+
+        self._last_anon_compiled = None
+
+        query, query_req, _ = self.legacy_parse_prepare_query_part(False)
+
+        in_tid = self.buffer.read_bytes(16)
+        out_tid = self.buffer.read_bytes(16)
+        bind_args = self.buffer.read_len_prefixed_bytes()
+        self.buffer.finish_message()
+
+        query_unit = self.get_dbview().lookup_compiled_query(query_req)
+        if query_unit is None:
+            if self.debug:
+                self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
+
+            compiled = await self._parse(query, query_req)
+            self._last_anon_compiled = compiled
+            query_unit = compiled.query_unit
+            if self._cancelled:
+                raise ConnectionAbortedError
+        else:
+            compiled = CompiledQuery(
+                query_unit=query_unit,
+                first_extra=query_req.source.first_extra(),
+                extra_count=query_req.source.extra_count(),
+                extra_blob=query_req.source.extra_blob(),
+            )
+            self._last_anon_compiled = compiled
+
+        if query_unit.capabilities & ~query_req.allow_capabilities:
+            raise query_unit.capabilities.make_error(
+                query_req.allow_capabilities,
+                errors.DisabledCapabilityError,
+            )
+
+        if (query_unit.in_type_id != in_tid or
+            query_unit.out_type_id != out_tid):
+            # The client has outdated information about type specs.
+            if self.debug:
+                self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
+
+            self.write(self.make_describe_msg(compiled))
+
+            if self._cancelled:
+                raise ConnectionAbortedError
+            return
+
+        if self.debug:
+            self.debug_print('OPTIMISTIC EXECUTE', query)
+
+        metrics.edgeql_query_compilations.inc(1.0, 'cache')
+        await self._execute(
+            compiled, bind_args, bool(query_unit.sql_hash))
+
+    cdef legacy_parse_prepare_query_part(self, parse_stmt_name: bint):
+        cdef:
+            object io_format
+            bytes eql
+            dict headers
+            uint64_t implicit_limit = 0
+            bint inline_typeids = False
+            uint64_t allow_capabilities = ALL_CAPABILITIES
+            bint inline_typenames = False
+            bint inline_objectids = True
+            bytes stmt_name = b''
+
+        headers = self.parse_headers()
+        if headers:
+            for k, v in headers.items():
+                if k == QUERY_HEADER_IMPLICIT_LIMIT:
+                    implicit_limit = self._parse_implicit_limit(v)
+                elif k == QUERY_HEADER_IMPLICIT_TYPEIDS:
+                    inline_typeids = parse_boolean(v, "IMPLICIT_TYPEIDS")
+                elif k == QUERY_HEADER_IMPLICIT_TYPENAMES:
+                    inline_typenames = parse_boolean(v, "IMPLICIT_TYPENAMES")
+                elif k == QUERY_HEADER_ALLOW_CAPABILITIES:
+                    allow_capabilities = parse_capabilities_header(v)
+                elif k == QUERY_HEADER_EXPLICIT_OBJECTIDS:
+                    inline_objectids = not parse_boolean(v, "EXPLICIT_OBJECTIDS")
+                else:
+                    raise errors.BinaryProtocolError(
+                        f'unexpected message header: {k}'
+                    )
+
+        io_format = self.parse_io_format(self.buffer.read_byte())
+        expect_one = (
+            self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
+        )
+
+        if parse_stmt_name:
+            stmt_name = self.buffer.read_len_prefixed_bytes()
+            if stmt_name:
+                raise errors.UnsupportedFeatureError(
+                    'prepared statements are not yet supported')
+
+        eql = self.buffer.read_len_prefixed_bytes()
+        if not eql:
+            raise errors.BinaryProtocolError('empty query')
+
+        source = self._tokenize(eql)
+
+        query_req = QueryRequestInfo(
+            source,
+            self.protocol_version,
+            io_format=io_format,
+            expect_one=expect_one,
+            implicit_limit=implicit_limit,
+            inline_typeids=inline_typeids,
+            inline_typenames=inline_typenames,
+            inline_objectids=inline_objectids,
+            allow_capabilities=allow_capabilities,
+        )
+
+        return eql, query_req, stmt_name

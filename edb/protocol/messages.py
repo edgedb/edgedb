@@ -723,7 +723,6 @@ class Prepare(ClientMessage):
     io_format = EnumOf(UInt8, IOFormat, 'Data I/O format.')
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality')
-    statement_name = Bytes('Prepared statement name. Currently must be empty.')
     command = String('Command text.')
 
 
