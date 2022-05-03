@@ -57,6 +57,7 @@ from . import context
 from . import dispatch
 from . import inference
 from . import pathctx
+from . import policies
 from . import setgen
 from . import viewgen
 from . import schemactx
@@ -485,10 +486,9 @@ def compile_InsertQuery(
                 stmt.on_conflict = conflicts.compile_insert_unless_conflict(
                     stmt, stmt_subject_stype, ctx=ictx)
 
+        mat_stype = schemactx.get_material_type(stmt_subject_stype, ctx=ctx)
         result = setgen.class_set(
-            schemactx.get_material_type(stmt_subject_stype, ctx=ctx),
-            path_id=stmt.subject.path_id,
-            ctx=ctx,
+            mat_stype, path_id=stmt.subject.path_id, ctx=ctx
         )
 
         with ictx.new() as resultctx:
@@ -499,6 +499,11 @@ def compile_InsertQuery(
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
             )
+
+        if pol_condition := policies.compile_dml_policy(
+            mat_stype, result, mode=qltypes.AccessKind.Insert, ctx=ctx
+        ):
+            stmt.write_policy_exprs[mat_stype.id] = pol_condition
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 
@@ -597,10 +602,9 @@ def compile_UpdateQuery(
 
         ctx.env.dml_stmts.add(stmt)
 
+        mat_stype = schemactx.get_material_type(stmt_subject_stype, ctx=ctx)
         result = setgen.class_set(
-            schemactx.get_material_type(stmt_subject_stype, ctx=ctx),
-            path_id=stmt.subject.path_id,
-            ctx=ctx,
+            mat_stype, path_id=stmt.subject.path_id, ctx=ctx,
         )
 
         with ictx.new() as resultctx:
@@ -611,6 +615,16 @@ def compile_UpdateQuery(
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
             )
+
+        for dtype in {mat_stype} | mat_stype.descendants(ctx.env.schema):
+            if pol_cond := policies.compile_dml_policy(
+                dtype, result, mode=qltypes.AccessKind.UpdateRead, ctx=ctx
+            ):
+                stmt.read_policy_exprs[dtype.id] = pol_cond
+            if pol_cond := policies.compile_dml_policy(
+                dtype, result, mode=qltypes.AccessKind.UpdateWrite, ctx=ctx
+            ):
+                stmt.write_policy_exprs[dtype.id] = pol_cond
 
         stmt.conflict_checks = conflicts.compile_inheritance_conflict_checks(
             stmt, stmt_subject_stype, ctx=ictx)
@@ -700,10 +714,11 @@ def compile_DeleteQuery(
             )
 
         stmt_subject_stype = setgen.get_set_type(subject, ctx=ictx)
+        assert isinstance(stmt_subject_stype, s_objtypes.ObjectType)
+
+        mat_stype = schemactx.get_material_type(stmt_subject_stype, ctx=ctx)
         result = setgen.class_set(
-            schemactx.get_material_type(stmt_subject_stype, ctx=ctx),
-            path_id=stmt.subject.path_id,
-            ctx=ctx,
+            mat_stype, path_id=stmt.subject.path_id, ctx=ctx
         )
 
         with ictx.new() as resultctx:
@@ -714,6 +729,12 @@ def compile_DeleteQuery(
                 compile_views=ictx.stmt is ictx.toplevel_stmt,
                 ctx=resultctx,
             )
+
+        for dtype in {mat_stype} | mat_stype.descendants(ctx.env.schema):
+            if pol_cond := policies.compile_dml_policy(
+                dtype, result, mode=qltypes.AccessKind.Delete, ctx=ctx
+            ):
+                stmt.read_policy_exprs[dtype.id] = pol_cond
 
         result = fini_stmt(stmt, expr, ctx=ictx, parent_ctx=ctx)
 

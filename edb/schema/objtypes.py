@@ -131,6 +131,19 @@ class ObjectType(
         else:
             return self.issubclass(schema, FreeObject)
 
+    def is_fake_object_type(self, schema: s_schema.Schema) -> bool:
+        return (
+            self.get_name(schema).module == 'cfg'
+            or self.is_free_object_type(schema)
+        )
+
+    def is_material_object_type(self, schema: s_schema.Schema) -> bool:
+        return not (
+            self.is_fake_object_type(schema)
+            or self.is_compound_type(schema)
+            or self.is_view(schema)
+        )
+
     def is_union_type(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_union_of(schema))
 

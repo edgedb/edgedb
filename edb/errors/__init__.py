@@ -70,6 +70,7 @@ __all__ = base.__all__ + (  # type: ignore
     'InvalidValueError',
     'DivisionByZeroError',
     'NumericOutOfRangeError',
+    'AccessPolicyError',
     'IntegrityError',
     'ConstraintViolationError',
     'CardinalityViolationError',
@@ -332,6 +333,10 @@ class DivisionByZeroError(InvalidValueError):
 
 class NumericOutOfRangeError(InvalidValueError):
     _code = 0x_05_01_00_02
+
+
+class AccessPolicyError(InvalidValueError):
+    _code = 0x_05_01_00_03
 
 
 class IntegrityError(ExecutionError):

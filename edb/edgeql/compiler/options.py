@@ -46,6 +46,9 @@ class GlobalCompilerOptions:
     #: Whether to apply various query rewrites, including access policy.
     apply_query_rewrites: bool = True
 
+    #: Whether to apply user-specified access policies
+    apply_user_access_policies: bool = True
+
     #: Enables constant folding optimization (enabled by default).
     constant_folding: bool = True
 

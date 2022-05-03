@@ -101,10 +101,10 @@ class CompilerContextLevel(compiler.ContextLevel):
     rel_hierarchy: Dict[pgast.Query, pgast.Query]
 
     #: CTEs representing schema types, when rewritten based on access policy
-    type_ctes: Dict[uuid.UUID, pgast.CommonTableExpr]
+    type_ctes: Dict[RewriteKey, pgast.CommonTableExpr]
 
     #: A set of type CTEs currently being generated
-    pending_type_ctes: Set[uuid.UUID]
+    pending_type_ctes: Set[RewriteKey]
 
     #: The logical parent of the current query in the
     #: query hierarchy
@@ -363,6 +363,9 @@ class CompilerContext(compiler.CompilerContext[CompilerContextLevel]):
     default_mode = ContextSwitchMode.TRANSPARENT
 
 
+RewriteKey = Tuple[uuid.UUID, bool]
+
+
 class Environment:
     """Static compilation environment."""
 
@@ -375,7 +378,7 @@ class Environment:
     explicit_top_cast: Optional[irast.TypeRef]
     singleton_mode: bool
     query_params: List[irast.Param]
-    type_rewrites: Dict[uuid.UUID, irast.Set]
+    type_rewrites: Dict[RewriteKey, irast.Set]
     scope_tree_nodes: Dict[int, irast.ScopeTreeNode]
     external_rvars: Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
     materialized_views: Dict[uuid.UUID, irast.Set]
@@ -395,7 +398,7 @@ class Environment:
         singleton_mode: bool,
         explicit_top_cast: Optional[irast.TypeRef],
         query_params: List[irast.Param],
-        type_rewrites: Dict[uuid.UUID, irast.Set],
+        type_rewrites: Dict[RewriteKey, irast.Set],
         scope_tree_nodes: Dict[int, irast.ScopeTreeNode],
         external_rvars: Optional[
             Mapping[Tuple[irast.PathId, str], pgast.PathRangeVar]
