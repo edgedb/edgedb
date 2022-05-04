@@ -45,8 +45,8 @@ Messages
     * - :ref:`ref_protocol_msg_server_parameter_status`
       - Server parameter value.
 
-    * - :ref:`ref_protocol_msg_prepare_complete`
-      - Statement preparation complete.
+    * - :ref:`ref_protocol_msg_parse_complete`
+      - Description of parsed command data input and output.
 
     * - :ref:`ref_protocol_msg_ready_for_command`
       - Server is ready for a command.
@@ -81,11 +81,11 @@ Messages
     * - :ref:`ref_protocol_msg_flush`
       - Force the server to flush its output buffers.
 
-    * - :ref:`ref_protocol_msg_prepare`
-      - Prepare an EdgeQL statement.
+    * - :ref:`ref_protocol_msg_parse`
+      - Parse EdgeQL command text.
 
-    * - :ref:`ref_protocol_msg_optimistic_execute`
-      - Optimistically prepare and execute a query.
+    * - :ref:`ref_protocol_msg_execute`
+      - Optimistically parse and execute a query.
 
     * - :ref:`ref_protocol_msg_restore`
       - Initiate database restore
@@ -236,14 +236,14 @@ Known headers:
 * 0xFF04 ``ALLOW_CAPABILITIES``: ``uint64`` -- optional bitmask of
   capabilities allowed for this query.  See RFC1004_ for more information.
 
-.. _ref_protocol_msg_prepare:
+.. _ref_protocol_msg_parse:
 
-Prepare
-=======
+Parse
+=====
 
 Sent by: client.
 
-.. eql:struct:: edb.protocol.Prepare
+.. eql:struct:: edb.protocol.Parse
 
 .. eql:struct:: edb.protocol.IOFormat
 
@@ -381,16 +381,16 @@ Format:
 .. eql:struct:: edb.protocol.RestoreEof
 
 
-.. _ref_protocol_msg_optimistic_execute:
+.. _ref_protocol_msg_execute:
 
-Optimistic Execute
-==================
+Execute
+=======
 
 Sent by: client.
 
 Format:
 
-.. eql:struct:: edb.protocol.OptimisticExecute
+.. eql:struct:: edb.protocol.Execute
 
 
 The data in *arguments* must be encoded as a
@@ -526,16 +526,16 @@ Known statuses:
   .. eql:struct:: edb.protocol.DataElement
 
 
-.. _ref_protocol_msg_prepare_complete:
+.. _ref_protocol_msg_parse_complete:
 
-PrepareComplete
-===============
+ParseComplete
+=============
 
 Sent by: server.
 
 Format:
 
-.. eql:struct:: edb.protocol.PrepareComplete
+.. eql:struct:: edb.protocol.ParseComplete
 
 .. eql:struct:: edb.protocol.enums.Cardinality
 

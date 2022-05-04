@@ -630,7 +630,7 @@ class ParameterStatus_SystemConfig(Struct):
     data = FixedArrayOf(1, DataElement, 'Configuration settings data.')
 
 
-class PrepareComplete(ServerMessage):
+class ParseComplete(ServerMessage):
 
     mtype = MessageType('1')
     message_length = MessageLength
@@ -715,7 +715,7 @@ class IOFormat(enum.Enum):
     JSON_ELEMENTS = 0x4a
 
 
-class Prepare(ClientMessage):
+class Parse(ClientMessage):
 
     mtype = MessageType('P')
     message_length = MessageLength
@@ -770,7 +770,7 @@ class RestoreEof(ClientMessage):
     message_length = MessageLength
 
 
-class OptimisticExecute(ClientMessage):
+class Execute(ClientMessage):
 
     mtype = MessageType('O')
     message_length = MessageLength
