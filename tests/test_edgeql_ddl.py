@@ -11034,6 +11034,14 @@ type default::Foo {
                 };
             """)
 
+    async def test_edgeql_ddl_index_05(self):
+        await self.con.execute(r"""
+            create type Artist {
+                create property oid -> bigint;
+                create index on (<str>.oid)
+            };
+        """)
+
     async def test_edgeql_ddl_errors_01(self):
         await self.con.execute('''
             CREATE TYPE Err1 {
