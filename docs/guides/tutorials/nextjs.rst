@@ -47,7 +47,7 @@ Updating the homepage
 
 Let's start by implementing a simple homepage for our blog application using static data. Replace the contents of ``pages/index.tsx`` with the following.
 
-.. code-block:: typescript
+.. code-block:: tsx
 
   // pages/index.tsx
 
@@ -106,7 +106,7 @@ After saving, Next.js should hot-reload, and the homepage should look something 
 
 
 .. image::
-    http://localhost:3000/docs/tutorials/nextjs/basic_home.png
+    https://www.edgedb.com/docs/tutorials/nextjs/basic_home.png
     :alt: Basic blog homepage with static content
     :width: 100%
 
@@ -282,7 +282,7 @@ If you visit `localhost:3000/api/post <http://localhost:3000/api/post>`_ in your
 
 To fetch these from the homepage, we'll use ``useState``, ``useEffect``, and the built-in ``fetch`` API. At the top of the ``HomePage`` component in ``pages/index.tsx``, replace the static data with .
 
-.. code-block:: typescript-diff
+.. code-block:: tsx-diff
 
      // pages/index.tsx
 
@@ -378,14 +378,14 @@ Back in ``pages/api/post.ts``, let's update our code to use the query builder in
 
 Instead of writing our query as a plain string, we're now using the query builder to declare our query in a code-first way. As you can see we import the query builder as a single default import ``e`` from the ``dbschema/edgeql-js`` directory.
 
-We're also using a utility called ``$infer`` to extract the inferred type of this query. In VSCode you can hover over ``Posts`` to see what this type is.
+We're also using a utility called ``$infer`` to extract the inferred type of this query. In VSCode you can hover over ``GetPosts`` to see what this type is.
 
 .. image::
-    http://localhost:3000/docs/tutorials/nextjs/inference.png
+    https://www.edgedb.com/docs/tutorials/nextjs/inference.png
     :alt: Inferred type of posts query
     :width: 100%
 
-Back in ``pages/index.tsx``, lets update our code to use the inferred ``Posts`` type instead of our manual type declaration.
+Back in ``pages/index.tsx``, lets update our code to use the inferred ``GetPosts`` type instead of our manual type declaration.
 
 .. code-block:: typescript-diff
 
@@ -419,7 +419,7 @@ Our homepage renders a list of links to each of our blog posts, but we haven't i
 
 Create ``pages/post/[id].tsx`` and add the following code. We're using ``getServerSideProps`` to load the blog post data server-side, to avoid loading spinners and ensure the page loads fast.
 
-.. code-block:: typescript
+.. code-block:: tsx
 
   import React from 'react';
   import {GetServerSidePropsContext, InferGetServerSidePropsType} from 'next';
@@ -465,10 +465,10 @@ Inside ``getServerSideProps`` we're extracting the ``id`` parameter from ``conte
 
 We're using Next's ``InferGetServerSidePropsType`` utility to extract the inferred type of our query and pass it into ``React.FC``. Now, if we update our query, the type of the component props will automatically update too. In fact, this entire application is end-to-end typesafe.
 
-Now, click on one of the blog post links on the homepage. This should bring you to ``/post/<some uuid>``, which should display something like this:
+Now, click on one of the blog post links on the homepage. This should bring you to ``/post/<uuid>``, which should display something like this:
 
 .. image::
-    http://localhost:3000/docs/tutorials/nextjs/post.png
+    https://www.edgedb.com/docs/tutorials/nextjs/post.png
     :alt: Basic blog homepage with static content
     :width: 100%
 
@@ -493,7 +493,7 @@ The DSN is also known as a connection string. It will have the format ``edgedb:/
 
 **#3 Apply migrations**
 
-Use this DSN to apply migrations against your remote instance.
+Use the DSN to apply migrations against your remote instance.
 
 .. code-block:: bash
 
@@ -503,7 +503,37 @@ Use this DSN to apply migrations against your remote instance.
 
   You have to disable TLS checks with ``--tls-security insecure``. All EdgeDB instances use TLS by default, but configuring it is out of scope of this project.
 
-**#4 Deploy to Vercel**
+Once you've applied the migrations, consider creating some sample data in your database. Open a REPL and ``insert`` some blog posts:
+
+.. code-block:: bash
+
+  $ edgedb --dsn <your-instance-dsn> --tls-security insecure
+  EdgeDB 1.x (repl 1.x)
+  Type \help for help, \quit to quit.
+  edgedb> insert Post { title := "Test post" };
+  {default::Post {id: c00f2c9a-cbf5-11ec-8ecb-4f8e702e5789}}
+
+
+**#4 Set up a `prebuild` script**
+
+Add the following ``prebuild`` script to your ``package.json``. When Vercel
+initializes the build, it will trigger this script which will generate the
+query builder. The ``npx edgeql-js`` command will read the value of the
+``EDGEDB_DSN`` variable, connect to the database, and generate the query
+builder before Vercel starts building the project.
+
+.. code-block:: javascript-diff
+
+    // package.json
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "start": "next start",
+      "lint": "next lint",
+  +   "prebuild": "npx edgeql-js"
+    },
+
+**#5 Deploy to Vercel**
 
 Deploy this app to Vercel with the button below.
 
@@ -512,18 +542,28 @@ Deploy this app to Vercel with the button below.
   :target: https://vercel.com/new/git/external?repository-url=https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog&project-name=nextjs-edgedb-blog&repository-name=nextjs-edgedb-blog&env=EDGEDB_DSN,EDGEDB_CLIENT_TLS_SECURITY
 
 
+When prompted:
 
-When prompted, provide your database's DSN as the value for ``EDGEDB_DSN``. Set the value of ``EDGEDB_CLIENT_TLS_SECURITY`` to ``insecure``. This will disable EdgeDB's default TLS checks; configuring TLS is beyond the scope of this tutorial.
+- Set ``EDGEDB_DSN`` to your database's DSN
+- Set ``EDGEDB_CLIENT_TLS_SECURITY`` to ``insecure``. This will disable
+  EdgeDB's default TLS checks; configuring TLS is beyond the scope of this
+  tutorial.
 
-**#5 View the application**
+.. image::
+    https://www.edgedb.com/docs/tutorials/nextjs/env.png
+    :alt: Setting environment variables in Vercel
+    :width: 100%
 
-Open the application at the deployment URL supplied by Vercel.
+
+**#6 View the application**
+
+Once deployment has completed, go to the application at the deployment URL supplied by Vercel.
 
 Wrapping up
 -----------
 
 Admittedly this isn't the prettiest blog of all time, or the most feature-complete. But this tutorial demonstrates how to work with EdgeDB in a Next.js app, including data fetching with API routes and ``getServerSideProps``.
 
-The next step is to add a ``/newpost`` page containing a form for writing new blog posts and saving them into EdgeDB. That's left as an exercise for the reader.
+The next step is to add a ``/newpost`` page with a form for writing new blog posts and saving them into EdgeDB. That's left as an exercise for the reader.
 
 To see the final code for this tutorial, refer to  `github.com/edgedb/edgedb-examples/tree/main/nextjs-blog <https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog>`_.
