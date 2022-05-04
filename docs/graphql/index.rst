@@ -123,6 +123,7 @@ submit the following JSON-encoded form with the necessary fields.
 
 .. lint-on
 
+
 GET request
 ^^^^^^^^^^^
 
@@ -223,7 +224,6 @@ EdgeDB 2.0 will include support for object-level security (in-database
 access control) which means you'll be able to run EdgeDB as a standalone
 backend, without the need for an API server to do authentication and
 authorization.
-
 
 .. __: http://graphql.org/docs/queries/
 

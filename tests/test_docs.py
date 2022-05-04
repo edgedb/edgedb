@@ -125,14 +125,29 @@ class TestDocSnippets(unittest.TestCase):
         for lineno, line in enumerate(lines, 1):
 
             if line.startswith('.. lint-off'):
-                lint_on = False
+                if lint_on:
+                    lint_on = False
+                else:
+                    reporter.lint_errors.add(
+                        f'Mismatched lint-on/lint-off in '
+                        f'{filename}, line {lineno}')
             elif line.startswith('.. lint-on'):
-                lint_on = True
+                if not lint_on:
+                    lint_on = True
+                else:
+                    reporter.lint_errors.add(
+                        f'Mismatched lint-on/lint-off in '
+                        f'{filename}, line {lineno}')
 
             if len(line) > self.MAX_LINE_LEN and lint_on:
                 reporter.lint_errors.add(
                     f'Line longer than {self.MAX_LINE_LEN} characters in '
                     f'{filename}, line {lineno}')
+
+        if not lint_on:
+            reporter.lint_errors.add(
+                f'Unexpected EOF. No closing \'.. lint-on\' found in '
+                f'{filename}')
 
         if reporter.lint_errors:
             raise self.RestructuredTextStyleError(
