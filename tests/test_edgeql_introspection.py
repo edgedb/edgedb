@@ -1401,10 +1401,6 @@ class TestIntrospection(tb.QueryTestCase):
 
         self.assertGreater(res, 0)
 
-    @test.xfail("""
-       We don't always properly filter things when
-       intersections/unions/backlinks are involved.
-    """)
     async def test_edgeql_introspection_reverse_leaks_01(self):
         res1 = await self.con.query(r"""
             WITH MODULE schema
