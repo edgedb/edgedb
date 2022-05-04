@@ -87,31 +87,6 @@ def new_set(
     skip_subtypes: bool = kwargs.get('skip_subtypes', False)
     rw_key = (stype, skip_subtypes)
 
-    # TODO: dump all this, turn it into access policies
-    if (
-        rw_key not in ctx.type_rewrites
-        and isinstance(stype, s_objtypes.ObjectType)
-        and ctx.env.options.apply_query_rewrites
-        and (filters := stype.get_access_policy_filters(ctx.env.schema))
-    ):
-        qry = qlast.SelectQuery(
-            result=qlast.Path(
-                steps=[s_utils.name_to_ast_ref(stype.get_name(ctx.env.schema))]
-            ),
-        )
-        for f in filters:
-            assert isinstance(f.qlast, qlast.Expr)
-            qry.where = astutils.extend_binop(qry.where, f.qlast)
-
-        with ctx.detached() as subctx:
-            subctx.expr_exposed = context.Exposure.UNEXPOSED
-            subctx.path_scope = subctx.env.path_scope.root
-            # Put a placeholder to prevent recursion.
-            subctx.type_rewrites[rw_key] = None
-            filtered_set = dispatch.compile(qry, ctx=subctx)
-            assert isinstance(filtered_set, irast.Set)
-            subctx.type_rewrites[rw_key] = filtered_set
-
     if (
         rw_key not in ctx.type_rewrites
         and isinstance(stype, s_objtypes.ObjectType)
