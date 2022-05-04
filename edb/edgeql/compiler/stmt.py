@@ -1305,7 +1305,6 @@ def compile_query_subject(
         and view_rptr.ptrcls is None
         and view_rptr.ptrcls_name is not None
         and expr_rptr is not None
-        and expr_rptr.direction is s_pointers.PointerDirection.Outbound
         and expr_rptr.source.rptr is None
         and (
             view_rptr.source.get_bases(ctx.env.schema).first(ctx.env.schema).id
@@ -1324,10 +1323,30 @@ def compile_query_subject(
         # the parent shape, ie. Spam { alias := Spam.bar }, so
         # `Spam.alias` should be a subclass of `Spam.bar` inheriting
         # its properties.
-        base_ptrcls = typegen.ptrcls_from_ptrref(expr_rptr.ptrref, ctx=ctx)
+        #
+        # We also try to detect reverse aliases like `.<bar[IS Spam]`
+        # and arange to inherit the linkprops from those if it resolves
+        # to a unique type.
+        ptrref = expr_rptr.ptrref
+        if (
+            expr.rptr
+            and isinstance(expr.rptr.ptrref, irast.TypeIntersectionPointerRef)
+            and len(expr.rptr.ptrref.rptr_specialization) == 1
+        ):
+            ptrref = list(expr.rptr.ptrref.rptr_specialization)[0]
+
+        if (
+            expr_rptr.direction is not s_pointers.PointerDirection.Outbound
+            and ptrref.out_source.is_opaque_union
+        ):
+            base_ptrcls = None
+        else:
+            base_ptrcls = typegen.ptrcls_from_ptrref(ptrref, ctx=ctx)
+
         if isinstance(base_ptrcls, s_pointers.Pointer):
             view_rptr.base_ptrcls = base_ptrcls
             view_rptr.ptrcls_is_alias = True
+            view_rptr.rptr_dir = expr_rptr.direction
 
     if (
         (

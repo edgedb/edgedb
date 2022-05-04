@@ -285,7 +285,13 @@ def _merge_types(
     # When two pointers are merged, check target compatibility
     # and return a target that satisfies both specified targets.
 
-    if (isinstance(t1, s_abc.ScalarType) !=
+    # This is a hack: when deriving computed backlink pointers, we
+    # (ab)use inheritance to populate them with the appropriate
+    # linkprops. We fix it up to remove the bogus parents later.
+    if ptr.is_computed_backlink(schema):
+        return schema, t2
+
+    elif (isinstance(t1, s_abc.ScalarType) !=
             isinstance(t2, s_abc.ScalarType)):
         # Mixing a property with a link.
         vnp = ptr.get_verbosename(schema, with_parent=True)
@@ -489,6 +495,14 @@ class Pointer(referencing.ReferencedInheritingObject,
 
     def is_generated(self, schema: s_schema.Schema) -> bool:
         return bool(self.get_from_alias(schema))
+
+    def is_computed_backlink(self, schema: s_schema.Schema) -> bool:
+        # HACK: To avoid needing a schema change for a change we want to
+        # cherry-pick, we indicate that a pointer is a computed backlink
+        # by making it both a union and an intersection.
+        return bool(
+            self.get_union_of(schema) and self.get_intersection_of(schema)
+        )
 
     @classmethod
     def get_displayname_static(cls, name: sn.Name) -> str:

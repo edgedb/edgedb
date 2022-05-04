@@ -2944,26 +2944,6 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [7],
         )
 
-    async def test_edgeql_scope_reverse_lprop_01(self):
-        await self.assert_query_result(
-            """
-            WITH X1 := (Card { z := (.<deck[IS User], .<deck[IS User]@count)}),
-                 X2 := X1 { owners2 := assert_distinct(
-                     .z.0 { count := X1.z.1 }) },
-            SELECT X2 { name, owners2: {name, count} ORDER BY .name }
-            FILTER .name = 'Dwarf';
-            """,
-            [
-                {
-                    "name": "Dwarf",
-                    "owners2": [
-                        {"count": 3, "name": "Bob"},
-                        {"count": 4, "name": "Carol"}
-                    ]
-                }
-            ],
-        )
-
     async def test_edgeql_scope_3x_nested_materialized_01(self):
         # Having a doubly nested thing needing materialization
         # caused trouble previously.
