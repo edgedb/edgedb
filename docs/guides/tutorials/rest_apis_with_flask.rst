@@ -4,10 +4,10 @@
 Flask
 =====
 
-:alt-edb-title: Building REST APIs with EdgeDB and Flask
+:edb-alt-title: Building a REST API with EdgeDB and Flask
 
-EdgeDB Python client makes it easy to integrate EdgeDB into your preferred web
-development stack. In this tutorial, we'll see how you can quickly start
+The EdgeDB Python client makes it easy to integrate EdgeDB into your preferred
+web development stack. In this tutorial, we'll see how you can quickly start
 building RESTful APIs with `Flask <https://flask.palletsprojects.com>`_ and
 EdgeDB.
 
@@ -108,37 +108,38 @@ This is how our datatypes look:
     # dbschema/default.esdl
 
     module default {
-    abstract type Auditable {
-      property created_at -> datetime {
-        readonly := true;
-        default := datetime_current();
+      abstract type Auditable {
+        property created_at -> datetime {
+          readonly := true;
+          default := datetime_current();
+        }
+      }
+
+      type Actor extending Auditable {
+        required property name -> str {
+          constraint max_len_value(50);
+        }
+        property age -> int16 {
+          constraint min_value(0);
+          constraint max_value(100);
+        }
+        property height -> int16 {
+          constraint min_value(0);
+          constraint max_value(300);
+        }
+      }
+
+      type Movie extending Auditable {
+        required property name -> str {
+          constraint max_len_value(50);
+        }
+        property year -> int16{
+          constraint min_value(1850);
+        };
+        multi link actors -> Actor;
       }
     }
 
-    type Actor extending Auditable {
-      required property name -> str {
-        constraint max_len_value(50);
-      }
-      property age -> int16 {
-        constraint min_value(0);
-        constraint max_value(100);
-      }
-      property height -> int16 {
-        constraint min_value(0);
-        constraint max_value(300);
-      }
-    }
-
-    type Movie extending Auditable {
-      required property name -> str {
-        constraint max_len_value(50);
-      }
-      property year -> int16{
-        constraint min_value(1850);
-      };
-      multi link actors -> Actor;
-      }
-    }
 
 Here, we've defined an ``abstract`` type called ``Auditable`` to take advantage
 of EdgeDB's schema mixin system. This allows us to add a ``created_at``
@@ -176,8 +177,8 @@ The ``actors.py`` and ``movies.py`` modules contain the code to build the
 registers all the endpoints and exposes them to the webserver.
 
 
-Actor APIs
-^^^^^^^^^^
+Fetch actors
+^^^^^^^^^^^^
 
 Since the ``Actor`` type is simpler, we'll start with that. Let's
 create a ``GET /actors`` endpoint so that we can see the ``Actor``
@@ -205,14 +206,22 @@ objects saved in the database. You can create the API in Flask like this:
         if not filter_name:
             actors = client.query_json(
                 """
-                SELECT Actor {name, age, height}
+                select Actor {
+                    name,
+                    age,
+                    height
+                }
                 """
             )
         else:
             actors = client.query_json(
                 """
-                SELECT Actor {name, age, height}
-                    FILTER .name=<str>$filter_name
+                select Actor {
+                    name,
+                    age,
+                    height
+                }
+                filter .name = <str>$filter_name
                 """,
                 filter_name=filter_name,
             )
@@ -282,7 +291,12 @@ You'll see the following output on the console:
 
 Our request yielded an empty list because the database is currently empty.
 Let's create the ``POST /actors`` endpoint to start saving actors in the
-database. The POST endpoint can be built similarly:
+database.
+
+Create actor
+^^^^^^^^^^^^
+
+The POST endpoint can be built similarly:
 
 .. code-block:: python
 
@@ -326,14 +340,17 @@ database. The POST endpoint can be built similarly:
         # Create object.
         actor = client.query_single_json(
             """
-            WITH name:=<str>$name,
-                age:=<optional int16>$age,
-                height:=<optional int16>$height
-                SELECT (
-                    INSERT Actor {
-                        name:=name, age:=age, height:=height
-                    }
-                ){name, age, height};
+            with
+                name := <str>$name,
+                age := <optional int16>$age,
+                height := <optional int16>$height
+            select (
+                insert Actor {
+                    name := name,
+                    age := age,
+                    height := height
+                }
+            ){ name, age, height };
             """,
             name=name,
             age=age,
@@ -356,7 +373,7 @@ To test it out, make a request as follows:
 .. code-block:: bash
 
     $ httpx -m POST http://localhost:5000/actors \
-            -j '{"name" : "Robert Downey Junior"}'
+            -j '{"name" : "Robert Downey Jr."}'
 
 The output should look similar to this:
 
@@ -369,7 +386,7 @@ The output should look similar to this:
       "result": {
         "age": null,
         "height": null,
-        "name": "Robert Downey Junior"
+        "name": "Robert Downey Jr."
       }
     }
 
@@ -394,7 +411,7 @@ The response looks as follows:
         {
           "age": null,
           "height": null,
-          "name": "Robert Downey Junior"
+          "name": "Robert Downey Jr."
         },
         {
           "age": null,
@@ -415,7 +432,7 @@ You can filter the output of the ``GET /actors`` by ``name``. To do so, use the
 .. code-block:: bash
 
     $ httpx -m GET http://localhost:5000/actors \
-            -p filter_name "Robert Downey Junior"
+            -p filter_name "Robert Downey Jr."
 
 Doing this will only display the data of a single object:
 
@@ -428,19 +445,27 @@ Doing this will only display the data of a single object:
         {
           "age": null,
           "height": null,
-          "name": "Robert Downey Junior"
+          "name": "Robert Downey Jr."
         }
       ]
     }
 
 Once you've done that, we can move on to the next step of building the
-``PUT /actors`` endpoint to update the actor data. It can be built like this:
+``PUT /actors`` endpoint to update the actor data.
+
+
+Update actor
+^^^^^^^^^^^^
+
+It can be built like this:
 
 
 .. code-block:: python
 
     # flask-crud/app/actors.py
-    ...
+
+    # ...
+
     @actor.route("/actors", methods=["PUT"])
     def put_actors() -> tuple[dict, int]:
         incoming_payload = request.json
@@ -481,18 +506,20 @@ Once you've done that, we can move on to the next step of building the
         # Update object.
         actors = client.query_json(
             """
-            WITH filter_name:=<str>$filter_name,
-                name:=<optional str>$name,
-                age:=<optional int16>$age,
-                height:=<optional int16>$height
-                SELECT (
-                    UPDATE Actor FILTER .name=filter_name
-                    SET {
-                        name:=name ?? .name,
-                        age:=age ?? .age,
-                        height:=height ?? .height
-                    }
-                ){name, age, height};""",
+            with
+                filter_name := <str>$filter_name,
+                name := <optional str>$name,
+                age := <optional int16>$age,
+                height := <optional int16>$height
+            select (
+                update Actor
+                filter .name = filter_name
+                set {
+                    name := name ?? .name,
+                    age := age ?? .age,
+                    height := height ?? .height
+                }
+            ){ name, age, height };""",
             filter_name=filter_name,
             name=name,
             age=age,
@@ -503,19 +530,19 @@ Once you've done that, we can move on to the next step of building the
 
 Here, we'll isolate the intended object that we want to update by filtering the
 actors with the ``filter_name`` parameter. For example, if you wanted to update
-the properties of ``Robert Downey Junior``, the value of the ``filter_name``
+the properties of ``Robert Downey Jr.``, the value of the ``filter_name``
 query parameter would be ``Robert Downey Junor``. The coalesce operator ``??``
 in the query string makes sure that the API user can selectively update the
 properties of the target object and the other properties keep their existing
 values.
 
 The following command updates the ``age`` and ``height`` of
-``Robert Downey Junior``.
+``Robert Downey Jr.``.
 
 .. code-block:: bash
 
     $ httpx -m PUT http://localhost:5000/actors \
-            -p filter_name "Robert Downey Junior" \
+            -p filter_name "Robert Downey Jr." \
             -j '{"age": 57, "height": 173}'
 
 This will return:
@@ -529,15 +556,18 @@ This will return:
         {
           "age": 57,
           "height": 173,
-          "name": "Robert Downey Junior"
+          "name": "Robert Downey Jr."
         }
       ]
     }
 
+
+Delete actor
+^^^^^^^^^^^^
+
 Another API that we'll need to cover is the ``DELETE /actors`` endpoint. It'll
 allow us to query the name of the targeted object and delete that. The code
 looks similar to the ones you've already seen:
-
 
 .. code-block:: python
 
@@ -554,9 +584,9 @@ looks similar to the ones you've already seen:
 
         try:
             actors = client.query_json(
-                """SELECT (
-                    DELETE Actor
-                    FILTER .name=<str>$filter_name
+                """select (
+                    delete Actor
+                    filter .name = <str>$filter_name
                 ) {name}
                 """,
                 filter_name=filter_name,
@@ -599,15 +629,13 @@ That'll return:
       ]
     }
 
-Movie APIs
-^^^^^^^^^^
 
-The movie APIs are built in a similar manner as the actor APIs. Let's look at
-how the ``POST /movies`` endpoint is created and then we'll introspect the
-objects created with this API via the ``GET /movies`` endpoint.
+Now let's move on to building the ``Movie`` API.
 
-Take a look at how the POST API is built:
+Create movie
+^^^^^^^^^^^^
 
+Here's how we'll implement the ``POST /movie`` endpoint:
 
 .. code-block:: python
 
@@ -656,17 +684,20 @@ Take a look at how the POST API is built:
         # Create object.
         movie = client.query_single_json(
             """
-            WITH name:=<str>$name,
-                year:=<optional int16>$year,
-                actor_names:=<optional array<str>>$actor_names
-                SELECT (
-                    INSERT Movie {
-                    name:=name, year:=year,
-                    actors:=(
-                        SELECT DETACHED Actor FILTER
-                        .name in array_unpack(actor_names))
-                    }
-                ){name, year, actors: {name, age, height}};
+            with
+                name := <str>$name,
+                year := <optional int16>$year,
+                actor_names := <optional array<str>>$actor_names
+            select (
+                insert Movie {
+                    name := name,
+                    year := year,
+                    actors := (
+                        select Actor
+                        filter .name in array_unpack(actor_names)
+                    )
+                }
+            ){ name, year, actors: {name, age, height} };
             """,
             name=name,
             year=year,
@@ -688,13 +719,10 @@ Here's how you'd create a movie:
 .. code-block:: bash
 
     $ httpx -m POST http://localhost:5000/movies \
-            -j '{
-                  "name" : "Avengers Assemble",
-                  "year": 2012,
-                  "actor_names": [
-                      "Robert Downey Junior",
-                      "Chris Evans"
-                    ]
+            -j '{ \
+                  "name": "The Avengers", \
+                  "year": 2012, \
+                  "actor_names": [ "Robert Downey Jr.", "Chris Evans" ] \
                 }'
 
 That'll return:
@@ -714,22 +742,28 @@ That'll return:
           {
             "age": 57,
             "height": 173,
-            "name": "Robert Downey Junior"
+            "name": "Robert Downey Jr."
           }
         ],
-        "name": "Avengers Assemble",
+        "name": "The Avengers",
         "year": 2012
       }
     }
 
-You can also use the ``GET /movies`` endpoint to list and filter the movie
-objects. To locate the ``Avenger Assemble`` movie, you'd use the
-``filter_name`` parameter with the GET API as follows:
+Additional movie endpoints
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The implementation of the ``GET /movie``, ``PATCH /movie`` and
+``DELETE /movie`` endpoints are provided in the sample codebase in
+``app/movies.py``. But try to write them on your own using the Actor endpoints
+as a starting point! Once you're down, you should be able to fetch a movie by
+it's title from your database by  the ``filter_name`` parameter with
+the GET API as follows:
 
 .. code-block:: bash
 
     $ httpx -m GET http://localhost:5000/movies \
-            -p 'name' 'Avengers Assemble'
+            -p 'filter_name' 'The Avengers'
 
 That'll return:
 
@@ -747,24 +781,22 @@ That'll return:
             },
             {
               "age": 57,
-              "name": "Robert Downey Junior"
+              "name": "Robert Downey Jr."
             }
           ],
-          "name": "Avengers Assemble",
+          "name": "The Avengers",
           "year": 2012
         }
       ]
     }
 
-Take a look at the ``app/movies.py`` file to see how the ``PUT /movies`` and
-``DELETE /movies`` endpoints are constructed similarly.
 
 
 Conclusion
 ==========
 
-While builing REST APIs, EdgeDB client allows you to leverage EdgeDB with any
-microframework of your choice. Whether it's
+While builing REST APIs, the EdgeDB client allows you to leverage EdgeDB with
+any microframework of your choice. Whether it's
 `FastAPI <https://fastapi.tiangolo.com>`_,
 `Flask <https://flask.palletsprojects.com>`_,
 `AIOHTTP <https://docs.aiohttp.org/en/stable>`_,
