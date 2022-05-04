@@ -121,8 +121,15 @@ class TestDocSnippets(unittest.TestCase):
         parser.parse(source, document)
 
         lines = source.split('\n')
+        lint_on = True
         for lineno, line in enumerate(lines, 1):
-            if len(line) > self.MAX_LINE_LEN:
+
+            if line.startswith('.. lint-off'):
+                lint_on = False
+            elif line.startswith('.. lint-on'):
+                lint_on = True
+
+            if len(line) > self.MAX_LINE_LEN and lint_on:
                 reporter.lint_errors.add(
                     f'Line longer than {self.MAX_LINE_LEN} characters in '
                     f'{filename}, line {lineno}')

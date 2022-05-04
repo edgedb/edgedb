@@ -111,16 +111,17 @@ POST request (recommended)
 The POST request should use ``application/json`` content type and
 submit the following JSON-encoded form with the necessary fields.
 
+.. lint-off
+
 .. code-block:: bash
 
   $ curl \
       -H "Content-Type: application/json" \
       -X POST http://localhost:10787/db/edgedb/graphql \
-      -d '<query here>'
+      -d '{ "query": "query getMovie($title: String!) { Movie(filter: {title:{eq: $title}}) { id title }}", "variables": { "title": "The Batman" }}'
   {"data": {...}}
 
-.. { "query": "query getMovie($title: String!) { Movie(filter: {title:{
-.. eq: $title}}) { id title }}", "variables": { "title": "The Batman" }}
+.. lint-on
 
 GET request
 ^^^^^^^^^^^
@@ -128,19 +129,20 @@ GET request
 When using ``GET`` requests, the values for ``query``, ``variables``, etc.
 should be passed as query paramters in the URL.
 
+.. lint-off
+
 .. code-block:: bash
 
   $ curl \
       -H application/x-www-form-urlencoded \
       -X GET http://localhost:10787/db/edgedb/graphql \
       -G \
-      --data-urlencode 'query=<query here>' \
-      --data-urlencode 'variables={ "my_var": "some value" }'
+      --data-urlencode 'query=query getMovie($title: String!) { Movie(filter: {title:{eq: $title}}) { id title }}' \
+      --data-urlencode 'variables={ "title": "The Batman" }'
   {"data": {...}}
 
-.. --data-urlencode 'query=query getMovie($title: String!) { Movie(filter:
-.. {title:{eq: $title}}) { id title }}' \
-.. --data-urlencode 'variables={ "title": "The Batman" }'
+.. lint-on
+
 
 Response format
 ^^^^^^^^^^^^^^^
