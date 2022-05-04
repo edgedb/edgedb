@@ -1654,7 +1654,7 @@ cdef class EdgeConnection:
         finally:
             self.maybe_release_pgcon(conn)
 
-    async def optimistic_execute(self):
+    async def execute(self):
         cdef:
             WriteBuffer bound_args_buf
 
@@ -1683,7 +1683,7 @@ cdef class EdgeConnection:
             query_unit = self.get_dbview().lookup_compiled_query(query_req)
             if query_unit is None:
                 if self.debug:
-                    self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
+                    self.debug_print('EXECUTE /REPARSE', query)
 
                 compiled = await self._parse(query, query_req)
                 self._last_anon_compiled = compiled
@@ -1711,7 +1711,7 @@ cdef class EdgeConnection:
                 query_unit.out_type_id != out_tid):
             # The client has outdated information about type specs.
             if self.debug:
-                self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
+                self.debug_print('EXECUTE /MISMATCH', query)
 
             self.write(self.make_command_data_description_msg(compiled))
 
@@ -1720,9 +1720,9 @@ cdef class EdgeConnection:
             return
 
         if self.debug:
-            self.debug_print('OPTIMISTIC EXECUTE', query)
+            self.debug_print('EXECUTE', query)
 
-        # Clear the _last_anon_compiled so that the next OptimisticExecute - if
+        # Clear the _last_anon_compiled so that the next Execute - if
         # identical - will always lookup in the cache and honor the `cacheable`
         # flag to compile the query again. Put it another way, this is the
         # legacy Execute of the "anonymous" prepared statement.
@@ -1832,7 +1832,7 @@ cdef class EdgeConnection:
                             "protocols greater 1.0")
 
                     elif mtype == b'O':
-                        await self.optimistic_execute()
+                        await self.execute()
 
                     elif mtype == b'Q':
                         flush_sync_on_error = True
