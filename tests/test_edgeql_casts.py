@@ -2371,6 +2371,34 @@ class TestEdgeQLCasts(tb.QueryTestCase):
             [],
         )
 
+        await self.assert_query_result(
+            r'''
+                select <bigint>to_json('null')
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <decimal>to_json('null')
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <bigint><str>to_json('null')
+            ''',
+            [],
+        )
+
+        await self.assert_query_result(
+            r'''
+                select <decimal><str>to_json('null')
+            ''',
+            [],
+        )
+
     async def test_edgeql_casts_assignment_01(self):
         async with self._run_and_rollback():
             await self.con.execute(r"""

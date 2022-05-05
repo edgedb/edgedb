@@ -526,6 +526,7 @@ class StrToBigint(dbops.Function):
             returns=('edgedb', 'bigint_t'),
             # Stable because it's raising exceptions.
             volatility='stable',
+            strict=True,
             text=self.text)
 
 
@@ -559,6 +560,7 @@ class StrToDecimal(dbops.Function):
             returns=('numeric',),
             # Stable because it's raising exceptions.
             volatility='stable',
+            strict=True,
             text=self.text,
         )
 
