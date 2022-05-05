@@ -4,7 +4,7 @@
 FastAPI
 =======
 
-:alt-edb-title: Building a REST API with EdgeDB and FastAPI
+:edb-alt-title: Building a REST API with EdgeDB and FastAPI
 
 EdgeDB can help you quickly build REST APIs in Python without getting into the
 rigmarole of using ORM libraries to handle your data effectively. Here, we'll

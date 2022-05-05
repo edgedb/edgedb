@@ -23,9 +23,9 @@ Prerequisites
 Click the button below and follow the droplet creation workflow on
 DigitalOcean to deploy an EdgeDB instance.
 
-.. image:: images/do-btn-blue.svg
+.. image:: https://www.deploytodo.com/do-btn-blue.svg
    :target: 1-click-button_
-   :width: 200px
+   :width: 225px
 
 .. _1-click-button:
    https://marketplace.digitalocean.com/apps/edgedb?refcode=f0b0d77b5d49

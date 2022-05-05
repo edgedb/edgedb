@@ -198,7 +198,7 @@ We can construct this value and assign it to a new environment variable called
 
 .. code-block:: bash
 
-    DSN=edgedb://edgedb:$PASSWORD@$EDB_APP.internal:8080
+    $ DSN=edgedb://edgedb:$PASSWORD@$EDB_APP.internal:8080
 
 Consider writing it to a file to ensure the DSN looks correct. Remember to
 delete the file after you're done. (Printing this value to the terminal with
