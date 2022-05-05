@@ -537,12 +537,21 @@ def can_omit_optional_wrapper(
     # Our base json casts should all preserve nullity (instead of
     # turning it into an empty set), so allow passing through those
     # cases. This is mainly an optimization for passing globals to
-    # functions, where we need to convert a bunch of optoinal params
-    # to json.
+    # functions, where we need to convert a bunch of optional params
+    # to json, and for casting out of json there and in schema updates.
+    #
+    # (FIXME: This also works around an obscure INSERT bug in which
+    # inserting values into `id` that need optional wrappers break.
+    # Since user code can't specify `id` at all, this is low prio.)
     if (
         isinstance(ir_set.expr, irast.TypeCast)
-        and irtyputils.is_scalar(ir_set.expr.expr.typeref)
-        and irtyputils.is_json(ir_set.expr.to_type)
+        and ((
+            irtyputils.is_scalar(ir_set.expr.expr.typeref)
+            and irtyputils.is_json(ir_set.expr.to_type)
+        ) or (
+            irtyputils.is_json(ir_set.expr.expr.typeref)
+            and irtyputils.is_scalar(ir_set.expr.to_type)
+        ))
     ):
         return can_omit_optional_wrapper(
             ir_set.expr.expr,

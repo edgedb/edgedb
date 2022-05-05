@@ -984,3 +984,10 @@ class TestEdgeQLCardinalityInference(tb.BaseEdgeQLCompilerTest):
 % OK %
         MANY
         """
+
+    def test_edgeql_ir_card_inference_112(self):
+        """
+        select <str>to_json('null')
+% OK %
+        AT_MOST_ONE
+        """

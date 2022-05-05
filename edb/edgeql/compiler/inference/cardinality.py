@@ -840,9 +840,17 @@ def __infer_typecast(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    return infer_cardinality(
+    card = infer_cardinality(
         ir.expr, scope_tree=scope_tree, ctx=ctx,
     )
+    # json values can be 'null', which produces an empty set, which we
+    # need to reflect in the cardinality.
+    if (
+        typeutils.is_json(ir.from_type)
+        and not ir.cardinality_mod == qlast.CardinalityModifier.Required
+    ):
+        card = _bounds_to_card(CB_ZERO, _card_to_bounds(card).upper)
+    return card
 
 
 def _is_ptr_or_self_ref(
