@@ -13090,6 +13090,14 @@ type default::Foo {
                 };
             """)
 
+    async def test_edgeql_ddl_computed_and_alias(self):
+        await self.con.execute(r"""
+            create type Tgt;
+            create type X { create link foo -> Tgt };
+            create alias Y := X { foo: {id} };
+            alter type X { create link bar := .foo };
+        """)
+
 
 class TestConsecutiveMigrations(tb.DDLTestCase):
     TRANSACTION_ISOLATION = False
