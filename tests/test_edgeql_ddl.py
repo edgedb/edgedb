@@ -4396,6 +4396,19 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 $$;
             """)
 
+    async def test_edgeql_ddl_function_35(self):
+        with self.assertRaisesRegex(
+            edgedb.InvalidFunctionDefinitionError,
+            r"return cardinality mismatch"
+        ):
+            await self.con.execute(r"""
+                CREATE FUNCTION broken_edgeql_func35(
+                    a: optional std::int64) -> std::int64
+                USING EdgeQL $$
+                    SELECT a
+                $$;
+            """)
+
     async def test_edgeql_ddl_function_rename_01(self):
         await self.con.execute("""
             CREATE FUNCTION foo(s: str) -> str {

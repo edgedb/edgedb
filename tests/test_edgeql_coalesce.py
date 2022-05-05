@@ -1188,7 +1188,7 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
         await self.con.execute(
             r'''
                 CREATE FUNCTION optfunc(
-                        a: std::str, b: OPTIONAL std::str) -> std::str
+                        a: std::str, b: OPTIONAL std::str) -> OPTIONAL std::str
                     USING EdgeQL $$
                         SELECT b IF a = 'foo' ELSE a
                     $$;
@@ -1397,7 +1397,8 @@ class TestEdgeQLCoalesce(tb.QueryTestCase):
     async def test_edgeql_coalesce_correlation_03(self):
         # TODO: add this to the schema if we want more like it
         await self.con.execute('''
-            CREATE FUNCTION opts(x: OPTIONAL str) -> str { USING (x) };
+            CREATE FUNCTION opts(x: OPTIONAL str) -> OPTIONAL str {
+                USING (x) };
         ''')
         await self.assert_query_result(
             r'''

@@ -6075,7 +6075,7 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.migrate(r"""
             function hello02(a: int64, b: OPTIONAL int64=42) -> str
                 using edgeql $$
-                    SELECT 'hello' ++ <str>(a + b)
+                    SELECT 'hello' ++ <str>(a + (b ?? -1))
                 $$
         """)
 
@@ -6087,6 +6087,11 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
         await self.assert_query_result(
             r"""SELECT hello02(1, 2);""",
             ['hello3'],
+        )
+
+        await self.assert_query_result(
+            r"""SELECT hello02(1, <int64>{});""",
+            ['hello0'],
         )
 
     async def test_edgeql_migration_eq_function_03(self):

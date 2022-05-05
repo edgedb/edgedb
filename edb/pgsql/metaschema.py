@@ -4561,7 +4561,7 @@ def _make_json_caster(
 ) -> Callable[[str], str]:
     cast_expr = qlast.TypeCast(
         expr=qlast.TypeCast(
-            expr=qlast.Parameter(name="__replaceme__", optional=False),
+            expr=qlast.Parameter(name="__replaceme__"),
             type=s_utils.typeref_to_ast(schema, schema.get('std::json')),
         ),
         type=s_utils.typeref_to_ast(schema, stype),

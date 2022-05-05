@@ -131,7 +131,7 @@ type Person extending BadlyNamed {
 
 function taking_opt_returning_non_opt(a: optional str) -> str {
     using (
-        a
+        a ?? ""
     );
 };
 

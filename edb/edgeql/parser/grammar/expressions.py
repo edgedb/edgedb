@@ -1253,7 +1253,7 @@ class Constant(Nonterm):
     # | BaseBytesConstant
 
     def reduce_ARGUMENT(self, *kids):
-        self.val = qlast.Parameter(name=kids[0].val[1:], optional=False)
+        self.val = qlast.Parameter(name=kids[0].val[1:])
 
     def reduce_BaseNumberConstant(self, *kids):
         self.val = kids[0].val

@@ -1599,7 +1599,10 @@ class GraphQLTranslator:
 
         return qlast.TypeCast(
             type=casttype,
-            expr=qlast.Parameter(name=varname, optional=optional),
+            expr=qlast.Parameter(name=varname),
+            cardinality_mod=(
+                qlast.CardinalityModifier.Optional if optional else None
+            ),
         )
 
     def visit_StringValueNode(self, node):
