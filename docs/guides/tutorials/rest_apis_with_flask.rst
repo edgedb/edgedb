@@ -531,7 +531,7 @@ It can be built like this:
 Here, we'll isolate the intended object that we want to update by filtering the
 actors with the ``filter_name`` parameter. For example, if you wanted to update
 the properties of ``Robert Downey Jr.``, the value of the ``filter_name``
-query parameter would be ``Robert Downey Junor``. The coalesce operator ``??``
+query parameter would be ``Robert Downey Jr.``. The coalesce operator ``??``
 in the query string makes sure that the API user can selectively update the
 properties of the target object and the other properties keep their existing
 values.
