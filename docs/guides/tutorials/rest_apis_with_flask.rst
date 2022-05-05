@@ -716,14 +716,15 @@ the actors with the movie object if those actors exist in the database.
 
 Here's how you'd create a movie:
 
+
+.. lint-off
+
 .. code-block:: bash
 
     $ httpx -m POST http://localhost:5000/movies \
-            -j '{ \
-                  "name": "The Avengers", \
-                  "year": 2012, \
-                  "actor_names": [ "Robert Downey Jr.", "Chris Evans" ] \
-                }'
+            -j '{ "name": "The Avengers", "year": 2012, "actor_names": [ "Robert Downey Jr.", "Chris Evans" ] }'
+
+.. lint-on
 
 That'll return:
 
