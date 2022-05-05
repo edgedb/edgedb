@@ -6,20 +6,26 @@ Next.js
 
 :edb-alt-title: Building a simple blog application with EdgeDB and Next.js
 
-We're going to build a simple blog application with `Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding out app with Next.js's ``create-next-app`` tool. We'll be using TypeScript for this tutorial.
+We're going to build a simple blog application with
+`Next.js <https://nextjs.org/>`_ and EdgeDB. Let's start by scaffolding out
+app with Next.js's ``create-next-app`` tool. We'll be using TypeScript for
+this tutorial.
 
 .. code-block:: bash
 
   $ npx create-next-app --typescript nextjs-todo
 
-This will take a minute to run. The scaffolding tool is creating a simple Next.js app and installing all our dependencies for us. Once it's complete, let's navigate into the directory and start the dev server.
+This will take a minute to run. The scaffolding tool is creating a simple
+Next.js app and installing all our dependencies for us. Once it's complete,
+let's navigate into the directory and start the dev server.
 
 .. code-block:: bash
 
   $ cd nextjs-todo
   $ yarn dev
 
-Open `localhost:3000 <http://localhost:3000>`_ to see the default Next.js homepage. At this point the app's file structure looks like this:
+Open `localhost:3000 <http://localhost:3000>`_ to see the default Next.js
+homepage. At this point the app's file structure looks like this:
 
 .. code-block::
 
@@ -40,12 +46,16 @@ Open `localhost:3000 <http://localhost:3000>`_ to see the default Next.js homepa
   ├── Home.module.css
   └── globals.css
 
-There's a custom App component defined in ``pages/_app.tsx`` that loads some global CSS, plus the homepage at ``pages/index.tsx`` and a single API route at ``pages/api/hello.ts``. The ``styles`` and ``public`` directories contain some other assets.
+There's a custom App component defined in ``pages/_app.tsx`` that loads some
+global CSS, plus the homepage at ``pages/index.tsx`` and a single API route at
+``pages/api/hello.ts``. The ``styles`` and ``public`` directories contain some
+other assets.
 
 Updating the homepage
 ---------------------
 
-Let's start by implementing a simple homepage for our blog application using static data. Replace the contents of ``pages/index.tsx`` with the following.
+Let's start by implementing a simple homepage for our blog application using
+static data. Replace the contents of ``pages/index.tsx`` with the following.
 
 .. code-block:: tsx
 
@@ -102,7 +112,8 @@ Let's start by implementing a simple homepage for our blog application using sta
 
   export default Home;
 
-After saving, Next.js should hot-reload, and the homepage should look something like this.
+After saving, Next.js should hot-reload, and the homepage should look
+something like this.
 
 
 .. image::
@@ -127,7 +138,12 @@ Now let's spin up a database for the app. First, install the ``edgedb`` CLI.
 
     PS> iwr https://ps1.edgedb.com -useb | iex
 
-Once the CLI is installed, initialize a project from the application's root directory. You'll be presented with a series of prompts.
+Then check that the CLI is available with the ``edgedb --version`` command. If
+you get a ``Command not found`` error, you may need to open a new terminal
+window before the ``edgedb`` command is available.
+
+Once the CLI is installed, initialize a project from the application's root
+directory. You'll be presented with a series of prompts.
 
 .. code-block:: bash
 
@@ -137,7 +153,8 @@ Once the CLI is installed, initialize a project from the application's root dire
   Do you want to initialize a new project? [Y/n]
   > Y
 
-  Specify the name of EdgeDB instance to use with this project [default: nextjs-todo]:
+  Specify the name of EdgeDB instance to use with this project [default:
+  nextjs-todo]:
   > nextjs-todo
 
   Checking EdgeDB versions...
@@ -160,7 +177,10 @@ Once the CLI is installed, initialize a project from the application's root dire
   Everything is up to date. Revision initial.
   Project initialized.
 
-This process has spun up an EdgeDB instance called ``nextjs-todo`` and "linked" it with your current directory. As long as you're inside that directory, CLI commands and client libraries will be able to connect to the linked instance automatically, without additional configuration.
+This process has spun up an EdgeDB instance called ``nextjs-todo`` and
+"linked" it with your current directory. As long as you're inside that
+directory, CLI commands and client libraries will be able to connect to the
+linked instance automatically, without additional configuration.
 
 To test this, run the ``edgedb`` command to open a REPL to the linked instance.
 
@@ -173,9 +193,13 @@ To test this, run the ``edgedb`` command to open a REPL to the linked instance.
   {4}
   >
 
-From inside this REPL, we can execute EdgeQL queries against our database. But there's not much we can do currently, since our database is schemaless. Let's change that.
+From inside this REPL, we can execute EdgeQL queries against our database. But
+there's not much we can do currently, since our database is schemaless. Let's
+change that.
 
-The project initialization process also created a new subdirectory in our project called ``dbschema``. This is folder that contains everything pertaining to EdgeDB. Currently it looks like this:
+The project initialization process also created a new subdirectory in our
+project called ``dbschema``. This is folder that contains everything
+pertaining to EdgeDB. Currently it looks like this:
 
 .. code-block::
 
@@ -183,7 +207,9 @@ The project initialization process also created a new subdirectory in our projec
   ├── default.esdl
   └── migrations
 
-The ``default.esdl`` file will contain our schema. The ``migrations`` directory is currently empty, but will contain our migration files. Let's update the contents of ``default.esdl`` with the following simple blog schema.
+The ``default.esdl`` file will contain our schema. The ``migrations``
+directory is currently empty, but will contain our migration files. Let's
+update the contents of ``default.esdl`` with the following simple blog schema.
 
 .. code-block:: sdl
 
@@ -200,7 +226,8 @@ The ``default.esdl`` file will contain our schema. The ``migrations`` directory 
 
 .. note::
 
-  EdgeDB let's you split up your schema into different ``modules`` but it's common to keep your entire schema in the ``default`` module.
+  EdgeDB let's you split up your schema into different ``modules`` but it's
+  common to keep your entire schema in the ``default`` module.
 
 Save the file, then let's create our first migration.
 
@@ -211,14 +238,18 @@ Save the file, then let's create our first migration.
   > y
   Created ./dbschema/migrations/00001.edgeql
 
-The ``dbschema/migrations`` now contains a migration file called ``00001.edgeql``. Currently though, we haven't applied this migration against our database. Let's do that.
+The ``dbschema/migrations`` now contains a migration file called
+``00001.edgeql``. Currently though, we haven't applied this migration against
+our database. Let's do that.
 
 .. code-block:: bash
 
   $ edgedb migrate
   Applied m1fee6oypqpjrreleos5hmivgfqg6zfkgbrowx7sw5jvnicm73hqdq (00001.edgeql)
 
-Our database now has a schema consisting of the ``BlogPost`` type. We can create some sample data from the REPL. Run the ``edgedb`` command to re-open the REPL.
+Our database now has a schema consisting of the ``BlogPost`` type. We can
+create some sample data from the REPL. Run the ``edgedb`` command to re-open
+the REPL.
 
 .. code-block:: bash
 
@@ -239,7 +270,7 @@ Then execute the following ``insert`` statements.
   {default::BlogPost {id: 7f301d02-c780-11ec-8a1a-a34776e884a0}}
   edgedb> insert BlogPost {
   .......   title := "How to build a blog with EdgeDB and Next.js",
-  .......   content := "Let's start by scaffolding out app with `create-next-app`."
+  .......   content := "Let's start by scaffolding our app..."
   ....... };
   {default::BlogPost {id: 88c800e6-c780-11ec-8a1a-b3a3020189dd}}
 
@@ -247,7 +278,10 @@ Then execute the following ``insert`` statements.
 Loading posts with an API route
 -------------------------------
 
-Now that we have a couple posts in the database, let's load them dynamically with a Next.js `API route <https://nextjs.org/docs/api-routes/introduction>`_. To do that, we'll need the ``edgedb`` client library. Let's install that from NPM:
+Now that we have a couple posts in the database, let's load them dynamically
+with a Next.js `API route <https://nextjs.org/docs/api-routes/introduction>`_.
+To do that, we'll need the ``edgedb`` client library. Let's install that from
+NPM:
 
 .. code-block:: bash
 
@@ -276,11 +310,18 @@ Then create a new file at ``pages/api/post.ts`` and copy in the following code.
     res.status(200).json(posts);
   }
 
-This file initializes an EdgeDB client, which manages a pool of connections to the database and provides an API for executing queries. We're using the ``.query()`` method to fetch all the posts in the database with a simple ``select`` statement.
+This file initializes an EdgeDB client, which manages a pool of connections to
+the database and provides an API for executing queries. We're using the
+``.query()`` method to fetch all the posts in the database with a simple
+``select`` statement.
 
-If you visit `localhost:3000/api/post <http://localhost:3000/api/post>`_ in your browser, you should be a plaintext JSON representation of the blog posts we inserted earlier.
+If you visit `localhost:3000/api/post <http://localhost:3000/api/post>`_ in
+your browser, you should be a plaintext JSON representation of the blog posts
+we inserted earlier.
 
-To fetch these from the homepage, we'll use ``useState``, ``useEffect``, and the built-in ``fetch`` API. At the top of the ``HomePage`` component in ``pages/index.tsx``, replace the static data with .
+To fetch these from the homepage, we'll use ``useState``, ``useEffect``, and
+the built-in ``fetch`` API. At the top of the ``HomePage`` component in
+``pages/index.tsx``, replace the static data with .
 
 .. code-block:: tsx-diff
 
@@ -297,7 +338,7 @@ To fetch these from the homepage, we'll use ``useState``, ``useEffect``, and the
   -      {
   -        id: 'post2',
   -        title: 'How to build a blog with EdgeDB and Next.js',
-  -        content: "Let's start by scaffolding out app with `create-next-app`.",
+  -        content: "Let's start by scaffolding our app...",
   -      },
   -    ];
 
@@ -312,12 +353,17 @@ To fetch these from the homepage, we'll use ``useState``, ``useEffect``, and the
        return <div>...</div>;
      }
 
-When you refresh the page, you should briefly see a ``Loading...`` indicator before the homepage renders the (dynamically loaded!) blog posts.
+When you refresh the page, you should briefly see a ``Loading...`` indicator
+before the homepage renders the (dynamically loaded!) blog posts.
 
 Generating the query builder
 ----------------------------
 
-Since we're using TypeScript, it makes sense to use EdgeDB's powerful query builder. This provides a schema-aware client API that makes writing strongly typed EdgeQL queries easy and painless. The result type of our queries will be automatically inferred, so we won't need to manually things like ``type Post = { id: string; ... }``.
+Since we're using TypeScript, it makes sense to use EdgeDB's powerful query
+builder. This provides a schema-aware client API that makes writing strongly
+typed EdgeQL queries easy and painless. The result type of our queries will be
+automatically inferred, so we won't need to manually type something like
+``type Post = { id: string; ... }``.
 
 Generate the query builder with the following command.
 
@@ -341,9 +387,13 @@ Generate the query builder with the following command.
   > y
 
 
-This command introspected the schema of our database and generated some code into the ``dbschema/edgeql-js`` directory. It also asked us if wanted to add the generated code to our ``.gitignore``; typically it's not good practice to include generated files in version control.
+This command introspected the schema of our database and generated some code
+into the ``dbschema/edgeql-js`` directory. It also asked us if wanted to add
+the generated code to our ``.gitignore``; typically it's not good practice to
+include generated files in version control.
 
-Back in ``pages/api/post.ts``, let's update our code to use the query builder instead.
+Back in ``pages/api/post.ts``, let's update our code to use the query builder
+instead.
 
 .. code-block:: typescript-diff
 
@@ -376,16 +426,21 @@ Back in ``pages/api/post.ts``, let's update our code to use the query builder in
       res.status(200).json(posts);
     }
 
-Instead of writing our query as a plain string, we're now using the query builder to declare our query in a code-first way. As you can see we import the query builder as a single default import ``e`` from the ``dbschema/edgeql-js`` directory.
+Instead of writing our query as a plain string, we're now using the query
+builder to declare our query in a code-first way. As you can see we import the
+query builder as a single default import ``e`` from the ``dbschema/edgeql-js``
+directory.
 
-We're also using a utility called ``$infer`` to extract the inferred type of this query. In VSCode you can hover over ``GetPosts`` to see what this type is.
+We're also using a utility called ``$infer`` to extract the inferred type of
+this query. In VSCode you can hover over ``GetPosts`` to see what this type is.
 
 .. image::
     https://www.edgedb.com/docs/tutorials/nextjs/inference.png
     :alt: Inferred type of posts query
     :width: 100%
 
-Back in ``pages/index.tsx``, lets update our code to use the inferred ``GetPosts`` type instead of our manual type declaration.
+Back in ``pages/index.tsx``, lets update our code to use the inferred
+``GetPosts`` type instead of our manual type declaration.
 
 .. code-block:: typescript-diff
 
@@ -410,14 +465,23 @@ Back in ``pages/index.tsx``, lets update our code to use the inferred ``GetPosts
 
      }
 
-Now, when we update our ``getPosts`` query, the type of our dynamically loaded ``posts`` variable will update automatically—no need to keep our type definitions in sync with our API logic!
+Now, when we update our ``getPosts`` query, the type of our dynamically loaded
+``posts`` variable will update automatically—no need to keep our type
+definitions in sync with our API logic!
 
 Rendering blog posts
 --------------------
 
-Our homepage renders a list of links to each of our blog posts, but we haven't implemented the page that actually displays the posts. Let's create a new page at ``pages/post/[id].tsx``. This is a `dynamic route <https://nextjs.org/docs/routing/dynamic-routes>`_ that includes an ``id`` URL parameter. We'll use this parameter to fetch the appropriate post from the database.
+Our homepage renders a list of links to each of our blog posts, but we haven't
+implemented the page that actually displays the posts. Let's create a new page
+at ``pages/post/[id].tsx``. This is a
+`dynamic route <https://nextjs.org/docs/routing/dynamic-routes>`_ that
+includes an ``id`` URL parameter. We'll use this parameter to fetch the
+appropriate post from the database.
 
-Create ``pages/post/[id].tsx`` and add the following code. We're using ``getServerSideProps`` to load the blog post data server-side, to avoid loading spinners and ensure the page loads fast.
+Create ``pages/post/[id].tsx`` and add the following code. We're using
+``getServerSideProps`` to load the blog post data server-side, to avoid
+loading spinners and ensure the page loads fast.
 
 .. code-block:: tsx
 
@@ -461,11 +525,18 @@ Create ``pages/post/[id].tsx`` and add the following code. We're using ``getServ
   export default Post;
 
 
-Inside ``getServerSideProps`` we're extracting the ``id`` parameter from ``context.params`` and using it in our EdgeQL query. The query is a ``select`` query that fetches the ``id``, ``title``, and ``content`` of the post with a matching ``id``.
+Inside ``getServerSideProps`` we're extracting the ``id`` parameter from
+``context.params`` and using it in our EdgeQL query. The query is a ``select``
+query that fetches the ``id``, ``title``, and ``content`` of the post with a
+matching ``id``.
 
-We're using Next's ``InferGetServerSidePropsType`` utility to extract the inferred type of our query and pass it into ``React.FC``. Now, if we update our query, the type of the component props will automatically update too. In fact, this entire application is end-to-end typesafe.
+We're using Next's ``InferGetServerSidePropsType`` utility to extract the
+inferred type of our query and pass it into ``React.FC``. Now, if we update
+our query, the type of the component props will automatically update too. In
+fact, this entire application is end-to-end typesafe.
 
-Now, click on one of the blog post links on the homepage. This should bring you to ``/post/<uuid>``, which should display something like this:
+Now, click on one of the blog post links on the homepage. This should bring
+you to ``/post/<uuid>``, which should display something like this:
 
 .. image::
     https://www.edgedb.com/docs/tutorials/nextjs/post.png
@@ -484,12 +555,15 @@ First deploy an EdgeDB instance on your preferred cloud provider:
 - `Azure <https://www.edgedb.com/docs/guides/deployment/azure_flexibleserver>`_
 - `DigitalOcean <https://www.edgedb.com/docs/guides/deployment/digitalocean>`_
 - `Fly.io <https://www.edgedb.com/docs/guides/deployment/fly_io>`_
-- `Docker <https://www.edgedb.com/docs/guides/deployment/docker>`_ (cloud-agnostic)
+- `Docker <https://www.edgedb.com/docs/guides/deployment/docker>`_
+  (cloud-agnostic)
 
 
 **#2. Find your instance's DSN**
 
-The DSN is also known as a connection string. It will have the format ``edgedb://username:password@hostname:port``. The exact instructions for this depend on which cloud you are deploying to.
+The DSN is also known as a connection string. It will have the format
+``edgedb://username:password@hostname:port``. The exact instructions for this
+depend on which cloud you are deploying to.
 
 **#3 Apply migrations**
 
@@ -501,9 +575,12 @@ Use the DSN to apply migrations against your remote instance.
 
 .. note::
 
-  You have to disable TLS checks with ``--tls-security insecure``. All EdgeDB instances use TLS by default, but configuring it is out of scope of this project.
+  You have to disable TLS checks with ``--tls-security insecure``. All EdgeDB
+  instances use TLS by default, but configuring it is out of scope of this
+  project.
 
-Once you've applied the migrations, consider creating some sample data in your database. Open a REPL and ``insert`` some blog posts:
+Once you've applied the migrations, consider creating some sample data in your
+ database. Open a REPL and ``insert`` some blog posts:
 
 .. code-block:: bash
 
@@ -537,10 +614,13 @@ builder before Vercel starts building the project.
 
 Deploy this app to Vercel with the button below.
 
+.. lint-off
+
 .. image:: https://vercel.com/button
   :width: 150px
   :target: https://vercel.com/new/git/external?repository-url=https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog&project-name=nextjs-edgedb-blog&repository-name=nextjs-edgedb-blog&env=EDGEDB_DSN,EDGEDB_CLIENT_TLS_SECURITY
 
+.. lint-on
 
 When prompted:
 
@@ -557,13 +637,20 @@ When prompted:
 
 **#6 View the application**
 
-Once deployment has completed, go to the application at the deployment URL supplied by Vercel.
+Once deployment has completed, view the application at the deployment URL
+supplied by Vercel.
 
 Wrapping up
 -----------
 
-Admittedly this isn't the prettiest blog of all time, or the most feature-complete. But this tutorial demonstrates how to work with EdgeDB in a Next.js app, including data fetching with API routes and ``getServerSideProps``.
+Admittedly this isn't the prettiest blog of all time, or the most
+feature-complete. But this tutorial demonstrates how to work with EdgeDB in a
+Next.js app, including data fetching with API routes and
+``getServerSideProps``.
 
-The next step is to add a ``/newpost`` page with a form for writing new blog posts and saving them into EdgeDB. That's left as an exercise for the reader.
+The next step is to add a ``/newpost`` page with a form for writing new blog
+posts and saving them into EdgeDB. That's left as an exercise for the reader.
 
-To see the final code for this tutorial, refer to  `github.com/edgedb/edgedb-examples/tree/main/nextjs-blog <https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog>`_.
+To see the final code for this tutorial, refer to
+`github.com/edgedb/edgedb-examples/tree/main/nextjs-blog
+<https://github.com/edgedb/edgedb-examples/tree/main/nextjs-blog>`_.
