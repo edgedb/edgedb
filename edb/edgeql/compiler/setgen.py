@@ -836,7 +836,7 @@ def _is_computable_ptr(
         return qlexpr is not None
 
     return (
-        ptrcls.is_pure_computable(ctx.env.schema)
+        bool(ptrcls.get_expr(ctx.env.schema))
         or is_injected_computable_ptr(ptrcls, direction, ctx=ctx)
     )
 
