@@ -698,8 +698,11 @@ BRE, ERE, and ARE support can be found in `PostgreSQL documentation`_.
 
 For convenience, here's a table outlining the different options
 accepted as the ``flags`` argument to various regular expression
-functions, or as [embedded options](https://www.postgresql.org/docs/10/functions-matching.html#POSIX-METASYNTAX) in the pattern itself, e.g. `'(?i)fooBAR'`:
+functions, or as `embedded options`_ in the pattern itself, e.g. ``'(?i)fooBAR'``:
 
+.. _`embedded options`:
+                https://www.postgresql.org/docs/10/functions-matching.html#POSIX-METASYNTAX  
+                
 .. _string_regexp_flags:
 
 Option Flags
