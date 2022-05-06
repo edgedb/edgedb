@@ -697,8 +697,8 @@ BRE, ERE, and ARE support can be found in `PostgreSQL documentation`_.
                 functions-matching.html#POSIX-SYNTAX-DETAILS
 
 For convenience, here's a table outlining the different options
-accepted as the ``flag`` argument to various regular expression
-functions:
+accepted as the ``flags`` argument to various regular expression
+functions, or as [embedded options](https://www.postgresql.org/docs/10/functions-matching.html#POSIX-METASYNTAX) in the pattern itself, e.g. `'(?i)fooBAR'`:
 
 .. _string_regexp_flags:
 
