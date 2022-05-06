@@ -681,6 +681,7 @@ class Compiler:
                         el_type = param.schema_type.get_element_type(ir.schema)
                         array_tid = el_type.id
 
+                    # NB: We'll need to turn this off for script args
                     if not has_named_params and str(idx) != param.name:
                         raise RuntimeError(
                             'positional argument name disagrees '

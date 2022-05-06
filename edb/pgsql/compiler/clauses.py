@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from typing import *
 
-import itertools
 import random
 
 from edb.edgeql import qltypes
@@ -386,21 +385,17 @@ def populate_argmap(
     *,
     ctx: context.CompilerContextLevel,
 ) -> None:
-    next_argument = itertools.count(1)
-    for param in params:
-        if ctx.env.use_named_params and not param.name.isdecimal():
-            continue
+    for map_extra in (False, True):
+        for param in params:
+            if ctx.env.use_named_params and not param.name.isdecimal():
+                continue
+            if param.name.startswith('__edb_arg_') != map_extra:
+                continue
 
-        if param.name.startswith('__edb_arg_'):
-            index = int(param.name[10:]) + 1
-        elif param.name.isdecimal():
-            index = int(param.name) + 1
-        else:
-            index = next(next_argument)
-        ctx.argmap[param.name] = pgast.Param(
-            index=index,
-            required=param.required,
-        )
+            ctx.argmap[param.name] = pgast.Param(
+                index=len(ctx.argmap) + 1,
+                required=param.required,
+            )
     for param in globals:
         ctx.argmap[param.name] = pgast.Param(
             index=len(ctx.argmap) + 1,

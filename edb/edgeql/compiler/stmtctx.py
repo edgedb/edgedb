@@ -246,9 +246,13 @@ def fini_expression(
     assert isinstance(ir, irast.Set)
     source_map = {k: v for k, v in ctx.source_map.items()
                   if isinstance(k, s_pointers.Pointer)}
+    params = list(ctx.env.query_parameters.values())
+    if params and params[0].name.isdecimal():
+        params.sort(key=lambda x: int(x.name))
+
     result = irast.Statement(
         expr=ir,
-        params=list(ctx.env.query_parameters.values()),
+        params=params,
         globals=list(ctx.env.query_globals.values()),
         views=ctx.view_nodes,
         source_map=source_map,
