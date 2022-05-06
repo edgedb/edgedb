@@ -540,11 +540,13 @@ async def run_server(
 
                     if args.tls_cert_mode is srvargs.ServerTlsCertMode.AcmeV2:
                         if not args.acme_account_key_file:
+                            assert args.tls_key_file
                             directory = args.tls_key_file.parent
                             args = args._replace(
                                 acme_account_key_file=directory
                                 / srvargs.ACME_ACCOUNT_KEY_FILE_NAME)
                         if not args.acme_registration_file:
+                            assert args.acme_account_key_file
                             directory = args.acme_account_key_file.parent
                             args = args._replace(
                                 acme_registration_file=directory

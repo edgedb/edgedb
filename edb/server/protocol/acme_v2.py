@@ -3,14 +3,11 @@ import binascii
 import codecs
 import datetime
 import functools
-import http
-import json
 import os
 import pathlib
 import ssl
 from typing import *
 
-import acme.client
 import aiohttp
 import josepy
 import yarl
@@ -103,7 +100,8 @@ def get_private_key(filename: pathlib.Path) -> rsa.RSAPrivateKey:
             key = serialization.load_pem_private_key(f.read(), password=None)
             assert isinstance(key, rsa.RSAPrivateKey)
     except FileNotFoundError:
-        key = rsa.generate_private_key(public_exponent=65537, key_size=KEY_SIZE)
+        key = rsa.generate_private_key(
+            public_exponent=65537, key_size=KEY_SIZE)
         pem = key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
@@ -124,7 +122,8 @@ def select_tlsalpn01(order: messages.OrderResource) -> messages.ChallengeBody:
             if isinstance(challenge.chall, challenges.TLSALPN01):
                 return challenge
 
-    raise ChallengeUnavailable('TLS-ALPN-01 challenge was not offered by the CA server.')
+    raise ChallengeUnavailable(
+        'TLS-ALPN-01 challenge was not offered by the CA server.')
 
 
 def gen_challenge_response_cert(
@@ -192,7 +191,7 @@ class Client:
 
         self._session = aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=20),
-            headers={'User-Agent':self.USER_AGENT},
+            headers={'User-Agent': self.USER_AGENT},
         )
 
         self._reg = None
@@ -204,7 +203,11 @@ class Client:
         except Exception:
             pass
 
-    async def _assert_status(self, resp: aiohttp.ClientResponse, status: int) -> None:
+    async def _assert_status(
+        self,
+        resp: aiohttp.ClientResponse,
+        status: int
+    ) -> None:
         if resp.status != status:
             msg = f'unexpected status {resp.status}: {await resp.text()}'
             raise NotImplementedError(msg)
@@ -330,14 +333,12 @@ class Client:
                     body=messages.Authorization.from_json(await resp.json()),
                     uri=resp.headers.get('Location'),
                 ))
-            
 
         return messages.OrderResource(
             body=body,
             uri=uri,
             authorizations=authorizations,
         )
-
 
     def _gen_challenge_response_cert(
         self,
@@ -349,34 +350,6 @@ class Client:
 
         This functionality is broken in acme==1.25.0
         """
-        # subject = issuer = x509.Name([
-        #     x509.NameAttribute(oid.NameOID.COMMON_NAME, self._domain)
-        # ])
-
-        # cert = (
-        #     x509.CertificateBuilder()
-        #     .subject_name(subject)
-        #     .issuer_name(issuer)
-        #     .public_key(self._domain_key.public_key())
-        #     .serial_number(x509.random_serial_number())
-        #     .not_valid_before(datetime.datetime.utcnow())
-        #     .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=1))
-        #     .add_extension(
-        #         x509.SubjectAlternativeName([x509.DNSName(self._domain)]),
-        #         critical=False,
-        #     )
-        #     .add_extension(
-        #         x509.UnrecognizedExtension(
-        #             x509.ObjectIdentifier('1.3.6.1.5.5.7.1.31'),
-        #             value=b'. ' + response.h,
-        #         ),
-        #         critical=True,
-        #     )
-        #     .sign(self._domain_key, hashes.SHA256())
-        # )
-
-        # with open('challenge.cert.pem', 'wb') as f:
-        #     f.write(cert.public_bytes(serialization.Encoding.PEM))
         gen_challenge_response_cert(
             response,
             crypto.PKey.from_cryptography_key(self._domain_key),
@@ -416,7 +389,8 @@ class Client:
                 async with await self._post(url, None) as resp:
                     await self._assert_status(resp, 200)
                     auth = messages.AuthorizationResource(
-                        body=messages.Authorization.from_json(await resp.json()),
+                        body=messages.Authorization.from_json(
+                            await resp.json()),
                         uri=resp.headers.get('Location', url),
                     )
                     if auth.body.status != messages.STATUS_PENDING:
@@ -442,7 +416,7 @@ class Client:
     async def _finalize_order(
         self,
         order: messages.OrderResource,
-        deadline:datetime.datetime,
+        deadline: datetime.datetime,
     ) -> messages.OrderResource:
         csr = messages.CertificateRequest(csr=josepy.ComparableX509(
             crypto.X509Req.from_cryptography(
@@ -469,7 +443,8 @@ class Client:
                 if body.error is not None:
                     raise errors.IssuanceError(body.error)
                 if body.certificate is not None:
-                    async with await self._post(body.certificate, None) as resp:
+                    cert = body.certificate
+                    async with await self._post(cert, None) as resp:
                         await self._assert_status(resp, 200)
                         order = order.update(
                             body=body,
@@ -486,7 +461,6 @@ class Client:
         deadline = datetime.datetime.now() + datetime.timedelta(seconds=90)
         order = await self._poll_authorizations(order, deadline)
         return await self._finalize_order(order, deadline)
-
 
     async def new_challenge(self):
         order = await self._new_order()
@@ -532,7 +506,7 @@ class Challenge:
         if self._finalized:
             return False
         self._finalized = True
-        
+
         try:
             order = await self._client._poll_and_finalize(self._order)
         except errors.ValidationError as e:
