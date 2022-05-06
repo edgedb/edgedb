@@ -2211,7 +2211,7 @@ def get_params_symtable(
     anchors: Dict[str, qlast.Expr] = {}
 
     defaults_mask = qlast.TypeCast(
-        expr=qlast.Parameter(name='__defaults_mask__', optional=False),
+        expr=qlast.Parameter(name='__defaults_mask__'),
         type=qlast.TypeName(
             maintype=qlast.ObjectRef(
                 module='std',
@@ -2226,9 +2226,9 @@ def get_params_symtable(
             p.get_typemod(schema) is not ft.TypeModifier.SingletonType
         )
         anchors[p_shortname] = qlast.TypeCast(
-            expr=qlast.Parameter(
-                name=p_shortname,
-                optional=p_is_optional,
+            expr=qlast.Parameter(name=p_shortname),
+            cardinality_mod=(
+                qlast.CardinalityModifier.Optional if p_is_optional else None
             ),
             type=utils.typeref_to_ast(schema, p.get_type(schema)),
         )

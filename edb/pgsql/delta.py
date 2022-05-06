@@ -1349,7 +1349,7 @@ class DeleteFunction(FunctionCommand, adapts=s_funcs.DeleteFunction):
             # (not just an alias to a SQL function).
 
             overload = False
-            if nativecode:
+            if nativecode and func.find_object_param_overloads(schema):
                 dbf, overload_replace = self.compile_edgeql_function(
                     func, schema, context)
                 if overload_replace:

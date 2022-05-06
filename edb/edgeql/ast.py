@@ -365,7 +365,6 @@ class BytesConstant(BaseConstant):
 
 class Parameter(Expr):
     name: str
-    optional: bool
 
 
 class UnaryOp(Expr):
