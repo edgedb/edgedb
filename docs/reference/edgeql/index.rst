@@ -17,6 +17,10 @@ Query statements:
   Compute an expression for every element of an input set and
   concatenate the results.
 
+* :eql:stmt:`group`
+
+  Group data into subsets by keys.
+
 Data modification statements:
 
 * :eql:stmt:`insert`
@@ -80,10 +84,11 @@ Introspection command:
     cardinality
 
     select
-    for
     insert
     update
     delete
+    for
+    group
     with
 
     tx_start
