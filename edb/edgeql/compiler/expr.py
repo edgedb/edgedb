@@ -484,7 +484,10 @@ def compile_GlobalExpr(
 
     param_set: qlast.Expr | irast.Set
     present_set: qlast.Expr | irast.Set | None
-    if ctx.env.options.func_params is None:
+    if (
+        ctx.env.options.func_params is None
+        and not ctx.env.options.json_parameters
+    ):
         param_set, present_set = setgen.get_global_param_sets(glob, ctx=ctx)
     else:
         param_set, present_set = setgen.get_func_global_param_sets(

@@ -760,13 +760,17 @@ def get_globals(
     else:
         globs.update(bound_call.func.get_used_globals(schema).objects(schema))
 
-    if ctx.env.options.func_params is None:
+    if (
+        ctx.env.options.func_params is None
+        and not ctx.env.options.json_parameters
+    ):
         glob_set = setgen.get_globals_as_json(
             tuple(globs), ctx=ctx, srcctx=expr.context)
     else:
-        # Make sure that we properly track the globals we use
-        for glob in globs:
-            setgen.get_global_param(glob, ctx=ctx)
+        if ctx.env.options.func_params is not None:
+            # Make sure that we properly track the globals we use in functions
+            for glob in globs:
+                setgen.get_global_param(glob, ctx=ctx)
         glob_set = setgen.get_func_global_json_arg(ctx=ctx)
 
     return [glob_set]

@@ -1690,13 +1690,28 @@ def get_global_param_sets(
 def get_func_global_json_arg(
     *, ctx: context.ContextLevel
 ) -> irast.Set:
+    json_type = ctx.env.schema.get('std::json', type=s_types.Type)
+    json_typeref = typegen.type_to_typeref(json_type, env=ctx.env)
+    name = '__edb_json_globals__'
+
+    # If this is because we have json params, not because we're in a
+    # function, we need to register it.
+    if ctx.env.options.json_parameters:
+        qname = s_name.QualName('__', name)
+        ctx.env.query_globals[qname] = irast.Global(
+            name=name,
+            required=False,
+            schema_type=json_type,
+            ir_type=json_typeref,
+            global_name=qname,
+            has_present_arg=False,
+        )
+
     return ensure_set(
         irast.Parameter(
-            name='__edb_json_globals__',
+            name=name,
             required=True,
-            typeref=typegen.type_to_typeref(
-                ctx.env.schema.get('std::json', type=s_types.Type),
-                env=ctx.env)
+            typeref=json_typeref,
         ),
         ctx=ctx,
     )
@@ -1707,7 +1722,10 @@ def get_func_global_param_sets(
     ctx: context.ContextLevel,
 ) -> Tuple[qlast.Expr, Optional[qlast.Expr]]:
     # NB: updates ctx anchors
-    param = get_global_param(glob, ctx=ctx)
+
+    if ctx.env.options.func_params is not None:
+        # Make sure that we properly track the globals we use in functions
+        get_global_param(glob, ctx=ctx)
 
     with ctx.new() as subctx:
         name = str(glob.get_name(ctx.env.schema))
@@ -1725,7 +1743,7 @@ def get_func_global_param_sets(
         type = typegen.type_to_ql_typeref(target, ctx=ctx)
         main_set = qlast.TypeCast(expr=glob_anchor, type=type)
 
-        if param.has_present_arg:
+        if glob.needs_present_arg(ctx.env.schema):
             present_set = qlast.UnaryOp(
                 op='EXISTS',
                 operand=glob_anchor,
