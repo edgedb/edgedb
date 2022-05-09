@@ -387,13 +387,14 @@ class ScopeTreeNode:
         self,
         path_id: pathid.PathId,
         *,
+        flatten_intersection: bool=False,
         optional: bool=False,
         context: Optional[pctx.ParserContext],
     ) -> None:
         """Attach a scope subtree representing *path_id*."""
 
         subtree = parent = ScopeTreeNode(fenced=True)
-        is_lprop = False
+        is_lprop = flatten_intersection
 
         for prefix in reversed(list(path_id.iter_prefixes(include_ptr=True))):
             if prefix.is_ptr_path():

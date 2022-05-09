@@ -1200,11 +1200,9 @@ def fixup_computable_source_set(
             source_rptrref = source_set.rptr.ptrref
             if source_rptrref.base_ptr is not None:
                 source_rptrref = source_rptrref.base_ptr
-            source_set.rptr = irast.Pointer(
-                source=source_set.rptr.source,
+            source_set.rptr = source_set.rptr.replace(
                 target=source_set,
                 ptrref=source_rptrref,
-                direction=source_set.rptr.direction,
                 is_definition=True,
             )
     return source_set

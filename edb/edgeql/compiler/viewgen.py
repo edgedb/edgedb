@@ -378,6 +378,16 @@ def _process_view(
                 ctx=ctx,
             )
 
+        # HACK?: when we see linkprops being used on an intersection,
+        # attach the flattened source path to make linkprops on
+        # computed backlinks work
+        if (
+            isinstance(path_id.rptr(), irast.TypeIntersectionPointerRef)
+            and ptrcls.is_link_property(ctx.env.schema)
+        ):
+            ctx.path_scope.attach_path(
+                path_id, flatten_intersection=True, context=None)
+
         set_shape.append((ptr_set, shape_op))
 
     ir_set.shape = tuple(set_shape)
@@ -763,9 +773,12 @@ def _normalize_view_ptr_expr(
 
         irexpr.context = compexpr.context
 
+        is_inbound_alias = False
         if base_ptrcls is None:
             base_ptrcls = sub_view_rptr.base_ptrcls
             base_ptrcls_is_alias = sub_view_rptr.ptrcls_is_alias
+            is_inbound_alias = (
+                sub_view_rptr.rptr_dir is s_pointers.PointerDirection.Inbound)
 
         if ptrcls is not None:
             ctx.env.schema = ptrcls.set_field_value(
@@ -920,6 +933,7 @@ def _normalize_view_ptr_expr(
         else:
             ptrcls = schemactx.derive_ptr(
                 derive_from, src_scls, ptr_target,
+                derive_backlink=is_inbound_alias,
                 derived_name=derived_name,
                 ctx=ctx)
 
@@ -1114,9 +1128,12 @@ def derive_ptrcls(
             attrs['path_id_name'] = view_rptr.base_ptrcls.get_name(
                 ctx.env.schema)
 
+        is_inbound_alias = (
+            view_rptr.rptr_dir is s_pointers.PointerDirection.Inbound)
         view_rptr.ptrcls = schemactx.derive_ptr(
             view_rptr.base_ptrcls, view_rptr.source, target_scls,
             derived_name=derived_name,
+            derive_backlink=is_inbound_alias,
             attrs=attrs,
             ctx=ctx
         )
@@ -1506,6 +1523,17 @@ def _late_compile_view_shapes_in_set(
                 srcctx=srcctx,
                 ctx=ctx,
             )
+
+            # HACK?: when we see linkprops being used on an intersection,
+            # attach the flattened source path to make linkprops on
+            # computed backlinks work
+            if (
+                isinstance(
+                    path_tip.path_id.rptr(), irast.TypeIntersectionPointerRef)
+                and ptr.is_link_property(ctx.env.schema)
+            ):
+                ctx.path_scope.attach_path(
+                    path_tip.path_id, flatten_intersection=True, context=None)
 
             element_scope = pathctx.get_set_scope(element, ctx=ctx)
 

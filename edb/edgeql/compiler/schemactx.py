@@ -301,6 +301,7 @@ def derive_ptr(
     derived_name_quals: Optional[Sequence[str]] = (),
     preserve_shape: bool = False,
     preserve_path_id: bool = False,
+    derive_backlink: bool = False,
     inheritance_merge: bool = True,
     attrs: Optional[Dict[str, Any]] = None,
     ctx: context.ContextLevel,
@@ -312,6 +313,11 @@ def derive_ptr(
 
     if ptr.get_name(ctx.env.schema) == derived_name:
         qualifiers = qualifiers + (ctx.aliases.get('d'),)
+
+    if derive_backlink:
+        attrs = attrs.copy() if attrs else {}
+        attrs['union_of'] = [ptr]
+        attrs['intersection_of'] = [ptr]
 
     ctx.env.schema, derived = ptr.derive_ref(
         ctx.env.schema,
@@ -325,6 +331,14 @@ def derive_ptr(
         transient=True,
         preserve_path_id=preserve_path_id,
         attrs=attrs)
+
+    # Delete the bogus parents from a derived computed backlink.
+    if derive_backlink:
+        link = [ctx.env.schema.get('std::link')]
+        ctx.env.schema = derived.set_field_value(
+            ctx.env.schema, 'bases', link)
+        ctx.env.schema = derived.set_field_value(
+            ctx.env.schema, 'ancestors', link)
 
     if not ptr.generic(ctx.env.schema):
         if isinstance(derived, s_sources.Source):

@@ -611,7 +611,10 @@ def _new_mapped_pointer_rvar(
         nullable=not ptrref.required)
 
     # Set up references according to the link direction.
-    if ir_ptr.direction == s_pointers.PointerDirection.Inbound:
+    if (
+        ir_ptr.direction == s_pointers.PointerDirection.Inbound
+        or ptrref.is_computed_backlink
+    ):
         near_ref = target_ref
         far_ref = source_ref
     else:

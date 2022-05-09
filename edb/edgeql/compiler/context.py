@@ -81,6 +81,7 @@ class ViewRPtr:
         ptrcls_is_alias: bool = False,
         rptr: Optional[irast.Pointer] = None,
         exprtype: s_types.ExprType = s_types.ExprType.Select,
+        rptr_dir: Optional[s_pointers.PointerDirection] = None,
     ) -> None:
         self.source = source
         self.ptrcls = ptrcls
@@ -90,6 +91,7 @@ class ViewRPtr:
         self.ptrcls_is_alias = ptrcls_is_alias
         self.rptr = rptr
         self.exprtype = exprtype
+        self.rptr_dir = rptr_dir
 
 
 @dataclasses.dataclass
