@@ -19,7 +19,10 @@
 
 import os.path
 
+import edgedb
+
 from edb.testbase import server as tb
+from edb.tools import test
 
 
 class TestEdgeQLLinkproperties(tb.QueryTestCase):
@@ -1161,3 +1164,122 @@ class TestEdgeQLLinkproperties(tb.QueryTestCase):
             ''',
             ["test"],
         )
+
+    async def test_edgeql_props_back_01(self):
+        await self.assert_query_result(
+            """
+            with X1 := (Card { z := (.<deck[IS User], .<deck[IS User]@count)}),
+                 X2 := X1 { owners2 := assert_distinct(
+                     .z.0 { count := X1.z.1 }) },
+            select X2 { name, owners2: {name, count} order BY .name }
+            filter .name = 'Dwarf';
+            """,
+            [
+                {
+                    "name": "Dwarf",
+                    "owners2": [
+                        {"count": 3, "name": "Bob"},
+                        {"count": 4, "name": "Carol"}
+                    ]
+                }
+            ],
+        )
+
+    async def test_edgeql_props_back_02(self):
+        await self.assert_query_result(
+            r'''
+            select Card { name, z := .<deck[IS User] { name, @count }}
+            filter .name = 'Dragon';
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"@count": 2, "name": "Alice"},
+                        {"@count": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+    async def test_edgeql_props_back_03(self):
+        await self.assert_query_result(
+            r'''
+            select Card { name, z := .<deck[IS User] { name, x := @count }}
+            filter .name = 'Dragon';
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"x": 2, "name": "Alice"},
+                        {"x": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+    async def test_edgeql_props_back_04(self):
+        await self.assert_query_result(
+            r'''
+            select assert_exists((
+                select Card { name, z := .<deck[IS User] { name, @count }}
+                filter .name = 'Dragon'
+            ));
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"@count": 2, "name": "Alice"},
+                        {"@count": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+    async def test_edgeql_props_back_05(self):
+        await self.assert_query_result(
+            r'''
+            select assert_exists((
+                select Card { name, z := .<deck[IS User] { name, x := @count }}
+                filter .name = 'Dragon'
+            ));
+            ''',
+            [
+                {
+                    "name": "Dragon",
+                    "z": tb.bag([
+                        {"x": 2, "name": "Alice"},
+                        {"x": 1, "name": "Dave"},
+                    ])
+                }
+            ]
+        )
+
+    async def test_edgeql_props_back_06(self):
+        # This should not work
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"has no property 'count'"):
+
+            await self.con.query(
+                r'''
+                    select Card { name, z := .<deck { @count }}
+                    filter .name = 'Dragon'
+                '''
+            )
+
+    @test.xfail('We are too permissive with intersections on supertypes')
+    async def test_edgeql_props_back_07(self):
+        # This should not work
+        with self.assertRaisesRegex(
+                edgedb.QueryError,
+                r"has no property 'count'"):
+
+            await self.con.query(
+                r'''
+                    select Card { name, z := .<deck[IS Object] { @count }}
+                    filter .name = 'Dragon'
+                '''
+            )
