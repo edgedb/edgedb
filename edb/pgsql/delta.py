@@ -260,7 +260,10 @@ class MetaCommand(sd.Command, metaclass=CommandMeta):
             isinstance(ctx.op, AlterLink)
             and ctx.op.scls.generic(schema)
         ):
-            ctx.op.inhview_updates.add(ctx.op.scls)
+            source = ctx.op.scls
+            ctx.op.inhview_updates.add((source, True))
+            for anc in source.get_ancestors(schema).objects(schema):
+                ctx.op.inhview_updates.add((anc, False))
 
 
 class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
