@@ -20,11 +20,13 @@ on Windows/Linux, or Esc+Return on macOS.
     {5}
 
 
-Type ``Alt-Enter`` to run the query without having the cursor to the end of the query.
+Type ``Alt-Enter`` to run the query without having the cursor to the end of
+the query.
 
 .. note::
 
-    This doesn't work by default on macOS, however it's possible to enable it with a quick fix.
+    This doesn't work by default on macOS, however it's possible to enable it
+    with a quick fix.
 
     * in Terminal.app: Settings → Profiles → Keyboard → Check
       "Use Option as Meta key"
