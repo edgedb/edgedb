@@ -625,11 +625,12 @@ def compile_TypeCast(
             )
         else:
             param_first_type = ctx.env.query_parameters[param_name].schema_type
-            if not param_first_type.castable_to(pt, ctx.env.schema):
+            if param_first_type != pt:
                 raise errors.QueryError(
-                    f'cannot cast '
-                    f'{param_first_type.get_displayname(ctx.env.schema)} to '
-                    f'{pt.get_displayname(ctx.env.schema)}',
+                    f'parameter type '
+                    f'{pt.get_displayname(ctx.env.schema)} '
+                    f'does not match original type '
+                    f'{param_first_type.get_displayname(ctx.env.schema)}',
                     context=expr.expr.context)
 
         return param
