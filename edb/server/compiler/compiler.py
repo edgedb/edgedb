@@ -51,6 +51,7 @@ from edb.edgeql import qltypes
 from edb.edgeql import quote as qlquote
 
 from edb.ir import staeval as ireval
+from edb.ir import ast as irast
 
 from edb.schema import database as s_db
 from edb.schema import ddl as s_ddl
@@ -545,11 +546,58 @@ class Compiler:
 
         return sql.decode(), argmap
 
+    def _get_compile_options(
+        self,
+        ctx: CompileContext,
+    ) -> qlcompiler.CompilerOptions:
+        single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
+
+        native_out_format = (
+            ctx.output_format is enums.IoFormat.BINARY
+        )
+
+        can_have_implicit_fields = (
+            native_out_format and
+            single_stmt_mode
+        )
+
+        disable_constant_folding = self.get_config_val(
+            ctx,
+            '__internal_no_const_folding',
+        )
+
+        return qlcompiler.CompilerOptions(
+            modaliases=ctx.state.current_tx().get_modaliases(),
+            implicit_tid_in_shapes=(
+                can_have_implicit_fields and ctx.inline_typeids
+            ),
+            implicit_tname_in_shapes=(
+                can_have_implicit_fields and ctx.inline_typenames
+            ),
+            implicit_id_in_shapes=(
+                can_have_implicit_fields and ctx.inline_objectids
+            ),
+            constant_folding=not disable_constant_folding,
+            json_parameters=ctx.json_parameters,
+            implicit_limit=ctx.implicit_limit,
+            allow_writing_protected_pointers=ctx.schema_reflection_mode,
+            bootstrap_mode=ctx.bootstrap_mode,
+            apply_query_rewrites=(
+                not ctx.bootstrap_mode
+                and not ctx.schema_reflection_mode
+            ),
+            apply_user_access_policies=self.get_config_val(
+                ctx, 'apply_access_policies'),
+            testmode=self.get_config_val(ctx, '__internal_testmode'),
+            devmode=self._is_dev_instance(),
+        )
+
     def _compile_ql_query(
         self,
         ctx: CompileContext,
         ql: qlast.Base,
         *,
+        script_info: Optional[irast.ScriptInfo] = None,
         cacheable: bool = True,
         migration_block_query: bool = False,
     ) -> dbstate.BaseQuery:
@@ -562,44 +610,11 @@ class Compiler:
 
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
-        can_have_implicit_fields = (
-            native_out_format and
-            single_stmt_mode
-        )
-
-        disable_constant_folding = self.get_config_val(
-            ctx,
-            '__internal_no_const_folding',
-        )
-
         ir = qlcompiler.compile_ast_to_ir(
             ql,
             schema=current_tx.get_schema(self._std_schema),
-            options=qlcompiler.CompilerOptions(
-                modaliases=current_tx.get_modaliases(),
-                implicit_tid_in_shapes=(
-                    can_have_implicit_fields and ctx.inline_typeids
-                ),
-                implicit_tname_in_shapes=(
-                    can_have_implicit_fields and ctx.inline_typenames
-                ),
-                implicit_id_in_shapes=(
-                    can_have_implicit_fields and ctx.inline_objectids
-                ),
-                constant_folding=not disable_constant_folding,
-                json_parameters=ctx.json_parameters,
-                implicit_limit=ctx.implicit_limit,
-                allow_writing_protected_pointers=ctx.schema_reflection_mode,
-                bootstrap_mode=ctx.bootstrap_mode,
-                apply_query_rewrites=(
-                    not ctx.bootstrap_mode
-                    and not ctx.schema_reflection_mode
-                ),
-                apply_user_access_policies=self.get_config_val(
-                    ctx, 'apply_access_policies'),
-                testmode=self.get_config_val(ctx, '__internal_testmode'),
-                devmode=self._is_dev_instance(),
-            ),
+            script_info=script_info,
+            options=self._get_compile_options(ctx),
         )
 
         if ir.cardinality.is_single():
@@ -754,10 +769,6 @@ class Compiler:
             )
 
         else:
-            if ir.params:
-                raise errors.QueryError(
-                    'EdgeQL script queries cannot accept parameters')
-
             if ir.globals:
                 raise errors.QueryError(
                     'EdgeQL script queries cannot use globals')
@@ -1629,6 +1640,8 @@ class Compiler:
         ctx: CompileContext,
         ql: qlast.Base,
         source: Optional[edgeql.Source] = None,
+        *,
+        script_info: Optional[irast.ScriptInfo] = None,
     ) -> Tuple[dbstate.BaseQuery, enums.Capability]:
         if isinstance(ql, qlast.MigrationCommand):
             query = self._compile_ql_migration(ctx, ql)
@@ -1669,7 +1682,7 @@ class Compiler:
             )
 
         else:
-            query = self._compile_ql_query(ctx, ql)
+            query = self._compile_ql_query(ctx, ql, script_info=script_info)
             caps = enums.Capability(0)
             if (
                 isinstance(query, (dbstate.Query, dbstate.SimpleQuery))
@@ -1746,9 +1759,19 @@ class Compiler:
 
         rv = dbstate.QueryUnitGroup()
 
+        # XXX: only when not in single_stmt_mode?
+        script_info = None
+        if not single_stmt_mode:
+            script_info = qlcompiler.preprocess_script(
+                statements,
+                schema=ctx.state.current_tx().get_schema(self._std_schema),
+                options=self._get_compile_options(ctx)
+            )
+
         for stmt in statements:
             comp, capabilities = self._compile_dispatch_ql(
-                ctx, stmt, source=source if len(statements) == 1 else None)
+                ctx, stmt, source=source if len(statements) == 1 else None,
+                script_info=script_info)
 
             unit = dbstate.QueryUnit(
                 sql=(),
@@ -1914,6 +1937,12 @@ class Compiler:
             if len(rv) != 1:  # pragma: no cover
                 raise errors.InternalServerError(
                     f'expected 1 compiled unit; got {len(rv)}')
+        else:
+            # XXX: Obviously the whole point of the script_info stuff is
+            # *to* support params but we aren't there yet
+            if script_info and script_info.params:
+                raise errors.QueryError(
+                    'EdgeQL script queries cannot accept parameters')
 
         for unit in rv:  # pragma: no cover
             if ctx.protocol_version < (0, 12):

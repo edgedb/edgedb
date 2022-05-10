@@ -543,6 +543,14 @@ class Global(Param):
     """
 
 
+@dataclasses.dataclass(frozen=True)
+class ScriptInfo:
+    """Result of preprocessing a script of multiple statements"""
+
+    params: typing.Dict[str, Param]
+    """All parameters in all statements in the script"""
+
+
 class MaterializeVolatile(Base):
     pass
 

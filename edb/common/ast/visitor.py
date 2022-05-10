@@ -115,7 +115,7 @@ class NodeVisitor:
 
     def container_visit(self, node):
         result = []
-        for elem in node:
+        for elem in (node.values() if isinstance(node, dict) else node):
             if base.is_ast_node(elem) or typeutils.is_container(elem):
                 result.append(self.visit(elem))
             else:
