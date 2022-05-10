@@ -3103,6 +3103,19 @@ class TestInsert(tb.QueryTestCase):
         self.assertEqual(len(obj3), 1)
         self.assertEqual(obj1.id, tuple(obj3)[0].id)
 
+    async def test_edgeql_insert_unless_conflict_24(self):
+        await self.con.execute('''
+            WITH
+                raw_data := to_json('[1,2]')
+            for data in {<int64>json_array_unpack(raw_data)} union(
+                INSERT Person {
+                    note := (INSERT Note { name := 'x' }),
+                    name := <str>data,
+                }
+                UNLESS conflict on .name
+            );
+        ''')
+
     async def test_edgeql_insert_dependent_01(self):
         query = r'''
             SELECT (
