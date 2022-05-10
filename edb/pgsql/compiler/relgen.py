@@ -3186,12 +3186,21 @@ def process_set_as_agg_expr_inner(
 
         pathctx.put_path_var(
             stmt, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)
-        pathctx.get_path_output(
+        out = pathctx.get_path_output(
             stmt, ir_set.path_id, aspect=aspect, env=ctx.env)
+        assert isinstance(out, pgast.ColumnRef)
+
+        # HACK: We select join in the inner statement instead of just
+        # using it as a subquery to work around a postgres bug that
+        # occurs when something defined with a subquery is used as an
+        # argument to `grouping`. See #3844.
+        stmt_rvar = relctx.rvar_for_rel(stmt, ctx=ctx)
+        wrapper.from_clause.append(stmt_rvar)
+        val = astutils.get_column(stmt_rvar, out)
 
         assert wrapper
         set_expr = pgast.CoalesceExpr(
-            args=[stmt, iv], ser_safe=serialization_safe)
+            args=[val, iv], ser_safe=serialization_safe)
 
         pathctx.put_path_var(
             wrapper, ir_set.path_id, set_expr, aspect=aspect, env=ctx.env)

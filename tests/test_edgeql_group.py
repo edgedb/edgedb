@@ -966,3 +966,15 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                 tb.bag(["red", "black"]),
             ]),
         )
+
+    async def test_edgeql_group_agg_grouping_01(self):
+        # Something about this previously triggered a postgres ISE
+        # that we had to work around.
+        await self.assert_query_result(
+            '''
+                select (group cards::Card
+                   using awd_size := count(.awards)
+                by awd_size, .element) { grouping };
+            ''',
+            [{"grouping": ["awd_size", "element"]}] * 5,
+        )
