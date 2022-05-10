@@ -1,8 +1,10 @@
 .. _ref_guide_deployment_heroku:
 
-=========
-On Heroku
-=========
+======
+Heroku
+======
+
+:edb-alt-title: Deploying EdgeDB to Google Cloud
 
 In this guide we show how to deploy EdgeDB to Heroku using a Heroku PostgreSQL
 add-on as the backend.
