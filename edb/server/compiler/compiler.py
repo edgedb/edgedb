@@ -69,6 +69,7 @@ from edb.schema import schema as s_schema
 from edb.schema import types as s_types
 from edb.schema import utils as s_utils
 
+from edb.pgsql import ast as pgast
 from edb.pgsql import common as pg_common
 from edb.pgsql import delta as pg_delta
 from edb.pgsql import dbops as pg_dbops
@@ -607,9 +608,10 @@ class Compiler:
 
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
+        schema = current_tx.get_schema(self._std_schema)
         ir = qlcompiler.compile_ast_to_ir(
             ql,
-            schema=current_tx.get_schema(self._std_schema),
+            schema=schema,
             script_info=script_info,
             options=self._get_compile_options(ctx),
         )
@@ -648,6 +650,14 @@ class Compiler:
 
         sql_bytes = sql_text.encode(defines.EDGEDB_ENCODING)
 
+        in_type_args = None
+        params: list[tuple[str, s_obj.Object, bool]] = []
+        has_named_params = False
+        if ir.params:
+            params, in_type_args = self._extract_params(
+                ir.params, argmap=argmap, script_info=script_info,
+                schema=ir.schema, ctx=ctx)
+
         if single_stmt_mode:
             if native_out_format:
                 out_type_data, out_type_id = sertypes.TypeSerializer.describe(
@@ -658,55 +668,6 @@ class Compiler:
             else:
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
-
-            in_type_args = None
-            params: list[tuple[str, s_obj.Object, bool]] = []
-            has_named_params = False
-
-            if ir.params:
-                first_param = next(iter(ir.params))
-                has_named_params = not first_param.name.isdecimal()
-                if (src := ctx.source) is not None:
-                    first_extracted = src.first_extra()
-                else:
-                    first_extracted = None
-
-                if first_extracted is not None:
-                    user_params = first_extracted
-                else:
-                    user_params = len(ir.params)
-
-                params = [None] * user_params
-                in_type_args = [None] * user_params
-                for param in ir.params:
-                    sql_param = argmap[param.name]
-
-                    idx = sql_param.index - 1
-                    if first_extracted is not None and idx >= first_extracted:
-                        continue
-
-                    array_tid = None
-                    if param.schema_type.is_array():
-                        el_type = param.schema_type.get_element_type(ir.schema)
-                        array_tid = el_type.id
-
-                    # NB: We'll need to turn this off for script args
-                    if not has_named_params and str(idx) != param.name:
-                        raise RuntimeError(
-                            'positional argument name disagrees '
-                            'with its actual position')
-
-                    params[idx] = (
-                        param.name,
-                        param.schema_type,
-                        sql_param.required,
-                    )
-
-                    in_type_args[idx] = dbstate.Param(
-                        name=param.name,
-                        required=sql_param.required,
-                        array_type_id=array_tid,
-                    )
 
             globals = None
             if ir.globals:
@@ -770,7 +731,71 @@ class Compiler:
             return dbstate.SimpleQuery(
                 sql=(sql_bytes,),
                 has_dml=ir.dml_exprs,
+                in_type_args=in_type_args,
             )
+
+    def _extract_params(
+        self,
+        params: List[irast.Param],
+        *,
+        schema: s_schema.Schema,
+        argmap: Optional[Dict[str, pgast.Param]],
+        script_info: Optional[irast.ScriptInfo],
+        ctx: CompileContext,
+    ) -> Tuple[List[tuple], List[dbstate.Param]]:
+        first_param = next(iter(params))
+        has_named_params = not first_param.name.isdecimal()
+
+        if (src := ctx.source) is not None:
+            first_extra = src.first_extra()
+        else:
+            first_extra = None
+
+        user_params = first_extra if first_extra is not None else len(params)
+
+        if script_info is not None:
+            outer_mapping = {n: i for i, n in enumerate(script_info.params)}
+        else:
+            outer_mapping = None
+
+        oparams = [None] * user_params
+        in_type_args = [None] * user_params
+        for idx, param in enumerate(params):
+            if argmap is not None:
+                sql_param = argmap[param.name]
+                idx = sql_param.index - 1
+            if idx >= user_params:
+                continue
+
+            array_tid = None
+            if param.schema_type.is_array():
+                el_type = param.schema_type.get_element_type(schema)
+                array_tid = el_type.id
+
+            # NB: We'll need to turn this off for script args
+            if (
+                not script_info
+                and not has_named_params
+                and str(idx) != param.name
+            ):
+                raise RuntimeError(
+                    'positional argument name disagrees '
+                    'with its actual position')
+
+            oparams[idx] = (
+                param.name,
+                param.schema_type,
+                param.required,
+            )
+
+            in_type_args[idx] = dbstate.Param(
+                name=param.name,
+                required=param.required,
+                array_type_id=array_tid,
+                outer_idx=outer_mapping[param.name] if outer_mapping else None,
+            )
+
+        return oparams, in_type_args
 
     def _compile_and_apply_ddl_stmt(
         self,
@@ -1816,6 +1841,7 @@ class Compiler:
             elif isinstance(comp, dbstate.SimpleQuery):
                 assert not single_stmt_mode
                 unit.sql = comp.sql
+                unit.in_type_args = comp.in_type_args
 
             elif isinstance(comp, dbstate.DDLQuery):
                 unit.sql = comp.sql
@@ -1931,10 +1957,33 @@ class Compiler:
             if len(rv) != 1:  # pragma: no cover
                 raise errors.InternalServerError(
                     f'expected 1 compiled unit; got {len(rv)}')
-        else:
+        elif script_info:
+            params, in_type_args = self._extract_params(
+                list(script_info.params.values()),
+                argmap=None, script_info=None, schema=script_info.schema,
+                ctx=ctx)
+
+            if ctx.protocol_version >= (0, 12):
+                in_type_data, in_type_id = \
+                    sertypes.TypeSerializer.describe_params(
+                        schema=ctx.state.current_tx().get_schema(
+                            self._std_schema),
+                        params=params,
+                        protocol_version=ctx.protocol_version,
+                    )
+            else:
+                in_type_data = in_type_id = None
+
+            if False:
+                print('script argument debug!')
+                print(in_type_id)
+                print(in_type_args)
+                print(in_type_data)
+                print([x.in_type_args for x in rv])
+
             # XXX: Obviously the whole point of the script_info stuff is
             # *to* support params but we aren't there yet
-            if script_info and script_info.params:
+            if script_info.params:
                 raise errors.QueryError(
                     'EdgeQL script queries cannot accept parameters')
 

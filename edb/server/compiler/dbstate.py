@@ -106,6 +106,8 @@ class SimpleQuery(BaseQuery):
     is_transactional: bool = True
     has_dml: bool = False
     single_unit: bool = False
+    # XXX: Temporary hack, since SimpleQuery will die
+    in_type_args: Optional[List[Param]] = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -170,6 +172,7 @@ class Param:
     name: str
     required: bool
     array_type_id: Optional[uuid.UUID]
+    outer_idx: int
 
 
 #############################

@@ -742,4 +742,4 @@ def preprocess_script(
             lparams.sort(key=lambda x: int(x[0]))
             params = dict(lparams)
 
-    return irast.ScriptInfo(params=params)
+    return irast.ScriptInfo(params=params, schema=ctx.env.schema)
