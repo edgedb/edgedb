@@ -42,6 +42,7 @@ from edb.server import defines as edbdef
 # can't cimport `protocol.binary` for some reason.
 from edb.server.pgproto.debug cimport PG_DEBUG
 
+from . import acme_v2
 from . import edgeql_ext
 from . import metrics
 from . import server_info
@@ -85,7 +86,9 @@ cdef class HttpProtocol:
         external_auth: bool=False,
         binary_endpoint_security = None,
         http_endpoint_security = None,
+        acme_challenge = None,
     ):
+        self.acme_challenge = acme_challenge
         self.loop = server.get_loop()
         self.server = server
         self.transport = None
@@ -124,6 +127,12 @@ cdef class HttpProtocol:
         if self.first_data_call:
             self.first_data_call = False
 
+            is_alpn_challenge = False
+            # only check if a new connection is an ACME challenge if we started
+            # one.
+            if self.acme_challenge:
+                is_alpn_challenge = acme_v2.is_tls_alpn_01_challenge(data)
+
             # Detect if the client is speaking TLS in the "first" data using
             # the SSL library. This is not the official handshake as we only
             # need to know "is_tls"; the first data is used again for the true
@@ -131,16 +140,18 @@ cdef class HttpProtocol:
             # error message to non-TLS clients.
             is_tls = True
             try:
+                if is_alpn_challenge:
+                    print('answering alpn challenge')
+                    self.sslctx = self.acme_challenge.sslctx()
+
                 outgoing = ssl.MemoryBIO()
                 incoming = ssl.MemoryBIO()
                 incoming.write(data)
-                sslobj = self.sslctx.wrap_bio(
-                    incoming, outgoing, server_side=True
-                )
+                sslobj = self.sslctx.wrap_bio(incoming, outgoing, server_side=True)
                 sslobj.do_handshake()
             except ssl.SSLWantReadError:
                 pass
-            except ssl.SSLError:
+            except ssl.SSLError as e:
                 is_tls = False
 
             self.is_tls = is_tls
@@ -152,6 +163,23 @@ cdef class HttpProtocol:
                     self._forward_first_data(data), interruptable=True
                 )
                 self.server.create_task(self._start_tls(), interruptable=True)
+                if is_alpn_challenge:
+                    async def finalize():
+                        # give some time for Let's Encrypt to verify us
+                        await asyncio.sleep(5)
+
+                        if await self.acme_challenge.finalize():
+                            print('finalized')
+                            # inti_tls() asserts that _sslctx is None
+                            # maybe remove the assertion?
+                            self.acme_challenge = None
+                            self.server._sslctx = None
+                            self.server.init_tls(
+                                'cert.pem',
+                                'domain.private.key.pem',
+                                tls_cert_newly_generated=True,
+                            )
+                    self.server.create_task(finalize(), interruptable=True)
                 return
 
             # In case when we're talking to a non-TLS client, keep using the
