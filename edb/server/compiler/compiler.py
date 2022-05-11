@@ -115,7 +115,6 @@ class CompileContext:
     compat_ver: Optional[verutils.Version] = None
     bootstrap_mode: bool = False
     internal_schema_mode: bool = False
-    standalone_mode: bool = False
     log_ddl_as_migrations: bool = True
 
 
@@ -178,7 +177,6 @@ def new_compiler_context(
     output_format: enums.IoFormat = enums.IoFormat.BINARY,
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
-    standalone_mode: bool = False,
     protocol_version: Tuple[int, int] = defines.CURRENT_PROTOCOL,
 ) -> CompileContext:
     """Create and return an ad-hoc compiler context."""
@@ -201,7 +199,6 @@ def new_compiler_context(
         schema_reflection_mode=schema_reflection_mode,
         bootstrap_mode=bootstrap_mode,
         internal_schema_mode=internal_schema_mode,
-        standalone_mode=standalone_mode,
         stmt_mode=(
             enums.CompileStatementMode.SINGLE
             if single_statement else enums.CompileStatementMode.ALL
@@ -689,10 +686,7 @@ class Compiler:
                         continue
 
                     array_tid = None
-                    if (
-                        param.schema_type.is_array()
-                        and not ctx.standalone_mode
-                    ):
+                    if param.schema_type.is_array():
                         el_type = param.schema_type.get_element_type(ir.schema)
                         array_tid = el_type.id
 
