@@ -254,6 +254,19 @@ class LinkTargetDeleteAction(s_enum.StrEnum):
             raise ValueError(f'unsupported enum value {self!r}')
 
 
+class LinkSourceDeleteAction(s_enum.StrEnum):
+    DeleteTarget = 'DeleteTarget'
+    Allow = 'Allow'
+
+    def to_edgeql(self) -> str:
+        if self is LinkSourceDeleteAction.DeleteTarget:
+            return 'DELETE TARGET'
+        elif self is LinkSourceDeleteAction.Allow:
+            return 'ALLOW'
+        else:
+            raise ValueError(f'unsupported enum value {self!r}')
+
+
 class ConfigScope(s_enum.StrEnum):
 
     INSTANCE = 'INSTANCE'
