@@ -4,13 +4,15 @@ Introduction
 ============
 
 EdgeDB is a next-generation `graph-relational database
-</blog/the-graph-relational-database-defined>`_.
+</blog/the-graph-relational-database-defined>`_ designed as a spiritual
+successor to the relational database.
 
-It's designed to be a spiritual successor to the SQL-based relation database
-and inherits all its core strengths: type safety, performance, reliability,
-and ACID compliance. Beyond that, EdgeDB brings with it a more intuitive data
-model based on *object types*, *properties*, and *links*, plus a superpowered
-query language that solves SQL's biggest usability problems.
+It inherits the strengths of SQL databases: type safety, performance,
+reliability, and transactionality. But instead of modeling data in a
+relational (tabular) way, EdgeDB represents data with *object types*
+containing *properties* and *links* to other objects. It leverages
+this object-oriented model to provide a superpowered query language that
+solves some of SQL's biggest usability problems.
 
 How to read the docs
 ^^^^^^^^^^^^^^^^^^^^
