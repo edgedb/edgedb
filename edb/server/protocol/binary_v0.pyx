@@ -47,22 +47,25 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         buf.write_int16(SERVER_HEADER_CAPABILITIES)
         buf.write_int32(sizeof(uint64_t))
         buf.write_int64(<int64_t>(
-            <uint64_t>compiled_query.query_unit.capabilities
+            <uint64_t>compiled_query.query_unit_group.capabilities
         ))
 
-        buf.write_byte(self.render_cardinality(compiled_query.query_unit))
+        buf.write_byte(
+            self.render_cardinality(compiled_query.query_unit_group)
+        )
 
         if self.protocol_version >= (0, 14):
-            buf.write_bytes(compiled_query.query_unit.in_type_id)
+            buf.write_bytes(compiled_query.query_unit_group.in_type_id)
             buf.write_len_prefixed_bytes(
-                compiled_query.query_unit.in_type_data)
+                compiled_query.query_unit_group.in_type_data
+            )
 
-            buf.write_bytes(compiled_query.query_unit.out_type_id)
+            buf.write_bytes(compiled_query.query_unit_group.out_type_id)
             buf.write_len_prefixed_bytes(
-                compiled_query.query_unit.out_type_data)
+                compiled_query.query_unit_group.out_type_data)
         else:
-            buf.write_bytes(compiled_query.query_unit.in_type_id)
-            buf.write_bytes(compiled_query.query_unit.out_type_id)
+            buf.write_bytes(compiled_query.query_unit_group.in_type_id)
+            buf.write_bytes(compiled_query.query_unit_group.out_type_id)
 
         buf.end_message()
 
@@ -304,33 +307,35 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
-        query_unit = self.get_dbview().lookup_compiled_query(query_req)
-        if query_unit is None:
+        query_unit_group = self.get_dbview().lookup_compiled_query(query_req)
+        if query_unit_group is None:
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
 
             compiled = await self._parse(query, query_req)
             self._last_anon_compiled = compiled
-            query_unit = compiled.query_unit
+            query_unit_group = compiled.query_unit_group
             if self._cancelled:
                 raise ConnectionAbortedError
         else:
             compiled = CompiledQuery(
-                query_unit=query_unit,
+                query_unit_group=query_unit_group,
                 first_extra=query_req.source.first_extra(),
                 extra_count=query_req.source.extra_count(),
                 extra_blob=query_req.source.extra_blob(),
             )
             self._last_anon_compiled = compiled
 
-        if query_unit.capabilities & ~query_req.allow_capabilities:
-            raise query_unit.capabilities.make_error(
+        if query_unit_group.capabilities & ~query_req.allow_capabilities:
+            raise query_unit_group.capabilities.make_error(
                 query_req.allow_capabilities,
                 errors.DisabledCapabilityError,
             )
 
-        if (query_unit.in_type_id != in_tid or
-            query_unit.out_type_id != out_tid):
+        if (
+            query_unit_group.in_type_id != in_tid or
+            query_unit_group.out_type_id != out_tid
+        ):
             # The client has outdated information about type specs.
             if self.debug:
                 self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
@@ -346,7 +351,10 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
         await self._execute(
-            compiled, bind_args, bool(query_unit.sql_hash))
+            compiled,
+            bind_args,
+            len(query_unit_group) == 1 and bool(query_unit_group[0].sql_hash),
+        )
 
     cdef legacy_parse_prepare_query_part(self, parse_stmt_name: bint):
         cdef:
@@ -427,7 +435,6 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         stmt_name = self.buffer.read_len_prefixed_bytes()
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
-        query_unit = None
 
         if self.debug:
             self.debug_print('EXECUTE')
@@ -442,8 +449,8 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
             compiled = self._last_anon_compiled
 
-        if compiled.query_unit.capabilities & ~allow_capabilities:
-            raise compiled.query_unit.capabilities.make_error(
+        if compiled.query_unit_group.capabilities & ~allow_capabilities:
+            raise compiled.query_unit_group.capabilities.make_error(
                 allow_capabilities,
                 errors.DisabledCapabilityError,
             )

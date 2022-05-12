@@ -197,12 +197,14 @@ cdef class QueryRequestInfo:
 @cython.final
 cdef class CompiledQuery:
 
-    def __init__(self, object query_unit,
+    def __init__(
+        self,
+        object query_unit_group,
         first_extra: Optional[int]=None,
         int extra_count=0,
         bytes extra_blob=None
     ):
-        self.query_unit = query_unit
+        self.query_unit_group = query_unit_group
         self.first_extra = first_extra
         self.extra_count = extra_count
         self.extra_blob = extra_blob
@@ -927,11 +929,11 @@ cdef class EdgeConnection:
                     self.protocol_version,
                     query_req.inline_objectids,
                 )
-            units, self.last_state, self.last_state_id = result
+            unit_group, self.last_state, self.last_state_id = result
         finally:
             metrics.edgeql_query_compilation_duration.observe(
                 time.monotonic() - started_at)
-        return units
+        return unit_group
 
     async def _compile_script(
         self,
@@ -982,11 +984,11 @@ cdef class EdgeConnection:
                     stmt_mode,
                     self.protocol_version,
                 )
-            units, self.last_state, self.last_state_id = result
+            unit_group, self.last_state, self.last_state_id = result
         finally:
             metrics.edgeql_query_compilation_duration.observe(
                 time.monotonic() - started_at)
-        return units
+        return unit_group
 
     async def _compile_rollback(self, bytes eql):
         assert self.get_dbview().in_tx_error()
@@ -1002,7 +1004,8 @@ cdef class EdgeConnection:
     async def _recover_script_error(self, eql: bytes, allow_capabilities):
         assert self.get_dbview().in_tx_error()
 
-        query_unit, num_remain = await self._compile_rollback(eql)
+        query_unit_group, num_remain = await self._compile_rollback(eql)
+        query_unit = query_unit_group[0]
 
         if not (allow_capabilities & enums.Capability.TRANSACTION):
             raise errors.DisabledCapabilityError(
@@ -1097,18 +1100,17 @@ cdef class EdgeConnection:
             dbview.DatabaseConnectionView _dbview
             pgcon.PGConnection conn
 
-        units = await self._compile_script(eql, stmt_mode=stmt_mode)
+        unit_group = await self._compile_script(eql, stmt_mode=stmt_mode)
         metrics.edgeql_query_compilations.inc(1.0, 'compiler')
 
         if self._cancelled:
             raise ConnectionAbortedError
 
-        for query_unit in units:
-            if query_unit.capabilities & ~allow_capabilities:
-                raise query_unit.capabilities.make_error(
-                    allow_capabilities,
-                    errors.DisabledCapabilityError,
-                )
+        if unit_group.capabilities & ~allow_capabilities:
+            raise unit_group.capabilities.make_error(
+                allow_capabilities,
+                errors.DisabledCapabilityError,
+            )
 
         _dbview = self.get_dbview()
         if not _dbview.in_tx():
@@ -1120,7 +1122,7 @@ cdef class EdgeConnection:
                 # the current status in conn is in sync with dbview, skip the
                 # state restoring
                 state = None
-            for query_unit in units:
+            for query_unit in unit_group.units:
                 if self._cancelled:
                     raise ConnectionAbortedError
 
@@ -1257,9 +1259,9 @@ cdef class EdgeConnection:
                              'after', source.first_extra())
 
         _dbview = self.get_dbview()
-        query_unit = _dbview.lookup_compiled_query(query_req)
+        query_unit_group = _dbview.lookup_compiled_query(query_req)
         cached = True
-        if query_unit is None:
+        if query_unit_group is None:
             # Cache miss; need to compile this query.
             cached = False
 
@@ -1267,18 +1269,19 @@ cdef class EdgeConnection:
                 # The current transaction is aborted; only
                 # ROLLBACK or ROLLBACK TO TRANSACTION could be parsed;
                 # try doing just that.
-                query_unit, num_remain = await self._compile_rollback(eql)
+                query_unit_group, num_remain = await self._compile_rollback(
+                    eql
+                )
                 if num_remain:
                     # Raise an error if there were more than just a
                     # ROLLBACK in that 'eql' string.
                     _dbview.raise_in_tx_error()
             else:
-                query_unit = await self._compile(
+                query_unit_group = await self._compile(
                     query_req,
                 )
-                query_unit = query_unit[0]
-            if query_unit.capabilities & ~query_req.allow_capabilities:
-                raise query_unit.capabilities.make_error(
+            if query_unit_group.capabilities & ~query_req.allow_capabilities:
+                raise query_unit_group.capabilities.make_error(
                     query_req.allow_capabilities,
                     errors.DisabledCapabilityError,
                 )
@@ -1287,11 +1290,14 @@ cdef class EdgeConnection:
             # transaction is aborted.  We can only complete this Parse
             # command if the cached QueryUnit is a 'ROLLBACK' or
             # 'ROLLBACK TO SAVEPOINT' command.
+            if len(query_unit_group) > 1:
+                _dbview.raise_in_tx_error()
+            query_unit = query_unit_group[0]
             if not (query_unit.tx_rollback or query_unit.tx_savepoint_rollback):
                 _dbview.raise_in_tx_error()
 
-        if not cached and query_unit.cacheable:
-            _dbview.cache_compiled_query(query_req, query_unit)
+        if not cached and query_unit_group.cacheable:
+            _dbview.cache_compiled_query(query_req, query_unit_group)
 
         metrics.edgeql_query_compilations.inc(
             1.0,
@@ -1299,7 +1305,7 @@ cdef class EdgeConnection:
         )
 
         return CompiledQuery(
-            query_unit=query_unit,
+            query_unit_group=query_unit_group,
             first_extra=source.first_extra(),
             extra_count=source.extra_count(),
             extra_blob=source.extra_blob(),
@@ -1320,8 +1326,8 @@ cdef class EdgeConnection:
                 raise errors.BinaryProtocolError(
                     f'cardinality {card_name} cannot be requested')
 
-    cdef char render_cardinality(self, query_unit) except -1:
-        return query_unit.cardinality.value
+    cdef char render_cardinality(self, query_unit_group) except -1:
+        return query_unit_group.cardinality.value
 
     cdef parse_io_format(self, bytes mode):
         if mode == b'j':
@@ -1452,18 +1458,21 @@ cdef class EdgeConnection:
         buf.write_int16(SERVER_HEADER_CAPABILITIES)
         buf.write_int32(sizeof(uint64_t))
         buf.write_int64(<int64_t>(
-            <uint64_t>compiled_query.query_unit.capabilities
+            <uint64_t>compiled_query.query_unit_group.capabilities
         ))
 
-        buf.write_byte(self.render_cardinality(compiled_query.query_unit))
+        buf.write_byte(
+            self.render_cardinality(compiled_query.query_unit_group)
+        )
 
-        buf.write_bytes(compiled_query.query_unit.in_type_id)
+        buf.write_bytes(compiled_query.query_unit_group.in_type_id)
         buf.write_len_prefixed_bytes(
-            compiled_query.query_unit.in_type_data)
+            compiled_query.query_unit_group.in_type_data
+        )
 
-        buf.write_bytes(compiled_query.query_unit.out_type_id)
+        buf.write_bytes(compiled_query.query_unit_group.out_type_id)
         buf.write_len_prefixed_bytes(
-            compiled_query.query_unit.out_type_data)
+            compiled_query.query_unit_group.out_type_data)
 
         buf.end_message()
 
@@ -1484,16 +1493,18 @@ cdef class EdgeConnection:
         msg.write_int16(1)
         msg.write_int16(SERVER_HEADER_CAPABILITIES)
         msg.write_int32(sizeof(uint64_t))
-        msg.write_int64(<int64_t>(<uint64_t>query.query_unit.capabilities))
+        msg.write_int64(
+            <int64_t>(<uint64_t>query.query_unit_group.capabilities)
+        )
 
-        msg.write_byte(self.render_cardinality(query.query_unit))
+        msg.write_byte(self.render_cardinality(query.query_unit_group))
 
-        in_data = query.query_unit.in_type_data
-        msg.write_bytes(query.query_unit.in_type_id)
+        in_data = query.query_unit_group.in_type_data
+        msg.write_bytes(query.query_unit_group.in_type_id)
         msg.write_len_prefixed_bytes(in_data)
 
-        out_data = query.query_unit.out_type_data
-        msg.write_bytes(query.query_unit.out_type_id)
+        out_data = query.query_unit_group.out_type_data
+        msg.write_bytes(query.query_unit_group.out_type_id)
         msg.write_len_prefixed_bytes(out_data)
 
         msg.end_message()
@@ -1548,7 +1559,7 @@ cdef class EdgeConnection:
             dbview.DatabaseConnectionView _dbview
             pgcon.PGConnection conn
 
-        query_unit = compiled.query_unit
+        query_unit = compiled.query_unit_group[0]
         _dbview = self.get_dbview()
         if _dbview.in_tx_error() or query_unit.tx_savepoint_rollback:
             if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
@@ -1677,23 +1688,25 @@ cdef class EdgeConnection:
             hash(query_req) == self._last_anon_compiled_hash
         ):
             compiled = self._last_anon_compiled
-            query_unit = compiled.query_unit
+            query_unit_group = compiled.query_unit_group
         else:
             self._last_anon_compiled = None
-            query_unit = self.get_dbview().lookup_compiled_query(query_req)
-            if query_unit is None:
+            query_unit_group = self.get_dbview().lookup_compiled_query(
+                query_req
+            )
+            if query_unit_group is None:
                 if self.debug:
                     self.debug_print('EXECUTE /REPARSE', query)
 
                 compiled = await self._parse(query, query_req)
                 self._last_anon_compiled = compiled
                 self._last_anon_compiled_hash = hash(query_req)
-                query_unit = compiled.query_unit
+                query_unit_group = compiled.query_unit_group
                 if self._cancelled:
                     raise ConnectionAbortedError
             else:
                 compiled = CompiledQuery(
-                    query_unit=query_unit,
+                    query_unit_group=query_unit_group,
                     first_extra=query_req.source.first_extra(),
                     extra_count=query_req.source.extra_count(),
                     extra_blob=query_req.source.extra_blob(),
@@ -1701,14 +1714,16 @@ cdef class EdgeConnection:
                 self._last_anon_compiled = compiled
                 self._last_anon_compiled_hash = hash(query_req)
 
-        if query_unit.capabilities & ~query_req.allow_capabilities:
-            raise query_unit.capabilities.make_error(
+        if query_unit_group.capabilities & ~query_req.allow_capabilities:
+            raise query_unit_group.capabilities.make_error(
                 query_req.allow_capabilities,
                 errors.DisabledCapabilityError,
             )
 
-        if (query_unit.in_type_id != in_tid or
-                query_unit.out_type_id != out_tid):
+        if (
+            query_unit_group.in_type_id != in_tid or
+            query_unit_group.out_type_id != out_tid
+        ):
             # The client has outdated information about type specs.
             if self.debug:
                 self.debug_print('EXECUTE /MISMATCH', query)
@@ -1730,7 +1745,10 @@ cdef class EdgeConnection:
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
         await self._execute(
-            compiled, bind_args, bool(query_unit.sql_hash))
+            compiled,
+            bind_args,
+            len(query_unit_group) == 1 and bool(query_unit_group[0].sql_hash),
+        )
 
     async def sync(self):
         self.buffer.consume_message()
@@ -2149,12 +2167,12 @@ cdef class EdgeConnection:
         # number of elements in the tuple
         # for empty tuple it's okay to send zero-length arguments
         is_null_type = \
-            query.query_unit.in_type_id == sertypes.NULL_TYPE_ID.bytes
+            query.query_unit_group.in_type_id == sertypes.NULL_TYPE_ID.bytes
         if frb_get_len(&in_buf) == 0:
             if not is_null_type:
                 raise errors.ProtocolError(
                     f"insufficient data for type-id "
-                    f"{query.query_unit.in_type_id}")
+                    f"{query.query_unit_group.in_type_id}")
             recv_args = 0
         else:
             if is_null_type:
@@ -2164,7 +2182,7 @@ cdef class EdgeConnection:
                     "(id: 00000000-0000-0000-0000-000000000000, "
                     "encoded with zero bytes)")
             recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
-        decl_args = len(query.query_unit.in_type_args or ())
+        decl_args = len(query.query_unit_group.in_type_args or ())
 
         if recv_args != decl_args:
             raise errors.QueryError(
@@ -2176,16 +2194,16 @@ cdef class EdgeConnection:
             assert recv_args == query.first_extra, \
                 f"argument count mismatch {recv_args} != {query.first_extra}"
             num_args += query.extra_count
-        if query.query_unit.globals:
-            num_args += len(query.query_unit.globals)
-            for _, has_present_arg in query.query_unit.globals:
+        if query.query_unit_group.globals:
+            num_args += len(query.query_unit_group.globals)
+            for _, has_present_arg in query.query_unit_group.globals:
                 if has_present_arg:
                     num_args += 1
 
         out_buf.write_int16(<int16_t>num_args)
 
-        if query.query_unit.in_type_args:
-            for param in query.query_unit.in_type_args:
+        if query.query_unit_group.in_type_args:
+            for param in query.query_unit_group.in_type_args:
                 frb_read(&in_buf, 4)  # reserved
                 in_len = hton.unpack_int32(frb_read(&in_buf, 4))
                 out_buf.write_int32(in_len)
@@ -2214,9 +2232,9 @@ cdef class EdgeConnection:
             out_buf.write_bytes(query.extra_blob)
 
         # Inject any globals variables into the argument stream.
-        if query.query_unit.globals:
+        if query.query_unit_group.globals:
             globs = self.get_dbview().get_globals()
-            for (glob, has_present_arg) in query.query_unit.globals:
+            for (glob, has_present_arg) in query.query_unit_group.globals:
                 val = None
                 entry = globs.get(glob)
                 if entry:
@@ -2533,9 +2551,9 @@ cdef class EdgeConnection:
         query_req = QueryRequestInfo(edgeql.Source.from_string(eql),
                                      self.protocol_version)
 
-        units = await self._compile(query_req)
-        assert len(units) == 1
-        query_unit = units[0]
+        query_unit_group = await self._compile(query_req)
+        assert len(query_unit_group) == 1
+        query_unit = query_unit_group[0]
 
         _dbview = self.get_dbview()
         try:

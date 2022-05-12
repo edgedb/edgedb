@@ -518,10 +518,10 @@ class Compiler:
     ) -> Tuple[str, Dict[str, int]]:
 
         source = edgeql.Source.from_string(eql)
-        units = self._compile(ctx=ctx, source=source)
+        unit_group = self._compile(ctx=ctx, source=source)
 
         sql_stmts = []
-        for u in units:
+        for u in unit_group:
             for stmt in u.sql:
                 stmt = stmt.strip()
                 if not stmt.endswith(b';'):
@@ -536,7 +536,7 @@ class Compiler:
                     ' requested SINGLE statement mode'
                 )
             sql = sql_stmts[0].strip(b';')
-            argmap = units[0].in_type_args
+            argmap = unit_group[0].in_type_args
             if argmap is None:
                 argmap = ()
         else:
@@ -1682,7 +1682,7 @@ class Compiler:
         *,
         ctx: CompileContext,
         source: edgeql.Source,
-    ) -> List[dbstate.QueryUnit]:
+    ) -> dbstate.QueryUnitGroup:
         current_tx = ctx.state.current_tx()
         if current_tx.get_migration_state() is not None:
             original = edgeql.Source.from_string(source.text())
@@ -1717,7 +1717,7 @@ class Compiler:
         *,
         ctx: CompileContext,
         source: edgeql.Source,
-    ) -> List[dbstate.QueryUnit]:
+    ) -> dbstate.QueryUnitGroup:
 
         # When True it means that we're compiling for "connection.query()".
         # That means that the returned QueryUnit has to have the in/out codec
@@ -1743,7 +1743,7 @@ class Compiler:
         if not len(statements):  # pragma: no cover
             raise errors.ProtocolError('nothing to compile')
 
-        units: list[dbstate.QueryUnit] = []
+        rv = dbstate.QueryUnitGroup()
 
         for stmt in statements:
             comp, capabilities = self._compile_dispatch_ql(
@@ -1755,7 +1755,6 @@ class Compiler:
                 cardinality=default_cardinality,
                 capabilities=capabilities,
             )
-            units.append(unit)
 
             if not comp.is_transactional:
                 if statements_len > 1:
@@ -1905,12 +1904,17 @@ class Compiler:
             else:  # pragma: no cover
                 raise errors.InternalServerError('unknown compile state')
 
-        if single_stmt_mode:
-            if len(units) != 1:  # pragma: no cover
-                raise errors.InternalServerError(
-                    f'expected 1 compiled unit; got {len(units)}')
+            if statements_len > 1:
+                rv.append(unit)
+            else:
+                rv.init_with(unit)
 
-        for unit in units:  # pragma: no cover
+        if single_stmt_mode:
+            if len(rv) != 1:  # pragma: no cover
+                raise errors.InternalServerError(
+                    f'expected 1 compiled unit; got {len(rv)}')
+
+        for unit in rv:  # pragma: no cover
             if ctx.protocol_version < (0, 12):
                 if unit.in_type_id == sertypes.NULL_TYPE_ID.bytes:
                     unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
@@ -1943,7 +1947,7 @@ class Compiler:
                 raise errors.InternalServerError(
                     f'unit has invalid "cardinality": {unit!r}')
 
-        return units
+        return rv
 
     # API
 
@@ -1975,7 +1979,9 @@ class Compiler:
                     unit.in_type_id = sertypes.EMPTY_TUPLE_ID.bytes
                     unit.in_type_data = sertypes.EMPTY_TUPLE_DESC
 
-            return unit, len(statements) - 1
+            return (
+                dbstate.QueryUnitGroup().init_with(unit), len(statements) - 1
+            )
 
         raise errors.TransactionError(
             'expected a ROLLBACK or ROLLBACK TO SAVEPOINT command'
@@ -2074,7 +2080,7 @@ class Compiler:
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
         json_parameters: bool = False,
-    ) -> Tuple[List[dbstate.QueryUnit],
+    ) -> Tuple[dbstate.QueryUnitGroup,
                Optional[dbstate.CompilerConnectionState]]:
 
         if sess_config is None:
@@ -2116,17 +2122,12 @@ class Compiler:
             protocol_version=protocol_version,
         )
 
-        units = self._compile(ctx=ctx, source=source)
-        tx_control = False
-        for unit in units:
-            if unit.tx_id:
-                tx_control = True
-                break
+        unit_group = self._compile(ctx=ctx, source=source)
 
-        if tx_control:
-            return units, ctx.state
+        if unit_group.tx_control:
+            return unit_group, ctx.state
         else:
-            return units, None
+            return unit_group, None
 
     def compile_in_tx(
         self,
@@ -2141,7 +2142,7 @@ class Compiler:
         stmt_mode: enums.CompileStatementMode,
         protocol_version: Tuple[int, int],
         inline_objectids: bool = True,
-    ) -> Tuple[List[dbstate.QueryUnit], dbstate.CompilerConnectionState]:
+    ) -> Tuple[dbstate.QueryUnitGroup, dbstate.CompilerConnectionState]:
         state.sync_tx(txid)
 
         ctx = CompileContext(
@@ -2461,7 +2462,7 @@ class Compiler:
             )
 
         ddl_source = edgeql.Source.from_string(schema_ddl_text)
-        units = self._compile(ctx=ctx, source=ddl_source)
+        units = self._compile(ctx=ctx, source=ddl_source).units
         schema = ctx.state.current_tx().get_schema(self._std_schema)
 
         if allow_dml_in_functions:
@@ -2476,7 +2477,7 @@ class Compiler:
                 ddl_source = edgeql.Source.from_string(
                     'CONFIGURE CURRENT DATABASE RESET allow_dml_in_functions;',
                 )
-                units += self._compile(ctx=ctx, source=ddl_source)
+                units += self._compile(ctx=ctx, source=ddl_source).units
 
         restore_blocks = []
         tables = []

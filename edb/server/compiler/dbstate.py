@@ -277,6 +277,79 @@ class QueryUnit:
         return bool(self.capabilities & enums.Capability.DDL)
 
 
+@dataclasses.dataclass
+class QueryUnitGroup:
+
+    _initialized_single: Optional[bool] = None
+
+    # True if all statements in *sql* can be executed inside a transaction.
+    is_transactional: bool = True
+
+    # All capabilities used by any query units in this group
+    capabilities: enums.Capability = enums.Capability(0)
+
+    # True if it is safe to cache this unit.
+    cacheable: bool = True
+
+    # True if any query unit has tx_id
+    tx_control: bool = False
+
+    # Cardinality of the result set.  Set to NO_RESULT if the
+    # unit represents multiple queries compiled as one script.
+    cardinality: enums.Cardinality = enums.Cardinality.NO_RESULT
+
+    out_type_data: bytes = sertypes.NULL_TYPE_DESC
+    out_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
+    in_type_data: bytes = sertypes.NULL_TYPE_DESC
+    in_type_id: bytes = sertypes.NULL_TYPE_ID.bytes
+    in_type_args: Optional[List[Param]] = None
+    globals: Optional[List[str]] = None
+
+    units: List[QueryUnit] = dataclasses.field(default_factory=list)
+
+    def __iter__(self):
+        return iter(self.units)
+
+    def __len__(self):
+        return len(self.units)
+
+    def __getitem__(self, item):
+        return self.units[item]
+
+    def append(self, query_unit: QueryUnit):
+        assert not self._initialized_single
+        self._initialized_single = False
+        assert query_unit.cardinality == enums.Cardinality.NO_RESULT
+        assert query_unit.out_type_data == sertypes.NULL_TYPE_DESC
+        assert query_unit.out_type_id == sertypes.NULL_TYPE_ID.bytes
+
+        if not query_unit.is_transactional:
+            self.is_transactional = False
+        self.capabilities |= query_unit.capabilities
+        if not query_unit.cacheable:
+            self.cacheable = False
+        if query_unit.tx_id:
+            self.tx_control = True
+        self.units.append(query_unit)
+
+    def init_with(self, query_unit: QueryUnit):
+        assert self._initialized_single is None
+        self._initialized_single = True
+        self.is_transactional = query_unit.is_transactional
+        self.capabilities = query_unit.capabilities
+        self.cacheable = query_unit.cacheable
+        self.tx_control = bool(query_unit.tx_id)
+        self.cardinality = query_unit.cardinality
+        self.out_type_data = query_unit.out_type_data
+        self.out_type_id = query_unit.out_type_id
+        self.in_type_data = query_unit.in_type_data
+        self.in_type_id = query_unit.in_type_id
+        self.in_type_args = query_unit.in_type_args
+        self.globals = query_unit.globals
+        self.units[:] = [query_unit]
+        return self
+
+
 #############################
 
 

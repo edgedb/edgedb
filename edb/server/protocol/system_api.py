@@ -105,7 +105,7 @@ async def handle_status_request(
 async def compile(server, query):
     compiler_pool = server.get_compiler_pool()
 
-    units, _, _ = await compiler_pool.compile(
+    unit_group, _, _ = await compiler_pool.compile(
         edbdef.EDGEDB_SYSTEM_DB,
         s_schema.FlatSchema(),  # user schema
         server.get_global_schema(),
@@ -125,7 +125,7 @@ async def compile(server, query):
         True,           # inline_objectids
         True,           # json parameters
     )
-    return units[0]
+    return unit_group[0]
 
 
 async def execute(server, query, variables):

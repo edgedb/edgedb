@@ -442,7 +442,7 @@ def compile_single_query(
     compilerctx: edbcompiler.CompileContext,
 ) -> str:
     ql_source = edgeql.Source.from_string(eql)
-    units = compiler._compile(ctx=compilerctx, source=ql_source)
+    units = compiler._compile(ctx=compilerctx, source=ql_source).units
     assert len(units) == 1 and len(units[0].sql) == 1
     return units[0].sql[0].decode()
 
@@ -1162,7 +1162,7 @@ async def _compile_sys_queries(
             output_format=edbcompiler.IoFormat.BINARY,
             bootstrap_mode=True,
         ),
-        source=edgeql.Source.from_string(report_configs_query))
+        source=edgeql.Source.from_string(report_configs_query)).units
     assert len(units) == 1 and len(units[0].sql) == 1
 
     report_configs_typedesc = units[0].out_type_id + units[0].out_type_data

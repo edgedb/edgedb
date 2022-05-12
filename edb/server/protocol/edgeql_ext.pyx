@@ -145,7 +145,7 @@ async def handle_request(
 async def compile(db, server, bytes query):
     compiler_pool = server.get_compiler_pool()
 
-    units, _, _ = await compiler_pool.compile(
+    unit_group, _, _ = await compiler_pool.compile(
         db.name,
         db.user_schema,
         server.get_global_schema(),
@@ -165,7 +165,7 @@ async def compile(db, server, bytes query):
         True,           # inline_objectids
         True,           # json parameters
     )
-    return units[0]
+    return unit_group[0]
 
 
 async def execute(db, server, bytes query, variables, globals):

@@ -58,7 +58,7 @@ cdef next_dbver():
 cdef class Database:
 
     # Global LRU cache of compiled anonymous queries
-    _eql_to_compiled: typing.Mapping[str, dbstate.QueryUnit]
+    _eql_to_compiled: typing.Mapping[str, dbstate.QueryUnitGroup]
 
     def __init__(
         self,
@@ -130,7 +130,7 @@ cdef class Database:
     cdef _invalidate_caches(self):
         self._eql_to_compiled.clear()
 
-    cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnit):
+    cdef _cache_compiled_query(self, key, compiled: dbstate.QueryUnitGroup):
         assert compiled.cacheable
 
         existing, dbver = self._eql_to_compiled.get(key, DICTDEFAULT)
@@ -163,7 +163,7 @@ cdef class Database:
 
 cdef class DatabaseConnectionView:
 
-    _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnit]
+    _eql_to_compiled: typing.Mapping[bytes, dbstate.QueryUnitGroup]
 
     def __init__(self, db: Database, *, query_cache):
         self._db = db
@@ -420,15 +420,15 @@ cdef class DatabaseConnectionView:
     cpdef in_tx_error(self):
         return self._tx_error
 
-    cdef cache_compiled_query(self, object key, object query_unit):
-        assert query_unit.cacheable
+    cdef cache_compiled_query(self, object key, object query_unit_group):
+        assert query_unit_group.cacheable
 
         key = (key, self.get_modaliases(), self.get_session_config())
 
         if self._in_tx_with_ddl:
-            self._eql_to_compiled[key] = query_unit
+            self._eql_to_compiled[key] = query_unit_group
         else:
-            self._db._cache_compiled_query(key, query_unit)
+            self._db._cache_compiled_query(key, query_unit_group)
 
     cdef lookup_compiled_query(self, object key):
         if (self._tx_error or
@@ -439,14 +439,14 @@ cdef class DatabaseConnectionView:
         key = (key, self.get_modaliases(), self.get_session_config())
 
         if self._in_tx_with_ddl:
-            query_unit = self._eql_to_compiled.get(key)
+            query_unit_group = self._eql_to_compiled.get(key)
         else:
-            query_unit, qu_dbver = self._db._eql_to_compiled.get(
+            query_unit_group, qu_dbver = self._db._eql_to_compiled.get(
                 key, DICTDEFAULT)
-            if query_unit is not None and qu_dbver != self._db.dbver:
-                query_unit = None
+            if query_unit_group is not None and qu_dbver != self._db.dbver:
+                query_unit_group = None
 
-        return query_unit
+        return query_unit_group
 
     cdef tx_error(self):
         if self._in_tx:
