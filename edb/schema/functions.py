@@ -34,6 +34,7 @@ from edb.edgeql import ast as qlast
 from edb.edgeql import compiler as qlcompiler
 from edb.edgeql import qltypes as ft
 from edb.edgeql import parser as qlparser
+from edb.edgeql import qltypes
 from edb.common import uuidgen
 
 from . import abc as s_abc
@@ -324,6 +325,33 @@ def _params_are_all_required_singletons(
     )
 
 
+def make_func_param(
+    *,
+    name: str,
+    type: qlast.TypeExpr,
+    typemod: qltypes.TypeModifier = qltypes.TypeModifier.SingletonType,
+    kind: qltypes.ParameterKind,
+    default: Optional[qlast.Expr] = None,
+) -> qlast.FuncParam:
+    # If the param is variadic, strip the array from the type in the schema
+    if kind is ft.ParameterKind.VariadicParam:
+        assert (
+            isinstance(type, qlast.TypeName)
+            and isinstance(type.maintype, qlast.ObjectRef)
+            and type.maintype.name == 'array'
+            and type.subtypes
+        )
+        type = type.subtypes[0]
+
+    return qlast.FuncParam(
+        name=name,
+        type=type,
+        typemod=typemod,
+        kind=kind,
+        default=default,
+    )
+
+
 class Parameter(
     so.ObjectFragment,
     ParameterLike,
@@ -440,21 +468,11 @@ class Parameter(
 
     def get_ast(self, schema: s_schema.Schema) -> qlast.FuncParam:
         default = self.get_default(schema)
-        type = utils.typeref_to_ast(schema, self.get_type(schema))
         kind = self.get_kind(schema)
-        # If the param is variadic, strip the array from the type in the schema
-        if kind is ft.ParameterKind.VariadicParam:
-            assert (
-                isinstance(type, qlast.TypeName)
-                and isinstance(type.maintype, qlast.ObjectRef)
-                and type.maintype.name == 'array'
-                and type.subtypes
-            )
-            type = type.subtypes[0]
 
-        return qlast.FuncParam(
+        return make_func_param(
             name=self.get_parameter_name(schema),
-            type=type,
+            type=utils.typeref_to_ast(schema, self.get_type(schema)),
             typemod=self.get_typemod(schema),
             kind=kind,
             default=default.qlast if default else None,
@@ -1108,7 +1126,7 @@ class CreateCallableObject(
 
             num: int = props['num']
             default = props.get('default')
-            param = qlast.FuncParam(
+            param = make_func_param(
                 name=Parameter.paramname_from_fullname(props['name']),
                 type=utils.typeref_to_ast(schema, props['type']),
                 typemod=props['typemod'],
@@ -2187,7 +2205,7 @@ class DeleteFunction(DeleteCallableObject[Function], FunctionCommand):
         for op in self.get_subcommands(type=ParameterCommand):
             props = op.get_orig_attributes(schema, context)
             num: int = props['num']
-            param = qlast.FuncParam(
+            param = make_func_param(
                 name=Parameter.paramname_from_fullname(props['name']),
                 type=utils.typeref_to_ast(schema, props['type']),
                 typemod=props['typemod'],
