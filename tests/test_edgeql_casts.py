@@ -1353,6 +1353,13 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
     async def test_edgeql_casts_numeric_07(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for std::bigint'):
+            await self.con.query_single(
+                'SELECT <bigint>"100000n"')
+
+    async def test_edgeql_casts_numeric_07(self):
         numerics = ['int16', 'int32', 'int64', 'float32', 'float64', 'bigint',
                     'decimal']
 
