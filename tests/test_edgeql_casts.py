@@ -1353,6 +1353,18 @@ class TestEdgeQLCasts(tb.QueryTestCase):
         )
 
     async def test_edgeql_casts_numeric_07(self):
+        numerics = ['int16', 'int32', 'int64', 'float32', 'float64', 'bigint',
+                    'decimal']
+
+        for t1, t2 in itertools.product(numerics, numerics):
+            await self.assert_query_result(
+                f'''
+                    SELECT <{t1}><{t2}>1;
+                ''',
+                [1],
+            )
+
+    async def test_edgeql_casts_numeric_08(self):
         async with self.assertRaisesRegexTx(
                 edgedb.InvalidValueError,
                 r'invalid input syntax for std::bigint'):
@@ -1364,18 +1376,6 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 r'invalid input syntax for std::decimal'):
             await self.con.query_single(
                 'SELECT <decimal>"12313.132n')
-
-    async def test_edgeql_casts_numeric_07(self):
-        numerics = ['int16', 'int32', 'int64', 'float32', 'float64', 'bigint',
-                    'decimal']
-
-        for t1, t2 in itertools.product(numerics, numerics):
-            await self.assert_query_result(
-                f'''
-                    SELECT <{t1}><{t2}>1;
-                ''',
-                [1],
-            )
 
     async def test_edgeql_casts_collections_01(self):
         await self.assert_query_result(
