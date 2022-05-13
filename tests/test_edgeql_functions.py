@@ -2869,7 +2869,7 @@ class TestEdgeQLFunctions(tb.QueryTestCase):
 
     async def test_edgeql_functions_to_bigint_02(self):
         with self.assertRaisesRegex(edgedb.InvalidValueError,
-                                    'invalid syntax'):
+                                    'invalid input syntax'):
             async with self.con.transaction():
                 await self.con.query('''SELECT to_bigint('1.02')''')
 
