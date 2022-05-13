@@ -575,7 +575,7 @@ cdef class PGConnection:
         finally:
             await self.after_command()
 
-    async def wait_for_sync(self):
+    async def wait_for_sync(self, *, bint more=False):
         error = None
         try:
             while True:
@@ -583,7 +583,7 @@ cdef class PGConnection:
                     await self.wait_for_message()
                 mtype = self.buffer.get_message_type()
                 if mtype == b'Z':
-                    self.parse_sync_message()
+                    self.parse_sync_message(more)
                     break
                 elif mtype == b'E':
                     # ErrorResponse
@@ -975,6 +975,15 @@ cdef class PGConnection:
             else:
                 self.fallthrough()
 
+    async def wait_for_state_resp(self, bytes state, bint state_sync):
+        if state_sync:
+            try:
+                await self._parse_apply_state_resp(state)
+            finally:
+                await self.wait_for_sync(more=True)
+        else:
+            await self._parse_apply_state_resp(state)
+
     async def _parse_execute(
         self,
         object query,
@@ -1078,13 +1087,7 @@ cdef class PGConnection:
 
         try:
             if state is not None:
-                await self._parse_apply_state_resp(state)
-                if state_sync:
-                    await self.wait_for_sync()
-                    # Every call to `wait_for_sync()` resets
-                    # `waiting_for_sync` to False; so set it back to True
-                    # as it was before this `try` block.
-                    self.waiting_for_sync = True
+                await self.wait_for_state_resp(state, state_sync)
 
             buf = None
             while True:
@@ -2002,12 +2005,13 @@ cdef class PGConnection:
         self.buffer.finish_message()
         return cls, fields
 
-    cdef parse_sync_message(self):
+    cdef parse_sync_message(self, bint more=False):
         cdef char status
 
         if not self.waiting_for_sync:
             raise RuntimeError('unexpected sync')
-        self.waiting_for_sync = False
+        if not more:
+            self.waiting_for_sync = False
 
         assert self.buffer.get_message_type() == b'Z'
 

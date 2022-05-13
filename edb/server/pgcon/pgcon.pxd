@@ -107,7 +107,7 @@ cdef class PGConnection:
     cdef write(self, buf)
 
     cdef parse_error_message(self)
-    cdef parse_sync_message(self)
+    cdef parse_sync_message(self, bint more=*)
     cdef parse_parameter_status_message(self)
 
     cdef parse_notification(self)
