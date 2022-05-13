@@ -4046,6 +4046,50 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             ]
         })
 
+    def test_graphql_globals_01(self):
+        Q = r'''query { GlobalTest { gstr, garray, gid, gdef, gdef2 } }'''
+
+        for use_http_post in [True, False]:
+            self.assert_graphql_query_result(
+                Q,
+                {
+                    "GlobalTest": [{
+                        'gstr': 'WOO',
+                        'gid': '84ed3d8b-5eb2-4d31-9e1e-efb66180445c',
+                        'gdef': '',
+                        'gdef2': None, 'garray': ['x', 'y', 'z']
+                    }],
+                },
+                use_http_post=use_http_post,
+                globals={
+                    'default::test_global_str': "WOO",
+                    'default::test_global_id': (
+                        '84ed3d8b-5eb2-4d31-9e1e-efb66180445c'),
+                    'default::test_global_def': None,
+                    'default::test_global_def2': None,
+                    'default::test_global_array': ['x', 'y', 'z'],
+                },
+            )
+
+            self.assert_graphql_query_result(
+                Q,
+                {'GlobalTest': [{'gdef': 'x', 'gdef2': 'x'}]},
+                use_http_post=use_http_post,
+                globals={
+                    'default::test_global_def': 'x',
+                    'default::test_global_def2': 'x',
+                },
+            )
+
+            self.assert_graphql_query_result(
+                Q,
+                {'GlobalTest': [
+                    {'gstr': None, 'garray': None, 'gid': None,
+                     'gdef': '', 'gdef2': ''}
+                ]},
+                use_http_post=use_http_post,
+            )
+
 
 class TestGraphQLInit(tb.GraphQLTestCase):
     """Test GraphQL initialization on an empty database."""

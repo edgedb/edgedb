@@ -142,7 +142,8 @@ class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
     def get_extension_path(cls):
         return 'edgeql'
 
-    def edgeql_query(self, query, *, use_http_post=True, variables=None):
+    def edgeql_query(
+            self, query, *, use_http_post=True, variables=None, globals=None):
         req_data = {
             'query': query
         }
@@ -150,6 +151,8 @@ class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
         if use_http_post:
             if variables is not None:
                 req_data['variables'] = variables
+            if globals is not None:
+                req_data['globals'] = globals
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
             response = urllib.request.urlopen(
@@ -159,6 +162,8 @@ class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
         else:
             if variables is not None:
                 req_data['variables'] = json.dumps(variables)
+            if globals is not None:
+                req_data['globals'] = json.dumps(globals)
             response = urllib.request.urlopen(
                 f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
                 context=self.tls_context,
@@ -178,11 +183,13 @@ class EdgeQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
     def assert_edgeql_query_result(self, query, result, *,
                                    msg=None, sort=None,
                                    use_http_post=True,
-                                   variables=None):
+                                   variables=None,
+                                   globals=None):
         res = self.edgeql_query(
             query,
             use_http_post=use_http_post,
-            variables=variables)
+            variables=variables,
+            globals=globals)
 
         if sort is not None:
             # GQL will always have a single object returned. The data is
@@ -203,7 +210,8 @@ class GraphQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
 
     def graphql_query(self, query, *, operation_name=None,
                       use_http_post=True,
-                      variables=None):
+                      variables=None,
+                      globals=None):
         req_data = {
             'query': query
         }
@@ -214,6 +222,8 @@ class GraphQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
         if use_http_post:
             if variables is not None:
                 req_data['variables'] = variables
+            if globals is not None:
+                req_data['globals'] = globals
             req = urllib.request.Request(self.http_addr, method='POST')
             req.add_header('Content-Type', 'application/json')
             response = urllib.request.urlopen(
@@ -223,6 +233,8 @@ class GraphQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
         else:
             if variables is not None:
                 req_data['variables'] = json.dumps(variables)
+            if globals is not None:
+                req_data['globals'] = json.dumps(globals)
             response = urllib.request.urlopen(
                 f'{self.http_addr}/?{urllib.parse.urlencode(req_data)}',
                 context=self.tls_context,
@@ -259,12 +271,14 @@ class GraphQLTestCase(BaseHttpExtensionTest, server.QueryTestCase):
                                     msg=None, sort=None,
                                     operation_name=None,
                                     use_http_post=True,
-                                    variables=None):
+                                    variables=None,
+                                    globals=None):
         res = self.graphql_query(
             query,
             operation_name=operation_name,
             use_http_post=use_http_post,
-            variables=variables)
+            variables=variables,
+            globals=globals)
 
         if sort is not None:
             # GQL will always have a single object returned. The data is

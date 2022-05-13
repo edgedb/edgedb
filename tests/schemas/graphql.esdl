@@ -142,3 +142,22 @@ type Game extending NamedObject {
 type LinkedList extending NamedObject {
     link next -> LinkedList
 }
+
+global test_global_str -> str;
+global test_global_array -> array<str>;
+global test_global_id -> uuid;
+required global test_global_def -> str {
+    default := ""
+};
+optional global test_global_def2 -> str {
+    default := ""
+};
+function get_glob() -> optional str using (global test_global_str);
+
+alias GlobalTest := {
+    gstr := global test_global_str,
+	garray := global test_global_array,
+	gid := global test_global_id,
+	gdef := global test_global_def,
+	gdef2 := global test_global_def2,
+};

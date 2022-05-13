@@ -76,6 +76,7 @@ async def handle_request(
 
     operation_name = None
     variables = None
+    globals = None
     query = None
 
     try:
@@ -88,6 +89,7 @@ async def handle_request(
                 query = body.get('query')
                 operation_name = body.get('operationName')
                 variables = body.get('variables')
+                globals = body.get('globals')
             elif request.content_type == 'application/graphql':
                 query = request.body.decode('utf-8')
             else:
@@ -115,6 +117,14 @@ async def handle_request(
                         raise TypeError(
                             '"variables" must be a JSON object')
 
+                globals = qs.get('globals')
+                if globals is not None:
+                    try:
+                        globals = json.loads(globals[0])
+                    except Exception:
+                        raise TypeError(
+                            '"globals" must be a JSON object')
+
         else:
             raise TypeError('expected a GET or a POST request')
 
@@ -128,6 +138,9 @@ async def handle_request(
         if variables is not None and not isinstance(variables, dict):
             raise TypeError('"variables" must be a JSON object')
 
+        if globals is not None and not isinstance(globals, dict):
+            raise TypeError('"globals" must be a JSON object')
+
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
@@ -140,7 +153,8 @@ async def handle_request(
     response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
     try:
-        result = await execute(db, server, query, operation_name, variables)
+        result = await execute(
+            db, server, query, operation_name, variables, globals)
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
@@ -190,7 +204,7 @@ async def compile(
     )
 
 
-async def execute(db, server, query, operation_name, variables):
+async def execute(db, server, query, operation_name, variables, globals):
     dbver = db.dbver
     query_cache = server._http_query_cache
 
@@ -298,6 +312,9 @@ async def execute(db, server, query, operation_name, variables):
                 args.append(default)
             else:
                 args.append(vars[name])
+
+    if op.has_globals:
+        args.append(globals)
 
     pgcon = await server.acquire_pgcon(db.name)
     try:
