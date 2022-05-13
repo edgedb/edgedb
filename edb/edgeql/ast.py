@@ -1173,6 +1173,11 @@ class CreateAccessPolicy(CreateObject, AccessPolicyCommand):
     expr: Expr
 
 
+class SetAccessPerms(DDLOperation):
+    access_kinds: typing.List[qltypes.AccessKind]
+    action: qltypes.AccessPolicyAction
+
+
 class AlterAccessPolicy(AlterObject, AccessPolicyCommand):
     pass
 

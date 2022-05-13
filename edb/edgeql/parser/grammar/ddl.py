@@ -1770,12 +1770,49 @@ class CreateAccessPolicyStmt(Nonterm):
         )
 
 
+class AccessPermStmt(Nonterm):
+    def reduce_AccessPolicyAction_AccessKindList(self, *kids):
+        self.val = qlast.SetAccessPerms(
+            action=kids[0].val,
+            access_kinds=[y for x in kids[1].val for y in x],
+        )
+
+
+class AccessUsingStmt(Nonterm):
+    def reduce_USING_ParenExpr(self, *kids):
+        self.val = qlast.SetField(
+            name='expr',
+            value=kids[1].val,
+            special_syntax=True,
+        )
+
+
+class AccessWhenStmt(Nonterm):
+
+    def reduce_WHEN_ParenExpr(self, *kids):
+        self.val = qlast.SetField(
+            name='condition',
+            value=kids[1].val,
+            special_syntax=True,
+        )
+
+    def reduce_RESET_WHEN(self, *kids):
+        self.val = qlast.SetField(
+            name='condition',
+            value=None,
+            special_syntax=True,
+        )
+
+
 commands_block(
     'AlterAccessPolicy',
     CreateAnnotationValueStmt,
     AlterAnnotationValueStmt,
     DropAnnotationValueStmt,
     RenameStmt,
+    AccessPermStmt,
+    AccessUsingStmt,
+    AccessWhenStmt,
     opt=False
 )
 
@@ -1784,11 +1821,11 @@ class AlterAccessPolicyStmt(Nonterm):
     def reduce_AlterAccessPolicy(self, *kids):
         r"""%reduce \
             ALTER ACCESS POLICY UnqualifiedPointerName \
-            AlterGlobalCommandsBlock \
+            AlterAccessPolicyCommandsBlock \
         """
         self.val = qlast.AlterAccessPolicy(
             name=kids[3].val,
-            commands=kids[4].val
+            commands=kids[4].val,
         )
 
 

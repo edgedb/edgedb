@@ -54,27 +54,27 @@ class AccessPolicy(
         s_expr.Expression,
         default=None,
         coerce=True,
-        compcoef=0.1,
+        compcoef=0.909,
         special_ddl_syntax=True,
     )
 
     expr = so.SchemaField(
         s_expr.Expression,
-        compcoef=0.1,
+        compcoef=0.909,
         special_ddl_syntax=True,
     )
 
     action = so.SchemaField(
         qltypes.AccessPolicyAction,
         coerce=True,
-        compcoef=0.1,
+        compcoef=0.85,
         special_ddl_syntax=True,
     )
 
     access_kinds = so.SchemaField(
         so.MultiPropSet[qltypes.AccessKind],
         coerce=True,
-        compcoef=0.1,
+        compcoef=0.85,
         special_ddl_syntax=True,
     )
 
@@ -401,6 +401,96 @@ class AlterAccessPolicy(
     referencing.AlterReferencedInheritingObject[AccessPolicy],
 ):
     referenced_astnode = astnode = qlast.AlterAccessPolicy
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+
+        # If either action or access_kinds appears, make sure the
+        # other one does as well, so that _apply_field_ast has
+        # a canonical setup to work with.
+        if (
+            self.has_attribute_value('action')
+            and not self.has_attribute_value('access_kinds')
+        ):
+            self.set_attribute_value(
+                'access_kinds', self.scls.get_access_kinds(schema))
+        elif (
+            self.has_attribute_value('access_kinds')
+            and not self.has_attribute_value('action')
+        ):
+            self.set_attribute_value('action', self.scls.get_action(schema))
+
+        # TODO: We may wish to support this in the future but it will
+        # take some thought.
+        if (
+            self.get_attribute_value('owned')
+            and not self.get_orig_attribute_value('owned')
+        ):
+            raise errors.SchemaDefinitionError(
+                f'cannot alter the definition of inherited access policy '
+                f'{self.scls.get_displayname(schema)}',
+                context=self.source_context
+            )
+
+        return schema
+
+    def _apply_field_ast(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+        node: qlast.DDLOperation,
+        op: sd.AlterObjectProperty,
+    ) -> None:
+        if op.property == 'action':
+            pass
+        elif op.property == 'access_kinds':
+            node.commands.append(
+                qlast.SetAccessPerms(
+                    action=self.get_attribute_value('action'),
+                    access_kinds=op.new_value,
+                )
+            )
+        else:
+            super()._apply_field_ast(schema, context, node, op)
+
+
+# This is kind of a hack: we never actually instantiate this class, we
+# just use its _cmd_tree_from_ast to produce a command group with two
+# property sets.
+class AlterAccessPolicyPerms(
+    referencing.ReferencedInheritingObjectCommand[AccessPolicy],
+    referrer_context_class=AccessPolicyCommandContext,
+):
+    referenced_astnode = astnode = qlast.SetAccessPerms
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.SetAccessPerms)
+        cmd = sd.CommandGroup()
+        cmd.add(
+            sd.AlterObjectProperty(
+                property='action',
+                new_value=astnode.action,
+                source_context=astnode.context,
+            )
+        )
+        cmd.add(
+            sd.AlterObjectProperty(
+                property='access_kinds',
+                new_value=astnode.access_kinds,
+                source_context=astnode.context,
+            )
+        )
+        return cmd
 
 
 class DeleteAccessPolicy(
