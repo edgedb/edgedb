@@ -129,6 +129,7 @@ CREATE TYPE schema::TupleElement EXTENDING std::BaseObject {
 
 
 CREATE TYPE schema::Tuple EXTENDING schema::CollectionType {
+    CREATE REQUIRED PROPERTY named -> bool;
     CREATE MULTI LINK element_types EXTENDING schema::ordered
     -> schema::TupleElement {
         CREATE CONSTRAINT std::exclusive;
