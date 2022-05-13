@@ -522,7 +522,7 @@ class StrToBigint(dbops.Function):
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => (
-                        'invalid syntax for type edgedb.bigint_t: '
+                        'invalid input syntax for type edgedb.bigint_t: '
                         || quote_literal(val)
                     )
                 );
@@ -553,7 +553,7 @@ class StrToDecimal(dbops.Function):
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => (
-                        'invalid syntax for type numeric: '
+                        'invalid input syntax for type numeric: '
                         || quote_literal(val)
                     )
                 )
@@ -2522,7 +2522,7 @@ class StrToBool(dbops.Function):
                 edgedb.raise(
                     NULL::text[],
                     'invalid_text_representation',
-                    msg => 'invalid syntax for type bool: '
+                    msg => 'invalid input syntax for type bool: '
                            || quote_literal(val)
                 )
             )
