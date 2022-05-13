@@ -4,52 +4,74 @@ Introduction
 ============
 
 EdgeDB is a next-generation `graph-relational database
-</blog/the-graph-relational-database-defined>`_.
+</blog/the-graph-relational-database-defined>`_ designed as a spiritual
+successor to the relational database.
 
-It's designed to be a spiritual successor to the SQL-based relation database
-and inherits all its core strengths: type safety, performance, reliability,
-and ACID compliance. Beyond that, EdgeDB brings with it a more intuitive data
-model based on *object types*, *properties*, and *links*, plus a superpowered
-query language that solves SQL's biggest usability problems.
+It inherits the strengths of SQL databases: type safety, performance,
+reliability, and transactionality. But instead of modeling data in a
+relational (tabular) way, EdgeDB represents data with *object types*
+containing *properties* and *links* to other objects. It leverages
+this object-oriented model to provide a superpowered query language that
+solves some of SQL's biggest usability problems.
 
 How to read the docs
 ^^^^^^^^^^^^^^^^^^^^
 
-The sidebar is broken up into a number of main sections.
+EdgeDB is a complex system, but we've structured the documentation so you can
+learn it in "phases". You only need to learn as much as you need to start
+building your application.
 
-1. Go through the :ref:`quickstart <ref_quickstart>`. It is the simplest way
-   to set up EdgeDB on your machine, learn the basics of schema, and write a
-   couple queries.
+- **Quickstart** —
+  Go through the :ref:`quickstart <ref_quickstart>`. It walks
+  through EdgeDB's core workflows: how to install EdgeDB, create an instance,
+  write a simple schema, execute a migration, and write some simple queries.
 
-2. Go through the :ref:`Schema <ref_datamodel_index>` docs in order, up to
-   :ref:`Constraints <ref_datamodel_constraints>`. This will give you a full
-   understanding of EdgeDB's type system and how to declare your schema. The
-   last few pages (aliases, annotations, functions, etc) are more advanced; you
-   can skip them for now.
+- **Showcases** —
+  For a speedrun of EdgeDB's features and syntax, refer to the Showcase pages
+  for `Data Modeling </showcase/data-modeling>`_ and
+  `EdgeQL </showcase/edgeql>`_. These pages each contain a set of annotated
+  examples for all major features; it's a fast, practical way to hit the
+  ground running with EdgeDB.
 
-3. Go through the :ref:`EdgeQL <ref_datamodel_index>` docs in order. This
-   section assumes you have some familiarity with the Schema docs already. Each
-   page is written as an accessible guide.   up to :ref:`Constraints
-   <ref_datamodel_constraints>`. This will give you a full understanding of how
-   to model data in EdgeDB. The last few pages (aliases, annotations,
-   functions, etc) are more advanced; you can skip them for now.
+- **Documentation** —
+  For a more in-depth understanding of EdgeDB's type system, concepts, and
+  advanced features, go through the :ref:`Schema <ref_datamodel_index>`
+  and :ref:`EdgeQL <ref_edgeql>` docs in order. The pages are carefully
+  structured to teach EdgeDB in a linear way.
 
-4. At this point you'll have a very strong working knowledge of how to write
-   schemas and queries with EdgeDB. To start building applications, you'll
-   likely use one of our client libraries for JavaScript, Go, or Python; find
-   your preferred library under :ref:`Client Libraries <ref_clients_index>`.
-   You may instead prefer to use the GraphQL endpoint (documented in the
-   :ref:`GraphQL <ref_graphql_index>` section) or execute :ref:`EdgeQL over
-   HTTP <ref_edgeql_http>`.
-
-5. As you move forward, more advanced or obscure questions are likely answered
-   in the encylopedic :ref:`Reference <ref_reference_index>` and :ref:`Standard
-   Library <ref_std>` sections. The Reference section contains formal SDL and
-   EdgeQL syntax breakdowns and reference information on our dump format,
-   binary protocol, configuration settings, and more. The Standard Library
-   section documents all types, functions, and operators.
+- **Reference** —
+  As you move forward, more advanced or obscure questions are likely answered
+  in the encylopedic :ref:`Standard Library <ref_std>` and :ref:`Reference
+  <ref_reference_index>` sections. The Standard Library
+  section documents all types, functions, and operators. The Reference
+  section contains formal SDL and EdgeQL syntax breakdowns and reference
+  information on our dump format, binary protocol, configuration settings,
+  and more.
 
 
+Tooling
+^^^^^^^
+
+To actually build apps with EdgeDB, you'll need to know more than SDL and
+EdgeQL.
+
+- **CLI** —
+  The most commonly used CLI functionality is covered in the :ref:`Quickstart
+  <ref_quickstart>`. For additional details, we have dedicated guides for
+  :ref:`Migrations <ref_guide_migrations>` and :ref:`Projects
+  <ref_guide_using_projects>`. A full CLI reference is available under
+  :ref:`CLI <ref_cli_overview>`.
+
+- **Client Libraries** —
+  To actually execute queries, you'll use one of our client libraries for
+  JavaScript, Go, or Python; find your preferred library under :ref:`Client
+  Libraries <ref_clients_index>`. If you're using another language, you can
+  still use EdgeDB! You can execute :ref:`queries via HTTP <ref_edgeql_http>`.
+- **Deployment** —
+  To publish an EdgeDB-backed application, you'll need to deploy EdgeDB. Refer
+  to :ref:`Guides > Deployment <ref_guide_deployment>` for step-by-step
+  deployment guides for all major cloud hosting platforms, as well as
+  instructions for self-hosting with Docker.
 
 .. eql:react-element:: DocsNavTable
 
