@@ -498,25 +498,36 @@ class AlterCurrentDatabaseSetArray(dbops.Function):
 
 class StrToBigint(dbops.Function):
     """Parse bigint from text."""
+
+    # The plpgsql execption handling nonsense is actually just so that
+    # we can produce an exception that mentions edgedb.bigint_t
+    # instead of numeric, and thus produce the right user-facing
+    # exception. As a nice side effect it is like twice as fast
+    # as the previous code too.
     text = r'''
-        SELECT
-            (CASE WHEN scale(v.column1) = 0 THEN
-                v.column1
+        DECLARE
+            v numeric;
+        BEGIN
+            BEGIN
+              v := val::numeric;
+            EXCEPTION
+              WHEN OTHERS THEN
+                 v := NULL;
+            END;
+
+            IF scale(v) = 0 THEN
+                RETURN v::edgedb.bigint_t;
             ELSE
-                edgedb.raise(
+                EXECUTE edgedb.raise(
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => (
-                        'invalid syntax for edgedb.bigint_t: '
+                        'invalid input syntax for type edgedb.bigint_t: '
                         || quote_literal(val)
                     )
-                )
-            END)::edgedb.bigint_t
-        FROM
-            (VALUES (
-                val::numeric
-            )) AS v
-        ;
+                );
+            END IF;
+        END;
     '''
 
     def __init__(self) -> None:
@@ -524,6 +535,7 @@ class StrToBigint(dbops.Function):
             name=('edgedb', 'str_to_bigint'),
             args=[('val', ('text',))],
             returns=('edgedb', 'bigint_t'),
+            language='plpgsql',
             # Stable because it's raising exceptions.
             volatility='stable',
             strict=True,
@@ -541,7 +553,7 @@ class StrToDecimal(dbops.Function):
                     NULL::numeric,
                     'invalid_text_representation',
                     msg => (
-                        'invalid syntax for numeric: '
+                        'invalid input syntax for type numeric: '
                         || quote_literal(val)
                     )
                 )
@@ -2510,7 +2522,8 @@ class StrToBool(dbops.Function):
                 edgedb.raise(
                     NULL::text[],
                     'invalid_text_representation',
-                    msg => 'invalid syntax for bool: ' || quote_literal(val)
+                    msg => 'invalid input syntax for type bool: '
+                           || quote_literal(val)
                 )
             )
         )[2] IS NULL;

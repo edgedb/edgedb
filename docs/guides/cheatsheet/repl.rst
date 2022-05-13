@@ -11,7 +11,7 @@ a semicolon and press "ENTER".
     db> select 5;
     {5}
 
-Alternatively, you can run the query without a semicolon by hitting Alt-Enter 
+Alternatively, you can run the query without a semicolon by hitting Alt-Enter
 on Windows/Linux, or Esc+Return on macOS.
 
 .. code-block:: edgeql-repl
@@ -19,17 +19,20 @@ on Windows/Linux, or Esc+Return on macOS.
     db> select 5
     {5}
 
-.. tip::
 
-    The Alt-Enter / ESC+Return trick is also very useful when your cursor is in
-    the middle of a long query and you want to run it directly without moving 
-    the cursor to the end of the query.
-    
-    macOS terminals allow you to configure the left Option key to act as ESC+,
-    which makes Alt-Enter also work on macOS:
-    
+Type ``Alt-Enter`` to run the query without having the cursor to the end of
+the query.
+
+.. note::
+
+    This doesn't work by default on macOS, however it's possible to enable it
+    with a quick fix.
+
+    * in Terminal.app: Settings → Profiles → Keyboard → Check
+      "Use Option as Meta key"
     * in iTerm: Settings → Profiles → Keys → Let Option key: ESC+
-    * in Terminal.app: Settings → Profiles → Keyboard → Use Option as Meta key
+
+    Alternatively you can use the ``esc+return`` shortcut.
 
 
 ----------
