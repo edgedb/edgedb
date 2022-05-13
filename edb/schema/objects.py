@@ -2150,6 +2150,14 @@ class ObjectCollectionDuplicateNameError(Exception):
     pass
 
 
+# A set of scalars that should be reflected as a multi prop, not as an
+# array.
+class MultiPropSet(
+    checked.FrozenCheckedSet[T],
+):
+    pass
+
+
 class ObjectCollection(
     ObjectContainer,
     parametric.SingleParametricType[Object_T],

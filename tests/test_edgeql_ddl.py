@@ -5482,10 +5482,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ''',
             tb.bag([
                 {
-                    "access_kinds": [
+                    "access_kinds": {
                         "Select", "UpdateRead", "UpdateWrite", "Delete",
                         "Insert"
-                    ],
+                    },
                     "action": "Allow",
                     "condition": None,
                     "expr": "true",
@@ -5494,7 +5494,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "root": True,
                 },
                 {
-                    "access_kinds": ["Select", "Delete"],
+                    "access_kinds": {"Select", "Delete"},
                     "action": "Deny",
                     "condition": "global default::filtering",
                     "expr": "(.name ?!= global default::cur)",
@@ -5503,10 +5503,10 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "root": True,
                 },
                 {
-                    "access_kinds": [
+                    "access_kinds": {
                         "Select", "UpdateRead", "UpdateWrite", "Delete",
                         "Insert"
-                    ],
+                    },
                     "action": "Allow",
                     "condition": None,
                     "expr": "true",
@@ -5515,7 +5515,7 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                     "root": False,
                 },
                 {
-                    "access_kinds": ["Select", "Delete"],
+                    "access_kinds": {"Select", "Delete"},
                     "action": "Deny",
                     "condition": "global default::filtering",
                     "expr": "(.name ?!= global default::cur)",
