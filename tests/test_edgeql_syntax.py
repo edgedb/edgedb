@@ -5528,6 +5528,28 @@ aa';
         };
         """
 
+    def test_edgeql_syntax_ddl_policy_06(self):
+        """
+        create type Foo {
+            alter access policy test {
+                when (false);
+                allow all;
+                using (true);
+            };
+        };
+        """
+
+    def test_edgeql_syntax_ddl_policy_07(self):
+        """
+        create type Foo {
+            alter access policy test {
+                reset when;
+                allow all;
+                using (true);
+            };
+        };
+        """
+
     def test_edgeql_syntax_ddl_empty_01(self):
         """
         CREATE TYPE Foo { };

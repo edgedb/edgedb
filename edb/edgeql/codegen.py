@@ -1190,6 +1190,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     self.write(' (')
                     self.visit(node.value)
                     self.write(')')
+            elif node.name == 'condition':
+                if node.value is None:
+                    self._write_keywords('RESET', 'WHEN')
+                else:
+                    self._write_keywords('WHEN')
+                    self.write(' (')
+                    self.visit(node.value)
+                    self.write(')')
             elif node.name == 'target':
                 if node.value is None:
                     self._write_keywords('RESET', 'TYPE')
@@ -1444,6 +1452,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         # This is left hanging from after_name, so that subcommands
         # get double indented
         self.indentation -= 1
+
+    def visit_SetAccessPerms(self, node: qlast.SetAccessPerms) -> None:
+        self._write_keywords(str(node.action) + ' ')
+        self._write_keywords(self._format_access_kinds(node.access_kinds))
 
     def visit_AlterAccessPolicy(self, node: qlast.AlterAccessPolicy) -> None:
         self._visit_AlterObject(node, 'ACCESS POLICY', unqualified=True)

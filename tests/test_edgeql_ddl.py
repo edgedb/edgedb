@@ -5526,6 +5526,44 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ])
         )
 
+        await self.con.execute(r"""
+            alter type User {
+                alter access policy filtering {
+                    reset when;
+                    deny select;
+                    using (false);
+                }
+            };
+        """)
+
+        await self.assert_query_result(
+            '''
+                select schema::AccessPolicy {
+                    name, condition, expr, action, access_kinds,
+                    sname := .subject.name, root := not exists .bases }
+                filter .sname = 'default::User' and .name = 'filtering'
+            ''',
+            [
+                {
+                    "access_kinds": {"Select"},
+                    "action": "Deny",
+                    "condition": None,
+                    "expr": "false",
+                    "name": "filtering",
+                    "sname": "default::User",
+                    "root": True,
+                },
+            ]
+        )
+
+        async with self.assertRaisesRegexTx(
+            edgedb.SchemaDefinitionError,
+            r"cannot alter the definition of inherited access policy",
+        ):
+            await self.con.execute('''
+                alter type Bot alter access policy filtering allow all;
+            ''')
+
     async def test_edgeql_ddl_policies_02(self):
         async with self.assertRaisesRegexTx(
             edgedb.SchemaDefinitionError,
