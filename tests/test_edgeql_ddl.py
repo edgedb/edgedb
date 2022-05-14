@@ -13029,6 +13029,113 @@ type default::Foo {
             ]),
         )
 
+    async def test_edgeql_ddl_link_policy_13(self):
+        # Make sure that swapping between delete target and not works
+        await self.con.execute(r"""
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE LINK tgt -> Tgt;
+            };
+            ALTER TYPE Foo ALTER LINK tgt ON SOURCE DELETE DELETE TARGET;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt) };
+            DELETE Foo;
+        """)
+
+        await self.assert_query_result(
+            'select Tgt',
+            [],
+        )
+
+        await self.con.execute(r"""
+            ALTER TYPE Foo ALTER LINK tgt ON SOURCE DELETE ALLOW;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt) };
+            DELETE Foo;
+        """)
+
+        await self.assert_query_result(
+            'select Tgt',
+            [{}],
+        )
+
+    async def test_edgeql_ddl_link_policy_14(self):
+        # Make sure that it works when changing cardinality
+        await self.con.execute(r"""
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE LINK tgt -> Tgt {
+                    ON SOURCE DELETE DELETE TARGET;
+                }
+            };
+            ALTER TYPE Foo ALTER LINK tgt SET MULTI;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := (INSERT Tgt) };
+        """)
+
+        await self.con.execute("""
+            DELETE Foo;
+        """)
+        await self.assert_query_result(
+            'select Tgt',
+            [],
+        )
+
+    async def test_edgeql_ddl_link_policy_15(self):
+        # Make sure that it works when changing cardinality
+        await self.con.execute(r"""
+            CREATE TYPE Tgt;
+            CREATE TYPE Foo {
+                CREATE LINK tgt -> Tgt {
+                    ON SOURCE DELETE DELETE TARGET;
+                }
+            };
+            CREATE TYPE Bar EXTENDING Foo;
+        """)
+
+        await self.con.execute(r"""
+            INSERT Bar { tgt := (INSERT Tgt) };
+        """)
+
+        await self.con.execute("""
+            DELETE Foo;
+        """)
+        await self.assert_query_result(
+            'select Tgt',
+            [],
+        )
+
+    async def test_edgeql_ddl_link_policy_16(self):
+        # Make sure that it works when changing cardinality
+        await self.con.execute(r"""
+            CREATE TYPE Tgt;
+            CREATE TYPE Tgt2 EXTENDING Tgt;
+            CREATE TYPE Tgt3;
+            CREATE TYPE Foo {
+                CREATE MULTI LINK tgt -> Tgt | Tgt3 {
+                    ON SOURCE DELETE DELETE TARGET;
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            INSERT Foo { tgt := {(INSERT Tgt), (INSERT Tgt2), (INSERT Tgt3)} };
+        """)
+
+        await self.con.execute("""
+            DELETE Foo;
+        """)
+        await self.assert_query_result(
+            'select Tgt UNION Tgt3',
+            [],
+        )
+
     async def test_edgeql_ddl_dupe_link_storage_01(self):
         await self.con.execute(r"""
 

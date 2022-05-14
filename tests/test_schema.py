@@ -7005,6 +7005,45 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """
         ])
 
+    def test_schema_migrations_on_source_delete_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type User {
+                    multi link workspaces -> Workspace {
+                        property title -> str;
+                        on source delete delete target;
+                    }
+                }
+
+                type Workspace {
+                    multi link users := .<workspaces[is User];
+                }
+            """,
+            r"""
+                type User {
+                    multi link workspaces -> Workspace {
+                        property title -> str;
+                        on source delete allow;
+                    }
+                }
+
+                type Workspace {
+                    multi link users := .<workspaces[is User];
+                }
+            """,
+            r"""
+                type User {
+                    multi link workspaces -> Workspace {
+                        property title -> str;
+                    }
+                }
+
+                type Workspace {
+                    multi link users := .<workspaces[is User];
+                }
+            """
+        ])
+
     def test_schema_migrations_rename_with_stuff_01(self):
         self._assert_migration_equivalence([
             r"""

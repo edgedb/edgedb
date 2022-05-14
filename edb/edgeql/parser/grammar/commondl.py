@@ -441,6 +441,16 @@ class OnTargetDeleteStmt(Nonterm):
             cascade=qltypes.LinkTargetDeleteAction.DeferredRestrict)
 
 
+class OnSourceDeleteStmt(Nonterm):
+    def reduce_ON_SOURCE_DELETE_DELETE_TARGET(self, *kids):
+        self.val = qlast.OnSourceDelete(
+            cascade=qltypes.LinkSourceDeleteAction.DeleteTarget)
+
+    def reduce_ON_SOURCE_DELETE_ALLOW(self, *kids):
+        self.val = qlast.OnSourceDelete(
+            cascade=qltypes.LinkSourceDeleteAction.Allow)
+
+
 class OptWhenBlock(Nonterm):
     def reduce_WHEN_LPAREN_Expr_RPAREN(self, *kids):
         self.val = kids[2].val

@@ -28,6 +28,9 @@ CREATE SCALAR TYPE schema::Cardinality
 CREATE SCALAR TYPE schema::TargetDeleteAction
     EXTENDING enum<Restrict, DeleteSource, Allow, DeferredRestrict>;
 
+CREATE SCALAR TYPE schema::SourceDeleteAction
+    EXTENDING enum<DeleteTarget, Allow>;
+
 CREATE SCALAR TYPE schema::OperatorKind
     EXTENDING enum<Infix, Postfix, Prefix, Ternary>;
 
@@ -409,6 +412,7 @@ ALTER TYPE schema::Link {
         USING (.target[IS schema::ObjectType]);
     CREATE MULTI LINK properties := .pointers[IS schema::Property];
     CREATE PROPERTY on_target_delete -> schema::TargetDeleteAction;
+    CREATE PROPERTY on_source_delete -> schema::SourceDeleteAction;
 };
 
 

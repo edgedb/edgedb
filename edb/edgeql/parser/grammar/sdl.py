@@ -772,6 +772,7 @@ sdl_commands_block(
     IndexDeclarationBlock,
     IndexDeclarationShort,
     commondl.OnTargetDeleteStmt,
+    commondl.OnSourceDeleteStmt,
 )
 
 
