@@ -4753,6 +4753,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_function_21(self):
+        self._assert_migration_equivalence([r"""
+            function foo(variadic s: str) -> str using ("!");
+        """, r"""
+            function foo(variadic s: str) -> str using ("?");
+        """])
+
     def test_schema_migrations_equivalence_recursive_01(self):
         with self.assertRaisesRegex(
             errors.InvalidDefinitionError,

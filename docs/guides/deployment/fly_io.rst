@@ -23,9 +23,9 @@ Provision a Fly.io app for EdgeDB
 =================================
 
 Every Fly.io app must have a globally unique name, including service VMs like
-Postgres and EdgeDB. Pick a name and assign it to the ``EDB_APP`` Here we
-assume the name for the EdgeDB app is ``myorg-edgedb``, which you would need
-to replace with a name of your choosing.
+Postgres and EdgeDB. Pick a name and assign it to a local environment variable
+called ``EDB_APP``. In the command below, replace ``myorg-edgedb`` with a name
+of your choosing.
 
 .. code-block:: bash
 

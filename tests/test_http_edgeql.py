@@ -257,3 +257,63 @@ class TestHttpEdgeQL(tb.EdgeQLTestCase):
                 r'''SELECT <str>$x ?? '-default' ''',
                 variables={'x': None},
             )
+
+    def test_http_edgeql_query_globals_01(self):
+        Q = r'''select GlobalTest { gstr, garray, gid, gdef, gdef2 }'''
+
+        for use_http_post in [True, False]:
+            self.assert_edgeql_query_result(
+                Q,
+                [{'gstr': 'WOO',
+                  'gid': '84ed3d8b-5eb2-4d31-9e1e-efb66180445c', 'gdef': '',
+                  'gdef2': None, 'garray': ['x', 'y', 'z']}],
+                use_http_post=use_http_post,
+                globals={
+                    'default::test_global_str': "WOO",
+                    'default::test_global_id': (
+                        '84ed3d8b-5eb2-4d31-9e1e-efb66180445c'),
+                    'default::test_global_def': None,
+                    'default::test_global_def2': None,
+                    'default::test_global_array': ['x', 'y', 'z'],
+                },
+            )
+
+            self.assert_edgeql_query_result(
+                Q,
+                [{'gdef': 'x', 'gdef2': 'x'}],
+                use_http_post=use_http_post,
+                globals={
+                    'default::test_global_def': 'x',
+                    'default::test_global_def2': 'x',
+                },
+            )
+
+            self.assert_edgeql_query_result(
+                Q,
+                [{'gstr': None, 'garray': None, 'gid': None,
+                  'gdef': '', 'gdef2': ''}],
+                use_http_post=use_http_post,
+            )
+
+    def test_http_edgeql_query_globals_02(self):
+        Q = r'''select (global test_global_str) ++ <str>$test'''
+
+        for use_http_post in [True, False]:
+            self.assert_edgeql_query_result(
+                Q,
+                ['foo!'],
+                variables={'test': '!'},
+                globals={'default::test_global_str': 'foo'},
+                use_http_post=use_http_post,
+            )
+
+    def test_http_edgeql_query_globals_03(self):
+        Q = r'''select get_glob()'''
+
+        for use_http_post in [True, False]:
+            self.assert_edgeql_query_result(
+                Q,
+                ['foo'],
+                globals={'default::test_global_str': 'foo'},
+                use_http_post=use_http_post,
+            )

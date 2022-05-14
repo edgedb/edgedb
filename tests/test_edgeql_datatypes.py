@@ -894,7 +894,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
     async def test_edgeql_dt_bigint_01(self):
         with self.assertRaisesRegex(
             edgedb.InvalidValueError,
-            'invalid syntax for std::bigint'
+            'invalid input syntax for type std::bigint'
         ):
             await self.con.execute(
                 r'''

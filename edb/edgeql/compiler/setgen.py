@@ -602,6 +602,24 @@ def ptr_step_set(
         ignore_computable=ignore_computable, ctx=ctx)
 
 
+def _add_target_schema_refs(
+    stype: Optional[s_obj.Object],
+    ctx: context.ContextLevel,
+) -> None:
+    """Add the appropriate schema dependencies for a pointer target.
+
+    The only annoying bit is we need to handle unions/intersections also."""
+    if not isinstance(stype, s_objtypes.ObjectType):
+        return
+    ctx.env.add_schema_ref(stype, None)
+    schema = ctx.env.schema
+    for obj in (
+        stype.get_union_of(schema).objects(schema) +
+        stype.get_intersection_of(schema).objects(schema)
+    ):
+        ctx.env.add_schema_ref(obj, None)
+
+
 def resolve_ptr(
     near_endpoint: s_obj.Object,
     pointer_name: str,
@@ -633,6 +651,8 @@ def resolve_ptr(
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
             if track_ref is not False:
                 ctx.env.add_schema_ref(ref, track_ref)
+                _add_target_schema_refs(
+                    ref.get_target(ctx.env.schema), ctx=ctx)
 
     else:
         ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name,
@@ -658,9 +678,10 @@ def resolve_ptr(
 
             if track_ref is not False:
                 for p in dep_ptrs:
-                    ctx.env.add_schema_ref(
-                        p.get_nearest_non_derived_parent(ctx.env.schema),
-                        track_ref)
+                    p = p.get_nearest_non_derived_parent(ctx.env.schema)
+                    ctx.env.add_schema_ref(p, track_ref)
+                    _add_target_schema_refs(
+                        p.get_source(ctx.env.schema), ctx=ctx)
 
             # We can only compute backlinks for non-computed pointers,
             # but we need to make sure that a computed pointer doesn't
@@ -1690,13 +1711,28 @@ def get_global_param_sets(
 def get_func_global_json_arg(
     *, ctx: context.ContextLevel
 ) -> irast.Set:
+    json_type = ctx.env.schema.get('std::json', type=s_types.Type)
+    json_typeref = typegen.type_to_typeref(json_type, env=ctx.env)
+    name = '__edb_json_globals__'
+
+    # If this is because we have json params, not because we're in a
+    # function, we need to register it.
+    if ctx.env.options.json_parameters:
+        qname = s_name.QualName('__', name)
+        ctx.env.query_globals[qname] = irast.Global(
+            name=name,
+            required=False,
+            schema_type=json_type,
+            ir_type=json_typeref,
+            global_name=qname,
+            has_present_arg=False,
+        )
+
     return ensure_set(
         irast.Parameter(
-            name='__edb_json_globals__',
+            name=name,
             required=True,
-            typeref=typegen.type_to_typeref(
-                ctx.env.schema.get('std::json', type=s_types.Type),
-                env=ctx.env)
+            typeref=json_typeref,
         ),
         ctx=ctx,
     )
@@ -1707,7 +1743,10 @@ def get_func_global_param_sets(
     ctx: context.ContextLevel,
 ) -> Tuple[qlast.Expr, Optional[qlast.Expr]]:
     # NB: updates ctx anchors
-    param = get_global_param(glob, ctx=ctx)
+
+    if ctx.env.options.func_params is not None:
+        # Make sure that we properly track the globals we use in functions
+        get_global_param(glob, ctx=ctx)
 
     with ctx.new() as subctx:
         name = str(glob.get_name(ctx.env.schema))
@@ -1725,7 +1764,7 @@ def get_func_global_param_sets(
         type = typegen.type_to_ql_typeref(target, ctx=ctx)
         main_set = qlast.TypeCast(expr=glob_anchor, type=type)
 
-        if param.has_present_arg:
+        if glob.needs_present_arg(ctx.env.schema):
             present_set = qlast.UnaryOp(
                 op='EXISTS',
                 operand=glob_anchor,

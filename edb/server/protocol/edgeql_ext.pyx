@@ -55,6 +55,7 @@ async def handle_request(
         return
 
     variables = None
+    globals = None
     query = None
 
     try:
@@ -66,6 +67,7 @@ async def handle_request(
                         'the body of the request must be a JSON object')
                 query = body.get('query')
                 variables = body.get('variables')
+                globals = body.get('globals')
             else:
                 raise TypeError(
                     'unable to interpret EdgeQL POST request')
@@ -87,6 +89,14 @@ async def handle_request(
                         raise TypeError(
                             '"variables" must be a JSON object')
 
+                globals = qs.get('globals')
+                if globals is not None:
+                    try:
+                        globals = json.loads(globals[0])
+                    except Exception:
+                        raise TypeError(
+                            '"globals" must be a JSON object')
+
         else:
             raise TypeError('expected a GET or a POST request')
 
@@ -95,6 +105,9 @@ async def handle_request(
 
         if variables is not None and not isinstance(variables, dict):
             raise TypeError('"variables" must be a JSON object')
+
+        if globals is not None and not isinstance(globals, dict):
+            raise TypeError('"globals" must be a JSON object')
 
     except Exception as ex:
         if debug.flags.server:
@@ -108,7 +121,7 @@ async def handle_request(
     response.status = http.HTTPStatus.OK
     response.content_type = b'application/json'
     try:
-        result = await execute(db, server, query.encode(), variables)
+        result = await execute(db, server, query.encode(), variables, globals)
     except Exception as ex:
         if debug.flags.server:
             markup.dump(ex)
@@ -155,7 +168,7 @@ async def compile(db, server, bytes query):
     return units[0]
 
 
-async def execute(db, server, bytes query, variables):
+async def execute(db, server, bytes query, variables, globals):
     dbver = db.dbver
     query_cache = server._http_query_cache
 
@@ -189,6 +202,9 @@ async def execute(db, server, bytes query, variables):
                     raise errors.QueryError(
                         f'parameter ${param.name} is required')
                 args.append(value)
+
+    if query_unit.globals:
+        args.append(globals)
 
     pgcon = await server.acquire_pgcon(db.name)
     try:

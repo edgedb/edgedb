@@ -566,7 +566,7 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                         't', 'f', 'tr', 'fa'}:
             async with self.assertRaisesRegexTx(
                     edgedb.InvalidValueError,
-                    fr"invalid syntax for std::bool: '{variant}'"):
+                    fr"invalid input syntax for type std::bool: '{variant}'"):
                 await self.con.query_single(f'SELECT <bool>"{variant}"')
 
         self.assertTrue(
@@ -1363,6 +1363,19 @@ class TestEdgeQLCasts(tb.QueryTestCase):
                 ''',
                 [1],
             )
+
+    async def test_edgeql_casts_numeric_08(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for type std::bigint'):
+            await self.con.query_single(
+                'SELECT <bigint>"100000n"')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.InvalidValueError,
+                r'invalid input syntax for type std::decimal'):
+            await self.con.query_single(
+                'SELECT <decimal>"12313.132n"')
 
     async def test_edgeql_casts_collections_01(self):
         await self.assert_query_result(

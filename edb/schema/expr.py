@@ -180,9 +180,12 @@ class Expression(struct.MixedRTStruct, so.ObjectContainer, s_abc.Expression):
 
         assert isinstance(ir, irast_.Statement)
 
+        # XXX: ref stuff - why doesn't it go into the delta tree? - temporary??
+        srefs = {ref for ref in ir.schema_refs if schema.has_object(ref.id)}
+
         return cls(
             text=expr.text,
-            refs=so.ObjectSet.create(schema, ir.schema_refs),
+            refs=so.ObjectSet.create(schema, srefs),
             _qlast=expr.qlast,
             _irast=ir,
         )
