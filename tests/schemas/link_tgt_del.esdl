@@ -48,6 +48,19 @@ type Source1 extending Named {
     multi link tgt1_m2m_del_source -> Target1 {
         on target delete delete source;
     }
+
+    link tgt1_del_target -> Target1 {
+        on source delete delete target;
+    }
+    multi link tgt1_m2m_del_target -> Target1 {
+        on source delete delete target;
+    }
+    link self_del_target -> Named {
+        on source delete delete target;
+    }
+    link self_del_source -> Named {
+        on target delete delete source;
+    }
 }
 
 type Source2 extending Named {

@@ -602,6 +602,24 @@ def ptr_step_set(
         ignore_computable=ignore_computable, ctx=ctx)
 
 
+def _add_target_schema_refs(
+    stype: Optional[s_obj.Object],
+    ctx: context.ContextLevel,
+) -> None:
+    """Add the appropriate schema dependencies for a pointer target.
+
+    The only annoying bit is we need to handle unions/intersections also."""
+    if not isinstance(stype, s_objtypes.ObjectType):
+        return
+    ctx.env.add_schema_ref(stype, None)
+    schema = ctx.env.schema
+    for obj in (
+        stype.get_union_of(schema).objects(schema) +
+        stype.get_intersection_of(schema).objects(schema)
+    ):
+        ctx.env.add_schema_ref(obj, None)
+
+
 def resolve_ptr(
     near_endpoint: s_obj.Object,
     pointer_name: str,
@@ -633,6 +651,8 @@ def resolve_ptr(
             ref = ptr.get_nearest_non_derived_parent(ctx.env.schema)
             if track_ref is not False:
                 ctx.env.add_schema_ref(ref, track_ref)
+                _add_target_schema_refs(
+                    ref.get_target(ctx.env.schema), ctx=ctx)
 
     else:
         ptrs = near_endpoint.getrptrs(ctx.env.schema, pointer_name,
@@ -658,9 +678,10 @@ def resolve_ptr(
 
             if track_ref is not False:
                 for p in dep_ptrs:
-                    ctx.env.add_schema_ref(
-                        p.get_nearest_non_derived_parent(ctx.env.schema),
-                        track_ref)
+                    p = p.get_nearest_non_derived_parent(ctx.env.schema)
+                    ctx.env.add_schema_ref(p, track_ref)
+                    _add_target_schema_refs(
+                        p.get_source(ctx.env.schema), ctx=ctx)
 
             # We can only compute backlinks for non-computed pointers,
             # but we need to make sure that a computed pointer doesn't

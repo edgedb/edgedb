@@ -37,7 +37,7 @@ from . import properties
 from . import name as sn
 from . import objects as so
 from . import pointers
-from . import policies as s_policies
+from . import policies
 from . import schema as s_schema
 from . import sources
 from . import types as s_types
@@ -54,10 +54,10 @@ class AccessPolicySubject(so.Object):
         attr='access_policies',
         requires_explicit_overloaded=True,
         backref_attr='subject',
-        ref_cls=s_policies.AccessPolicy)
+        ref_cls=policies.AccessPolicy)
 
     access_policies = so.SchemaField(
-        so.ObjectIndexByUnqualifiedName[s_policies.AccessPolicy],
+        so.ObjectIndexByUnqualifiedName[policies.AccessPolicy],
         inheritable=False, ephemeral=True, coerce=True, compcoef=0.857,
         default=so.DEFAULT_CONSTRUCTOR)
 
@@ -442,7 +442,7 @@ class ObjectTypeCommandContext(sd.ObjectCommandContext[ObjectType],
                                s_anno.AnnotationSubjectCommandContext,
                                links.LinkSourceCommandContext,
                                properties.PropertySourceContext,
-                               s_policies.AccessPolicySourceCommandContext):
+                               policies.AccessPolicySourceCommandContext):
     pass
 
 
@@ -517,6 +517,38 @@ class RebaseObjectType(
 class AlterObjectType(ObjectTypeCommand,
                       inheriting.AlterInheritingObject[ObjectType]):
     astnode = qlast.AlterObjectType
+
+    def _alter_begin(
+        self,
+        schema: s_schema.Schema,
+        context: sd.CommandContext,
+    ) -> s_schema.Schema:
+        schema = super()._alter_begin(schema, context)
+
+        if (
+            not context.canonical
+            and bool(self.get_subcommands(type=policies.AccessPolicyCommand))
+        ):
+            from . import functions
+            # If we have any policy commands, we need to propagate to update
+            # functions. We also need to propagate to anything that updates
+            # an ancestor.
+            #
+            # Note that the ancestor search does not generate
+            # quadratically many updates in the case that this change
+            # was propagated from an ancestor, since the
+            # _propagate_if_expr_refs call in the ancestor temporarily
+            # eliminates the ref!
+            schema = self._propagate_if_expr_refs(
+                schema,
+                context,
+                action=self.get_friendly_description(schema=schema),
+                include_ancestors=True,
+                filter=functions.Function,
+                metadata_only=False,
+            )
+
+        return schema
 
     def _alter_finalize(
         self,

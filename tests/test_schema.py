@@ -4753,6 +4753,13 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             }
         """])
 
+    def test_schema_migrations_equivalence_function_21(self):
+        self._assert_migration_equivalence([r"""
+            function foo(variadic s: str) -> str using ("!");
+        """, r"""
+            function foo(variadic s: str) -> str using ("?");
+        """])
+
     def test_schema_migrations_equivalence_recursive_01(self):
         with self.assertRaisesRegex(
             errors.InvalidDefinitionError,
@@ -6994,6 +7001,45 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
                         property title -> str;
                         on target delete allow;
                     }
+                }
+            """
+        ])
+
+    def test_schema_migrations_on_source_delete_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type User {
+                    multi link workspaces -> Workspace {
+                        property title -> str;
+                        on source delete delete target;
+                    }
+                }
+
+                type Workspace {
+                    multi link users := .<workspaces[is User];
+                }
+            """,
+            r"""
+                type User {
+                    multi link workspaces -> Workspace {
+                        property title -> str;
+                        on source delete allow;
+                    }
+                }
+
+                type Workspace {
+                    multi link users := .<workspaces[is User];
+                }
+            """,
+            r"""
+                type User {
+                    multi link workspaces -> Workspace {
+                        property title -> str;
+                    }
+                }
+
+                type Workspace {
+                    multi link users := .<workspaces[is User];
                 }
             """
         ])
