@@ -5124,7 +5124,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
         # get_backend_name produces essentially cryptographically
         # random trigger names.
         #
-        # All we want for now is for source triggers to applie first,
+        # All we want for now is for source triggers to apply first,
         # though, so that a loop of objects with
         # 'on source delete delete target' + 'on target delete restrict'
         # succeeds.
