@@ -990,6 +990,175 @@ class TestLinkTargetDeleteDeclarative(stb.QueryTestCase):
                 []
             )
 
+    async def test_link_on_target_delete_loop_01(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                insert Source1 {
+                    name := 'Source1.1',
+                    self_del_source := detached (
+                        insert Source1 {
+                            name := 'Source1.2',
+                            self_del_source := detached (
+                                insert Source1 { name := 'Source1.3' }
+                            )
+                        }
+                    )
+                };
+                update Source1 filter .name = 'Source1.3' set {
+                    self_del_source := detached (
+                        select Source1 filter .name = 'Source1.1'
+                    )
+                };
+            """)
+
+            await self.con.execute("""
+                delete Source1 filter .name = 'Source1.1'
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    select Source1
+                ''',
+                []
+            )
+
+    async def test_link_on_source_delete_01(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt1_del_target := (
+                        INSERT Target1 {
+                            name := 'Target1.1'
+                        }
+                    )
+                };
+            """)
+
+            await self.con.execute("""
+                DELETE Source1 filter .name = 'Source1.1'
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    SELECT Target1
+                    FILTER .name = 'Target1.1';
+                ''',
+                []
+            )
+
+    async def test_link_on_source_delete_02(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    tgt1_m2m_del_target := {
+                        (INSERT Target1 {name := 'Target1.1'}),
+                        (INSERT Target1 {name := 'Target1.2'}),
+                    }
+                };
+            """)
+
+            await self.con.execute("""
+                DELETE Source1 filter .name = 'Source1.1'
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    SELECT Target1
+                ''',
+                []
+            )
+
+    async def test_link_on_source_delete_03(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                INSERT Source1 {
+                    name := 'Source1.1',
+                    self_del_target := detached (
+                        insert Source1 {
+                            name := 'Source1.2',
+                            self_del_target := detached (
+                                insert Source1 { name := 'Source1.3' }
+                            )
+                        }
+                    )
+                };
+            """)
+
+            await self.con.execute("""
+                DELETE Source1 filter .name = 'Source1.1'
+            """)
+
+            await self.assert_query_result(
+                r'''
+                    SELECT Source1
+                ''',
+                []
+            )
+
+    async def _cycle_test(self):
+        await self.con.execute("""
+            insert Source1 {
+                name := 'Source1.1',
+                self_del_target := detached (
+                    insert Source1 {
+                        name := 'Source1.2',
+                        self_del_target := detached (
+                            insert Source1 { name := 'Source1.3' }
+                        )
+                    }
+                )
+            };
+            update Source1 filter .name = 'Source1.3' set {
+                self_del_target := detached (
+                    select Source1 filter .name = 'Source1.1'
+                )
+            };
+        """)
+
+        await self.con.execute("""
+            delete Source1 filter .name = 'Source1.1'
+        """)
+
+        await self.assert_query_result(
+            r'''
+                select Source1
+            ''',
+            []
+        )
+
+    async def test_link_on_source_delete_cycle_01(self):
+        async with self._run_and_rollback():
+            await self._cycle_test()
+
+    async def test_link_on_source_delete_cycle_02(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                alter type Source1 alter link self_del_target
+                on target delete delete source
+            """)
+
+            await self._cycle_test()
+
+    async def test_link_on_source_delete_cycle_03(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                alter type Source1 alter link self_del_target
+                on target delete allow
+            """)
+
+            await self._cycle_test()
+
+    async def test_link_on_source_delete_cycle_04(self):
+        async with self._run_and_rollback():
+            await self.con.execute("""
+                alter type Source1 alter link self_del_target
+                on target delete deferred restrict
+            """)
+
+            await self._cycle_test()
+
 
 class TestLinkTargetDeleteMigrations(stb.DDLTestCase):
 

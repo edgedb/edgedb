@@ -46,6 +46,7 @@ if TYPE_CHECKING:
 
 
 LinkTargetDeleteAction = qltypes.LinkTargetDeleteAction
+LinkSourceDeleteAction = qltypes.LinkSourceDeleteAction
 
 
 def merge_actions(
@@ -112,6 +113,13 @@ class Link(
     on_target_delete = so.SchemaField(
         LinkTargetDeleteAction,
         default=LinkTargetDeleteAction.Restrict,
+        coerce=True,
+        compcoef=0.9,
+        merge_fn=merge_actions)
+
+    on_source_delete = so.SchemaField(
+        LinkSourceDeleteAction,
+        default=LinkSourceDeleteAction.Allow,
         coerce=True,
         compcoef=0.9,
         merge_fn=merge_actions)
@@ -403,6 +411,8 @@ class CreateLink(
 
         elif op.property == 'on_target_delete':
             node.commands.append(qlast.OnTargetDelete(cascade=op.new_value))
+        elif op.property == 'on_source_delete':
+            node.commands.append(qlast.OnSourceDelete(cascade=op.new_value))
         else:
             super()._apply_field_ast(schema, context, node, op)
 
@@ -591,6 +601,34 @@ class SetTargetDeletePolicy(sd.Command):
         return cmd
 
 
+class SetSourceDeletePolicy(sd.Command):
+    astnode = qlast.OnSourceDelete
+
+    @classmethod
+    def _cmd_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.AlterObjectProperty:
+        return sd.AlterObjectProperty(
+            property='on_source_delete'
+        )
+
+    @classmethod
+    def _cmd_tree_from_ast(
+        cls,
+        schema: s_schema.Schema,
+        astnode: qlast.DDLOperation,
+        context: sd.CommandContext,
+    ) -> sd.Command:
+        assert isinstance(astnode, qlast.OnSourceDelete)
+        cmd = super()._cmd_tree_from_ast(schema, astnode, context)
+        assert isinstance(cmd, sd.AlterObjectProperty)
+        cmd.new_value = astnode.cascade
+        return cmd
+
+
 class AlterLink(
     LinkCommand,
     pointers.AlterPointer[Link],
@@ -639,6 +677,8 @@ class AlterLink(
                 )
         elif op.property == 'on_target_delete':
             node.commands.append(qlast.OnTargetDelete(cascade=op.new_value))
+        elif op.property == 'on_source_delete':
+            node.commands.append(qlast.OnSourceDelete(cascade=op.new_value))
         else:
             super()._apply_field_ast(schema, context, node, op)
 

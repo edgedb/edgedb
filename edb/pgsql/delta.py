@@ -4531,12 +4531,16 @@ class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
             link.get_on_target_delete(orig_schema) !=
             link.get_on_target_delete(schema)
         )
+        osd_changed = (
+            link.get_on_source_delete(orig_schema) !=
+            link.get_on_source_delete(schema)
+        )
         card_changed = (
             link.get_cardinality(orig_schema) !=
             link.get_cardinality(schema)
         )
         if (
-            (otd_changed or card_changed)
+            (otd_changed or osd_changed or card_changed)
             and not link.is_pure_computable(schema)
         ):
             self.schedule_endpoint_delete_action_update(
@@ -5087,6 +5091,16 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         return '(' + '\nUNION ALL\n    '.join(selects) + ') as q'
 
+    def get_target_objs(self, link, schema):
+        tgt = link.get_target(schema)
+        if union := tgt.get_union_of(schema).objects(schema):
+            objs = set(union)
+        else:
+            objs = {tgt}
+        objs |= {
+            x for obj in objs for x in obj.descendants(schema)}
+        return objs
+
     def get_trigger_name(self, schema, target,
                          disposition, deferred=False, inline=False):
         if disposition == 'target':
@@ -5106,7 +5120,19 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         aspect += '-t'
 
-        return common.get_backend_name(
+        # Postgres applies triggers in alphabetical order, and
+        # get_backend_name produces essentially cryptographically
+        # random trigger names.
+        #
+        # All we want for now is for source triggers to apply first,
+        # though, so that a loop of objects with
+        # 'on source delete delete target' + 'on target delete restrict'
+        # succeeds.
+        #
+        # Fortunately S comes before T.
+        order_prefix = disposition[0]
+
+        return order_prefix + common.get_backend_name(
             schema, target, catenate=False, aspect=aspect)[1]
 
     def get_trigger_proc_name(self, schema, target,
@@ -5152,7 +5178,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 links, lambda l: l.get_on_target_delete(schema))
             near_endpoint, far_endpoint = 'target', 'source'
         else:
-            groups = [(DA.Allow, links)]
+            groups = itertools.groupby(
+                links, lambda l: (
+                    l.get_on_source_delete(schema)
+                    if isinstance(l, s_links.Link)
+                    else s_links.LinkSourceDeleteAction.Allow))
             near_endpoint, far_endpoint = 'source', 'target'
 
         for action, links in groups:
@@ -5202,7 +5232,10 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                 chunks.append(text)
 
-            elif action == s_links.LinkTargetDeleteAction.Allow:
+            elif (
+                action == s_links.LinkTargetDeleteAction.Allow
+                or action == s_links.LinkSourceDeleteAction.Allow
+            ):
                 for link in links:
                     link_table = common.get_backend_name(
                         schema, link)
@@ -5279,6 +5312,43 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
                     chunks.append(text)
 
+            elif action == s_links.LinkSourceDeleteAction.DeleteTarget:
+                for link in links:
+                    link_table = common.get_backend_name(schema, link)
+                    objs = self.get_target_objs(link, schema)
+
+                    prefix = textwrap.dedent(f'''\
+                        WITH range AS (
+                            SELECT target FROM {link_table}
+                            WHERE source = OLD.id
+                        ),
+                        del AS (
+                            DELETE FROM
+                                {link_table}
+                            WHERE
+                                source = OLD.id
+                        )
+                    ''').strip()
+                    parts = [prefix]
+
+                    for i, obj in enumerate(objs):
+                        tgt_table = common.get_backend_name(schema, obj)
+                        text = textwrap.dedent(f'''\
+                            d{i} AS (
+                                DELETE FROM
+                                    {tgt_table}
+                                WHERE
+                                    {tgt_table}.id IN (
+                                        SELECT target
+                                        FROM range
+                                    )
+                            )
+                        ''').strip()
+                        parts.append(text)
+
+                    full = ',\n'.join(parts) + "\nSELECT '' INTO _dummy_text;"
+                    chunks.append(full)
+
         text = textwrap.dedent('''\
             DECLARE
                 link_type_id uuid;
@@ -5286,6 +5356,7 @@ class UpdateEndpointDeleteActions(MetaCommand):
                 tgtid uuid;
                 linkname text;
                 endname text;
+                _dummy_text text;
             BEGIN
                 {chunks}
                 RETURN OLD;
@@ -5297,17 +5368,15 @@ class UpdateEndpointDeleteActions(MetaCommand):
     def _get_inline_link_trigger_proc_text(
             self, target, links, *, disposition, schema):
 
-        if disposition == 'source':
-            raise RuntimeError(
-                'source disposition link target delete action trigger does '
-                'not make sense for inline links')
-
         chunks = []
 
         DA = s_links.LinkTargetDeleteAction
 
-        groups = itertools.groupby(
-            links, lambda l: l.get_on_target_delete(schema))
+        if disposition == 'target':
+            groups = itertools.groupby(
+                links, lambda l: l.get_on_target_delete(schema))
+        else:
+            groups = [(s_links.LinkSourceDeleteAction.DeleteTarget, links)]
 
         near_endpoint, far_endpoint = 'target', 'source'
 
@@ -5402,6 +5471,24 @@ class UpdateEndpointDeleteActions(MetaCommand):
                     )
 
                     chunks.append(text)
+
+            elif action == s_links.LinkSourceDeleteAction.DeleteTarget:
+                for link in links:
+                    objs = self.get_target_objs(link, schema)
+
+                    link_psi = types.get_pointer_storage_info(
+                        link, schema=schema)
+                    link_col = common.quote_ident(link_psi.column_name)
+
+                    for obj in objs:
+                        tgt_table = common.get_backend_name(schema, obj)
+                        text = textwrap.dedent(f'''\
+                            DELETE FROM
+                                {tgt_table}
+                            WHERE
+                                {tgt_table}.id = OLD.{link_col};
+                        ''')
+                        chunks.append(text)
 
         text = textwrap.dedent('''\
             DECLARE
@@ -5516,18 +5603,30 @@ class UpdateEndpointDeleteActions(MetaCommand):
 
         for source in affected_sources:
             links = []
+            inline_links = []
 
             for link in source.get_pointers(schema).objects(schema):
                 if link.is_pure_computable(schema):
                     continue
                 ptr_stor_info = types.get_pointer_storage_info(
                     link, schema=schema)
-                if ptr_stor_info.table_type != 'link':
-                    continue
 
-                links.append(link)
+                if ptr_stor_info.table_type == 'link':
+                    links.append(link)
+                elif (
+                    isinstance(link, s_links.Link)
+                    and link.get_on_source_delete(schema) ==
+                    s_links.LinkSourceDeleteAction.DeleteTarget
+                ):
+                    inline_links.append(link)
 
             links.sort(
+                key=lambda l: (
+                    (l.get_on_target_delete(schema),)
+                    if isinstance(l, s_links.Link) else (),
+                    l.get_name(schema)))
+
+            inline_links.sort(
                 key=lambda l: (
                     (l.get_on_target_delete(schema),)
                     if isinstance(l, s_links.Link) else (),
@@ -5536,6 +5635,11 @@ class UpdateEndpointDeleteActions(MetaCommand):
             if links or modifications:
                 self._update_action_triggers(
                     schema, source, links, disposition='source')
+
+            if inline_links or modifications:
+                self._update_action_triggers(
+                    schema, source, inline_links,
+                    inline=True, disposition='source')
 
         # All descendants of affected targets also need to have their
         # triggers updated, so track them down.

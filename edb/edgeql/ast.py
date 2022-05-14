@@ -668,6 +668,10 @@ class OnTargetDelete(DDLOperation):
     cascade: typing.Optional[qltypes.LinkTargetDeleteAction]
 
 
+class OnSourceDelete(DDLOperation):
+    cascade: typing.Optional[qltypes.LinkSourceDeleteAction]
+
+
 class SetField(DDLOperation):
     name: str
     value: typing.Union[Expr, TypeExpr, None]
