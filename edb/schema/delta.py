@@ -1935,13 +1935,21 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                       CommandContext, s_expr.Expression],
                      s_expr.Expression]
         ]=None,
+        include_ancestors: bool=False,
         extra_refs: Optional[Dict[so.Object, List[str]]]=None,
+        filter: Type[so.Object] | Tuple[Type[so.Object], ...] | None = None,
         metadata_only: bool=True,
     ) -> s_schema.Schema:
         scls = self.scls
         expr_refs = s_expr.get_expr_referrers(schema, scls)
+        if include_ancestors and isinstance(scls, so.InheritingObject):
+            for anc in scls.get_ancestors(schema).objects(schema):
+                expr_refs.update(s_expr.get_expr_referrers(schema, anc))
         if extra_refs:
             expr_refs.update(extra_refs)
+        if filter is not None:
+            expr_refs = {
+                k: v for k, v in expr_refs.items() if isinstance(k, filter)}
 
         if expr_refs:
             try:

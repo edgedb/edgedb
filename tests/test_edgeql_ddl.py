@@ -5593,6 +5593,177 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             """)
 
+    # A big collection of tests to make sure that functions get
+    # updated when access policies change
+    async def test_edgeql_ddl_func_policies_01(self):
+        await self.con.execute(r"""
+            create type X;
+            insert X;
+            create function get_x() -> set of uuid using (X.id);
+            alter type X {
+                create access policy test allow select using (false) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+    async def test_edgeql_ddl_func_policies_02(self):
+        await self.con.execute(r"""
+            create type Y;
+            create type X extending Y;
+            insert X;
+            create function get_x() -> set of uuid using (X.id);
+            alter type Y {
+                create access policy test allow select using (false) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+    async def test_edgeql_ddl_func_policies_03(self):
+        await self.con.execute(r"""
+            create type X;
+            create type W extending X;
+            insert W;
+            create function get_x() -> set of uuid using (X.id);
+            alter type W {
+                create access policy test allow select using (false) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+    async def test_edgeql_ddl_func_policies_04(self):
+        await self.con.execute(r"""
+            create type Y;
+            create type X;
+            create type W extending X, Y;
+            insert W;
+            create function get_x() -> set of uuid using (X.id);
+            alter type Y {
+                create access policy test allow select using (false) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+    async def test_edgeql_ddl_func_policies_05(self):
+        # links
+        await self.con.execute(r"""
+            create type X;
+            create type T { create link x -> X };
+            insert T { x := (insert X) };
+            create function get_x() -> set of uuid using (T.x.id);
+            alter type X {
+                create access policy test allow select using (false) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+    async def test_edgeql_ddl_func_policies_06(self):
+        # links
+        await self.con.execute(r"""
+            create type T;
+            create type X { create link t -> T };
+
+            insert X { t := (insert T) };
+            create function get_x() -> set of uuid using (T.<t[IS X].id);
+            alter type X {
+                create access policy test allow select using (false) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+    async def test_edgeql_ddl_func_policies_07(self):
+        # links
+        await self.con.execute(r"""
+            create type T;
+            create type X { create link t -> T };
+
+            insert X { t := (insert T) };
+            create function get_x() -> set of uuid using (T.<t.id);
+            alter type X {
+                create access policy test allow select using (false) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+    async def test_edgeql_ddl_func_policies_08(self):
+        # links
+        await self.con.execute(r"""
+            create type X;
+            create type Y;
+            create type T { create link x -> X | Y };
+            insert T { x := (insert X) };
+            create function get_x() -> set of uuid using (T.x.id);
+            alter type X {
+                create access policy test allow select using (false) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+    async def test_edgeql_ddl_func_policies_09(self):
+        await self.con.execute(r"""
+            create type X;
+            insert X;
+            create alias Y := X;
+            create function get_x() -> set of uuid using (Y.id);
+            alter type X {
+                create access policy test allow select using (false) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+    async def test_edgeql_ddl_func_policies_10(self):
+        # Make sure we succesfully update multiple functions to thread
+        # through globals when an access policy is created.
+        await self.con.execute(r"""
+            create type X;
+            insert X;
+            create function get_xi() -> set of uuid using (X.id);
+            create function get_x() -> set of uuid using (get_xi());
+            create required global en -> bool { set default := false };
+            alter type X {
+                create access policy test allow select using (global en) };
+        """)
+
+        await self.assert_query_result(
+            'select get_x()',
+            [],
+        )
+
+        await self.con.execute('''
+            set global en := true;
+        ''')
+
+        await self.assert_query_result(
+            'select get_x()',
+            [str],
+        )
+
     async def test_edgeql_ddl_global_01(self):
         INTRO_Q = '''
             select schema::Global {
