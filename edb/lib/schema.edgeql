@@ -384,8 +384,7 @@ ALTER TYPE schema::ObjectType {
 
 ALTER TYPE schema::AccessPolicy {
   CREATE REQUIRED LINK subject -> schema::ObjectType;
-  CREATE REQUIRED PROPERTY _access_kinds -> array<schema::AccessKind>;
-  CREATE PROPERTY access_kinds := array_unpack(._access_kinds);
+  CREATE MULTI PROPERTY access_kinds -> schema::AccessKind;
   CREATE PROPERTY condition -> std::str;
   CREATE REQUIRED PROPERTY action -> schema::AccessPolicyAction;
   CREATE REQUIRED PROPERTY expr -> std::str;

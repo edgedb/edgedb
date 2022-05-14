@@ -1406,6 +1406,8 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
         self._visit_DropObject(node, 'CONSTRAINT', after_name=after_name)
 
     def _format_access_kinds(self, kinds: List[qltypes.AccessKind]) -> str:
+        # Canonicalize the order, since the schema loses track
+        kinds = [k for k in list(qltypes.AccessKind) if k in kinds]
         if kinds == list(qltypes.AccessKind):
             return 'all'
         skinds = ', '.join(str(kind).lower() for kind in kinds)

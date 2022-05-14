@@ -396,11 +396,15 @@ def _build_object_mutation_shape(
 
         else:
             target_expr = f'${var_n}'
+            if cardinality and cardinality.is_multi():
+                target_expr = f'json_array_unpack(<json>{target_expr})'
             if target.is_enum(schema):
                 target_expr = f'<str>{target_expr}'
             target_expr = f'<{target.get_name(schema)}>{target_expr}'
 
-            if v is None or isinstance(v, numbers.Number):
+            if v is not None and cardinality.is_multi():
+                target_value = list(v)
+            elif v is None or isinstance(v, numbers.Number):
                 target_value = v
             else:
                 target_value = str(v)

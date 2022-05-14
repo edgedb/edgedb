@@ -121,6 +121,20 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
     shadow_ptr_type = None
     fieldtype = FieldType.OTHER
 
+    is_array = is_multiprop = False
+    if issubclass(ftype, s_obj.MultiPropSet):
+        is_multiprop = True
+        ftype = ftype.type
+    elif (
+        issubclass(
+            ftype,
+            (checked.CheckedList, checked.FrozenCheckedList,
+             checked.CheckedSet, checked.FrozenCheckedSet))
+        and not issubclass(ftype, s_expr.ExpressionList)
+    ):
+        is_array = True
+        ftype = ftype.type  # type: ignore
+
     if issubclass(ftype, s_obj.ObjectCollection):
         ptr_kind = 'multi link'
         ptr_type = 'schema::Object'
@@ -146,17 +160,6 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
         ptr_kind = 'property'
         ptr_type = 'array<str>'
         fieldtype = FieldType.EXPR_LIST
-
-    elif (issubclass(ftype, (checked.CheckedList, checked.FrozenCheckedList,
-                             checked.CheckedSet, checked.FrozenCheckedSet))
-            and issubclass(ftype.type, str)):  # type: ignore
-        ptr_kind = 'property'
-        ptr_type = 'array<str>'
-
-    elif (issubclass(ftype, (checked.CheckedList, checked.FrozenCheckedList))
-            and issubclass(ftype.type, int)):  # type: ignore
-        ptr_kind = 'property'
-        ptr_type = 'array<int64>'
 
     elif issubclass(ftype, collections.abc.Mapping):
         ptr_kind = 'property'
@@ -198,6 +201,11 @@ def _classify_object_field(field: s_obj.Field[Any]) -> FieldStorage:
         raise RuntimeError(
             f'no metaschema reflection for field {field.name} of type {ftype}'
         )
+
+    if is_multiprop:
+        ptr_kind = 'multi property'
+    if is_array:
+        ptr_type = f'array<{ptr_type}>'
 
     return FieldStorage(
         fieldtype=fieldtype,
