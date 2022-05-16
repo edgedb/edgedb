@@ -15,6 +15,27 @@ We would like to thank our community for reporting issues and
 contributing fixes. You are awesome! ❤️
 
 
+1.4
+===
+
+* Avoid unnecessary updates to parent views and triggers (:eql:gh:`#3771``)
+
+* Drop broken special case for nested insert ``FOR`` (:eql:gh:`#3797`)
+
+* Fix ``IN array_unpack`` for bigints (:eql:gh:`#3820`)
+
+* Put more parens around index expressions in generated DDL (:eql:gh:`#3822`)
+
+* Fix a weird computable/alias interaction (:eql:gh:`#3828`)
+
+* Support linkprops on backlinks (:eql:gh:`#3841`)
+
+* Fix generation of dummy_pathid in nonconflict ctes (:eql:gh:`#3848`)
+
+* Always correctly handle variadic arguments when producing AST from migrations
+  (:eql:gh:`#3855`)
+
+
 1.3
 ===
 
