@@ -43,8 +43,7 @@ Connection settings
 :eql:synopsis:`listen_addresses -> multi str`
   Specifies the TCP/IP address(es) on which the server is to listen for
   connections from client applications.  If the list is empty, the server
-  does not listen on any IP interface at all, in which case only Unix-domain
-  sockets can be used to connect to it.
+  does not listen on any IP interface at all.
 
 :eql:synopsis:`listen_port -> int16`
   The TCP port the server listens on; ``5656`` by default.  Note that the

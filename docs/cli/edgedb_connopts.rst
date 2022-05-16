@@ -40,15 +40,12 @@ Connection flags
 
 :cli:synopsis:`-H <hostname>, --host=<hostname>`
     Specifies the host name of the machine on which the server is running.
-    If :cli:synopsis:`<hostname>` begins with a slash (``/``), it is used
-    as the directory where the command looks for the server Unix-domain
-    socket.  Defaults to the value of the ``EDGEDB_HOST`` environment
-    variable.
+    Defaults to the value of the ``EDGEDB_HOST`` environment variable.
 
 :cli:synopsis:`-P <port>, --port=<port>`
-    Specifies the TCP port or the local Unix-domain socket file extension
-    on which the server is listening for connections.  Defaults to the value
-    of the ``EDGEDB_PORT`` environment variable or, if not set, to ``5656``.
+    Specifies the TCP port on which the server is listening for connections.
+    Defaults to the value of the ``EDGEDB_PORT`` environment variable or, 
+    if not set, to ``5656``.
 
 :cli:synopsis:`-u <username>, --user=<username>`
     Connect to the database as the user :cli:synopsis:`<username>`.
