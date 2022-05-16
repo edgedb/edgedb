@@ -1750,7 +1750,7 @@ def range_for_ptrref(
         # This is a little funky, but in an intersection, the pointer
         # needs to appear in *all* of the tables, so we just pick any
         # one of them.
-        refs = {list(ptrref.intersection_components)[0]}
+        refs = {next(iter((ptrref.intersection_components)))}
     else:
         refs = {ptrref}
         assert isinstance(ptrref, irast.PointerRef), \
