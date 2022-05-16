@@ -205,13 +205,10 @@ class TestServerCancellation(tb.TestCase):
             # Use an implicit transaction in the nested connection: lock
             # the row with an UPDATE, and then hold the transaction for 10
             # seconds, which is long enough for the upcoming cancellation
-            # TODO(fantix): drop the explicit transaction below after dropping
-            # simple query
             await con1.send(
                 protocol.ExecuteScript(
                     headers=[],
                     script="""\
-                    START TRANSACTION;
                     UPDATE tclcq SET { p := 'inner' };
                     SELECT sys::_sleep(10);
                     """,

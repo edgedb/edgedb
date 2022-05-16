@@ -1096,9 +1096,10 @@ cdef class EdgeConnection:
     ):
         cdef:
             bytes state = None, orig_state = None
-            int i
+            bint sent = False, in_command = False, first = True
             dbview.DatabaseConnectionView _dbview
             pgcon.PGConnection conn
+            WriteBuffer bind_data
 
         unit_group = await self._compile_script(eql, stmt_mode=stmt_mode)
         metrics.edgeql_query_compilations.inc(1.0, 'compiler')
@@ -1116,15 +1117,46 @@ cdef class EdgeConnection:
         if not _dbview.in_tx():
             orig_state = state = _dbview.serialize_state()
 
+        # use an iterator to keep track of the progress
+        units_iter = iter(unit_group)
+
         conn = await self.get_pgcon()
         try:
             if conn.last_state == state:
                 # the current status in conn is in sync with dbview, skip the
                 # state restoring
                 state = None
-            for query_unit in unit_group.units:
+
+            if len(unit_group) > 1 or not unit_group[0].system_config:
+                bind_data = WriteBuffer.new()
+                bind_data.write_int16(0)  # number of format codes
+                bind_data.write_int16(0)  # number of parameters
+                bind_data.write_int16(0)  # number of result columns
+
+                conn.before_command()
+                in_command = True
+                conn.send_query_unit_group(unit_group, bind_data, state)
+                sent = True
+
+                if state is not None:
+                    await conn.wait_for_state_resp(
+                        state, unit_group.tx_control
+                    )
+                    # state is restored, clear orig_state so that we can
+                    # set conn.last_state correctly later
+                    orig_state = None
+
+            for query_unit in units_iter:
                 if self._cancelled:
                     raise ConnectionAbortedError
+
+                if not first and (
+                    query_unit.tx_rollback or
+                    query_unit.tx_savepoint_rollback
+                ):
+                    await conn.wait_for_sync(more=True)
+
+                first = False
 
                 new_types = None
                 _dbview.start(query_unit)
@@ -1138,31 +1170,23 @@ cdef class EdgeConnection:
                             query_unit.drop_db, _dbview.dbname)
 
                     if query_unit.system_config:
+                        # Temporary hack: use simple query to run a single
+                        # CONFIGURE INSTANCE command as a script
+                        assert not sent
                         await self._execute_system_config(query_unit, conn)
                     else:
                         if query_unit.sql:
                             if query_unit.ddl_stmt_id:
-                                ddl_ret = await conn.run_ddl(query_unit, state)
+                                ddl_ret = await conn.handle_ddl_in_script(
+                                    query_unit
+                                )
                                 if ddl_ret and ddl_ret['new_types']:
                                     new_types = ddl_ret['new_types']
-                            elif query_unit.is_transactional:
-                                await conn.simple_query(
-                                    b';'.join(query_unit.sql),
-                                    ignore_data=True,
-                                    state=state)
                             else:
-                                i = 0
                                 for sql in query_unit.sql:
-                                    await conn.simple_query(
-                                        sql,
-                                        ignore_data=True,
-                                        state=state if i == 0 else None)
-                                    # only apply state to the first query.
-                                    i += 1
-                            if state is not None:
-                                # state is restored, clear orig_state so that
-                                # we can set conn.last_state correctly later
-                                orig_state = None
+                                    await conn.wait_for_command(
+                                        ignore_data=True
+                                    )
 
                         if query_unit.create_db:
                             await self.server.introspect_db(
@@ -1184,6 +1208,20 @@ cdef class EdgeConnection:
                         # transaction is aborted.  This check workarounds
                         # that (until a better solution is found.)
                         _dbview.abort_tx()
+                        # Consume any remaining SYNC
+                        if sent:
+                            sent = False
+                            for query_unit in units_iter:
+                                if not first and (
+                                    query_unit.tx_rollback or
+                                    query_unit.tx_savepoint_rollback
+                                ):
+                                    first = False
+                                    await conn.wait_for_sync(more=True)
+                            await conn.wait_for_sync()
+                        if in_command:
+                            in_command = False
+                            await conn.after_command()
                         await self.recover_current_tx_info(conn)
                     raise
                 else:
@@ -1191,13 +1229,41 @@ cdef class EdgeConnection:
                         query_unit, new_types)
                     if side_effects:
                         self.signal_side_effects(side_effects)
-                    if not _dbview.in_tx():
+                    if unit_group.tx_control and not _dbview.in_tx():
+                        # If the unit group has transaction control commands,
+                        # we should keep the last_state updated as soon as the
+                        # transaction ends, in case the next transaction fails.
                         state = _dbview.serialize_state()
                         if state is not orig_state:
                             # see the same comments in _execute()
                             conn.last_state = state
+                            orig_state = state
+
+            # In the end if the atomic script is successfully executed, we set
+            # the last_state here only once
+            if not unit_group.tx_control and not _dbview.in_tx():
+                state = _dbview.serialize_state()
+                if state is not orig_state:
+                    conn.last_state = state
+
         finally:
-            self.maybe_release_pgcon(conn)
+            try:
+                try:
+                    # Consume any remaining SYNC
+                    if sent and not self._cancelled:
+                        for query_unit in units_iter:
+                            if not first and (
+                                query_unit.tx_rollback or
+                                query_unit.tx_savepoint_rollback
+                            ):
+                                first = False
+                                await conn.wait_for_sync(more=True)
+                        await conn.wait_for_sync()
+                finally:
+                    if in_command:
+                        await conn.after_command()
+            finally:
+                self.maybe_release_pgcon(conn)
 
         return query_unit
 
@@ -2886,6 +2952,7 @@ async def run_script(
     user: str,
     script: str,
 ) -> None:
+    cdef EdgeConnection conn
     conn = new_edge_connection(server)
     await conn._start_connection(database)
     try:

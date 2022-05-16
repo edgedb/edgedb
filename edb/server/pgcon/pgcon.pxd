@@ -118,6 +118,9 @@ cdef class PGConnection:
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
     cdef make_auth_password_md5_message(self, bytes salt)
+    cdef send_query_unit_group(
+        self, object query_unit_group, WriteBuffer bind_data, bytes state
+    )
 
     cdef _rewrite_copy_data(
         self,

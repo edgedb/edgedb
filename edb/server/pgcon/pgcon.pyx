@@ -975,6 +975,62 @@ cdef class PGConnection:
             else:
                 self.fallthrough()
 
+    cdef send_query_unit_group(
+        self, object query_unit_group, WriteBuffer bind_data, bytes state
+    ):
+        cdef:
+            WriteBuffer out
+            WriteBuffer buf
+            bint first = True
+
+        out = WriteBuffer.new()
+
+        if state is not None:
+            self._build_apply_state_req(state, out)
+            if query_unit_group.tx_control:
+                # This query unit group has START TRANSACTION in it.
+                # Restoring state must be performed in a separate
+                # implicit transaction (otherwise START TRANSACTION DEFERRABLE)
+                # would fail. Hence - inject a SYNC after a state restore step.
+                out.write_bytes(SYNC_MESSAGE)
+
+        for query_unit in query_unit_group.units:
+            if query_unit.system_config:
+                raise RuntimeError(
+                    "CONFIGURE INSTANCE command is not allowed in scripts"
+                )
+            if not first and (
+                query_unit.tx_rollback or query_unit.tx_savepoint_rollback
+            ):
+                out.write_bytes(SYNC_MESSAGE)
+            first = False
+            for sql in query_unit.sql:
+                buf = WriteBuffer.new_message(b'P')
+                buf.write_bytestring(b'')  # statement name
+                buf.write_bytestring(sql)
+                buf.write_int16(0)
+                out.write_buffer(buf.end_message())
+
+                buf = WriteBuffer.new_message(b'B')
+                buf.write_bytestring(b'')  # portal name
+                buf.write_bytestring(b'')  # statement name
+                if query_unit.ddl_stmt_id:
+                    buf.write_int16(0)
+                    buf.write_int16(0)
+                    buf.write_int16(0)
+                else:
+                    buf.write_buffer(bind_data)
+                out.write_buffer(buf.end_message())
+
+                buf = WriteBuffer.new_message(b'E')
+                buf.write_bytestring(b'')  # portal name
+                buf.write_int32(0)  # limit: 0 - return all rows
+                out.write_buffer(buf.end_message())
+
+        out.write_bytes(SYNC_MESSAGE)
+        self.waiting_for_sync = True
+        self.write(out)
+
     async def wait_for_state_resp(self, bytes state, bint state_sync):
         if state_sync:
             try:
@@ -983,6 +1039,69 @@ cdef class PGConnection:
                 await self.wait_for_sync(more=True)
         else:
             await self._parse_apply_state_resp(state)
+
+    async def wait_for_command(self, *, bint ignore_data):
+        result = None
+        while True:
+            if not self.buffer.take_message():
+                await self.wait_for_message()
+            mtype = self.buffer.get_message_type()
+
+            try:
+                if mtype == b'D':
+                    # DataRow
+                    if ignore_data:
+                        self.buffer.discard_message()
+                    else:
+                        ncol = self.buffer.read_int16()
+                        row = []
+                        for i in range(ncol):
+                            coll = self.buffer.read_int32()
+                            if coll == -1:
+                                row.append(None)
+                            else:
+                                row.append(self.buffer.read_bytes(coll))
+                        if result is None:
+                            result = []
+                        result.append(row)
+
+                elif mtype == b'C':  ## result
+                    # CommandComplete
+                    self.buffer.discard_message()
+                    return result
+
+                elif mtype == b'1':
+                    # ParseComplete
+                    self.buffer.discard_message()
+
+                elif mtype == b'E':  ## result
+                    # ErrorResponse
+                    er_cls, er_fields = self.parse_error_message()
+                    raise er_cls(fields=er_fields)
+
+                elif mtype == b'n':
+                    # NoData
+                    self.buffer.discard_message()
+
+                elif mtype == b's':  ## result
+                    # PortalSuspended
+                    self.buffer.discard_message()
+                    return result
+
+                elif mtype == b'2':
+                    # BindComplete
+                    self.buffer.discard_message()
+
+                elif mtype == b'I':  ## result
+                    # EmptyQueryResponse
+                    self.buffer.discard_message()
+                    return result
+
+                else:
+                    self.fallthrough()
+
+            finally:
+                self.buffer.finish_message()
 
     async def _parse_execute(
         self,
@@ -1298,21 +1417,31 @@ cdef class PGConnection:
                 ignore_data,
                 state,
             )
-
-            if query_unit.ddl_stmt_id:
-                if data:
-                    ret = json.loads(data[0][0])
-                    if ret['ddl_stmt_id'] != query_unit.ddl_stmt_id:
-                        raise RuntimeError(
-                            'unrecognized data packet after a DDL command: '
-                            'data_stmt_id do not match')
-                    return ret
-                else:
-                    raise RuntimeError(
-                        'missing the required data packet after a DDL command')
+            return self.load_ddl_return(query_unit, data)
         finally:
             metrics.backend_query_duration.observe(time.monotonic() - started_at)
             await self.after_command()
+
+    def load_ddl_return(self, object query_unit, data):
+        if query_unit.ddl_stmt_id:
+            if data:
+                ret = json.loads(data[0][0])
+                if ret['ddl_stmt_id'] != query_unit.ddl_stmt_id:
+                    raise RuntimeError(
+                        'unrecognized data packet after a DDL command: '
+                        'data_stmt_id do not match'
+                    )
+                return ret
+            else:
+                raise RuntimeError(
+                    'missing the required data packet after a DDL command'
+                )
+
+    async def handle_ddl_in_script(self, object query_unit):
+        data = None
+        for sql in query_unit.sql:
+            data = await self.wait_for_command(ignore_data=bool(data)) or data
+        return self.load_ddl_return(query_unit, data)
 
     async def _dump(self, block, output_queue, fragment_suggested_size):
         cdef:
