@@ -24,6 +24,10 @@ targets:
           platform: ubuntu
           platform_version: focal
           family: debian
+        - name: ubuntu-jammy
+          platform: ubuntu
+          platform_version: jammy
+          family: debian
         - name: centos-7
           platform: centos
           platform_version: 7

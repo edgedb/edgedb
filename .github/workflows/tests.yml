@@ -32,11 +32,6 @@ jobs:
       with:
         python-version: '3.10.0'
 
-    - name: Set up Node
-      uses: actions/setup-node@v3
-      with:
-        node-version: '16'
-
     # Build virtualenv
 
     - name: Handle virtualenv
