@@ -572,8 +572,14 @@ class AlterObjectType(ObjectTypeCommand,
                 delete = union.init_delta_command(schema, sd.DeleteObject)
 
                 context.disable_dep_verification = True
-                nschema = delete.apply(schema, context)
+                delete.apply(schema, context)
                 context.disable_dep_verification = orig_disable
+                # We run the delete to populate the tree, but then instead
+                # of actually deleting the object, we just remove the names.
+                # This is because the pointers in the types we are looking
+                # at might themselves reference the union, so we need
+                # them in the schema to produce the correct as_alter_delta.
+                nschema = _delete_to_delist(delete, schema)
 
                 nschema, nunion = utils.get_union_type(
                     nschema,
@@ -595,6 +601,21 @@ class AlterObjectType(ObjectTypeCommand,
                 self.add(diff)
 
         return super()._alter_finalize(schema, context)
+
+
+def _delete_to_delist(
+    delete: sd.DeleteObject[so.Object],
+    schema: s_schema.Schema,
+) -> s_schema.Schema:
+    """Delist all of the objects mentioned in a delete tree.
+
+    This removes their names from the schema but preserves the actual
+    objects.
+    """
+    schema = schema.delist(delete.classname)
+    for sub in delete.get_subcommands(type=sd.DeleteObject):
+        schema = _delete_to_delist(sub, schema)
+    return schema
 
 
 class DeleteObjectType(
