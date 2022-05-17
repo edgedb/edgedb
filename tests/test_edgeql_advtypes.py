@@ -329,3 +329,25 @@ class TestEdgeQLAdvancedTypes(tb.QueryTestCase):
             """,
             [{'name': 'aaa'}],
         )
+
+    async def test_edgeql_advtypes_intersection_semijoin_01(self):
+        await self.con.execute("""
+            insert V {
+                name := "x", s := "!", t := "!", u := '...',
+                l_a := (insert A { name := "test" })
+            };
+        """)
+
+        await self.assert_query_result(
+            """
+            select S[is T].l_a { name }
+            """,
+            [{"name": "test"}]
+        )
+
+        await self.assert_query_result(
+            """
+            select S[is T] { l_a: {name} }
+            """,
+            [{"l_a": [{"name": "test"}]}]
+        )

@@ -1746,6 +1746,11 @@ def range_for_ptrref(
             raise errors.InternalServerError(
                 'unexpected union link'
             )
+    elif ptrref.intersection_components:
+        # This is a little funky, but in an intersection, the pointer
+        # needs to appear in *all* of the tables, so we just pick any
+        # one of them.
+        refs = {next(iter((ptrref.intersection_components)))}
     else:
         refs = {ptrref}
         assert isinstance(ptrref, irast.PointerRef), \

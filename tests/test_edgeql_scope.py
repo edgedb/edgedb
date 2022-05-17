@@ -3727,3 +3727,13 @@ class TestEdgeQLScope(tb.QueryTestCase):
                 {"name": "Dave", "namelen": 4}
             ])
         )
+
+    async def test_edgeql_shape_intersection_semijoin_01(self):
+        await self.assert_query_result(
+            r'''
+                select User { name } filter [is Bot].deck.name = 'Dragon'
+            ''',
+            [
+                {"name": "Dave"}
+            ]
+        )
