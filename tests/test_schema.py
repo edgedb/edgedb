@@ -3214,6 +3214,19 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_union_ptrs_01(self):
+        schema = r'''
+        abstract type Entity {
+            link parent -> Entity;
+        };
+        type BaseCourse extending Entity {}
+        type Unit extending Entity {
+             overloaded link parent -> Unit | BaseCourse;
+        }
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
             type Base;

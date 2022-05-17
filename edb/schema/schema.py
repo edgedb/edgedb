@@ -105,6 +105,10 @@ class Schema(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
+    def delist(self: Schema_T, name: sn.Name) -> Schema_T:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def update_obj(
         self: Schema_T,
         obj: so.Object,
@@ -962,6 +966,14 @@ class FlatSchema(Schema):
 
         return self.add_raw(id, sclass, data)
 
+    def delist(self, name: sn.Name) -> FlatSchema:
+        name_to_id = self._name_to_id.delete(name)
+        return self._replace(
+            name_to_id=name_to_id,
+            shortname_to_id=self._shortname_to_id,
+            globalname_to_id=self._globalname_to_id,
+        )
+
     def _delete(self, obj: so.Object) -> FlatSchema:
         data = self._id_to_data.get(obj.id)
         if data is None:
@@ -1586,6 +1598,16 @@ class ChainedSchema(Schema):
                 self._top_schema.delete(obj),
                 self._global_schema,
             )
+
+    def delist(
+        self,
+        name: sn.Name,
+    ) -> ChainedSchema:
+        return ChainedSchema(
+            self._base_schema,
+            self._top_schema.delist(name),
+            self._global_schema,
+        )
 
     def update_obj(
         self,
