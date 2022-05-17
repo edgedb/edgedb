@@ -526,7 +526,7 @@ class InheritingObjectCommand(sd.ObjectCommand[so.InheritingObjectT]):
 
 BaseDeltaItem_T = Tuple[
     List[so.ObjectShell[so.InheritingObjectT]],
-    Union[str, Tuple[str, so.ObjectShell]],
+    Union[str, Tuple[str, so.ObjectShell[so.InheritingObjectT]]],
 ]
 
 
