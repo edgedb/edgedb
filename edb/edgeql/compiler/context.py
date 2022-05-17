@@ -58,7 +58,7 @@ class Exposure(enum.IntEnum):
     EXPOSED = 2
 
     def __bool__(self) -> bool:
-        return self == self.EXPOSED
+        return self == Exposure.EXPOSED
 
 
 class ContextSwitchMode(enum.Enum):
