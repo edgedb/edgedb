@@ -5,8 +5,7 @@ Binary protocol
 ===============
 
 EdgeDB uses a message-based binary protocol for communication between
-clients and servers.  The protocol is supported over TCP/IP and also over
-Unix-domain sockets.
+clients and servers.  The protocol is supported over TCP/IP.
 
 
 .. toctree::
