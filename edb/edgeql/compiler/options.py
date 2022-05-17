@@ -120,5 +120,5 @@ class CompilerOptions(GlobalCompilerOptions):
 
     #: A set of schema types and links that should be treated
     #: as singletons in the context of this compilation.
-    singletons: FrozenSet[Union[s_types.Type, s_pointers.Pointer]] = (
+    singletons: Collection[Union[s_types.Type, s_pointers.Pointer]] = (
         frozenset())
