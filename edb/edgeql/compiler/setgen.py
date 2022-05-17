@@ -298,6 +298,13 @@ def compile_path(expr: qlast.Path, *, ctx: context.ContextLevel) -> irast.Set:
 
                 if (stype.get_expr_type(ctx.env.schema) is not None and
                         stype.get_name(ctx.env.schema) not in ctx.view_nodes):
+                    if not stype.get_expr(ctx.env.schema):
+                        raise errors.InvalidReferenceError(
+                            f"cannot refer to alias link helper type "
+                            f"'{stype.get_name(ctx.env.schema)}'",
+                            context=step.context,
+                        )
+
                     # This is a schema-level view, as opposed to
                     # a WITH-block or inline alias view.
                     stype = stmtctx.declare_view_from_schema(stype, ctx=ctx)
