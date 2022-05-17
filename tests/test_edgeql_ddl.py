@@ -13930,6 +13930,28 @@ type default::Foo {
             delete Foo;
         """)
 
+    async def test_edgeql_ddl_set_abs_linkprop_type(self):
+        await self.con.execute(r"""
+            CREATE ABSTRACT LINK orderable {
+                CREATE PROPERTY orderVal -> str {
+                    CREATE DELEGATED CONSTRAINT exclusive;
+                };
+            };
+            CREATE ABSTRACT TYPE Entity;
+            CREATE TYPE Video EXTENDING Entity;
+            CREATE TYPE Topic EXTENDING Entity {
+                CREATE MULTI LINK videos EXTENDING orderable -> Video;
+            };
+        """)
+
+        await self.con.execute(r"""
+            ALTER ABSTRACT LINK orderable {
+                ALTER PROPERTY orderVal {
+                    SET TYPE decimal using (<decimal>@orderVal);
+                };
+            };
+        """)
+
     async def test_edgeql_ddl_set_multi_with_children_01(self):
         await self.con.execute(r"""
             create type Person { create link lover -> Person; };

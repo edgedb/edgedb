@@ -1321,7 +1321,7 @@ class PointerCommandOrFragment(
                 schema_object_context=self.get_schema_metaclass(),
                 anchors={qlast.Source().name: source},
                 path_prefix_anchor=qlast.Source().name,
-                singletons=frozenset(singletons),
+                singletons=singletons,
                 apply_query_rewrites=not context.stdmode,
                 track_schema_ref_exprs=track_schema_ref_exprs,
                 in_ddl_context_name=in_ddl_context_name,

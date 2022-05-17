@@ -4053,10 +4053,13 @@ class PointerMetaCommand(MetaCommand):
             external_rvars = {}
 
             if is_lprop:
-                tgt_path_id = irpathid.PathId.from_pointer(
-                    orig_schema,
-                    pointer,
-                ).src_path()
+                # For linkprops we actually want the source path.
+                # To make it work for abstract links, get the source
+                # path out of the IR's output (to take advantage
+                # of the types we made up for it).
+                # FIXME: Maybe we shouldn't be compiling stuff
+                # for abstract links!
+                tgt_path_id = ir.singletons[0]
             else:
                 tgt_path_id = irpathid.PathId.from_pointer(
                     orig_schema,
