@@ -1096,3 +1096,13 @@ class TestEdgeQLExprAliases(tb.QueryTestCase):
             await self.con.execute("""
                 SELECT User.<owners;
             """)
+
+    async def test_edgeql_aliases_helper_01(self):
+        async with self.assertRaisesRegexTx(
+            edgedb.InvalidReferenceError,
+            "cannot refer to alias link helper type "
+            "'default::__AwardAlias2__winner'",
+        ):
+            await self.con.execute("""
+                SELECT __AwardAlias2__winner
+            """)
