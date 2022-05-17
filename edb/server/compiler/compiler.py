@@ -658,6 +658,13 @@ class Compiler:
                 ir.params, argmap=argmap, script_info=script_info,
                 schema=ir.schema, ctx=ctx)
 
+        globals = None
+        if ir.globals:
+            globals = [
+                (str(glob.global_name), glob.has_present_arg)
+                for glob in ir.globals
+            ]
+
         if single_stmt_mode:
             if native_out_format:
                 out_type_data, out_type_id = sertypes.TypeSerializer.describe(
@@ -668,13 +675,6 @@ class Compiler:
             else:
                 out_type_data, out_type_id = \
                     sertypes.TypeSerializer.describe_json()
-
-            globals = None
-            if ir.globals:
-                globals = [
-                    (str(glob.global_name), glob.has_present_arg)
-                    for glob in ir.globals
-                ]
 
             if ctx.protocol_version >= (0, 12):
                 in_type_data, in_type_id = \
@@ -724,14 +724,18 @@ class Compiler:
             )
 
         else:
-            if ir.globals:
-                raise errors.QueryError(
-                    'EdgeQL script queries cannot use globals')
-
-            return dbstate.SimpleQuery(
+            return dbstate.Query(
                 sql=(sql_bytes,),
-                has_dml=ir.dml_exprs,
+                sql_hash=b'',
+                cardinality=enums.Cardinality.NO_RESULT,
+                globals=globals,
+                in_type_id=sertypes.NULL_TYPE_ID.bytes,
+                in_type_data=sertypes.NULL_TYPE_DESC,
                 in_type_args=in_type_args,
+                out_type_id=sertypes.NULL_TYPE_ID.bytes,
+                out_type_data=sertypes.NULL_TYPE_DESC,
+                cacheable=cacheable,
+                has_dml=ir.dml_exprs,
             )
 
     def _extract_params(
@@ -743,8 +747,8 @@ class Compiler:
         script_info: Optional[irast.ScriptInfo],
         ctx: CompileContext,
     ) -> Tuple[List[tuple], List[dbstate.Param]]:
-        first_param = next(iter(params))
-        has_named_params = not first_param.name.isdecimal()
+        first_param = next(iter(params)) if params else None
+        has_named_params = first_param and not first_param.name.isdecimal()
 
         if (src := ctx.source) is not None:
             first_extra = src.first_extra()
@@ -1824,15 +1828,17 @@ class Compiler:
 
             if isinstance(comp, dbstate.Query):
                 unit.sql = comp.sql
+                unit.globals = comp.globals
+                unit.in_type_args = comp.in_type_args
+
+                # XXX: ...
                 if single_stmt_mode:
                     unit.sql_hash = comp.sql_hash
 
                     unit.out_type_data = comp.out_type_data
                     unit.out_type_id = comp.out_type_id
                     unit.in_type_data = comp.in_type_data
-                    unit.in_type_args = comp.in_type_args
                     unit.in_type_id = comp.in_type_id
-                    unit.globals = comp.globals
 
                     unit.cacheable = comp.cacheable
 

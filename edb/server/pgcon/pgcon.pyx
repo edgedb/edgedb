@@ -976,11 +976,12 @@ cdef class PGConnection:
                 self.fallthrough()
 
     cdef send_query_unit_group(
-        self, object query_unit_group, WriteBuffer bind_data, bytes state
+        self, object query_unit_group, object bind_datas, bytes state
     ):
         cdef:
             WriteBuffer out
             WriteBuffer buf
+            WriteBuffer bind_data
             bint first = True
 
         out = WriteBuffer.new()
@@ -994,7 +995,7 @@ cdef class PGConnection:
                 # would fail. Hence - inject a SYNC after a state restore step.
                 out.write_bytes(SYNC_MESSAGE)
 
-        for query_unit in query_unit_group.units:
+        for query_unit, bind_data in zip(query_unit_group.units, bind_datas):
             if query_unit.system_config:
                 raise RuntimeError(
                     "CONFIGURE INSTANCE command is not allowed in scripts"

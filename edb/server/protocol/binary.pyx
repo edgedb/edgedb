@@ -1128,14 +1128,50 @@ cdef class EdgeConnection:
                 state = None
 
             if len(unit_group) > 1 or not unit_group[0].system_config:
-                bind_data = WriteBuffer.new()
-                bind_data.write_int16(0)  # number of format codes
-                bind_data.write_int16(0)  # number of parameters
-                bind_data.write_int16(0)  # number of result columns
+                # XXX: factor this out
+                bind_array = []
+                for query_unit in unit_group:
+                    bind_data = WriteBuffer.new()
+                    bind_data.write_int16(0)  # number of format codes
+
+                    print("GLOB", query_unit.globals)
+                    # XXX: duplication
+                    num_args = 0
+                    if query_unit.globals:
+                        num_args += len(query_unit.globals)
+                        for _, has_present_arg in query_unit.globals:
+                            if has_present_arg:
+                                num_args += 1
+
+                    bind_data.write_int16(num_args)  # number of parameters
+
+                    if query_unit.globals:
+                        globs = self.get_dbview().get_globals()
+                        for (glob, has_present_arg) in query_unit.globals:
+                            val = None
+                            entry = globs.get(glob)
+                            if entry:
+                                val = entry.value
+                            if val:
+                                bind_data.write_int32(len(val))
+                                bind_data.write_bytes(val)
+                            else:
+                                bind_data.write_int32(-1)
+                            if has_present_arg:
+                                bind_data.write_int32(1)
+                                present = b'\x01' if val is not None else b'\x00'
+                                bind_data.write_bytes(present)
+
+
+                    bind_data.write_int16(0)  # number of result columns
+
+                    bind_array.append(bind_data)
+                    print("bind_data", bytes(memoryview(bind_data)))
+
 
                 conn.before_command()
                 in_command = True
-                conn.send_query_unit_group(unit_group, bind_data, state)
+                conn.send_query_unit_group(unit_group, bind_array, state)
                 sent = True
 
                 if state is not None:
