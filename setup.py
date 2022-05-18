@@ -124,7 +124,11 @@ EXTRA_DEPS = {
     'build': BUILD_DEPS,
 }
 
-EXT_CFLAGS = ['-O2']
+EXT_CFLAGS: List[str] = []
+if flag := os.getenv('EDGEDB_OPT_CFLAG'):
+    EXT_CFLAGS += [flag]
+else:
+    EXT_CFLAGS += ['-O2']
 EXT_LDFLAGS: List[str] = []
 
 ROOT_PATH = pathlib.Path(__file__).parent.resolve()
