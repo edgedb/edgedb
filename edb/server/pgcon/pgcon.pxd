@@ -73,7 +73,7 @@ cdef class PGConnection:
         readonly bint connected
         object connected_fut
 
-        bint waiting_for_sync
+        int32_t waiting_for_sync
         PGTransactionStatus xact_status
 
         readonly int32_t backend_pid
@@ -107,7 +107,7 @@ cdef class PGConnection:
     cdef write(self, buf)
 
     cdef parse_error_message(self)
-    cdef parse_sync_message(self, bint more=*)
+    cdef parse_sync_message(self)
     cdef parse_parameter_status_message(self)
 
     cdef parse_notification(self)
@@ -115,6 +115,7 @@ cdef class PGConnection:
     cdef fallthrough_idle(self)
 
     cdef before_prepare(self, stmt_name, dbver, WriteBuffer outbuf)
+    cdef write_sync(self, WriteBuffer outbuf)
 
     cdef make_clean_stmt_message(self, bytes stmt_name)
     cdef make_auth_password_md5_message(self, bytes salt)

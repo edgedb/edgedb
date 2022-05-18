@@ -431,7 +431,7 @@ cdef class PGConnection:
         self.connected_fut = loop.create_future()
         self.connected = False
 
-        self.waiting_for_sync = False
+        self.waiting_for_sync = 0
         self.xact_status = PQTRANS_UNKNOWN
 
         self.backend_pid = -1
@@ -559,8 +559,8 @@ cdef class PGConnection:
 
         self.before_command()
         try:
-            self.waiting_for_sync = True
-            self.write(SYNC_MESSAGE)
+            self.waiting_for_sync += 1
+            self.write(_SYNC_MESSAGE)
 
             while True:
                 if not self.buffer.take_message():
@@ -575,7 +575,7 @@ cdef class PGConnection:
         finally:
             await self.after_command()
 
-    async def wait_for_sync(self, *, bint more=False):
+    async def wait_for_sync(self):
         error = None
         try:
             while True:
@@ -583,7 +583,7 @@ cdef class PGConnection:
                     await self.wait_for_message()
                 mtype = self.buffer.get_message_type()
                 if mtype == b'Z':
-                    self.parse_sync_message(more)
+                    self.parse_sync_message()
                     break
                 elif mtype == b'E':
                     # ErrorResponse
@@ -622,6 +622,10 @@ cdef class PGConnection:
             store_stmt = 1
 
         return parse, store_stmt
+
+    cdef write_sync(self, WriteBuffer outbuf):
+        outbuf.write_bytes(_SYNC_MESSAGE)
+        self.waiting_for_sync += 1
 
     async def _parse_execute_to_buf(
         self,
@@ -683,11 +687,10 @@ cdef class PGConnection:
         execute_buf.end_message()
         buf.write_buffer(execute_buf)
 
-        buf.write_bytes(SYNC_MESSAGE)
+        self.write_sync(buf)
 
         self.write(buf)
         error = None
-        self.waiting_for_sync = True
         data = None
         while True:
             if not self.buffer.take_message():
@@ -994,7 +997,7 @@ cdef class PGConnection:
                 # Restoring state must be performed in a separate
                 # implicit transaction (otherwise START TRANSACTION DEFERRABLE)
                 # would fail. Hence - inject a SYNC after a state restore step.
-                out.write_bytes(SYNC_MESSAGE)
+                self.write_sync(out)
 
         for query_unit, bind_data in zip(
                 query_unit_group.units[start:end], bind_datas):
@@ -1005,9 +1008,7 @@ cdef class PGConnection:
             if not first and (
                 query_unit.tx_rollback or query_unit.tx_savepoint_rollback
             ):
-                out.write_bytes(SYNC_MESSAGE)
-                # ???
-                self.waiting_for_sync = True
+                self.write_sync(out)
             first = False
             for sql in query_unit.sql:
                 buf = WriteBuffer.new_message(b'P')
@@ -1028,8 +1029,7 @@ cdef class PGConnection:
                 out.write_buffer(buf.end_message())
 
         if end == len(query_unit_group.units):
-            out.write_bytes(SYNC_MESSAGE)
-            self.waiting_for_sync = True
+            self.write_sync(out)
         else:
             out.write_bytes(FLUSH_MESSAGE)
 
@@ -1040,7 +1040,7 @@ cdef class PGConnection:
             try:
                 await self._parse_apply_state_resp(state)
             finally:
-                await self.wait_for_sync(more=True)
+                await self.wait_for_sync()
         else:
             await self._parse_apply_state_resp(state)
 
@@ -1140,7 +1140,7 @@ cdef class PGConnection:
                 # implicit transaction (otherwise START TRANSACTION DEFERRABLE)
                 # would fail. Hence - inject a SYNC after a state restore step.
                 state_sync = 1
-                out.write_bytes(SYNC_MESSAGE)
+                self.write_sync(out)
 
         if use_prep_stmt:
             stmt_name = query.sql_hash
@@ -1204,8 +1204,7 @@ cdef class PGConnection:
             buf.write_int32(0)  # limit: 0 - return all rows
             out.write_buffer(buf.end_message())
 
-        out.write_bytes(SYNC_MESSAGE)
-        self.waiting_for_sync = True
+        self.write_sync(out)
         self.write(out)
 
         try:
@@ -1323,11 +1322,12 @@ cdef class PGConnection:
             # scripts that contain `SET TRANSACTION ISOLATION LEVEL` would
             # complain that transaction has already started (by our state
             # sync query) and the type of the transaction cannot be changed.
-            out.write_bytes(SYNC_MESSAGE)
+            self.write_sync(out)
 
         buf = WriteBuffer.new_message(b'Q')
         buf.write_bytestring(sql)
         out.write_buffer(buf.end_message())
+        self.waiting_for_sync += 1
 
         self.write(out)
 
@@ -1336,10 +1336,8 @@ cdef class PGConnection:
 
         if state is not None:
             await self._parse_apply_state_resp(state)
-            self.waiting_for_sync = True
             await self.wait_for_sync()
 
-        self.waiting_for_sync = True
         while True:
             if not self.buffer.take_message():
                 await self.wait_for_message()
@@ -1458,7 +1456,7 @@ cdef class PGConnection:
         qbuf.end_message()
 
         self.write(qbuf)
-        self.waiting_for_sync = True
+        self.waiting_for_sync += 1
 
         er = None
         out = None
@@ -1558,7 +1556,7 @@ cdef class PGConnection:
         qbuf.end_message()
 
         self.write(qbuf)
-        self.waiting_for_sync = True
+        self.waiting_for_sync += 1
 
         er = None
         while True:
@@ -1891,7 +1889,7 @@ cdef class PGConnection:
         self.write(outbuf)
 
         # Need this to handle first ReadyForQuery
-        self.waiting_for_sync = True
+        self.waiting_for_sync += 1
 
         while True:
             if not self.buffer.take_message():
@@ -2138,13 +2136,12 @@ cdef class PGConnection:
         self.buffer.finish_message()
         return cls, fields
 
-    cdef parse_sync_message(self, bint more=False):
+    cdef parse_sync_message(self):
         cdef char status
 
         if not self.waiting_for_sync:
             raise RuntimeError('unexpected sync')
-        if not more:
-            self.waiting_for_sync = False
+        self.waiting_for_sync -= 1
 
         assert self.buffer.get_message_type() == b'Z'
 
@@ -2357,7 +2354,9 @@ cdef class PGConnection:
         pass
 
 
-cdef bytes SYNC_MESSAGE = bytes(WriteBuffer.new_message(b'S').end_message())
+# Underscored name for _SYNC_MESSAGE because it should always be emitted
+# using write_sync(), which properly counts them
+cdef bytes _SYNC_MESSAGE = bytes(WriteBuffer.new_message(b'S').end_message())
 cdef bytes FLUSH_MESSAGE = bytes(WriteBuffer.new_message(b'H').end_message())
 
 cdef EdegDBCodecContext DEFAULT_CODEC_CONTEXT = EdegDBCodecContext()

@@ -1167,10 +1167,6 @@ cdef class EdgeConnection:
         if not _dbview.in_tx():
             orig_state = state = _dbview.serialize_state()
 
-        # use an iterator to keep track of the progress
-        # XXX: just use an index??
-        units_iter = enumerate(iter(unit_group))
-
         conn = await self.get_pgcon()
         try:
             if conn.last_state == state:
@@ -1193,7 +1189,7 @@ cdef class EdgeConnection:
                 conn.before_command()
                 in_command = True
 
-            for idx, query_unit in units_iter:
+            for idx, query_unit in enumerate(unit_group):
                 if self._cancelled:
                     raise ConnectionAbortedError
 
@@ -1288,17 +1284,8 @@ cdef class EdgeConnection:
                     # We would need to have the abort_tx logic there also.
 
                     # Consume any remaining SYNC
-                    if sent:
-                        for idx, query_unit in units_iter:
-                            if idx < sent and not first and (
-                                query_unit.tx_rollback or
-                                query_unit.tx_savepoint_rollback
-                            ):
-                                first = False
-                                await conn.wait_for_sync(more=True)
-                        if sent == len(unit_group):
-                            await conn.wait_for_sync()
-                        sent = 0
+                    while conn.waiting_for_sync:
+                        await conn.wait_for_sync()
                     if in_command:
                         in_command = False
                         await conn.after_command()
@@ -1340,17 +1327,9 @@ cdef class EdgeConnection:
         finally:
             try:
                 try:
-                    # Consume any remaining SYNC
-                    if sent and not self._cancelled:
-                        for idx, query_unit in units_iter:
-                            if idx < sent and not first and (
-                                query_unit.tx_rollback or
-                                query_unit.tx_savepoint_rollback
-                            ):
-                                first = False
-                                await conn.wait_for_sync(more=True)
-                        if sent == len(unit_group):
-                            await conn.wait_for_sync()
+                    # XXX: What about the _cancelled case??
+                    while conn.waiting_for_sync:
+                        await conn.wait_for_sync()
                 finally:
                     if in_command:
                         await conn.after_command()
