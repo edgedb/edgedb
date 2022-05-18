@@ -74,6 +74,17 @@ alias ProfileAlias := Profile {
     owner := .<profile
 };
 
+# XXX: Needs fixing
+# alias DeepAlias := (
+#     select User {
+#         some_groups := (
+#             select UserGroup {
+#                 extra_data := 'only in alias'
+#             } order by .name limit 2
+#         ),
+#     } order by .name limit 2
+# );
+
 type Person extending User;
 
 scalar type positive_int_t extending int64 {

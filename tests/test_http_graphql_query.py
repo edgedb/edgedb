@@ -906,6 +906,75 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             },
         )
 
+    def test_graphql_functional_alias_09(self):
+        self.assert_graphql_query_result(
+            r"""
+                {
+                    DeepAlias {
+                        name
+                        some_groups {
+                            name
+                            extra_data
+                        }
+                    }
+                }
+            """,
+            {
+                "DeepAlias": [
+                    {
+                        "name": "Alice",
+                        "some_groups": [{
+                            "name": "basic",
+                            "extra_data": "only in alias",
+                        }, {
+                            "name": "unused",
+                            "extra_data": "only in alias",
+                        }]
+                    },
+                    {
+                        "name": "Bob",
+                        "some_groups": [{
+                            "name": "basic",
+                            "extra_data": "only in alias",
+                        }, {
+                            "name": "unused",
+                            "extra_data": "only in alias",
+                        }]
+                    },
+                ],
+            },
+        )
+
+    def test_graphql_functional_alias_10(self):
+        self.assert_graphql_query_result(
+            r"""
+                {
+                    DeepAlias(
+                        filter: {name: {eq: "Alice"}}
+                    ) {
+                        name
+                        some_groups(
+                            filter: {name: {eq: "unused"}}
+                        ) {
+                            name
+                            extra_data
+                        }
+                    }
+                }
+            """,
+            {
+                "DeepAlias": [
+                    {
+                        "name": "Alice",
+                        "some_groups": [{
+                            "name": "unused",
+                            "extra_data": "only in alias",
+                        }]
+                    },
+                ],
+            },
+        )
+
     def test_graphql_functional_arguments_01(self):
         result = self.graphql_query(r"""
             query {
