@@ -1278,28 +1278,36 @@ cdef class EdgeConnection:
                                 config_ops)
                 except Exception as e:
                     _dbview.on_error(query_unit)
+
+                    # Consume any remaining SYNC
+                    if sent:
+                        for idx, query_unit in units_iter:
+                            if idx < sent and not first and (
+                                query_unit.tx_rollback or
+                                query_unit.tx_savepoint_rollback
+                            ):
+                                first = False
+                                await conn.wait_for_sync(more=True)
+                        # XXX: The drop_db error case hangs on this
+                        # wait_for_sync
+                        if sent == len(unit_group):
+                            await conn.wait_for_sync()
+                        sent = 0
+                    if in_command:
+                        in_command = False
+                        await conn.after_command()
+                        if sent and sent < len(unit_group):
+                            await conn.sync()
+
+                    # XXX: do we need to check that it is a commit?
                     if not conn.in_tx() and _dbview.in_tx():
                         # COMMIT command can fail, in which case the
                         # transaction is aborted.  This check workarounds
                         # that (until a better solution is found.)
                         _dbview.abort_tx()
-                        # Consume any remaining SYNC
-                        if sent:
-                            for idx, query_unit in units_iter:
-                                if idx < sent and not first and (
-                                    query_unit.tx_rollback or
-                                    query_unit.tx_savepoint_rollback
-                                ):
-                                    first = False
-                                    await conn.wait_for_sync(more=True)
-                            if sent == len(unit_group):
-                                await conn.wait_for_sync()
-                            sent = 0
-                        if in_command:
-                            in_command = False
-                            await conn.after_command()
-                            if sent and sent < len(unit_group):
-                                await conn.sync()
+                        # XXX: or should we always do this???
+                        # XXX: Or never do it? We should be able to ditch
+                        # the whole mechanism right?
                         await self.recover_current_tx_info(conn)
                     raise
                 else:
@@ -1324,6 +1332,8 @@ cdef class EdgeConnection:
                 if state is not orig_state:
                     conn.last_state = state
         finally:
+            # XXX: do we need to do all of this *again*?
+            # Or does it suffice to handle it in that exception case?
             try:
                 try:
                     # Consume any remaining SYNC
