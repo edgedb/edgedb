@@ -1925,13 +1925,13 @@ class Compiler:
 
                     unit.system_config = True
                 elif comp.config_scope is qltypes.ConfigScope.GLOBAL:
-                    unit.system_config = True
+                    unit.set_global = True
                     # FIXME: We want to be able to do this in a block
                     # with other commands.
-                    if statements_len > 1:
-                        raise errors.UnsupportedFeatureError(
-                            'SET GLOBAL cannot be executed in a block '
-                            'with other commands')
+                    # if statements_len > 1:
+                    #     raise errors.UnsupportedFeatureError(
+                    #         'SET GLOBAL cannot be executed in a block '
+                    #         'with other commands')
 
                 elif comp.config_scope is qltypes.ConfigScope.DATABASE:
                     unit.database_config = True

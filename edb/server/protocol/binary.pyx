@@ -1088,6 +1088,55 @@ cdef class EdgeConnection:
         self.write(packet)
         self.flush()
 
+    def _make_args(
+        self,
+        unit_group: object,
+        state: bytes,
+        start: ssize_t,
+        end: ssize_t,
+    ):
+        cdef:
+            WriteBuffer bind_data
+
+        bind_array = []
+        for i in range(start, end):
+            query_unit = unit_group[i]
+            bind_data = WriteBuffer.new()
+            bind_data.write_int16(0)  # number of format codes
+
+            # XXX: duplication
+            num_args = 0
+            if query_unit.globals:
+                num_args += len(query_unit.globals)
+                for _, has_present_arg in query_unit.globals:
+                    if has_present_arg:
+                        num_args += 1
+
+            bind_data.write_int16(num_args)  # number of parameters
+
+            if query_unit.globals:
+                globs = self.get_dbview().get_globals()
+                for (glob, has_present_arg) in query_unit.globals:
+                    val = None
+                    entry = globs.get(glob)
+                    if entry:
+                        val = entry.value
+                    if val:
+                        bind_data.write_int32(len(val))
+                        bind_data.write_bytes(val)
+                    else:
+                        bind_data.write_int32(-1)
+                    if has_present_arg:
+                        bind_data.write_int32(1)
+                        present = b'\x01' if val is not None else b'\x00'
+                        bind_data.write_bytes(present)
+
+            bind_data.write_int16(0)  # number of result columns
+
+            bind_array.append(bind_data)
+
+        return bind_array
+
     async def _simple_query(
         self,
         eql: bytes,
@@ -1096,7 +1145,8 @@ cdef class EdgeConnection:
     ):
         cdef:
             bytes state = None, orig_state = None
-            bint sent = False, in_command = False, first = True
+            bint in_command = False, first = True
+            ssize_t sent = 0
             dbview.DatabaseConnectionView _dbview
             pgcon.PGConnection conn
             WriteBuffer bind_data
@@ -1118,7 +1168,8 @@ cdef class EdgeConnection:
             orig_state = state = _dbview.serialize_state()
 
         # use an iterator to keep track of the progress
-        units_iter = iter(unit_group)
+        # XXX: just use an index??
+        units_iter = enumerate(iter(unit_group))
 
         conn = await self.get_pgcon()
         try:
@@ -1128,63 +1179,41 @@ cdef class EdgeConnection:
                 state = None
 
             if len(unit_group) > 1 or not unit_group[0].system_config:
-                # XXX: factor this out
-                bind_array = []
-                for query_unit in unit_group:
-                    bind_data = WriteBuffer.new()
-                    bind_data.write_int16(0)  # number of format codes
-
-                    print("GLOB", query_unit.globals)
-                    # XXX: duplication
-                    num_args = 0
-                    if query_unit.globals:
-                        num_args += len(query_unit.globals)
-                        for _, has_present_arg in query_unit.globals:
-                            if has_present_arg:
-                                num_args += 1
-
-                    bind_data.write_int16(num_args)  # number of parameters
-
-                    if query_unit.globals:
-                        globs = self.get_dbview().get_globals()
-                        for (glob, has_present_arg) in query_unit.globals:
-                            val = None
-                            entry = globs.get(glob)
-                            if entry:
-                                val = entry.value
-                            if val:
-                                bind_data.write_int32(len(val))
-                                bind_data.write_bytes(val)
-                            else:
-                                bind_data.write_int32(-1)
-                            if has_present_arg:
-                                bind_data.write_int32(1)
-                                present = b'\x01' if val is not None else b'\x00'
-                                bind_data.write_bytes(present)
-
-
-                    bind_data.write_int16(0)  # number of result columns
-
-                    bind_array.append(bind_data)
-                    print("bind_data", bytes(memoryview(bind_data)))
-
-
                 conn.before_command()
                 in_command = True
-                conn.send_query_unit_group(unit_group, bind_array, state)
-                sent = True
 
-                if state is not None:
+            for idx, query_unit in units_iter:
+                if self._cancelled:
+                    raise ConnectionAbortedError
+
+                # XXX: pull out?
+                # We want to minimize the round trips we need to make, so
+                # ideally we buffer up everything, send it once, and then issue
+                # one SYNC. This gets messed up if there are commands where
+                # we need to read back information, though, such as SET GLOBAL.
+                #
+                # Because of that, we look for the next command that
+                # needs read back (probably there won't be one!), and
+                # execute everything up to that point at once,
+                # finished by a FLUSH.
+                if in_command and idx >= sent:
+                    for n in range(idx, len(unit_group)):
+                        ng = unit_group[n]
+                        if ng.ddl_stmt_id or ng.set_global:
+                            break
+                    sent = n + 1
+
+                    bind_array = self._make_args(unit_group, state, idx, sent)
+                    conn.send_query_unit_group(
+                        unit_group, bind_array, state, idx, sent)
+
+                if in_command and first and state is not None:
                     await conn.wait_for_state_resp(
                         state, unit_group.tx_control
                     )
                     # state is restored, clear orig_state so that we can
                     # set conn.last_state correctly later
                     orig_state = None
-
-            for query_unit in units_iter:
-                if self._cancelled:
-                    raise ConnectionAbortedError
 
                 if not first and (
                     query_unit.tx_rollback or
@@ -1211,6 +1240,7 @@ cdef class EdgeConnection:
                         assert not sent
                         await self._execute_system_config(query_unit, conn)
                     else:
+                        config_ops = query_unit.config_ops
                         if query_unit.sql:
                             if query_unit.ddl_stmt_id:
                                 ddl_ret = await conn.handle_ddl_in_script(
@@ -1218,6 +1248,15 @@ cdef class EdgeConnection:
                                 )
                                 if ddl_ret and ddl_ret['new_types']:
                                     new_types = ddl_ret['new_types']
+                            elif query_unit.set_global:
+                                for sql in query_unit.sql:
+                                    data = await conn.wait_for_command(
+                                        ignore_data=False
+                                    )
+                                if data:
+                                    config_ops = [
+                                        config.Operation.from_json(r[0])
+                                        for r in data]
                             else:
                                 for sql in query_unit.sql:
                                     await conn.wait_for_command(
@@ -1233,11 +1272,11 @@ cdef class EdgeConnection:
                             self.server._on_after_drop_db(
                                 query_unit.drop_db)
 
-                        if query_unit.config_ops:
+                        if config_ops:
                             await _dbview.apply_config_ops(
                                 conn,
-                                query_unit.config_ops)
-                except Exception:
+                                config_ops)
+                except Exception as e:
                     _dbview.on_error(query_unit)
                     if not conn.in_tx() and _dbview.in_tx():
                         # COMMIT command can fail, in which case the
@@ -1246,18 +1285,21 @@ cdef class EdgeConnection:
                         _dbview.abort_tx()
                         # Consume any remaining SYNC
                         if sent:
-                            sent = False
-                            for query_unit in units_iter:
-                                if not first and (
+                            for idx, query_unit in units_iter:
+                                if idx < sent and not first and (
                                     query_unit.tx_rollback or
                                     query_unit.tx_savepoint_rollback
                                 ):
                                     first = False
                                     await conn.wait_for_sync(more=True)
-                            await conn.wait_for_sync()
+                            if sent == len(unit_group):
+                                await conn.wait_for_sync()
+                            sent = 0
                         if in_command:
                             in_command = False
                             await conn.after_command()
+                            if sent and sent < len(unit_group):
+                                await conn.sync()
                         await self.recover_current_tx_info(conn)
                     raise
                 else:
@@ -1281,23 +1323,25 @@ cdef class EdgeConnection:
                 state = _dbview.serialize_state()
                 if state is not orig_state:
                     conn.last_state = state
-
         finally:
             try:
                 try:
                     # Consume any remaining SYNC
                     if sent and not self._cancelled:
-                        for query_unit in units_iter:
-                            if not first and (
+                        for idx, query_unit in units_iter:
+                            if idx < sent and not first and (
                                 query_unit.tx_rollback or
                                 query_unit.tx_savepoint_rollback
                             ):
                                 first = False
                                 await conn.wait_for_sync(more=True)
-                        await conn.wait_for_sync()
+                        if sent == len(unit_group):
+                            await conn.wait_for_sync()
                 finally:
                     if in_command:
                         await conn.after_command()
+                        if sent and sent < len(unit_group):
+                            await conn.sync()
             finally:
                 self.maybe_release_pgcon(conn)
 
@@ -1701,7 +1745,7 @@ cdef class EdgeConnection:
             if query_unit.drop_db:
                 await self.server._on_before_drop_db(
                     query_unit.drop_db, _dbview.dbname)
-            if query_unit.system_config:
+            if query_unit.system_config or query_unit.set_global:
                 await self._execute_system_config(query_unit, conn)
             else:
                 if query_unit.sql:

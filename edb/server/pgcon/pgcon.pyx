@@ -976,7 +976,8 @@ cdef class PGConnection:
                 self.fallthrough()
 
     cdef send_query_unit_group(
-        self, object query_unit_group, object bind_datas, bytes state
+        self, object query_unit_group, object bind_datas, bytes state,
+        ssize_t start, ssize_t end,
     ):
         cdef:
             WriteBuffer out
@@ -986,7 +987,7 @@ cdef class PGConnection:
 
         out = WriteBuffer.new()
 
-        if state is not None:
+        if state is not None and start == 0:
             self._build_apply_state_req(state, out)
             if query_unit_group.tx_control:
                 # This query unit group has START TRANSACTION in it.
@@ -995,7 +996,8 @@ cdef class PGConnection:
                 # would fail. Hence - inject a SYNC after a state restore step.
                 out.write_bytes(SYNC_MESSAGE)
 
-        for query_unit, bind_data in zip(query_unit_group.units, bind_datas):
+        for query_unit, bind_data in zip(
+                query_unit_group.units[start:end], bind_datas):
             if query_unit.system_config:
                 raise RuntimeError(
                     "CONFIGURE INSTANCE command is not allowed in scripts"
@@ -1004,6 +1006,8 @@ cdef class PGConnection:
                 query_unit.tx_rollback or query_unit.tx_savepoint_rollback
             ):
                 out.write_bytes(SYNC_MESSAGE)
+                # ???
+                self.waiting_for_sync = True
             first = False
             for sql in query_unit.sql:
                 buf = WriteBuffer.new_message(b'P')
@@ -1015,12 +1019,7 @@ cdef class PGConnection:
                 buf = WriteBuffer.new_message(b'B')
                 buf.write_bytestring(b'')  # portal name
                 buf.write_bytestring(b'')  # statement name
-                if query_unit.ddl_stmt_id:
-                    buf.write_int16(0)
-                    buf.write_int16(0)
-                    buf.write_int16(0)
-                else:
-                    buf.write_buffer(bind_data)
+                buf.write_buffer(bind_data)
                 out.write_buffer(buf.end_message())
 
                 buf = WriteBuffer.new_message(b'E')
@@ -1028,8 +1027,12 @@ cdef class PGConnection:
                 buf.write_int32(0)  # limit: 0 - return all rows
                 out.write_buffer(buf.end_message())
 
-        out.write_bytes(SYNC_MESSAGE)
-        self.waiting_for_sync = True
+        if end == len(query_unit_group.units):
+            out.write_bytes(SYNC_MESSAGE)
+            self.waiting_for_sync = True
+        else:
+            out.write_bytes(FLUSH_MESSAGE)
+
         self.write(out)
 
     async def wait_for_state_resp(self, bytes state, bint state_sync):

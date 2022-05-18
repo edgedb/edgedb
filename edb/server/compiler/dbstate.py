@@ -257,6 +257,8 @@ class QueryUnit:
     system_config: bool = False
     # Set only when this unit contains a CONFIGURE DATABASE command.
     database_config: bool = False
+    # Set only when this unit contains a SET_GLOBAL command.
+    set_global: bool = False
     # Whether any configuration change requires a server restart
     config_requires_restart: bool = False
     # Set only when this unit contains a CONFIGURE command which
