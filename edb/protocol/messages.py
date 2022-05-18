@@ -630,14 +630,16 @@ class ParameterStatus_SystemConfig(Struct):
     data = FixedArrayOf(1, DataElement, 'Configuration settings data.')
 
 
-class PrepareComplete(ServerMessage):
+class ParseComplete(ServerMessage):
 
     mtype = MessageType('1')
     message_length = MessageLength
     headers = Headers
     cardinality = EnumOf(UInt8, Cardinality, 'Result cardinality.')
     input_typedesc_id = UUID('Argument data descriptor ID.')
+    input_typedesc = Bytes('Argument data descriptor.')
     output_typedesc_id = UUID('Result data descriptor ID.')
+    output_typedesc = Bytes('Output data descriptor.')
 
 
 class ProtocolExtension(Struct):
@@ -713,7 +715,7 @@ class IOFormat(enum.Enum):
     JSON_ELEMENTS = 0x4a
 
 
-class Prepare(ClientMessage):
+class Parse(ClientMessage):
 
     mtype = MessageType('P')
     message_length = MessageLength
@@ -721,22 +723,7 @@ class Prepare(ClientMessage):
     io_format = EnumOf(UInt8, IOFormat, 'Data I/O format.')
     expected_cardinality = EnumOf(UInt8, Cardinality,
                                   'Expected result cardinality')
-    statement_name = Bytes('Prepared statement name. Currently must be empty.')
     command = String('Command text.')
-
-
-class DescribeAspect(enum.Enum):
-
-    DATA_DESCRIPTION = 0x54
-
-
-class DescribeStatement(ClientMessage):
-
-    mtype = MessageType('D')
-    message_length = MessageLength
-    headers = Headers
-    aspect = EnumOf(UInt8, DescribeAspect, 'Aspect to describe.')
-    statement_name = Bytes('The name of the statement.')
 
 
 class Dump(ClientMessage):
@@ -756,15 +743,6 @@ class Flush(ClientMessage):
 
     mtype = MessageType('H')
     message_length = MessageLength
-
-
-class Execute(ClientMessage):
-
-    mtype = MessageType('E')
-    message_length = MessageLength
-    headers = Headers
-    statement_name = Bytes('Prepared statement name.')
-    arguments = Bytes('Encoded argument data.')
 
 
 class Restore(ClientMessage):
@@ -792,7 +770,7 @@ class RestoreEof(ClientMessage):
     message_length = MessageLength
 
 
-class OptimisticExecute(ClientMessage):
+class Execute(ClientMessage):
 
     mtype = MessageType('O')
     message_length = MessageLength

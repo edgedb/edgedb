@@ -280,40 +280,27 @@ needs to be returned from a command, or arguments passed to a command.
 In this mode the server expects the client to send one of the following
 messages:
 
-:ref:`ref_protocol_msg_prepare`
-    Instructs the server to process and prepare the provided command for
-    execution.  The server responds with a
-    :ref:`ref_protocol_msg_prepare_complete` message containing the
-    unique identifier of the statement
-    :ref:`type descriptor <ref_proto_typedesc>`.  The client may then
-    send a :ref:`ref_protocol_msg_describe_statement` if it requires the
-    type descriptor data.
-
-:ref:`ref_protocol_msg_describe_statement`
-    Asks the server to return the type descriptor data for a prepared
-    statement.  This message is only valid following the receipt of
-    :ref:`ref_protocol_msg_prepare_complete`.  The server responds with
-    a :ref:`ref_protocol_msg_command_data_description` message.
+:ref:`ref_protocol_msg_parse`
+    Instructs the server to parse the provided command text for execution.
+    The server responds with a :ref:`ref_protocol_msg_parse_complete` message
+    containing the unique identifier of the statement :ref:`type descriptor
+    <ref_proto_typedesc>`, as well as the type descriptor data.
 
 :ref:`ref_protocol_msg_execute`
-    Execute a previously prepared command.  The server responds with
-    zero or more :ref:`ref_protocol_msg_data` messages, followed by
-    a :ref:`ref_protocol_msg_command_complete`.
+    Execute the provided command text, assuming prior knowledge of the
+    :ref:`type descriptor <ref_proto_typedesc>` data.  This is often used upon
+    the same command text right after a :ref:`ref_protocol_msg_parse` message,
+    or a single-step execute with cached type descriptor data.
 
-:ref:`ref_protocol_msg_optimistic_execute`
-    Execute the provided command text directly, assuming prior knowledge
-    of the :ref:`type descriptor <ref_proto_typedesc>` data.  This allows
-    the client to perform the prepare/execute operation in a single step.
+    Client sends type descriptor ids in this query. If type descriptors match
+    server's knowledge, the server executes the command text directly, and
+    responds with zero or more :ref:`ref_protocol_msg_data` messages, followed
+    by a :ref:`ref_protocol_msg_command_complete` message.
 
-    Client sends type descritor ids in this query. If type descriptors match
-    server's knowledge, the server responds with zero or more
-    :ref:`ref_protocol_msg_data` messages, followed by a
-    :ref:`ref_protocol_msg_command_complete`.
-
-    If type descriptors mismatch, server sends
-    :ref:`ref_protocol_msg_command_data_description`. And this statement
-    becomes currently prepared statement. The client is expected to
-    adjust the request data and send :ref:`ref_protocol_msg_execute`.
+    If type descriptors mismatch, the server re-parses the command text, and
+    sends :ref:`ref_protocol_msg_command_data_description`.  The client is
+    expected to adjust the request data and send
+    :ref:`ref_protocol_msg_execute` again.
 
 
 Implicit Transactions

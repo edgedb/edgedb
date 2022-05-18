@@ -127,11 +127,10 @@ class TestProtocol(ProtocolTestCase):
         await self.con.connect()
 
         await self.con.send(
-            protocol.Prepare(
+            protocol.Parse(
                 headers=[],
                 io_format=protocol.IOFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
-                statement_name=b'',
                 command='SEL ECT 1',
             )
         )
@@ -146,19 +145,18 @@ class TestProtocol(ProtocolTestCase):
             await self.con.sync(),
             protocol.TransactionState.NOT_IN_TRANSACTION)
 
-        # This Prepare should be handled alright
+        # This Parse should be handled alright
         await self.con.send(
-            protocol.Prepare(
+            protocol.Parse(
                 headers=[],
                 io_format=protocol.IOFormat.BINARY,
                 expected_cardinality=compiler.Cardinality.AT_MOST_ONE,
-                statement_name=b'',
                 command='SELECT 1',
             ),
             protocol.Flush()
         )
         await self.con.recv_match(
-            protocol.PrepareComplete,
+            protocol.ParseComplete,
             cardinality=compiler.Cardinality.AT_MOST_ONE,
         )
 

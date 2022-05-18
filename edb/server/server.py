@@ -1337,7 +1337,7 @@ class Server(ha_base.ClusterProtocol):
             raise AssertionError('startup script is not defined')
         await self._create_compiler_pool()
         try:
-            await binary.EdgeConnection.run_script(
+            await binary.run_script(
                 server=self,
                 database=self._startup_script.database,
                 user=self._startup_script.user,
@@ -1374,7 +1374,7 @@ class Server(ha_base.ClusterProtocol):
             + 1
         ), "admin Unix socket length exceeds maximum allowed"
         admin_unix_srv = await self.__loop.create_unix_server(
-            lambda: binary.EdgeConnection(self, external_auth=True),
+            lambda: binary.new_edge_connection(self, external_auth=True),
             admin_unix_sock_path
         )
         os.chmod(admin_unix_sock_path, stat.S_IRUSR | stat.S_IWUSR)
@@ -1537,7 +1537,7 @@ class Server(ha_base.ClusterProtocol):
         await self._create_compiler_pool()
 
         if self._startup_script and self._new_instance:
-            await binary.EdgeConnection.run_script(
+            await binary.run_script(
                 server=self,
                 database=self._startup_script.database,
                 user=self._startup_script.user,

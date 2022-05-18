@@ -73,7 +73,6 @@ cdef class CompiledQuery:
     cdef public bytes extra_blob
 
 
-@cython.final
 cdef class EdgeConnection:
 
     cdef:
@@ -97,6 +96,7 @@ cdef class EdgeConnection:
         object _main_task
 
         CompiledQuery _last_anon_compiled
+        int _last_anon_compiled_hash
         WriteBuffer _write_buf
 
         bint debug
@@ -106,6 +106,7 @@ cdef class EdgeConnection:
 
         tuple protocol_version
         tuple max_protocol
+        tuple min_protocol
 
         object last_state
         int last_state_id
@@ -132,7 +133,7 @@ cdef class EdgeConnection:
 
     cdef parse_io_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
-    cdef parse_prepare_query_part(self, bint account_for_stmt_name)
+    cdef parse_prepare_query_part(self)
     cdef char render_cardinality(self, query_unit) except -1
 
     cdef write(self, WriteBuffer buf)
@@ -147,7 +148,9 @@ cdef class EdgeConnection:
     cdef WriteBuffer recode_bind_args(self,
         bytes bind_args, CompiledQuery compiled)
 
-    cdef WriteBuffer make_describe_msg(self, CompiledQuery query)
+    cdef WriteBuffer make_command_data_description_msg(
+        self, CompiledQuery query
+    )
     cdef WriteBuffer make_command_complete_msg(self, query_unit)
 
     cdef inline reject_headers(self)
@@ -167,3 +170,6 @@ cdef class VirtualTransport:
     cdef:
         WriteBuffer buf
         bint closed
+
+
+include "binary_v0.pxd"

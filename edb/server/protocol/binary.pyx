@@ -95,9 +95,10 @@ cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
 cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
 
 cdef tuple DUMP_VER_MIN = (0, 7)
-cdef tuple DUMP_VER_MAX = (0, 14)
+cdef tuple DUMP_VER_MAX = (1, 0)
 
 cdef tuple MIN_PROTOCOL = edbdef.MIN_PROTOCOL
+cdef tuple MAX_LEGACY_PROTOCOL = edbdef.MAX_LEGACY_PROTOCOL
 cdef tuple CURRENT_PROTOCOL = edbdef.CURRENT_PROTOCOL
 
 cdef object logger = logging.getLogger('edb.server')
@@ -207,7 +208,6 @@ cdef class CompiledQuery:
         self.extra_blob = extra_blob
 
 
-@cython.final
 cdef class EdgeConnection:
 
     def __init__(
@@ -249,6 +249,7 @@ cdef class EdgeConnection:
         self.started_idling_at = 0.0
 
         self.protocol_version = CURRENT_PROTOCOL
+        self.min_protocol = MIN_PROTOCOL
         self.max_protocol = CURRENT_PROTOCOL
 
         self._pinned_pgcon = None
@@ -467,17 +468,9 @@ cdef class EdgeConnection:
 
         self.server.on_binary_client_after_idling(self)
 
-    async def auth(self):
+    async def do_handshake(self):
         cdef:
             char mtype
-            WriteBuffer msg_buf
-            WriteBuffer buf
-
-        if self._passive_mode:
-            # XXX: This is temporary hack. We'll have to implement
-            # proper authentication for binary over HTTP soon
-            # (most likely with JWT).
-            return
 
         await self.wait_for_message(report_idling=True)
         mtype = self.buffer.get_message_type()
@@ -485,7 +478,13 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unexpected initial message: "{chr(mtype)}", expected "V"')
 
-        params = await self.do_handshake()
+        params = await self._do_handshake()
+        return params
+
+    async def auth(self, params):
+        cdef:
+            WriteBuffer msg_buf
+            WriteBuffer buf
 
         user = params.get('user')
         if not user:
@@ -565,20 +564,16 @@ cdef class EdgeConnection:
             b'suggested_pool_concurrency',
             str(self.server.get_suggested_client_pool_size()).encode()
         )
-
-        if self.protocol_version >= (0, 13):
-            # Protocol 0.12 and earlier assumes that Setting messages
-            # store UTF-8 data.
-            self.write_status(
-                b'system_config',
-                self.server.get_report_config_data()
-            )
+        self.write_status(
+            b'system_config',
+            self.server.get_report_config_data()
+        )
 
         self.write(self.sync_status())
 
         self.flush()
 
-    async def do_handshake(self):
+    async def _do_handshake(self):
         cdef:
             uint16_t major
             uint16_t minor
@@ -606,8 +601,8 @@ cdef class EdgeConnection:
 
         self.protocol_version = major, minor
         negotiate = nexts > 0
-        if self.protocol_version < MIN_PROTOCOL:
-            target_proto = MIN_PROTOCOL
+        if self.protocol_version < self.min_protocol:
+            target_proto = self.min_protocol
             negotiate = True
         elif self.protocol_version > self.max_protocol:
             target_proto = self.max_protocol
@@ -630,31 +625,6 @@ cdef class EdgeConnection:
             self.flush()
 
         return params
-
-    @classmethod
-    async def run_script(
-        cls,
-        server,
-        database: str,
-        user: str,
-        script: str,
-    ) -> None:
-        conn = cls(server)
-        conn._start_connection(database)
-        try:
-            await conn._simple_query(
-                script.encode('utf-8'),
-                ALL_CAPABILITIES,
-                'all',
-            )
-        except pgerror.BackendError as e:
-            exc = conn.interpret_backend_error(e)
-            if isinstance(exc, errors.EdgeDBError):
-                raise exc from None
-            else:
-                raise exc
-        finally:
-            conn.close()
 
     def _start_connection(self, database: str) -> None:
         dbv = self.server.new_dbview(
@@ -1063,14 +1033,6 @@ cdef class EdgeConnection:
         else:
             return 'done', query_unit
 
-    def version_check(self, feature: str, minimum_version: Tuple[int, int]):
-        if self.protocol_version < minimum_version:
-            raise errors.BinaryProtocolError(
-                f'{feature} is supported since protocol '
-                f'{minimum_version[0]}.{minimum_version[1]}, current is '
-                f'{self.protocol_version[0]}.{self.protocol_version[1]}'
-            )
-
     async def simple_query(self):
         cdef:
             WriteBuffer msg
@@ -1081,7 +1043,6 @@ cdef class EdgeConnection:
         if headers:
             for k, v in headers.items():
                 if k == QUERY_HEADER_ALLOW_CAPABILITIES:
-                    self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
                 else:
                     raise errors.BinaryProtocolError(
@@ -1373,17 +1334,16 @@ cdef class EdgeConnection:
             raise errors.BinaryProtocolError(
                 f'unknown output mode "{repr(mode)[2:-1]}"')
 
-    cdef parse_prepare_query_part(self, parse_stmt_name: bint):
+    cdef parse_prepare_query_part(self):
         cdef:
             object io_format
             bytes eql
             dict headers
             uint64_t implicit_limit = 0
-            bint inline_typeids = self.protocol_version <= (0, 8)
+            bint inline_typeids = False
             uint64_t allow_capabilities = ALL_CAPABILITIES
             bint inline_typenames = False
             bint inline_objectids = True
-            bytes stmt_name = b''
 
         headers = self.parse_headers()
         if headers:
@@ -1391,16 +1351,12 @@ cdef class EdgeConnection:
                 if k == QUERY_HEADER_IMPLICIT_LIMIT:
                     implicit_limit = self._parse_implicit_limit(v)
                 elif k == QUERY_HEADER_IMPLICIT_TYPEIDS:
-                    self.version_check("IMPLICIT_TYPEIDS header", (0, 9))
                     inline_typeids = parse_boolean(v, "IMPLICIT_TYPEIDS")
                 elif k == QUERY_HEADER_IMPLICIT_TYPENAMES:
-                    self.version_check("IMPLICIT_TYPENAMES header", (0, 9))
                     inline_typenames = parse_boolean(v, "IMPLICIT_TYPENAMES")
                 elif k == QUERY_HEADER_ALLOW_CAPABILITIES:
-                    self.version_check("ALLOW_CAPABILITIES header", (0, 9))
                     allow_capabilities = parse_capabilities_header(v)
                 elif k == QUERY_HEADER_EXPLICIT_OBJECTIDS:
-                    self.version_check("EXPLICIT_OBJECTIDS header", (0, 10))
                     inline_objectids = not parse_boolean(v, "EXPLICIT_OBJECTIDS")
                 else:
                     raise errors.BinaryProtocolError(
@@ -1411,12 +1367,6 @@ cdef class EdgeConnection:
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
         )
-
-        if parse_stmt_name:
-            stmt_name = self.buffer.read_len_prefixed_bytes()
-            if stmt_name:
-                raise errors.UnsupportedFeatureError(
-                    'prepared statements are not yet supported')
 
         eql = self.buffer.read_len_prefixed_bytes()
         if not eql:
@@ -1436,7 +1386,7 @@ cdef class EdgeConnection:
             allow_capabilities=allow_capabilities,
         )
 
-        return eql, query_req, stmt_name
+        return eql, query_req
 
 
     cdef inline reject_headers(self):
@@ -1493,55 +1443,48 @@ cdef class EdgeConnection:
 
         self._last_anon_compiled = None
 
-        eql, query_req, stmt_name = self.parse_prepare_query_part(True)
+        eql, query_req = self.parse_prepare_query_part()
         compiled_query = await self._parse(eql, query_req)
 
         buf = WriteBuffer.new_message(b'1')  # ParseComplete
 
-        if self.protocol_version >= (0, 9):
-            buf.write_int16(1)
-            buf.write_int16(SERVER_HEADER_CAPABILITIES)
-            buf.write_int32(sizeof(uint64_t))
-            buf.write_int64(<int64_t>(
-                <uint64_t>compiled_query.query_unit.capabilities
-            ))
-        else:
-            buf.write_int16(0)  # no headers
+        buf.write_int16(1)
+        buf.write_int16(SERVER_HEADER_CAPABILITIES)
+        buf.write_int32(sizeof(uint64_t))
+        buf.write_int64(<int64_t>(
+            <uint64_t>compiled_query.query_unit.capabilities
+        ))
 
         buf.write_byte(self.render_cardinality(compiled_query.query_unit))
 
-        if self.protocol_version >= (0, 14):
-            buf.write_bytes(compiled_query.query_unit.in_type_id)
-            buf.write_len_prefixed_bytes(
-                compiled_query.query_unit.in_type_data)
+        buf.write_bytes(compiled_query.query_unit.in_type_id)
+        buf.write_len_prefixed_bytes(
+            compiled_query.query_unit.in_type_data)
 
-            buf.write_bytes(compiled_query.query_unit.out_type_id)
-            buf.write_len_prefixed_bytes(
-                compiled_query.query_unit.out_type_data)
-        else:
-            buf.write_bytes(compiled_query.query_unit.in_type_id)
-            buf.write_bytes(compiled_query.query_unit.out_type_id)
+        buf.write_bytes(compiled_query.query_unit.out_type_id)
+        buf.write_len_prefixed_bytes(
+            compiled_query.query_unit.out_type_data)
 
         buf.end_message()
 
         self._last_anon_compiled = compiled_query
+        self._last_anon_compiled_hash = hash(query_req)
 
         self.write(buf)
 
     #############
 
-    cdef WriteBuffer make_describe_msg(self, CompiledQuery query):
+    cdef WriteBuffer make_command_data_description_msg(
+        self, CompiledQuery query
+    ):
         cdef:
             WriteBuffer msg
 
         msg = WriteBuffer.new_message(b'T')
-        if self.protocol_version >= (0, 9):
-            msg.write_int16(1)
-            msg.write_int16(SERVER_HEADER_CAPABILITIES)
-            msg.write_int32(sizeof(uint64_t))
-            msg.write_int64(<int64_t>(<uint64_t>query.query_unit.capabilities))
-        else:
-            msg.write_int16(0)  # no headers
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(<int64_t>(<uint64_t>query.query_unit.capabilities))
 
         msg.write_byte(self.render_cardinality(query.query_unit))
 
@@ -1562,43 +1505,13 @@ cdef class EdgeConnection:
 
         msg = WriteBuffer.new_message(b'C')
 
-        if self.protocol_version >= (0, 9):
-            msg.write_int16(1)
-            msg.write_int16(SERVER_HEADER_CAPABILITIES)
-            msg.write_int32(sizeof(uint64_t))
-            msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
-        else:
-            msg.write_int16(0)
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(<int64_t><uint64_t>query_unit.capabilities)
 
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
-
-    async def describe(self):
-        cdef:
-            char rtype
-            WriteBuffer msg
-
-        self.reject_headers()
-
-        rtype = self.buffer.read_byte()
-        if rtype == b'T':
-            # describe "type id"
-            stmt_name = self.buffer.read_len_prefixed_bytes()
-
-            if stmt_name:
-                raise errors.UnsupportedFeatureError(
-                    'prepared statements are not yet supported')
-            else:
-                if self._last_anon_compiled is None:
-                    raise errors.TypeSpecNotFoundError(
-                        'no prepared anonymous statement found')
-
-                msg = self.make_describe_msg(self._last_anon_compiled)
-                self.write(msg)
-
-        else:
-            raise errors.BinaryProtocolError(
-                f'unsupported "describe" message mode {chr(rtype)!r}')
 
     async def _execute_system_config(self, query_unit, conn):
         if query_unit.sql:
@@ -1744,48 +1657,6 @@ cdef class EdgeConnection:
     async def execute(self):
         cdef:
             WriteBuffer bound_args_buf
-            uint64_t allow_capabilities = ALL_CAPABILITIES
-
-        headers = self.parse_headers()
-        if headers:
-            for k, v in headers.items():
-                if k == QUERY_HEADER_ALLOW_CAPABILITIES:
-                    self.version_check("ALLOW_CAPABILITIES header", (0, 9))
-                    allow_capabilities = parse_capabilities_header(v)
-                else:
-                    raise errors.BinaryProtocolError(
-                        f'unexpected message header: {k}'
-                    )
-
-        stmt_name = self.buffer.read_len_prefixed_bytes()
-        bind_args = self.buffer.read_len_prefixed_bytes()
-        self.buffer.finish_message()
-        query_unit = None
-
-        if self.debug:
-            self.debug_print('EXECUTE')
-
-        if stmt_name:
-            raise errors.UnsupportedFeatureError(
-                'prepared statements are not yet supported')
-        else:
-            if self._last_anon_compiled is None:
-                raise errors.BinaryProtocolError(
-                    'no prepared anonymous statement found')
-
-            compiled = self._last_anon_compiled
-
-        if compiled.query_unit.capabilities & ~allow_capabilities:
-            raise compiled.query_unit.capabilities.make_error(
-                allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
-
-        await self._execute(compiled, bind_args, False)
-
-    async def optimistic_execute(self):
-        cdef:
-            WriteBuffer bound_args_buf
 
             bytes query
             QueryRequestInfo query_req
@@ -1794,33 +1665,41 @@ cdef class EdgeConnection:
             bytes out_tid
             bytes bound_args
 
-        self._last_anon_compiled = None
-
-        query, query_req, _ = self.parse_prepare_query_part(False)
+        query, query_req = self.parse_prepare_query_part()
 
         in_tid = self.buffer.read_bytes(16)
         out_tid = self.buffer.read_bytes(16)
         bind_args = self.buffer.read_len_prefixed_bytes()
         self.buffer.finish_message()
 
-        query_unit = self.get_dbview().lookup_compiled_query(query_req)
-        if query_unit is None:
-            if self.debug:
-                self.debug_print('OPTIMISTIC EXECUTE /REPARSE', query)
-
-            compiled = await self._parse(query, query_req)
-            self._last_anon_compiled = compiled
+        if (
+            self._last_anon_compiled is not None and
+            hash(query_req) == self._last_anon_compiled_hash
+        ):
+            compiled = self._last_anon_compiled
             query_unit = compiled.query_unit
-            if self._cancelled:
-                raise ConnectionAbortedError
         else:
-            compiled = CompiledQuery(
-                query_unit=query_unit,
-                first_extra=query_req.source.first_extra(),
-                extra_count=query_req.source.extra_count(),
-                extra_blob=query_req.source.extra_blob(),
-            )
-            self._last_anon_compiled = compiled
+            self._last_anon_compiled = None
+            query_unit = self.get_dbview().lookup_compiled_query(query_req)
+            if query_unit is None:
+                if self.debug:
+                    self.debug_print('EXECUTE /REPARSE', query)
+
+                compiled = await self._parse(query, query_req)
+                self._last_anon_compiled = compiled
+                self._last_anon_compiled_hash = hash(query_req)
+                query_unit = compiled.query_unit
+                if self._cancelled:
+                    raise ConnectionAbortedError
+            else:
+                compiled = CompiledQuery(
+                    query_unit=query_unit,
+                    first_extra=query_req.source.first_extra(),
+                    extra_count=query_req.source.extra_count(),
+                    extra_blob=query_req.source.extra_blob(),
+                )
+                self._last_anon_compiled = compiled
+                self._last_anon_compiled_hash = hash(query_req)
 
         if query_unit.capabilities & ~query_req.allow_capabilities:
             raise query_unit.capabilities.make_error(
@@ -1832,16 +1711,22 @@ cdef class EdgeConnection:
                 query_unit.out_type_id != out_tid):
             # The client has outdated information about type specs.
             if self.debug:
-                self.debug_print('OPTIMISTIC EXECUTE /MISMATCH', query)
+                self.debug_print('EXECUTE /MISMATCH', query)
 
-            self.write(self.make_describe_msg(compiled))
+            self.write(self.make_command_data_description_msg(compiled))
 
             if self._cancelled:
                 raise ConnectionAbortedError
             return
 
         if self.debug:
-            self.debug_print('OPTIMISTIC EXECUTE', query)
+            self.debug_print('EXECUTE', query)
+
+        # Clear the _last_anon_compiled so that the next Execute - if
+        # identical - will always lookup in the cache and honor the `cacheable`
+        # flag to compile the query again. Put it another way, this is the
+        # legacy Execute of the "anonymous" prepared statement.
+        self._last_anon_compiled = None
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
         await self._execute(
@@ -1856,36 +1741,51 @@ cdef class EdgeConnection:
 
         self.flush()
 
+    async def legacy_main(self, params):
+        raise NotImplementedError
+
     async def main(self):
         cdef:
             char mtype
             bint flush_sync_on_error
+            bint is_legacy
 
-        try:
-            await self.auth()
-        except Exception as ex:
-            if self._transport is not None:
-                # If there's no transport it means that the connection
-                # was aborted, in which case we don't really care about
-                # reporting the exception.
+        if not self._passive_mode:
+            # XXX: This is temporary hack. We'll have to implement
+            # proper authentication for binary over HTTP soon
+            # (most likely with JWT).
 
-                self.write_error(ex)
-                self.close()
+            try:
+                params = await self.do_handshake()
+                is_legacy = self.protocol_version <= MAX_LEGACY_PROTOCOL
+                if not is_legacy:
+                    await self.auth(params)
+            except Exception as ex:
+                if self._transport is not None:
+                    # If there's no transport it means that the connection
+                    # was aborted, in which case we don't really care about
+                    # reporting the exception.
 
-                if not isinstance(ex, (errors.ProtocolError,
-                                       errors.AuthenticationError)):
-                    self.loop.call_exception_handler({
-                        'message': (
-                            'unhandled error in edgedb protocol while '
-                            'accepting new connection'
-                        ),
-                        'exception': ex,
-                        'protocol': self,
-                        'transport': self._transport,
-                        'task': self._main_task,
-                    })
+                    self.write_error(ex)
+                    self.close()
 
-            return
+                    if not isinstance(ex, (errors.ProtocolError,
+                                           errors.AuthenticationError)):
+                        self.loop.call_exception_handler({
+                            'message': (
+                                'unhandled error in edgedb protocol while '
+                                'accepting new connection'
+                            ),
+                            'exception': ex,
+                            'protocol': self,
+                            'transport': self._transport,
+                            'task': self._main_task,
+                        })
+
+                return
+
+            if is_legacy:
+                return await self.legacy_main(params)
 
         self.authed = True
         self.server.on_binary_client_authed(self)
@@ -1922,17 +1822,17 @@ cdef class EdgeConnection:
                         await self.parse()
 
                     elif mtype == b'D':
-                        if self.protocol_version >= (0, 14):
-                            raise errors.BinaryProtocolError(
-                                "Describe message (D) is not supported in "
-                                "protocols greater 0.13")
-                        await self.describe()
+                        raise errors.BinaryProtocolError(
+                            "Describe message (D) is not supported in "
+                            "protocols greater 0.13")
 
                     elif mtype == b'E':
-                        await self.execute()
+                        raise errors.BinaryProtocolError(
+                            "Legacy Execute message (E) is not supported in "
+                            "protocols greater 1.0")
 
                     elif mtype == b'O':
-                        await self.optimistic_execute()
+                        await self.execute()
 
                     elif mtype == b'Q':
                         flush_sync_on_error = True
@@ -2087,10 +1987,6 @@ cdef class EdgeConnection:
         if (isinstance(exc, errors.EdgeDBError) and
                 type(exc) is not errors.EdgeDBError):
             exc_code = exc.get_code()
-
-            if self.protocol_version < (0, 10):
-                exc_code = ERROR_CODES_PRE_0_10.get(exc_code, exc_code)
-
             fields.update(exc._attrs)
 
         internal_error_code = errors.InternalServerError.get_code()
@@ -2240,7 +2136,6 @@ cdef class EdgeConnection:
             ssize_t in_len
             ssize_t i
             const char *data
-            has_reserved = self.protocol_version >= (0, 8)
 
         assert cpython.PyBytes_CheckExact(bind_args)
         frb_init(
@@ -2253,24 +2148,21 @@ cdef class EdgeConnection:
 
         # number of elements in the tuple
         # for empty tuple it's okay to send zero-length arguments
-        if self.protocol_version >= (0, 12):
-            is_null_type = \
-                query.query_unit.in_type_id == sertypes.NULL_TYPE_ID.bytes
-            if frb_get_len(&in_buf) == 0:
-                if not is_null_type:
-                    raise errors.ProtocolError(
-                        f"insufficient data for type-id "
-                        f"{query.query_unit.in_type_id}")
-                recv_args = 0
-            else:
-                if is_null_type:
-                    raise errors.ProtocolError(
-                        "absence of query arguments must be encoded with a "
-                        "'zero' type "
-                        "(id: 00000000-0000-0000-0000-000000000000, "
-                        "encoded with zero bytes)")
-                recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
+        is_null_type = \
+            query.query_unit.in_type_id == sertypes.NULL_TYPE_ID.bytes
+        if frb_get_len(&in_buf) == 0:
+            if not is_null_type:
+                raise errors.ProtocolError(
+                    f"insufficient data for type-id "
+                    f"{query.query_unit.in_type_id}")
+            recv_args = 0
         else:
+            if is_null_type:
+                raise errors.ProtocolError(
+                    "absence of query arguments must be encoded with a "
+                    "'zero' type "
+                    "(id: 00000000-0000-0000-0000-000000000000, "
+                    "encoded with zero bytes)")
             recv_args = hton.unpack_int32(frb_read(&in_buf, 4))
         decl_args = len(query.query_unit.in_type_args or ())
 
@@ -2294,8 +2186,7 @@ cdef class EdgeConnection:
 
         if query.query_unit.in_type_args:
             for param in query.query_unit.in_type_args:
-                if has_reserved:
-                    frb_read(&in_buf, 4)  # reserved
+                frb_read(&in_buf, 4)  # reserved
                 in_len = hton.unpack_int32(frb_read(&in_buf, 4))
                 out_buf.write_int32(in_len)
 
@@ -2940,7 +2831,7 @@ async def eval_buffer(object server, str database, bytes data):
 
     vtr = VirtualTransport()
 
-    proto = EdgeConnection(server, passive=True)
+    proto = new_edge_connection(server, passive=True)
 
     proto.connection_made(vtr)
     if vtr.is_closing() or proto._main_task is None:
@@ -2958,3 +2849,39 @@ async def eval_buffer(object server, str database, bytes data):
 
     data = vtr._get_data()
     return data
+
+
+include "binary_v0.pyx"
+
+
+def new_edge_connection(
+    server,
+    external_auth: bool = False,
+    passive: bool = False,
+):
+    return EdgeConnectionBackwardsCompatible(server, external_auth, passive)
+
+
+async def run_script(
+    server,
+    database: str,
+    user: str,
+    script: str,
+) -> None:
+    conn = new_edge_connection(server)
+    conn._start_connection(database)
+    try:
+        await conn._simple_query(
+            script.encode('utf-8'),
+            ALL_CAPABILITIES,
+            'all',
+        )
+    except pgerror.BackendError as e:
+        exc = conn.interpret_backend_error(e)
+        if isinstance(exc, errors.EdgeDBError):
+            raise exc from None
+        else:
+            raise exc
+    finally:
+        conn.close()
+
