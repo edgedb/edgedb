@@ -1178,6 +1178,17 @@ cdef class EdgeConnection:
                 # state restoring
                 state = None
 
+            # We need to do the before create/drop checks *before* we send
+            # any messages to the server about them.
+            for query_unit in unit_group:
+                if query_unit.create_db_template:
+                    await self.server._on_before_create_db_from_template(
+                        query_unit.create_db_template, _dbview.dbname
+                    )
+                if query_unit.drop_db:
+                    await self.server._on_before_drop_db(
+                        query_unit.drop_db, _dbview.dbname)
+
             if len(unit_group) > 1 or not unit_group[0].system_config:
                 conn.before_command()
                 in_command = True
@@ -1226,14 +1237,6 @@ cdef class EdgeConnection:
                 new_types = None
                 _dbview.start(query_unit)
                 try:
-                    if query_unit.create_db_template:
-                        await self.server._on_before_create_db_from_template(
-                            query_unit.create_db_template, _dbview.dbname
-                        )
-                    if query_unit.drop_db:
-                        await self.server._on_before_drop_db(
-                            query_unit.drop_db, _dbview.dbname)
-
                     if query_unit.system_config:
                         # Temporary hack: use simple query to run a single
                         # CONFIGURE INSTANCE command as a script
@@ -1279,6 +1282,11 @@ cdef class EdgeConnection:
                 except Exception as e:
                     _dbview.on_error(query_unit)
 
+                    # XXX: do we need to handle this here, instead of just in
+                    # the finally block? (We need to do it in the finally block
+                    # because things could fail in the outer try.)
+                    # We would need to have the abort_tx logic there also.
+
                     # Consume any remaining SYNC
                     if sent:
                         for idx, query_unit in units_iter:
@@ -1288,8 +1296,6 @@ cdef class EdgeConnection:
                             ):
                                 first = False
                                 await conn.wait_for_sync(more=True)
-                        # XXX: The drop_db error case hangs on this
-                        # wait_for_sync
                         if sent == len(unit_group):
                             await conn.wait_for_sync()
                         sent = 0
@@ -1332,8 +1338,6 @@ cdef class EdgeConnection:
                 if state is not orig_state:
                     conn.last_state = state
         finally:
-            # XXX: do we need to do all of this *again*?
-            # Or does it suffice to handle it in that exception case?
             try:
                 try:
                     # Consume any remaining SYNC
