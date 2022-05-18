@@ -46,7 +46,7 @@ CYTHON_DEPENDENCY = 'Cython(>=0.29.24,<0.30.0)'
 
 # Dependencies needed both at build- and run-time
 COMMON_DEPS = [
-    'edgedb @ git+https://github.com/edgedb/edgedb-python@6d3350e14331d9980f8623f5dd04b337d02381a5',
+    'edgedb==0.24.0a1',
     'parsing~=2.0',
 ]
 
