@@ -1211,11 +1211,14 @@ cdef class EdgeConnection:
                             break
                         # Stop before rollbacks, so that we process any errors
                         # before a rollback gets sent.
-                        if n and ng.tx_rollback or ng.tx_savepoint_rollback:
+                        if n > idx and (
+                            ng.tx_rollback or ng.tx_savepoint_rollback
+                        ):
                             sent = n
                             break
                     else:
                         sent = len(unit_group)
+                    assert sent > idx
 
                     bind_array = self._make_args(unit_group, state, idx, sent)
                     conn.send_query_unit_group(
