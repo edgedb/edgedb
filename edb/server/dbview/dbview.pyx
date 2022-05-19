@@ -525,6 +525,7 @@ cdef class DatabaseConnectionView:
                     '"commit" outside of a transaction')
             self._config = self._in_tx_config
             self._modaliases = self._in_tx_modaliases
+            self._globals = self._in_tx_globals
 
             if self._in_tx_new_types:
                 self._db._update_backend_ids(self._in_tx_new_types)
