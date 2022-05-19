@@ -497,17 +497,34 @@ def _infer_set(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    result = _infer_set_inner(
-        ir, is_mutation=is_mutation,
-        scope_tree=scope_tree, ctx=ctx)
 
-    # We need to cache the main result before doing the shape,
-    # since sometimes the shape will refer to the enclosing set.
-    ctx.inferred_cardinality[ir, scope_tree, ctx.singletons] = result
+    # First compute (or look up) the "intrinsic" cardinality of the set
+    if not (result := ctx.inferred_cardinality.get(ir)):
+        result = _infer_set_inner(
+            ir, is_mutation=is_mutation,
+            scope_tree=scope_tree, ctx=ctx)
 
-    _infer_shape(ir, is_mutation=is_mutation, scope_tree=scope_tree, ctx=ctx)
+        # We need to cache the main result before doing the shape,
+        # since sometimes the shape will refer to the enclosing set.
+        ctx.inferred_cardinality[ir] = result
 
-    return result
+        new_scope = inf_utils.get_set_scope(ir, scope_tree, ctx=ctx)
+        _infer_shape(
+            ir, is_mutation=is_mutation, scope_tree=new_scope, ctx=ctx)
+
+    # With that in hand, compute the cardinality of a *reference* to the
+    # set from this location in the tree.
+    if ir.path_id in ctx.singletons:
+        return ONE
+    elif (node := inf_utils.find_visible(ir, scope_tree)) is not None:
+        if not node.optional:
+            return ONE
+        # If the set is visible, but optional, it must have upper bound ONE
+        # but we still want to compute the lower bound.
+        else:
+            return _bounds_to_card(_card_to_bounds(result).lower, CB_ONE)
+    else:
+        return result
 
 
 def _infer_set_inner(
@@ -545,17 +562,6 @@ def _infer_set_inner(
 
     # We have now inferred all of the subtrees we need to, so it is
     # safe to return.
-
-    if ir.path_id in ctx.singletons:
-        return ONE
-    force_single = False
-    if (node := inf_utils.find_visible(ir, scope_tree)) is not None:
-        if not node.optional:
-            return ONE
-        # If the set is visible, but optional, it must have upper bound ONE
-        # but we still want to compute the lower bound.
-        force_single = True
-
     if rptr is not None:
         if isinstance(rptrref, irast.TypeIntersectionPointerRef):
             ind_prefix, ind_ptrs = irutils.collapse_type_intersection(ir)
@@ -564,7 +570,7 @@ def _infer_set_inner(
                 # so this will just hit the cache and so it is OK for us to
                 # be doing it conditionally.
                 prefix_card = infer_cardinality(
-                    ind_prefix, scope_tree=new_scope, ctx=ctx,
+                    ind_prefix, scope_tree=scope_tree, ctx=ctx,
                 )
 
                 card = cartesian_cardinality([prefix_card, AT_MOST_ONE])
@@ -595,7 +601,7 @@ def _infer_set_inner(
                         # Already inferred, should just be hitting cache.
                         source_card = infer_cardinality(
                             ind_prefix.rptr.source,
-                            scope_tree=new_scope, ctx=ctx,
+                            scope_tree=scope_tree, ctx=ctx,
                         )
 
                     # The resulting cardinality is the cartesian
@@ -615,8 +621,7 @@ def _infer_set_inner(
                     for c in rptrref.union_components
                 )
             elif ctx.ignore_computed_cards and ir.expr:
-                rptrref_card = infer_cardinality(
-                    ir.expr, scope_tree=scope_tree, ctx=ctx)
+                rptrref_card = expr_card
             else:
                 rptrref_card = rptrref.dir_cardinality(rptr.direction)
 
@@ -633,9 +638,6 @@ def _infer_set_inner(
         card = ONE
     else:
         card = MANY
-
-    if force_single:
-        card = _bounds_to_card(_card_to_bounds(card).lower, CB_ONE)
 
     # If this node is an optional argument bound at this location,
     # but it can't actually be zero, clear the optionality to avoid
@@ -1343,7 +1345,8 @@ def infer_cardinality(
     scope_tree: irast.ScopeTreeNode,
     ctx: inference_context.InfCtx,
 ) -> qltypes.Cardinality:
-    result = ctx.inferred_cardinality.get((ir, scope_tree, ctx.singletons))
+    key = (ir, scope_tree, ctx.singletons)
+    result = ctx.inferred_cardinality.get(key)
     if result is not None:
         return result
 
@@ -1360,7 +1363,7 @@ def infer_cardinality(
             'set produced by expression',
             context=ir.context)
 
-    ctx.inferred_cardinality[ir, scope_tree, ctx.singletons] = result
+    ctx.inferred_cardinality[key] = result
 
     return result
 
