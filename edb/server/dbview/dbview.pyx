@@ -195,6 +195,7 @@ cdef class DatabaseConnectionView:
         self._in_tx_globals = None
         self._in_tx_db_config = None
         self._in_tx_modaliases = None
+        self._in_tx_savepoints = []
         self._in_tx_with_ddl = False
         self._in_tx_with_role_ddl = False
         self._in_tx_with_sysconfig = False
@@ -209,14 +210,32 @@ cdef class DatabaseConnectionView:
         self._in_tx_dbver = 0
         self._invalidate_local_cache()
 
-    cdef rollback_tx_to_savepoint(self, spid, modaliases, config, globals):
+    cdef rollback_tx_to_savepoint(self, name):
         self._tx_error = False
         # See also CompilerConnectionState.rollback_to_savepoint().
+        while self._in_tx_savepoints:
+            if self._in_tx_savepoints[-1][0] == name:
+                break
+            else:
+                self._in_tx_savepoints.pop()
+        else:
+            raise RuntimeError(
+                f'savepoint {name} not found')
+
+        _, spid, (modaliases, config, globals) = self._in_tx_savepoints[-1]
         self._txid = spid
         self.set_modaliases(modaliases)
         self.set_session_config(config)
         self.set_globals(globals)
         self._invalidate_local_cache()
+
+    cdef declare_savepoint(self, name, spid):
+        state = (
+            self.get_modaliases(),
+            self.get_session_config(),
+            self.get_globals(),
+        )
+        self._in_tx_savepoints.append((name, spid, state))
 
     cdef recover_aliases_and_config(self, modaliases, config, globals):
         assert not self._in_tx

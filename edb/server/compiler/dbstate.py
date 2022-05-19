@@ -150,6 +150,9 @@ class TxControlQuery(BaseQuery):
     global_schema: Optional[s_schema.FlatSchema] = None
     cached_reflection: Any = None
 
+    sp_name: Optional[str] = None
+    sp_id: Optional[str] = None
+
 
 @dataclasses.dataclass(frozen=True)
 class MigrationControlQuery(BaseQuery):
@@ -221,6 +224,11 @@ class QueryUnit:
     # True if this unit is single 'ROLLBACK TO SAVEPOINT' command.
     # 'ROLLBACK TO SAVEPOINT' is always compiled to a separate QueryUnit.
     tx_savepoint_rollback: bool = False
+    tx_savepoint_declare: bool = False
+
+    # For SAVEPOINT commands, the name and sp_id
+    sp_name: Optional[str] = None
+    sp_id: Optional[str] = None
 
     # True if it is safe to cache this unit.
     cacheable: bool = False

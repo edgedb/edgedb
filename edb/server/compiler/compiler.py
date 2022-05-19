@@ -1401,6 +1401,8 @@ class Compiler:
         final_user_schema: Optional[s_schema.Schema] = None
         final_cached_reflection = None
         final_global_schema: Optional[s_schema.Schema] = None
+        sp_name = None
+        sp_id = None
 
         if isinstance(ql, qlast.StartTransaction):
             self._assert_not_in_migration_block(ctx, ql)
@@ -1462,10 +1464,13 @@ class Compiler:
                     f'SAVEPOINT {pgname};'.encode()
                 )
             else:  # pragma: no cover
-                sql = (f'SAVEPOINT {pgname};'.encode(),)
+                sql = (f'SAVEPOINT {pgname}'.encode(),)
 
             cacheable = False
             action = dbstate.TxAction.DECLARE_SAVEPOINT
+
+            sp_name = ql.name
+            sp_id = sp_id
 
         elif isinstance(ql, qlast.ReleaseSavepoint):
             ctx.state.current_tx().release_savepoint(ql.name)
@@ -1480,10 +1485,11 @@ class Compiler:
             modaliases = new_state.modaliases
 
             pgname = pg_common.quote_ident(ql.name)
-            sql = (f'ROLLBACK TO SAVEPOINT {pgname}'.encode(),)
+            sql = (f'ROLLBACK TO SAVEPOINT {pgname};'.encode(),)
             single_unit = True
             cacheable = False
             action = dbstate.TxAction.ROLLBACK_TO_SAVEPOINT
+            sp_name = ql.name
 
         else:  # pragma: no cover
             raise ValueError(f'expected a transaction AST node, got {ql!r}')
@@ -1497,6 +1503,8 @@ class Compiler:
             user_schema=final_user_schema,
             cached_reflection=final_cached_reflection,
             global_schema=final_global_schema,
+            sp_name=sp_name,
+            sp_id=sp_id,
         )
 
     def _compile_ql_sess_state(self, ctx: CompileContext,
@@ -1887,6 +1895,11 @@ class Compiler:
                     unit.tx_rollback = True
                 elif comp.action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
                     unit.tx_savepoint_rollback = True
+                    unit.sp_name = comp.sp_name
+                elif comp.action is dbstate.TxAction.DECLARE_SAVEPOINT:
+                    unit.tx_savepoint_declare = True
+                    unit.sp_name = comp.sp_name
+                    unit.sp_id = comp.sp_id
 
             elif isinstance(comp, dbstate.MigrationControlQuery):
                 unit.sql = comp.sql
@@ -1911,7 +1924,8 @@ class Compiler:
                 elif comp.tx_action == dbstate.TxAction.ROLLBACK:
                     unit.tx_rollback = True
                 elif comp.tx_action is dbstate.TxAction.ROLLBACK_TO_SAVEPOINT:
-                    unit.tx_savepoint_rollback = True
+                    raise AssertionError('unexpected ROLLBACK_TO_SAVEPOINT')
+                    # unit.tx_savepoint_rollback = True
 
             elif isinstance(comp, dbstate.SessionStateQuery):
                 unit.sql = comp.sql
@@ -2049,7 +2063,8 @@ class Compiler:
             unit = dbstate.QueryUnit(
                 status=b'ROLLBACK TO SAVEPOINT',
                 sql=(sql,),
-                tx_savepoint_rollback=True,
+                tx_savepoint_rollback=stmt.name,
+                sp_name=stmt.name,
                 cacheable=False)
 
         if unit is not None:

@@ -825,63 +825,6 @@ cdef class EdgeConnection:
 
         return verifier, is_mock
 
-    async def recover_current_tx_info(self, pgcon.PGConnection conn):
-        cdef dbview.DatabaseConnectionView _dbview
-        ret = await conn.simple_query(b'''
-            SELECT s1.name AS n, s1.value AS v, s1.type AS t
-                FROM _edgecon_state s1
-            UNION ALL
-            SELECT '' AS n, to_jsonb(s2.sp_id) AS v, 'S' AS t
-                FROM _edgecon_current_savepoint s2;
-        ''', ignore_data=False)
-
-        conf = aliases = globals = immutables.Map()
-        sp_id = None
-
-        if ret:
-            for sname, svalue, stype in ret:
-                sname = sname.decode()
-                svalue = svalue.decode()
-
-                if stype == b'C' or stype == b'B':
-                    setting = config.get_settings()[sname]
-                    pyval = config.value_from_json(setting, svalue)
-                    conf = config.set_value(
-                        conf,
-                        name=sname,
-                        value=pyval,
-                        source='session',
-                        scope=qltypes.ConfigScope.SESSION,
-                    )
-                elif stype == b'G':
-                    pyval = base64.b64decode(json.loads(svalue))
-                    globals = config.set_value(
-                        globals,
-                        name=sname,
-                        value=pyval,
-                        source='session',
-                        scope=qltypes.ConfigScope.GLOBAL,
-                    )
-                elif stype == b'A':
-                    if not sname:
-                        sname = None
-                    aliases = aliases.set(sname, json.loads(svalue))
-                elif stype == b'S':
-                    assert not sname
-                    sp_id = int(svalue)
-                # Ignore everything else in the state table.
-
-        if self.debug:
-            self.debug_print('RECOVER SP/ALIAS/CONF', sp_id, aliases, conf)
-
-        _dbview = self.get_dbview()
-        if _dbview.in_tx():
-            _dbview.rollback_tx_to_savepoint(sp_id, aliases, conf, globals)
-        else:
-            _dbview.recover_aliases_and_config(aliases, conf, globals)
-
-    #############
-
     async def _compile(
         self,
         query_req: QueryRequestInfo,
@@ -1022,7 +965,7 @@ cdef class EdgeConnection:
             if query_unit.tx_savepoint_rollback:
                 if self.debug:
                     self.debug_print(f'== RECOVERY: ROLLBACK TO SP')
-                await self.recover_current_tx_info(conn)
+                self.get_dbview().rollback_tx_to_savepoint(query_unit.sp_name)
             else:
                 if self.debug:
                     self.debug_print('== RECOVERY: ROLLBACK')
@@ -1218,7 +1161,6 @@ cdef class EdgeConnection:
                             break
                     else:
                         sent = len(unit_group)
-                    assert sent > idx
 
                     bind_array = self._make_args(unit_group, state, idx, sent)
                     conn.send_query_unit_group(
@@ -1272,6 +1214,14 @@ cdef class EdgeConnection:
                                         ignore_data=True
                                     )
 
+                        # ???
+                        if query_unit.tx_savepoint_rollback:
+                            _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
+
+                        if query_unit.tx_savepoint_declare:
+                            _dbview.declare_savepoint(
+                                query_unit.sp_name, query_unit.sp_id)
+
                         if query_unit.create_db:
                             await self.server.introspect_db(
                                 query_unit.create_db
@@ -1311,7 +1261,7 @@ cdef class EdgeConnection:
                         # XXX: or should we always do this???
                         # XXX: Or never do it? We should be able to ditch
                         # the whole mechanism right?
-                        await self.recover_current_tx_info(conn)
+                        # await self.recover_current_tx_info(conn)
                     raise
                 else:
                     side_effects = _dbview.on_success(
@@ -1721,7 +1671,7 @@ cdef class EdgeConnection:
                         b';'.join(query_unit.sql), ignore_data=True)
 
                 if query_unit.tx_savepoint_rollback:
-                    await self.recover_current_tx_info(conn)
+                    _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
                 else:
                     assert query_unit.tx_rollback
                     _dbview.abort_tx()
@@ -1770,6 +1720,14 @@ cdef class EdgeConnection:
                         # state is restored, clear orig_state so that we can
                         # set conn.last_state correctly later
                         orig_state = None
+
+                if query_unit.tx_savepoint_rollback:
+                    # await self.recover_current_tx_info(conn)
+                    _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
+
+                if query_unit.tx_savepoint_declare:
+                    _dbview.declare_savepoint(
+                        query_unit.sp_name, query_unit.sp_id)
 
                 if query_unit.create_db:
                     await self.server.introspect_db(

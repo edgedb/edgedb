@@ -91,6 +91,7 @@ cdef class DatabaseConnectionView:
         object _in_tx_config
         object _in_tx_globals
         object _in_tx_db_config
+        object _in_tx_savepoints
         object _in_tx_user_schema_pickled
         object _in_tx_user_schema
         object _in_tx_global_schema_pickled
@@ -110,7 +111,8 @@ cdef class DatabaseConnectionView:
     cdef _invalidate_local_cache(self)
     cdef _reset_tx_state(self)
 
-    cdef rollback_tx_to_savepoint(self, spid, modaliases, config, globals)
+    cdef rollback_tx_to_savepoint(self, name)
+    cdef declare_savepoint(self, name, spid)
     cdef recover_aliases_and_config(self, modaliases, config, globals)
     cdef abort_tx(self)
 
