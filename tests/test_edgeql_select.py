@@ -7284,3 +7284,20 @@ class TestEdgeQLSelect(tb.QueryTestCase):
             for x in {1,2,3} union w
         ''')
         self.assertEqual(1, len({v.id for v in vals}))
+
+    async def test_edgeql_select_card_blowup_01(self):
+        # This used to really blow up cardinality inference
+        await self.con.query('''
+        SELECT Comment {
+          issue := assert_exists(( .issue {
+            status1 := ( .status { a := .__type__.name, b := .__type__.id } ),
+            status2 := ( .status { a := .__type__.name, b := .__type__.id } ),
+            status3 := ( .status { a := .__type__.name, b := .__type__.id } ),
+            status4 := ( .status { a := .__type__.name, b := .__type__.id } ),
+            status5 := ( .status { a := .__type__.name, b := .__type__.id } ),
+            status6 := ( .status { a := .__type__.name, b := .__type__.id } ),
+            status7 := ( .status { a := .__type__.name, b := .__type__.id } ),
+            status8 := ( .status { a := .__type__.name, b := .__type__.id } ),
+          })),
+        };
+        ''')
