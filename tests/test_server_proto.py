@@ -517,6 +517,12 @@ class TestServerProto(tb.QueryTestCase):
 
         await self.con.query('reset global glob')
 
+    async def test_server_proto_set_global_02(self):
+        await self.con.execute('START TRANSACTION')
+        await self.con.execute('set global glob := 1')
+        await self.con.execute('COMMIT')
+        self.assertEqual(await self.con.query_single('select global glob'), 1)
+
     async def test_server_proto_basic_datatypes_01(self):
         for _ in range(10):
             self.assertEqual(
