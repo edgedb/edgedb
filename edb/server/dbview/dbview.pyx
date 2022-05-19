@@ -40,10 +40,7 @@ __all__ = ('DatabaseIndex', 'DatabaseConnectionView', 'SideEffects')
 cdef DEFAULT_MODALIASES = immutables.Map({None: defines.DEFAULT_MODULE_ALIAS})
 cdef DEFAULT_CONFIG = immutables.Map()
 cdef DEFAULT_GLOBALS = immutables.Map()
-cdef DEFAULT_STATE = json.dumps([
-    {"name": n or '', "value": v, "type": "A"}
-    for n, v in DEFAULT_MODALIASES.items()
-]).encode('utf-8')
+cdef DEFAULT_STATE = json.dumps([]).encode('utf-8')
 
 cdef int VER_COUNTER = 0
 cdef DICTDEFAULT = (None, None)
@@ -378,26 +375,14 @@ cdef class DatabaseConnectionView:
         if self._in_tx:
             raise errors.InternalServerError(
                 'no need to serialize state while in transaction')
-        if (
-            self._config == DEFAULT_CONFIG and
-            self._modaliases == DEFAULT_MODALIASES and
-            self._globals == DEFAULT_GLOBALS
-        ):
+        if self._config == DEFAULT_CONFIG:
             return DEFAULT_STATE
 
         if self._session_state_cache is not None:
-            if (
-                self._session_state_cache[0] == self._config and
-                self._session_state_cache[1] == self._modaliases and
-                self._session_state_cache[2] == self._globals
-            ):
-                return self._session_state_cache[3]
+            if self._session_state_cache[0] == self._config:
+                return self._session_state_cache[1]
 
         state = []
-        for key, val in self._modaliases.items():
-            state.append(
-                {"name": key or '', "value": val, "type": "A"}
-            )
         if self._config:
             settings = config.get_settings()
             for sval in self._config.values():
@@ -405,14 +390,9 @@ cdef class DatabaseConnectionView:
                 kind = 'B' if setting.backend_setting else 'C'
                 jval = config.value_to_json_value(setting, sval.value)
                 state.append({"name": sval.name, "value": jval, "type": kind})
-        if self._globals:
-            for sval in self._globals.values():
-                jval = base64.b64encode(sval.value).decode('ascii')
-                state.append({"name": sval.name, "value": jval, "type": 'G'})
 
         spec = json.dumps(state).encode('utf-8')
-        self._session_state_cache = (
-            self._config, self._modaliases, self._globals, spec)
+        self._session_state_cache = (self._config, spec)
         return spec
 
     property txid:

@@ -122,8 +122,7 @@ def compile_ConfigSet(
                 ),
             ],
         )
-    elif op.scope in (qltypes.ConfigScope.SESSION, qltypes.ConfigScope.GLOBAL):
-        flag = 'G' if op.scope is qltypes.ConfigScope.GLOBAL else 'C'
+    elif op.scope is qltypes.ConfigScope.SESSION:
         result = pgast.InsertStmt(
             relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
@@ -139,7 +138,7 @@ def compile_ConfigSet(
                             ),
                             val,
                             pgast.StringConstant(
-                                val=flag,
+                                val='C',
                             ),
                         ]
                     )
@@ -171,30 +170,26 @@ def compile_ConfigSet(
             ),
         )
 
-        if op.scope is qltypes.ConfigScope.GLOBAL:
-            result_row = pgast.RowExpr(
-                args=[
-                    pgast.StringConstant(val='SET'),
-                    pgast.StringConstant(val=str(op.scope)),
-                    pgast.StringConstant(val=op.name),
-                    val,
-                ]
-            )
+    elif op.scope is qltypes.ConfigScope.GLOBAL:
+        result_row = pgast.RowExpr(
+            args=[
+                pgast.StringConstant(val='SET'),
+                pgast.StringConstant(val=str(op.scope)),
+                pgast.StringConstant(val=op.name),
+                val,
+            ]
+        )
 
-            build_array = pgast.FuncCall(
-                name=('jsonb_build_array',),
-                args=result_row.args,
-                null_safe=True,
-                ser_safe=True,
-            )
+        build_array = pgast.FuncCall(
+            name=('jsonb_build_array',),
+            args=result_row.args,
+            null_safe=True,
+            ser_safe=True,
+        )
 
-            result = pgast.SelectStmt(
-                ctes=[pgast.CommonTableExpr(
-                    name='ins',
-                    query=result,
-                )],
-                target_list=[pgast.ResTarget(val=build_array)],
-            )
+        result = pgast.SelectStmt(
+            target_list=[pgast.ResTarget(val=build_array)],
+        )
 
     elif op.scope is qltypes.ConfigScope.DATABASE:
         result = pgast.InsertStmt(
@@ -364,7 +359,7 @@ def compile_ConfigReset(
             ),
         )
 
-    elif op.scope in (qltypes.ConfigScope.SESSION, qltypes.ConfigScope.GLOBAL):
+    elif op.scope is qltypes.ConfigScope.SESSION:
         stmt = pgast.DeleteStmt(
             relation=pgast.RelRangeVar(
                 relation=pgast.Relation(
@@ -386,7 +381,10 @@ def compile_ConfigReset(
                 op='AND',
             )
         )
-
+    elif op.scope is qltypes.ConfigScope.GLOBAL:
+        stmt = pgast.SelectStmt(
+            where_clause=pgast.BooleanConstant(val='false')
+        )
     else:
         raise AssertionError(f'unexpected configuration scope: {op.scope}')
 

@@ -1449,22 +1449,8 @@ class Compiler:
             tx = ctx.state.current_tx()
             sp_id = tx.declare_savepoint(ql.name)
 
-            if not ctx.bootstrap_mode:
-                pgname = pg_common.quote_ident(ql.name)
-                sql = (
-                    f'''
-                        INSERT INTO _edgecon_current_savepoint(sp_id)
-                        VALUES (
-                            {pg_ql(sp_id)}
-                        )
-                        ON CONFLICT (_sentinel) DO
-                        UPDATE
-                            SET sp_id = {pg_ql(sp_id)};
-                    '''.encode(),
-                    f'SAVEPOINT {pgname};'.encode()
-                )
-            else:  # pragma: no cover
-                sql = (f'SAVEPOINT {pgname}'.encode(),)
+            pgname = pg_common.quote_ident(ql.name)
+            sql = (f'SAVEPOINT {pgname}'.encode(),)
 
             cacheable = False
             action = dbstate.TxAction.DECLARE_SAVEPOINT
@@ -1514,20 +1500,6 @@ class Compiler:
 
         aliases = ctx.state.current_tx().get_modaliases()
 
-        sqlbuf = []
-
-        alias_tpl = lambda alias, module: f'''
-            INSERT INTO _edgecon_state(name, value, type)
-            VALUES (
-                {pg_ql(alias or '')},
-                to_jsonb({pg_ql(module)}::text),
-                'A'
-            )
-            ON CONFLICT (name, type) DO
-            UPDATE
-                SET value = to_jsonb({pg_ql(module)}::text);
-        '''.encode()
-
         if isinstance(ql, qlast.SessionSetAliasDecl):
             try:
                 schema.get_global(s_mod.Module, ql.module)
@@ -1537,35 +1509,14 @@ class Compiler:
 
             aliases = aliases.set(ql.alias, ql.module)
 
-            if not ctx.bootstrap_mode:
-                sql = alias_tpl(ql.alias, ql.module)
-                sqlbuf.append(sql)
-
         elif isinstance(ql, qlast.SessionResetModule):
             aliases = aliases.set(None, defines.DEFAULT_MODULE_ALIAS)
-
-            if not ctx.bootstrap_mode:
-                sql = alias_tpl('', defines.DEFAULT_MODULE_ALIAS)
-                sqlbuf.append(sql)
 
         elif isinstance(ql, qlast.SessionResetAllAliases):
             aliases = DEFAULT_MODULE_ALIASES_MAP
 
-            if not ctx.bootstrap_mode:
-                sqlbuf.append(
-                    b"DELETE FROM _edgecon_state s WHERE s.type = 'A';")
-                sqlbuf.append(
-                    alias_tpl('', defines.DEFAULT_MODULE_ALIAS))
-
         elif isinstance(ql, qlast.SessionResetAliasDecl):
             aliases = aliases.delete(ql.alias)
-
-            if not ctx.bootstrap_mode:
-                sql = f'''
-                    DELETE FROM _edgecon_state s
-                    WHERE s.name = {pg_ql(ql.alias)} AND s.type = 'A';
-                '''.encode()
-                sqlbuf.append(sql)
 
         else:  # pragma: no cover
             raise errors.InternalServerError(
@@ -1573,17 +1524,8 @@ class Compiler:
 
         ctx.state.current_tx().update_modaliases(aliases)
 
-        if len(sqlbuf) == 1:
-            sql = sqlbuf[0]
-        else:
-            sql = b'''
-            DO LANGUAGE plpgsql $$ BEGIN
-            %b
-            END; $$;
-            ''' % (b''.join(sqlbuf))
-
         return dbstate.SessionStateQuery(
-            sql=(sql,),
+            sql=(),
         )
 
     def _compile_ql_config_op(self, ctx: CompileContext, ql: qlast.Base):

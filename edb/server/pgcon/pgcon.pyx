@@ -119,10 +119,6 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
     # * 'B': a session-level config setting that's implemented by setting
     #   a corresponding Postgres config setting.
     #
-    # * 'G': a global variable, its value base64 encoded
-    #
-    # * 'A': a module alias.
-    #
     # * 'R': a "variable=value" record.
 
     return textwrap.dedent(f'''
@@ -132,15 +128,8 @@ def _build_init_con_script(*, check_pg_is_in_recovery: bool) -> bytes:
             name text NOT NULL,
             value jsonb NOT NULL,
             type text NOT NULL CHECK(
-                type = 'C' OR type = 'A' OR type = 'R' OR type = 'B' OR
-                type = 'G'),
+                type = 'C' OR type = 'R' OR type = 'B'),
             UNIQUE(name, type)
-        );
-
-        CREATE TEMPORARY TABLE _edgecon_current_savepoint (
-            sp_id bigint NOT NULL,
-            _sentinel bigint DEFAULT -1,
-            UNIQUE(_sentinel)
         );
 
         PREPARE _clear_state AS
