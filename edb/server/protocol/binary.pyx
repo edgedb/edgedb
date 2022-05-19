@@ -1207,8 +1207,15 @@ cdef class EdgeConnection:
                     for n in range(idx, len(unit_group)):
                         ng = unit_group[n]
                         if ng.ddl_stmt_id or ng.set_global:
+                            sent = n + 1
                             break
-                    sent = n + 1
+                        # Stop before rollbacks, so that we process any errors
+                        # before a rollback gets sent.
+                        if n and ng.tx_rollback or ng.tx_savepoint_rollback:
+                            sent = n
+                            break
+                    else:
+                        sent = len(unit_group)
 
                     bind_array = self._make_args(unit_group, state, idx, sent)
                     conn.send_query_unit_group(

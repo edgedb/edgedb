@@ -986,7 +986,7 @@ cdef class PGConnection:
             WriteBuffer out
             WriteBuffer buf
             WriteBuffer bind_data
-            bint first = True
+            bint first = start == 0
 
         out = WriteBuffer.new()
 
