@@ -74,6 +74,12 @@ alias ProfileAlias := Profile {
     owner := .<profile
 };
 
+alias TwoUsers := (
+    select User {
+        initial := .name[0],
+    } order by .name limit 2
+);
+
 type Person extending User;
 
 scalar type positive_int_t extending int64 {

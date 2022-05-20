@@ -906,6 +906,52 @@ class TestGraphQLFunctional(tb.GraphQLTestCase):
             },
         )
 
+    def test_graphql_functional_alias_07(self):
+        self.assert_graphql_query_result(
+            r"""
+                {
+                    TwoUsers {
+                        name
+                        initial
+                    }
+                }
+            """,
+            {
+                "TwoUsers": [
+                    {
+                        "name": "Alice",
+                        "initial": "A",
+                    },
+                    {
+                        "name": "Bob",
+                        "initial": "B",
+                    },
+                ],
+            },
+        )
+
+    def test_graphql_functional_alias_08(self):
+        self.assert_graphql_query_result(
+            r"""
+                {
+                    TwoUsers(
+                        filter: {initial: {eq: "A"}}
+                    ) {
+                        name
+                        initial
+                    }
+                }
+            """,
+            {
+                "TwoUsers": [
+                    {
+                        "name": "Alice",
+                        "initial": "A",
+                    },
+                ],
+            },
+        )
+
     def test_graphql_functional_arguments_01(self):
         result = self.graphql_query(r"""
             query {
