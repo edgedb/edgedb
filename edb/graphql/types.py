@@ -1258,13 +1258,6 @@ class GQLCoreSchema:
                 # The aliased types actually only reflect as an object
                 # type, but the rest of the processing is identical to
                 # interfaces.
-                if '~' in gql_name:
-                    # These are internal aliases, but they define the
-                    # actual shapes we need to reflect.
-                    gql_name = '_edb' + gql_name.replace('|', '_') \
-                                                .replace('@', '_') \
-                                                .replace('~', '_')
-
                 self._gql_objtypes_from_alias[t_name] = GraphQLObjectType(
                     name=gql_name,
                     fields=partial(self.get_fields, t_name),
