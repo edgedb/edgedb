@@ -1031,6 +1031,44 @@ cdef class EdgeConnection:
         self.write(packet)
         self.flush()
 
+    cdef uint64_t _count_globals(
+        self,
+        query_unit: object,
+    ):
+        cdef:
+            uint64_t num_args
+
+        num_args = 0
+        if query_unit.globals:
+            num_args += len(query_unit.globals)
+            for _, has_present_arg in query_unit.globals:
+                if has_present_arg:
+                    num_args += 1
+
+        return num_args
+
+    cdef _inject_globals(
+        self,
+        query_unit: object,
+        out_buf: WriteBuffer,
+    ):
+        if query_unit.globals:
+            globs = self.get_dbview().get_globals()
+            for (glob, has_present_arg) in query_unit.globals:
+                val = None
+                entry = globs.get(glob)
+                if entry:
+                    val = entry.value
+                if val:
+                    out_buf.write_int32(len(val))
+                    out_buf.write_bytes(val)
+                else:
+                    out_buf.write_int32(-1)
+                if has_present_arg:
+                    out_buf.write_int32(1)
+                    present = b'\x01' if val is not None else b'\x00'
+                    out_buf.write_bytes(present)
+
     def _make_args(
         self,
         unit_group: object,
@@ -1047,32 +1085,11 @@ cdef class EdgeConnection:
             bind_data = WriteBuffer.new()
             bind_data.write_int16(0)  # number of format codes
 
-            # XXX: duplication
-            num_args = 0
-            if query_unit.globals:
-                num_args += len(query_unit.globals)
-                for _, has_present_arg in query_unit.globals:
-                    if has_present_arg:
-                        num_args += 1
+            num_args = self._count_globals(query_unit)
 
             bind_data.write_int16(num_args)  # number of parameters
 
-            if query_unit.globals:
-                globs = self.get_dbview().get_globals()
-                for (glob, has_present_arg) in query_unit.globals:
-                    val = None
-                    entry = globs.get(glob)
-                    if entry:
-                        val = entry.value
-                    if val:
-                        bind_data.write_int32(len(val))
-                        bind_data.write_bytes(val)
-                    else:
-                        bind_data.write_int32(-1)
-                    if has_present_arg:
-                        bind_data.write_int32(1)
-                        present = b'\x01' if val is not None else b'\x00'
-                        bind_data.write_bytes(present)
+            self._inject_globals(query_unit, bind_data)
 
             bind_data.write_int16(0)  # number of result columns
 
@@ -2301,11 +2318,8 @@ cdef class EdgeConnection:
             assert recv_args == query.first_extra, \
                 f"argument count mismatch {recv_args} != {query.first_extra}"
             num_args += query.extra_count
-        if query.query_unit_group.globals:
-            num_args += len(query.query_unit_group.globals)
-            for _, has_present_arg in query.query_unit_group.globals:
-                if has_present_arg:
-                    num_args += 1
+
+        num_args += self._count_globals(query.query_unit_group)
 
         out_buf.write_int16(<int16_t>num_args)
 
@@ -2339,22 +2353,7 @@ cdef class EdgeConnection:
             out_buf.write_bytes(query.extra_blob)
 
         # Inject any globals variables into the argument stream.
-        if query.query_unit_group.globals:
-            globs = self.get_dbview().get_globals()
-            for (glob, has_present_arg) in query.query_unit_group.globals:
-                val = None
-                entry = globs.get(glob)
-                if entry:
-                    val = entry.value
-                if val:
-                    out_buf.write_int32(len(val))
-                    out_buf.write_bytes(val)
-                else:
-                    out_buf.write_int32(-1)
-                if has_present_arg:
-                    out_buf.write_int32(1)
-                    present = b'\x01' if val is not None else b'\x00'
-                    out_buf.write_bytes(present)
+        self._inject_globals(query.query_unit_group, out_buf)
 
         # All columns are in binary format
         out_buf.write_int32(0x00010001)

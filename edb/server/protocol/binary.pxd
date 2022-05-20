@@ -145,6 +145,16 @@ cdef class EdgeConnection:
 
     cdef sync_status(self)
 
+    cdef uint64_t _count_globals(
+        self,
+        query_unit: object,
+    )
+    cdef _inject_globals(
+        self,
+        query_unit: object,
+        WriteBuffer out_buf,
+    )
+
     cdef WriteBuffer recode_bind_args(self,
         bytes bind_args, CompiledQuery compiled)
 
