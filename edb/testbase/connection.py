@@ -370,10 +370,16 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         result, _ = await self.raw_query(query_context)
         return result
 
-    async def execute(self, query: str) -> None:
+    async def _execute(self, script: abstract.ScriptContext) -> None:
         await self.ensure_connected()
-        await self._protocol.simple_query(
-            query, edgedb_enums.Capability.ALL  # type: ignore
+        await self._protocol.execute(
+            query=script.query.query,
+            args=script.query.args,
+            kwargs=script.query.kwargs,
+            reg=script.cache.codecs_registry,
+            qc=script.cache.query_cache,
+            output_format=protocol.OutputFormat.NULL_,
+            allow_capabilities=edgedb_enums.Capability.EXECUTE,
         )
 
     async def ensure_connected(self):
@@ -382,13 +388,13 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         return self
 
     async def raw_query(self, query_context: abstract.QueryContext):
-        return await self._protocol.execute_anonymous(
+        return await self._protocol.query(
             query=query_context.query.query,
             args=query_context.query.args,
             kwargs=query_context.query.kwargs,
             reg=query_context.cache.codecs_registry,
             qc=query_context.cache.query_cache,
-            io_format=query_context.query_options.io_format,
+            output_format=query_context.query_options.output_format,
             expect_one=query_context.query_options.expect_one,
             required_one=query_context.query_options.required_one,
             allow_capabilities=edgedb_enums.Capability.ALL,  # type: ignore

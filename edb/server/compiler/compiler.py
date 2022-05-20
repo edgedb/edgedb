@@ -1936,18 +1936,9 @@ class Compiler:
             else:
                 in_type_data = in_type_id = None
 
-            if False:
-                print('script argument debug!')
-                print(in_type_id)
-                print(in_type_args)
-                print(in_type_data)
-                print([x.in_type_args for x in rv])
-
-            # XXX: Obviously the whole point of the script_info stuff is
-            # *to* support params but we aren't there yet
-            if script_info.params:
-                raise errors.QueryError(
-                    'EdgeQL script queries cannot accept parameters')
+            rv.in_type_id = in_type_id.bytes
+            rv.in_type_args = in_type_args
+            rv.in_type_data = in_type_data
 
         for unit in rv:  # pragma: no cover
             if ctx.protocol_version < (0, 12):

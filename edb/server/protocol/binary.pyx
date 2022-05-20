@@ -835,6 +835,9 @@ cdef class EdgeConnection:
 
         compiler_pool = self.server.get_compiler_pool()
 
+        # XXX: Probably won't stay this way?
+        stmt_mode = 'all' if query_req.io_format == FMT_SCRIPT else 'single'
+
         started_at = time.monotonic()
         try:
             if _dbview.in_tx():
@@ -848,7 +851,7 @@ cdef class EdgeConnection:
                     query_req.implicit_limit,
                     query_req.inline_typeids,
                     query_req.inline_typenames,
-                    'single',
+                    stmt_mode,
                     self.protocol_version,
                     query_req.inline_objectids,
                 )
@@ -868,7 +871,7 @@ cdef class EdgeConnection:
                     query_req.implicit_limit,
                     query_req.inline_typeids,
                     query_req.inline_typenames,
-                    'single',
+                    stmt_mode,
                     self.protocol_version,
                     query_req.inline_objectids,
                 )
@@ -1021,15 +1024,24 @@ cdef class EdgeConnection:
         if self._cancelled:
             raise ConnectionAbortedError
 
-        assert stmt_mode in {'all', 'skip_first'}
-        query_unit = await self._simple_query(
-            eql, allow_capabilities, stmt_mode)
+        unit_group = await self._compile_script(eql, stmt_mode=stmt_mode)
+        metrics.edgeql_query_compilations.inc(1.0, 'compiler')
 
-        packet = WriteBuffer.new()
-        packet.write_buffer(self.make_command_complete_msg(query_unit))
-        packet.write_buffer(self.sync_status())
-        self.write(packet)
-        self.flush()
+        if unit_group.capabilities & ~allow_capabilities:
+            raise unit_group.capabilities.make_error(
+                allow_capabilities,
+                errors.DisabledCapabilityError,
+            )
+
+        compiled = CompiledQuery(
+            query_unit_group=unit_group,
+            first_extra=None,
+            extra_count=0,
+            extra_blob=None,
+        )
+
+        assert stmt_mode in {'all', 'skip_first'}
+        await self._simple_query(compiled, b'', stmt_mode)
 
     cdef uint64_t _count_globals(
         self,
@@ -1071,27 +1083,46 @@ cdef class EdgeConnection:
 
     def _make_args(
         self,
-        unit_group: object,
-        state: bytes,
+        compiled: object,
+        bind_args: bytes,
         start: ssize_t,
         end: ssize_t,
     ):
         cdef:
             WriteBuffer bind_data
 
+        unit_group = compiled.query_unit_group
+
+        # TODO: just do the simple thing if it is only one!
+
+        positions = []
+        recoded_buf = self.recode_bind_args(bind_args, compiled, positions)
+        # TODO: something with less copies
+        recoded = bytes(memoryview(recoded_buf))
+
         bind_array = []
         for i in range(start, end):
             query_unit = unit_group[i]
             bind_data = WriteBuffer.new()
-            bind_data.write_int16(0)  # number of format codes
+            bind_data.write_int32(0x00010001)
 
-            num_args = self._count_globals(query_unit)
+            num_args = len(query_unit.in_type_args or ())
+            num_args += self._count_globals(query_unit)
 
-            bind_data.write_int16(num_args)  # number of parameters
+            bind_data.write_int16(<int16_t>num_args)
+
+            if query_unit.in_type_args:
+                for arg in query_unit.in_type_args:
+                    oidx = arg.outer_idx
+                    barg = recoded[positions[oidx]:positions[oidx+1]]
+                    bind_data.write_bytes(barg)
+
+            # TODO: we can't support the constant extraction here yet
 
             self._inject_globals(query_unit, bind_data)
 
             bind_data.write_int16(0)  # number of result columns
+            # bind_data.write_int32(0x00010001)
 
             bind_array.append(bind_data)
 
@@ -1099,8 +1130,8 @@ cdef class EdgeConnection:
 
     async def _simple_query(
         self,
-        eql: bytes,
-        allow_capabilities: uint64_t,
+        compiled: object,
+        bind_args: bytes,
         stmt_mode: str,
     ):
         cdef:
@@ -1111,17 +1142,10 @@ cdef class EdgeConnection:
             pgcon.PGConnection conn
             WriteBuffer bind_data
 
-        unit_group = await self._compile_script(eql, stmt_mode=stmt_mode)
-        metrics.edgeql_query_compilations.inc(1.0, 'compiler')
-
         if self._cancelled:
             raise ConnectionAbortedError
 
-        if unit_group.capabilities & ~allow_capabilities:
-            raise unit_group.capabilities.make_error(
-                allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
+        unit_group = compiled.query_unit_group
 
         _dbview = self.get_dbview()
         if not _dbview.in_tx():
@@ -1179,7 +1203,8 @@ cdef class EdgeConnection:
                     else:
                         sent = len(unit_group)
 
-                    bind_array = self._make_args(unit_group, state, idx, sent)
+                    bind_array = self._make_args(
+                        compiled, bind_args, idx, sent)
                     conn.send_query_unit_group(
                         unit_group, bind_array, state, idx, sent)
 
@@ -1315,7 +1340,11 @@ cdef class EdgeConnection:
             finally:
                 self.maybe_release_pgcon(conn)
 
-        return query_unit
+        packet = WriteBuffer.new()
+        packet.write_buffer(self.make_command_complete_msg(query_unit))
+        packet.write_buffer(self.sync_status())
+        self.write(packet)
+        self.flush()
 
     def signal_side_effects(self, side_effects):
         if not self.server._accept_new_tasks:
@@ -1452,6 +1481,8 @@ cdef class EdgeConnection:
             return FMT_JSON_ELEMENTS
         elif mode == b'b':
             return FMT_BINARY
+        elif mode == b'n':
+            return FMT_SCRIPT
         else:
             raise errors.BinaryProtocolError(
                 f'unknown output mode "{repr(mode)[2:-1]}"')
@@ -1724,7 +1755,8 @@ cdef class EdgeConnection:
                         if ddl_ret and ddl_ret['new_types']:
                             new_types = ddl_ret['new_types']
                     else:
-                        bound_args_buf = self.recode_bind_args(bind_args, compiled)
+                        bound_args_buf = self.recode_bind_args(
+                            bind_args, compiled, None)
                         await conn.parse_execute(
                             query_unit,         # =query
                             self,               # =edgecon
@@ -1868,11 +1900,16 @@ cdef class EdgeConnection:
         self._last_anon_compiled = None
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
-        await self._execute(
-            compiled,
-            bind_args,
-            len(query_unit_group) == 1 and bool(query_unit_group[0].sql_hash),
-        )
+        if query_req.io_format == FMT_SCRIPT:
+            # XXX: _recover_script_error???
+            query_unit = await self._simple_query(
+                compiled, bind_args, stmt_mode='all')
+        else:
+            use_prep = (
+                len(query_unit_group) == 1
+                and bool(query_unit_group[0].sql_hash)
+            )
+            await self._execute(compiled, bind_args, use_prep)
 
     async def sync(self):
         self.buffer.consume_message()
@@ -2269,6 +2306,8 @@ cdef class EdgeConnection:
         self,
         bytes bind_args,
         CompiledQuery query,
+        # XXX do something better?!?
+        object positions,
     ):
         cdef:
             FRBuffer in_buf
@@ -2278,6 +2317,7 @@ cdef class EdgeConnection:
             ssize_t in_len
             ssize_t i
             const char *data
+            bint live = positions is None
 
         assert cpython.PyBytes_CheckExact(bind_args)
         frb_init(
@@ -2286,7 +2326,8 @@ cdef class EdgeConnection:
             cpython.Py_SIZE(bind_args))
 
         # all parameters are in binary
-        out_buf.write_int32(0x00010001)
+        if live:
+            out_buf.write_int32(0x00010001)
 
         # number of elements in the tuple
         # for empty tuple it's okay to send zero-length arguments
@@ -2321,10 +2362,14 @@ cdef class EdgeConnection:
 
         num_args += self._count_globals(query.query_unit_group)
 
-        out_buf.write_int16(<int16_t>num_args)
+        if live:
+            out_buf.write_int16(<int16_t>num_args)
 
         if query.query_unit_group.in_type_args:
             for param in query.query_unit_group.in_type_args:
+                if positions is not None:
+                    positions.append(out_buf._length)
+
                 frb_read(&in_buf, 4)  # reserved
                 in_len = hton.unpack_int32(frb_read(&in_buf, 4))
                 out_buf.write_int32(in_len)
@@ -2349,14 +2394,19 @@ cdef class EdgeConnection:
                     else:
                         out_buf.write_cstr(data, in_len)
 
-        if query.first_extra is not None:
-            out_buf.write_bytes(query.extra_blob)
+        if positions is not None:
+            positions.append(out_buf._length)
 
-        # Inject any globals variables into the argument stream.
-        self._inject_globals(query.query_unit_group, out_buf)
+        if live:
+            if query.first_extra is not None:
+                out_buf.write_bytes(query.extra_blob)
 
-        # All columns are in binary format
-        out_buf.write_int32(0x00010001)
+            # Inject any globals variables into the argument stream.
+            self._inject_globals(query.query_unit_group, out_buf)
+
+            # All columns are in binary format
+            out_buf.write_int32(0x00010001)
+
         return out_buf
 
     def connection_made(self, transport):

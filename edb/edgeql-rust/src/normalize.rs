@@ -132,7 +132,7 @@ pub fn normalize<'x>(text: &'x str)
         }
     };
     let mut last_was_set = false;
-    for tok in &tokens {
+    for (idx, tok) in tokens.iter().enumerate() {
         let mut is_set = false;
         match tok.kind {
             Kind::IntConst
@@ -212,12 +212,18 @@ pub fn normalize<'x>(text: &'x str)
                 });
                 continue;
             }
-            Kind::Keyword
+            Kind::Keyword | Kind::Semicolon
             if (matches!(&(&tok.value[..].to_uppercase())[..],
                          "CONFIGURE"|"CREATE"|"ALTER"|"DROP"|"START")
                 || (last_was_set &&
                     matches!(&(&tok.value[..].to_uppercase())[..],
                              "GLOBAL"))
+                // We don't yet properly handle extracting from
+                // multiple statements, so if we see a non-final
+                // semicolon, also give up. (Non-final semicolons can
+                // appear in the middle of statements in DDL, but we
+                // don't support that either.)
+                || (tok.kind == Kind::Semicolon && idx + 1 < tokens.len())
             )
             => {
                 let processed_source = serialize_tokens(&tokens);
