@@ -125,6 +125,13 @@ async def handle_request(
                         raise TypeError(
                             '"globals" must be a JSON object')
 
+        elif request.method == b'OPTIONS':
+            response.status = http.HTTPStatus.NO_CONTENT
+            response.custom_headers['Access-Control-Allow-Methods'] = \
+                'POST, GET, OPTIONS'
+            response.custom_headers['Access-Control-Max-Age'] = '86400'
+            return
+
         else:
             raise TypeError('expected a GET or a POST request')
 
