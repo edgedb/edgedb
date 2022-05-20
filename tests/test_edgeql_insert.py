@@ -4837,6 +4837,26 @@ class TestInsert(tb.QueryTestCase):
         await self.con.execute(query1)
         await self.con.execute(query2)
 
+    async def test_edgeql_insert_update_cross_type_conflict_14(self):
+        await self.con.execute('''
+            create type A {
+                create property foo -> int64 {
+                    create constraint exclusive;
+                }
+            };
+            create type B extending A;
+            create type X extending B;
+            create type Y extending B;
+        ''')
+
+        with self.assertRaisesRegex(edgedb.ConstraintViolationError,
+                                    "violates exclusivity constraint"):
+            await self.con.execute('''
+                with x := (insert X { foo := 0 }),
+                     y := (insert Y { foo := 0 }),
+                select {x, y};
+            ''')
+
     async def test_edgeql_insert_and_update_01(self):
         # INSERTing something that would violate a constraint while
         # fixing the violation is still supposed to be an error.

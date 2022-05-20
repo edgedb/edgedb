@@ -238,11 +238,6 @@ def _constr_matters(
     return (
         not constr.generic(schema)
         and not constr.get_delegated(schema)
-        and (
-            constr.get_owned(schema)
-            or all(anc.get_delegated(schema) or anc.generic(schema) for anc
-                   in constr.get_ancestors(schema).objects(schema))
-        )
     )
 
 
