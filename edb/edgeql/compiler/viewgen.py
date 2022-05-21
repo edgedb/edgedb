@@ -1073,7 +1073,7 @@ def _normalize_view_ptr_expr(
             ctx.env.schema, 'cardinality', qltypes.SchemaCardinality.Unknown)
 
     if (
-        ptrcls.is_protected_pointer(ctx.env.schema)
+        ptrcls.is_protected_pointer(exprtype, ctx.env.schema)
         and (compexpr is not None or is_polymorphic)
         and not from_default
         and not ctx.env.options.allow_writing_protected_pointers

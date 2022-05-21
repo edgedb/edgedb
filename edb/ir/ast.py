@@ -499,6 +499,10 @@ class Set(Base):
 
     # Whether to force this to not select subtypes
     skip_subtypes: bool = False
+    # Whether to force this to ignore rewrites. Very dangerous!
+    # Currently only used for preventing duplicate explicit .id
+    # insertions to BaseObject.
+    ignore_rewrites: bool = False
 
     def __repr__(self) -> str:
         return f'<ir.Set \'{self.path_id}\' at 0x{id(self):x}>'

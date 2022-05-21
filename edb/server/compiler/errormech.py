@@ -99,6 +99,7 @@ constraint_res = {
     'cardinality': re.compile(r'^.*".*_cardinality_idx".*$'),
     'link_target': re.compile(r'^.*link target constraint$'),
     'constraint': re.compile(r'^.*;schemaconstr(?:#\d+)?".*$'),
+    'idconstraint': re.compile(r'^.*".*_pkey".*$'),
     'newconstraint': re.compile(r'^.*violate the new constraint.*$'),
     'id': re.compile(r'^.*"(?:\w+)_data_pkey".*$'),
     'link_target_del': re.compile(r'^.*link target policy$'),
@@ -282,6 +283,19 @@ def _static_interpret_constraint_errors(code, err_details):
 
         return SchemaRequired
 
+    elif error_type == 'idconstraint':
+        if err_details.constraint_name is None:
+            return errors.InternalServerError(err_details.message)
+
+        constraint_id, _, _ = err_details.constraint_name.rpartition('_')
+
+        try:
+            constraint_id = uuidgen.UUID(constraint_id)
+        except ValueError:
+            return errors.InternalServerError(err_details.message)
+
+        return SchemaRequired
+
     elif error_type == 'newconstraint':
         # We can reconstruct what went wrong from the schema_name,
         # table_name, and column_name. But we don't expect
@@ -429,12 +443,19 @@ def _interpret_constraint_errors(code, schema, err_details, hint):
     # no need for else clause since it would have been handled by
     # the static version
 
-    if error_type == 'constraint':
+    if error_type == 'constraint' or error_type == 'idconstraint':
         # similarly, if we're here it's because we have a constraint_id
-        constraint_id, _, _ = err_details.constraint_name.rpartition(';')
-        constraint_id = uuidgen.UUID(constraint_id)
-
-        constraint = schema.get_by_id(constraint_id)
+        if error_type == 'constraint':
+            constraint_id, _, _ = err_details.constraint_name.rpartition(';')
+            constraint_id = uuidgen.UUID(constraint_id)
+            constraint = schema.get_by_id(constraint_id)
+        else:
+            # Primary key violations give us the table name, so
+            # look through that for the constraint
+            obj_id, _, _ = err_details.constraint_name.rpartition('_')
+            obj_ptr = schema.get_by_id(uuidgen.UUID(obj_id)).getptr(
+                schema, sn.UnqualName('id'))
+            constraint = obj_ptr.get_exclusive_constraints(schema)[0]
 
         msg = constraint.format_error(schema)
         subject = constraint.get_subject(schema)
