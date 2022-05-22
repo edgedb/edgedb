@@ -53,7 +53,7 @@ COMMON_DEPS = [
 RUNTIME_DEPS = [
     'asyncpg~=0.25.0',
     'httptools>=0.3.0',
-    'immutables>=0.16',
+    'immutables>=0.18',
     'uvloop~=0.16.0',
 
     'click~=7.1',
