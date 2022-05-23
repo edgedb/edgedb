@@ -232,14 +232,21 @@ def _compile_conflict_select(
 
 
 def _constr_matters(
-    constr: s_constr.Constraint, ctx: context.ContextLevel,
+    constr: s_constr.Constraint, *,
+    only_local: bool=False,
+    ctx: context.ContextLevel,
 ) -> bool:
     schema = ctx.env.schema
     return (
         not constr.generic(schema)
         and not constr.get_delegated(schema)
         and (
-            constr.get_owned(schema)
+            # In some use sites we always process ancestor constraints
+            # too, so in those cases a constraint only matters if it
+            # is the "top" constraint where it actually starts
+            # applying.
+            not only_local
+            or constr.get_owned(schema)
             or all(anc.get_delegated(schema) or anc.generic(schema) for anc
                    in constr.get_ancestors(schema).objects(schema))
         )
@@ -268,7 +275,7 @@ def _split_constraints(
         for p_constr in p_constrs:
             ancs = (p_constr,) + p_constr.get_ancestors(schema).objects(schema)
             for anc in ancs:
-                if not _constr_matters(anc, ctx):
+                if not _constr_matters(anc, only_local=True, ctx=ctx):
                     continue
                 p_ptr = anc.get_subject(schema)
                 assert isinstance(p_ptr, s_pointers.Pointer)
@@ -282,7 +289,7 @@ def _split_constraints(
     for obj_constr in obj_constrs:
         ancs = (obj_constr,) + obj_constr.get_ancestors(schema).objects(schema)
         for anc in ancs:
-            if not _constr_matters(anc, ctx):
+            if not _constr_matters(anc, only_local=True, ctx=ctx):
                 continue
             obj = anc.get_subject(schema)
             assert isinstance(obj, s_objtypes.ObjectType)
@@ -550,7 +557,7 @@ def compile_inheritance_conflict_selects(
             # everything must be in play, since constraints can depend on
             # nonexistence also.
             if (
-                _constr_matters(ptr_constr, ctx)
+                _constr_matters(ptr_constr, ctx=ctx)
                 and (
                     isinstance(stmt, irast.InsertStmt)
                     or (_get_needed_ptrs(typ, (), [name], ctx)[0] & shape_ptrs)
@@ -560,7 +567,7 @@ def compile_inheritance_conflict_selects(
     for obj_constr in obj_constrs:
         # See note above about needed ptrs check
         if (
-            _constr_matters(obj_constr, ctx)
+            _constr_matters(obj_constr, ctx=ctx)
             and (
                 isinstance(stmt, irast.InsertStmt)
                 or (_get_needed_ptrs(
