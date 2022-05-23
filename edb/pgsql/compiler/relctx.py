@@ -23,6 +23,7 @@
 from __future__ import annotations
 from typing import *
 
+import collections
 import uuid
 
 from edb import errors
@@ -1373,6 +1374,10 @@ def range_for_material_objtype(
                 sctx.pending_type_ctes.add(key)
                 sctx.pending_query = sctx.rel
                 sctx.volatility_ref = ()
+                sctx.type_rel_overlays = collections.defaultdict(
+                    lambda: collections.defaultdict(list))
+                sctx.ptr_rel_overlays = collections.defaultdict(
+                    lambda: collections.defaultdict(list))
                 dispatch.visit(rewrite, ctx=sctx)
                 type_cte = pgast.CommonTableExpr(
                     name=ctx.env.aliases.get('t'),

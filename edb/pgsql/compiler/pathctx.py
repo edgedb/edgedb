@@ -1026,6 +1026,14 @@ def _get_rel_path_output(
             ptr_info = pg_types.get_ptrref_storage_info(
                 ptrref, resolve_type=False, link_bias=False)
 
+        # Refuse to try to access a link table when we are actually
+        # looking at an object rel. This check is needed because
+        # relgen._lookup_set_rvar_in_source sometimes does some pretty
+        # wild maybe_get_path_value_var calls.
+        if ptr_info.table_type == 'link' and (
+                rel.path_id and not rel.path_id.rptr()):
+            raise LookupError("can't access link table on object rel")
+
         result = pgast.ColumnRef(
             name=[ptr_info.column_name],
             nullable=not ptrref.required)

@@ -513,7 +513,7 @@ class ConstraintCommand(
                         path_prefix_anchor=qlast.Subject().name,
                         allow_generic_type_output=True,
                         schema_object_context=self.get_schema_metaclass(),
-                        apply_query_rewrites=not context.stdmode,
+                        apply_query_rewrites=False,
                         track_schema_ref_exprs=track_schema_ref_exprs,
                     ),
                 )

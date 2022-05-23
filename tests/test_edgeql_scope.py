@@ -3017,7 +3017,33 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ["Alice"],
         )
 
-    async def test_edgeql_scope_source_rebind_03(self):
+    async def test_edgeql_scope_source_rebind_03a(self):
+        await self.assert_query_result(
+            """
+                WITH
+                U := (SELECT User {
+                    cards := (SELECT .deck FILTER random() > 0) }),
+                A := (SELECT U FILTER .name = 'Alice')
+                SELECT A {cards: {name}};
+            """,
+            [
+                {
+                    "cards": tb.bag([
+                        {"name": "Imp"},
+                        {"name": "Dragon"},
+                        {"name": "Bog monster"},
+                        {"name": "Giant turtle"}
+                    ]),
+                }
+            ]
+        )
+
+    async def test_edgeql_scope_source_rebind_03b(self):
+        await self.con.execute('''
+            alter type User create access policy test
+            allow all using (true)
+        ''')
+
         await self.assert_query_result(
             """
                 WITH
