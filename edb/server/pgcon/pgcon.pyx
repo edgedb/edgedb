@@ -1210,10 +1210,9 @@ cdef class PGConnection:
                     if mtype == b'D':
                         # DataRow
                         if not has_result:
-                            raise errors.InternalServerError(
-                                f'query that was inferred to have '
-                                f'no data returned received a DATA package; '
-                                f'query: {query.sql}')
+                            # It's likely output_format=NULL_, so just discard
+                            self.buffer.discard_message()
+                            continue
 
                         if buf is None:
                             buf = WriteBuffer.new()
