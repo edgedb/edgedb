@@ -958,6 +958,12 @@ cdef class EdgeConnection:
             num_args = len(query_unit.in_type_args or ())
             num_args += self._count_globals(query_unit)
 
+            # TODO: N.B: Note that that this only works when there is only
+            # a single command in the script
+            if compiled.first_extra is not None:
+                assert start == 0 and end == 1 and len(unit_group) == 1
+                num_args += compiled.extra_count
+
             bind_data.write_int16(<int16_t>num_args)
 
             if query_unit.in_type_args:
@@ -966,7 +972,8 @@ cdef class EdgeConnection:
                     barg = recoded[positions[oidx]:positions[oidx+1]]
                     bind_data.write_bytes(barg)
 
-            # TODO: we can't support the constant extraction here yet
+            if compiled.first_extra is not None:
+                bind_data.write_bytes(compiled.extra_blob)
 
             self._inject_globals(query_unit, bind_data)
 
