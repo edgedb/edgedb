@@ -163,6 +163,7 @@ cdef class EdgeConnection:
         self, CompiledQuery query
     )
     cdef WriteBuffer make_command_complete_msg(self, query_unit)
+    cdef WriteBuffer make_command_complete_msg_by_group(self, query_unit_group)
 
     cdef inline reject_headers(self)
     cdef dict parse_headers(self)

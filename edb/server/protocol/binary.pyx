@@ -881,61 +881,6 @@ cdef class EdgeConnection:
                 time.monotonic() - started_at)
         return unit_group
 
-    async def _compile_script(
-        self,
-        query: bytes,
-        *,
-        stmt_mode,
-    ):
-        cdef dbview.DatabaseConnectionView _dbview = self.get_dbview()
-        source = edgeql.Source.from_string(query.decode('utf-8'))
-
-        if _dbview.in_tx_error():
-            _dbview.raise_in_tx_error()
-
-        compiler_pool = self.server.get_compiler_pool()
-
-        started_at = time.monotonic()
-        try:
-            if _dbview.in_tx():
-                result = await compiler_pool.compile_in_tx(
-                    _dbview.txid,
-                    self.last_state,
-                    self.last_state_id,
-                    source,
-                    FMT_SCRIPT,
-                    False,
-                    0,
-                    False,
-                    False,
-                    stmt_mode,
-                    self.protocol_version,
-                )
-            else:
-                result = await compiler_pool.compile(
-                    _dbview.dbname,
-                    _dbview.get_user_schema(),
-                    _dbview.get_global_schema(),
-                    _dbview.reflection_cache,
-                    _dbview.get_database_config(),
-                    _dbview.get_compilation_system_config(),
-                    source,
-                    _dbview.get_modaliases(),
-                    _dbview.get_session_config(),
-                    FMT_SCRIPT,
-                    False,
-                    0,
-                    False,
-                    False,
-                    stmt_mode,
-                    self.protocol_version,
-                )
-            unit_group, self.last_state, self.last_state_id = result
-        finally:
-            metrics.edgeql_query_compilation_duration.observe(
-                time.monotonic() - started_at)
-        return unit_group
-
     async def _compile_rollback(self, bytes eql):
         assert self.get_dbview().in_tx_error()
         try:
@@ -946,102 +891,6 @@ cdef class EdgeConnection:
             )
         except Exception:
             self.get_dbview().raise_in_tx_error()
-
-    async def _recover_script_error(self, eql: bytes, allow_capabilities):
-        assert self.get_dbview().in_tx_error()
-
-        query_unit_group, num_remain = await self._compile_rollback(eql)
-        query_unit = query_unit_group[0]
-
-        if not (allow_capabilities & enums.Capability.TRANSACTION):
-            raise errors.DisabledCapabilityError(
-                f"Cannot execute ROLLBACK command;"
-                f" the TRANSACTION capability is disabled"
-            )
-
-        conn = await self.get_pgcon()
-        try:
-            if query_unit.sql:
-                await conn.simple_query(
-                    b';'.join(query_unit.sql), ignore_data=True)
-
-            if query_unit.tx_savepoint_rollback:
-                if self.debug:
-                    self.debug_print(f'== RECOVERY: ROLLBACK TO SP')
-                self.get_dbview().rollback_tx_to_savepoint(query_unit.sp_name)
-            else:
-                if self.debug:
-                    self.debug_print('== RECOVERY: ROLLBACK')
-                assert query_unit.tx_rollback
-                self.get_dbview().abort_tx()
-        finally:
-            self.maybe_release_pgcon(conn)
-
-        if num_remain:
-            return 'skip_first', query_unit
-        else:
-            return 'done', query_unit
-
-    async def simple_query(self):
-        cdef:
-            WriteBuffer msg
-            WriteBuffer packet
-            uint64_t allow_capabilities = ALL_CAPABILITIES
-
-        headers = self.parse_headers()
-        if headers:
-            for k, v in headers.items():
-                if k == QUERY_HEADER_ALLOW_CAPABILITIES:
-                    allow_capabilities = parse_capabilities_header(v)
-                else:
-                    raise errors.BinaryProtocolError(
-                        f'unexpected message header: {k}'
-                    )
-
-        eql = self.buffer.read_len_prefixed_bytes()
-        self.buffer.finish_message()
-        if not eql:
-            raise errors.BinaryProtocolError('empty query')
-
-        if self.debug:
-            self.debug_print('SIMPLE QUERY', eql)
-
-        stmt_mode = 'all'
-        if self.get_dbview().in_tx_error():
-            stmt_mode, query_unit = await self._recover_script_error(
-                eql,
-                allow_capabilities,
-            )
-            if stmt_mode == 'done':
-                packet = WriteBuffer.new()
-                packet.write_buffer(
-                    self.make_command_complete_msg(query_unit))
-                packet.write_buffer(self.sync_status())
-                self.write(packet)
-                self.flush()
-                return
-
-        if self._cancelled:
-            raise ConnectionAbortedError
-
-        unit_group = await self._compile_script(eql, stmt_mode=stmt_mode)
-        metrics.edgeql_query_compilations.inc(1.0, 'compiler')
-
-        if unit_group.capabilities & ~allow_capabilities:
-            raise unit_group.capabilities.make_error(
-                allow_capabilities,
-                errors.DisabledCapabilityError,
-            )
-
-        compiled = CompiledQuery(
-            query_unit_group=unit_group,
-            first_extra=None,
-            extra_count=0,
-            extra_blob=None,
-        )
-
-        assert stmt_mode in {'all', 'skip_first'}
-        await self._simple_query(compiled, b'', stmt_mode)
 
     cdef uint64_t _count_globals(
         self,
@@ -1128,12 +977,7 @@ cdef class EdgeConnection:
 
         return bind_array
 
-    async def _simple_query(
-        self,
-        compiled: object,
-        bind_args: bytes,
-        stmt_mode: str,
-    ):
+    async def _execute_script(self, compiled: object, bind_args: bytes):
         cdef:
             bytes state = None, orig_state = None
             bint in_command = False, first = True
@@ -1339,12 +1183,6 @@ cdef class EdgeConnection:
                             await conn.sync()
             finally:
                 self.maybe_release_pgcon(conn)
-
-        packet = WriteBuffer.new()
-        packet.write_buffer(self.make_command_complete_msg(query_unit))
-        packet.write_buffer(self.sync_status())
-        self.write(packet)
-        self.flush()
 
     def signal_side_effects(self, side_effects):
         if not self.server._accept_new_tasks:
@@ -1671,6 +1509,22 @@ cdef class EdgeConnection:
         msg.write_len_prefixed_bytes(query_unit.status)
         return msg.end_message()
 
+    cdef WriteBuffer make_command_complete_msg_by_group(
+        self, query_unit_group
+    ):
+        cdef:
+            WriteBuffer msg
+
+        msg = WriteBuffer.new_message(b'C')
+
+        msg.write_int16(1)
+        msg.write_int16(SERVER_HEADER_CAPABILITIES)
+        msg.write_int32(sizeof(uint64_t))
+        msg.write_int64(<int64_t><uint64_t>query_unit_group.capabilities)
+
+        msg.write_len_prefixed_bytes(query_unit_group[-1].status)
+        return msg.end_message()
+
     async def _execute_system_config(self, query_unit, conn):
         if query_unit.sql:
             data = await conn.simple_query(
@@ -1699,6 +1553,32 @@ cdef class EdgeConnection:
                 'server restart is required for the configuration '
                 'change to take effect')
 
+    async def _execute_rollback(self, compiled: CompiledQuery):
+        cdef:
+            dbview.DatabaseConnectionView _dbview
+            pgcon.PGConnection conn
+
+        query_unit = compiled.query_unit_group[0]
+        _dbview = self.get_dbview()
+        if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
+            _dbview.raise_in_tx_error()
+
+        conn = await self.get_pgcon()
+        try:
+            if query_unit.sql:
+                await conn.simple_query(
+                    b';'.join(query_unit.sql), ignore_data=True)
+
+            if query_unit.tx_savepoint_rollback:
+                _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
+            else:
+                assert query_unit.tx_rollback
+                _dbview.abort_tx()
+
+            self.write(self.make_command_complete_msg(query_unit))
+        finally:
+            self.maybe_release_pgcon(conn)
+
     async def _execute(self, compiled: CompiledQuery, bind_args,
                        bint use_prep_stmt):
         cdef:
@@ -1708,26 +1588,6 @@ cdef class EdgeConnection:
 
         query_unit = compiled.query_unit_group[0]
         _dbview = self.get_dbview()
-        if _dbview.in_tx_error() or query_unit.tx_savepoint_rollback:
-            if not (query_unit.tx_savepoint_rollback or query_unit.tx_rollback):
-                _dbview.raise_in_tx_error()
-
-            conn = await self.get_pgcon()
-            try:
-                if query_unit.sql:
-                    await conn.simple_query(
-                        b';'.join(query_unit.sql), ignore_data=True)
-
-                if query_unit.tx_savepoint_rollback:
-                    _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
-                else:
-                    assert query_unit.tx_rollback
-                    _dbview.abort_tx()
-
-                self.write(self.make_command_complete_msg(query_unit))
-            finally:
-                self.maybe_release_pgcon(conn)
-            return
 
         if not _dbview.in_tx():
             orig_state = state = _dbview.serialize_state()
@@ -1816,8 +1676,6 @@ cdef class EdgeConnection:
                     #   2. The state is synced with dbview (orig_state is None)
                     #   3. We came out from a transaction (orig_state is None)
                     conn.last_state = state
-
-            self.write(self.make_command_complete_msg(query_unit))
         finally:
             self.maybe_release_pgcon(conn)
 
@@ -1900,16 +1758,29 @@ cdef class EdgeConnection:
         self._last_anon_compiled = None
 
         metrics.edgeql_query_compilations.inc(1.0, 'cache')
-        if query_req.io_format == FMT_SCRIPT:
-            # XXX: _recover_script_error???
-            query_unit = await self._simple_query(
-                compiled, bind_args, stmt_mode='all')
+        if (
+            self.get_dbview().in_tx_error() or
+            query_unit_group[0].tx_savepoint_rollback
+        ):
+            assert len(query_unit_group) == 1
+            await self._execute_rollback(compiled)
+        elif len(query_unit_group) > 1:
+            await self._execute_script(compiled, bind_args)
+            self.write(
+                self.make_command_complete_msg_by_group(
+                    compiled.query_unit_group
+                )
+            )
+            self.flush()
         else:
             use_prep = (
                 len(query_unit_group) == 1
                 and bool(query_unit_group[0].sql_hash)
             )
             await self._execute(compiled, bind_args, use_prep)
+            self.write(
+                self.make_command_complete_msg(compiled.query_unit_group[0])
+            )
 
     async def sync(self):
         self.buffer.consume_message()
@@ -1926,7 +1797,6 @@ cdef class EdgeConnection:
     async def main(self):
         cdef:
             char mtype
-            bint flush_sync_on_error
             bint is_legacy
 
         if not self._passive_mode:
@@ -1994,8 +1864,6 @@ cdef class EdgeConnection:
 
                 mtype = self.buffer.get_message_type()
 
-                flush_sync_on_error = False
-
                 try:
                     if mtype == b'P':
                         await self.parse()
@@ -2014,8 +1882,9 @@ cdef class EdgeConnection:
                         await self.execute()
 
                     elif mtype == b'Q':
-                        flush_sync_on_error = True
-                        await self.simple_query()
+                        raise errors.BinaryProtocolError(
+                            "ExecuteScript message (Q) is not supported in "
+                            "protocols greater 1.0")
 
                     elif mtype == b'S':
                         await self.sync()
@@ -2071,11 +1940,7 @@ cdef class EdgeConnection:
                     if self._con_status == EDGECON_BAD:
                         return
 
-                    if flush_sync_on_error:
-                        self.write(self.sync_status())
-                        self.flush()
-                    else:
-                        await self.recover_from_error()
+                    await self.recover_from_error()
 
                 else:
                     self.buffer.finish_message()
@@ -3042,15 +2907,30 @@ async def run_script(
     user: str,
     script: str,
 ) -> None:
-    cdef EdgeConnection conn
+    cdef:
+        EdgeConnection conn
+        CompiledQuery compiled
     conn = new_edge_connection(server)
     await conn._start_connection(database)
     try:
-        await conn._simple_query(
-            script.encode('utf-8'),
-            ALL_CAPABILITIES,
-            'all',
+        source = edgeql.Source.from_string(script)
+        query_unit_group = await conn._compile(
+            QueryRequestInfo(
+                source,
+                conn.protocol_version,
+                io_format=FMT_SCRIPT,
+            )
         )
+        compiled = CompiledQuery(
+            query_unit_group=query_unit_group,
+            first_extra=source.first_extra(),
+            extra_count=source.extra_count(),
+            extra_blob=source.extra_blob(),
+        )
+        if len(query_unit_group) > 1:
+            await conn._execute_script(compiled, b'')
+        else:
+            await conn._execute(compiled, b'', use_prep_stmt=0)
     except pgerror.BackendError as e:
         exc = conn.interpret_backend_error(e)
         if isinstance(exc, errors.EdgeDBError):

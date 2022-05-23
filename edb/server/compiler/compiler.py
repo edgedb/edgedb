@@ -1933,12 +1933,9 @@ class Compiler:
                         params=params,
                         protocol_version=ctx.protocol_version,
                     )
-            else:
-                in_type_data = in_type_id = None
-
-            rv.in_type_id = in_type_id.bytes
-            rv.in_type_args = in_type_args
-            rv.in_type_data = in_type_data
+                rv.in_type_id = in_type_id.bytes
+                rv.in_type_args = in_type_args
+                rv.in_type_data = in_type_data
 
         for unit in rv:  # pragma: no cover
             if ctx.protocol_version < (0, 12):

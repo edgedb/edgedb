@@ -273,9 +273,9 @@ class Iteration(BaseTransaction, abstract.AsyncIOExecutor):
         result, _ = await self._connection.raw_query(query_context)
         return result
 
-    async def execute(self, query: str) -> None:
+    async def _execute(self, query: abstract.ScriptContext) -> None:
         await self._ensure_transaction()
-        await self._connection.execute(query)
+        await self._connection._execute(query)
 
     async def _ensure_transaction(self):
         if not self._managed:
@@ -379,7 +379,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             reg=script.cache.codecs_registry,
             qc=script.cache.query_cache,
             output_format=protocol.OutputFormat.NULL_,
-            allow_capabilities=edgedb_enums.Capability.EXECUTE,
+            allow_capabilities=edgedb_enums.Capability.ALL,
         )
 
     async def ensure_connected(self):
@@ -411,7 +411,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         **kwargs,
     ):
         await self.ensure_connected()
-        result, _ = await self._protocol.execute_anonymous(
+        result, _ = await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -420,7 +420,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             implicit_limit=__limit__,
             inline_typeids=__typeids__,
             inline_typenames=__typenames__,
-            io_format=protocol.IoFormat.BINARY,
+            output_format=protocol.OutputFormat.BINARY,
             allow_capabilities=__allow_capabilities__,
         )
         return result
@@ -436,7 +436,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         **kwargs,
     ):
         await self.ensure_connected()
-        return await self._protocol.execute_anonymous(
+        return await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -445,7 +445,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             implicit_limit=__limit__,
             inline_typeids=__typeids__,
             inline_typenames=__typenames__,
-            io_format=protocol.IoFormat.BINARY,
+            output_format=protocol.OutputFormat.BINARY,
             allow_capabilities=__allow_capabilities__,
         )
 
@@ -457,7 +457,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
         **kwargs,
     ):
         await self.ensure_connected()
-        result, _ = await self._protocol.execute_anonymous(
+        result, _ = await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
@@ -465,19 +465,19 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             qc=self._query_cache.query_cache,
             implicit_limit=__limit__,
             inline_typenames=False,
-            io_format=protocol.IoFormat.JSON,
+            output_format=protocol.OutputFormat.JSON,
         )
         return result
 
     async def _fetchall_json_elements(self, query: str, *args, **kwargs):
         await self.ensure_connected()
-        result, _ = await self._protocol.execute_anonymous(
+        result, _ = await self._protocol.query(
             query=query,
             args=args,
             kwargs=kwargs,
             reg=self._query_cache.codecs_registry,
             qc=self._query_cache.query_cache,
-            io_format=protocol.IoFormat.JSON_ELEMENTS,
+            output_format=protocol.OutputFormat.JSON_ELEMENTS,
             allow_capabilities=edgedb_enums.Capability.EXECUTE,  # type: ignore
         )
         return result
