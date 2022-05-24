@@ -23,7 +23,8 @@ from edb.testbase import server as tb
 
 
 class TestDelete(tb.QueryTestCase):
-    SETUP = """
+    SETUP = [
+        """
         START MIGRATION TO {
             module default {
                 type LinkingType {
@@ -37,10 +38,11 @@ class TestDelete(tb.QueryTestCase):
                 type DeleteTest extending AbstractDeleteTest;
                 type DeleteTest2 extending AbstractDeleteTest;
             };
-        };
-        POPULATE MIGRATION;
-        COMMIT MIGRATION;
-    """
+        }
+        """,
+        "POPULATE MIGRATION",
+        "COMMIT MIGRATION",
+    ]
 
     async def test_edgeql_delete_bad_01(self):
         with self.assertRaisesRegex(

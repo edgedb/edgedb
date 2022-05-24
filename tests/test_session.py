@@ -23,7 +23,8 @@ from edb.testbase import server as tb
 
 
 class TestSession(tb.QueryTestCase):
-    SETUP = """
+    SETUP = [
+        """
         START MIGRATION TO {
             module default {
                 type User {
@@ -46,17 +47,18 @@ class TestSession(tb.QueryTestCase):
                 };
             };
         };
-
-        POPULATE MIGRATION;
-        COMMIT MIGRATION;
-
+        """,
+        "POPULATE MIGRATION",
+        "COMMIT MIGRATION",
+        """
         # Needed for validating that "ALTER TYPE User" DDL commands work.
         CREATE ALIAS UserOneToOneAlias := (SELECT User);
 
         WITH MODULE default INSERT User {name := 'user'};
         WITH MODULE foo INSERT Entity {name := 'entity'};
         WITH MODULE fuz INSERT Entity {name := 'fuzentity'};
-    """
+        """
+    ]
 
     async def test_session_default_module_01(self):
         await self.assert_query_result(

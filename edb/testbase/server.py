@@ -579,11 +579,9 @@ class ClusterTestCase(TestCase):
 
     @classmethod
     async def tearDownSingleDB(cls):
-        await cls.con.execute(
-            'START MIGRATION TO {};\n'
-            'POPULATE MIGRATION;\n'
-            'COMMIT MIGRATION;'
-        )
+        await cls.con.execute('START MIGRATION TO {}')
+        await cls.con.execute('POPULATE MIGRATION')
+        await cls.con.execute('COMMIT MIGRATION')
         while m := await cls.con.query_single(
             "SELECT schema::Migration { name } "
             "FILTER NOT EXISTS .<parents LIMIT 1"
@@ -965,7 +963,8 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
         if class_set_up != 'skip':
             script = cls.get_setup_script()
             if script:
-                cls.loop.run_until_complete(cls.con.execute(script))
+                for command in script:
+                    cls.loop.run_until_complete(cls.con.execute(command))
 
     @classmethod
     def tearDownClass(cls):
@@ -1043,11 +1042,11 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
 
     @classmethod
     def get_setup_script(cls):
-        script = ''
+        script = []
 
         # allow the setup script to also run in test mode
         if cls.INTERNAL_TESTMODE:
-            script += '\nCONFIGURE SESSION SET __internal_testmode := true;'
+            script.append('CONFIGURE SESSION SET __internal_testmode := true')
 
         # Look at all SCHEMA entries and potentially create multiple
         # modules, but always create the test module, if not `default`.
@@ -1071,10 +1070,9 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     schema.append(f'\nmodule {module_name} {{ {module} }}')
 
         if schema:
-            script += f'\nSTART MIGRATION'
-            script += f' TO {{ {"".join(schema)} }};'
-            script += f'\nPOPULATE MIGRATION;'
-            script += f'\nCOMMIT MIGRATION;'
+            script.append(f'START MIGRATION TO {{ {"".join(schema)} }}')
+            script.append('POPULATE MIGRATION')
+            script.append('COMMIT MIGRATION')
 
         if cls.SETUP:
             if not isinstance(cls.SETUP, (list, tuple)):
@@ -1089,13 +1087,14 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                 else:
                     setup = scr
 
-                script += '\n' + setup
+                if setup := setup.strip():
+                    script.append(setup)
 
         # allow the setup script to also run in test mode
         if cls.INTERNAL_TESTMODE:
-            script += '\nCONFIGURE SESSION SET __internal_testmode := false;'
+            script.append('CONFIGURE SESSION SET __internal_testmode := false')
 
-        return script.strip(' \n')
+        return script
 
     async def migrate(self, migration, *, module: str = 'default'):
         async with self.con.transaction():
@@ -1104,10 +1103,10 @@ class DatabaseTestCase(ClusterTestCase, ConnectedTestCaseMixin):
                     module {module} {{
                         {migration}
                     }}
-                }};
-                POPULATE MIGRATION;
-                COMMIT MIGRATION;
+                }}
             """)
+            await self.con.execute("POPULATE MIGRATION")
+            await self.con.execute("COMMIT MIGRATION")
 
 
 class Error:
@@ -1356,7 +1355,8 @@ async def _setup_database(dbname, setup_script, conn_args, stats):
     try:
         async for tx in dbconn.retrying_transaction():
             async with tx:
-                await dbconn.execute(setup_script)
+                for command in setup_script:
+                    await dbconn.execute(command)
     except Exception as ex:
         raise RuntimeError(
             f'exception during initialization of {dbname!r} test DB: '

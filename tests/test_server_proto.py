@@ -189,8 +189,8 @@ class TestServerProto(tb.QueryTestCase):
                     await self.con.query(f'select 10 // {i};')
 
     async def test_server_proto_exec_error_recover_05(self):
-        with self.assertRaisesRegex(edgedb.QueryError,
-                                    'cannot accept parameters'):
+        with self.assertRaisesRegex(edgedb.QueryArgumentError,
+                                    "missed {'0'}"):
             await self.con.execute(f'select <int64>$0')
         self.assertEqual(
             await self.con.query('SELECT "HELLO"'),

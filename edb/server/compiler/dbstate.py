@@ -289,14 +289,21 @@ class QueryUnit:
     def has_ddl(self) -> bool:
         return bool(self.capabilities & enums.Capability.DDL)
 
+    @property
+    def tx_control(self) -> bool:
+        return (
+            bool(self.tx_id)
+            or self.tx_rollback
+            or self.tx_commit
+            or self.tx_savepoint_declare
+            or self.tx_savepoint_rollback
+        )
+
 
 @dataclasses.dataclass
 class QueryUnitGroup:
 
     _initialized_single: Optional[bool] = None
-
-    # True if all statements in *sql* can be executed inside a transaction.
-    is_transactional: bool = True
 
     # All capabilities used by any query units in this group
     capabilities: enums.Capability = enums.Capability(0)
@@ -304,7 +311,8 @@ class QueryUnitGroup:
     # True if it is safe to cache this unit.
     cacheable: bool = True
 
-    # True if any query unit has tx_id
+    # True if any query unit has transaction control commands, like COMMIT,
+    # ROLLBACK, START TRANSACTION or SAVEPOINT-related commands
     tx_control: bool = False
 
     # Cardinality of the result set.  Set to NO_RESULT if the
@@ -336,22 +344,19 @@ class QueryUnitGroup:
         assert query_unit.out_type_data == sertypes.NULL_TYPE_DESC
         assert query_unit.out_type_id == sertypes.NULL_TYPE_ID.bytes
 
-        if not query_unit.is_transactional:
-            self.is_transactional = False
         self.capabilities |= query_unit.capabilities
         if not query_unit.cacheable:
             self.cacheable = False
-        if query_unit.tx_id:
+        if query_unit.tx_control:
             self.tx_control = True
         self.units.append(query_unit)
 
     def init_with(self, query_unit: QueryUnit):
         assert self._initialized_single is None
         self._initialized_single = True
-        self.is_transactional = query_unit.is_transactional
         self.capabilities = query_unit.capabilities
         self.cacheable = query_unit.cacheable
-        self.tx_control = bool(query_unit.tx_id)
+        self.tx_control = query_unit.tx_control
         self.cardinality = query_unit.cardinality
         self.out_type_data = query_unit.out_type_data
         self.out_type_id = query_unit.out_type_id

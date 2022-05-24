@@ -987,7 +987,6 @@ cdef class EdgeConnection:
     async def _execute_script(self, compiled: object, bind_args: bytes):
         cdef:
             bytes state = None, orig_state = None
-            bint in_command = False, first = True
             ssize_t sent = 0
             dbview.DatabaseConnectionView _dbview
             pgcon.PGConnection conn
@@ -997,6 +996,12 @@ cdef class EdgeConnection:
             raise ConnectionAbortedError
 
         unit_group = compiled.query_unit_group
+        if unit_group.tx_control:
+            # TODO: move to the server.compiler once binary_v0 is dropped
+            raise errors.QueryError(
+                "Explicit transaction control commands cannot be executed in "
+                "an implicit transaction block"
+            )
 
         _dbview = self.get_dbview()
         if not _dbview.in_tx():
@@ -1009,81 +1014,45 @@ cdef class EdgeConnection:
                 # state restoring
                 state = None
 
-            # We need to do the before create/drop checks *before* we send
-            # any messages to the server about them.
-            for query_unit in unit_group:
-                if query_unit.create_db_template:
-                    await self.server._on_before_create_db_from_template(
-                        query_unit.create_db_template, _dbview.dbname
-                    )
-                if query_unit.drop_db:
-                    await self.server._on_before_drop_db(
-                        query_unit.drop_db, _dbview.dbname)
+            conn.before_command()
+            try:
+                for idx, query_unit in enumerate(unit_group):
+                    if self._cancelled:
+                        raise ConnectionAbortedError
 
-            if len(unit_group) > 1 or not unit_group[0].system_config:
-                conn.before_command()
-                in_command = True
+                    # XXX: pull out?
+                    # We want to minimize the round trips we need to make, so
+                    # ideally we buffer up everything, send it once, and then issue
+                    # one SYNC. This gets messed up if there are commands where
+                    # we need to read back information, though, such as SET GLOBAL.
+                    #
+                    # Because of that, we look for the next command that
+                    # needs read back (probably there won't be one!), and
+                    # execute everything up to that point at once,
+                    # finished by a FLUSH.
+                    if idx >= sent:
+                        for n in range(idx, len(unit_group)):
+                            ng = unit_group[n]
+                            if ng.ddl_stmt_id or ng.set_global:
+                                sent = n + 1
+                                break
+                        else:
+                            sent = len(unit_group)
 
-            for idx, query_unit in enumerate(unit_group):
-                if self._cancelled:
-                    raise ConnectionAbortedError
+                        bind_array = self._make_args(
+                            compiled, bind_args, idx, sent)
+                        conn.send_query_unit_group(
+                            unit_group, bind_array, state, idx, sent)
 
-                # XXX: pull out?
-                # We want to minimize the round trips we need to make, so
-                # ideally we buffer up everything, send it once, and then issue
-                # one SYNC. This gets messed up if there are commands where
-                # we need to read back information, though, such as SET GLOBAL.
-                #
-                # Because of that, we look for the next command that
-                # needs read back (probably there won't be one!), and
-                # execute everything up to that point at once,
-                # finished by a FLUSH.
-                if in_command and idx >= sent:
-                    for n in range(idx, len(unit_group)):
-                        ng = unit_group[n]
-                        if ng.ddl_stmt_id or ng.set_global:
-                            sent = n + 1
-                            break
-                        # Stop before rollbacks, so that we process any errors
-                        # before a rollback gets sent.
-                        if n > idx and (
-                            ng.tx_rollback or ng.tx_savepoint_rollback
-                        ):
-                            sent = n
-                            break
-                    else:
-                        sent = len(unit_group)
+                    if idx == 0 and state is not None:
+                        await conn.wait_for_state_resp(state, state_sync=0)
+                        # state is restored, clear orig_state so that we can
+                        # set conn.last_state correctly later
+                        orig_state = None
 
-                    bind_array = self._make_args(
-                        compiled, bind_args, idx, sent)
-                    conn.send_query_unit_group(
-                        unit_group, bind_array, state, idx, sent)
-
-                if in_command and first and state is not None:
-                    await conn.wait_for_state_resp(
-                        state, unit_group.tx_control
-                    )
-                    # state is restored, clear orig_state so that we can
-                    # set conn.last_state correctly later
-                    orig_state = None
-
-                if not first and (
-                    query_unit.tx_rollback or
-                    query_unit.tx_savepoint_rollback
-                ):
-                    await conn.wait_for_sync(more=True)
-
-                first = False
-
-                new_types = None
-                _dbview.start(query_unit)
-                try:
-                    if query_unit.system_config:
-                        # Temporary hack: use simple query to run a single
-                        # CONFIGURE INSTANCE command as a script
-                        assert not sent
-                        await self._execute_system_config(query_unit, conn)
-                    else:
+                    new_types = None
+                    _dbview.start(query_unit)
+                    try:
                         config_ops = query_unit.config_ops
                         if query_unit.sql:
                             if query_unit.ddl_stmt_id:
@@ -1107,89 +1076,59 @@ cdef class EdgeConnection:
                                         ignore_data=True
                                     )
 
-                        # ???
-                        if query_unit.tx_savepoint_rollback:
-                            _dbview.rollback_tx_to_savepoint(query_unit.sp_name)
-
-                        if query_unit.tx_savepoint_declare:
-                            _dbview.declare_savepoint(
-                                query_unit.sp_name, query_unit.sp_id)
-
-                        if query_unit.create_db:
-                            await self.server.introspect_db(
-                                query_unit.create_db
-                            )
-
-                        if query_unit.drop_db:
-                            self.server._on_after_drop_db(
-                                query_unit.drop_db)
-
                         if config_ops:
                             await _dbview.apply_config_ops(
                                 conn,
                                 config_ops)
-                except Exception as e:
-                    _dbview.on_error(query_unit)
+                    except Exception as e:
+                        _dbview.on_error(query_unit)
 
-                    # XXX: do we need to handle this here, instead of just in
-                    # the finally block? (We need to do it in the finally block
-                    # because things could fail in the outer try.)
-                    # We would need to have the abort_tx logic there also.
+                        # XXX: do we need to handle this here, instead of just in
+                        # the finally block? (We need to do it in the finally block
+                        # because things could fail in the outer try.)
+                        # We would need to have the abort_tx logic there also.
 
-                    # Consume any remaining SYNC
-                    while conn.waiting_for_sync:
-                        await conn.wait_for_sync()
-                    if in_command:
-                        in_command = False
+                        # Consume any remaining SYNC
+                        while conn.waiting_for_sync:
+                            await conn.wait_for_sync()
                         await conn.after_command()
                         if sent and sent < len(unit_group):
                             await conn.sync()
 
-                    # XXX: do we need to check that it is a commit?
-                    if not conn.in_tx() and _dbview.in_tx():
-                        # COMMIT command can fail, in which case the
-                        # transaction is aborted.  This check workarounds
-                        # that (until a better solution is found.)
-                        _dbview.abort_tx()
-                        # XXX: or should we always do this???
-                        # XXX: Or never do it? We should be able to ditch
-                        # the whole mechanism right?
-                        # await self.recover_current_tx_info(conn)
-                    raise
-                else:
-                    side_effects = _dbview.on_success(
-                        query_unit, new_types)
-                    if side_effects:
-                        self.signal_side_effects(side_effects)
-                    if unit_group.tx_control and not _dbview.in_tx():
-                        # If the unit group has transaction control commands,
-                        # we should keep the last_state updated as soon as the
-                        # transaction ends, in case the next transaction fails.
-                        state = _dbview.serialize_state()
-                        if state is not orig_state:
-                            # see the same comments in _execute()
-                            conn.last_state = state
-                            orig_state = state
+                        # XXX: do we need to check that it is a commit?
+                        if not conn.in_tx() and _dbview.in_tx():
+                            # COMMIT command can fail, in which case the
+                            # transaction is aborted.  This check workarounds
+                            # that (until a better solution is found.)
+                            _dbview.abort_tx()
+                            # XXX: or should we always do this???
+                            # XXX: Or never do it? We should be able to ditch
+                            # the whole mechanism right?
+                            # await self.recover_current_tx_info(conn)
+                        raise
+                    else:
+                        side_effects = _dbview.on_success(
+                            query_unit, new_types)
+                        if side_effects:
+                            self.signal_side_effects(side_effects)
 
-            # In the end if the atomic script is successfully executed, we set
-            # the last_state here only once
-            if not unit_group.tx_control and not _dbview.in_tx():
-                state = _dbview.serialize_state()
-                if state is not orig_state:
-                    conn.last_state = state
-        finally:
-            try:
+                # In the end if the atomic script is successfully executed, we set
+                # the last_state here only once
+                if not _dbview.in_tx():
+                    state = _dbview.serialize_state()
+                    if state is not orig_state:
+                        conn.last_state = state
+            finally:
                 try:
                     # XXX: What about the _cancelled case??
                     while conn.waiting_for_sync:
                         await conn.wait_for_sync()
                 finally:
-                    if in_command:
-                        await conn.after_command()
-                        if sent and sent < len(unit_group):
-                            await conn.sync()
-            finally:
-                self.maybe_release_pgcon(conn)
+                    await conn.after_command()
+                    if sent and sent < len(unit_group):
+                        await conn.sync()
+        finally:
+            self.maybe_release_pgcon(conn)
 
     def signal_side_effects(self, side_effects):
         if not self.server._accept_new_tasks:

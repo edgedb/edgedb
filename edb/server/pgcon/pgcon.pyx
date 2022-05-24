@@ -975,18 +975,11 @@ cdef class PGConnection:
             WriteBuffer out
             WriteBuffer buf
             WriteBuffer bind_data
-            bint first = start == 0
 
         out = WriteBuffer.new()
 
         if state is not None and start == 0:
             self._build_apply_state_req(state, out)
-            if query_unit_group.tx_control:
-                # This query unit group has START TRANSACTION in it.
-                # Restoring state must be performed in a separate
-                # implicit transaction (otherwise START TRANSACTION DEFERRABLE)
-                # would fail. Hence - inject a SYNC after a state restore step.
-                self.write_sync(out)
 
         for query_unit, bind_data in zip(
                 query_unit_group.units[start:end], bind_datas):
@@ -994,11 +987,6 @@ cdef class PGConnection:
                 raise RuntimeError(
                     "CONFIGURE INSTANCE command is not allowed in scripts"
                 )
-            if not first and (
-                query_unit.tx_rollback or query_unit.tx_savepoint_rollback
-            ):
-                self.write_sync(out)
-            first = False
             for sql in query_unit.sql:
                 buf = WriteBuffer.new_message(b'P')
                 buf.write_bytestring(b'')  # statement name

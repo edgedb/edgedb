@@ -10869,18 +10869,18 @@ class TestEdgeQLDataMigrationNonisolated(EdgeQLDataMigrationTestCase):
                     alias Foo := [20];
                 }
             };
-            POPULATE MIGRATION;
-            COMMIT MIGRATION;
         """)
+        await self.con.execute("POPULATE MIGRATION")
+        await self.con.execute("COMMIT MIGRATION")
 
         await self.con.execute(r"""
             START MIGRATION TO {
                 module test {
                 }
             };
-            POPULATE MIGRATION;
-            COMMIT MIGRATION;
         """)
+        await self.con.execute("POPULATE MIGRATION")
+        await self.con.execute("COMMIT MIGRATION")
 
     async def test_edgeql_ddl_collection_cleanup_06(self):
         for _ in range(2):

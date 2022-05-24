@@ -2147,8 +2147,13 @@ class Compiler:
         )
 
         unit_group = self._compile(ctx=ctx, source=source)
+        tx_started = False
+        for unit in unit_group:
+            if unit.tx_id:
+                tx_started = True
+                break
 
-        if unit_group.tx_control:
+        if tx_started:
             return unit_group, ctx.state
         else:
             return unit_group, None

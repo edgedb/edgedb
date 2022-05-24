@@ -28,7 +28,8 @@ from edb.tools import test
 
 
 class TestEdgeQLDT(tb.QueryTestCase):
-    SETUP = '''
+    SETUP = [
+        '''
         START MIGRATION TO {
             module default {
                 scalar type seq_t extending sequence;
@@ -44,9 +45,10 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 };
             };
         };
-        POPULATE MIGRATION;
-        COMMIT MIGRATION;
-    '''
+        ''',
+        'POPULATE MIGRATION',
+        'COMMIT MIGRATION',
+    ]
 
     async def test_edgeql_dt_realativedelta(self):
         await self.assert_query_result(
