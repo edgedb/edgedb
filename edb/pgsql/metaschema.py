@@ -4780,7 +4780,7 @@ async def generate_more_support_functions(
         schema,
         _describe_config(
             schema, source='system override', testmode=testmode),
-        output_format=edbcompiler.IoFormat.BINARY,
+        output_format=edbcompiler.OutputFormat.BINARY,
     )
 
     DescribeInstanceConfigAsDDLFunction = dbops.Function(
@@ -4797,7 +4797,7 @@ async def generate_more_support_functions(
         schema,
         _describe_config(
             schema, source='database', testmode=testmode),
-        output_format=edbcompiler.IoFormat.BINARY,
+        output_format=edbcompiler.OutputFormat.BINARY,
     )
 
     DescribeDatabaseConfigAsDDLFunction = dbops.Function(

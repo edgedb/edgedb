@@ -358,7 +358,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
 
     cdef legacy_parse_prepare_query_part(self, parse_stmt_name: bint):
         cdef:
-            object io_format
+            object output_format
             bytes eql
             dict headers
             uint64_t implicit_limit = 0
@@ -386,7 +386,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                         f'unexpected message header: {k}'
                     )
 
-        io_format = self.parse_io_format(self.buffer.read_byte())
+        output_format = self.parse_output_format(self.buffer.read_byte())
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
         )
@@ -406,7 +406,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
         query_req = QueryRequestInfo(
             source,
             self.protocol_version,
-            io_format=io_format,
+            output_format=output_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
@@ -580,7 +580,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     self.last_state,
                     self.last_state_id,
                     source,
-                    FMT_SCRIPT,
+                    FMT_NULL,
                     False,
                     0,
                     False,
@@ -599,7 +599,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                     source,
                     _dbview.get_modaliases(),
                     _dbview.get_session_config(),
-                    FMT_SCRIPT,
+                    FMT_NULL,
                     False,
                     0,
                     False,

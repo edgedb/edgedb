@@ -54,7 +54,7 @@ cdef enum EdgeConnectionStatus:
 cdef class QueryRequestInfo:
     cdef public object source  # edgeql.Source
     cdef public tuple protocol_version
-    cdef public object io_format
+    cdef public object output_format
     cdef public bint expect_one
     cdef public int implicit_limit
     cdef public bint inline_typeids
@@ -131,7 +131,7 @@ cdef class EdgeConnection:
 
     cdef interpret_backend_error(self, exc)
 
-    cdef parse_io_format(self, bytes mode)
+    cdef parse_output_format(self, bytes mode)
     cdef parse_cardinality(self, bytes card)
     cdef parse_prepare_query_part(self)
     cdef char render_cardinality(self, query_unit) except -1

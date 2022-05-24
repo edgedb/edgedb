@@ -32,7 +32,7 @@ from edb.common import debug
 from edb.common import markup
 
 from edb.server import compiler
-from edb.server.compiler import IoFormat
+from edb.server.compiler import OutputFormat
 from edb.server.compiler import enums
 
 
@@ -155,7 +155,7 @@ async def compile(db, server, bytes query):
         edgeql.Source.from_string(query.decode('utf-8')),
         None,           # modaliases
         None,           # session config
-        IoFormat.JSON,  # json mode
+        OutputFormat.JSON,  # json mode
         False,          # expected cardinality is MANY
         0,              # no implicit limit
         False,          # no inlining of type IDs

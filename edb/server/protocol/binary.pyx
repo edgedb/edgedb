@@ -89,10 +89,10 @@ cdef object CARD_NO_RESULT = compiler.Cardinality.NO_RESULT
 cdef object CARD_AT_MOST_ONE = compiler.Cardinality.AT_MOST_ONE
 cdef object CARD_MANY = compiler.Cardinality.MANY
 
-cdef object FMT_BINARY = compiler.IoFormat.BINARY
-cdef object FMT_JSON = compiler.IoFormat.JSON
-cdef object FMT_JSON_ELEMENTS = compiler.IoFormat.JSON_ELEMENTS
-cdef object FMT_SCRIPT = compiler.IoFormat.SCRIPT
+cdef object FMT_BINARY = compiler.OutputFormat.BINARY
+cdef object FMT_JSON = compiler.OutputFormat.JSON
+cdef object FMT_JSON_ELEMENTS = compiler.OutputFormat.JSON_ELEMENTS
+cdef object FMT_NULL = compiler.OutputFormat.NULL
 
 cdef tuple DUMP_VER_MIN = (0, 7)
 cdef tuple DUMP_VER_MAX = (1, 0)
@@ -149,7 +149,7 @@ cdef class QueryRequestInfo:
         source: edgeql.Source,
         protocol_version: tuple,
         *,
-        io_format: compiler.IoFormat = FMT_BINARY,
+        output_format: compiler.OutputFormat = FMT_BINARY,
         expect_one: bint = False,
         implicit_limit: int = 0,
         inline_typeids: bint = False,
@@ -159,7 +159,7 @@ cdef class QueryRequestInfo:
     ):
         self.source = source
         self.protocol_version = protocol_version
-        self.io_format = io_format
+        self.output_format = output_format
         self.expect_one = expect_one
         self.implicit_limit = implicit_limit
         self.inline_typeids = inline_typeids
@@ -170,7 +170,7 @@ cdef class QueryRequestInfo:
         self.cached_hash = hash((
             self.source.cache_key(),
             self.protocol_version,
-            self.io_format,
+            self.output_format,
             self.expect_one,
             self.implicit_limit,
             self.inline_typeids,
@@ -185,7 +185,7 @@ cdef class QueryRequestInfo:
         return (
             self.source.cache_key() == other.source.cache_key() and
             self.protocol_version == other.protocol_version and
-            self.io_format == other.io_format and
+            self.output_format == other.output_format and
             self.expect_one == other.expect_one and
             self.implicit_limit == other.implicit_limit and
             self.inline_typeids == other.inline_typeids and
@@ -836,7 +836,7 @@ cdef class EdgeConnection:
         compiler_pool = self.server.get_compiler_pool()
 
         # XXX: Probably won't stay this way?
-        stmt_mode = 'all' if query_req.io_format == FMT_SCRIPT else 'single'
+        stmt_mode = 'all' if query_req.output_format == FMT_NULL else 'single'
 
         started_at = time.monotonic()
         try:
@@ -846,7 +846,7 @@ cdef class EdgeConnection:
                     self.last_state,
                     self.last_state_id,
                     query_req.source,
-                    query_req.io_format,
+                    query_req.output_format,
                     query_req.expect_one,
                     query_req.implicit_limit,
                     query_req.inline_typeids,
@@ -866,7 +866,7 @@ cdef class EdgeConnection:
                     query_req.source,
                     _dbview.get_modaliases(),
                     _dbview.get_session_config(),
-                    query_req.io_format,
+                    query_req.output_format,
                     query_req.expect_one,
                     query_req.implicit_limit,
                     query_req.inline_typeids,
@@ -1247,7 +1247,7 @@ cdef class EdgeConnection:
     cdef char render_cardinality(self, query_unit_group) except -1:
         return query_unit_group.cardinality.value
 
-    cdef parse_io_format(self, bytes mode):
+    cdef parse_output_format(self, bytes mode):
         if mode == b'j':
             return FMT_JSON
         elif mode == b'J':
@@ -1255,14 +1255,14 @@ cdef class EdgeConnection:
         elif mode == b'b':
             return FMT_BINARY
         elif mode == b'n':
-            return FMT_SCRIPT
+            return FMT_NULL
         else:
             raise errors.BinaryProtocolError(
                 f'unknown output mode "{repr(mode)[2:-1]}"')
 
     cdef parse_prepare_query_part(self):
         cdef:
-            object io_format
+            object output_format
             bytes eql
             dict headers
             uint64_t implicit_limit = 0
@@ -1289,7 +1289,7 @@ cdef class EdgeConnection:
                         f'unexpected message header: {k}'
                     )
 
-        io_format = self.parse_io_format(self.buffer.read_byte())
+        output_format = self.parse_output_format(self.buffer.read_byte())
         expect_one = (
             self.parse_cardinality(self.buffer.read_byte()) is CARD_AT_MOST_ONE
         )
@@ -1303,7 +1303,7 @@ cdef class EdgeConnection:
         query_req = QueryRequestInfo(
             source,
             self.protocol_version,
-            io_format=io_format,
+            output_format=output_format,
             expect_one=expect_one,
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
@@ -2853,7 +2853,7 @@ async def run_script(
             QueryRequestInfo(
                 source,
                 conn.protocol_version,
-                io_format=FMT_SCRIPT,
+                output_format=FMT_NULL,
             )
         )
         compiled = CompiledQuery(

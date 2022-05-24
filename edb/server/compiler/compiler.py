@@ -99,7 +99,7 @@ class CompilerDatabaseState:
 class CompileContext:
 
     state: dbstate.CompilerConnectionState
-    output_format: enums.IoFormat
+    output_format: enums.OutputFormat
     expected_cardinality_one: bool
     stmt_mode: enums.CompileStatementMode
     protocol_version: Tuple[int, int]
@@ -121,21 +121,21 @@ class CompileContext:
 
 DEFAULT_MODULE_ALIASES_MAP = immutables.Map(
     {None: defines.DEFAULT_MODULE_ALIAS})
-_IO_FORMAT_MAP = {
-    enums.IoFormat.BINARY: pg_compiler.OutputFormat.NATIVE,
-    enums.IoFormat.JSON: pg_compiler.OutputFormat.JSON,
-    enums.IoFormat.JSON_ELEMENTS: pg_compiler.OutputFormat.JSON_ELEMENTS,
-    enums.IoFormat.SCRIPT: pg_compiler.OutputFormat.SCRIPT,
+_OUTPUT_FORMAT_MAP = {
+    enums.OutputFormat.BINARY: pg_compiler.OutputFormat.NATIVE,
+    enums.OutputFormat.JSON: pg_compiler.OutputFormat.JSON,
+    enums.OutputFormat.JSON_ELEMENTS: pg_compiler.OutputFormat.JSON_ELEMENTS,
+    enums.OutputFormat.NULL: pg_compiler.OutputFormat.NULL,
 }
 
 pg_ql = lambda o: pg_common.quote_literal(str(o))
 
 
-def _convert_format(inp: enums.IoFormat) -> pg_compiler.OutputFormat:
+def _convert_format(inp: enums.OutputFormat) -> pg_compiler.OutputFormat:
     try:
-        return _IO_FORMAT_MAP[inp]
+        return _OUTPUT_FORMAT_MAP[inp]
     except KeyError:
-        raise RuntimeError(f"IO format {inp!r} is not supported")
+        raise RuntimeError(f"Output format {inp!r} is not supported")
 
 
 def compile_edgeql_script(
@@ -175,7 +175,7 @@ def new_compiler_context(
     expected_cardinality_one: bool = False,
     json_parameters: bool = False,
     schema_reflection_mode: bool = False,
-    output_format: enums.IoFormat = enums.IoFormat.BINARY,
+    output_format: enums.OutputFormat = enums.OutputFormat.BINARY,
     bootstrap_mode: bool = False,
     internal_schema_mode: bool = False,
     protocol_version: Tuple[int, int] = defines.CURRENT_PROTOCOL,
@@ -467,7 +467,7 @@ class Compiler:
                 stmt_mode=enums.CompileStatementMode.SINGLE,
                 json_parameters=True,
                 schema_reflection_mode=True,
-                output_format=enums.IoFormat.JSON,
+                output_format=enums.OutputFormat.JSON,
                 expected_cardinality_one=False,
                 bootstrap_mode=ctx.bootstrap_mode,
                 protocol_version=ctx.protocol_version,
@@ -551,7 +551,7 @@ class Compiler:
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
 
         native_out_format = (
-            ctx.output_format is enums.IoFormat.BINARY
+            ctx.output_format is enums.OutputFormat.BINARY
         )
 
         can_have_implicit_fields = (
@@ -603,7 +603,7 @@ class Compiler:
         current_tx = ctx.state.current_tx()
 
         native_out_format = (
-            ctx.output_format is enums.IoFormat.BINARY
+            ctx.output_format is enums.OutputFormat.BINARY
         )
 
         single_stmt_mode = ctx.stmt_mode is enums.CompileStatementMode.SINGLE
@@ -2035,7 +2035,7 @@ class Compiler:
 
         ctx = CompileContext(
             state=state,
-            output_format=enums.IoFormat.BINARY,
+            output_format=enums.OutputFormat.BINARY,
             expected_cardinality_one=False,
             implicit_limit=implicit_limit,
             inline_typenames=True,
@@ -2059,7 +2059,7 @@ class Compiler:
 
                 ctx = CompileContext(
                     state=state,
-                    output_format=enums.IoFormat.BINARY,
+                    output_format=enums.OutputFormat.BINARY,
                     expected_cardinality_one=False,
                     implicit_limit=implicit_limit,
                     inline_typeids=False,
@@ -2095,7 +2095,7 @@ class Compiler:
         source: edgeql.Source,
         sess_modaliases: Optional[immutables.Map],
         sess_config: Optional[immutables.Map],
-        io_format: enums.IoFormat,
+        output_format: enums.OutputFormat,
         expect_one: bool,
         implicit_limit: int,
         inline_typeids: bool,
@@ -2134,7 +2134,7 @@ class Compiler:
 
         ctx = CompileContext(
             state=state,
-            output_format=io_format,
+            output_format=output_format,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
@@ -2163,7 +2163,7 @@ class Compiler:
         state: dbstate.CompilerConnectionState,
         txid: int,
         source: edgeql.Source,
-        io_format: enums.IoFormat,
+        output_format: enums.OutputFormat,
         expect_one: bool,
         implicit_limit: int,
         inline_typeids: bool,
@@ -2176,7 +2176,7 @@ class Compiler:
 
         ctx = CompileContext(
             state=state,
-            output_format=io_format,
+            output_format=output_format,
             expected_cardinality_one=expect_one,
             implicit_limit=implicit_limit,
             inline_typeids=inline_typeids,
@@ -2452,7 +2452,7 @@ class Compiler:
 
         ctx = CompileContext(
             state=state,
-            output_format=enums.IoFormat.BINARY,
+            output_format=enums.OutputFormat.BINARY,
             expected_cardinality_one=False,
             stmt_mode=enums.CompileStatementMode.ALL,
             compat_ver=dump_server_ver,
