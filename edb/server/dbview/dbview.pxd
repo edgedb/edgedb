@@ -125,8 +125,14 @@ cdef class DatabaseConnectionView:
     cdef tx_error(self)
 
     cdef start(self, query_unit)
-    cdef on_error(self, query_unit)
+    cdef _start_tx(self)
+    cdef _apply_in_tx(self, query_unit)
+    cdef start_implicit(self, query_unit)
+    cdef on_error(self)
     cdef on_success(self, query_unit, new_types)
+    cdef commit_implicit_tx(
+        self, user_schema, global_schema, cached_reflection
+    )
 
     cpdef get_session_config(self)
     cdef set_session_config(self, new_conf)

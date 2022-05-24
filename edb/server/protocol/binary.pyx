@@ -988,6 +988,8 @@ cdef class EdgeConnection:
         cdef:
             bytes state = None, orig_state = None
             ssize_t sent = 0
+            bint in_tx
+            object user_schema, cached_reflection, global_schema
             dbview.DatabaseConnectionView _dbview
             pgcon.PGConnection conn
             WriteBuffer bind_data
@@ -995,6 +997,7 @@ cdef class EdgeConnection:
         if self._cancelled:
             raise ConnectionAbortedError
 
+        user_schema = cached_reflection = global_schema = None
         unit_group = compiled.query_unit_group
         if unit_group.tx_control:
             # TODO: move to the server.compiler once binary_v0 is dropped
@@ -1004,7 +1007,8 @@ cdef class EdgeConnection:
             )
 
         _dbview = self.get_dbview()
-        if not _dbview.in_tx():
+        in_tx = _dbview.in_tx()
+        if not in_tx:
             orig_state = state = _dbview.serialize_state()
 
         conn = await self.get_pgcon()
@@ -1014,8 +1018,7 @@ cdef class EdgeConnection:
                 # state restoring
                 state = None
 
-            conn.before_command()
-            try:
+            async with conn.parse_execute_script_context():
                 for idx, query_unit in enumerate(unit_group):
                     if self._cancelled:
                         raise ConnectionAbortedError
@@ -1051,84 +1054,70 @@ cdef class EdgeConnection:
                         orig_state = None
 
                     new_types = None
-                    _dbview.start(query_unit)
-                    try:
-                        config_ops = query_unit.config_ops
-                        if query_unit.sql:
-                            if query_unit.ddl_stmt_id:
-                                ddl_ret = await conn.handle_ddl_in_script(
-                                    query_unit
+                    _dbview.start_implicit(query_unit)
+                    config_ops = query_unit.config_ops
+
+                    if query_unit.user_schema:
+                        user_schema = query_unit.user_schema
+                        cached_reflection = query_unit.cached_reflection
+
+                    if query_unit.global_schema:
+                        global_schema = query_unit.global_schema
+
+                    if query_unit.sql:
+                        if query_unit.ddl_stmt_id:
+                            ddl_ret = await conn.handle_ddl_in_script(
+                                query_unit
+                            )
+                            if ddl_ret and ddl_ret['new_types']:
+                                new_types = ddl_ret['new_types']
+                        elif query_unit.set_global:
+                            for sql in query_unit.sql:
+                                data = await conn.wait_for_command(
+                                    ignore_data=False
                                 )
-                                if ddl_ret and ddl_ret['new_types']:
-                                    new_types = ddl_ret['new_types']
-                            elif query_unit.set_global:
-                                for sql in query_unit.sql:
-                                    data = await conn.wait_for_command(
-                                        ignore_data=False
-                                    )
-                                if data:
-                                    config_ops = [
-                                        config.Operation.from_json(r[0])
-                                        for r in data]
-                            else:
-                                for sql in query_unit.sql:
-                                    await conn.wait_for_command(
-                                        ignore_data=True
-                                    )
+                            if data:
+                                config_ops = [
+                                    config.Operation.from_json(r[0])
+                                    for r in data]
+                        else:
+                            for sql in query_unit.sql:
+                                await conn.wait_for_command(
+                                    ignore_data=True
+                                )
 
-                        if config_ops:
-                            await _dbview.apply_config_ops(
-                                conn,
-                                config_ops)
-                    except Exception as e:
-                        _dbview.on_error(query_unit)
+                    if config_ops:
+                        await _dbview.apply_config_ops(
+                            conn,
+                            config_ops)
 
-                        # XXX: do we need to handle this here, instead of just in
-                        # the finally block? (We need to do it in the finally block
-                        # because things could fail in the outer try.)
-                        # We would need to have the abort_tx logic there also.
+                    _dbview.on_success(query_unit, new_types)
 
-                        # Consume any remaining SYNC
-                        while conn.waiting_for_sync:
-                            await conn.wait_for_sync()
-                        await conn.after_command()
-                        if sent and sent < len(unit_group):
-                            await conn.sync()
+        except Exception as e:
+            _dbview.on_error()
 
-                        # XXX: do we need to check that it is a commit?
-                        if not conn.in_tx() and _dbview.in_tx():
-                            # COMMIT command can fail, in which case the
-                            # transaction is aborted.  This check workarounds
-                            # that (until a better solution is found.)
-                            _dbview.abort_tx()
-                            # XXX: or should we always do this???
-                            # XXX: Or never do it? We should be able to ditch
-                            # the whole mechanism right?
-                            # await self.recover_current_tx_info(conn)
-                        raise
-                    else:
-                        side_effects = _dbview.on_success(
-                            query_unit, new_types)
-                        if side_effects:
-                            self.signal_side_effects(side_effects)
+            if not in_tx and _dbview.in_tx():
+                # Abort the implicit transaction
+                _dbview.abort_tx()
+            raise
 
-                # In the end if the atomic script is successfully executed, we set
-                # the last_state here only once
-                if not _dbview.in_tx():
-                    state = _dbview.serialize_state()
-                    if state is not orig_state:
-                        conn.last_state = state
-            finally:
-                try:
-                    # XXX: What about the _cancelled case??
-                    while conn.waiting_for_sync:
-                        await conn.wait_for_sync()
-                finally:
-                    await conn.after_command()
-                    if sent and sent < len(unit_group):
-                        await conn.sync()
+        else:
+            if not in_tx:
+                side_effects = _dbview.commit_implicit_tx(
+                    user_schema, global_schema, cached_reflection
+                )
+                if side_effects:
+                    self.signal_side_effects(side_effects)
+                state = _dbview.serialize_state()
+                if state is not orig_state:
+                    conn.last_state = state
+
         finally:
-            self.maybe_release_pgcon(conn)
+            try:
+                if sent and sent < len(unit_group):
+                    await conn.sync()
+            finally:
+                self.maybe_release_pgcon(conn)
 
     def signal_side_effects(self, side_effects):
         if not self.server._accept_new_tasks:
@@ -1598,7 +1587,7 @@ cdef class EdgeConnection:
                         conn,
                         query_unit.config_ops)
         except Exception as ex:
-            _dbview.on_error(query_unit)
+            _dbview.on_error()
 
             if (
                 query_unit.tx_commit and
@@ -2530,7 +2519,7 @@ cdef class EdgeConnection:
                 ignore_data=True,
             )
         except Exception:
-            _dbview.on_error(query_unit)
+            _dbview.on_error()
             if (
                 query_unit.tx_commit and
                 not pgcon.in_tx() and
@@ -2662,7 +2651,7 @@ cdef class EdgeConnection:
                                 ignore_data=True,
                             )
                 except Exception:
-                    _dbview.on_error(query_unit)
+                    _dbview.on_error()
                     raise
                 else:
                     _dbview.on_success(query_unit, new_types)

@@ -792,7 +792,7 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
                                 conn,
                                 query_unit.config_ops)
                 except Exception:
-                    _dbview.on_error(query_unit)
+                    _dbview.on_error()
                     if not conn.in_tx() and _dbview.in_tx():
                         # COMMIT command can fail, in which case the
                         # transaction is aborted.  This check workarounds

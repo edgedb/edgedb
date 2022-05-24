@@ -456,37 +456,52 @@ cdef class DatabaseConnectionView:
             self.raise_in_tx_error()
 
         if query_unit.tx_id is not None:
-            self._in_tx = True
             self._txid = query_unit.tx_id
-            self._in_tx_config = self._config
-            self._in_tx_globals = self._globals
-            self._in_tx_db_config = self._db.db_config
-            self._in_tx_modaliases = self._modaliases
-            self._in_tx_user_schema = self._db.user_schema
-            self._in_tx_global_schema = self._db._index._global_schema
+            self._start_tx()
 
         if self._in_tx and not self._txid:
             raise errors.InternalServerError('unset txid in transaction')
 
         if self._in_tx:
-            if query_unit.has_ddl:
-                self._in_tx_with_ddl = True
-            if query_unit.system_config:
-                self._in_tx_with_sysconfig = True
-            if query_unit.database_config:
-                self._in_tx_with_dbconfig = True
-            if query_unit.has_set:
-                self._in_tx_with_set = True
-            if query_unit.has_role_ddl:
-                self._in_tx_with_role_ddl = True
-            if query_unit.user_schema is not None:
-                self._in_tx_user_schema_pickled = query_unit.user_schema
-                self._in_tx_user_schema = None
-            if query_unit.global_schema is not None:
-                self._in_tx_global_schema_pickled = query_unit.global_schema
-                self._in_tx_global_schema = None
+            self._apply_in_tx(query_unit)
 
-    cdef on_error(self, query_unit):
+    cdef _start_tx(self):
+        self._in_tx = True
+        self._in_tx_config = self._config
+        self._in_tx_globals = self._globals
+        self._in_tx_db_config = self._db.db_config
+        self._in_tx_modaliases = self._modaliases
+        self._in_tx_user_schema = self._db.user_schema
+        self._in_tx_global_schema = self._db._index._global_schema
+
+    cdef _apply_in_tx(self, query_unit):
+        if query_unit.has_ddl:
+            self._in_tx_with_ddl = True
+        if query_unit.system_config:
+            self._in_tx_with_sysconfig = True
+        if query_unit.database_config:
+            self._in_tx_with_dbconfig = True
+        if query_unit.has_set:
+            self._in_tx_with_set = True
+        if query_unit.has_role_ddl:
+            self._in_tx_with_role_ddl = True
+        if query_unit.user_schema is not None:
+            self._in_tx_user_schema_pickled = query_unit.user_schema
+            self._in_tx_user_schema = None
+        if query_unit.global_schema is not None:
+            self._in_tx_global_schema_pickled = query_unit.global_schema
+            self._in_tx_global_schema = None
+
+    cdef start_implicit(self, query_unit):
+        if self._tx_error:
+            self.raise_in_tx_error()
+
+        if not self._in_tx:
+            self._start_tx()
+
+        self._apply_in_tx(query_unit)
+
+    cdef on_error(self):
         self.tx_error()
 
     cdef on_success(self, query_unit, new_types):
@@ -570,6 +585,42 @@ cdef class DatabaseConnectionView:
             # is executed outside of a tx.
             self._reset_tx_state()
 
+        return side_effects
+
+    cdef commit_implicit_tx(
+        self, user_schema, global_schema, cached_reflection
+    ):
+        assert self._in_tx
+        side_effects = 0
+
+        self._config = self._in_tx_config
+        self._modaliases = self._in_tx_modaliases
+        self._globals = self._in_tx_globals
+
+        if self._in_tx_new_types:
+            self._db._update_backend_ids(self._in_tx_new_types)
+        if user_schema is not None:
+            self._db._set_and_signal_new_user_schema(
+                pickle.loads(user_schema),
+                pickle.loads(cached_reflection)
+                    if cached_reflection is not None
+                    else None
+            )
+            side_effects |= SideEffects.SchemaChanges
+        if self._in_tx_with_sysconfig:
+            side_effects |= SideEffects.InstanceConfigChanges
+        if self._in_tx_with_dbconfig:
+            self.update_database_config()
+            side_effects |= SideEffects.DatabaseConfigChanges
+        if global_schema is not None:
+            side_effects |= SideEffects.GlobalSchemaChanges
+            self._db._index.update_global_schema(
+                pickle.loads(global_schema))
+            self._db._index._server._fetch_roles()
+        if self._in_tx_with_role_ddl:
+            side_effects |= SideEffects.RoleChanges
+
+        self._reset_tx_state()
         return side_effects
 
     async def apply_config_ops(self, conn, ops):

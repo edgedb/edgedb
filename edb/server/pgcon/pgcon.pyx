@@ -18,6 +18,7 @@
 
 
 import asyncio
+import contextlib
 import decimal
 import codecs
 import hashlib
@@ -966,6 +967,20 @@ cdef class PGConnection:
                     return
             else:
                 self.fallthrough()
+
+    @contextlib.asynccontextmanager
+    async def parse_execute_script_context(self):
+        self.before_command()
+        started_at = time.monotonic()
+        try:
+            try:
+                yield
+            finally:
+                while self.waiting_for_sync:
+                    await self.wait_for_sync()
+        finally:
+            metrics.backend_query_duration.observe(time.monotonic() - started_at)
+            await self.after_command()
 
     cdef send_query_unit_group(
         self, object query_unit_group, object bind_datas, bytes state,
