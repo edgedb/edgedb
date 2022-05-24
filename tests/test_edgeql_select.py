@@ -1896,7 +1896,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                 }
             };
             """,
-            [
+            tb.bag([
                 {
                     'name': 'Elvis',
                     'foo': [
@@ -1911,7 +1911,7 @@ class TestEdgeQLSelect(tb.QueryTestCase):
                         {'bar': 'Yury', 'number': '3'}
                     ],
                 },
-            ],
+            ]),
         )
 
     async def test_edgeql_select_tvariant_06(self):

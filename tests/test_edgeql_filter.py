@@ -153,8 +153,7 @@ class TestEdgeQLFilter(tb.QueryTestCase):
                     SELECT Issue
                     FILTER
                         NOT EXISTS Issue.time_estimate
-                    ORDER BY Issue.owner.name
-                ).owner{name};
+                ).owner{name} ORDER BY .name;
             ''',
             # Elvis and Yury have Issues without time_estimate.
             [{'name': 'Elvis'}, {'name': 'Yury'}],
