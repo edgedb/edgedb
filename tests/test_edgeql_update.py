@@ -2200,8 +2200,21 @@ class TestUpdate(tb.QueryTestCase):
                 };
             ''')
 
-    @test.xfail("nested UPDATE not supported")
     async def test_edgeql_update_protect_readonly_03(self):
+        with self.assertRaisesRegex(
+            edgedb.QueryError,
+            "cannot update property 'id': "
+            "it is declared as read-only",
+        ):
+            await self.con.execute(r'''
+                UPDATE UpdateTest
+                SET {
+                    id := <uuid>'77841036-8e35-49ce-b509-2cafa0c25c4f'
+                };
+            ''')
+
+    @test.xfail("nested UPDATE not supported")
+    async def test_edgeql_update_protect_readonly_04(self):
         with self.assertRaisesRegex(
             edgedb.QueryError,
             "cannot update property 'readonly_note': "
