@@ -816,6 +816,13 @@ def insert_needs_conflict_cte(
     if on_conflict.always_check or ir_stmt.conflict_checks:
         return True
 
+    type_id = ir_stmt.subject.typeref.real_material_type.id
+    if (
+        (type_id, True) in ctx.env.type_rewrites
+        or (type_id, False) in ctx.env.type_rewrites
+    ):
+        return True
+
     for shape_el, _ in ir_stmt.subject.shape:
         assert shape_el.rptr is not None
         ptrref = shape_el.rptr.ptrref
@@ -850,7 +857,7 @@ def compile_insert_else_body(
 
     # We need to generate a "conflict CTE" that filters out
     # objects-to-insert that would conflict with existing objects in
-    # two scenarios:
+    # three scenarios:
     #  1) When there is a nested DML operation as part of the value
     #     of a pointer that is stored inline with the object.
     #     This is because we need to prevent that DML from executing
@@ -860,13 +867,20 @@ def compile_insert_else_body(
     #     This is because we need that to raise a ConstraintError,
     #     which means we can't use ON CONFLICT, and so we need to prevent
     #     the insertion of objects that conflict with existing ones ourselves.
+    #  3) When the type to insert has rewrite rules on it that could
+    #     prevent seeing the existing objects, we use conflict ctes
+    #     instead of setting ON CONFLICT so that we raise ConstraintError
+    #     instead of succeeding. This is partially for compatibility with
+    #     cases that have access rules and fall into case 1, where we
+    #     must do this, and partly because we would not be able to return
+    #     the objects in the ELSE anyway.
     #
     # When we need a conflict CTE, we don't use SQL ON CONFLICT. In
-    # case 2, that is the whole point, while in case 1 it would just
-    # be superfluous to do so.
+    # cases 2 & 3, that is the whole point, while in case 1 it would
+    # just be superfluous to do so.
     #
-    # When neither case obtains, we use ON CONFLICT because it ought
-    # to be more performant.
+    # When none of these cases obtain, we use ON CONFLICT because it
+    # ought to be more performant.
     needs_conflict_cte = insert_needs_conflict_cte(
         ir_stmt, on_conflict, ctx=ctx)
     if not needs_conflict_cte and not else_fail:
