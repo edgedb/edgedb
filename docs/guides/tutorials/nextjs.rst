@@ -71,7 +71,7 @@ static data. Replace the contents of ``pages/index.tsx`` with the following.
     content: string;
   };
 
-  const HomePage: NextPage = () => {
+  const Home: NextPage = () => {
     const posts: Post[] = [
       {
         id: 'post1',
