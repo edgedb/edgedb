@@ -389,8 +389,10 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
             [{"name": "Release EdgeDB"}],
         )
 
-        await self.assert_query_result(
-            '''
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.query('''
                 INSERT Issue {
                     number := '4',
                     name := 'Regression.',
@@ -398,9 +400,7 @@ class TestEdgeQLPolicies(tb.QueryTestCase):
                     owner := (SELECT User FILTER User.name = 'Elvis'),
                     status := (SELECT Status FILTER Status.name = 'Closed'),
                 } UNLESS CONFLICT ON (.number) ELSE Issue;
-            ''',
-            []
-        )
+            ''')
 
     async def test_edgeql_policies_08(self):
         async with self.assertRaisesRegexTx(

@@ -1039,6 +1039,43 @@ class TestInsert(tb.QueryTestCase):
             UNLESS CONFLICT ON (.tgt)
         ''')
 
+    async def test_edgeql_insert_conflict_policy_02(self):
+        # An UNLESS CONFLICT with an invisible conflicting object
+        # raises an exception. Notionally this is since the SELECT
+        # we do can't find the object, and so we can't fetch it for
+        # an ELSE clause.
+        await self.con.execute('''
+            alter type Person {
+                create access policy yes allow all using (true);
+                create access policy no deny select using (true);
+            };
+        ''')
+
+        Q = '''
+            insert Person { name := "test" }
+            unless conflict on (.name) else (Person);
+        '''
+
+        await self.con.execute(Q)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute(Q)
+
+        Q = '''
+            insert Person {
+                name := "test2", note := (insert Note { name := "" }) }
+            unless conflict on (.name) else (Person);
+        '''
+
+        await self.con.execute(Q)
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute(Q)
+
     async def test_edgeql_insert_for_01(self):
         await self.con.execute(r'''
             FOR x IN {3, 5, 7, 2}
