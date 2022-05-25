@@ -66,15 +66,12 @@ def sd_notify(message: str) -> None:
     if notify_socket[0] == '@':
         notify_socket = '\0' + notify_socket[1:]
 
-    sd_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-
-    try:
-        sd_sock.connect(notify_socket)
-        sd_sock.sendall(message.encode())
-    except Exception as e:
-        logger.info('Could not send systemd notification: %s', e)
-    finally:
-        sd_sock.close()
+    with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sd_sock:
+        try:
+            sd_sock.connect(notify_socket)
+            sd_sock.sendall(message.encode())
+        except Exception as e:
+            logger.info('Could not send systemd notification: %s', e)
 
 
 def sd_get_activation_listen_sockets(
