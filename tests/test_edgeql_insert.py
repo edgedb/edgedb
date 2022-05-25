@@ -5144,3 +5144,83 @@ class TestInsert(tb.QueryTestCase):
             ]
 
         )
+
+    async def test_edgeql_insert_explicit_id_01(self):
+        await self.con.execute('''
+            INSERT Person {
+                id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                name := "test",
+             }
+        ''')
+
+        await self.assert_query_result(
+            r'''
+                SELECT Person
+            ''',
+            [
+                {'id': 'ffffffff-ffff-ffff-ffff-ffffffffffff'}
+            ]
+        )
+
+    async def test_edgeql_insert_explicit_id_02(self):
+        await self.con.execute('''
+            INSERT Person {
+                id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                name := "test",
+             }
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                INSERT Person {
+                    id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                    name := "test2",
+                 }
+            ''')
+
+    async def test_edgeql_insert_explicit_id_03(self):
+        await self.con.execute('''
+            INSERT Person {
+                id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                name := "test",
+             }
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                INSERT DerivedPerson {
+                    id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff',
+                    name := "test2",
+                 }
+            ''')
+
+    async def test_edgeql_insert_explicit_id_04(self):
+        await self.con.execute('''
+            create required global break -> bool { set default := false; };
+            create type X {
+                create access policy yes allow all using (true);
+                create access policy no deny select using (global break);
+            };
+            create type Y;
+        ''')
+        await self.con.query('''
+            insert X {
+                id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff'
+            };
+        ''')
+        await self.con.execute('''
+            set global break := true
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.query('''
+                insert Y {
+                    id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff'
+                };
+            ''')

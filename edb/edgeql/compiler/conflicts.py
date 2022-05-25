@@ -187,8 +187,20 @@ def _compile_conflict_select(
                 left=lhs, right=rhs,
             ))
 
-    insert_subject = qlast.Path(steps=[
-        s_utils.name_to_ast_ref(subject_typ.get_name(ctx.env.schema))])
+    # If the type we are looking at is BaseObject, then this must a
+    # conflict check we are synthesizing for an explicit .id. We need
+    # to ignore access policies in that case, since there is no
+    # trigger to back us up.
+    # (We can't insert directly into the abstract BaseObject, so this
+    # is a safe assumption.)
+    ignore_rewrites = (
+        str(subject_typ.get_name(ctx.env.schema)) == 'std::BaseObject')
+    if ignore_rewrites:
+        assert not obj_constrs
+        assert len(constrs) == 1 and len(constrs['id'][1]) == 1
+    insert_subject = ctx.create_anchor(setgen.class_set(
+        subject_typ, ignore_rewrites=ignore_rewrites, ctx=ctx
+    ))
 
     for constr in obj_constrs:
         subjectexpr = constr.get_subjectexpr(ctx.env.schema)
@@ -358,6 +370,7 @@ def compile_conflict_select(
 
 def _get_exclusive_ptr_constraints(
     typ: s_objtypes.ObjectType,
+    include_id: bool,
     *, ctx: context.ContextLevel,
 ) -> Dict[str, Tuple[s_pointers.Pointer, List[s_constr.Constraint]]]:
     schema = ctx.env.schema
@@ -370,7 +383,7 @@ def _get_exclusive_ptr_constraints(
                      if c.issubclass(schema, exclusive_constr)]
         if ex_cnstrs:
             name = ptr.get_shortname(schema).name
-            if name != 'id':
+            if name != 'id' or include_id:
                 pointers[name] = ptr, ex_cnstrs
 
     return pointers
@@ -386,7 +399,7 @@ def compile_insert_unless_conflict(
     This requires synthesizing a conditional based on all the exclusive
     constraints on the object.
     """
-    pointers = _get_exclusive_ptr_constraints(typ, ctx=ctx)
+    pointers = _get_exclusive_ptr_constraints(typ, include_id=False, ctx=ctx)
     obj_constrs = typ.get_constraints(ctx.env.schema).objects(ctx.env.schema)
 
     select_ir, always_check, _ = compile_conflict_select(
@@ -394,6 +407,7 @@ def compile_insert_unless_conflict(
         constrs=pointers,
         obj_constrs=obj_constrs,
         parser_context=stmt.context, ctx=ctx)
+    assert not _has_explicit_id_write(stmt)
 
     return irast.OnConflictClause(
         constraint=None, select_ir=select_ir, always_check=always_check,
@@ -515,6 +529,14 @@ def compile_insert_unless_conflict_on(
     )
 
 
+def _has_explicit_id_write(stmt: irast.MutatingStmt) -> bool:
+    for elem, _ in stmt.subject.shape:
+        assert elem.rptr is not None
+        if elem.rptr.ptrref.shortname.name == 'id':
+            return elem.context is not None
+    return False
+
+
 def compile_inheritance_conflict_selects(
     stmt: irast.MutatingStmt,
     conflict: irast.MutatingStmt,
@@ -532,7 +554,9 @@ def compile_inheritance_conflict_selects(
     cross-type exclusive constraints, and they use a snapshot
     beginning at the start of the statement.
     """
-    pointers = _get_exclusive_ptr_constraints(typ, ctx=ctx)
+    has_id_write = _has_explicit_id_write(stmt)
+    pointers = _get_exclusive_ptr_constraints(
+        typ, include_id=has_id_write, ctx=ctx)
     exclusive = ctx.env.schema.get('std::exclusive', type=s_constr.Constraint)
     obj_constrs = [
         constr for constr in
@@ -611,7 +635,10 @@ def compile_inheritance_conflict_checks(
     subject_stype: s_objtypes.ObjectType,
     *, ctx: context.ContextLevel,
 ) -> Optional[List[irast.OnConflictClause]]:
-    if not ctx.env.dml_stmts:
+
+    has_id_write = _has_explicit_id_write(stmt)
+
+    if not ctx.env.dml_stmts and not has_id_write:
         return None
 
     assert isinstance(subject_stype, s_objtypes.ObjectType)
@@ -665,6 +692,13 @@ def compile_inheritance_conflict_checks(
                 for anc in ancs:
                     if anc != base_object:
                         modified_ancestors.add((subject_stype, anc, ir))
+
+    # If `id` is explicitly written to, synthesize a check against
+    # BaseObject to ensure that it doesn't conflict with anything,
+    # since we disable the trigger for id's exclusive constraint for
+    # performance reasons.
+    if has_id_write:
+        modified_ancestors.add((subject_stype, base_object, stmt))
 
     conflicters = []
     for subject_stype, anc_type, ir in modified_ancestors:

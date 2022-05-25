@@ -486,7 +486,8 @@ def new_primitive_rvar(
     dml_source = irutils.get_nearest_dml_stmt(ir_set)
     set_rvar = range_for_typeref(
         typeref, path_id, lateral=lateral, dml_source=dml_source,
-        include_descendants=not ir_set.skip_subtypes, ctx=ctx)
+        include_descendants=not ir_set.skip_subtypes,
+        ignore_rewrites=ir_set.ignore_rewrites, ctx=ctx)
     pathctx.put_rvar_path_bond(set_rvar, path_id)
 
     rptr = ir_set.rptr
@@ -1351,6 +1352,7 @@ def range_for_material_objtype(
     lateral: bool=False,
     include_overlays: bool=True,
     include_descendants: bool=True,
+    ignore_rewrites: bool=False,
     dml_source: Optional[irast.MutatingStmt]=None,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
@@ -1364,7 +1366,8 @@ def range_for_material_objtype(
 
     key = (typeref.id, include_descendants)
     if (
-        (rewrite := ctx.env.type_rewrites.get(key)) is not None
+        not ignore_rewrites
+        and (rewrite := ctx.env.type_rewrites.get(key)) is not None
         and key not in ctx.pending_type_ctes
         and not for_mutation
     ):
@@ -1501,6 +1504,7 @@ def range_for_typeref(
     lateral: bool=False,
     for_mutation: bool=False,
     include_descendants: bool=True,
+    ignore_rewrites: bool=False,
     dml_source: Optional[irast.MutatingStmt]=None,
     ctx: context.CompilerContextLevel,
 ) -> pgast.PathRangeVar:
@@ -1581,6 +1585,7 @@ def range_for_typeref(
             path_id,
             lateral=lateral,
             include_descendants=include_descendants,
+            ignore_rewrites=ignore_rewrites,
             for_mutation=for_mutation,
             dml_source=dml_source,
             ctx=ctx,

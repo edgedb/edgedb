@@ -85,10 +85,12 @@ def new_set(
     """
 
     skip_subtypes: bool = kwargs.get('skip_subtypes', False)
+    ignore_rewrites: bool = kwargs.get('ignore_rewrites', False)
     rw_key = (stype, skip_subtypes)
 
     if (
-        rw_key not in ctx.type_rewrites
+        not ignore_rewrites
+        and rw_key not in ctx.type_rewrites
         and isinstance(stype, s_objtypes.ObjectType)
         and ctx.env.options.apply_query_rewrites
     ):
@@ -143,6 +145,7 @@ def new_set_from_set(
         is_materialized_ref: Optional[bool]=None,
         is_visible_binding_ref: Optional[bool]=None,
         skip_subtypes: Optional[bool]=None,
+        ignore_rewrites: Optional[bool]=None,
         ctx: context.ContextLevel) -> irast.Set:
     """Create a new ir.Set from another ir.Set.
 
@@ -174,6 +177,8 @@ def new_set_from_set(
         is_visible_binding_ref = ir_set.is_visible_binding_ref
     if skip_subtypes is None:
         skip_subtypes = ir_set.skip_subtypes
+    if ignore_rewrites is None:
+        ignore_rewrites = ir_set.ignore_rewrites
     return new_set(
         path_id=path_id,
         path_scope_id=path_scope_id,
@@ -185,6 +190,7 @@ def new_set_from_set(
         is_materialized_ref=is_materialized_ref,
         is_visible_binding_ref=is_visible_binding_ref,
         skip_subtypes=skip_subtypes,
+        ignore_rewrites=ignore_rewrites,
         ircls=type(ir_set),
         ctx=ctx,
     )
@@ -1081,12 +1087,14 @@ def class_set(
         stype: s_types.Type, *,
         path_id: Optional[irast.PathId]=None,
         skip_subtypes: bool=False,
+        ignore_rewrites: bool=False,
         ctx: context.ContextLevel) -> irast.Set:
 
     if path_id is None:
         path_id = pathctx.get_path_id(stype, ctx=ctx)
     return new_set(
-        path_id=path_id, stype=stype, skip_subtypes=skip_subtypes, ctx=ctx)
+        path_id=path_id, stype=stype,
+        skip_subtypes=skip_subtypes, ignore_rewrites=ignore_rewrites, ctx=ctx)
 
 
 def expression_set(
