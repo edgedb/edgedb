@@ -66,6 +66,9 @@ from edb.server.pgcon import errors as pgcon_errors
 
 from . import dbview
 
+if TYPE_CHECKING:
+    import asyncio.base_events
+
 
 ADMIN_PLACEHOLDER = "<edgedb:admin>"
 logger = logging.getLogger('edb.server')
@@ -131,6 +134,7 @@ class Server(ha_base.ClusterProtocol):
         nethosts,
         netport,
         new_instance: bool,
+        listen_sockets: tuple[socket.socket, ...] = (),
         testmode: bool = False,
         binary_endpoint_security: srvargs.ServerEndpointSecurityMode = (
             srvargs.ServerEndpointSecurityMode.Tls),
@@ -187,6 +191,11 @@ class Server(ha_base.ClusterProtocol):
                 defines.MAX_SUGGESTED_CLIENT_POOL_SIZE),
             defines.MIN_SUGGESTED_CLIENT_POOL_SIZE
         )
+
+        self._listen_sockets = listen_sockets
+        if listen_sockets:
+            nethosts = tuple(s.getsockname()[0] for s in listen_sockets)
+            netport = listen_sockets[0].getsockname()[1]
 
         self._listen_hosts = nethosts
         self._listen_port = netport
@@ -896,7 +905,9 @@ class Server(ha_base.ClusterProtocol):
 
         if hosts_to_start:
             new_servers, *_ = await self._start_servers(
-                hosts_to_start, netport, admin
+                hosts_to_start,
+                netport,
+                admin=admin,
             )
             servers.update(new_servers)
         self._servers = servers
@@ -1347,8 +1358,11 @@ class Server(ha_base.ClusterProtocol):
             await self._destroy_compiler_pool()
 
     async def _start_server(
-        self, host: str, port: int
-    ) -> Optional[asyncio.AbstractServer]:
+        self,
+        host: str,
+        port: int,
+        sock: Optional[socket.socket] = None,
+    ) -> Optional[asyncio.base_events.Server]:
         proto_factory = lambda: protocol.HttpProtocol(
             self,
             self._sslctx,
@@ -1357,15 +1371,22 @@ class Server(ha_base.ClusterProtocol):
         )
 
         try:
-            return await self.__loop.create_server(
-                proto_factory, host=host, port=port)
+            kwargs: dict[str, Any]
+            if sock is not None:
+                kwargs = {"sock": sock}
+            else:
+                kwargs = {"host": host, "port": port}
+            return await self.__loop.create_server(proto_factory, **kwargs)
         except Exception as e:
             logger.warning(
                 f"could not create listen socket for '{host}:{port}': {e}"
             )
             return None
 
-    async def _start_admin_server(self, port: int) -> asyncio.AbstractServer:
+    async def _start_admin_server(
+        self,
+        port: int,
+    ) -> asyncio.base_events.Server:
         admin_unix_sock_path = os.path.join(
             self._runstate_dir, f'.s.EDGEDB.admin.{port}')
         assert len(admin_unix_sock_path) <= (
@@ -1381,7 +1402,14 @@ class Server(ha_base.ClusterProtocol):
         logger.info('Serving admin on %s', admin_unix_sock_path)
         return admin_unix_srv
 
-    async def _start_servers(self, hosts, port, admin=True):
+    async def _start_servers(
+        self,
+        hosts: tuple[str, ...],
+        port: int,
+        *,
+        admin: bool = True,
+        sockets: tuple[socket.socket, ...] = (),
+    ):
         servers = {}
         if port == 0:
             # Automatic port selection requires us to start servers
@@ -1401,10 +1429,16 @@ class Server(ha_base.ClusterProtocol):
             start_tasks = {}
             try:
                 async with taskgroup.TaskGroup() as g:
-                    for host in hosts:
-                        start_tasks[host] = g.create_task(
-                            self._start_server(host, port)
-                        )
+                    if sockets:
+                        for host, sock in zip(hosts, sockets):
+                            start_tasks[host] = g.create_task(
+                                self._start_server(host, port, sock=sock)
+                            )
+                    else:
+                        for host in hosts:
+                            start_tasks[host] = g.create_task(
+                                self._start_server(host, port)
+                            )
             except Exception:
                 await self._stop_servers([
                     fut.result() for fut in start_tasks.values()
@@ -1547,6 +1581,7 @@ class Server(ha_base.ClusterProtocol):
         self._servers, actual_port, listen_addrs = await self._start_servers(
             await _resolve_interfaces(self._listen_hosts),
             self._listen_port,
+            sockets=self._listen_sockets,
         )
         self._listen_hosts = listen_addrs
         self._listen_port = actual_port

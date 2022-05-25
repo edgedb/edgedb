@@ -29,7 +29,6 @@ import os.path
 import pathlib
 import resource
 import signal
-import socket
 import sys
 import tempfile
 import uuid
@@ -52,6 +51,7 @@ from . import daemon
 from . import defines
 from . import pgconnparams
 from . import pgcluster
+from . import service_manager
 
 
 if TYPE_CHECKING:
@@ -145,25 +145,6 @@ async def _init_cluster(cluster, args: srvargs.ServerConfig) -> bool:
     return need_restart
 
 
-def _sd_notify(message):
-    notify_socket = os.environ.get('NOTIFY_SOCKET')
-    if not notify_socket:
-        return
-
-    if notify_socket[0] == '@':
-        notify_socket = '\0' + notify_socket[1:]
-
-    sd_sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
-
-    try:
-        sd_sock.connect(notify_socket)
-        sd_sock.sendall(message.encode())
-    except Exception as e:
-        logger.info('Could not send systemd notification: %s', e)
-    finally:
-        sd_sock.close()
-
-
 def _init_parsers():
     # Initialize all parsers, rebuilding grammars if
     # necessary.  Do it earlier than later so that we don't
@@ -185,6 +166,12 @@ async def _run_server(
     new_instance: bool,
 ):
 
+    sockets = service_manager.get_activation_listen_sockets(
+        args.activation_socket_names)
+
+    if sockets:
+        logger.info("detected service manager socket activation")
+
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
         ss = server.Server(
             cluster=cluster,
@@ -196,6 +183,7 @@ async def _run_server(
             compiler_pool_addr=args.compiler_pool_addr,
             nethosts=args.bind_addresses,
             netport=args.port,
+            listen_sockets=tuple(sockets.values()),
             auto_shutdown_after=args.auto_shutdown_after,
             echo_runtime_info=args.echo_runtime_info,
             status_sinks=args.status_sinks,
@@ -240,14 +228,14 @@ async def _run_server(
                 )
 
             # Notify systemd that we've started up.
-            _sd_notify('READY=1')
+            service_manager.sd_notify('READY=1')
 
             try:
                 await sc.wait_for(ss.serve_forever())
             except signalctl.SignalError as e:
                 logger.info('Received signal: %s.', e.signo)
         finally:
-            _sd_notify('STOPPING=1')
+            service_manager.sd_notify('STOPPING=1')
             logger.info('Shutting down.')
             await sc.wait_for(ss.stop())
 
