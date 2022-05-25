@@ -520,9 +520,10 @@ class Server(ha_base.ClusterProtocol):
         assert self._dbindex is not None
         return self._dbindex.maybe_get_db(dbname)
 
-    def new_dbview(self, *, dbname, query_cache):
-        return self._dbindex.new_view(
-            dbname, query_cache=query_cache)
+    async def new_dbview(self, *, dbname, query_cache):
+        db = self.get_db(dbname=dbname)
+        await db.introspection()
+        return self._dbindex.new_view(dbname, query_cache=query_cache)
 
     def remove_dbview(self, dbview):
         return self._dbindex.remove_view(dbview)
@@ -682,6 +683,7 @@ class Server(ha_base.ClusterProtocol):
         than refreshing individual components of it. Besides, DDL and
         database-level config modifications are supposed to be rare events.
         """
+        logger.info("introspecting database '%s'", dbname)
 
         try:
             conn = await self.acquire_pgcon(dbname)
@@ -752,7 +754,6 @@ class Server(ha_base.ClusterProtocol):
                 db_config=db_config,
                 reflection_cache=reflection_cache,
                 backend_ids=backend_ids,
-                refresh=True,
             )
         finally:
             self.release_pgcon(dbname, conn)
@@ -780,12 +781,14 @@ class Server(ha_base.ClusterProtocol):
         finally:
             self._release_sys_pgcon()
 
-        async with taskgroup.TaskGroup(name='introspect DBs') as g:
-            for dbname in dbnames:
-                # There's a risk of the DB being dropped by another server
-                # between us building the list of databases and loading
-                # information about them.
-                g.create_task(self.introspect_db(dbname))
+        for dbname in dbnames:
+            self._dbindex.register_db(
+                dbname,
+                user_schema=None,
+                db_config=None,
+                reflection_cache=None,
+                backend_ids=None,
+            )
 
     def _fetch_roles(self):
         global_schema = self._dbindex.get_global_schema()

@@ -44,6 +44,7 @@ cdef class Database:
         object _eql_to_compiled
         DatabaseIndex _index
         object _views
+        object _introspection_lock
 
         readonly str name
         readonly object dbver

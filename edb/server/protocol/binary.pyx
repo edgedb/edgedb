@@ -512,7 +512,7 @@ cdef class EdgeConnection:
                 f'accept connections'
             )
 
-        self._start_connection(database)
+        await self._start_connection(database)
 
         # The user has already been authenticated by other means
         # (such as the ability to write to a protected socket).
@@ -626,8 +626,8 @@ cdef class EdgeConnection:
 
         return params
 
-    def _start_connection(self, database: str) -> None:
-        dbv = self.server.new_dbview(
+    async def _start_connection(self, database: str) -> None:
+        dbv = await self.server.new_dbview(
             dbname=database,
             query_cache=self.query_cache_enabled,
         )
@@ -2839,7 +2839,7 @@ async def eval_buffer(object server, str database, bytes data):
             'cannot process the request, the server is shutting down')
 
     try:
-        proto._start_connection(database)
+        await proto._start_connection(database)
         proto.data_received(data)
         await proto._main_task
     except Exception as ex:
@@ -2869,7 +2869,7 @@ async def run_script(
     script: str,
 ) -> None:
     conn = new_edge_connection(server)
-    conn._start_connection(database)
+    await conn._start_connection(database)
     try:
         await conn._simple_query(
             script.encode('utf-8'),
@@ -2884,4 +2884,3 @@ async def run_script(
             raise exc
     finally:
         conn.close()
-
