@@ -539,7 +539,7 @@ class Server(ha_base.ClusterProtocol):
                 'Postgres is not available: ' + self._pg_unavailable_msg
             )
 
-        for _ in range(self._pg_pool.max_capacity + 1):
+        for _ in range(self._pg_pool.max_capacity):
             conn = await self._pg_pool.acquire(dbname)
             if conn.is_healthy():
                 return conn
