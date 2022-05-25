@@ -130,7 +130,9 @@ def _derive_hint(
     position: Tuple[int, int, int],
 ) -> Optional[str]:
     _, _, off = position
-    if message == r"invalid string literal: invalid escape sequence '\ '":
+    if message.endswith(
+        r"invalid string literal: invalid escape sequence '\ '"
+    ):
         if TRAILING_WS_IN_CONTINUATION.search(input[off:]):
             return "consider removing trailing whitespace"
     return None

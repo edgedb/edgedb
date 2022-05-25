@@ -42,8 +42,21 @@ cdef class Connection:
     async def connect(self):
         await self._protocol.connect()
 
-    async def simple_query(self, query):
-        await self._protocol.simple_query(query, 0xFFFF_FFFF_FFFF_FFFF)
+    async def execute(self, query):
+        await self.send(
+            messages.Execute(
+                headers=[],
+                command_text=query,
+                output_format=messages.OutputFormat.NULL,
+                expected_cardinality=messages.Cardinality.MANY,
+                input_typedesc_id=b'\0' * 16,
+                output_typedesc_id=b'\0' * 16,
+                arguments=b'',
+            ),
+            messages.Sync(),
+        )
+        await self.recv_match(messages.CommandComplete)
+        await self.recv_match(messages.ReadyForCommand)
 
     async def sync(self):
         await self.send(messages.Sync())

@@ -379,7 +379,7 @@ class Connection(options._OptionsMixin, abstract.AsyncIOExecutor):
             reg=script.cache.codecs_registry,
             qc=script.cache.query_cache,
             output_format=protocol.OutputFormat.NULL_,
-            allow_capabilities=edgedb_enums.Capability.ALL,
+            allow_capabilities=edgedb_enums.Capability.ALL,  # type: ignore
         )
 
     async def ensure_connected(self):

@@ -1995,9 +1995,10 @@ class TestServerProtoMigration(tb.QueryTestCase):
                     }}
                 }}
             }};
-            POPULATE MIGRATION;
-            COMMIT MIGRATION;
-
+        ''')
+        await self.con.execute('POPULATE MIGRATION')
+        await self.con.execute('COMMIT MIGRATION')
+        await self.con.execute(f'''
             INSERT {typename} {{
                 foo := '123'
             }};
@@ -2617,9 +2618,9 @@ class TestServerProtoDDL(tb.DDLTestCase):
                         scalar type tid_prop_03 extending str;
                     }
                 };
-                POPULATE MIGRATION;
-                COMMIT MIGRATION;
             ''')
+            await self.con.execute('POPULATE MIGRATION')
+            await self.con.execute('COMMIT MIGRATION')
 
             result = await self.con.query_single('''
                 SELECT (<array<tid_prop_03>>$input)[1]
