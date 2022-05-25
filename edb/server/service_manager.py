@@ -77,6 +77,8 @@ def sd_notify(message: str) -> None:
 def sd_get_activation_listen_sockets(
     names: list[str],
 ) -> dict[str, socket.socket]:
+    # Prevent socket activation variables from being inherited by
+    # child processes (regardless of success below).
     listen_pid = os.environ.pop("LISTEN_PID", "")
     listen_fds = os.environ.pop("LISTEN_FDS", "")
     listen_fdnames = os.environ.pop("LISTEN_FDNAMES", "")
@@ -181,7 +183,9 @@ if sys.platform == "darwin":
                 )
                 continue
 
-            sock = _stream_socket_from_fd(fds[0])
+            fd = fds[0]
+            os.set_inheritable(fd, False)
+            sock = _stream_socket_from_fd(fd)
             if sock is not None:
                 sockets[name] = sock
 
