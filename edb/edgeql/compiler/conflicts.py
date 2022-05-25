@@ -191,6 +191,8 @@ def _compile_conflict_select(
     # conflict check we are synthesizing for an explicit .id. We need
     # to ignore access policies in that case, since there is no
     # trigger to back us up.
+    # (We can't insert directly into the abstract BaseObject, so this
+    # is a safe assumption.)
     ignore_rewrites = (
         str(subject_typ.get_name(ctx.env.schema)) == 'std::BaseObject')
     if ignore_rewrites:
