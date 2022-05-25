@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 
+import asyncio
 import base64
 import json
 import os.path
@@ -76,6 +77,8 @@ cdef class Database:
         self._index = index
         self._views = weakref.WeakSet()
 
+        self._introspection_lock = asyncio.Lock()
+
         self._eql_to_compiled = lru.LRUMapping(
             maxsize=defines._MAX_QUERIES_CACHE)
 
@@ -83,10 +86,13 @@ cdef class Database:
         self.user_schema = user_schema
         self.reflection_cache = reflection_cache
         self.backend_ids = backend_ids
-        self.extensions = {
-            ext.get_name(user_schema).name: ext
-            for ext in user_schema.get_objects(type=s_ext.Extension)
-        }
+        if user_schema is not None:
+            self.extensions = {
+                ext.get_name(user_schema).name: ext
+                for ext in user_schema.get_objects(type=s_ext.Extension)
+            }
+        else:
+            self.extensions = {}
 
     cdef schedule_config_update(self):
         self._index._server._on_local_database_config_change(self.name)
@@ -147,6 +153,12 @@ cdef class Database:
 
     def get_query_cache_size(self):
         return len(self._eql_to_compiled)
+
+    async def introspection(self):
+        if self.user_schema is None:
+            async with self._introspection_lock:
+                if self.user_schema is None:
+                    await self._index._server.introspect_db(self.name)
 
 
 cdef class DatabaseConnectionView:
@@ -641,14 +653,10 @@ cdef class DatabaseIndex:
         db_config,
         reflection_cache,
         backend_ids,
-        refresh=False
     ):
         cdef Database db
         db = self._dbs.get(dbname)
         if db is not None:
-            if not refresh:
-                raise RuntimeError(
-                    f'cannot register DB {dbname!r}: it is already registered')
             db._set_and_signal_new_user_schema(
                 user_schema, reflection_cache, backend_ids, db_config)
         else:
