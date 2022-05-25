@@ -32,12 +32,59 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
     SCHEMA = os.path.join(os.path.dirname(__file__), 'schemas',
                           'cards.esdl')
 
+    def extend(self, pid, step, ns=frozenset(), dir='>'):
+        nschema, typ = irtyputils.ir_typeref_to_type(self.schema, pid.target)
+        assert nschema == self.schema
+        ptr = None
+        if rptr := pid.rptr():
+            nschema, ptr = irtyputils.ptrcls_from_ptrref(
+                rptr, schema=self.schema)
+            assert nschema == self.schema
+
+        dir = s_pointers.PointerDirection(dir)
+        ns = frozenset(ns)
+
+        if step[0] == '@':
+            src, step = ptr, step[1:]
+            pid = pid.ptr_path()
+        else:
+            src = typ
+
+        ptr = src.getptr(self.schema, s_name.UnqualName(step))
+        ptr_ref = irtyputils.ptrref_from_ptrcls(
+            schema=self.schema,
+            ptrcls=ptr,
+        )
+
+        return pid.extend(ptrref=ptr_ref, ns=ns, direction=dir)
+
+    def extend_many(self, pid, *path):
+        for step in path:
+            if not isinstance(step, tuple):
+                ns, dir = frozenset(), '>'
+            elif len(step) == 2:
+                step, ns = step
+                dir = '>'
+            else:
+                step, ns, dir = step
+
+            pid = self.extend(pid, step, ns=ns, dir=dir)
+
+        return pid
+
+    def mk_path(self, *path, ns=frozenset()):
+        start = path[0]
+
+        typ = self.schema.get(f'default::{start}')
+        pid = pathid.PathId.from_type(self.schema, typ, namespace=ns)
+
+        return self.extend_many(pid, *path[1:])
+
     def test_edgeql_ir_pathid_basic(self):
         User = self.schema.get('default::User')
         deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
-        count_prop = deck_ptr.getptr(self.schema, s_name.UnqualName('count'))
 
-        pid_1 = pathid.PathId.from_type(self.schema, User)
+        pid_1 = self.mk_path('User')
         self.assertEqual(
             str(pid_1),
             '(default::User)')
@@ -50,11 +97,8 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         self.assertIsNone(pid_1.rptr_name())
         self.assertIsNone(pid_1.src_path())
 
-        deck_ptr_ref = irtyputils.ptrref_from_ptrcls(
-            schema=self.schema,
-            ptrcls=deck_ptr,
-        )
-        pid_2 = pid_1.extend(ptrref=deck_ptr_ref)
+        pid_2 = self.extend(pid_1, 'deck')
+
         self.assertEqual(
             str(pid_2),
             '(default::User).>deck[IS default::Card]')
@@ -76,11 +120,7 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
 
         self.assertEqual(ptr_pid.tgt_path(), pid_2)
 
-        count_prop_ref = irtyputils.ptrref_from_ptrcls(
-            schema=self.schema,
-            ptrcls=count_prop,
-        )
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
+        prop_pid = self.extend(pid_2, '@count')
         self.assertEqual(
             str(prop_pid),
             '(default::User).>deck[IS default::Card]@count[IS std::int64]')
@@ -92,22 +132,10 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         self.assertEqual(prop_pid.src_path(), ptr_pid)
 
     def test_edgeql_ir_pathid_startswith(self):
-        User = self.schema.get('default::User')
-        deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
-        deck_ptr_ref = irtyputils.ptrref_from_ptrcls(
-            schema=self.schema,
-            ptrcls=deck_ptr,
-        )
-        count_prop = deck_ptr.getptr(self.schema, s_name.UnqualName('count'))
-        count_prop_ref = irtyputils.ptrref_from_ptrcls(
-            schema=self.schema,
-            ptrcls=count_prop,
-        )
-
-        pid_1 = pathid.PathId.from_type(self.schema, User)
-        pid_2 = pid_1.extend(ptrref=deck_ptr_ref)
+        pid_1 = self.mk_path('User')
+        pid_2 = self.extend(pid_1, 'deck')
         ptr_pid = pid_2.ptr_path()
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
+        prop_pid = self.extend(pid_2, '@count')
 
         self.assertTrue(pid_2.startswith(pid_1))
         self.assertFalse(pid_1.startswith(pid_2))
@@ -121,66 +149,35 @@ class TestEdgeQLIRPathID(tb.BaseEdgeQLCompilerTest):
         self.assertTrue(prop_pid.startswith(ptr_pid))
 
     def test_edgeql_ir_pathid_namespace_01(self):
-        User = self.schema.get('default::User')
-        deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
-        deck_ptr_ref = irtyputils.ptrref_from_ptrcls(
-            schema=self.schema,
-            ptrcls=deck_ptr,
-        )
-        count_prop = deck_ptr.getptr(self.schema, s_name.UnqualName('count'))
-        count_prop_ref = irtyputils.ptrref_from_ptrcls(
-            schema=self.schema,
-            ptrcls=count_prop,
-        )
-
         ns = frozenset(('foo',))
-        pid_1 = pathid.PathId.from_type(self.schema, User, namespace=ns)
-        pid_2 = pid_1.extend(ptrref=deck_ptr_ref)
+        pid_1 = self.mk_path('User', ns=ns)
+        pid_2 = self.extend(pid_1, 'deck')
         ptr_pid = pid_2.ptr_path()
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
+        prop_pid = self.extend(pid_2, '@count')
 
         self.assertEqual(pid_1.namespace, ns)
         self.assertEqual(pid_2.namespace, ns)
         self.assertEqual(ptr_pid.namespace, ns)
         self.assertEqual(prop_pid.namespace, ns)
 
-        pid_1_no_ns = pathid.PathId.from_type(self.schema, User)
+        pid_1_no_ns = self.mk_path('User')
         self.assertNotEqual(pid_1, pid_1_no_ns)
 
     def test_edgeql_ir_pathid_namespace_02(self):
         # Test cases where the prefix is in a different namespace
 
-        Card = self.schema.get('default::Card')
-        User = self.schema.get('default::User')
-        owners_ptr = Card.getptr(self.schema, s_name.UnqualName('owners'))
-        owners_ptr_ref = irtyputils.ptrref_from_ptrcls(
-            schema=self.schema,
-            ptrcls=owners_ptr,
-        )
-        deck_ptr = User.getptr(self.schema, s_name.UnqualName('deck'))
-        deck_ptr_ref = irtyputils.ptrref_from_ptrcls(
-            schema=self.schema,
-            ptrcls=deck_ptr,
-        )
-        count_prop = deck_ptr.getptr(self.schema, s_name.UnqualName('count'))
-        count_prop_ref = irtyputils.ptrref_from_ptrcls(
-            schema=self.schema,
-            ptrcls=count_prop,
-        )
-
         ns_1 = frozenset(('foo',))
         ns_2 = frozenset(('bar',))
 
-        pid_1 = pathid.PathId.from_type(self.schema, Card)
-        pid_2 = pid_1.extend(ptrref=owners_ptr_ref, ns=ns_1)
-        pid_2_no_ns = pid_1.extend(ptrref=owners_ptr_ref)
+        pid_1 = self.mk_path('Card')
+        pid_2 = self.extend(pid_1, 'owners', ns=ns_1)
+        pid_2_no_ns = self.extend(pid_1, 'owners')
 
         self.assertNotEqual(pid_2, pid_2_no_ns)
         self.assertEqual(pid_2.src_path(), pid_1)
 
-        pid_3 = pid_2.extend(ptrref=deck_ptr_ref, ns=ns_2)
-        ptr_pid = pid_3.ptr_path()
-        prop_pid = ptr_pid.extend(ptrref=count_prop_ref)
+        pid_3 = self.extend(pid_2, 'deck', ns=ns_2)
+        prop_pid = self.extend(pid_3, '@count')
 
         self.assertEqual(prop_pid.src_path().namespace, ns_1 | ns_2)
         self.assertEqual(prop_pid.src_path().src_path().namespace, ns_1)
