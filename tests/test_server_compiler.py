@@ -297,6 +297,7 @@ class TestServerCompilerPool(tbs.TestCase):
     async def test_server_compiler_pool_with_server(self):
         async with tbs.start_edgedb_server(
             compiler_pool_size=2,
+            compiler_pool_mode=edbargs.CompilerPoolMode.Fixed,
             http_endpoint_security=(
                 edbargs.ServerEndpointSecurityMode.Optional),
         ) as sd:
