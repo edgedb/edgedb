@@ -403,7 +403,6 @@ async def run_server(
     _init_parsers()
 
     pg_cluster_init_by_us = False
-    pg_cluster_started_by_us = False
 
     if args.tenant_id is None:
         tenant_id = buildmeta.get_default_tenant_id()
@@ -470,16 +469,30 @@ async def run_server(
             pg_cluster_init_by_us = await cluster.ensure_initialized()
             cluster_status = await cluster.get_status()
 
-            if cluster_status == 'stopped':
-                await cluster.start()
-                pg_cluster_started_by_us = True
-
-            elif cluster_status != 'running':
-                abort('Could not start database cluster in %s', args.data_dir)
+            if isinstance(cluster, pgcluster.Cluster):
+                if cluster_status == 'running':
+                    # Refuse to start local instance on an occupied datadir,
+                    # as it's very likely that Postgres was orphaned by an
+                    # earlier unclean exit of EdgeDB.
+                    main_pid = cluster.get_main_pid() or '<unknown>'
+                    abort(
+                        f'a PostgreSQL instance (PID {main_pid}) is already '
+                        f'running in data directory "{args.data_dir}", please '
+                        f'stop it to proceed'
+                    )
+                elif cluster_status == 'stopped':
+                    await cluster.start()
+                else:
+                    abort('could not initialize data directory "%s"',
+                          args.data_dir)
+            else:
+                # We expect the remote cluster to be running
+                if cluster_status != "running":
+                    abort('specified PostgreSQL instance is not running')
 
             need_cluster_restart = await _init_cluster(cluster, args)
 
-            if need_cluster_restart and pg_cluster_started_by_us:
+            if need_cluster_restart:
                 logger.info('Restarting server to reload configuration...')
                 await cluster.stop()
                 await cluster.start()
@@ -547,10 +560,8 @@ async def run_server(
                 if await cluster.get_status() == 'running':
                     await cluster.stop()
                 cluster.destroy()
-
-            elif pg_cluster_started_by_us:
-                if await cluster.get_status() == 'running':
-                    await cluster.stop()
+            elif await cluster.get_status() == 'running':
+                await cluster.stop()
 
 
 def bump_rlimit_nofile() -> None:

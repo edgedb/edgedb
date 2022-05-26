@@ -332,6 +332,9 @@ class Cluster(BaseCluster):
     def get_data_dir(self) -> pathlib.Path:
         return self._data_dir
 
+    def get_main_pid(self) -> Optional[int]:
+        return self._daemon_pid
+
     async def get_status(self) -> str:
         stdout_lines, stderr_lines, exit_code = (
             await _run_logged_text_subprocess(
