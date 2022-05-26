@@ -95,6 +95,7 @@ class BackendCapabilitySets(NamedTuple):
 
 
 class CompilerPoolMode(enum.StrEnum):
+    Default = "default"
     Fixed = "fixed"
     OnDemand = "on_demand"
     Remote = "remote"
@@ -482,12 +483,13 @@ _server_options = [
             list(CompilerPoolMode.__members__.values()),
             case_sensitive=True,
         ),
-        default=CompilerPoolMode.Fixed.value,
+        default=CompilerPoolMode.Default.value,
         help='Choose a mode for the compiler pool to scale. "fixed" means the '
              'pool will not scale and sticks to --compiler-pool-size, while '
              '"on_demand" means the pool will maintain at least 1 worker and '
              'automatically scale up (to --compiler-pool-size workers ) and '
-             'down to the demand. Default to "fixed".',
+             'down to the demand. Defaults to "fixed" in production mode and '
+             '"on_demand" in development mode.',
     ),
     click.option(
         '--compiler-pool-addr',
@@ -844,6 +846,12 @@ def parse_args(**kwargs: Any):
     kwargs['tls_cert_mode'] = ServerTlsCertMode(kwargs['tls_cert_mode'])
     kwargs['default_auth_method'] = ServerAuthMethod(
         kwargs['default_auth_method'])
+
+    if kwargs['compiler_pool_mode'] == 'default':
+        if devmode.is_in_dev_mode():
+            kwargs['compiler_pool_mode'] = 'on_demand'
+        else:
+            kwargs['compiler_pool_mode'] = 'fixed'
     kwargs['compiler_pool_mode'] = CompilerPoolMode(
         kwargs['compiler_pool_mode']
     )
