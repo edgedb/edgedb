@@ -2077,11 +2077,12 @@ std::`/` (l: std::decimal, r: std::decimal) -> std::decimal {
 
 # FLOORDIV
 
-# PostgreSQL uses truncation division, so the -12 % 5 is -2, because
-# -12 // 5 is -2, but EdgeQL uses floor division, so -12 // 5 is -3,
-# and so -12 % 5 must be 3.  The correct divmod behavior is implemented
-# in the C extension functions, with the exception of std::decimal,
-# which is implemented using simple formulae instead.
+# PostgreSQL uses truncation division, so the -12 % 5 is -2, because -12 // 5
+# is -2, but EdgeQL uses floor division, so -12 // 5 is -3, and so -12 % 5
+# must be 3. The correct divmod behavior is implemented via the floor
+# function working specifically with numeric type. The numeric value needs to
+# be forced into using arbitrary precision by getting multiplied by
+# 1.0::numeric.
 
 CREATE INFIX OPERATOR
 std::`//` (n: std::int16, d: std::int16) -> std::int16
@@ -2094,7 +2095,8 @@ std::`//` (n: std::int16, d: std::int16) -> std::int16
     # the common attributes of the SQL division operator while
     # overriding the main operator function.
     USING SQL OPERATOR r'/';
-    USING SQL 'SELECT floor("n"::numeric / "d"::numeric)::int2';
+    USING SQL
+        'SELECT floor(1.0::numeric * "n"::numeric / "d"::numeric)::int2';
 };
 
 
@@ -2106,7 +2108,8 @@ std::`//` (n: std::int32, d: std::int32) -> std::int32
         'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
-    USING SQL 'SELECT floor("n"::numeric / "d"::numeric)::int4';
+    USING SQL
+        'SELECT floor(1.0::numeric * "n"::numeric / "d"::numeric)::int4';
 };
 
 
@@ -2118,7 +2121,8 @@ std::`//` (n: std::int64, d: std::int64) -> std::int64
         'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/';
-    USING SQL 'SELECT floor("n"::numeric / "d"::numeric)::int8';
+    USING SQL
+        'SELECT floor(1.0::numeric * "n"::numeric / "d"::numeric)::int8';
 };
 
 
@@ -2154,7 +2158,11 @@ std::`//` (n: std::bigint, d: std::bigint) -> std::bigint
         'Floor division. Result is rounded down to the nearest integer';
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'/(numeric,numeric)';
-    USING SQL 'SELECT floor("n" / "d")::edgedb.bigint_t;'
+    USING SQL $$
+        SELECT floor(
+            1.0::numeric * "n"::numeric / "d"::numeric
+        )::edgedb.bigint_t;
+    $$;
 };
 
 
@@ -2172,6 +2180,28 @@ std::`//` (n: std::decimal, d: std::decimal) -> std::decimal
 
 # MODULO
 
+# We have 2 issues to deal with:
+# 1) Postgres will produce a negative remainder for a posisitve divisor,
+#    whereas generally it's a bit more intuitive to have the remainder in the
+#    range [0, divisor).
+# 2) When implementing the modulo operator we need to make sure that addition
+#    or subtraction doesn't cause an overflow.
+#
+# The easiest way to avoid overflow errors is to upcast values to a larger
+# integer type. However, upcasting int64 to bigint and back is very slow
+# (5x-6x slower), so we need a different approach here.
+#
+# The breakdown is like this:
+# - We only want to add `d` if `n` and `d` have opposite signs.
+# - XOR helps to isolate the sign bit if it is different.
+# - Right arithmetic shift by 63 bits produces an "all 1" bitmask for
+#   negative integers and 0 otherwise.
+# - Performing AND using the above bitmask makes `d` go away if
+#   `sign(n) = sign(d)` and keeps it as is otherwise.
+#
+# According to our microbenchmarks this kind of bit magic is no worse and
+# maybe slightly better than upcasting for int16 and int32 cases.
+
 CREATE INFIX OPERATOR
 std::`%` (n: std::int16, d: std::int16) -> std::int16
 {
@@ -2180,7 +2210,10 @@ std::`%` (n: std::int16, d: std::int16) -> std::int16
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
-        SELECT ((n % d) + d) % d;
+        SELECT
+            (n % d)
+            +
+            (d & ((n # d)>>15::int4))
     $$;
 };
 
@@ -2193,7 +2226,10 @@ std::`%` (n: std::int32, d: std::int32) -> std::int32
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
-        SELECT ((n % d) + d) % d;
+        SELECT
+            (n % d)
+            +
+            (d & ((n # d)>>31::int4))
     $$;
 };
 
@@ -2206,7 +2242,10 @@ std::`%` (n: std::int64, d: std::int64) -> std::int64
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
-        SELECT ((n % d) + d) % d;
+        SELECT
+            (n % d)
+            +
+            (d & ((n # d)>>63::int4))
     $$;
 };
 
