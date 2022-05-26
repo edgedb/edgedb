@@ -272,7 +272,7 @@ class TestServerCompilerPool(tbs.TestCase):
     def _kill_and_wait(self, *pids, sig=signal.SIGTERM, timeout=1):
         for pid in pids:
             os.kill(pid, sig)
-        remaining = self._wait_pids(*pids)
+        remaining = self._wait_pids(*pids, timeout=timeout)
         if remaining:
             raise TimeoutError(
                 f"Failed to kill PID {remaining} with {sig} "
@@ -318,7 +318,7 @@ class TestServerCompilerPool(tbs.TestCase):
             os.kill(pid2, signal.SIGKILL)
             os.kill(pid3, signal.SIGKILL)
             start = time.monotonic()
-            while time.monotonic() - start < 5:
+            while time.monotonic() - start < 10:
                 try:
                     self.assertEqual(
                         sd.call_system_api('/server/status/ready'), 'OK'
@@ -333,7 +333,7 @@ class TestServerCompilerPool(tbs.TestCase):
             self.assertNotIn(pid3, pids)
 
             # Kill one worker with SIGINT, it's not restarted
-            self._kill_and_wait(pids.pop(), sig=signal.SIGINT)
+            self._kill_and_wait(pids.pop(), sig=signal.SIGINT, timeout=5)
             time.sleep(1)
             self.assertEqual(sd.call_system_api('/server/status/ready'), 'OK')
             self.assertSetEqual(
