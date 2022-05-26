@@ -60,7 +60,10 @@ class BaseCluster:
         ] = None,
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode
-        ] = None
+        ] = None,
+        compiler_pool_mode: Optional[
+            edgedb_args.CompilerPoolMode
+        ] = None,
     ):
         self._edgedb_cmd = [sys.executable, '-m', 'edb.server.main']
 
@@ -96,6 +99,12 @@ class BaseCluster:
             self._edgedb_cmd.extend((
                 '--http-endpoint-security',
                 str(http_endpoint_security),
+            ))
+
+        if compiler_pool_mode is not None:
+            self._edgedb_cmd.extend((
+                '--compiler-pool-mode',
+                str(compiler_pool_mode),
             ))
 
         self._log_level = log_level
@@ -371,7 +380,10 @@ class Cluster(BaseCluster):
         ] = None,
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode
-        ] = None
+        ] = None,
+        compiler_pool_mode: Optional[
+            edgedb_args.CompilerPoolMode
+        ] = None,
     ) -> None:
         self._data_dir = data_dir
         if runstate_dir is None:
@@ -384,6 +396,7 @@ class Cluster(BaseCluster):
             log_level=log_level,
             security=security,
             http_endpoint_security=http_endpoint_security,
+            compiler_pool_mode=compiler_pool_mode,
         )
         self._edgedb_cmd.extend(['-D', str(self._data_dir)])
         self._pg_connect_args['user'] = pg_superuser
@@ -429,7 +442,10 @@ class TempCluster(Cluster):
         ] = None,
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode
-        ] = None
+        ] = None,
+        compiler_pool_mode: Optional[
+            edgedb_args.CompilerPoolMode
+        ] = None,
     ) -> None:
         tempdir = pathlib.Path(
             tempfile.mkdtemp(
@@ -446,6 +462,7 @@ class TempCluster(Cluster):
             log_level=log_level,
             security=security,
             http_endpoint_security=http_endpoint_security,
+            compiler_pool_mode=compiler_pool_mode,
         )
 
 
@@ -511,6 +528,9 @@ class TempClusterWithRemotePg(BaseCluster):
         http_endpoint_security: Optional[
             edgedb_args.ServerEndpointSecurityMode
         ] = None,
+        compiler_pool_mode: Optional[
+            edgedb_args.CompilerPoolMode
+        ] = None,
     ) -> None:
         runstate_dir = pathlib.Path(
             tempfile.mkdtemp(
@@ -521,8 +541,14 @@ class TempClusterWithRemotePg(BaseCluster):
         )
         self._backend_dsn = backend_dsn
         super().__init__(
-            runstate_dir, env=env, testmode=testmode, log_level=log_level,
-            security=security, http_endpoint_security=http_endpoint_security)
+            runstate_dir,
+            env=env,
+            testmode=testmode,
+            log_level=log_level,
+            security=security,
+            http_endpoint_security=http_endpoint_security,
+            compiler_pool_mode=compiler_pool_mode,
+        )
         self._edgedb_cmd.extend(['--backend-dsn', backend_dsn])
 
     async def _new_pg_cluster(self) -> pgcluster.BaseCluster:
