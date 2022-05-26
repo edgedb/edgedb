@@ -105,6 +105,7 @@ class Server(ha_base.ClusterProtocol):
     _servers: Mapping[str, asyncio.AbstractServer]
 
     _task_group: Optional[taskgroup.TaskGroup]
+    _tasks: Set[asyncio.Task]
     _backend_adaptive_ha: Optional[adaptive_ha.AdaptiveHASupport]
 
     _testmode: bool
@@ -161,6 +162,7 @@ class Server(ha_base.ClusterProtocol):
         self._serving = False
         self._initing = False
         self._accept_new_tasks = False
+        self._tasks = set()
 
         self._cluster = cluster
         self._pg_addr = self._get_pgaddr()
@@ -1654,9 +1656,15 @@ class Server(ha_base.ClusterProtocol):
         # not expecting one, so always couple the call with an additional check
         if self._accept_new_tasks:
             if interruptable:
-                return self.__loop.create_task(coro)
+                rv = self.__loop.create_task(coro)
             else:
-                return self._task_group.create_task(coro)
+                rv = self._task_group.create_task(coro)
+
+            # Keep a strong reference of the created Task
+            self._tasks.add(rv)
+            rv.add_done_callback(self._tasks.discard)
+
+            return rv
         else:
             # Hint: add `if server._accept_new_tasks` before `.create_task()`
             raise RuntimeError("task cannot be created at this time")
