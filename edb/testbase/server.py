@@ -394,6 +394,7 @@ async def init_cluster(
     init_settings=None,
     security=edgedb_args.ServerSecurityMode.Strict,
     http_endpoint_security=edgedb_args.ServerEndpointSecurityMode.Optional,
+    compiler_pool_mode=edgedb_args.CompilerPoolMode.Fixed,
 ) -> edgedb_cluster.BaseCluster:
     if data_dir is not None and backend_dsn is not None:
         raise ValueError(
@@ -403,22 +404,33 @@ async def init_cluster(
 
     if backend_dsn:
         cluster = edgedb_cluster.TempClusterWithRemotePg(
-            backend_dsn, testmode=True, log_level='s',
+            backend_dsn,
+            testmode=True,
+            log_level='s',
             data_dir_prefix='edb-test-',
             security=security,
-            http_endpoint_security=http_endpoint_security)
+            http_endpoint_security=http_endpoint_security,
+            compiler_pool_mode=compiler_pool_mode,
+        )
         destroy = True
     elif data_dir is None:
         cluster = edgedb_cluster.TempCluster(
-            testmode=True, log_level='s', data_dir_prefix='edb-test-',
+            testmode=True,
+            log_level='s',
+            data_dir_prefix='edb-test-',
             security=security,
-            http_endpoint_security=http_endpoint_security)
+            http_endpoint_security=http_endpoint_security,
+            compiler_pool_mode=compiler_pool_mode,
+        )
         destroy = True
     else:
         cluster = edgedb_cluster.Cluster(
-            data_dir=data_dir, log_level='s',
+            data_dir=data_dir,
+            log_level='s',
             security=security,
-            http_endpoint_security=http_endpoint_security)
+            http_endpoint_security=http_endpoint_security,
+            compiler_pool_mode=compiler_pool_mode,
+        )
         destroy = False
 
     if await cluster.get_status() == 'not-initialized':
