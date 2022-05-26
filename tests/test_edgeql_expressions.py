@@ -19,6 +19,7 @@
 
 import functools
 import os.path
+import random
 import typing
 
 import edgedb
@@ -878,6 +879,148 @@ class TestExpressions(tb.QueryTestCase):
                     f'''SELECT <{t}>{a} % <{t}>{b};''',
                     [mod],
                 )
+
+    async def test_edgeql_expr_mod_02(self):
+        # Test integer mod.
+        #
+        # We've had a bug where 2000000 %  9223372036854770000 produced
+        # overflow. This is die to the fact that internally we were adding
+        # the divisor and the remainder together.
+        await self.assert_query_result(
+            f'''select 2000000 % 9223372036854770000;''',
+            [2000000],
+        )
+        await self.assert_query_result(
+            f'''select -2000000 % -9223372036854770000;''',
+            [-2000000],
+        )
+        await self.assert_query_result(
+            f'''select (<int32>2000000) % <int32>2147483000;''',
+            [2000000],
+        )
+        await self.assert_query_result(
+            f'''select (-<int32>2000000) % -<int32>2147483000;''',
+            [-2000000],
+        )
+        await self.assert_query_result(
+            f'''select (<int16>20000) % <int16>32000;''',
+            [20000],
+        )
+        await self.assert_query_result(
+            f'''select (-<int16>20000) % -<int16>32000;''',
+            [-20000],
+        )
+
+    async def test_edgeql_expr_mod_03(self):
+        # Test integer division.
+        #
+        # We've had a bug where 100000000000000001 // 2 produced
+        # 50000000000000001. Basically the floor division sometimes
+        # rounded up.
+        await self.assert_query_result(
+            f'''select 100000000000000001 // 2;''',
+            [50000000000000000],
+        )
+        await self.assert_query_result(
+            f'''select -100000000000000001 // 2;''',
+            [-50000000000000001],
+        )
+        await self.assert_query_result(
+            f'''select (<int32>1000000001) // <int32>2;''',
+            [500000000],
+        )
+        await self.assert_query_result(
+            f'''select (-<int32>1000000001) // <int32>2;''',
+            [-500000001],
+        )
+        await self.assert_query_result(
+            f'''select (<int16>10001) // <int16>2;''',
+            [5000],
+        )
+        await self.assert_query_result(
+            f'''select (-<int16>10001) // <int16>2;''',
+            [-5001],
+        )
+        await self.assert_query_result(
+            f'''select 10000000000000000000000000000000001n // 2n;''',
+            [5000000000000000000000000000000000],
+        )
+        await self.assert_query_result(
+            f'''select -10000000000000000000000000000000001n // 2n;''',
+            [-5000000000000000000000000000000001],
+        )
+        await self.assert_query_result(
+            f'''select 10000000000000000000000000000000001.0n // 2.0n;''',
+            [5000000000000000000000000000000000],
+        )
+        await self.assert_query_result(
+            f'''select -10000000000000000000000000000000001.0n // 2.0n;''',
+            [-5000000000000000000000000000000001],
+        )
+
+    async def test_edgeql_expr_mod_04(self):
+        # Fuzztest of integer %
+        for maxval, tname in [(2 ** 15 - 1, 'int16'),
+                              (2 ** 31 - 1, 'int32'),
+                              (2 ** 63 - 1, 'int64'),
+                              (10 ** 25, 'bigint')]:
+
+            vals = []
+            for i in range(1000):
+                a = random.randrange(-maxval, maxval)
+                b = random.randrange(-maxval, maxval)
+                vals.append([i, a, b, a // b])
+
+            nums, arr1, arr2, _ = zip(*vals)
+            await self.assert_query_result(
+                f'''
+                    with
+                        N := <array<int64>>$nums,
+                        A1 := <array<{tname}>>$arr1,
+                        A2 := <array<{tname}>>$arr2,
+                        X := array_unpack(N)
+                    select _ := (X, A1[X], A2[X], A1[X] // A2[X])
+                    order by _.0;
+                ''',
+                vals,
+                variables=dict(
+                    nums=list(nums),
+                    arr1=list(arr1),
+                    arr2=list(arr2),
+                )
+            )
+
+    async def test_edgeql_expr_mod_05(self):
+        # Fuzztest of integer %
+        for maxval, tname in [(2 ** 15 - 1, 'int16'),
+                              (2 ** 31 - 1, 'int32'),
+                              (2 ** 63 - 1, 'int64'),
+                              (10 ** 25, 'bigint')]:
+
+            vals = []
+            for i in range(1000):
+                a = random.randrange(-maxval, maxval)
+                b = random.randrange(-maxval, maxval)
+                vals.append([i, a, b, a % b])
+
+            nums, arr1, arr2, _ = zip(*vals)
+            await self.assert_query_result(
+                f'''
+                    with
+                        N := <array<int64>>$nums,
+                        A1 := <array<{tname}>>$arr1,
+                        A2 := <array<{tname}>>$arr2,
+                        X := array_unpack(N)
+                    select _ := (X, A1[X], A2[X], A1[X] % A2[X])
+                    order by _.0;
+                ''',
+                vals,
+                variables=dict(
+                    nums=list(nums),
+                    arr1=list(arr1),
+                    arr2=list(arr2),
+                )
+            )
 
     async def test_edgeql_expr_variables_01(self):
         await self.assert_query_result(
