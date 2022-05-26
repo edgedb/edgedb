@@ -759,6 +759,9 @@ class Compiler:
 
         if script_info is not None:
             outer_mapping = {n: i for i, n in enumerate(script_info.params)}
+            # Count however many of *our* arguments are user_params
+            user_params = sum(
+                outer_mapping[n.name] < user_params for n in params)
         else:
             outer_mapping = None
 

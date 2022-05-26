@@ -98,12 +98,12 @@ INSERT D {
 };
 INSERT D {
     num := 2,
-    multi_link := (SELECT C FILTER .val IN {'D01', 'D02'}),
+    multi_link := (SELECT C FILTER .val IN DISTINCT {'D01', 'D02'}),
 };
 INSERT D {
     num := 3,
     single_link := (SELECT C FILTER .val = 'D00'),
-    multi_link := (SELECT C FILTER .val IN {'D01', 'D02', 'D03'}),
+    multi_link := (SELECT C FILTER .val IN DISTINCT {'D01', 'D02', 'D03'}),
 };
 
 
@@ -116,7 +116,7 @@ INSERT E {
 };
 INSERT E {
     num := 6,
-    multi_link := (SELECT C FILTER .val IN {'E01', 'E02'}),
+    multi_link := (SELECT C FILTER .val IN DISTINCT {'E01', 'E02'}),
 };
 INSERT E {
     num := 7,
@@ -126,7 +126,7 @@ INSERT E {
         FILTER .val = val
     ),
     multi_link := (
-        FOR val IN {'E01', 'E02', 'E03'}
+        FOR val IN (DISTINCT {'E01', 'E02', 'E03'})
         UNION (
             SELECT C {@lp1 := val}
             FILTER .val = val
@@ -138,7 +138,7 @@ INSERT E {
 INSERT F {
     num := 8,
     single_link := (SELECT C FILTER .val = 'F00'),
-    multi_link := (SELECT C FILTER .val IN {'F01', 'F02', 'F03'}),
+    multi_link := (SELECT C FILTER .val IN DISTINCT {'F01', 'F02', 'F03'}),
 };
 
 

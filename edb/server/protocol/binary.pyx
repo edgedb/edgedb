@@ -201,13 +201,13 @@ cdef class CompiledQuery:
         self,
         object query_unit_group,
         first_extra: Optional[int]=None,
-        int extra_count=0,
-        bytes extra_blob=None
+        object extra_counts=(),
+        object extra_blobs=()
     ):
         self.query_unit_group = query_unit_group
         self.first_extra = first_extra
-        self.extra_count = extra_count
-        self.extra_blob = extra_blob
+        self.extra_counts = extra_counts
+        self.extra_blobs = extra_blobs
 
 
 cdef class EdgeConnection:
@@ -958,11 +958,8 @@ cdef class EdgeConnection:
             num_args = len(query_unit.in_type_args or ())
             num_args += self._count_globals(query_unit)
 
-            # TODO: N.B: Note that that this only works when there is only
-            # a single command in the script
             if compiled.first_extra is not None:
-                assert start == 0 and end == 1 and len(unit_group) == 1
-                num_args += compiled.extra_count
+                num_args += compiled.extra_counts[i]
 
             bind_data.write_int16(<int16_t>num_args)
 
@@ -973,7 +970,7 @@ cdef class EdgeConnection:
                     bind_data.write_bytes(barg)
 
             if compiled.first_extra is not None:
-                bind_data.write_bytes(compiled.extra_blob)
+                bind_data.write_bytes(compiled.extra_blobs[i])
 
             self._inject_globals(query_unit, bind_data)
 
@@ -1225,8 +1222,8 @@ cdef class EdgeConnection:
         return CompiledQuery(
             query_unit_group=query_unit_group,
             first_extra=source.first_extra(),
-            extra_count=source.extra_count(),
-            extra_blob=source.extra_blob(),
+            extra_counts=source.extra_counts(),
+            extra_blobs=source.extra_blobs(),
         )
 
     cdef parse_cardinality(self, bytes card):
@@ -1657,8 +1654,8 @@ cdef class EdgeConnection:
                 compiled = CompiledQuery(
                     query_unit_group=query_unit_group,
                     first_extra=query_req.source.first_extra(),
-                    extra_count=query_req.source.extra_count(),
-                    extra_blob=query_req.source.extra_blob(),
+                    extra_counts=query_req.source.extra_counts(),
+                    extra_blobs=query_req.source.extra_blobs(),
                 )
                 self._last_anon_compiled = compiled
                 self._last_anon_compiled_hash = hash(query_req)
@@ -2158,7 +2155,7 @@ cdef class EdgeConnection:
         if query.first_extra is not None:
             assert recv_args == query.first_extra, \
                 f"argument count mismatch {recv_args} != {query.first_extra}"
-            num_args += query.extra_count
+            num_args += query.extra_counts[0]
 
         num_args += self._count_globals(query.query_unit_group)
 
@@ -2199,7 +2196,7 @@ cdef class EdgeConnection:
 
         if live:
             if query.first_extra is not None:
-                out_buf.write_bytes(query.extra_blob)
+                out_buf.write_bytes(query.extra_blobs[0])
 
             # Inject any globals variables into the argument stream.
             self._inject_globals(query.query_unit_group, out_buf)
@@ -2859,8 +2856,8 @@ async def run_script(
         compiled = CompiledQuery(
             query_unit_group=query_unit_group,
             first_extra=source.first_extra(),
-            extra_count=source.extra_count(),
-            extra_blob=source.extra_blob(),
+            extra_counts=source.extra_counts(),
+            extra_blobs=source.extra_blobs(),
         )
         if len(query_unit_group) > 1:
             await conn._execute_script(compiled, b'')

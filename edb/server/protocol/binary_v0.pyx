@@ -321,8 +321,8 @@ cdef class EdgeConnectionBackwardsCompatible(EdgeConnection):
             compiled = CompiledQuery(
                 query_unit_group=query_unit_group,
                 first_extra=query_req.source.first_extra(),
-                extra_count=query_req.source.extra_count(),
-                extra_blob=query_req.source.extra_blob(),
+                extra_counts=query_req.source.extra_counts(),
+                extra_blobs=query_req.source.extra_blobs(),
             )
             self._last_anon_compiled = compiled
 

@@ -69,8 +69,8 @@ cdef class QueryRequestInfo:
 cdef class CompiledQuery:
     cdef public object query_unit_group
     cdef public object first_extra  # Optional[int]
-    cdef public int extra_count
-    cdef public bytes extra_blob
+    cdef public object extra_counts
+    cdef public object extra_blobs
 
 
 cdef class EdgeConnection:
