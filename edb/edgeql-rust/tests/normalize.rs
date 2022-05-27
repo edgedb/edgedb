@@ -204,3 +204,27 @@ fn test_script() {
         ],
     ]);
 }
+
+#[test]
+fn test_script_with_args() {
+    let entry = normalize(r###"
+        SELECT 2 + $1;
+        SELECT $1 + 2;
+    "###).unwrap();
+    assert_eq!(
+        entry.processed_source,
+        "SELECT(<__std__::int64>$2)+$1;SELECT$1+(<__std__::int64>$3);",
+    );
+    assert_eq!(entry.variables, vec![
+        vec![
+            Variable {
+                value: Value::Int(2),
+            }
+        ],
+        vec![
+            Variable {
+                value: Value::Int(2),
+            }
+        ],
+    ]);
+}
