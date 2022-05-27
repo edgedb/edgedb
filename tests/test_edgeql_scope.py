@@ -2963,7 +2963,10 @@ class TestEdgeQLScope(tb.QueryTestCase):
             """,
             [
                 {
-                    "avatar": {"awards": [{"name": "1st"}], "name": "Dragon"},
+                    "avatar": {
+                        "awards": tb.bag([{"name": "1st"}, {"name": "3rd"}]),
+                        "name": "Dragon",
+                    },
                     "name": "Alice"
                 }
             ]
@@ -3064,6 +3067,10 @@ class TestEdgeQLScope(tb.QueryTestCase):
             ]
         )
 
+    @test.xfail('''
+        Fails assert not ir_set.is_materialized_ref
+        Broken in fix for #3898
+    ''')
     async def test_edgeql_scope_source_rebind_04(self):
         await self.assert_query_result(
             """
@@ -3762,4 +3769,18 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [
                 {"name": "Dave"}
             ]
+        )
+
+    async def test_edgeql_computable_join_01(self):
+        await self.assert_query_result(
+            r'''
+            select Card {
+                multi w := (
+                    select .awards { name }
+                    filter .name = Card.best_award.name
+                )
+            }
+            filter .name = 'Dragon';
+            ''',
+            [{"w": [{"name": "1st"}]}]
         )

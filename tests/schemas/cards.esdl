@@ -59,6 +59,7 @@ type Card extending Named {
     property elemental_cost := <str>.cost ++ ' ' ++ .element;
     multi link awards -> Award;
     multi link good_awards := (SELECT .awards FILTER .name != '3rd');
+    single link best_award := (select .awards order by .name limit 1);
 }
 
 type SpecialCard extending Card;

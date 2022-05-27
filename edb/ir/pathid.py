@@ -362,24 +362,31 @@ class PathId:
 
         if result._prefix is not None:
             result._prefix = result._get_minimal_prefix(
-                result._prefix)
+                result._prefix.replace_namespace(namespace))
 
         return result
 
     def merge_namespace(
         self,
         namespace: AbstractSet[Namespace],
+        *,
+        deep: bool=False,
     ) -> PathId:
         """Return a copy of this ``PathId`` that has *namespace* added to its
            namespace.
         """
-        if not self._namespace:
-            new_namespace = namespace
-        else:
-            new_namespace = self._namespace | frozenset(namespace)
+        new_namespace = self._namespace | frozenset(namespace)
 
-        if new_namespace != self._namespace:
-            return self.replace_namespace(new_namespace)
+        if new_namespace != self._namespace or deep:
+            result = self.__class__(self)
+            result._namespace = new_namespace
+            if deep and result._prefix is not None:
+                result._prefix = result._prefix.merge_namespace(new_namespace)
+            if result._prefix is not None:
+                result._prefix = result._get_minimal_prefix(result._prefix)
+
+            return result
+
         else:
             return self
 

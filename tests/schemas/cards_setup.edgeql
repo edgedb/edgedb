@@ -31,7 +31,7 @@ INSERT Card {
     name := 'Dragon',
     element := 'Fire',
     cost := 5,
-    awards := (SELECT Award FILTER .name = '1st'),
+    awards := (SELECT Award FILTER .name IN {'1st', '3rd'}),
 };
 
 INSERT Card {
