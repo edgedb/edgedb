@@ -5147,6 +5147,19 @@ aa \
                 ).name;
             """)
 
+    async def test_edgeql_assert_exists_02(self):
+        await self.con.execute('''
+            insert BooleanTest { name := "" }
+        ''')
+
+        async with self.assertRaisesRegexTx(
+            edgedb.CardinalityViolationError,
+            "assert_exists violation",
+        ):
+            await self.con.query_json("""
+                select BooleanTest { name, val := assert_exists(.val) }
+            """)
+
     async def test_edgeql_assert_exists_no_op(self):
         await self.con.query("""
             SELECT assert_exists(1)
