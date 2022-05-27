@@ -59,8 +59,8 @@ won't be used by us.
   $ # because they will not be used
   $ rm -r lib/github_oauth/repo.ex priv/repo/
 
-And then add the EdgeDB driver, the ``Ecto`` helper for it and the ``Mint`` HTTP
-client for GitHub OAuth client as project dependencies to ``mix.exs``.
+And then add the EdgeDB driver, the ``Ecto`` helper for it and the ``Mint``
+HTTP client for GitHub OAuth client as project dependencies to ``mix.exs``.
 
 .. code-block:: elixir
 
@@ -170,9 +170,10 @@ Great! Now we are ready to develop the database schema for the application.
 Schema design
 =============
 
-This application will have 2 types: ``User`` and ``Identity``. The ``default::User``
-represents the system user and the ``default::Identity`` represents the way the
-user logs in to the application (in this example via GitHub OAuth).
+This application will have 2 types: ``User`` and ``Identity``. The
+``default::User`` represents the system user and the ``default::Identity``
+represents the way the user logs in to the application (in this example via
+GitHub OAuth).
 
 This schema will be stored in a single EdgeDB module inside the
 ``dbschema/default.esdl`` file.
@@ -309,14 +310,14 @@ And here for identity in ``lib/accounts/identity.ex``.
 User authentication via GitHub
 ==================================
 
-This part will be pretty big, as we'll talk about using ``Ecto.Changeset`` with
-the EdgeDB driver, as well as modules and queries related to user registration
-via GitHub OAuth.
+This part will be pretty big, as we'll talk about using ``Ecto.Changeset``
+with the EdgeDB driver, as well as modules and queries related to user
+registration via GitHub OAuth.
 
-``Ecto`` provides ``Ecto.Changeset``s, which are convenient to use when working
-with ``Ecto.Schema`` to validate external parameters and we can use them also
-using ``EdgeDBEcto``, though not quite as fully as we can with the full-featured
-adapters for ``Ecto``.
+``Ecto`` provides ``Ecto.Changeset``s, which are convenient to use when
+working with ``Ecto.Schema`` to validate external parameters and we can use
+them also using ``EdgeDBEcto``, though not quite as fully as we can with the
+full-featured adapters for ``Ecto``.
 
 First, we will update the ``GitHubOAuth.Accounts.Identity`` module so that it
 checks all the necessary parameters when we are creating a user via a GitHub
@@ -541,16 +542,16 @@ which defines a query to find an user with a specified email provider.
 It is worth noting to the ``# edgedb = :query_single!`` and
 ``# mapper = GitHubOAuth.Accounts.User`` comments. Both are special comments
 that will be used by ``EdgeDBEcto`` when generating query functions. The
-``edgedb`` comment defines the driver function for requesting data. Information
-on all supported features can be found in the driver
+``edgedb`` comment defines the driver function for requesting data.
+Information on all supported features can be found in the driver
 `documentation <https://hexdocs.pm/edgedb/EdgeDB.html#functions>`_.
-The ``mapper`` comment is used to define the module that will be used to map the
-result from EdgeDB to some other form. Our ``Ecto.Shema``s supports this with
-``use EdgeDBEcto.Mapper`` expression at the top of the module definition.
+The ``mapper`` comment is used to define the module that will be used to map
+the result from EdgeDB to some other form. Our ``Ecto.Shema``s supports this
+with ``use EdgeDBEcto.Mapper`` expression at the top of the module definition.
 
 The queries for `getting the identity <get-identity-query_>`_ and
-`the user by ID <get-user-by-id-query_>`_ are quite similar to the above, so we
-will omit them here, you can found these queries in the
+`the user by ID <get-user-by-id-query_>`_ are quite similar to the above, so
+we will omit them here, you can found these queries in the
 `example repository <repository_>`_.
 
 .. _get-identity-query:
@@ -579,14 +580,15 @@ in the ``priv/edgeql/accounts/update_identity_token.edgeql`` file.
   }
 
 As you can see, this query uses the named parameter ``$params`` instead of two
-separate parameters such as ``$id`` and ``$provider_token``. This is because to
-update our identity we use the changeset in the module ``GitHubOAuth.Accounts``,
-which automatically monitors changes to the schema and will not give back the
-parameters, which will not affect the state of the schema in update. So
-``EdgeDBEcto`` automatically converts data from changesets when it is an update
-or insert operation into a named ``$params`` parameter of type JSON. It also
-helps to work with nested changesets, as we will see in the next query, which
-is defined in the ``priv/edgeql/accounts/register_github_user.edgeql`` file.
+separate parameters such as ``$id`` and ``$provider_token``. This is because
+to update our identity we use the changeset in the module
+``GitHubOAuth.Accounts``, which automatically monitors changes to the schema
+and will not give back the parameters, which will not affect the state of the
+schema in update. So ``EdgeDBEcto`` automatically converts data from
+changesets when it is an update or insert operation into a named ``$params``
+parameter of type JSON. It also helps to work with nested changesets, as we
+will see in the next query, which is defined in the
+``priv/edgeql/accounts/register_github_user.edgeql`` file.
 
 .. code-block:: edgeql
 
@@ -602,7 +604,9 @@ is defined in the ``priv/edgeql/accounts/register_github_user.edgeql`` file.
         name := <str>params["name"],
         username := <str>params["username"],
         avatar_url := <optional str>json_get(params, "avatar_url"),
-        external_homepage_url := <str>json_get(params, "external_homepage_url"),
+        external_homepage_url := (
+          <str>json_get(params, "external_homepage_url")
+        ),
       }
     ),
     identites := (
@@ -638,7 +642,8 @@ already logged in and show their username otherwise. And the 2nd one is for
 logging into the application through GitHub.
 
 Save the GitHub OAuth credentials from the `prerequisites <prerequisites_>`_
-step as ``GITHUB_CLIENT_ID`` and ``GITHUB_CLIENT_SECRET`` environment variables.
+step as ``GITHUB_CLIENT_ID`` and ``GITHUB_CLIENT_SECRET`` environment
+variables.
 
 And then modify your ``config/dev.exs`` configuration file to use them.
 
