@@ -25,7 +25,6 @@ import sys
 import textwrap
 import traceback
 import types
-import weakref
 
 
 class TaskGroup:
@@ -42,7 +41,7 @@ class TaskGroup:
         self._loop = None
         self._parent_task = None
         self._parent_cancel_requested = False
-        self._tasks = weakref.WeakSet()
+        self._tasks = set()
         self._unfinished_tasks = 0
         self._errors = []
         self._base_error = None
@@ -233,6 +232,7 @@ class TaskGroup:
                 t.cancel()
 
     def _on_task_done(self, task):
+        self._tasks.discard(task)
         self._unfinished_tasks -= 1
         assert self._unfinished_tasks >= 0
 
