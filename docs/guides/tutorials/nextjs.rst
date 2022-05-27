@@ -110,7 +110,7 @@ static data. Replace the contents of ``pages/index.tsx`` with the following.
     );
   };
 
-  export default Home;
+  export default HomePage;
 
 After saving, Next.js should hot-reload, and the homepage should look
 something like this.
