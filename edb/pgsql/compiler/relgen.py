@@ -2271,14 +2271,16 @@ def process_set_as_existence_assertion(
             force=True,
             env=newctx.env,
         )
-        if ir_set.path_id.is_objtype_path():
-            pathctx.put_path_identity_var(
-                newctx.rel,
-                ir_arg_set.path_id,
-                set_expr,
-                force=True,
-                env=newctx.env,
-            )
+        other_aspect = (
+            'identity' if ir_set.path_id.is_objtype_path() else 'serialized')
+        pathctx.put_path_var(
+            newctx.rel,
+            ir_arg_set.path_id,
+            set_expr,
+            force=True,
+            aspect=other_aspect,
+            env=newctx.env,
+        )
 
     # It is important that we do not provide source, which could allow
     # fields on the object to be accessed without triggering the
