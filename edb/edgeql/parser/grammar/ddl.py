@@ -1252,7 +1252,8 @@ class CreatePropertyStmt(Nonterm):
         self.val = qlast.CreateProperty(
             name=kids[3].val,
             bases=kids[4].val,
-            commands=kids[5].val
+            commands=kids[5].val,
+            abstract=True,
         )
 
 
@@ -1537,7 +1538,8 @@ class CreateLinkStmt(Nonterm):
         self.val = qlast.CreateLink(
             name=kids[3].val,
             bases=kids[4].val,
-            commands=kids[5].val
+            commands=kids[5].val,
+            abstract=True,
         )
 
 
