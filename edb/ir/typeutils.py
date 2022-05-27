@@ -965,13 +965,30 @@ def replace_pathid_prefix(
     if not path_id.startswith(prefix, permissive_ptr_path=permissive_ptr_path):
         return path_id
 
+    # TODO: iter_prefixes is kind of expensive; can we do this in a
+    # way that peeks into the internals more?
+
     result = replacement
-    # We peak into the internals because this gets somewhat
-    # pointlessly inefficient otherwise.
-    for part in path_id._path[len(prefix):]:
-        if not isinstance(part, tuple):
+    prefixes = list(path_id.iter_prefixes(include_ptr=prefix.is_ptr_path()))
+    lastns = prefix.namespace
+
+    try:
+        start = prefixes.index(prefix)
+    except ValueError:
+        if permissive_ptr_path:
+            start = prefixes.index(prefix.ptr_path())
+        else:
+            raise
+
+    for part in prefixes[start + 1:]:
+        if part.is_ptr_path():
             continue
-        ptrref, dir = part
+
+        ptrref = part.rptr()
+        if not ptrref:
+            continue
+        dir = part.rptr_dir()
+        assert dir
 
         # If the ptrref doesn't match the new result type, try to find
         # the correct ptrref, up or down the hierarchy.
@@ -989,8 +1006,13 @@ def replace_pathid_prefix(
                     break
                 ancptr = ancptr.base_ptr
 
-        if ptrref.source_ptr and permissive_ptr_path:
+        if ptrref.source_ptr:
             result = result.ptr_path()
-        result = result.extend(ptrref=ptrref, direction=dir)
+        result = result.extend(
+            ptrref=ptrref, direction=dir, ns=part.namespace - lastns)
+        lastns = part.namespace
+
+    if path_id.is_ptr_path():
+        result = result.ptr_path()
 
     return result

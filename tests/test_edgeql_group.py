@@ -976,5 +976,5 @@ class TestEdgeQLGroup(tb.QueryTestCase):
                    using awd_size := count(.awards)
                 by awd_size, .element) { grouping };
             ''',
-            [{"grouping": ["awd_size", "element"]}] * 5,
+            [{"grouping": ["awd_size", "element"]}] * 6,
         )

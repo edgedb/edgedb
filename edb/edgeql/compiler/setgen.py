@@ -1460,9 +1460,11 @@ def get_view_map_remapping(
     """
     key = path_id.strip_namespace(path_id.namespace)
     entries = ctx.view_map.get(key, ())
-    fixed_path_id = path_id.merge_namespace(ctx.path_id_namespace)
+    fixed_path_id = path_id.merge_namespace(ctx.path_id_namespace, deep=True)
     for inner_path_id, mapped in entries:
-        fixed_inner = inner_path_id.merge_namespace(ctx.path_id_namespace)
+        fixed_inner = inner_path_id.merge_namespace(
+            ctx.path_id_namespace, deep=True)
+
         if fixed_inner == fixed_path_id:
             return mapped
     return None

@@ -28,6 +28,7 @@ from edb import errors
 
 from edb.ir import ast as irast
 from edb.ir import utils as irutils
+from edb.ir import typeutils as irtyputils
 
 from edb.schema import modules as s_mod
 from edb.schema import name as s_name
@@ -383,10 +384,10 @@ def _try_namespace_fix(
         replacement = scope.find_visible(prefix, allow_group=True)
         if (
             replacement and replacement.path_id
-            and replacement.path_id.namespace != obj.path_id.namespace
+            and prefix != replacement.path_id
         ):
-            new = obj.path_id.strip_namespace(
-                obj.path_id.namespace - replacement.path_id.namespace)
+            new = irtyputils.replace_pathid_prefix(
+                obj.path_id, prefix, replacement.path_id)
 
             obj.path_id = new
             break
