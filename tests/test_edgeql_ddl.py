@@ -5389,6 +5389,27 @@ class TestEdgeQLDDL(tb.DDLTestCase):
                 };
             ''')
 
+    async def test_edgeql_ddl_scalar_13(self):
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                r'scalar type may not have a collection base type'):
+            await self.con.execute('''
+                create scalar type Foo extending array<str>;
+            ''')
+
+        await self.con.execute('''
+            create scalar type Foo extending str;
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.SchemaError,
+                r'scalar type may not have a collection base type'):
+            await self.con.execute('''
+                alter scalar type Foo {
+                    drop extending str; extending array<str> last;
+                };
+            ''')
+
     async def test_edgeql_ddl_cast_01(self):
         await self.con.execute('''
             CREATE SCALAR TYPE type_a EXTENDING std::str;

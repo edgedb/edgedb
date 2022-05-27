@@ -408,6 +408,12 @@ class CreateScalarType(
             ]
             is_enum = any(
                 isinstance(br, AnonymousEnumTypeShell) for br in bases)
+            for ab, b in zip(astnode.bases, bases):
+                if isinstance(b, s_types.CollectionTypeShell):
+                    raise errors.SchemaError(
+                        f'scalar type may not have a collection base type',
+                        context=ab.context,
+                    )
 
             # We don't support FINAL, but old dumps and migrations specify
             # it on enum CREATE SCALAR TYPEs, so we need to permit it in those
@@ -582,6 +588,13 @@ class RebaseScalarType(
 
         else:
             old_concrete = self.scls.maybe_get_topmost_concrete_base(schema)
+
+            for b in [b for bs, _ in self.added_bases for b in bs]:
+                if isinstance(b, s_types.CollectionTypeShell):
+                    raise errors.SchemaError(
+                        f'scalar type may not have a collection base type',
+                        context=self.source_context,
+                    )
 
             schema = super().apply(schema, context)
 
