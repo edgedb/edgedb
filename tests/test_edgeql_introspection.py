@@ -401,6 +401,19 @@ class TestIntrospection(tb.QueryTestCase):
             }]
         )
 
+    async def test_edgeql_introspection_link_02(self):
+        await self.assert_query_result(
+            r"""
+                with module schema
+                select schema::Pointer { name, abstract }
+                filter .name = 'std::link';
+            """,
+            [{
+                'name': 'std::link',
+                'abstract': True,
+            }]
+        )
+
     async def test_edgeql_introspection_locality(self):
         await self.assert_query_result(
             r"""

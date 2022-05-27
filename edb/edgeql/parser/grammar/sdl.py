@@ -556,6 +556,7 @@ class PropertyDeclaration(Nonterm):
             name=kids[2].val,
             bases=kids[3].val,
             commands=kids[4].val,
+            abstract=True,
         )
 
 
@@ -565,6 +566,7 @@ class PropertyDeclarationShort(Nonterm):
         self.val = qlast.CreateProperty(
             name=kids[2].val,
             bases=kids[3].val,
+            abstract=True,
         )
 
 
@@ -747,6 +749,7 @@ class LinkDeclaration(Nonterm):
             name=kids[2].val,
             bases=kids[3].val,
             commands=kids[4].val,
+            abstract=True,
         )
 
 
@@ -757,6 +760,7 @@ class LinkDeclarationShort(Nonterm):
         self.val = qlast.CreateLink(
             name=kids[2].val,
             bases=kids[3].val,
+            abstract=True,
         )
 
 
