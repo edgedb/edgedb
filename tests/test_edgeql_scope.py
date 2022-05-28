@@ -3719,6 +3719,62 @@ class TestEdgeQLScope(tb.QueryTestCase):
             [{"name": "Dragon", "nameLen": 6, "nameLen2": 6}]
         )
 
+    async def test_edgeql_select_outer_rebind_07a(self):
+        await self.assert_query_result(
+            r'''
+                SELECT assert_single((
+                  SELECT User {
+                  deck := (
+                    WITH
+                      User_deck := User.deck
+                    SELECT User_deck {
+                      awards := (
+                        User_deck.awards { name }
+                      )
+                    }
+                  )
+                }) filter .name ILIKE 'Alice%');
+            ''',
+            tb.bag([
+                {
+                    "deck": tb.bag([
+                        {"awards": [{"name": "2nd"}]},
+                        {"awards": tb.bag([{"name": "1st"}, {"name": "3rd"}])},
+                        {"awards": []},
+                        {"awards": []}
+                    ])
+                }
+            ])
+        )
+
+    async def test_edgeql_select_outer_rebind_07b(self):
+        await self.assert_query_result(
+            r'''
+                SELECT assert_exists((
+                  SELECT User {
+                  deck := (
+                    WITH
+                      User_deck := User.deck
+                    SELECT User_deck {
+                      awards := (
+                        User_deck.awards { name }
+                      )
+                    }
+                  )
+                }) filter .name ILIKE 'Alice%');
+            ''',
+            tb.bag([
+                {
+                    "deck": tb.bag([
+                        {"awards": [{"name": "2nd"}]},
+                        {"awards": tb.bag([{"name": "1st"}, {"name": "3rd"}])},
+                        {"awards": []},
+                        {"awards": []}
+                    ])
+                }
+            ])
+        )
+
     async def test_edgeql_scope_for_with_computable_01(self):
         await self.assert_query_result(
             r'''
