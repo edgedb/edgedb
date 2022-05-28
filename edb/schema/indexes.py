@@ -310,7 +310,9 @@ class IndexCommand(
                 raise errors.ResultCardinalityMismatchError(
                     f'possibly more than one element returned by '
                     f'the index expression where only singletons '
-                    f'are allowed')
+                    f'are allowed',
+                    context=value.qlast.context,
+                )
 
             if expr.irast.volatility != qltypes.Volatility.Immutable:
                 raise errors.SchemaDefinitionError(

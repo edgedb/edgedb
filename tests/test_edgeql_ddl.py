@@ -11225,7 +11225,8 @@ type default::Foo {
     async def test_edgeql_ddl_index_01(self):
         with self.assertRaisesRegex(
             edgedb.ResultCardinalityMismatchError,
-            r"possibly more than one element returned by the index expression"
+            r"possibly more than one element returned by the index expression",
+            _line=4, _col=34
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
@@ -11237,7 +11238,8 @@ type default::Foo {
     async def test_edgeql_ddl_index_02(self):
         with self.assertRaisesRegex(
             edgedb.ResultCardinalityMismatchError,
-            r"possibly more than one element returned by the index expression"
+            r"possibly more than one element returned by the index expression",
+            _line=5, _col=34
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
@@ -11250,7 +11252,8 @@ type default::Foo {
     async def test_edgeql_ddl_index_03(self):
         with self.assertRaisesRegex(
             edgedb.ResultCardinalityMismatchError,
-            r"possibly more than one element returned by the index expression"
+            r"possibly more than one element returned by the index expression",
+            _line=5, _col=34
         ):
             await self.con.execute(r"""
                 CREATE TYPE Foo {
