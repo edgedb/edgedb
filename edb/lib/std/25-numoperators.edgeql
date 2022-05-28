@@ -2198,6 +2198,9 @@ std::`//` (n: std::decimal, d: std::decimal) -> std::decimal
 #   negative integers and 0 otherwise.
 # - Performing AND using the above bitmask makes `d` go away if
 #   `sign(n) = sign(d)` and keeps it as is otherwise.
+# - Finally we want to perform another MOD `d` operation to address the corner
+#   case of 10 % -5 = -5 instead of 0 (which is equivalent, but does not
+#   conform to making 0 inclusive and `d` itself exclusive).
 #
 # According to our microbenchmarks this kind of bit magic is no worse and
 # maybe slightly better than upcasting for int16 and int32 cases.
@@ -2210,10 +2213,11 @@ std::`%` (n: std::int16, d: std::int16) -> std::int16
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
-        SELECT
+        SELECT (
             (n % d)
             +
             (d & ((n # d)>>15::int4))
+        ) % d
     $$;
 };
 
@@ -2226,10 +2230,11 @@ std::`%` (n: std::int32, d: std::int32) -> std::int32
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
-        SELECT
+        SELECT (
             (n % d)
             +
             (d & ((n # d)>>31::int4))
+        ) % d
     $$;
 };
 
@@ -2242,10 +2247,11 @@ std::`%` (n: std::int64, d: std::int64) -> std::int64
     SET volatility := 'Immutable';
     USING SQL OPERATOR r'%';
     USING SQL $$
-        SELECT
+        SELECT (
             (n % d)
             +
             (d & ((n # d)>>63::int4))
+        ) % d
     $$;
 };
 
