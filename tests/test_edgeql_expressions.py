@@ -18,12 +18,14 @@
 
 
 import functools
+import json
 import os.path
 import random
 import typing
 
 import edgedb
 
+from edb.common import assert_data_shape
 from edb.testbase import server as tb
 from edb.tools import test
 
@@ -968,31 +970,36 @@ class TestExpressions(tb.QueryTestCase):
             vals = []
             for i in range(1000):
                 a = random.randrange(-maxval, maxval)
-                b = random.randrange(-maxval, maxval)
                 # Can't divide by 0
-                if b == 0:
-                    b = random.randrange(1, maxval)
+                b = random.choice([-1, 1]) * random.randrange(1, maxval)
 
                 vals.append([i, a, b, a // b])
 
             nums, arr1, arr2, _ = zip(*vals)
-            await self.assert_query_result(
+            results = await self.con.query_json(
                 f'''
                     with
                         N := <array<int64>>$nums,
                         A1 := <array<{tname}>>$arr1,
                         A2 := <array<{tname}>>$arr2,
                         X := array_unpack(N)
-                    select _ := (X, A1[X], A2[X], A1[X] // A2[X])
-                    order by _.0;
+                    select _ := [X, A1[X], A2[X], A1[X] // A2[X]]
+                    order by _[0];
                 ''',
-                vals,
-                variables=dict(
-                    nums=list(nums),
-                    arr1=list(arr1),
-                    arr2=list(arr2),
-                )
+                nums=list(nums),
+                arr1=list(arr1),
+                arr2=list(arr2),
             )
+
+            for res in json.loads(results):
+                i, a, b, c = res
+                _, va, vb, vc = vals[i]
+                msg = (
+                    f'original: {va} // {vb} = {vc}, '
+                    f'edgeql: {a} // {b} = {c}'
+                )
+                assert_data_shape.assert_data_shape(
+                    res, vals[i], self.fail, message=msg)
 
     async def test_edgeql_expr_mod_05(self):
         # Fuzztest of integer %
@@ -1004,31 +1011,36 @@ class TestExpressions(tb.QueryTestCase):
             vals = []
             for i in range(1000):
                 a = random.randrange(-maxval, maxval)
-                b = random.randrange(-maxval, maxval)
                 # Can't divide by 0
-                if b == 0:
-                    b = random.randrange(1, maxval)
+                b = random.choice([-1, 1]) * random.randrange(1, maxval)
 
                 vals.append([i, a, b, a % b])
 
             nums, arr1, arr2, _ = zip(*vals)
-            await self.assert_query_result(
+            results = await self.con.query_json(
                 f'''
                     with
                         N := <array<int64>>$nums,
                         A1 := <array<{tname}>>$arr1,
                         A2 := <array<{tname}>>$arr2,
                         X := array_unpack(N)
-                    select _ := (X, A1[X], A2[X], A1[X] % A2[X])
-                    order by _.0;
+                    select _ := [X, A1[X], A2[X], A1[X] % A2[X]]
+                    order by _[0];
                 ''',
-                vals,
-                variables=dict(
-                    nums=list(nums),
-                    arr1=list(arr1),
-                    arr2=list(arr2),
-                )
+                nums=list(nums),
+                arr1=list(arr1),
+                arr2=list(arr2),
             )
+
+            for res in json.loads(results):
+                i, a, b, c = res
+                _, va, vb, vc = vals[i]
+                msg = (
+                    f'original: {va} % {vb} = {vc}, '
+                    f'edgeql: {a} % {b} = {c}'
+                )
+                assert_data_shape.assert_data_shape(
+                    res, vals[i], self.fail, message=msg)
 
     async def test_edgeql_expr_variables_01(self):
         await self.assert_query_result(
