@@ -21,7 +21,7 @@ let's navigate into the directory and start the dev server.
 
 .. code-block:: bash
 
-  $ cd nextjs-todo
+  $ cd nextjs-blog
   $ yarn dev
 
 Open `localhost:3000 <http://localhost:3000>`_ to see the default Next.js
@@ -148,14 +148,14 @@ directory. You'll be presented with a series of prompts.
 .. code-block:: bash
 
   $ edgedb project init
-  No `edgedb.toml` found in `~/nextjs-todo` or above
+  No `edgedb.toml` found in `~/nextjs-blog` or above
 
   Do you want to initialize a new project? [Y/n]
   > Y
 
   Specify the name of EdgeDB instance to use with this project [default:
-  nextjs-todo]:
-  > nextjs-todo
+  nextjs-blog]:
+  > nextjs-blog
 
   Checking EdgeDB versions...
   Specify the version of EdgeDB to use with this project [default: 1.x]:
@@ -164,20 +164,20 @@ directory. You'll be presented with a series of prompts.
   Do you want to start instance automatically on login? [y/n]
   > y
   ┌─────────────────────┬──────────────────────────────────────────────┐
-  │ Project directory   │ ~/nextjs-todo                                │
-  │ Project config      │ ~/nextjs-todo/edgedb.toml                    │
-  │ Schema dir (empty)  │ ~/nextjs-todo/dbschema                       │
+  │ Project directory   │ ~/nextjs-blog                                │
+  │ Project config      │ ~/nextjs-blog/edgedb.toml                    │
+  │ Schema dir (empty)  │ ~/nextjs-blog/dbschema                       │
   │ Installation method │ portable package                             │
   │ Start configuration │ manual                                       │
   │ Version             │ 1.x                                          │
-  │ Instance name       │ nextjs-todo                                  │
+  │ Instance name       │ nextjs-blog                                  │
   └─────────────────────┴──────────────────────────────────────────────┘
   Initializing EdgeDB instance...
   Applying migrations...
   Everything is up to date. Revision initial.
   Project initialized.
 
-This process has spun up an EdgeDB instance called ``nextjs-todo`` and
+This process has spun up an EdgeDB instance called ``nextjs-blog`` and
 "linked" it with your current directory. As long as you're inside that
 directory, CLI commands and client libraries will be able to connect to the
 linked instance automatically, without additional configuration.
@@ -587,8 +587,8 @@ Once you've applied the migrations, consider creating some sample data in your
   $ edgedb --dsn <your-instance-dsn> --tls-security insecure
   EdgeDB 1.x (repl 1.x)
   Type \help for help, \quit to quit.
-  edgedb> insert Post { title := "Test post" };
-  {default::Post {id: c00f2c9a-cbf5-11ec-8ecb-4f8e702e5789}}
+  edgedb> insert BlogPost { title := "Test post" };
+  {default::BlogPost {id: c00f2c9a-cbf5-11ec-8ecb-4f8e702e5789}}
 
 
 **#4 Set up a `prebuild` script**
