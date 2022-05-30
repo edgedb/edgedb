@@ -471,9 +471,9 @@ Back in ``pages/index.tsx``, lets update our code to use the inferred
 
      }
 
-Now, when we update our ``selectPosts`` query, the type of our dynamically loaded
-``posts`` variable will update automatically—no need to keep our type
-definitions in sync with our API logic!
+Now, when we update our ``selectPosts`` query, the type of our dynamically
+loaded ``posts`` variable will update automatically—no need to keep
+our type definitions in sync with our API logic!
 
 Rendering blog posts
 --------------------
