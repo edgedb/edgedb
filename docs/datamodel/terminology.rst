@@ -69,7 +69,7 @@ marked as **readonly**.
 
 .. rubric:: Link
 
-Links represent relationships between object types. Like properties, they can
+Links represent relationships between object types. Like properties, they can be 
 marked as readonly and augmented with constraints, annotations, and default
 values. They can optionally contain **link properties**.
 
