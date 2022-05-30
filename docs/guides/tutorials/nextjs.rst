@@ -321,14 +321,20 @@ we inserted earlier.
 
 To fetch these from the homepage, we'll use ``useState``, ``useEffect``, and
 the built-in ``fetch`` API. At the top of the ``HomePage`` component in
-``pages/index.tsx``, replace the static data with .
+``pages/index.tsx``, replace the static data and add the missing imports.
 
 .. code-block:: tsx-diff
 
      // pages/index.tsx
+  +  import {useState, useEffect} from 'react';
 
-     const Home: NextPage = () => {
+     type Post = {
+       id: string;
+       title: string;
+       content: string;
+     };
 
+     const HomePage: NextPage = () => {
   -    const posts: Post[] = [
   -      {
   -        id: 'post1',
@@ -405,13 +411,13 @@ instead.
 
     export const client = createClient();
 
-  + const getPosts = e.select(e.BlogPost, () => ({
+  + const selectPosts = e.select(e.BlogPost, () => ({
   +   id: true,
   +   title: true,
   +   content: true,
   + }));
 
-  + export type GetPosts = $infer<typeof getPosts>;
+  + export type Posts = $infer<typeof selectPosts>;
 
     export default async function handler(
       req: NextApiRequest,
@@ -422,7 +428,7 @@ instead.
   -     title,
   -     content
   -   };`);
-  +   const posts = await getPosts.run(client);
+  +   const posts = await selectPosts.run(client);
       res.status(200).json(posts);
     }
 
@@ -432,7 +438,7 @@ query builder as a single default import ``e`` from the ``dbschema/edgeql-js``
 directory.
 
 We're also using a utility called ``$infer`` to extract the inferred type of
-this query. In VSCode you can hover over ``GetPosts`` to see what this type is.
+this query. In VSCode you can hover over ``Posts`` to see what this type is.
 
 .. image::
     https://www.edgedb.com/docs/tutorials/nextjs/inference.png
@@ -440,7 +446,7 @@ this query. In VSCode you can hover over ``GetPosts`` to see what this type is.
     :width: 100%
 
 Back in ``pages/index.tsx``, lets update our code to use the inferred
-``GetPosts`` type instead of our manual type declaration.
+``Posts`` type instead of our manual type declaration.
 
 .. code-block:: typescript-diff
 
@@ -450,7 +456,7 @@ Back in ``pages/index.tsx``, lets update our code to use the inferred
      import Head from 'next/head';
      import {useEffect, useState} from 'react';
      import styles from '../styles/Home.module.css';
-  +  import {GetPosts} from "./api/post";
+  +  import {Posts} from "./api/post";
 
   -  type Post = {
   -    id: string;
@@ -460,12 +466,12 @@ Back in ``pages/index.tsx``, lets update our code to use the inferred
 
      const Home: NextPage = () => {
 
-  +    const [posts, setPosts] = useState<GetPosts | null>(null);
+  +    const [posts, setPosts] = useState<Posts | null>(null);
        // ...
 
      }
 
-Now, when we update our ``getPosts`` query, the type of our dynamically loaded
+Now, when we update our ``selectPosts`` query, the type of our dynamically loaded
 ``posts`` variable will update automatically—no need to keep our type
 definitions in sync with our API logic!
 
