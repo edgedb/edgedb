@@ -15,7 +15,7 @@ Declare that the current schema enables a particular extension.
 
 .. sdl:synopsis::
 
-    using extensions <ExtensionName> ";"
+    using extension <ExtensionName> ";"
 
 
 Description
