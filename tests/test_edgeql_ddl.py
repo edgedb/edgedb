@@ -7166,6 +7166,49 @@ type default::Foo {
                 };
             """)
 
+    async def test_edgeql_ddl_annotation_18(self):
+        # An annotation on an annotation!
+        await self.con.execute("""
+            CREATE ABSTRACT ANNOTATION ann {
+                CREATE ANNOTATION description := "foo";
+            };
+        """)
+
+        qry = '''
+            WITH MODULE schema
+            SELECT Annotation {
+                annotations: {name, @value}
+            }
+            FILTER .name = 'default::ann'
+        '''
+
+        await self.assert_query_result(
+            qry,
+            [{"annotations": [{"@value": "foo", "name": "std::description"}]}]
+        )
+
+        await self.con.execute("""
+            ALTER ABSTRACT ANNOTATION ann {
+                ALTER ANNOTATION description := "bar";
+            };
+        """)
+
+        await self.assert_query_result(
+            qry,
+            [{"annotations": [{"@value": "bar", "name": "std::description"}]}]
+        )
+
+        await self.con.execute("""
+            ALTER ABSTRACT ANNOTATION ann {
+                DROP ANNOTATION description;
+            };
+        """)
+
+        await self.assert_query_result(
+            qry,
+            [{"annotations": []}]
+        )
+
     async def test_edgeql_ddl_anytype_01(self):
         with self.assertRaisesRegex(
                 edgedb.InvalidPropertyTargetError,

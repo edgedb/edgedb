@@ -18,7 +18,15 @@
 
 ## Generic annotations.
 
-CREATE ABSTRACT ANNOTATION std::title;
 CREATE ABSTRACT ANNOTATION std::description;
-CREATE ABSTRACT ANNOTATION std::deprecated;
+ALTER ABSTRACT ANNOTATION std::description {
+    CREATE ANNOTATION std::description := 'A short documentation string.';
+};
+CREATE ABSTRACT ANNOTATION std::title {
+    CREATE ANNOTATION std::description := 'A human-readable name.';
+};
+CREATE ABSTRACT ANNOTATION std::deprecated {
+    CREATE ANNOTATION std::description :=
+        'A marker that an item is deprecated.';
+};
 CREATE ABSTRACT ANNOTATION std::identifier;

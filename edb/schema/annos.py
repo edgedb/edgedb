@@ -37,24 +37,6 @@ if TYPE_CHECKING:
     from . import schema as s_schema
 
 
-class Annotation(
-    so.QualifiedObject,
-    so.InheritingObject,
-    qlkind=qltypes.SchemaObjectClass.ANNOTATION,
-    data_safe=True,
-):
-
-    inheritable = so.SchemaField(
-        bool, default=False, compcoef=0.2)
-
-    def get_verbosename(self,
-                        schema: s_schema.Schema,
-                        *,
-                        with_parent: bool=False) -> str:
-        vn = super().get_verbosename(schema)
-        return f"abstract {vn}"
-
-
 class AnnotationValue(
     referencing.ReferencedInheritingObject,
     qlkind=qltypes.SchemaObjectClass.ANNOTATION,
@@ -66,11 +48,19 @@ class AnnotationValue(
     subject = so.SchemaField(
         so.Object, compcoef=1.0, default=None, inheritable=False)
 
+    # N.B: This is really an Annotation, and we even patch it up below
+    # to be one, but we can't reference it here because it hasn't been
+    # declared. (And the tricks used for this sort of thing elsewhere
+    # don't work for reflection AS_LINK)
     annotation = so.SchemaField(
-        Annotation, compcoef=0.429, ddl_identity=True)
+        so.Object, compcoef=0.429, ddl_identity=True)
 
     value = so.SchemaField(
         str, compcoef=0.909)
+
+    def get_annotation(self, schema: s_schema.Schema) -> Annotation:
+        return self.get_field_value(  # type: ignore[no-any-return]
+            schema, 'annotation')
 
     def should_propagate(self, schema: s_schema.Schema) -> bool:
         return self.get_annotation(schema).get_inheritable(schema)
@@ -118,11 +108,44 @@ class AnnotationSubject(so.Object):
         return attrval.get_value(schema) if attrval is not None else None
 
 
-class AnnotationCommandContext(sd.ObjectCommandContext[Annotation]):
+class Annotation(
+    so.QualifiedObject,
+    so.InheritingObject,
+    AnnotationSubject,
+    qlkind=qltypes.SchemaObjectClass.ANNOTATION,
+    data_safe=True,
+):
+
+    inheritable = so.SchemaField(
+        bool, default=False, compcoef=0.2)
+
+    def get_verbosename(self,
+                        schema: s_schema.Schema,
+                        *,
+                        with_parent: bool=False) -> str:
+        vn = super().get_verbosename(schema)
+        return f"abstract {vn}"
+
+
+# HACK?: Fix up annotation field in AnnotationValue to have the proper type
+AnnotationValue.get_field('annotation').type = Annotation
+
+
+class AnnotationSubjectCommandContext:
+    pass
+
+
+class AnnotationSubjectCommand(sd.ObjectCommand[so.Object_T]):
+    pass
+
+
+class AnnotationCommandContext(sd.ObjectCommandContext[Annotation],
+                               AnnotationSubjectCommandContext):
     pass
 
 
 class AnnotationCommand(sd.QualifiedObjectCommand[Annotation],
+                        AnnotationSubjectCommand[Annotation],
                         context_class=AnnotationCommandContext):
 
     def get_ast_attr_for_field(
@@ -200,14 +223,6 @@ class AlterAnnotation(AnnotationCommand, sd.AlterObject[Annotation]):
 
 class DeleteAnnotation(AnnotationCommand, sd.DeleteObject[Annotation]):
     astnode = qlast.DropAnnotation
-
-
-class AnnotationSubjectCommandContext:
-    pass
-
-
-class AnnotationSubjectCommand(sd.ObjectCommand[so.Object_T]):
-    pass
 
 
 class AnnotationValueCommandContext(sd.ObjectCommandContext[AnnotationValue]):
