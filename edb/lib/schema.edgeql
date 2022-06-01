@@ -145,12 +145,13 @@ CREATE TYPE schema::Delta EXTENDING schema::Object {
 };
 
 
-CREATE TYPE schema::Annotation EXTENDING schema::Object {
+CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object;
+
+CREATE TYPE schema::Annotation EXTENDING schema::AnnotationSubject {
     CREATE PROPERTY inheritable -> std::bool;
 };
 
-
-CREATE ABSTRACT TYPE schema::AnnotationSubject EXTENDING schema::Object {
+ALTER TYPE schema::AnnotationSubject {
     CREATE MULTI LINK annotations EXTENDING schema::reference
     -> schema::Annotation {
         CREATE PROPERTY value -> std::str;

@@ -604,7 +604,7 @@ def write_meta_create_object(
                 target = cmd.get_attribute_value(target_link)
 
                 append_query = f'''
-                    SELECT schema::{target_field.type.__name__} {{
+                    SELECT DETACHED schema::{target_field.type.__name__} {{
                         {shape}
                     }} FILTER
                         .name__internal = <str>$__{target_link}
@@ -859,7 +859,7 @@ def _update_lprops(
         assignments.append(textwrap.dedent(
             f'''\
             {refdict.attr} += (
-                SELECT schema::{target_clsname} {{{shape}
+                SELECT DETACHED schema::{target_clsname} {{{shape}
                 }} FILTER .id = <uuid>$__{target_link}
             )'''
         ))
@@ -884,7 +884,7 @@ def _update_lprops(
             assignments.append(textwrap.dedent(
                 f'''\
                 {refdict.attr}__internal += (
-                    SELECT schema::{mcls.__name__} {{{shadow_shape}
+                    SELECT DETACHED schema::{mcls.__name__} {{{shadow_shape}
                     }} FILTER .name__internal = <str>$__{target_link}_shadow
                 )'''
             ))
