@@ -132,7 +132,7 @@ The valid SDL sub-declarations are listed below:
     optimize its invocations.
 
     If not explicitly specified the function volatility is set to
-    ``Immutable`` by default.
+    ``Volatile`` by default.
 
     * A ``Volatile`` function can modify the database and can return
       different results on successive calls with the same arguments.
