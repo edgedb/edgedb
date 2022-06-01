@@ -43,9 +43,12 @@ Nonterm = expressions.Nonterm  # type: ignore[misc]
 
 
 def _parse_language(node):
-    try:
-        return qlast.Language(node.val.upper())
-    except ValueError:
+    lang = node.val.upper()
+    if lang == 'SQL':
+        return qlast.Language.SQL
+    elif lang == 'EDGEQL':
+        return qlast.Language.EdgeQL
+    else:
         raise EdgeQLSyntaxError(
             f'{node.val} is not a valid language',
             context=node.context) from None
@@ -316,7 +319,7 @@ class FromFunction(Nonterm):
         lang = qlast.Language.EdgeQL
         self.val = qlast.FunctionCode(
             language=lang,
-            nativecode=kids[1].val)
+            body=kids[1].val)
 
     def reduce_USING_Identifier_BaseStringConstant(self, *kids):
         lang = _parse_language(kids[1])
@@ -349,7 +352,7 @@ class ProcessFunctionBlockMixin:
 
         commands = []
         code = None
-        nativecode = None
+        body = None
         language = qlast.Language.EdgeQL
         from_expr = False
         from_function = None
@@ -364,16 +367,16 @@ class ProcessFunctionBlockMixin:
                     from_function = node.from_function
                     language = qlast.Language.SQL
 
-                elif node.nativecode:
-                    if code is not None or nativecode is not None:
+                elif node.body:
+                    if code is not None or body is not None:
                         raise EdgeQLSyntaxError(
                             'more than one USING <code> clause',
                             context=node.context)
-                    nativecode = node.nativecode
+                    body = node.body
                     language = node.language
 
                 elif node.code:
-                    if code is not None or nativecode is not None:
+                    if code is not None or body is not None:
                         raise EdgeQLSyntaxError(
                             'more than one USING <code> clause',
                             context=node.context)
@@ -388,7 +391,7 @@ class ProcessFunctionBlockMixin:
                 commands.append(node)
 
         if (
-            nativecode is None and
+            body is None and
             code is None and
             from_function is None and
             not from_expr and
@@ -412,7 +415,7 @@ class ProcessFunctionBlockMixin:
                 code=code,
             )
 
-            props['nativecode'] = nativecode
+            props['body'] = body
 
         if commands:
             props['commands'] = commands

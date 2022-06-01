@@ -77,6 +77,15 @@ def module_to_str(module: str) -> str:
     return '.'.join([ident_to_str(part) for part in module.split('.')])
 
 
+def lang_to_str(lang: qlast.Language) -> str:
+    if lang == qlast.Language.EdgeQL:
+        return "EdgeQL"
+    elif lang == qlast.Language.SQL:
+        return "SQL"
+    else:
+        raise AssertionError(f'unexpected language {lang}')
+
+
 class EdgeQLSourceGeneratorError(errors.InternalServerError):
     pass
 
@@ -1823,8 +1832,9 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.write(' ')
 
+            lang = lang_to_str(node.code.language)
             if node.code.from_operator:
-                from_clause = f'USING {node.code.language} OPERATOR '
+                from_clause = f'USING {lang} OPERATOR '
                 self._write_keywords(from_clause)
                 op, *types = node.code.from_operator
                 op_str = op
@@ -1832,7 +1842,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     op_str += f'({",".join(types)})'
                 self.write(f'{op_str!r}', ';')
             if node.code.from_function:
-                from_clause = f'USING {node.code.language} OPERATOR '
+                from_clause = f'USING {lang} OPERATOR '
                 self._write_keywords(from_clause)
                 op, *types = node.code.from_function
                 op_str = op
@@ -1840,10 +1850,10 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                     op_str += f'({",".join(types)})'
                 self.write(f'{op_str!r}', ';')
             if node.code.from_expr:
-                from_clause = f'USING {node.code.language} EXPRESSION'
+                from_clause = f'USING {lang} EXPRESSION'
                 self._write_keywords(from_clause, ';')
             elif node.code.code:
-                from_clause = f'USING {node.code.language} '
+                from_clause = f'USING {lang} '
                 self._write_keywords(from_clause)
                 self.write(
                     edgeql_quote.dollar_quote_literal(
@@ -1911,14 +1921,14 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
 
         had_using = True
         if node.code.from_function:
-            from_clause = f'USING {node.code.language} FUNCTION '
+            from_clause = f'USING {lang_to_str(node.code.language)} FUNCTION '
             self._write_keywords(from_clause)
             self.write(f'{node.code.from_function!r}')
         elif node.code.language is qlast.Language.EdgeQL:
-            if node.nativecode:
+            if node.body:
                 self._write_keywords('USING')
                 self.write(' (')
-                self.visit(node.nativecode)
+                self.visit(node.body)
                 self.write(')')
             elif node.code.code:
                 self._write_keywords('USING')
@@ -1926,7 +1936,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
             else:
                 had_using = False
         else:
-            from_clause = f'USING {node.code.language} '
+            from_clause = f'USING {lang_to_str(node.code.language)} '
             self._write_keywords(from_clause)
             if node.code.code:
                 self.write(edgeql_quote.dollar_quote_literal(
@@ -1995,7 +2005,7 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
                 self.visit_list(commands, terminator=';')
                 self.new_lines = 1
 
-            from_clause = f'USING {node.code.language} '
+            from_clause = f'USING {lang_to_str(node.code.language)} '
             code = ''
 
             if node.code.from_function:

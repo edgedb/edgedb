@@ -1029,7 +1029,7 @@ class AlterCallableObject(
             Optional[qlast.CallableObjectCommand],
             # Skip AlterObject's _get_ast, since we don't want to
             # filter things without subcommands. (Since updating
-            # nativecode isn't a subcommand in the AST.)
+            # body isn't a subcommand in the AST.)
             super(sd.AlterObject, self)._get_ast(
                 schema, context, parent_node=parent_node)
         )
@@ -1202,7 +1202,7 @@ class Function(
     code = so.SchemaField(
         str, default=None, compcoef=0.4)
 
-    nativecode = so.SchemaField(
+    body = so.SchemaField(
         s_expr.Expression, default=None, compcoef=0.9)
 
     language = so.SchemaField(
@@ -1446,8 +1446,8 @@ class FunctionCommand(
         field: str,
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
-        if field == 'nativecode':
-            return 'nativecode'
+        if field == 'body':
+            return 'body'
         else:
             return super().get_ast_attr_for_field(field, astnode)
 
@@ -1470,7 +1470,7 @@ class FunctionCommand(
                     track_schema_ref_exprs=track_schema_ref_exprs,
                 ),
             )
-        elif field.name == 'nativecode':
+        elif field.name == 'body':
             return self.compile_this_function(
                 schema,
                 context,
@@ -1488,7 +1488,7 @@ class FunctionCommand(
         field: so.Field[Any],
         value: Any,
     ) -> Optional[s_expr.Expression]:
-        if field.name == 'nativecode':
+        if field.name == 'body':
             func = schema.get(self.classname, type=Function)
             return func.get_dummy_body(schema)
         else:
@@ -1524,25 +1524,25 @@ class FunctionCommand(
     ) -> s_schema.Schema:
         schema = super().canonicalize_attributes(schema, context)
         # When volatility is altered, we need to force a
-        # reconsideration of nativecode if it exists in order to check
+        # reconsideration of body if it exists in order to check
         # it against the new volatility or compute the volatility on a
         # RESET.  This is kind of unfortunate.
         if (
             isinstance(self, sd.AlterObject)
             and self.has_attribute_value('volatility')
-            and not self.has_attribute_value('nativecode')
-            and (nativecode := self.scls.get_nativecode(schema)) is not None
+            and not self.has_attribute_value('body')
+            and (body := self.scls.get_body(schema)) is not None
         ):
             self.set_attribute_value(
-                'nativecode',
-                s_expr.Expression.not_compiled(nativecode)
+                'body',
+                s_expr.Expression.not_compiled(body)
             )
 
-        # Resolving 'nativecode' has side effects on has_dml and
+        # Resolving 'body' has side effects on has_dml and
         # volatility, so force it to happen as part of
         # canonicalization of attributes.
         super().get_resolved_attribute_value(
-            'nativecode', schema=schema, context=context)
+            'body', schema=schema, context=context)
         return schema
 
     def compile_this_function(
@@ -1668,7 +1668,7 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
 
             if (
                 self.has_attribute_value("code")
-                or self.has_attribute_value("nativecode")
+                or self.has_attribute_value("body")
             ):
                 self.set_attribute_value(
                     'impl_is_strict',
@@ -1741,9 +1741,10 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     f'user-defined functions',
                     context=self.source_context)
             elif language != qlast.Language.EdgeQL:
+                assert language == qlast.Language.SQL
                 raise errors.InvalidFunctionDefinitionError(
                     f'cannot create `{signature}` function: '
-                    f'"USING {language}" is not supported in '
+                    f'"USING SQL" is not supported in '
                     f'user-defined functions',
                     context=self.source_context)
 
@@ -1905,24 +1906,24 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 astnode.code.language,
             )
             if astnode.code.language is qlast.Language.EdgeQL:
-                nativecode_expr: qlast.Base
+                body_expr: qlast.Base
 
-                if astnode.nativecode is not None:
-                    nativecode_expr = astnode.nativecode
+                if astnode.body is not None:
+                    body_expr = astnode.body
                 else:
                     assert astnode.code.code is not None
-                    nativecode_expr = qlparser.parse(astnode.code.code)
+                    body_expr = qlparser.parse(astnode.code.code)
 
-                nativecode = s_expr.Expression.from_ast(
-                    nativecode_expr,
+                body = s_expr.Expression.from_ast(
+                    body_expr,
                     schema,
                     context.modaliases,
                     context.localnames,
                 )
 
                 cmd.set_attribute_value(
-                    'nativecode',
-                    nativecode,
+                    'body',
+                    body,
                 )
             elif astnode.code.from_function is not None:
                 cmd.set_attribute_value(
@@ -2063,11 +2064,11 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                     f'function is allowed',
                     context=self.source_context)
 
-        # If volatility or nativecode changed, propagate that to
+        # If volatility or body changed, propagate that to
         # referring exprs
         if not (
             self.has_attribute_value("volatility")
-            or self.has_attribute_value("nativecode")
+            or self.has_attribute_value("body")
         ):
             return schema
 
@@ -2082,7 +2083,7 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                 get_type(schema)
             )
             extra_refs = {
-                f: ['nativecode'] for f in ov_funcs
+                f: ['body'] for f in ov_funcs
                 if (f_type := f.get_params(schema).objects(schema)[ov_idx].
                     get_type(schema))
                 and f_type != cur_type and cur_type.issubclass(schema, f_type)
@@ -2118,24 +2119,21 @@ class AlterFunction(AlterCallableObject[Function], FunctionCommand):
                     context=astnode.context
                 )
 
-            nativecode_expr: Optional[qlast.Expr] = None
-            if astnode.nativecode is not None:
-                nativecode_expr = astnode.nativecode
+            body_expr: Optional[qlast.Expr] = None
+            if astnode.body is not None:
+                body_expr = astnode.body
             elif astnode.code.code is not None:
-                nativecode_expr = qlparser.parse(astnode.code.code)
+                body_expr = qlparser.parse(astnode.code.code)
 
-            if nativecode_expr is not None:
-                nativecode = s_expr.Expression.from_ast(
-                    nativecode_expr,
+            if body_expr is not None:
+                body = s_expr.Expression.from_ast(
+                    body_expr,
                     schema,
                     context.modaliases,
                     context.localnames,
                 )
 
-                cmd.set_attribute_value(
-                    'nativecode',
-                    nativecode,
-                )
+                cmd.set_attribute_value('body', body)
 
         return cmd
 

@@ -1191,14 +1191,16 @@ class DropAccessPolicy(DropObject, AccessPolicyCommand):
 
 
 class Language(s_enum.StrEnum):
-    SQL = 'SQL'
-    EdgeQL = 'EDGEQL'
+    # We want to expose this in the schema as 'Builtin', hence the
+    # name mismatch.
+    SQL = 'Builtin'
+    EdgeQL = 'EdgeQL'
 
 
 class FunctionCode(Clause):
     language: Language = Language.EdgeQL
     code: typing.Optional[str] = None
-    nativecode: typing.Optional[Expr] = None
+    body: typing.Optional[Expr] = None
     from_function: typing.Optional[str] = None
     from_expr: bool = False
 
@@ -1214,7 +1216,7 @@ class CreateFunction(CreateObject, FunctionCommand):
 
     returning: TypeExpr
     code: FunctionCode
-    nativecode: typing.Optional[Expr]
+    body: typing.Optional[Expr]
     returning_typemod: qltypes.TypeModifier = \
         qltypes.TypeModifier.SingletonType
 
@@ -1222,7 +1224,7 @@ class CreateFunction(CreateObject, FunctionCommand):
 class AlterFunction(AlterObject, FunctionCommand):
 
     code: FunctionCode = FunctionCode  # type: ignore
-    nativecode: typing.Optional[Expr]
+    body: typing.Optional[Expr]
 
 
 class DropFunction(DropObject, FunctionCommand):

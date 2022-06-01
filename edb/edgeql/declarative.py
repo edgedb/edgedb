@@ -854,8 +854,8 @@ def trace_Function(
         else:
             params[param.name] = s_name.QualName('std', 'BaseObject')
 
-    if node.nativecode is not None:
-        deps.append(FunctionDependency(expr=node.nativecode, params=params))
+    if node.body is not None:
+        deps.append(FunctionDependency(expr=node.body, params=params))
     elif (
         node.code is not None
         and node.code.language is qlast.Language.EdgeQL

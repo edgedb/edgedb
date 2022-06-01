@@ -49,6 +49,9 @@ CREATE SCALAR TYPE schema::AccessPolicyAction
 CREATE SCALAR TYPE schema::AccessKind
     EXTENDING enum<`Select`, UpdateRead, UpdateWrite, `Delete`, `Insert`>;
 
+CREATE SCALAR TYPE schema::FuncLanguage
+    EXTENDING enum<EdgeQL, Builtin>;
+
 
 # Base type for all schema entities.
 CREATE ABSTRACT TYPE schema::Object EXTENDING std::BaseObject {
@@ -439,6 +442,9 @@ CREATE TYPE schema::Function
     CREATE PROPERTY preserves_optionality -> std::bool {
         SET default := false;
     };
+
+    CREATE REQUIRED PROPERTY language -> schema::FuncLanguage;
+    CREATE PROPERTY body -> str;
 
     CREATE MULTI LINK used_globals EXTENDING schema::ordered -> schema::Global;
 };

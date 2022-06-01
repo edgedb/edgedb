@@ -949,29 +949,29 @@ class FunctionCommand(MetaCommand):
         )
 
     def fix_return_type(
-            self, func: s_funcs.Function, nativecode, schema, context):
+            self, func: s_funcs.Function, body, schema, context):
 
         return_type = func.get_return_type(schema)
-        ir = nativecode.irast
+        ir = body.irast
 
         if not (
             return_type.is_object_type()
             or s_types.is_type_compatible(return_type, ir.stype,
-                                          schema=nativecode.schema)
+                                          schema=body.schema)
         ):
             # Add a cast and recompile it
             qlexpr = qlcompiler.astutils.ensure_qlstmt(ql_ast.TypeCast(
                 type=s_utils.typeref_to_ast(schema, return_type),
-                expr=nativecode.qlast,
+                expr=body.qlast,
             ))
-            nativecode = self._compile_edgeql_function(
+            body = self._compile_edgeql_function(
                 schema,
                 context,
                 func,
-                type(nativecode).from_ast(qlexpr, schema),
+                type(body).from_ast(qlexpr, schema),
             )
 
-        return nativecode
+        return body
 
     def compile_edgeql_function_body(
         self,
@@ -979,19 +979,19 @@ class FunctionCommand(MetaCommand):
         schema: s_schema.Schema,
         context: sd.CommandContext,
     ) -> str:
-        nativecode = func.get_nativecode(schema)
-        if nativecode.irast is None:
-            nativecode = self._compile_edgeql_function(
+        body = func.get_body(schema)
+        if body.irast is None:
+            body = self._compile_edgeql_function(
                 schema,
                 context,
                 func,
-                nativecode,
+                body,
             )
 
-        nativecode = self.fix_return_type(func, nativecode, schema, context)
+        body = self.fix_return_type(func, body, schema, context)
 
         sql_text, _ = compiler.compile_ir_to_sql(
-            nativecode.irast,
+            body.irast,
             ignore_shapes=True,
             explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                 schema, func.get_return_type(schema)),
@@ -1096,17 +1096,17 @@ class FunctionCommand(MetaCommand):
             """
 
     def compile_edgeql_function(self, func: s_funcs.Function, schema, context):
-        nativecode = func.get_nativecode(schema)
+        body = func.get_body(schema)
 
-        if nativecode.irast is None:
-            nativecode = self._compile_edgeql_function(
+        if body.irast is None:
+            body = self._compile_edgeql_function(
                 schema,
                 context,
                 func,
-                nativecode,
+                body,
             )
 
-        nativecode = self.fix_return_type(func, nativecode, schema, context)
+        body = self.fix_return_type(func, body, schema, context)
 
         replace = False
 
@@ -1118,7 +1118,7 @@ class FunctionCommand(MetaCommand):
             replace = True
         else:
             body, _ = compiler.compile_ir_to_sql(
-                nativecode.irast,
+                body.irast,
                 ignore_shapes=True,
                 explicit_top_cast=irtyputils.type_to_typeref(  # note: no cache
                     schema, func.get_return_type(schema)),
@@ -1327,7 +1327,7 @@ class AlterFunction(FunctionCommand, adapts=s_funcs.AlterFunction):
 
         if (
             self.get_attribute_value('volatility') is not None or
-            self.get_attribute_value('nativecode') is not None
+            self.get_attribute_value('body') is not None
         ):
             self.pgops.update(
                 self.make_op(self.scls, schema, context, or_replace=True))
@@ -1342,14 +1342,14 @@ class DeleteFunction(FunctionCommand, adapts=s_funcs.DeleteFunction):
         context: sd.CommandContext,
     ) -> s_schema.Schema:
         func = self.get_object(schema, context)
-        nativecode = func.get_nativecode(schema)
+        body = func.get_body(schema)
 
-        if func.get_code(schema) or nativecode:
+        if func.get_code(schema) or body:
             # An EdgeQL or a SQL function
             # (not just an alias to a SQL function).
 
             overload = False
-            if nativecode and func.find_object_param_overloads(schema):
+            if body and func.find_object_param_overloads(schema):
                 dbf, overload_replace = self.compile_edgeql_function(
                     func, schema, context)
                 if overload_replace:
