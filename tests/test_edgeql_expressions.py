@@ -969,6 +969,10 @@ class TestExpressions(tb.QueryTestCase):
             for i in range(1000):
                 a = random.randrange(-maxval, maxval)
                 b = random.randrange(-maxval, maxval)
+                # Can't divide by 0
+                if b == 0:
+                    b = random.randrange(1, maxval)
+
                 vals.append([i, a, b, a // b])
 
             nums, arr1, arr2, _ = zip(*vals)
@@ -1001,6 +1005,10 @@ class TestExpressions(tb.QueryTestCase):
             for i in range(1000):
                 a = random.randrange(-maxval, maxval)
                 b = random.randrange(-maxval, maxval)
+                # Can't divide by 0
+                if b == 0:
+                    b = random.randrange(1, maxval)
+
                 vals.append([i, a, b, a % b])
 
             nums, arr1, arr2, _ = zip(*vals)
