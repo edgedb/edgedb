@@ -180,6 +180,8 @@ cdef class EdgeConnection:
 
     cdef write_log(self, EdgeSeverity severity, uint32_t code, str message)
 
+    cdef bytes _describe_state(self)
+
 
 @cython.final
 cdef class VirtualTransport:

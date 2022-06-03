@@ -601,6 +601,10 @@ cdef class EdgeConnection:
             b'system_config',
             self.server.get_report_config_data()
         )
+        self.write_status(
+            b'session_state_description',
+            self._describe_state(),
+        )
 
         self.write(self.sync_status())
 
@@ -2311,6 +2315,15 @@ cdef class EdgeConnection:
             out_buf.write_int32(0x00010001)
 
         return out_buf
+
+    cdef bytes _describe_state(self):
+        cdef WriteBuffer buf = WriteBuffer.new()
+        type_id, type_data = self.get_dbview().describe_state(
+            self.protocol_version
+        )
+        buf.write_bytes(type_id.bytes)
+        buf.write_len_prefixed_bytes(type_data)
+        return bytes(buf)
 
     def connection_made(self, transport):
         if not self.server._accepting_connections:

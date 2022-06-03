@@ -32,6 +32,7 @@ from edb.common import uuidgen
 
 from edb.protocol import enums as p_enums
 
+from edb.schema import globals as s_globals
 from edb.schema import links as s_links
 from edb.schema import objects as s_obj
 from edb.schema import objtypes as s_objtypes
@@ -67,7 +68,7 @@ CTYPE_TUPLE = b'\x04'
 CTYPE_NAMEDTUPLE = b'\x05'
 CTYPE_ARRAY = b'\x06'
 CTYPE_ENUM = b'\x07'
-
+CTYPE_INPUT_SHAPE = b'\x08'
 CTYPE_ANNO_TYPENAME = b'\xff'
 
 EMPTY_BYTEARRAY = bytearray()
@@ -392,6 +393,52 @@ class TypeSerializer:
             raise errors.InternalServerError(
                 f'cannot describe type {t.get_name(self.schema)}')
 
+    def describe_input_shape(
+        self, t, input_shapes, protocol_version,
+        prepare_state: bool = False,
+    ):
+        if t in input_shapes:
+            element_names = []
+            subtypes = []
+            for name, subtype in input_shapes[t].items():
+                subtype_id = self.describe_input_shape(
+                    subtype, input_shapes, protocol_version
+                )
+                element_names.append(name)
+                subtypes.append(subtype_id)
+
+            if prepare_state:
+                return
+
+            self.schema, mt = t.material_type(self.schema)
+            base_type_id = mt.id
+
+            type_id = self._get_object_type_id(
+                base_type_id, subtypes, element_names
+            )
+
+            if type_id in self.uuid_to_pos:
+                return type_id
+
+            buf = self.buffer
+            buf.append(CTYPE_INPUT_SHAPE)
+            buf.append(type_id.bytes)
+
+            assert len(subtypes) == len(element_names)
+            buf.append(_uint16_packer(len(subtypes)))
+
+            zipped_parts = zip(element_names, subtypes)
+            for el_name, el_type in zipped_parts:
+                el_name_bytes = el_name.encode('utf-8')
+                buf.append(_uint32_packer(len(el_name_bytes)))
+                buf.append(el_name_bytes)
+                buf.append(_uint16_packer(self.uuid_to_pos[el_type]))
+
+            self._register_type_id(type_id)
+            return type_id
+        else:
+            return self._describe_type(t, {}, {}, protocol_version)
+
     def _add_annotation(self, t: s_types.Type):
         self.anno_buffer.append(CTYPE_ANNO_TYPENAME)
 
@@ -540,6 +587,18 @@ class TypeSerializer:
                 cardinalities=cardinalities,
             )
 
+        elif t == CTYPE_INPUT_SHAPE:
+            els = desc.read_ui16()
+            fields = {}
+            for _ in range(els):
+                name = desc.read_len32_prefixed_bytes().decode()
+                pos = desc.read_ui16()
+                fields[name] = codecs_list[pos]
+            return InputShapeDesc(
+                tid=tid,
+                fields=fields,
+            )
+
         elif t == CTYPE_BASE_SCALAR:
             return BaseScalarDesc(tid=tid)
 
@@ -604,10 +663,143 @@ class TypeSerializer:
             raise errors.InternalServerError('could not parse type descriptor')
         return codecs_list[-1]
 
+    def derive(self, schema) -> TypeSerializer:
+        rv = type(self)(schema, inline_typenames=self.inline_typenames)
+        rv.buffer = self.buffer.copy()
+        rv.anno_buffer = self.anno_buffer.copy()
+        rv.uuid_to_pos = self.uuid_to_pos.copy()
+        return rv
+
+
+class StateSerializerFactory:
+    def __init__(self, std_schema: s_schema.FlatSchema):
+        """
+        {
+            module := 'default',
+            aliases := [ ('alias', 'module::target'), ... ],
+            config := cfg::Config {
+                session_idle_transaction_timeout: <duration>'0:05:00',
+                query_execution_timeout: <duration>'0:00:00',
+                allow_dml_in_functions: false,
+                allow_bare_ddl: AlwaysAllow,
+                apply_access_policies: true,
+            },
+            globals := { key := value, ... },
+        }
+
+        """
+        schema = std_schema
+        str_type = schema.get('std::str')
+        schema, state_type = simple_derive_type(
+            schema, 'std::FreeObject', 'state_type'
+        )
+        self._input_shapes = input_shapes = {}
+        self._state_type = state_type
+        input_shapes[state_type] = state_shape = {}
+
+        # module := 'default'
+        state_shape['module'] = str_type
+
+        # aliases := { ('alias1', 'mod::type'), ... }
+        schema, alias_tuple = s_types.Tuple.from_subtypes(
+            schema, [str_type, str_type])
+        schema, aliases_array = s_types.Array.from_subtypes(
+            schema, [alias_tuple])
+        state_shape['aliases'] = aliases_array
+
+        # config := cfg::Config { session_cfg1, session_cfg2, ... }
+        schema, config_type = simple_derive_type(
+            schema, 'cfg::Config', 'state_config'
+        )
+        input_shapes[config_type] = config_shape = {}
+        from edb.server.config import get_settings
+        for setting in get_settings().values():
+            if not setting.system:
+                config_shape[setting.name] = setting.s_type
+        state_shape['config'] = config_type
+
+        self._schema = schema
+        self._builders = {}
+
+    def make(
+        self, user_schema, global_schema, protocol_version
+    ) -> StateSerializer:
+        if protocol_version in self._builders:
+            builder = self._builders[protocol_version]
+        else:
+            builder = self._builders[protocol_version] = TypeSerializer(
+                self._schema
+            )
+            builder.describe_input_shape(
+                self._state_type,
+                self._input_shapes,
+                protocol_version,
+                prepare_state=True,
+            )
+        schema = builder.schema
+        schema, globals_type = simple_derive_type(
+            schema, 'std::FreeObject', 'state_globals'
+        )
+        schema = s_schema.ChainedSchema(schema, user_schema, global_schema)
+        input_shapes = self._input_shapes.copy()
+        input_shapes[globals_type] = globals_shape = {}
+        for g in schema.get_objects(type=s_globals.Global):
+            globals_shape[str(g.get_name(schema))] = g.get_target(schema)
+        input_shapes[self._state_type]['globals'] = globals_type
+
+        builder = builder.derive(schema)
+        type_id = builder.describe_input_shape(
+            self._state_type, input_shapes, protocol_version
+        )
+        type_data = b''.join(builder.buffer)
+        codec = TypeSerializer.parse(type_data, protocol_version)
+
+        return StateSerializer(type_id, type_data, codec)
+
+
+class StateSerializer:
+    def __init__(
+        self, type_id: uuidgen.UUID, type_data: bytes, codec: TypeDesc
+    ):
+        self._type_id = type_id
+        self._type_data = type_data
+        self._codec = codec
+
+    def describe(self) -> typing.Tuple[uuidgen.UUID, bytes]:
+        return self._type_id, self._type_data
+
+    def encode(self, state) -> bytes:
+        return self._codec.encode(state)
+
+    def decode(self, state: bytes):
+        return self._codec.decode(state)
+
+
+def simple_derive_type(schema, parent, qualifier):
+    s_type = schema.get(parent)
+    return s_type.derive_subtype(
+        schema,
+        name=s_obj.derive_name(
+            schema,
+            qualifier,
+            module='__derived__',
+            parent=s_type,
+        ),
+        mark_derived=True,
+        transient=True,
+        inheritance_refdicts={'pointers'},
+    )
+
 
 @dataclasses.dataclass(frozen=True)
 class TypeDesc:
     tid: uuidgen.UUID
+
+    def encode(self, state) -> bytes:
+        raise NotImplementedError
+
+    def decode(self, state: bytes):
+        raise NotImplementedError
 
 
 @dataclasses.dataclass(frozen=True)
@@ -651,3 +843,8 @@ class EnumDesc(TypeDesc):
 class ArrayDesc(TypeDesc):
     dim_len: int
     subtype: TypeDesc
+
+
+@dataclasses.dataclass(frozen=True)
+class InputShapeDesc(TypeDesc):
+    fields: typing.Dict[str, TypeDesc]

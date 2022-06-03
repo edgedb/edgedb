@@ -288,6 +288,37 @@ Enumeration Type Descriptor
     };
 
 
+
+Input Shape Descriptor
+======================
+
+.. code-block:: c
+
+    struct InputShapeDescriptor {
+        // Indicates that this is an
+        // Object Shape descriptor.
+        uint8           type = 8;
+
+        // Descriptor ID.
+        uuid            id;
+
+        // Number of elements in shape.
+        uint16          element_count;
+
+        InputShape      elements[element_count];
+    };
+
+    struct InputShape {
+        // Field name.
+        string          name;
+
+        // Field type descriptor index.
+        uint16          type_pos;
+    };
+
+Objects are encoded on the wire as :ref:`sparse tuples <...>`.
+
+
 Scalar Type Name Annotation
 ===========================
 
