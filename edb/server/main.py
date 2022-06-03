@@ -172,6 +172,14 @@ async def _run_server(
     if sockets:
         logger.info("detected service manager socket activation")
 
+    if fd_str := os.environ.get("EDGEDB_SERVER_EXTERNAL_LOCK_FD"):
+        try:
+            fd = int(fd_str)
+        except ValueError:
+            logger.info("Invalid EDGEDB_SERVER_EXTERNAL_LOCK_FD")
+        else:
+            os.set_inheritable(fd, False)
+
     with signalctl.SignalController(signal.SIGINT, signal.SIGTERM) as sc:
         ss = server.Server(
             cluster=cluster,
