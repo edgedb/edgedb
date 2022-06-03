@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import *
 
 import re
+import struct
 
 from edb import errors
 
@@ -30,6 +31,13 @@ class ScalarType:
         raise NotImplementedError
 
     def to_backend_str(self) -> str:
+        raise NotImplementedError
+
+    def encode(self) -> bytes:
+        raise NotImplementedError
+
+    @classmethod
+    def decode(cls, data: bytes):
         raise NotImplementedError
 
 
@@ -131,6 +139,8 @@ class Duration(ScalarType):
         )?
         $
     ''', re.X)
+
+    _codec = struct.Struct('!QLL')
 
     _value: int  # microseconds
 
@@ -294,6 +304,13 @@ class Duration(ScalarType):
 
     def __repr__(self) -> str:
         return f'<statypes.Duration {self.to_iso8601()!r}>'
+
+    def encode(self) -> bytes:
+        return self._codec.pack(self._value, 0, 0)
+
+    @classmethod
+    def decode(cls, data: bytes):
+        return cls(microseconds=cls._codec.unpack(data)[0])
 
 
 class ConfigMemory(ScalarType):

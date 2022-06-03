@@ -39,6 +39,7 @@ from edb.schema import objtypes as s_objtypes
 from edb.schema import scalars as s_scalars
 from edb.schema import schema as s_schema
 from edb.schema import types as s_types
+from edb.ir import statypes
 
 from . import enums
 
@@ -72,6 +73,22 @@ CTYPE_INPUT_SHAPE = b'\x08'
 CTYPE_ANNO_TYPENAME = b'\xff'
 
 EMPTY_BYTEARRAY = bytearray()
+
+
+def _encode_str(data: str) -> bytes:
+    return data.encode('utf-8')
+
+
+def _decode_str(data: bytes) -> str:
+    return data.decode('utf-8')
+
+
+def _encode_bool(data: bool) -> bytes:
+    return b'\x01' if data else b'\x00'
+
+
+def _decode_bool(data: bytes) -> bool:
+    return bool(data[0])
 
 
 def cardinality_from_ptr(ptr, schema) -> enums.Cardinality:
@@ -590,13 +607,17 @@ class TypeSerializer:
         elif t == CTYPE_INPUT_SHAPE:
             els = desc.read_ui16()
             fields = {}
-            for _ in range(els):
+            fields_list = []
+            for idx in range(els):
                 name = desc.read_len32_prefixed_bytes().decode()
                 pos = desc.read_ui16()
-                fields[name] = codecs_list[pos]
+                codec = codecs_list[pos]
+                fields[name] = idx, codec
+                fields_list.append((name, codec))
             return InputShapeDesc(
                 tid=tid,
                 fields=fields,
+                fields_list=fields_list,
             )
 
         elif t == CTYPE_BASE_SCALAR:
@@ -753,6 +774,7 @@ class StateSerializerFactory:
         )
         type_data = b''.join(builder.buffer)
         codec = TypeSerializer.parse(type_data, protocol_version)
+        codec.fields['globals'][1].__dict__['data_raw'] = True
 
         return StateSerializer(type_id, type_data, codec)
 
@@ -765,14 +787,20 @@ class StateSerializer:
         self._type_data = type_data
         self._codec = codec
 
+    @property
+    def type_id(self):
+        return self._type_id
+
     def describe(self) -> typing.Tuple[uuidgen.UUID, bytes]:
         return self._type_id, self._type_data
 
-    def encode(self, state) -> bytes:
-        return self._codec.encode(state)
+    def encode(self, state) -> typing.Tuple[uuidgen.UUID, bytes]:
+        return self._type_id, self._codec.encode(state)
 
-    def decode(self, state: bytes):
-        return self._codec.decode(state)
+    def decode(self, type_id: bytes, state: bytes):
+        if type_id != self._type_id.bytes:
+            raise RuntimeError("StateMismatchError")
+        return self._type_id, self._codec.decode(state)
 
 
 def simple_derive_type(schema, parent, qualifier):
@@ -795,10 +823,10 @@ def simple_derive_type(schema, parent, qualifier):
 class TypeDesc:
     tid: uuidgen.UUID
 
-    def encode(self, state) -> bytes:
+    def encode(self, data) -> bytes:
         raise NotImplementedError
 
-    def decode(self, state: bytes):
+    def decode(self, data: bytes):
         raise NotImplementedError
 
 
@@ -821,7 +849,30 @@ class ScalarDesc(TypeDesc):
 
 @dataclasses.dataclass(frozen=True)
 class BaseScalarDesc(TypeDesc):
-    pass
+    codecs = {
+        s_obj.get_known_type_id('std::duration'): (
+            statypes.Duration.encode,
+            statypes.Duration.decode,
+        ),
+        s_obj.get_known_type_id('std::str'): (
+            _encode_str,
+            _decode_str,
+        ),
+        s_obj.get_known_type_id('std::bool'): (
+            _encode_bool,
+            _decode_bool,
+        ),
+    }
+
+    def encode(self, data) -> bytes:
+        if codecs := self.codecs.get(self.tid):
+            return codecs[0](data)
+        raise NotImplementedError
+
+    def decode(self, data: bytes):
+        if codecs := self.codecs.get(self.tid):
+            return codecs[1](data)
+        raise NotImplementedError
 
 
 @dataclasses.dataclass(frozen=True)
@@ -832,6 +883,25 @@ class NamedTupleDesc(TypeDesc):
 @dataclasses.dataclass(frozen=True)
 class TupleDesc(TypeDesc):
     fields: typing.List[TypeDesc]
+
+    def encode(self, data) -> bytes:
+        bufs = [_uint32_packer(len(self.fields))]
+        for idx, desc in enumerate(self.fields):
+            bufs.append(_uint32_packer(0))
+            item = desc.encode(data[idx])
+            bufs.append(_uint32_packer(len(item)))
+            bufs.append(item)
+        return b''.join(bufs)
+
+    def decode(self, data: bytes):
+        buf = io.BytesIO(data)
+        wrapped = binwrapper.BinWrapper(buf)
+        assert wrapped.read_ui32() == len(self.fields)
+        rv = []
+        for desc in self.fields:
+            wrapped.read_ui32()
+            rv.append(desc.decode(wrapped.read_len32_prefixed_bytes()))
+        return tuple(rv)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -844,7 +914,74 @@ class ArrayDesc(TypeDesc):
     dim_len: int
     subtype: TypeDesc
 
+    def encode(self, data) -> bytes:
+        bufs = [
+            _uint32_packer(1),
+            _uint32_packer(0),
+            _uint32_packer(0),
+            _uint32_packer(len(data)),
+            _uint32_packer(1),
+        ]
+        for item in data:
+            if item is None:
+                bufs.append(_int32_packer(-1))
+            else:
+                item_bytes = self.subtype.encode(item)
+                bufs.append(_uint32_packer(len(item_bytes)))
+                bufs.append(item_bytes)
+        return b''.join(bufs)
+
+    def decode(self, data: bytes):
+        buf = io.BytesIO(data)
+        wrapped = binwrapper.BinWrapper(buf)
+        assert wrapped.read_ui32() == 1
+        wrapped.read_ui32()
+        wrapped.read_ui32()
+        data_len = wrapped.read_ui32()
+        assert wrapped.read_ui32() == 1
+        rv = []
+        for _ in range(data_len):
+            rv.append(
+                self.subtype.decode(wrapped.read_len32_prefixed_bytes())
+            )
+        return rv
+
 
 @dataclasses.dataclass(frozen=True)
 class InputShapeDesc(TypeDesc):
-    fields: typing.Dict[str, TypeDesc]
+    fields: typing.Dict[str, typing.Tuple[int, TypeDesc]]
+    fields_list: typing.List[typing.Tuple[str, TypeDesc]]
+    data_raw: bool = False
+
+    def encode(self, data) -> bytes:
+        bufs = [b'']
+        count = 0
+        for key, value in data.items():
+            if value is None:
+                continue
+            desc_tuple = self.fields.get(key)
+            if not desc_tuple:
+                raise NotImplementedError
+            idx, desc = desc_tuple
+            bufs.append(_uint32_packer(idx))
+            if not self.data_raw:
+                value = desc.encode(value)
+            bufs.append(_uint32_packer(len(value)))
+            bufs.append(value)
+            count += 1
+        bufs[0] = _uint32_packer(count)
+        return b''.join(bufs)
+
+    def decode(self, data: bytes):
+        rv = {}
+        buf = io.BytesIO(data)
+        wrapped = binwrapper.BinWrapper(buf)
+        for _ in range(wrapped.read_ui32()):
+            idx = wrapped.read_ui32()
+            name, desc = self.fields_list[idx]
+            data = wrapped.read_len32_prefixed_bytes()
+            if self.data_raw:
+                rv[name] = data
+            else:
+                rv[name] = desc.decode(data)
+        return rv

@@ -28,6 +28,7 @@ import immutables
 
 from edb import errors
 from edb.common import lru, uuidgen
+from edb.edgeql import qltypes
 from edb.schema import extensions as s_ext
 from edb.schema import schema as s_schema
 from edb.server import defines, config
@@ -181,6 +182,7 @@ cdef class DatabaseConnectionView:
         self._modaliases = DEFAULT_MODALIASES
         self._config = DEFAULT_CONFIG
         self._globals = DEFAULT_GLOBALS
+        self._session_state_db_cache = None
         self._session_state_cache = None
 
         self._db_config_temp = None
@@ -389,9 +391,9 @@ cdef class DatabaseConnectionView:
         if self._config == DEFAULT_CONFIG:
             return DEFAULT_STATE
 
-        if self._session_state_cache is not None:
-            if self._session_state_cache[0] == self._config:
-                return self._session_state_cache[1]
+        if self._session_state_db_cache is not None:
+            if self._session_state_db_cache[0] == self._config:
+                return self._session_state_db_cache[1]
 
         state = []
         if self._config:
@@ -403,11 +405,78 @@ cdef class DatabaseConnectionView:
                 state.append({"name": sval.name, "value": jval, "type": kind})
 
         spec = json.dumps(state).encode('utf-8')
-        self._session_state_cache = (self._config, spec)
+        self._session_state_db_cache = (self._config, spec)
         return spec
 
     cdef describe_state(self, protocol_version):
         return self._db.get_state_serializer(protocol_version).describe()
+
+    cdef encode_state(self, protocol_version):
+        serializer = self._db.get_state_serializer(protocol_version)
+        modaliases = self.get_modaliases()
+        session_config = self.get_session_config()
+        globals_ = self.get_globals()
+        if self._session_state_cache is not None:
+            if serializer.type_id != self._session_state_cache[3]:
+                raise ValueError('StateSerializationError')
+            if (
+                modaliases, session_config, globals_
+            ) == self._session_state_cache[:3]:
+                return self._session_state_cache[3:]
+        try:
+            module = modaliases[None]
+        except KeyError:
+            module = defines.DEFAULT_MODULE_ALIAS
+        else:
+            modaliases = modaliases.delete(None)
+        state = {
+            'module': module,
+            'aliases': list(modaliases.items()),
+            'config': {k: v.value for k, v in session_config.items()},
+            'globals': {k: v.value for k, v in globals_.items()},
+        }
+        return serializer.encode(state)
+
+    cdef decode_state(self, type_id, data, protocol_version):
+        if type_id == b'\0' * 16:
+            self.set_modaliases(DEFAULT_MODALIASES)
+            self.set_session_config(DEFAULT_CONFIG)
+            self.set_globals(DEFAULT_GLOBALS)
+            self._session_state_cache = None
+            return
+
+        if self._session_state_cache is not None:
+            if type_id == self._session_state_cache[3].bytes:
+                if data == self._session_state_cache[4]:
+                    return
+
+        serializer = self._db.get_state_serializer(protocol_version)
+        type_id, state = serializer.decode(type_id, data)
+        aliases = dict(state.get('aliases', []))
+        aliases[None] = state.get('module', defines.DEFAULT_MODULE_ALIAS)
+        aliases = immutables.Map(aliases)
+        session_config = immutables.Map({
+            k: config.SettingValue(
+                name=k,
+                value=v,
+                source='session',
+                scope=qltypes.ConfigScope.SESSION,
+            ) for k, v in state.get('config', {}).items()
+        })
+        globals_ = immutables.Map({
+            k: config.SettingValue(
+                name=k,
+                value=v,
+                source='global',
+                scope=qltypes.ConfigScope.GLOBAL,
+            ) for k, v in state.get('globals', {}).items()
+        })
+        self.set_modaliases(aliases)
+        self.set_session_config(session_config)
+        self.set_globals(globals_)
+        self._session_state_cache = (
+            aliases, session_config, globals_, type_id, data
+        )
 
     property txid:
         def __get__(self):

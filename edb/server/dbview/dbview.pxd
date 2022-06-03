@@ -87,6 +87,7 @@ cdef class DatabaseConnectionView:
 
         object _modaliases
         object _in_tx_modaliases
+        tuple _session_state_db_cache
         tuple _session_state_cache
 
         object _eql_to_compiled
@@ -156,3 +157,5 @@ cdef class DatabaseConnectionView:
 
     cdef bytes serialize_state(self)
     cdef describe_state(self, protocol_version)
+    cdef encode_state(self, protocol_version)
+    cdef decode_state(self, type_id, data, protocol_version)
