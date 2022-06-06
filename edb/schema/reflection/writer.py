@@ -193,7 +193,7 @@ def _build_object_mutation_shape(
     variables: Dict[str, str] = {}
     if isinstance(cmd, sd.CreateObject):
         empties = {
-            f: None for f, v in layout.items()
+            v.fieldname: None for f, v in layout.items()
             if (
                 f != 'backend_id'
                 and v.storage is not None
@@ -206,6 +206,8 @@ def _build_object_mutation_shape(
         all_props = props
 
     for n, v in sorted(all_props.items(), key=lambda i: i[0]):
+        ns = mcls.get_field(n).sname
+
         lprop_target = lprop_fields.get(n)
         if lprop_target is not None:
             target, ftype = lprop_target
@@ -215,7 +217,7 @@ def _build_object_mutation_shape(
         elif lprops_only:
             continue
         else:
-            layout_entry = layout.get(n)
+            layout_entry = layout.get(ns)
             if layout_entry is None:
                 # The field is ephemeral, skip it.
                 continue
@@ -275,7 +277,7 @@ def _build_object_mutation_shape(
 
         elif n == 'name':
             target_expr = f'<str>${var_n}'
-            assignments.append(f'{n}__internal := <str>${var_n}__internal')
+            assignments.append(f'{ns}__internal := <str>${var_n}__internal')
             if v is not None:
                 target_value = mcls.get_displayname_static(v)
                 variables[f'{var_n}__internal'] = json.dumps(str(v))
@@ -342,7 +344,7 @@ def _build_object_mutation_shape(
                 f'sys::_expr_from_json(<json>${var_n}_expr)'
             )
 
-            assignments.append(f'{n}__internal := {shadow_target_expr}')
+            assignments.append(f'{ns}__internal := {shadow_target_expr}')
             if v is not None:
                 ids = [str(i) for i in v.refs.ids(schema)]
                 variables[f'{var_n}_expr'] = json.dumps(
@@ -379,7 +381,7 @@ def _build_object_mutation_shape(
                 )
             '''
 
-            assignments.append(f'{n}__internal := {shadow_target_expr}')
+            assignments.append(f'{ns}__internal := {shadow_target_expr}')
 
         elif isinstance(target, s_types.Array):
             eltype = target.get_element_type(schema)
@@ -410,9 +412,9 @@ def _build_object_mutation_shape(
                 target_value = str(v)
 
         if lprop_target is not None:
-            assignments.append(f'@{n} := {target_expr}')
+            assignments.append(f'@{ns} := {target_expr}')
         else:
-            assignments.append(f'{n} := {target_expr}')
+            assignments.append(f'{ns} := {target_expr}')
 
         variables[var_n] = json.dumps(target_value)
 

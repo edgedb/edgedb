@@ -1985,7 +1985,8 @@ class ObjectCommand(Command, Generic[so.Object_T]):
                     if fn == 'expr':
                         fdesc = 'expression'
                     else:
-                        fdesc = f"{fn.replace('_', ' ')} expression"
+                        sfn = type(ref).get_field(fn).sname
+                        fdesc = f"{sfn.replace('_', ' ')} expression"
 
                     vn = ref.get_verbosename(schema, with_parent=True)
 
