@@ -741,6 +741,8 @@ class TestIntrospection(tb.QueryTestCase):
                             type: { name },
                         } ORDER BY @index
                     },
+                    language,
+                    body,
                 }
                 FILTER
                     .name IN {'std::count', 'sys::get_version'}
@@ -770,7 +772,9 @@ class TestIntrospection(tb.QueryTestCase):
                     "return_type": {
                         "name": "std::int64",
                         "element_types": [],
-                    }
+                    },
+                    "language": "builtin",
+                    "body": None,
                 },
                 {
                     "name": "sys::get_version",
@@ -795,8 +799,10 @@ class TestIntrospection(tb.QueryTestCase):
                             {"name": "local",
                              "type": {"name": "array<std::str>"}}
                         ]
-                    }
-                }
+                    },
+                    "language": "EdgeQL",
+                    "body": str,
+                },
             ]
         )
 

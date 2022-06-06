@@ -440,6 +440,9 @@ CREATE TYPE schema::Function
         SET default := false;
     };
 
+    CREATE PROPERTY body -> str;
+    CREATE REQUIRED PROPERTY language -> str;
+
     CREATE MULTI LINK used_globals EXTENDING schema::ordered -> schema::Global;
 };
 

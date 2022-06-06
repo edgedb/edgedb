@@ -1203,10 +1203,15 @@ class Function(
         str, default=None, compcoef=0.4)
 
     nativecode = so.SchemaField(
-        s_expr.Expression, default=None, compcoef=0.9)
+        s_expr.Expression, default=None, compcoef=0.9,
+        reflection_name='body')
 
     language = so.SchemaField(
-        qlast.Language, default=None, compcoef=0.4, coerce=True)
+        qlast.Language, default=None, compcoef=0.4, coerce=True,
+        reflection_name='language_real')
+
+    reflected_language = so.SchemaField(
+        str, reflection_name='language')
 
     from_function = so.SchemaField(
         str, default=None, compcoef=0.4)
@@ -1898,6 +1903,8 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
         cmd = super()._cmd_tree_from_ast(schema, astnode, context)
         assert isinstance(cmd, CreateFunction)
 
+        reflected_language = 'builtin'
+
         assert isinstance(astnode, qlast.CreateFunction)
         if astnode.code is not None:
             cmd.set_attribute_value(
@@ -1905,6 +1912,8 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                 astnode.code.language,
             )
             if astnode.code.language is qlast.Language.EdgeQL:
+                reflected_language = 'EdgeQL'
+
                 nativecode_expr: qlast.Base
 
                 if astnode.nativecode is not None:
@@ -1942,6 +1951,8 @@ class CreateFunction(CreateCallableObject[Function], FunctionCommand):
                     'code',
                     astnode.code.code,
                 )
+
+        cmd.set_attribute_value('reflected_language', reflected_language)
 
         return cmd
 
