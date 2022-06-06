@@ -1772,7 +1772,7 @@ class TestSchema(tb.BaseSchemaLoadTest):
         with self.assertRaisesRegex(
             errors.SchemaDefinitionError,
             r"cannot alter property 'val' of object type 'default::Foo' "
-            r"because this affects nativecode expression of "
+            r"because this affects body expression of "
             r"function 'default::foo\(v:.+int64\)'"
         ):
             self.run_ddl(schema, r'''
