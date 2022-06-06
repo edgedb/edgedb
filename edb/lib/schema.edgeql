@@ -232,13 +232,15 @@ ALTER TYPE schema::Constraint {
 };
 
 
-CREATE TYPE schema::Index EXTENDING schema::AnnotationSubject {
+CREATE TYPE schema::Index
+    EXTENDING schema::InheritingObject, schema::AnnotationSubject
+{
     CREATE PROPERTY expr -> std::str;
 };
 
 
 CREATE ABSTRACT TYPE schema::Source EXTENDING schema::Object {
-    CREATE MULTI LINK indexes -> schema::Index {
+    CREATE MULTI LINK indexes EXTENDING schema::reference -> schema::Index {
         CREATE CONSTRAINT std::exclusive;
         ON TARGET DELETE ALLOW;
     };
