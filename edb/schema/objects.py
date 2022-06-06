@@ -247,7 +247,7 @@ class ComparisonContext:
 # derived from ProtoField for validation
 class Field(struct.ProtoField, Generic[T]):
 
-    __slots__ = ('name', 'type', 'coerce',
+    __slots__ = ('name', 'sname', 'type', 'coerce',
                  'compcoef', 'inheritable', 'simpledelta',
                  'merge_fn', 'ephemeral',
                  'allow_ddl_set', 'ddl_identity', 'special_ddl_syntax',
@@ -257,6 +257,9 @@ class Field(struct.ProtoField, Generic[T]):
 
     #: Name of the field on the target class; assigned by ObjectMeta
     name: str
+    #: The name to use when reflecting the field into the schema.
+    #: The same as name by default, but can be overridden.
+    sname: str
     #: The type of the value stored in the field
     type: Type[T]
     #: Specifies if *type* is a generic type of the host object
@@ -329,6 +332,7 @@ class Field(struct.ProtoField, Generic[T]):
         reflection_method: ReflectionMethod = ReflectionMethod.REGULAR,
         reflection_proxy: Optional[Tuple[str, str]] = None,
         name: Optional[str] = None,
+        reflection_name: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         """Schema item core attribute definition.
@@ -356,6 +360,8 @@ class Field(struct.ProtoField, Generic[T]):
 
         if name is not None:
             self.name = name
+        if reflection_name is not None:
+            self.sname = reflection_name
 
         if (
             merge_fn is default_field_merge
@@ -620,6 +626,8 @@ class ObjectMeta(type):
                     f'expected, got {type(field)}')
 
             field.name = k
+            if not hasattr(field, 'sname'):
+                field.sname = k
             myfields[k] = field
             del clsdict[k]
 

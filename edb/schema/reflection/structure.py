@@ -77,12 +77,14 @@ class SchemaFieldDesc(NamedTuple):
     cardinality: qltypes.SchemaCardinality
     properties: Dict[str, Tuple[s_types.Type, FieldType]]
     fieldname: str
+    schema_fieldname: str
     is_ordered: bool = False
     reflection_proxy: Optional[Tuple[str, str]] = None
     storage: Optional[FieldStorage] = None
     is_refdict: bool = False
 
 
+# N.B: Indexed by schema_fieldname
 SchemaTypeLayout = Dict[str, SchemaFieldDesc]
 
 
@@ -416,6 +418,8 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
         ownfields = py_cls.get_ownfields()
 
         for fn, field in py_cls.get_fields().items():
+            sfn = field.sname
+
             if (
                 field.ephemeral
                 or (
@@ -427,7 +431,7 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
             storage = _classify_object_field(field)
 
-            ptr = schema_objtype.maybe_get_ptr(schema, sn.UnqualName(fn))
+            ptr = schema_objtype.maybe_get_ptr(schema, sn.UnqualName(sfn))
 
             if fn in ownfields:
                 qual = "REQUIRED" if field.required else "OPTIONAL"
@@ -437,7 +441,7 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                         f'''
                             ALTER TYPE {rschema_name} {{
                                 CREATE {qual}
-                                {storage.ptrkind} {fn} -> {storage.ptrtype}
+                                {storage.ptrkind} {sfn} -> {storage.ptrtype}
                                 {otd};
                             }}
                         ''',
@@ -447,7 +451,7 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                     ptr = schema_objtype.getptr(schema, sn.UnqualName(fn))
 
                 if storage.shadow_ptrkind is not None:
-                    pn = f'{fn}__internal'
+                    pn = f'{sfn}__internal'
                     internal_ptr = schema_objtype.maybe_get_ptr(
                         schema, sn.UnqualName(pn))
                     if internal_ptr is None:
@@ -468,7 +472,7 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                 assert ptr is not None
 
             if is_concrete:
-                read_ptr = fn
+                read_ptr = sfn
 
                 if field.type_is_generic_self:
                     read_ptr = f'{read_ptr}[IS {rschema_name}]'
@@ -485,7 +489,7 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                 read_shape.append(read_ptr)
 
                 if storage.shadow_ptrkind is not None:
-                    read_shape.append(f'{fn}__internal')
+                    read_shape.append(f'{sfn}__internal')
 
             if field.reflection_proxy:
                 proxy_type_name, proxy_link_name = field.reflection_proxy
@@ -499,8 +503,9 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
             assert tgt is not None
             cardinality = ptr.get_cardinality(schema)
             assert cardinality is not None
-            classlayout[py_cls][fn] = SchemaFieldDesc(
+            classlayout[py_cls][sfn] = SchemaFieldDesc(
                 fieldname=fn,
+                schema_fieldname=sfn,
                 type=tgt,
                 cardinality=cardinality,
                 properties={},
@@ -600,15 +605,16 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
                 extra_props = _classify_scalar_object_fields(fields_as_props)
 
-            for fn, storage in {**props, **extra_props}.items():
-                prop_ptr = ref_ptr.maybe_get_ptr(schema, sn.UnqualName(fn))
+            for field, storage in {**props, **extra_props}.items():
+                sfn = field.sname
+                prop_ptr = ref_ptr.maybe_get_ptr(schema, sn.UnqualName(sfn))
                 if prop_ptr is None:
                     pty = storage.ptrtype
                     schema = _run_ddl(
                         f'''
                             ALTER TYPE {rschema_name} {{
                                 ALTER LINK {refdict.attr} {{
-                                    CREATE OPTIONAL PROPERTY {fn} -> {pty};
+                                    CREATE OPTIONAL PROPERTY {sfn} -> {pty};
                                 }}
                             }}
                         ''',
@@ -619,16 +625,18 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
             if shadow_ref_ptr is not None:
                 assert isinstance(shadow_ref_ptr, s_links.Link)
                 shadow_pn = shadow_ref_ptr.get_shortname(schema).name
-                for fn, storage in props.items():
+                for field, storage in props.items():
+                    sfn = field.sname
                     prop_ptr = shadow_ref_ptr.maybe_get_ptr(
-                        schema, sn.UnqualName(fn))
+                        schema, sn.UnqualName(sfn))
                     if prop_ptr is None:
                         pty = storage.ptrtype
                         schema = _run_ddl(
                             f'''
                                 ALTER TYPE {rschema_name} {{
                                     ALTER LINK {shadow_pn} {{
-                                        CREATE OPTIONAL PROPERTY {fn} -> {pty};
+                                        CREATE OPTIONAL PROPERTY {sfn}
+                                            -> {pty};
                                     }}
                                 }}
                             ''',
@@ -655,6 +663,7 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
             assert cardinality is not None
             classlayout[py_cls][refdict.attr] = SchemaFieldDesc(
                 fieldname=refdict.attr,
+                schema_fieldname=refdict.attr,
                 type=tgt,
                 cardinality=cardinality,
                 properties={},
@@ -679,11 +688,11 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
             prop_layout = {}
             extra_prop_layout = {}
 
-            for fn, storage in props.items():
-                prop_ptr = ref_ptr.getptr(schema, sn.UnqualName(fn))
+            for field, storage in props.items():
+                prop_ptr = ref_ptr.getptr(schema, sn.UnqualName(field.sname))
                 prop_tgt = prop_ptr.get_target(schema)
                 assert prop_tgt is not None
-                prop_layout[fn] = (prop_tgt, storage.fieldtype)
+                prop_layout[field.name] = (prop_tgt, storage.fieldtype)
 
             if reflect_as_link:
                 # Then, because it's a passthrough reflection, all scalar
@@ -704,11 +713,13 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
 
                 extra_props = _classify_scalar_object_fields(fields_as_props)
 
-                for fn, storage in extra_props.items():
-                    prop_ptr = ref_ptr.getptr(schema, sn.UnqualName(fn))
+                for field, storage in extra_props.items():
+                    prop_ptr = ref_ptr.getptr(
+                        schema, sn.UnqualName(field.sname))
                     prop_tgt = prop_ptr.get_target(schema)
                     assert prop_tgt is not None
-                    extra_prop_layout[fn] = (prop_tgt, storage.fieldtype)
+                    extra_prop_layout[field.name] = (
+                        prop_tgt, storage.fieldtype)
             else:
                 extra_prop_layout = {}
 
@@ -722,9 +733,11 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                     type=s_objtypes.ObjectType,
                 )
 
-                classlayout[py_cls][f'{refdict.attr}__internal'] = (
+                iname = f'{refdict.attr}__internal'
+                classlayout[py_cls][iname] = (
                     SchemaFieldDesc(
                         fieldname=refdict.attr,
+                        schema_fieldname=iname,
                         type=shadow_tgt,
                         cardinality=qltypes.SchemaCardinality.Many,
                         properties=prop_layout,
@@ -743,8 +756,9 @@ def generate_structure(schema: s_schema.Schema) -> SchemaReflectionParts:
                         sn.UnqualName(f'{refdict.attr}__internal'),
                     )
 
-                for fn in props:
-                    prop_shape_els.append(f'@{fn}')
+                for field in props:
+                    sfn = field.sname
+                    prop_shape_els.append(f'@{sfn}')
 
                 if prop_shape_els:
                     prop_shape = ',\n'.join(prop_shape_els)
@@ -796,7 +810,7 @@ def _get_reflected_link_props(
     ref_ptr: s_links.Link,
     target_cls: Type[s_obj.Object],
     schema: s_schema.Schema,
-) -> Dict[str, FieldStorage]:
+) -> Dict[s_obj.Field[Any], FieldStorage]:
 
     fields = [
         f
@@ -815,7 +829,7 @@ def _get_reflected_link_props(
 
 def _classify_scalar_object_fields(
     fields: Sequence[s_obj.Field[Any]],
-) -> Dict[str, FieldStorage]:
+) -> Dict[s_obj.Field[Any], FieldStorage]:
 
     props = {}
 
@@ -825,6 +839,6 @@ def _classify_scalar_object_fields(
         if storage.ptrkind != 'property' and fn != 'id':
             continue
 
-        props[fn] = storage
+        props[field] = storage
 
     return props
