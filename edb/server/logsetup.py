@@ -32,16 +32,19 @@ from edb.common import term
 
 
 LOG_LEVELS = {
-    'S': 'SILENT',
+    'T': 'TRACE',
     'D': 'DEBUG',
     'I': 'INFO',
-    'E': 'ERROR',
     'W': 'WARN',
+    'E': 'ERROR',
+    'C': 'CRITICAL',
+    'S': 'SILENT',
+    'TRACE': 'TRACE',
+    'DEBUG': 'DEBUG',
+    'INFO': 'INFO',
     'WARN': 'WARN',
     'ERROR': 'ERROR',
     'CRITICAL': 'CRITICAL',
-    'INFO': 'INFO',
-    'DEBUG': 'DEBUG',
     'SILENT': 'SILENT'
 }
 
@@ -196,10 +199,9 @@ def setup_logging(log_level, log_destination):
         handler = logging.FileHandler(log_destination)
         handler.setFormatter(fmt)
 
-    log_level = logging._checkLevel(log_level)
-
     logger = logging.getLogger()
-    logger.setLevel(log_level)
+    py_log_level = 'DEBUG' if log_level == 'TRACE' else log_level
+    logger.setLevel(py_log_level)
     logger.addHandler(handler)
 
     # Channel warnings into logging system

@@ -398,9 +398,12 @@ class Cluster(BaseCluster):
         if settings:
             settings_args = ['--{}={}'.format(k.replace('_', '-'), v)
                              for k, v in settings.items()]
-            extra_args = ['-o'] + [' '.join(settings_args)]
+            extra_args = [f"--options={' '.join(settings_args)}"]
         else:
             extra_args = []
+
+        if self._log_level == 't':
+            extra_args.append('--options=--debug')
 
         await _run_logged_subprocess(
             [self._pg_ctl, 'init', '-D', str(self._data_dir)] + extra_args,
@@ -450,10 +453,12 @@ class Cluster(BaseCluster):
             start_settings['log_statement'] = 'all'
         else:
             log_level_map = {
+                't': 'DEBUG2',
                 'd': 'INFO',
                 'i': 'NOTICE',
                 'w': 'WARNING',
                 'e': 'ERROR',
+                'c': 'PANIC',
                 's': 'PANIC',
             }
             start_settings['log_min_messages'] = log_level_map[self._log_level]
