@@ -24,7 +24,6 @@ import decimal
 from edb import errors
 from edb.ir import statypes
 from edb.testbase import server as tb
-from edb.tools import test
 
 
 class TestEdgeQLDT(tb.QueryTestCase):
@@ -48,7 +47,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
         COMMIT MIGRATION;
     '''
 
-    async def test_edgeql_dt_realativedelta(self):
+    async def test_edgeql_dt_realativedelta_01(self):
         await self.assert_query_result(
             r"SELECT <cal::relative_duration>'1 year 2 seconds'",
             ['P1YT2S'],
@@ -58,6 +57,12 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r"SELECT <str><cal::relative_duration>'1 year 2 seconds'",
             ['P1YT2S'],
+        )
+
+        await self.assert_query_result(
+            r"SELECT <json><cal::relative_duration><json>'1 year 2 seconds'",
+            ['P1YT2S'],
+            ['"P1YT2S"'],
         )
 
         await self.assert_query_result(
@@ -95,7 +100,9 @@ class TestEdgeQLDT(tb.QueryTestCase):
                 rd := <cal::relative_duration>'3 years 2 months 14 days'
             SELECT (d + rd, rd + d, d - rd)
             """,
-            [('2003-03-15', '2003-03-15', '1996-10-18')],
+            [('2003-03-15T00:00:00',
+              '2003-03-15T00:00:00',
+              '1996-10-18T00:00:00')],
         )
 
         await self.assert_query_result(
@@ -214,11 +221,120 @@ class TestEdgeQLDT(tb.QueryTestCase):
 
         with self.assertRaisesRegex(
                 edgedb.InvalidValueError,
-                'value for domain duration_t violates .* "duration_t_check"'):
+                "invalid value for scalar type 'std::duration'"):
             await self.con.query(r"""
                 WITH rd := <cal::relative_duration>'1y'
                 SELECT <duration>rd
                 """)
+
+    async def test_edgeql_dt_realativedelta_02(self):
+        await self.assert_query_result(
+            r"SELECT <str><cal::date_duration>'1 year 2 days'",
+            ['P1Y2D'],
+        )
+
+        await self.assert_query_result(
+            r"SELECT <json><cal::date_duration><json>'1 year 2 days'",
+            ['P1Y2D'],
+            ['"P1Y2D"'],
+        )
+
+        await self.assert_query_result(
+            r"""
+            WITH
+                dt := <datetime>'2000-01-01T00:00:00Z',
+                rd := <cal::date_duration>'3 years 2 months 14 days'
+            SELECT (dt + rd, rd + dt, dt - rd)
+            """,
+            [(
+                '2003-03-15T00:00:00+00:00',
+                '2003-03-15T00:00:00+00:00',
+                '1996-10-18T00:00:00+00:00',
+            )],
+        )
+
+        await self.assert_query_result(
+            r"""
+            WITH
+                dt := <cal::local_datetime>'2000-01-01T00:00:00',
+                rd := <cal::date_duration>'3 years 2 months 14 days'
+            SELECT (dt + rd, rd + dt, dt - rd)
+            """,
+            [(
+                '2003-03-15T00:00:00',
+                '2003-03-15T00:00:00',
+                '1996-10-18T00:00:00',
+            )],
+        )
+
+        await self.assert_query_result(
+            r"""
+            WITH
+                d := <cal::local_date>'2000-01-01',
+                rd := <cal::date_duration>'3 years 2 months 14 days'
+            SELECT (d + rd, rd + d, d - rd)
+            """,
+            [('2003-03-15', '2003-03-15', '1996-10-18')],
+        )
+
+        await self.assert_query_result(
+            r" SELECT <json><cal::date_duration>'3y2d' ",
+            ['P3Y2D'],
+            ['"P3Y2D"'],
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT (
+                to_str(
+                    <cal::date_duration>'3y' +
+                    <cal::date_duration>'1d'
+                ),
+                to_str(<cal::date_duration>'3y1d', 'YYYY"y"DD"d"'),
+            )
+            """,
+            [['P3Y1D', '0003y01d']],
+        )
+
+        await self.assert_query_result(
+            r"""
+            SELECT <str>cal::to_date_duration(
+                years := 1,
+                months := 2,
+                days := 3,
+            )
+            """,
+            ['P1Y2M3D'],
+        )
+
+        await self.assert_query_result(
+            r"""
+            WITH
+                x := <cal::date_duration>'1y',
+                y := <cal::date_duration>'5y',
+            SELECT (
+                <str>max({x, y}),
+                <str>min({x, y}),
+            )
+            """,
+            [['P5Y', 'P1Y']],
+        )
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                "invalid input syntax for type cal::date_duration: '1s'"):
+            async with self.con.transaction():
+                await self.con.query(r"""
+                    SELECT <str><cal::date_duration>'1s'
+                    """)
+
+        with self.assertRaisesRegex(
+                edgedb.InvalidValueError,
+                "invalid input syntax for type cal::date_duration: '1s'"):
+            async with self.con.transaction():
+                await self.con.query(r"""
+                    SELECT <str><cal::date_duration><json>'1s'
+                    """)
 
     async def test_edgeql_dt_datetime_01(self):
         await self.assert_query_result(
@@ -527,30 +643,33 @@ class TestEdgeQLDT(tb.QueryTestCase):
             ['2017-10-09T13:11:00'],
         )
 
-    @test.not_implemented('local_datetime diff is cal::relative_duration')
     async def test_edgeql_dt_local_datetime_02(self):
         await self.assert_query_result(
             r'''SELECT <cal::local_datetime>'2017-10-11T00:00:00' -
                 <cal::local_datetime>'2017-10-10T00:00:00';''',
-            ['24:00:00'],
+            ['P1D'],
+            [edgedb.RelativeDuration(days=1)],
         )
 
         await self.assert_query_result(
             r'''SELECT <cal::local_datetime>'2018-10-10T00:00:00' -
                 <cal::local_datetime>'2017-10-10T00:00:00';''',
-            ['8760:00:00'],
+            ['P365D'],
+            [edgedb.RelativeDuration(days=365)],
         )
 
         await self.assert_query_result(
             r'''SELECT <cal::local_datetime>'2017-10-17T01:02:03.004005' -
                 <cal::local_datetime>'2017-10-10T00:00:00';''',
-            ['169:02:03.004005'],
+            ['P7DT1H2M3.004005S'],
+            [edgedb.RelativeDuration(days=7, microseconds=3723004005)],
         )
 
         await self.assert_query_result(
             r'''SELECT <cal::local_datetime>'2017-10-10T01:02:03.004005' -
                 <cal::local_datetime>'2017-10-10T00:00:00';''',
-            ['01:02:03.004005'],
+            ['PT1H2M3.004005S'],
+            [edgedb.RelativeDuration(microseconds=3723004005)],
         )
 
     async def test_edgeql_dt_local_datetime_03(self):
@@ -664,42 +783,42 @@ class TestEdgeQLDT(tb.QueryTestCase):
             r'''SELECT
                     <cal::local_date>'2017-10-10' + <duration>'24 hours';
             ''',
-            ['2017-10-11'],
+            ['2017-10-11T00:00:00'],
         )
 
         await self.assert_query_result(
             r'''SELECT
                 <duration>'24 hours' + <cal::local_date>'2017-10-10';
             ''',
-            ['2017-10-11'],
+            ['2017-10-11T00:00:00'],
         )
 
         await self.assert_query_result(
             r'''SELECT <cal::local_date>'2017-10-10' - <duration>'24 hours';
             ''',
-            ['2017-10-09'],
+            ['2017-10-09T00:00:00'],
         )
 
-    @test.not_implemented(
-        'local date diff should return cal::relative_duration')
     async def test_edgeql_dt_local_date_02(self):
         await self.assert_query_result(
-            r'''SELECT <cal::local_date>'2017-10-11' -
-                <cal::local_date>'2017-10-10';''',
-            ['24:00:00'],
+            r'''select <str>(
+                    <cal::local_date>'2017-10-11' -
+                    <cal::local_date>'2017-10-10');''',
+            ['P1D'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <cal::local_date>'2018-10-10' -
-                <cal::local_date>'2017-10-10';''',
-            ['8760:00:00'],
+            r'''select <str>(
+                    <cal::local_date>'2018-10-10' -
+                    <cal::local_date>'2017-10-10');''',
+            ['P365D'],
         )
 
     async def test_edgeql_dt_local_date_03(self):
         # Corner case which interprets month in a fuzzy way.
         await self.assert_query_result(
             r'''
-            with dur := <cal::relative_duration>'1 month'
+            with dur := <cal::date_duration>'1 month'
             select <cal::local_date>'2021-01-31' + dur;
             ''',
             ['2021-02-28'],
@@ -709,7 +828,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             with
-                dur := <cal::relative_duration>'1 month',
+                dur := <cal::date_duration>'1 month',
                 date := <cal::local_date>'2021-01-31',
             select date + (dur + dur) = (date + dur) + dur;
             ''',
@@ -720,7 +839,7 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             with
-                dur := <cal::relative_duration>'1 month',
+                dur := <cal::date_duration>'1 month',
                 date := <cal::local_date>'2021-01-31',
             select date + dur - dur = date;
             ''',
@@ -731,9 +850,9 @@ class TestEdgeQLDT(tb.QueryTestCase):
         await self.assert_query_result(
             r'''
             with
-                m1 := <cal::relative_duration>'1 month',
-                m11 := <cal::relative_duration>'11 month',
-                y1 := <cal::relative_duration>'1 year',
+                m1 := <cal::date_duration>'1 month',
+                m11 := <cal::date_duration>'11 month',
+                y1 := <cal::date_duration>'1 year',
                 date := <cal::local_date>'2021-01-31',
             select (
                 # duration alone
@@ -751,86 +870,96 @@ class TestEdgeQLDT(tb.QueryTestCase):
             r'''select <cal::local_date>'2021-04-30' +
                 <cal::relative_duration>'1 hr' +
                 <cal::relative_duration>'1 month';''',
-            ['2021-05-30'],
+            ['2021-05-30T01:00:00'],
         )
 
         await self.assert_query_result(
             r'''select <cal::local_date>'2021-04-30' +
                 <cal::relative_duration>'1 month' +
                 <cal::relative_duration>'1 hr';''',
-            ['2021-05-30'],
+            ['2021-05-30T01:00:00'],
         )
 
         await self.assert_query_result(
             r'''select <cal::local_date>'2021-04-30' +
                 <cal::relative_duration>'1 hr 1 month';''',
-            ['2021-05-30'],
+            ['2021-05-30T01:00:00'],
         )
 
         await self.assert_query_result(
             r'''select <cal::local_date>'2021-04-30' +
                 <cal::relative_duration>'1 month 1 hr';''',
-            ['2021-05-30'],
+            ['2021-05-30T01:00:00'],
         )
 
     async def test_edgeql_dt_local_date_05(self):
-        # Order in which different parts of relative_duration is applied.
+        # Order in which different parts of date_duration is applied.
         await self.assert_query_result(
             r'''select <cal::local_date>'2021-04-30' +
-                <cal::relative_duration>'1 day' +
-                <cal::relative_duration>'1 month';''',
+                <cal::date_duration>'1 day' +
+                <cal::date_duration>'1 month';''',
             ['2021-06-01'],
         )
 
         await self.assert_query_result(
             r'''select <cal::local_date>'2021-04-30' +
-                <cal::relative_duration>'1 month' +
-                <cal::relative_duration>'1 day';''',
+                <cal::date_duration>'1 month' +
+                <cal::date_duration>'1 day';''',
             ['2021-05-31'],
         )
 
         await self.assert_query_result(
             r'''select <cal::local_date>'2021-04-30' +
-                <cal::relative_duration>'1 day 1 month';''',
+                <cal::date_duration>'1 day 1 month';''',
             ['2021-05-31'],
         )
 
         await self.assert_query_result(
             r'''select <cal::local_date>'2021-04-30' +
-                <cal::relative_duration>'1 month 1 day';''',
+                <cal::date_duration>'1 month 1 day';''',
             ['2021-05-31'],
         )
 
     async def test_edgeql_dt_local_date_06(self):
-        # Fractional day values are ignored when doing local_date arithmetic.
+        # Fractional day values make the result fractional
         await self.assert_query_result(
             r'''select <cal::local_date>'2021-04-30' +
                 <cal::relative_duration>'20 hr' +
                 <cal::relative_duration>'20 hr';''',
-            ['2021-04-30'],
+            ['2021-05-01T16:00:00'],
         )
 
-    @test.not_implemented('local_time diff is cal::relative_duration')
     async def test_edgeql_dt_local_time_01(self):
         await self.assert_query_result(
-            r'''SELECT <cal::local_time>'10:01:01' + <duration>'24 hours';''',
+            r'''select <cal::local_time>'10:01:01' +
+                <cal::relative_duration>'24 hours';''',
             ['10:01:01'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <duration>'1 hour' + <cal::local_time>'10:01:01';''',
+            r'''select <cal::relative_duration>'1 hour' +
+                <cal::local_time>'10:01:01';''',
             ['11:01:01'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <cal::local_time>'10:01:01' - <duration>'1 hour';''',
+            r'''select <cal::local_time>'10:01:01' -
+                <cal::relative_duration>'1 hour';''',
             ['09:01:01'],
         )
 
         await self.assert_query_result(
-            r'''SELECT <cal::local_time>'01:02:03.004005' -
+            r'''select <cal::local_time>'01:02:03.004005' -
                 <cal::local_time>'00:00:00';''',
-            ['01:02:03.004005'],
+            ['PT1H2M3.004005S'],
+            [edgedb.RelativeDuration(microseconds=3723004005)],
+        )
+
+        await self.assert_query_result(
+            r'''select <cal::local_time>'01:02:03.004005' -
+                <cal::local_time>'10:00:00';''',
+            ['PT-8H-57M-56.995995S'],
+            [edgedb.RelativeDuration(microseconds=-32276995995)],
         )
 
     async def test_edgeql_dt_sequence_01(self):
