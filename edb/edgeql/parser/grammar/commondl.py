@@ -152,6 +152,14 @@ class OptOnExpr(Nonterm):
         self.val = kids[0].val
 
 
+class OptExceptExpr(Nonterm):
+    def reduce_empty(self, *kids):
+        self.val = None
+
+    def reduce_EXCEPT_ParenExpr(self, *kids):
+        self.val = kids[1].val
+
+
 class OptConcreteConstraintArgList(Nonterm):
     def reduce_LPAREN_OptPosCallArgList_RPAREN(self, *kids):
         self.val = kids[1].val

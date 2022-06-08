@@ -207,3 +207,10 @@ type CollectionTest {
     property str_array -> array<str>;
     property float_array -> array<float32>;
 }
+
+type ExceptTest {
+    required property name -> str;
+    property deleted -> bool;
+    constraint exclusive on (.name) except (.deleted);
+};
+type ExceptTestSub extending ExceptTest;

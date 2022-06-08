@@ -1117,6 +1117,7 @@ class ConcreteConstraintOp(ConstraintCommand):
     __abstract_node__ = True
     args: typing.List[Expr]
     subjectexpr: typing.Optional[Expr]
+    except_expr: typing.Optional[Expr] = None
 
 
 class CreateConcreteConstraint(ConcreteConstraintOp, CreateObject):
@@ -1135,6 +1136,7 @@ class IndexCommand(ObjectDDL):
 
     __abstract_node__ = True
     expr: Expr
+    except_expr: typing.Optional[Expr] = None
     object_class: qltypes.SchemaObjectClass = (
         qltypes.SchemaObjectClass.INDEX)
 

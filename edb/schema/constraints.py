@@ -135,6 +135,14 @@ class Constraint(
         s_expr.Expression,
         default=None, compcoef=0.909, coerce=True)
 
+    except_expr = so.SchemaField(
+        s_expr.Expression,
+        default=None,
+        coerce=True,
+        compcoef=0.909,
+        ddl_identity=True,
+    )
+
     subject = so.SchemaField(
         so.Object, default=None, inheritable=False)
 
@@ -404,6 +412,13 @@ class ConstraintCommand(
             expr = s_expr.Expression.from_ast(
                 astnode.subjectexpr, schema, context.modaliases)
             exprs.append(expr.text)
+        if astnode.except_expr:
+            # use the normalized text directly from the expression
+            expr = s_expr.Expression.from_ast(
+                astnode.except_expr, schema, context.modaliases)
+            # but mangle it a bit, so that we can distinguish between
+            # on and except when only one is present
+            exprs.append('!' + expr.text)
 
         return (cls._name_qual_from_exprs(schema, exprs),)
 
@@ -466,7 +481,15 @@ class ConstraintCommand(
         else:
             subj_expr_ql = edgeql.parse_fragment(subj_expr.text)
 
-        astnode = astnode_cls(name=nref, args=args, subjectexpr=subj_expr_ql)
+        except_expr = parent.get_except_expr(schema)
+        if except_expr:
+            except_expr_ql = except_expr.qlast
+        else:
+            except_expr_ql = None
+
+        astnode = astnode_cls(
+            name=nref, args=args, subjectexpr=subj_expr_ql,
+            except_expr=except_expr_ql)
 
         return cast(qlast.ObjectDDL, astnode)
 
@@ -503,7 +526,7 @@ class ConstraintCommand(
                     )
                 return value
 
-            elif field.name in {'subjectexpr', 'finalexpr'}:
+            elif field.name in {'subjectexpr', 'finalexpr', 'except_expr'}:
                 return s_expr.Expression.compiled(
                     value,
                     schema=schema,
@@ -592,7 +615,7 @@ class ConstraintCommand(
         field: str,
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
-        if field in ('subjectexpr', 'args'):
+        if field in ('subjectexpr', 'args', 'except_expr'):
             return field
         elif (
             field == 'delegated'
@@ -783,23 +806,38 @@ class ConstraintCommand(
                 context=sourcectx
             )
 
+        except_expr = attrs.get('except_expr')
+        if except_expr:
+            if isinstance(subject, s_pointers.Pointer):
+                raise errors.InvalidConstraintDefinitionError(
+                    "only object constraints may use EXCEPT",
+                    context=sourcectx
+                )
+
         if subjectexpr is not None:
             assert isinstance(subject_obj, (s_types.Type, s_pointers.Pointer))
             singletons = frozenset({subject_obj})
 
+            options = qlcompiler.CompilerOptions(
+                anchors={qlast.Subject().name: subject},
+                path_prefix_anchor=qlast.Subject().name,
+                singletons=singletons,
+                apply_query_rewrites=not context.stdmode,
+            )
+
             final_subjectexpr = s_expr.Expression.compiled(
-                subjectexpr,
-                schema=schema,
-                options=qlcompiler.CompilerOptions(
-                    anchors={qlast.Subject().name: subject},
-                    path_prefix_anchor=qlast.Subject().name,
-                    singletons=singletons,
-                    apply_query_rewrites=not context.stdmode,
-                ),
+                subjectexpr, schema=schema, options=options
             )
             assert isinstance(final_subjectexpr.irast, ir_ast.Statement)
-
             refs = ir_utils.get_longest_paths(final_expr.irast)
+
+            if except_expr:
+                final_except_expr = s_expr.Expression.compiled(
+                    except_expr, schema=schema, options=options
+                )
+                assert final_except_expr.irast
+                refs |= ir_utils.get_longest_paths(final_except_expr.irast)
+
             has_multi = False
             for ref in refs:
                 while ref.rptr:
@@ -1161,6 +1199,19 @@ class CreateConstraint(
                 'subjectexpr',
                 subjectexpr,
             )
+
+        if (
+            isinstance(astnode, qlast.CreateConcreteConstraint)
+            and astnode.except_expr
+        ):
+            except_expr = s_expr.Expression.from_ast(
+                astnode.except_expr,
+                schema,
+                context.modaliases,
+                context.localnames,
+            )
+
+            cmd.set_attribute_value('except_expr', except_expr)
 
         cls._validate_subcommands(astnode)
         assert isinstance(cmd, CreateConstraint)

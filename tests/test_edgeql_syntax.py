@@ -4314,6 +4314,20 @@ aa';
             USING (((__subject__ != 'bad') and (__subject__ != 'terrible')));
         """
 
+    def test_edgeql_syntax_ddl_constraint_14(self):
+        """
+        ALTER TYPE Foo {
+            CREATE CONSTRAINT exclusive ON (.name) EXCEPT (.reject);
+        };
+        """
+
+    def test_edgeql_syntax_ddl_constraint_15(self):
+        """
+        ALTER TYPE Foo {
+            DROP CONSTRAINT exclusive ON (.name) EXCEPT (.reject);
+        };
+        """
+
     def test_edgeql_syntax_ddl_function_01(self):
         """
         CREATE FUNCTION std::strlen(string: std::str) -> std::int64
@@ -5325,6 +5339,8 @@ aa';
             CREATE INDEX ON (.title);
 
             CREATE INDEX ON (SELECT __subject__.title);
+
+            CREATE INDEX ON (.foo) EXCEPT (.bar);
         };
         """
 
@@ -5342,6 +5358,12 @@ aa';
             };
 
             ALTER INDEX ON (.title) {
+                DROP ANNOTATION system;
+            };
+
+            DROP INDEX ON (.foo) EXCEPT (.bar);
+
+            ALTER INDEX ON (.foo) EXCEPT (.bar) {
                 DROP ANNOTATION system;
             };
         };

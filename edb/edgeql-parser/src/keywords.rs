@@ -28,6 +28,7 @@ pub const UNRESERVED_KEYWORDS: &[&str] = &[
     "desc",
     "deny",
     "empty",
+    "except",
     "expression",
     "extension",
     "final",

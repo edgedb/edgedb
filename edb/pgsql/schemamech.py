@@ -71,6 +71,37 @@ class ConstraintMech:
             return all_refs
 
     @classmethod
+    def _edgeql_tree_to_exprdata(cls, sql_expr, is_multicol=False, refs=None):
+        if refs is None:
+            flt = (
+                lambda n: isinstance(n, pg_ast.ColumnRef) and len(n.name) == 1)
+            refs = set(ast.find_children(sql_expr, flt))
+
+        plain_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
+
+        if is_multicol:
+            chunks = []
+
+            for elem in sql_expr.args:
+                chunks.append(codegen.SQLSourceGenerator.to_source(elem))
+        else:
+            chunks = [plain_expr]
+
+        if isinstance(sql_expr, pg_ast.ColumnRef):
+            refs.add(sql_expr)
+
+        for ref in refs:
+            ref.name.insert(0, 'NEW')
+        new_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
+
+        for ref in refs:
+            ref.name[0] = 'OLD'
+        old_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
+
+        return dict(
+            plain=plain_expr, new=new_expr, old=old_expr, plain_chunks=chunks)
+
+    @classmethod
     def _edgeql_ref_to_pg_constr(cls, subject, origin_subject, tree, schema):
         sql_tree = compiler.compile_ir_to_sql_tree(
             tree, singleton_mode=True)
@@ -122,29 +153,8 @@ class ConstraintMech:
                 # work around the immutability check
                 object.__setattr__(ref, 'name', ['VALUE'])
 
-        plain_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
-
-        if is_multicol:
-            chunks = []
-
-            for elem in sql_expr.args:
-                chunks.append(codegen.SQLSourceGenerator.to_source(elem))
-        else:
-            chunks = [plain_expr]
-
-        if isinstance(sql_expr, pg_ast.ColumnRef):
-            refs.add(sql_expr)
-
-        for ref in refs:
-            ref.name.insert(0, 'NEW')
-        new_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
-
-        for ref in refs:
-            ref.name[0] = 'OLD'
-        old_expr = codegen.SQLSourceGenerator.to_source(sql_expr)
-
-        exprdata = dict(
-            plain=plain_expr, plain_chunks=chunks, new=new_expr, old=old_expr)
+        exprdata = cls._edgeql_tree_to_exprdata(
+            sql_expr, is_multicol=is_multicol, refs=refs)
 
         return dict(
             exprdata=exprdata, is_multicol=is_multicol, is_trivial=is_trivial)
@@ -162,16 +172,29 @@ class ConstraintMech:
 
         singletons = frozenset({subject})
 
+        options = qlcompiler.CompilerOptions(
+            anchors={qlast.Subject().name: subject},
+            path_prefix_anchor=qlast.Subject().name,
+            apply_query_rewrites=not context.stdmode,
+            singletons=singletons,
+        )
+
         ir = qlcompiler.compile_ast_to_ir(
             constraint.get_finalexpr(schema).qlast,
             schema,
-            options=qlcompiler.CompilerOptions(
-                anchors={qlast.Subject().name: subject},
-                path_prefix_anchor=qlast.Subject().name,
-                apply_query_rewrites=not context.stdmode,
-                singletons=singletons,
-            ),
+            options=options,
         )
+
+        except_data = None
+        if (except_expr := constraint.get_except_expr(schema)):
+            except_ir = qlcompiler.compile_ast_to_ir(
+                except_expr.qlast,
+                schema,
+                options=options,
+            )
+            except_sql = compiler.compile_ir_to_sql_tree(
+                except_ir, singleton_mode=True)
+            except_data = cls._edgeql_tree_to_exprdata(except_sql)
 
         terminal_refs = ir_utils.get_longest_paths(ir.expr.expr.result)
         ref_tables = get_ref_storage_info(ir.schema, terminal_refs)
@@ -198,6 +221,7 @@ class ConstraintMech:
             'expressions': [],
             'origin_expressions': [],
             'table_type': table_type,
+            'except_data': except_data,
         }
 
         if constraint_origin != constraint:
@@ -207,15 +231,17 @@ class ConstraintMech:
             )
             singletons = frozenset({origin_subject})
 
+            origin_options = qlcompiler.CompilerOptions(
+                anchors={qlast.Subject().name: origin_subject},
+                path_prefix_anchor=origin_path_prefix_anchor,
+                apply_query_rewrites=not context.stdmode,
+                singletons=singletons,
+            )
+
             origin_ir = qlcompiler.compile_ast_to_ir(
                 constraint_origin.get_finalexpr(schema).qlast,
                 schema,
-                options=qlcompiler.CompilerOptions(
-                    anchors={qlast.Subject().name: origin_subject},
-                    path_prefix_anchor=origin_path_prefix_anchor,
-                    apply_query_rewrites=not context.stdmode,
-                    singletons=singletons,
-                ),
+                options=origin_options,
             )
 
             origin_terminal_refs = ir_utils.get_longest_paths(
@@ -232,11 +258,24 @@ class ConstraintMech:
                     schema, origin_subject, catenate=False,
                 )
 
+            origin_except_data = None
+            if (except_expr := constraint_origin.get_except_expr(schema)):
+                except_ir = qlcompiler.compile_ast_to_ir(
+                    except_expr.qlast,
+                    schema,
+                    options=origin_options,
+                )
+                except_sql = compiler.compile_ir_to_sql_tree(
+                    except_ir, singleton_mode=True)
+                origin_except_data = cls._edgeql_tree_to_exprdata(except_sql)
+
             origin_exclusive_expr_refs = cls._get_exclusive_refs(origin_ir)
             pg_constr_data['origin_subject_db_name'] = origin_subject_db_name
+            pg_constr_data['origin_except_data'] = origin_except_data
         else:
             origin_exclusive_expr_refs = None
             pg_constr_data['origin_subject_db_name'] = subject_db_name
+            pg_constr_data['origin_except_data'] = except_data
 
         if exclusive_expr_refs:
             for ref in exclusive_expr_refs:
@@ -345,6 +384,8 @@ class SchemaTableConstraint:
             constraint=constr._constraint,
             exprdata=expressions,
             origin_exprdata=origin_expressions,
+            except_data=pg_c['except_data'],
+            origin_except_data=pg_c['origin_except_data'],
             scope=pg_c['scope'],
             type=pg_c['type'],
             schema=constr._schema,
@@ -421,6 +462,14 @@ class SchemaTableConstraint:
             else:
                 key = "id"
 
+            if tabconstr._except_data:
+                except_part = f'''
+                    AND ({tabconstr._origin_except_data['old']} is not true)
+                    AND ({tabconstr._except_data['new']} is not true)
+                '''
+            else:
+                except_part = ''
+
             check = dbops.Query(
                 f'''
                 SELECT
@@ -436,6 +485,7 @@ class SchemaTableConstraint:
                 FROM {common.qname(schemaname, tablename+"_t")} AS OLD
                 CROSS JOIN {common.qname(*real_tablename)} AS NEW
                 WHERE {old_expr} = {new_expr} and OLD.{key} != NEW.{key}
+                {except_part}
                 INTO _dummy_text;
                 '''
             )

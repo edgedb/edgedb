@@ -5224,3 +5224,157 @@ class TestInsert(tb.QueryTestCase):
                     id := <uuid>'ffffffff-ffff-ffff-ffff-ffffffffffff'
                 };
             ''')
+
+    async def test_edgeql_insert_except_constraint_01(self):
+        # Test basic behavior of a constraint using except
+        await self.con.execute('''
+            insert ExceptTest { name := "foo" };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                insert ExceptTest { name := "foo" };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                insert ExceptTest { name := "foo", deleted := false };
+            ''')
+
+        await self.con.execute('''
+            insert ExceptTest { name := "foo", deleted := true };
+        ''')
+
+        await self.con.execute('''
+            insert ExceptTest { name := "bar", deleted := true };
+        ''')
+
+        await self.con.execute('''
+            insert ExceptTest { name := "bar", deleted := true };
+        ''')
+
+        await self.con.execute('''
+            insert ExceptTest { name := "bar" };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                insert ExceptTest { name := "bar" };
+            ''')
+
+        await self.con.execute('''
+            insert ExceptTest { name := "baz" };
+        ''')
+
+        await self.con.execute('''
+            insert ExceptTestSub { name := "bar", deleted := true };
+        ''')
+
+        # Now we are going to drop the constraint and then add it back in,
+        # nothing should error
+
+        await self.con.execute('''
+            alter type ExceptTest {
+                drop constraint exclusive on (.name) except (.deleted);
+            };
+        ''')
+        await self.con.execute('''
+            alter type ExceptTest {
+                create constraint exclusive on (.name) except (.deleted);
+            };
+        ''')
+
+        # Now drop it, and add something that *will* break, and recreate it
+        await self.con.execute('''
+            alter type ExceptTest {
+                drop constraint exclusive on (.name) except (.deleted);
+            };
+        ''')
+        await self.con.execute('''
+            insert ExceptTestSub { name := "baz" };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                alter type ExceptTest {
+                    create constraint exclusive on (.name) except (.deleted);
+                };
+            ''')
+
+    async def test_edgeql_insert_except_constraint_02(self):
+        # Test some self conflict insert cases
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                select {
+                    (insert ExceptTest { name := "foo" }),
+                    (insert ExceptTestSub { name := "foo" }),
+                };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                select {
+                    (insert ExceptTest { name := "foo" }),
+                    (insert ExceptTestSub { name := "foo", deleted := false }),
+                };
+            ''')
+
+        await self.con.execute('''
+            select {
+                (insert ExceptTest { name := "foo" }),
+                (insert ExceptTestSub { name := "foo", deleted := true }),
+            };
+        ''')
+
+    async def test_edgeql_insert_except_constraint_03(self):
+        # Test some self conflict update cases
+        await self.con.execute('''
+            insert ExceptTest { name := "a" };
+            insert ExceptTestSub { name := "b" };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                update ExceptTest set { name := "foo" };
+            ''')
+
+        await self.con.execute('''
+            update ExceptTest set { name := "foo", deleted := true };
+        ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                update ExceptTest set { deleted := false };
+            ''')
+
+        async with self.assertRaisesRegexTx(
+                edgedb.ConstraintViolationError,
+                "violates exclusivity constraint"):
+            await self.con.execute('''
+                update ExceptTest set { deleted := {} };
+            ''')
+
+    async def test_edgeql_insert_except_constraint_04(self):
+        # exclusive constraints with EXCEPT clauses can't narrow cardinality
+        async with self.assertRaisesRegexTx(
+                edgedb.QueryError,
+                "possibly more than one element returned"):
+            await self.con.query('''
+                select { single x := (select ExceptTest filter .name = 'foo') }
+            ''')

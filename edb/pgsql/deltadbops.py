@@ -105,6 +105,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         origin_exprdata,
         scope,
         type,
+        except_data,
+        origin_except_data,
         schema,
     ):
         ConstraintCommon.__init__(self, constraint, schema)
@@ -114,6 +116,8 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         self._origin_exprdata = origin_exprdata
         self._scope = scope
         self._type = type
+        self._except_data = except_data
+        self._origin_except_data = origin_except_data
 
     def get_origin_table_name(self):
         return self._origin_table_name
@@ -126,6 +130,10 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                 exprs = [e['exprdata']['plain'] for e in self._exprdata]
                 expr = '(' + ') AND ('.join(exprs) + ')'
 
+            if self._except_data:
+                cond = self._except_data['plain']
+                expr = f'({expr}) OR ({cond}) is true'
+
             expr = f'CHECK ({expr})'
 
         else:
@@ -136,7 +144,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
             constr_exprs = []
 
             for expr in self._exprdata:
-                if expr['is_trivial']:
+                if expr['is_trivial'] and not self._except_data:
                     # A constraint that contains one or more
                     # references to columns, and no expressions.
                     #
@@ -150,6 +158,9 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                     expr = ', '.join(
                         "{} WITH =".format(chunk) for chunk in chunks)
                     expr = f'EXCLUDE ({expr})'
+                    if self._except_data:
+                        cond = self._except_data['plain']
+                        expr = f'{expr} WHERE (({cond}) is not true)'
 
                 constr_exprs.append(expr)
 
@@ -193,6 +204,14 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
             exprdata = expr['exprdata']
             origin_exprdata = origin_expr['exprdata']
 
+            if self._except_data:
+                except_part = f'''
+                    AND ({self._origin_except_data['plain']} is not true)
+                    AND ({self._except_data['new']} is not true)
+                '''
+            else:
+                except_part = ''
+
             schemaname, tablename = self.get_origin_table_name()
             text = '''
                 PERFORM
@@ -200,7 +219,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                   FROM
                     {table}
                   WHERE
-                    {plain_expr} = {new_expr};
+                    {plain_expr} = {new_expr}{except_part};
                 IF FOUND THEN
                   RAISE unique_violation
                       USING
@@ -216,6 +235,7 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
                     f"Key ({origin_exprdata['plain']}) already exists."
                 ),
                 new_expr=exprdata['new'],
+                except_part=except_part,
                 table=common.qname(
                     schemaname,
                     tablename + "_" + common.get_aspect_suffix("inhview")),

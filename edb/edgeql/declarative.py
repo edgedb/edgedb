@@ -185,6 +185,11 @@ class TraceContextBase:
             exprs = list(decl.args)
             if decl.subjectexpr:
                 exprs.append(decl.subjectexpr)
+            if decl.except_expr:
+                # Add an extra dummy argument to distinguish between
+                # ON and EXCEPT, when only one is present
+                exprs.append(qlast.Set(elements=[]))
+                exprs.append(decl.except_expr)
 
             for cmd in decl.commands:
                 if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
@@ -198,6 +203,9 @@ class TraceContextBase:
             # Indexes are defined by what they are an index over, so we need
             # to add that to the "extra_name".
             extra_name = f'({qlcodegen.generate_source(decl.expr)})'
+            if decl.except_expr:
+                except_bit = f'({qlcodegen.generate_source(decl.except_expr)})'
+                extra_name = f'{extra_name}/{except_bit}'
 
         if extra_name:
             fq_name = s_name.QualName(
@@ -726,6 +734,8 @@ def trace_ConcreteConstraint(
     exprs = [ExprDependency(expr=arg) for arg in node.args]
     if node.subjectexpr:
         exprs.append(ExprDependency(expr=node.subjectexpr))
+    if node.except_expr:
+        exprs.append(ExprDependency(expr=node.except_expr))
 
     for cmd in node.commands:
         if isinstance(cmd, qlast.SetField) and cmd.name == "expr":
@@ -779,9 +789,12 @@ def trace_Index(
     *,
     ctx: DepTraceContext,
 ) -> None:
+    exprs = [ExprDependency(expr=node.expr)]
+    if node.except_expr:
+        exprs.append(ExprDependency(expr=node.except_expr))
     _register_item(
         node,
-        hard_dep_exprs=[ExprDependency(expr=node.expr)],
+        hard_dep_exprs=exprs,
         source=ctx.depstack[-1][1],
         subject=ctx.depstack[-1][1],
         ctx=ctx,
