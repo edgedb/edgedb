@@ -57,6 +57,8 @@ def _get_needed_ptrs(
         subjexpr = constr.get_subjectexpr(ctx.env.schema)
         assert subjexpr
         needed_ptrs |= qlutils.find_subject_ptrs(subjexpr.qlast)
+        if except_expr := constr.get_except_expr(ctx.env.schema):
+            needed_ptrs |= qlutils.find_subject_ptrs(except_expr.qlast)
 
     wl = list(needed_ptrs)
     ptr_anchors = {}
@@ -207,7 +209,24 @@ def _compile_conflict_select(
         assert subjectexpr and isinstance(subjectexpr.qlast, qlast.Expr)
         lhs = qlutils.subject_paths_substitute(subjectexpr.qlast, ptr_anchors)
         rhs = qlutils.subject_substitute(subjectexpr.qlast, insert_subject)
-        conds.append(qlast.BinOp(op='=', left=lhs, right=rhs))
+        op = qlast.BinOp(op='=', left=lhs, right=rhs)
+
+        # If there is an except expr, we need to add in those checks also
+        if except_expr := constr.get_except_expr(ctx.env.schema):
+            e_lhs = qlutils.subject_paths_substitute(
+                except_expr.qlast, ptr_anchors)
+            e_rhs = qlutils.subject_substitute(
+                except_expr.qlast, insert_subject)
+
+            true_ast = qlast.BooleanConstant(value='true')
+            on = qlast.BinOp(
+                op='AND',
+                left=qlast.BinOp(op='?!=', left=e_lhs, right=true_ast),
+                right=qlast.BinOp(op='?!=', left=e_rhs, right=true_ast),
+            )
+            op = qlast.BinOp(op='AND', left=op, right=on)
+
+        conds.append(op)
 
     if not conds:
         return None

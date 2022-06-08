@@ -695,9 +695,11 @@ class Pointer(referencing.ReferencedInheritingObject,
 
         constrs = []
         for constr in ptr.get_constraints(schema).objects(schema):
-            if (constr.issubclass(schema, exclusive) and
-                    not constr.get_subjectexpr(schema)):
-
+            if (
+                constr.issubclass(schema, exclusive)
+                and not constr.get_subjectexpr(schema)
+            ):
+                assert not constr.get_except_expr(schema)
                 constrs.append(constr)
 
         return constrs

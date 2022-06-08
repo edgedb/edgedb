@@ -62,6 +62,14 @@ class Index(
         ddl_identity=True,
     )
 
+    except_expr = so.SchemaField(
+        s_expr.Expression,
+        default=None,
+        coerce=True,
+        compcoef=0.909,
+        ddl_identity=True,
+    )
+
     def __repr__(self) -> str:
         cls = self.__class__
         return '<{}.{} {!r} at 0x{:x}>'.format(
@@ -175,9 +183,15 @@ class IndexCommand(
         expr = s_expr.Expression.from_ast(
             astnode.expr, schema, context.modaliases)
         expr_text = expr.text
-
         assert expr_text is not None
-        expr_qual = cls._name_qual_from_exprs(schema, (expr_text,))
+        exprs = [expr_text]
+
+        if astnode.except_expr:
+            expr = s_expr.Expression.from_ast(
+                astnode.except_expr, schema, context.modaliases)
+            exprs.append('!' + expr.text)
+
+        expr_qual = cls._name_qual_from_exprs(schema, exprs)
 
         ptrs = ast.find_children(astnode, lambda n: isinstance(n, qlast.Ptr))
         ptr_name_qual = '_'.join(ptr.ptr.name for ptr in ptrs)
@@ -265,8 +279,8 @@ class IndexCommand(
         field: str,
         astnode: Type[qlast.DDLOperation],
     ) -> Optional[str]:
-        if field == 'expr':
-            return 'expr'
+        if field in ('expr', 'except_expr'):
+            return field
         else:
             return super().get_ast_attr_for_field(field, astnode)
 
@@ -279,7 +293,7 @@ class IndexCommand(
         track_schema_ref_exprs: bool=False,
     ) -> s_expr.Expression:
         singletons: List[s_types.Type]
-        if field.name == 'expr':
+        if field.name in {'expr', 'except_expr'}:
             # type ignore below, for the class is used as mixin
             parent_ctx = context.get_ancestor(
                 IndexSourceCommandContext,  # type: ignore
@@ -383,6 +397,16 @@ class CreateIndex(
             ),
         )
 
+        if astnode.except_expr:
+            cmd.set_attribute_value(
+                'except_expr',
+                s_expr.Expression.from_ast(
+                    astnode.except_expr,
+                    schema,
+                    context.modaliases,
+                ),
+            )
+
         return cmd
 
     @classmethod
@@ -402,7 +426,14 @@ class CreateIndex(
         else:
             expr_ql = edgeql.parse_fragment(expr.text)
 
-        return astnode_cls(name=qlast.ObjectRef(name='idx'), expr=expr_ql)
+        except_expr = parent.get_except_expr(schema)
+        if except_expr:
+            except_expr_ql = except_expr.qlast
+        else:
+            except_expr_ql = None
+
+        return astnode_cls(name=qlast.ObjectRef(name='idx'), expr=expr_ql,
+                           except_expr=except_expr_ql)
 
 
 class RenameIndex(

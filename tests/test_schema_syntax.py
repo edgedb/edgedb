@@ -431,6 +431,8 @@ class TestEdgeSchemaParser(SchemaSyntaxTest):
                 overloaded property tower {
                     constraint exclusive;
                 };
+                constraint exclusive on (.asdf) except (.baz);
+                index on (.asdf) except (.baz);
             };
         };
         """

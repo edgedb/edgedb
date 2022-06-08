@@ -3227,6 +3227,28 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
 
         self._assert_migration_consistency(schema)
 
+    def test_schema_get_migration_except_01(self):
+        schema = r'''
+        type ExceptTest {
+            constraint exclusive on (.name) except (.deleted);
+            required property name -> str;
+            property deleted -> bool;
+        };
+        '''
+
+        self._assert_migration_consistency(schema)
+
+    def test_schema_get_migration_except_02(self):
+        schema = r'''
+        type ExceptTest {
+            index on (.name) except (.deleted);
+            required property name -> str;
+            property deleted -> bool;
+        };
+        '''
+
+        self._assert_migration_consistency(schema)
+
     def test_schema_migrations_equivalence_01(self):
         self._assert_migration_equivalence([r"""
             type Base;
@@ -7157,6 +7179,24 @@ class TestGetMigration(tb.BaseSchemaLoadTest):
             """
         ])
 
+    def test_schema_migrations_except_01(self):
+        self._assert_migration_equivalence([
+            r"""
+                type ExceptTest {
+                    required property name -> str;
+                    property deleted -> bool;
+                };
+            """,
+            r"""
+                type ExceptTest {
+                    required property name -> str;
+                    property deleted -> bool;
+                    constraint exclusive on (.name) except (.deleted);
+                    index on (.name) except (.deleted);
+                };
+            """,
+        ])
+
 
 class TestDescribe(tb.BaseSchemaLoadTest):
     """Test the DESCRIBE command."""
@@ -8596,6 +8636,35 @@ class TestDescribe(tb.BaseSchemaLoadTest):
             };
             """,
             explicit_modules=True,
+        )
+
+    def test_schema_describe_except_01(self):
+        # Test that except works right
+        self._assert_describe(
+            """
+            abstract constraint always_ok {
+                using (true);
+            };
+            type ExceptTest {
+                property e -> std::bool;
+                constraint always_ok on (.e);
+                constraint always_ok except (.e);
+                constraint expression on (true) except (.e);
+                index on (.id) except (.e);
+            };
+            """,
+
+            'DESCRIBE TYPE ExceptTest',
+
+            """
+            create type test::ExceptTest {
+                create property e -> std::bool;
+                create constraint std::expression on (true) except (.e);
+                create constraint test::always_ok on (.e);
+                create constraint test::always_ok except (.e);
+                create index on (.id) except (.e);
+            };
+            """,
         )
 
     def test_schema_describe_missing_01(self):

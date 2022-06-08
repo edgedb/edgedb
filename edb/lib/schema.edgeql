@@ -215,6 +215,7 @@ CREATE TYPE schema::Constraint
     CREATE PROPERTY finalexpr -> std::str;
     CREATE PROPERTY errmessage -> std::str;
     CREATE PROPERTY delegated -> std::bool;
+    CREATE PROPERTY except_expr -> std::str;
 };
 
 
@@ -236,6 +237,7 @@ CREATE TYPE schema::Index
     EXTENDING schema::InheritingObject, schema::AnnotationSubject
 {
     CREATE PROPERTY expr -> std::str;
+    CREATE PROPERTY except_expr -> std::str;
 };
 
 

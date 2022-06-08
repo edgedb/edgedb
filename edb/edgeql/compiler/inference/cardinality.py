@@ -1038,6 +1038,9 @@ def get_object_exclusive_constraints(
         if (
             constr.issubclass(schema, exclusive)
             and (subjectexpr := constr.get_subjectexpr(schema))
+            # We ignore constraints with except expressions, because
+            # they can't actually ensure cardinality
+            and not constr.get_except_expr(schema)
         ):
             if subjectexpr.refs is None:
                 continue

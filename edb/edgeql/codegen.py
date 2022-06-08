@@ -1357,61 +1357,47 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropConstraint(self, node: qlast.DropConstraint) -> None:
         self._visit_DropObject(node, 'ABSTRACT CONSTRAINT')
 
+    def _after_constraint(self, node: qlast.ConcreteConstraintOp) -> None:
+        if node.args:
+            self.write('(')
+            self.visit_list(node.args, newlines=False)
+            self.write(')')
+        if node.subjectexpr:
+            self._write_keywords(' ON ')
+            self.write('(')
+            self.visit(node.subjectexpr)
+            self.write(')')
+        if node.except_expr:
+            self._write_keywords(' EXCEPT ')
+            self.write('(')
+            self.visit(node.except_expr)
+            self.write(')')
+
     def visit_CreateConcreteConstraint(
         self,
         node: qlast.CreateConcreteConstraint
     ) -> None:
-        def after_name() -> None:
-            if node.args:
-                self.write('(')
-                self.visit_list(node.args, newlines=False)
-                self.write(')')
-            if node.subjectexpr:
-                self._write_keywords(' ON ')
-                self.write('(')
-                self.visit(node.subjectexpr)
-                self.write(')')
-
         keywords = []
         if node.delegated:
             keywords.append('DELEGATED')
         keywords.append('CONSTRAINT')
-        self._visit_CreateObject(node, *keywords, after_name=after_name)
+        self._visit_CreateObject(
+            node, *keywords, after_name=lambda: self._after_constraint(node))
 
     def visit_AlterConcreteConstraint(
         self,
         node: qlast.AlterConcreteConstraint
     ) -> None:
-        def after_name() -> None:
-            if node.args:
-                self.write('(')
-                self.visit_list(node.args, newlines=False)
-                self.write(')')
-            if node.subjectexpr:
-                self._write_keywords(' ON ')
-                self.write('(')
-                self.visit(node.subjectexpr)
-                self.write(')')
-
-        self._visit_AlterObject(node, 'CONSTRAINT', allow_short=False,
-                                after_name=after_name)
+        self._visit_AlterObject(
+            node, 'CONSTRAINT', allow_short=False,
+            after_name=lambda: self._after_constraint(node))
 
     def visit_DropConcreteConstraint(
         self,
         node: qlast.DropConcreteConstraint
     ) -> None:
-        def after_name() -> None:
-            if node.args:
-                self.write('(')
-                self.visit_list(node.args, newlines=False)
-                self.write(')')
-            if node.subjectexpr:
-                self._write_keywords(' ON ')
-                self.write('(')
-                self.visit(node.subjectexpr)
-                self.write(')')
-
-        self._visit_DropObject(node, 'CONSTRAINT', after_name=after_name)
+        self._visit_DropObject(node, 'CONSTRAINT',
+                               after_name=lambda: self._after_constraint(node))
 
     def _format_access_kinds(self, kinds: List[qltypes.AccessKind]) -> str:
         # Canonicalize the order, since the schema loses track
@@ -1772,35 +1758,32 @@ class EdgeQLSourceGenerator(codegen.SourceGenerator):
     def visit_DropObjectType(self, node: qlast.DropObjectType) -> None:
         self._visit_DropObject(node, 'TYPE')
 
-    def visit_CreateIndex(self, node: qlast.CreateIndex) -> None:
-        def after_name() -> None:
-            self._write_keywords(' ON ')
+    def _after_index(self, node: qlast.IndexCommand) -> None:
+        self._write_keywords(' ON ')
+        self.write('(')
+        self.visit(node.expr)
+        self.write(')')
+
+        if node.except_expr:
+            self._write_keywords(' EXCEPT ')
             self.write('(')
-            self.visit(node.expr)
+            self.visit(node.except_expr)
             self.write(')')
 
+    def visit_CreateIndex(self, node: qlast.CreateIndex) -> None:
         self._visit_CreateObject(
-            node, 'INDEX', after_name=after_name, named=False)
+            node, 'INDEX', named=False,
+            after_name=lambda: self._after_index(node))
 
     def visit_AlterIndex(self, node: qlast.AlterIndex) -> None:
-        def after_name() -> None:
-            self._write_keywords(' ON ')
-            self.write('(')
-            self.visit(node.expr)
-            self.write(')')
-
         self._visit_AlterObject(
-            node, 'INDEX', after_name=after_name, named=False)
+            node, 'INDEX', named=False,
+            after_name=lambda: self._after_index(node))
 
     def visit_DropIndex(self, node: qlast.DropIndex) -> None:
-        def after_name() -> None:
-            self._write_keywords(' ON ')
-            self.write('(')
-            self.visit(node.expr)
-            self.write(')')
-
         self._visit_DropObject(
-            node, 'INDEX', after_name=after_name, named=False)
+            node, 'INDEX', named=False,
+            after_name=lambda: self._after_index(node))
 
     def visit_CreateOperator(self, node: qlast.CreateOperator) -> None:
         def after_name() -> None:

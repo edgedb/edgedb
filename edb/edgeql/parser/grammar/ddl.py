@@ -936,13 +936,15 @@ class CreateConcreteConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce CREATE OptDelegated CONSTRAINT \
                     NodeName OptConcreteConstraintArgList OptOnExpr \
+                    OptExceptExpr \
                     OptCreateCommandsBlock"""
         self.val = qlast.CreateConcreteConstraint(
             delegated=kids[1].val,
             name=kids[3].val,
             args=kids[4].val,
             subjectexpr=kids[5].val,
-            commands=kids[6].val,
+            except_expr=kids[6].val,
+            commands=kids[7].val,
         )
 
 
@@ -987,24 +989,26 @@ commands_block(
 class AlterConcreteConstraintStmt(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce ALTER CONSTRAINT NodeName
-                    OptConcreteConstraintArgList OptOnExpr
+                    OptConcreteConstraintArgList OptOnExpr OptExceptExpr
                     AlterConcreteConstraintCommandsBlock"""
         self.val = qlast.AlterConcreteConstraint(
             name=kids[2].val,
             args=kids[3].val,
             subjectexpr=kids[4].val,
-            commands=kids[5].val,
+            except_expr=kids[5].val,
+            commands=kids[6].val,
         )
 
 
 class DropConcreteConstraintStmt(Nonterm):
     def reduce_DropConstraint(self, *kids):
         r"""%reduce DROP CONSTRAINT NodeName
-                    OptConcreteConstraintArgList OptOnExpr"""
+                    OptConcreteConstraintArgList OptOnExpr OptExceptExpr"""
         self.val = qlast.DropConcreteConstraint(
             name=kids[2].val,
             args=kids[3].val,
             subjectexpr=kids[4].val,
+            except_expr=kids[5].val,
         )
 
 
@@ -1202,11 +1206,13 @@ commands_block(
 # CREATE INDEX
 #
 class CreateIndexStmt(Nonterm):
-    def reduce_CREATE_INDEX_OnExpr_OptCreateCommandsBlock(self, *kids):
+    def reduce_CREATE_INDEX_OnExpr_OptExceptExpr_OptCreateCommandsBlock(
+            self, *kids):
         self.val = qlast.CreateIndex(
             name=qlast.ObjectRef(name='idx'),
             expr=kids[2].val,
-            commands=kids[3].val,
+            except_expr=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -1214,11 +1220,13 @@ class CreateIndexStmt(Nonterm):
 # ALTER INDEX
 #
 class AlterIndexStmt(Nonterm):
-    def reduce_ALTER_INDEX_OnExpr_AlterIndexCommandsBlock(self, *kids):
+    def reduce_ALTER_INDEX_OnExpr_OptExceptExpr_AlterIndexCommandsBlock(
+            self, *kids):
         self.val = qlast.AlterIndex(
             name=qlast.ObjectRef(name='idx'),
             expr=kids[2].val,
-            commands=kids[3].val,
+            except_expr=kids[3].val,
+            commands=kids[4].val,
         )
 
 
@@ -1233,11 +1241,13 @@ commands_block(
 # DROP INDEX
 #
 class DropIndexStmt(Nonterm):
-    def reduce_DROP_INDEX_OnExpr_OptDropIndexCommandsBlock(self, *kids):
+    def reduce_DROP_INDEX_OnExpr_OptExceptExpr_OptDropIndexCommandsBlock(
+            self, *kids):
         self.val = qlast.DropIndex(
             name=qlast.ObjectRef(name='idx'),
             expr=kids[2].val,
-            commands=kids[3].val,
+            except_expr=kids[3].val,
+            commands=kids[4].val,
         )
 
 

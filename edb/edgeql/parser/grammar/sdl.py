@@ -367,45 +367,53 @@ class ConcreteConstraintBlock(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce CONSTRAINT \
                     NodeName OptConcreteConstraintArgList OptOnExpr \
+                    OptExceptExpr \
                     CreateSDLCommandsBlock"""
         self.val = qlast.CreateConcreteConstraint(
             name=kids[1].val,
             args=kids[2].val,
             subjectexpr=kids[3].val,
-            commands=kids[4].val,
+            except_expr=kids[4].val,
+            commands=kids[5].val,
         )
 
     def reduce_CreateDelegatedConstraint(self, *kids):
         r"""%reduce DELEGATED CONSTRAINT \
                     NodeName OptConcreteConstraintArgList OptOnExpr \
+                    OptExceptExpr \
                     CreateSDLCommandsBlock"""
         self.val = qlast.CreateConcreteConstraint(
             delegated=True,
             name=kids[2].val,
             args=kids[3].val,
             subjectexpr=kids[4].val,
-            commands=kids[5].val,
+            except_expr=kids[5].val,
+            commands=kids[6].val,
         )
 
 
 class ConcreteConstraintShort(Nonterm):
     def reduce_CreateConstraint(self, *kids):
         r"""%reduce CONSTRAINT \
-                    NodeName OptConcreteConstraintArgList OptOnExpr"""
+                    NodeName OptConcreteConstraintArgList OptOnExpr \
+                    OptExceptExpr"""
         self.val = qlast.CreateConcreteConstraint(
             name=kids[1].val,
             args=kids[2].val,
             subjectexpr=kids[3].val,
+            except_expr=kids[4].val,
         )
 
     def reduce_CreateDelegatedConstraint(self, *kids):
         r"""%reduce DELEGATED CONSTRAINT \
-                    NodeName OptConcreteConstraintArgList OptOnExpr"""
+                    NodeName OptConcreteConstraintArgList OptOnExpr \
+                    OptExceptExpr"""
         self.val = qlast.CreateConcreteConstraint(
             delegated=True,
             name=kids[2].val,
             args=kids[3].val,
             subjectexpr=kids[4].val,
+            except_expr=kids[5].val,
         )
 
 
@@ -528,19 +536,22 @@ sdl_commands_block(
 
 
 class IndexDeclarationBlock(Nonterm):
-    def reduce_INDEX_OnExpr_CreateIndexSDLCommandsBlock(self, *kids):
+    def reduce_INDEX_OnExpr_OptExceptExpr_CreateIndexSDLCommandsBlock(
+            self, *kids):
         self.val = qlast.CreateIndex(
             name=qlast.ObjectRef(name='idx'),
             expr=kids[1].val,
-            commands=kids[2].val,
+            except_expr=kids[2].val,
+            commands=kids[3].val,
         )
 
 
 class IndexDeclarationShort(Nonterm):
-    def reduce_INDEX_OnExpr(self, *kids):
+    def reduce_INDEX_OnExpr_OptExceptExpr(self, *kids):
         self.val = qlast.CreateIndex(
             name=qlast.ObjectRef(name='idx'),
             expr=kids[1].val,
+            except_expr=kids[2].val,
         )
 
 
