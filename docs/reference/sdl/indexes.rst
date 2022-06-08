@@ -39,6 +39,7 @@ commands <ref_eql_ddl_indexes>`.
 .. sdl:synopsis::
 
     index on ( <index-expr> )
+    [ except ( <except-expr> ) ]
     [ "{" <annotation-declarations> "}" ] ;
 
 
@@ -50,6 +51,12 @@ This declaration defines a new index with the following options:
 :sdl:synopsis:`on ( <index-expr> )`
     The specific expression for which the index is made.  Note also
     that ``<index-expr>`` itself has to be parenthesized.
+
+:eql:synopsis:`except ( <exception-expr> )`
+    An optional expression defining a condition to create exceptions
+	to the index. If ``<exception-expr>`` evaluates to ``true``,
+	the object is omitted from the index. If it evaluates
+	to ``false`` or ``{}``, it appears in the index.
 
 The valid SDL sub-declarations are listed below:
 
