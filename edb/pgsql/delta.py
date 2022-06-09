@@ -3309,6 +3309,12 @@ class PointerMetaCommand(MetaCommand):
             if objtype:
                 return objtype
 
+    def is_sequence_ptr(self, ptr, schema):
+        return bool(
+            (tgt := ptr.get_target(schema))
+            and tgt.issubclass(schema, schema.get('std::sequence'))
+        )
+
     def get_pointer_default(self, ptr, schema, context):
         if ptr.is_pure_computable(schema):
             return None
@@ -3316,11 +3322,10 @@ class PointerMetaCommand(MetaCommand):
         default = ptr.get_default(schema)
         default_value = None
 
-        if default is not None:
+        if default is not None and ptr.is_link_property(schema):
             default_value = schemamech.ptr_default_to_col_default(
                 schema, ptr, default)
-        elif (tgt := ptr.get_target(schema)) and tgt.issubclass(
-                schema, schema.get('std::sequence')):
+        elif self.is_sequence_ptr(ptr, schema):
             # TODO: replace this with a generic scalar type default
             #       using std::nextval().
             seq_name = common.quote_literal(
@@ -3716,11 +3721,9 @@ class PointerMetaCommand(MetaCommand):
         changing_col_type = not is_link
 
         source_ctx = self.get_referrer_context_or_die(context)
+        ptr_op = self.get_parent_op(context)
         if is_multi:
-            if isinstance(self, sd.AlterObjectFragment):
-                source_op = self.get_parent_op(context)
-            else:
-                source_op = self
+            source_op = ptr_op
         else:
             source_op = source_ctx.op
 
@@ -3923,6 +3926,14 @@ class PointerMetaCommand(MetaCommand):
             self.pgops.add(dbops.Query(update_qry))
 
         if changing_col_type:
+            # In case the column has a default, clear it out before
+            # changing the type
+            if is_lprop or self.is_sequence_ptr(pointer, orig_schema):
+                alter_table.add_operation(
+                    dbops.AlterTableAlterColumnDefault(
+                        column_name=old_ptr_stor_info.column_name,
+                        default=None))
+
             alter_type = dbops.AlterTableAlterColumnType(
                 old_ptr_stor_info.column_name,
                 common.quote_type(new_type),
@@ -4996,19 +5007,13 @@ class AlterProperty(PropertyMetaCommand, adapts=s_props.AlterProperty):
             orig_def_val = self.get_pointer_default(prop, orig_schema, context)
             def_val = self.get_pointer_default(prop, schema, context)
 
-            if (
-                orig_def_val != def_val
-                and (
-                    (tgt := prop.get_target(orig_schema)) is None
-                    or not tgt.issubclass(
-                        orig_schema,
-                        schema.get('std::sequence'),
-                    )
-                )
-            ):
-                source_ctx = context.get_ancestor(
-                    s_sources.SourceCommandContext, self)
-                alter_table = source_ctx.op.get_alter_table(
+            if orig_def_val != def_val:
+                if prop.get_cardinality(schema).is_multi():
+                    source_op = self
+                else:
+                    source_op = context.get_ancestor(
+                        s_sources.SourceCommandContext, self).op
+                alter_table = source_op.get_alter_table(
                     schema, context, manual=True)
 
                 ptr_stor_info = types.get_pointer_storage_info(
