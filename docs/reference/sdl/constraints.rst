@@ -54,6 +54,7 @@ commands <ref_eql_ddl_constraints>`.
 
     [{abstract | delegated}] constraint <name> [ ( [<argspec>] [, ...] ) ]
         [ on ( <subject-expr> ) ]
+        [ except ( <except-expr> ) ]
         [ extending <base> [, ...] ]
     "{"
         [ using <constr-expression> ; ]
@@ -105,6 +106,15 @@ This declaration defines a new constraint with the following options:
     refer to the original subject of the constraint as
     ``__subject__``.  Note also that ``<subject-expr>`` itself has to
     be parenthesized.
+
+:eql:synopsis:`except ( <exception-expr> )`
+    An optional expression defining a condition to create exceptions
+	to the constraint. If ``<exception-expr>`` evaluates to ``true``,
+	the constraint is ignored for the current subject. If it evaluates
+	to ``false`` or ``{}``, the constraint applies normally.
+
+	``except`` may only be declared on object constraints, and is
+	otherwise follows the same rules as ``on``, above.
 
 :eql:synopsis:`extending <base> [, ...]`
     If specified, declares the *parent* constraints for this abstract

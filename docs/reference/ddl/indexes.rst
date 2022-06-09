@@ -20,6 +20,7 @@ type or link.
 .. eql:synopsis::
 
     create index on ( <index-expr> )
+    [ except ( <except-expr> ) ]
     [ "{" <subcommand>; [...] "}" ] ;
 
     # where <subcommand> is one of
@@ -74,7 +75,7 @@ Alter the definition of an :ref:`index <ref_eql_sdl_indexes>`.
 
 .. eql:synopsis::
 
-    alter index on ( <index-expr> )
+    alter index on ( <index-expr> ) [ except ( <except-expr> ) ]
     [ "{" <subcommand>; [...] "}" ] ;
 
     # where <subcommand> is one of
@@ -139,7 +140,7 @@ Remove an index from a given schema item.
 
 .. eql:synopsis::
 
-    drop index on ( <index-expr> );
+    drop index on ( <index-expr> ) [ except ( <except-expr> ) ];
 
 Description
 -----------

@@ -227,6 +227,7 @@ Define a concrete constraint on the specified schema item.
     create [ delegated ] constraint <name>
       [ ( [<argspec>] [, ...] ) ]
       [ on ( <subject-expr> ) ]
+      [ except ( <except-expr> ) ]
     "{" <subcommand>; [...] "}" ;
 
     # where <argspec> is:
@@ -314,6 +315,7 @@ Alter the definition of a concrete constraint on the specified schema item.
     alter constraint <name>
       [ ( [<argspec>] [, ...] ) ]
       [ on ( <subject-expr> ) ]
+      [ except ( <except-expr> ) ]
     "{" <subcommand>; [ ... ] "}" ;
 
     # -- or --
@@ -416,7 +418,8 @@ Remove a concrete constraint from the specified schema item.
     [ with [ <module-alias> := ] module <module-name> [, ...] ]
     drop constraint <name>
       [ ( [<argspec>] [, ...] ) ]
-      [ on ( <subject-expr> ) ] ;
+      [ on ( <subject-expr> ) ]
+      [ except ( <except-expr> ) ] ;
 
 
 Description

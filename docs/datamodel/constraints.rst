@@ -40,6 +40,9 @@ the length of a string.
 
   type User {
     required property username -> str {
+      # usernames must be unique
+      constraint exclusive;
+
       # as custom constraint
       constraint expression on (len(__subject__) <= 25);
 
@@ -72,6 +75,26 @@ constraint logic must reference multiple links or properties.
     constraint expression on (
       .x ^ 2 + .y ^ 2 <= 25
     );
+  }
+
+
+.. _ref_datamodel_constraints_partial:
+
+
+Partial constraints
+-------------------
+
+Constraints on object types can be made partial, so that they don't apply
+when some condition holds.
+
+.. code-block:: sdl
+
+  type User {
+    required property username -> str;
+    property deleted -> bool;
+
+    # Not deleted usernames must be unique
+    constraint exclusive on (.username) except (.deleted);
   }
 
 
