@@ -1519,6 +1519,7 @@ def _get_computable_ctx(
 
             subctx.view_nodes = qlctx.view_nodes.copy()
             subctx.view_map = ctx.view_map.new_child()
+            subctx.view_sets = ctx.view_sets.copy()
 
             source_scope = pathctx.get_set_scope(rptr.source, ctx=ctx)
             if source_scope and source_scope.namespaces:
