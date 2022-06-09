@@ -2623,6 +2623,96 @@ class TestEdgeQLDDL(tb.DDLTestCase):
             ]
         )
 
+    async def test_edgeql_ddl_ptr_set_type_using_03(self):
+        # check that defaults don't break things
+        await self.con.execute(r"""
+            create type Foo {
+                create property x -> str {
+                    set default := '';
+                };
+                create multi property y -> str {
+                    set default := '';
+                };
+            };
+        """)
+
+        await self.con.execute(r"""
+            alter type Foo {
+                alter property x {
+                    set default := 0;
+                    set type int64 using (<int64>.x);
+                };
+                alter property y {
+                    set default := 0;
+                    set type int64 using (<int64>.y);
+                };
+            };
+        """)
+
+        await self.con.execute(r"""
+            create type Bar {
+                create link l -> Foo {
+                    create property x -> str {
+                        set default := '';
+                    }
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            alter type Bar {
+                alter link l {
+                    alter property x {
+                        set default := 0;
+                        set type int64 using (<int64>@x);
+                    }
+                }
+            };
+        """)
+
+    async def test_edgeql_ddl_ptr_set_type_using_04(self):
+        # check that defaults don't break things
+        await self.con.execute(r"""
+            create scalar type X extending sequence;
+            create type Foo {
+                create property x -> X;
+            };
+        """)
+
+        await self.con.execute(r"""
+            alter type Foo {
+                alter property x {
+                    set type array<str> using ([<str>.x]);
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            create type Bar {
+                create property x -> int64;
+            };
+        """)
+        await self.con.execute(r"""
+            alter type Bar {
+                alter property x {
+                    set type X using (<X>.x);
+                }
+            };
+        """)
+
+        await self.con.execute(r"""
+            create type Baz {
+                create multi property x -> int64;
+            };
+        """)
+        await self.con.execute(r"""
+            alter type Baz {
+                alter property x {
+                    set type X using (<X>.x);
+                }
+            };
+        """)
+
     async def test_edgeql_ddl_ptr_set_type_validation(self):
         await self.con.execute(r"""
 
