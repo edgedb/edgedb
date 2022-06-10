@@ -1035,7 +1035,10 @@ class Compiler:
                 ),
             )
             all_ddl = mstate.accepted_cmds + new_ddl
-            mstate = mstate._replace(accepted_cmds=all_ddl)
+            mstate = mstate._replace(
+                accepted_cmds=all_ddl,
+                last_proposed=None,
+            )
             if debug.flags.delta_plan:
                 debug.header('Populate Migration DDL AST')
                 text = []

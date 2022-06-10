@@ -2399,6 +2399,31 @@ class TestEdgeQLDataMigration(EdgeQLDataMigrationTestCase):
 
         await self.fast_forward_describe_migration()
 
+    async def test_edgeql_migration_describe_populate_describe(self):
+        await self.start_migration('''
+            type Foo;
+        ''')
+
+        await self.assert_describe_migration({
+            'confirmed': [],
+            'complete': False,
+            'proposed': {
+                'statements': [{
+                    'text': (
+                        'CREATE TYPE test::Foo;'
+                    )
+                }],
+            },
+        })
+
+        await self.con.execute('POPULATE MIGRATION;')
+
+        await self.assert_describe_migration({
+            'confirmed': ['CREATE TYPE test::Foo;'],
+            'complete': True,
+            'proposed': None,
+        })
+
     async def test_edgeql_migration_computed_01(self):
         await self.migrate(r'''
             type Foo {
