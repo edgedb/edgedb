@@ -51,13 +51,16 @@ jobs:
       run: |
         mkdir -p .tmp
         python setup.py -q ci_helper --type cli > .tmp/edgedbcli_git_rev.txt
+        python setup.py -q ci_helper --type wasm > .tmp/edgedbwasm_git_rev.txt
         python setup.py -q ci_helper --type rust >.tmp/rust_cache_key.txt
+        python setup.py -q ci_helper --type wasm-test >.tmp/wasm_test_cache_key.txt
         python setup.py -q ci_helper --type ext >.tmp/ext_cache_key.txt
         python setup.py -q ci_helper --type parsers >.tmp/parsers_cache_key.txt
         python setup.py -q ci_helper --type postgres >.tmp/postgres_git_rev.txt
         echo 'v0.17.0' >.tmp/stolon_git_rev.txt
         python setup.py -q ci_helper --type bootstrap >.tmp/bootstrap_cache_key.txt
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBWASM_GIT_REV=$(cat .tmp/edgedbwasm_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
         echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
@@ -78,6 +81,13 @@ jobs:
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Handle cached EdgeDB WASM binaries
+      uses: actions/cache@v2
+      id: wasm-cache
+      with:
+        path: build/wasm
+        key: edb-wasm-v4-${{ env.EDGEDBWASM_GIT_REV }}
 
     - name: Handle cached Rust extensions
       uses: actions/cache@v2
@@ -116,6 +126,7 @@ jobs:
     - name: Install system deps
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
         steps.stolon-cache.outputs.cache-hit != 'true' ||
@@ -127,12 +138,22 @@ jobs:
     - name: Install rust toolchain
       if: |
         steps.cli-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-test-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true'
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
         default: true
+
+    - name: Install rust-wasm toolchain
+      if: steps.wasm-test-cache.outputs.cache-hit != 'true'
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        target: wasm32-wasi
+        toolchain: stable
 
     # Build EdgeDB CLI
 
@@ -154,6 +175,48 @@ jobs:
           cp -v build/cli/bin/edgedb edb/cli/edgedb
         else
           python setup.py -v build_cli
+        fi
+
+    # Build EdgeDB WASM
+
+    - name: Handle EdgeDB WASM build cache
+      uses: actions/cache@v2
+      if: steps.wasm-cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ env.BUILD_TEMP }}/rust/wasm
+        key: edb-wasm-build-v3-${{ env.EDGEDBWASM_GIT_REV }}
+        restore-keys: |
+          edb-wasm-build-v3-
+
+    - name: Build EdgeDB WASM
+      env:
+        CARGO_HOME: ${{ env.BUILD_TEMP }}/rust/wasm/cargo_home
+        CARGO_TARGET_DIR: ${{ env.BUILD_TEMP }}/rust/wasm
+        CACHE_HIT: ${{ steps.wasm-cache.outputs.cache-hit }}
+      run: |
+        if [[ "$CACHE_HIT" == "true" ]]; then
+          cp -v build/wasm/bin/edgedb-wasm-server edb/wasm/edgedb-wasm-server
+        else
+          python setup.py -v build_wasm
+        fi
+
+    # Build Rust/wasm test
+
+    - name: Handle cached EdgeDB WASM-test binaries
+      uses: actions/cache@v2
+      id: wasm-test-cache
+      with:
+        path: build/rust/wasm-test
+        key: edb-wasm-test-v2-${{ hashFiles('.tmp/wasm_test_cache_key.txt') }}
+
+    - name: Build WASM test
+      env:
+        CARGO_HOME: build/rust/wasm-test/cargo_home
+        CARGO_TARGET_DIR: build/rust/wasm-test
+        CACHE_HIT: ${{ steps.wasm-test-cache.outputs.cache-hit }}
+      run: |
+        if [[ "$CACHE_HIT" != "true" ]]; then
+          cargo build --package=edgedb-wasm-test1 --target=wasm32-wasi --release
         fi
 
     # Build Rust extensions
@@ -382,6 +445,7 @@ jobs:
     - name: Set environment variables
       run: |
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBWASM_GIT_REV=$(cat .tmp/edgedbwasm_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
         echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
@@ -395,6 +459,20 @@ jobs:
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM binaries
+      uses: actions/cache@v2
+      id: wasm-cache
+      with:
+        path: build/wasm
+        key: edb-wasm-v4-${{ env.EDGEDBWASM_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM-test binaries
+      uses: actions/cache@v2
+      id: wasm-test-cache
+      with:
+        path: build/rust/wasm-test
+        key: edb-wasm-test-v2-${{ hashFiles('.tmp/wasm_test_cache_key.txt') }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
@@ -443,6 +521,8 @@ jobs:
         steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-test-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
         steps.parsers-cache.outputs.cache-hit != 'true' ||
         steps.postgres-cache.outputs.cache-hit != 'true' ||
@@ -460,6 +540,7 @@ jobs:
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
         rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+        rsync -av ./build/wasm/bin/edgedb-wasm-server ./edb/wasm/edgedb-wasm-server
 
     # Run the test
 
@@ -584,6 +665,7 @@ jobs:
     - name: Set environment variables
       run: |
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBWASM_GIT_REV=$(cat .tmp/edgedbwasm_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
         echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
@@ -597,6 +679,20 @@ jobs:
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM binaries
+      uses: actions/cache@v2
+      id: wasm-cache
+      with:
+        path: build/wasm
+        key: edb-wasm-v4-${{ env.EDGEDBWASM_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM-test binaries
+      uses: actions/cache@v2
+      id: wasm-test-cache
+      with:
+        path: build/rust/wasm-test
+        key: edb-wasm-test-v2-${{ hashFiles('.tmp/wasm_test_cache_key.txt') }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
@@ -645,6 +741,8 @@ jobs:
         steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-test-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
         steps.parsers-cache.outputs.cache-hit != 'true' ||
         steps.postgres-cache.outputs.cache-hit != 'true' ||
@@ -662,6 +760,7 @@ jobs:
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
         rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+        rsync -av ./build/wasm/bin/edgedb-wasm-server ./edb/wasm/edgedb-wasm-server
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v1
@@ -834,6 +933,7 @@ jobs:
     - name: Set environment variables
       run: |
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBWASM_GIT_REV=$(cat .tmp/edgedbwasm_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
         echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
@@ -847,6 +947,20 @@ jobs:
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM binaries
+      uses: actions/cache@v2
+      id: wasm-cache
+      with:
+        path: build/wasm
+        key: edb-wasm-v4-${{ env.EDGEDBWASM_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM-test binaries
+      uses: actions/cache@v2
+      id: wasm-test-cache
+      with:
+        path: build/rust/wasm-test
+        key: edb-wasm-test-v2-${{ hashFiles('.tmp/wasm_test_cache_key.txt') }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
@@ -895,6 +1009,8 @@ jobs:
         steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-test-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
         steps.parsers-cache.outputs.cache-hit != 'true' ||
         steps.postgres-cache.outputs.cache-hit != 'true' ||
@@ -912,6 +1028,7 @@ jobs:
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
         rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+        rsync -av ./build/wasm/bin/edgedb-wasm-server ./edb/wasm/edgedb-wasm-server
 
     # Run the test
 
@@ -1050,6 +1167,7 @@ jobs:
     - name: Set environment variables
       run: |
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBWASM_GIT_REV=$(cat .tmp/edgedbwasm_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
         echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
@@ -1063,6 +1181,20 @@ jobs:
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM binaries
+      uses: actions/cache@v2
+      id: wasm-cache
+      with:
+        path: build/wasm
+        key: edb-wasm-v4-${{ env.EDGEDBWASM_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM-test binaries
+      uses: actions/cache@v2
+      id: wasm-test-cache
+      with:
+        path: build/rust/wasm-test
+        key: edb-wasm-test-v2-${{ hashFiles('.tmp/wasm_test_cache_key.txt') }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
@@ -1111,6 +1243,8 @@ jobs:
         steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-test-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
         steps.parsers-cache.outputs.cache-hit != 'true' ||
         steps.postgres-cache.outputs.cache-hit != 'true' ||
@@ -1128,6 +1262,7 @@ jobs:
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
         rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+        rsync -av ./build/wasm/bin/edgedb-wasm-server ./edb/wasm/edgedb-wasm-server
 
     # Run the test
 
@@ -1254,6 +1389,7 @@ jobs:
     - name: Set environment variables
       run: |
         echo EDGEDBCLI_GIT_REV=$(cat .tmp/edgedbcli_git_rev.txt) >> $GITHUB_ENV
+        echo EDGEDBWASM_GIT_REV=$(cat .tmp/edgedbwasm_git_rev.txt) >> $GITHUB_ENV
         echo POSTGRES_GIT_REV=$(cat .tmp/postgres_git_rev.txt) >> $GITHUB_ENV
         echo STOLON_GIT_REV=$(cat .tmp/stolon_git_rev.txt) >> $GITHUB_ENV
         echo BUILD_LIB=$(python setup.py -q ci_helper --type build_lib) >> $GITHUB_ENV
@@ -1267,6 +1403,20 @@ jobs:
       with:
         path: build/cli
         key: edb-cli-v3-${{ env.EDGEDBCLI_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM binaries
+      uses: actions/cache@v2
+      id: wasm-cache
+      with:
+        path: build/wasm
+        key: edb-wasm-v4-${{ env.EDGEDBWASM_GIT_REV }}
+
+    - name: Restore cached EdgeDB WASM-test binaries
+      uses: actions/cache@v2
+      id: wasm-test-cache
+      with:
+        path: build/rust/wasm-test
+        key: edb-wasm-test-v2-${{ hashFiles('.tmp/wasm_test_cache_key.txt') }}
 
     - name: Restore cached Rust extensions
       uses: actions/cache@v2
@@ -1315,6 +1465,8 @@ jobs:
         steps.venv-cache.outputs.cache-hit != 'true' ||
         steps.cli-cache.outputs.cache-hit != 'true' ||
         steps.rust-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-cache.outputs.cache-hit != 'true' ||
+        steps.wasm-test-cache.outputs.cache-hit != 'true' ||
         steps.ext-cache.outputs.cache-hit != 'true' ||
         steps.parsers-cache.outputs.cache-hit != 'true' ||
         steps.postgres-cache.outputs.cache-hit != 'true' ||
@@ -1332,6 +1484,7 @@ jobs:
         rsync -av ./build/lib/edb/ ./edb/
         cp build/postgres/install/stamp build/postgres/
         rsync -av $VIRTUAL_ENV/edgedb_server.egg-info/ ./edgedb_server.egg-info/
+        rsync -av ./build/wasm/bin/edgedb-wasm-server ./edb/wasm/edgedb-wasm-server
 
     - name: Setup Terraform
       uses: hashicorp/setup-terraform@v1

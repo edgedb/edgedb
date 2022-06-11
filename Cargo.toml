@@ -3,6 +3,7 @@ members = [
     "edb/edgeql-parser",
     "edb/edgeql-rust",
     "edb/graphql-rewrite",
+    "tests/wasm1",
 ]
 
 [profile.release]

@@ -151,6 +151,12 @@ class flags(metaclass=FlagsMeta):
     disable_docs_edgeql_validation = Flag(
         doc="Disable validation of edgeql in docs (for site build)")
 
+    wasm_log = Flag(
+        doc="Enable debug logging of the WebAssembly server")
+
+    skip_wasm_server_start = Flag(
+        doc="Do not start wasm server, assume started instead")
+
 
 @contextlib.contextmanager
 def timeit(title='block'):

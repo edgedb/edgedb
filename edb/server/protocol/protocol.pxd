@@ -24,6 +24,7 @@ cdef class HttpRequest:
 
     cdef:
         public object url
+        public bytes uri
         public bytes version
         public bint should_keep_alive
         public bytes content_type
@@ -31,6 +32,7 @@ cdef class HttpRequest:
         public bytes accept
         public bytes body
         public bytes host
+        public list headers
 
 
 cdef class HttpResponse:
